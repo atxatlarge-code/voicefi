@@ -1,6 +1,6 @@
 """
 Live transcript watcher for Antigravity.
-Monitors transcript.jsonl in real-time to automatically trigger speech & mic on turn completion.
+Monitors transcript.jsonl in real-time across active conversations to trigger speech & mic on turn completion.
 """
 
 import glob
@@ -9,7 +9,7 @@ import os
 import time
 import threading
 from pathlib import Path
-from typing import Optional, Dict, Any, Tuple, Callable
+from typing import Optional, Dict, Any, Tuple, Callable, List
 
 from talk2me.config import Talk2MeConfig, load_config
 from talk2me.tts import get_tts_engine, stop_all_speech
@@ -20,23 +20,28 @@ from talk2me.integrations.antigravity import clean_markdown_for_speech
 from talk2me.integrations.injector import inject_text_to_active_app, focus_antigravity
 
 
-def find_latest_transcript_path() -> Optional[Path]:
-    """Find the most recently modified transcript.jsonl in ~/.gemini/antigravity/brain/."""
+def get_recent_transcript_paths(limit: int = 5) -> List[Path]:
+    """Find recently modified transcript.jsonl files in ~/.gemini/antigravity/brain/."""
     brain_dir = Path.home() / ".gemini" / "antigravity" / "brain"
     if not brain_dir.is_dir():
-        return None
+        return []
 
     pattern = str(brain_dir / "*" / ".system_generated" / "logs" / "transcript.jsonl")
     files = glob.glob(pattern)
     if not files:
-        return None
+        return []
 
     files.sort(key=lambda f: os.path.getmtime(f), reverse=True)
-    return Path(files[0])
+    return [Path(f) for f in files[:limit]]
+
+
+def find_latest_transcript_path() -> Optional[Path]:
+    paths = get_recent_transcript_paths(limit=1)
+    return paths[0] if paths else None
 
 
 class TranscriptWatcher:
-    """Watches active Antigravity transcript for completed turns."""
+    """Watches active Antigravity transcripts for completed turns."""
 
     def __init__(
         self,
@@ -47,14 +52,13 @@ class TranscriptWatcher:
         self.on_state_change = on_state_change
         self._running = False
         self._thread: Optional[threading.Thread] = None
-        self._last_processed_step_idx = -1
-        self._last_transcript_path: Optional[Path] = None
+        self._processed_steps: Dict[str, int] = {}
         self._is_handling_turn = False
         self._interrupted = False
         self.active_recorder: Optional[AudioRecorder] = None
 
     def finish_listening(self):
-        """Immediately finish recording and send captured audio."""
+        """Immediately finish recording and send captured audio (e.g. Enter key pressed)."""
         if self.active_recorder:
             self.active_recorder.stop()
 
@@ -63,6 +67,11 @@ class TranscriptWatcher:
         if self._running:
             return
         self._running = True
+
+        # Initialize existing highest step indices so we only trigger on NEW turns
+        for p in get_recent_transcript_paths(limit=5):
+            self._processed_steps[str(p)] = self._get_highest_step_index(p)
+
         self._thread = threading.Thread(target=self._watch_loop, daemon=True)
         self._thread.start()
 
@@ -74,19 +83,11 @@ class TranscriptWatcher:
         """Interrupt active turn handling and stop speaking."""
         self._interrupted = True
         stop_all_speech()
+        if self.active_recorder:
+            self.active_recorder.stop()
         self._is_handling_turn = False
         if self.on_state_change:
             self.on_state_change("idle")
-
-    def get_current_conversation_id(self) -> Optional[str]:
-        """Return the active Antigravity conversation UUID if available."""
-        path = self._last_transcript_path or find_latest_transcript_path()
-        if path and path.is_file():
-            try:
-                return path.parent.parent.parent.name
-            except Exception:
-                pass
-        return None
 
     def _notify_state(self, state: str):
         if self.on_state_change:
@@ -96,20 +97,19 @@ class TranscriptWatcher:
                 pass
 
     def _watch_loop(self):
-        """Continuous polling loop watching transcript.jsonl."""
+        """Continuous polling loop watching recent transcript.jsonl files."""
         while self._running:
             try:
-                latest_path = find_latest_transcript_path()
-                if latest_path and latest_path.is_file():
-                    if latest_path != self._last_transcript_path:
-                        self._last_transcript_path = latest_path
-                        self._last_processed_step_idx = self._get_highest_step_index(latest_path)
-
-                    self._check_transcript_update(latest_path)
+                if not self._is_handling_turn:
+                    recent_paths = get_recent_transcript_paths(limit=3)
+                    for path in recent_paths:
+                        self._check_transcript_update(path)
+                        if self._is_handling_turn:
+                            break
             except Exception:
                 pass
 
-            time.sleep(1.0)
+            time.sleep(0.5)
 
     def _get_highest_step_index(self, path: Path) -> int:
         highest = -1
@@ -131,8 +131,8 @@ class TranscriptWatcher:
 
     def _check_transcript_update(self, path: Path):
         """Inspect file for new completed agent turns."""
-        if self._is_handling_turn:
-            return
+        path_str = str(path)
+        last_processed = self._processed_steps.get(path_str, -1)
 
         last_step: Optional[Dict[str, Any]] = None
         highest_idx = -1
@@ -153,7 +153,7 @@ class TranscriptWatcher:
         except Exception:
             return
 
-        if highest_idx <= self._last_processed_step_idx or last_step is None:
+        if highest_idx <= last_processed or last_step is None:
             return
 
         step_type = last_step.get("type", "")
@@ -168,10 +168,10 @@ class TranscriptWatcher:
             and not tool_calls
             and content
         ):
-            self._last_processed_step_idx = highest_idx
+            self._processed_steps[path_str] = highest_idx
             self._handle_turn_ready(content)
         elif step_type == "USER_INPUT":
-            self._last_processed_step_idx = highest_idx
+            self._processed_steps[path_str] = highest_idx
 
     def _handle_turn_ready(self, agent_message: str):
         """Execute speech and microphone loop for the finished turn."""
@@ -204,7 +204,7 @@ class TranscriptWatcher:
                 recorder = AudioRecorder(
                     sample_rate=cfg.vad.sample_rate,
                     energy_threshold=cfg.vad.energy_threshold,
-                    silence_duration=1.1,
+                    silence_duration=0.8,
                     max_record_seconds=cfg.vad.max_record_seconds,
                 )
                 self.active_recorder = recorder
