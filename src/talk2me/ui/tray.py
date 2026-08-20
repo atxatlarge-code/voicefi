@@ -38,7 +38,7 @@ class Talk2MeTrayApp(rumps.App):
         # Build Menu Items
         self.stop_speaking_item = rumps.MenuItem("🛑 Stop Talking (Escape)", callback=self.stop_speaking_now)
         self.talk_to_agent_item = rumps.MenuItem(
-            "🎙️ Talk to Antigravity (Option + `)",
+            "🎙️ Talk to Antigravity ( ` )",
             callback=self.trigger_talk_to_antigravity,
         )
         self.focus_agent_item = rumps.MenuItem("💬 Switch to Antigravity Window", callback=self.trigger_focus_antigravity)
@@ -139,21 +139,19 @@ class Talk2MeTrayApp(rumps.App):
             try:
                 from pynput import keyboard
 
-                hotkey_map = {}
-                if self.config.global_hotkey.enabled:
-                    if self.config.global_hotkey.focus_and_talk_hotkey:
-                        hotkey_map[self.config.global_hotkey.focus_and_talk_hotkey] = (
-                            lambda: self.trigger_talk_to_antigravity()
-                        )
-                    if self.config.global_hotkey.dictate_hotkey:
-                        hotkey_map[self.config.global_hotkey.dictate_hotkey] = (
-                            lambda: self.trigger_manual_listen()
-                        )
-
-                # Combine with Escape handler
                 def on_press(key):
+                    # Escape key stops speaking
                     if key == keyboard.Key.esc:
                         stop_all_speech()
+                    # Single backtick ( ` ) key triggers talk to Antigravity
+                    elif hasattr(key, "char") and key.char == "`":
+                        if self.config.global_hotkey.enabled:
+                            self.trigger_talk_to_antigravity()
+
+                # GlobalHotKey for combo shortcuts
+                hotkey_map = {}
+                if self.config.global_hotkey.enabled and self.config.global_hotkey.dictate_hotkey:
+                    hotkey_map[self.config.global_hotkey.dictate_hotkey] = lambda: self.trigger_manual_listen()
 
                 if hotkey_map:
                     try:
