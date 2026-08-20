@@ -38,12 +38,12 @@ class Talk2MeTrayApp(rumps.App):
         # Build Menu Items
         self.stop_speaking_item = rumps.MenuItem("🛑 Stop Talking (Escape)", callback=self.stop_speaking_now)
         self.talk_to_agent_item = rumps.MenuItem(
-            f"🎙️ Talk to Antigravity ({self.config.global_hotkey.focus_and_talk_hotkey})",
+            "🎙️ Talk to Antigravity (Option + `)",
             callback=self.trigger_talk_to_antigravity,
         )
         self.focus_agent_item = rumps.MenuItem("💬 Switch to Antigravity Window", callback=self.trigger_focus_antigravity)
         self.listen_anywhere_item = rumps.MenuItem(
-            f"🎤 Dictate to Current Window ({self.config.global_hotkey.dictate_hotkey})",
+            "🎤 Dictate to Current Window (Cmd + Option + Space)",
             callback=self.trigger_manual_listen,
         )
 
