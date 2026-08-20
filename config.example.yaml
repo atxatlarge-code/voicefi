@@ -57,5 +57,5 @@ antigravity:
 # Global Desktop Dictation Hotkeys
 global_hotkey:
   enabled: true
-  focus_and_talk_hotkey: "`"           # Single key to jump to Antigravity & talk
-  dictate_hotkey: "<cmd>+<shift>+space" # Global shortcut for dictation anywhere
+  focus_and_talk_hotkey: "`"     # Single key to jump to Antigravity & talk
+  dictate_hotkey: "<alt>+t"      # Option + T for Talk (dictate anywhere)
