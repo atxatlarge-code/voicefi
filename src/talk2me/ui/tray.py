@@ -77,17 +77,19 @@ class Talk2MeTrayApp(rumps.App):
             rumps.separator,
         ]
 
-        # Start background hotkey listeners
+        # Start safe background hotkey listener (guarded against SIGABRT)
         self._start_hotkey_listeners()
 
     def handle_state_change(self, state: str):
         """Update menu bar icon based on current voice layer state."""
         if state == "speaking":
-            self.title = "🔊"
+            self.title = "🔊 Speaking..."
         elif state == "listening":
-            self.title = "🔴"
+            self.title = "🔴 Listening..."
+        elif state == "hearing":
+            self.title = "🗣️ Hearing you..."
         elif state == "transcribing":
-            self.title = "⏳"
+            self.title = "⏳ Transcribing..."
         else:
             self.title = "🎙️"
 
@@ -107,7 +109,7 @@ class Talk2MeTrayApp(rumps.App):
         def _worker():
             focus_antigravity(focus_input=True)
             time.sleep(0.3)
-            self.title = "🔴"
+            self.title = "🔴 Listening..."
             if self.config.audio_cues.enabled:
                 play_chime("start", block=False)
 
@@ -117,16 +119,22 @@ class Talk2MeTrayApp(rumps.App):
                 silence_duration=self.config.vad.silence_duration,
             )
 
-            audio_data, temp_wav = recorder.record_speech_auto()
-            self.title = "⏳"
+            audio_data, temp_wav = recorder.record_speech_auto(
+                on_speech_start=lambda: setattr(self, "title", "🗣️ Hearing you...")
+            )
+            self.title = "⏳ Transcribing..."
 
             try:
                 stt = get_stt_engine(self.config)
                 text = stt.transcribe(temp_wav)
-                if text:
+                if text and text.strip():
                     if self.config.audio_cues.enabled:
                         play_chime("done", block=False)
                     inject_text_to_active_app(text, submit_enter=True, target_antigravity=True)
+                    try:
+                        rumps.notification("Talk 2 Me", "Prompt Sent", text[:80])
+                    except Exception:
+                        pass
             finally:
                 temp_wav.unlink(missing_ok=True)
                 self.title = "🎙️"
@@ -134,38 +142,22 @@ class Talk2MeTrayApp(rumps.App):
         threading.Thread(target=_worker, daemon=True).start()
 
     def _start_hotkey_listeners(self):
-        """Register global hotkeys for ` and Ctrl+T with full modifier tracking."""
+        """Register global hotkeys with guarded error handling."""
         def _listener():
             try:
                 from pynput import keyboard
 
-                ctrl_pressed = False
-
                 def on_press(key):
-                    nonlocal ctrl_pressed
                     try:
-                        if key in (keyboard.Key.ctrl, keyboard.Key.ctrl_l, keyboard.Key.ctrl_r):
-                            ctrl_pressed = True
-                        elif key == keyboard.Key.esc:
+                        if key == keyboard.Key.esc:
                             stop_all_speech()
-                        elif hasattr(key, "char") and key.char:
-                            # Single backtick ( ` ) key
-                            if key.char == "`":
-                                if self.config.global_hotkey.enabled:
-                                    self.trigger_talk_to_antigravity()
-                            # Control + T (ASCII 20 or 't' with ctrl)
-                            elif key.char == "\x14" or (ctrl_pressed and key.char.lower() == "t"):
-                                if self.config.global_hotkey.enabled:
-                                    self.trigger_manual_listen()
+                        elif hasattr(key, "char") and key.char == "`":
+                            if self.config.global_hotkey.enabled:
+                                self.trigger_talk_to_antigravity()
                     except Exception:
                         pass
 
-                def on_release(key):
-                    nonlocal ctrl_pressed
-                    if key in (keyboard.Key.ctrl, keyboard.Key.ctrl_l, keyboard.Key.ctrl_r):
-                        ctrl_pressed = False
-
-                listener = keyboard.Listener(on_press=on_press, on_release=on_release)
+                listener = keyboard.Listener(on_press=on_press)
                 listener.daemon = True
                 listener.start()
             except Exception as e:
@@ -192,7 +184,7 @@ class Talk2MeTrayApp(rumps.App):
     def trigger_manual_listen(self, _=None):
         def _worker():
             time.sleep(0.4)
-            self.title = "🔴"
+            self.title = "🔴 Listening..."
             if self.config.audio_cues.enabled:
                 play_chime("start", block=False)
 
@@ -202,16 +194,22 @@ class Talk2MeTrayApp(rumps.App):
                 silence_duration=self.config.vad.silence_duration,
             )
 
-            audio_data, temp_wav = recorder.record_speech_auto()
-            self.title = "⏳"
+            audio_data, temp_wav = recorder.record_speech_auto(
+                on_speech_start=lambda: setattr(self, "title", "🗣️ Hearing you...")
+            )
+            self.title = "⏳ Transcribing..."
 
             try:
                 stt = get_stt_engine(self.config)
                 text = stt.transcribe(temp_wav)
-                if text:
+                if text and text.strip():
                     if self.config.audio_cues.enabled:
                         play_chime("done", block=False)
                     inject_text_to_active_app(text, submit_enter=False)
+                    try:
+                        rumps.notification("Talk 2 Me", "Transcribed", text[:80])
+                    except Exception:
+                        pass
             finally:
                 temp_wav.unlink(missing_ok=True)
                 self.title = "🎙️"
