@@ -1,11 +1,12 @@
 """
 macOS Menu Bar Companion App using rumps.
-Provides visual status, quick toggles, voice selection, and dictation triggers.
+Provides visual status, live transcript watching, voice selection, and dictation triggers.
 """
 
 import os
 import subprocess
 import threading
+import time
 from pathlib import Path
 from typing import Optional
 import rumps
@@ -17,6 +18,7 @@ from talk2me.stt import get_stt_engine
 from talk2me.audio.recorder import AudioRecorder
 from talk2me.audio.chimes import play_chime
 from talk2me.integrations.injector import inject_text_to_active_app
+from talk2me.integrations.watcher import TranscriptWatcher
 
 
 class Talk2MeTrayApp(rumps.App):
@@ -25,6 +27,10 @@ class Talk2MeTrayApp(rumps.App):
     def __init__(self):
         super(Talk2MeTrayApp, self).__init__("Talk 2 Me", icon=None, title="🎙️")
         self.config = load_config()
+
+        # Start live Antigravity transcript watcher
+        self.watcher = TranscriptWatcher(self.config)
+        self.watcher.start()
 
         # Build Menu Items
         self.auto_listen_item = rumps.MenuItem(
@@ -73,6 +79,8 @@ class Talk2MeTrayApp(rumps.App):
 
     def trigger_manual_listen(self, _):
         def _worker():
+            # Small pause so menu closes and previous window refocuses
+            time.sleep(0.4)
             self.title = "🔴"
             if self.config.audio_cues.enabled:
                 play_chime("start", block=False)

@@ -9,10 +9,9 @@ import time
 
 def inject_text_to_active_app(text: str, submit_enter: bool = True) -> bool:
     """
-    Inject text into the currently active application on macOS.
+    Inject text into the active application on macOS.
     
-    Copies text to clipboard and triggers Cmd+V paste for speed and emoji/unicode support,
-    optionally followed by pressing Enter/Return.
+    Copies text to clipboard via pbcopy and triggers Cmd+V paste via AppleScript.
     """
     if not text or not text.strip():
         return False
@@ -27,10 +26,9 @@ def inject_text_to_active_app(text: str, submit_enter: bool = True) -> bool:
         print(f"[Injector] pbcopy error: {e}")
         return False
 
-    # Small sleep to ensure clipboard is populated
-    time.sleep(0.05)
+    time.sleep(0.1)
 
-    # Step 2: AppleScript to paste Cmd+V and optionally press Enter
+    # Step 2: AppleScript to paste into frontmost window
     enter_script = 'keystroke return' if submit_enter else ''
     applescript = f'''
     tell application "System Events"
@@ -41,13 +39,19 @@ def inject_text_to_active_app(text: str, submit_enter: bool = True) -> bool:
     '''
 
     try:
-        subprocess.run(
+        result = subprocess.run(
             ["osascript", "-e", applescript],
-            check=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=3,
         )
-        return True
+        if result.returncode == 0:
+            return True
+        else:
+            # Fallback notice: text is in clipboard
+            print(f"[Injector] osascript notice (text is in clipboard): {result.stderr.strip()}")
+            return False
     except Exception as e:
-        print(f"[Injector] osascript injection error: {e}")
+        print(f"[Injector] Injection exception: {e}")
         return False
