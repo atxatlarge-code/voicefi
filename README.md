@@ -1,14 +1,14 @@
-# 🎙️ Talk 2 Me
+# 🎙️ Talk 2 Me™
 
 <div align="center">
 
-**A hands-free, two-way voice layer for AI coding agents & macOS desktop computing.**
+**The Universal Voice Layer for AI Agents & macOS Desktop Computing.**
 
 [![Status: Patent Pending](https://img.shields.io/badge/Status-Patent%20Pending%20(64%2F137%2C300)-blue.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 [![Python: 3.10+](https://img.shields.io/badge/Python-3.10+-3776AB.svg?logo=python&logoColor=white)](https://python.org)
 [![Platform: macOS](https://img.shields.io/badge/Platform-macOS-lightgrey.svg?logo=apple&logoColor=white)](https://apple.com)
-[![Engine: Antigravity](https://img.shields.io/badge/Engine-Antigravity%20Ready-purple.svg)]()
+[![Engine: Multi-Agent Ready](https://img.shields.io/badge/Engine-Antigravity%20%7C%20Claude%20%7C%20Cursor-purple.svg)]()
 
 *U.S. Patent Application No. 64/137,300 — LienLogic Data LLC*
 
@@ -16,11 +16,12 @@
 
 ---
 
-## ⚡ The Problem & Vision
+## ⚡ The Vision
 
-When pair-programming with autonomous AI agents like **Antigravity**, developers spend hours staring at progress logs, waiting for agent turns to finish, reading markdown summaries, clicking confirmation buttons, and typing prompt replies.
+Whether you are pair-programming with autonomous AI agents (**Antigravity, Claude Code, Cursor, Aider**) or navigating your everyday desktop workflow, **Talk 2 Me** provides an ambient, hands-free voice layer across your entire computer.
 
-**Talk 2 Me** closes this gap by transforming your AI agent into a natural, conversational voice partner:
+1. **For AI Agents**: When your agent finishes writing code, running migrations, or executing tests in the background, Talk 2 Me speaks a brief soundbite, chimes, and auto-listens for your next instruction — no clicking or window switching required.
+2. **For Your Desktop**: Hit `Control + T` to dictate with local Whisper neural accuracy into Slack, Chrome, Notes, Terminal, or any text box on macOS. Hit `` ` `` (Backtick) to jump straight to your agent.
 
 ```
                   ┌─────────────────────────────────────────┐
