@@ -7,12 +7,23 @@ import subprocess
 import time
 
 
+def open_accessibility_settings() -> None:
+    """Open the macOS Accessibility Privacy settings pane directly."""
+    try:
+        subprocess.run(
+            ["open", "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except Exception:
+        pass
+
+
 def focus_antigravity(focus_input: bool = True) -> bool:
     """
     Bring Antigravity application window to the front and focus chat input box.
     """
     try:
-        # Step 1: Activate Antigravity app
         subprocess.run(
             ["osascript", "-e", 'tell application "Antigravity" to activate'],
             check=True,
@@ -22,7 +33,6 @@ def focus_antigravity(focus_input: bool = True) -> bool:
         )
         time.sleep(0.2)
 
-        # Step 2: Send Cmd+L if allowed to focus the prompt box
         if focus_input:
             subprocess.run(
                 [

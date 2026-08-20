@@ -17,7 +17,7 @@ from talk2me.tts import get_tts_engine, stop_all_speech
 from talk2me.stt import get_stt_engine
 from talk2me.audio.recorder import AudioRecorder
 from talk2me.audio.chimes import play_chime
-from talk2me.integrations.injector import inject_text_to_active_app, focus_antigravity
+from talk2me.integrations.injector import inject_text_to_active_app, focus_antigravity, open_accessibility_settings
 from talk2me.integrations.watcher import TranscriptWatcher
 
 
@@ -77,6 +77,7 @@ class Talk2MeTrayApp(rumps.App):
             self.auto_listen_item,
             self.read_summary_item,
             rumps.separator,
+            rumps.MenuItem("🔐 Grant Permissions (Auto-Paste)", callback=self.open_permissions),
             rumps.MenuItem("⚙️ Open Config File", callback=self.open_config_file),
             self.tier_item,
             rumps.separator,
@@ -108,6 +109,10 @@ class Talk2MeTrayApp(rumps.App):
         if self.watcher:
             self.watcher.interrupt()
         self._current_status = "idle"
+
+    def open_permissions(self, _=None):
+        """Open macOS Accessibility settings pane."""
+        open_accessibility_settings()
 
     def trigger_focus_antigravity(self, _=None):
         """Switch frontmost window to Antigravity and focus input."""
