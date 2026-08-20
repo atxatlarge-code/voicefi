@@ -1,7 +1,7 @@
 """
 Microphone audio capture with Adaptive Voice Activity Detection (VAD).
-Dynamically calibrates room noise and detects speech start and silence cutoff.
-Supports immediate manual stop via stop_event or Enter key.
+Uses smoothed energy tracking and robust 0.8s silence cutoff to prevent background noise hangs.
+Supports instant manual completion via Enter key / stop_event.
 """
 
 import time
@@ -15,13 +15,13 @@ import soundfile as sf
 
 
 class AudioRecorder:
-    """Records audio from default input device with adaptive energy VAD."""
+    """Records audio from default input device with robust, snappy energy VAD."""
 
     def __init__(
         self,
         sample_rate: int = 16000,
-        energy_threshold: float = 0.003,
-        silence_duration: float = 1.1,
+        energy_threshold: float = 0.004,
+        silence_duration: float = 0.8,
         max_record_seconds: float = 45.0,
     ):
         self.sample_rate = sample_rate
@@ -41,24 +41,26 @@ class AudioRecorder:
         stop_event: Optional[threading.Event] = None,
     ) -> Tuple[np.ndarray, Path]:
         """
-        Record audio from mic until speech is detected and followed by silence.
-        Can be terminated immediately via stop_event / Enter key.
+        Record audio from mic until speech is detected and followed by natural silence.
+        Can be terminated immediately via Enter key / stop_event.
         """
         self.stop_event.clear()
         trigger_stop = stop_event or self.stop_event
 
-        chunk_duration = 0.1  # 100ms chunks
+        chunk_duration = 0.05  # 50ms chunks for rapid response
         chunk_size = int(self.sample_rate * chunk_duration)
 
         recorded_frames = []
         speech_started = False
-        silence_start_time: Optional[float] = None
-        start_time = time.time()
         speech_start_notified = False
+        consecutive_silence_chunks = 0
+        chunks_needed_for_silence = int(self.silence_duration / chunk_duration)  # ~16 chunks for 0.8s
+        start_time = time.time()
 
         # Dynamic noise floor calibration
         ambient_samples = []
-        calibration_chunks = 3  # First 300ms used for calibration
+        calibration_chunks = 6  # 300ms calibration
+        smoothed_energy = 0.0
         active_threshold = self.energy_threshold
 
         with sd.InputStream(samplerate=self.sample_rate, channels=1, dtype="float32") as stream:
@@ -74,45 +76,45 @@ class AudioRecorder:
 
                 # Compute RMS energy
                 energy = float(np.sqrt(np.mean(audio_chunk ** 2)))
+                smoothed_energy = 0.6 * smoothed_energy + 0.4 * energy
                 chunk_count += 1
 
-                # Calibrate ambient noise floor during the first 300ms
+                # Calibrate ambient noise floor during initial 300ms
                 if chunk_count <= calibration_chunks:
                     ambient_samples.append(energy)
                     if chunk_count == calibration_chunks:
                         ambient_avg = float(np.mean(ambient_samples))
-                        # Set active threshold just above ambient floor with safety margin
-                        active_threshold = max(0.003, min(self.energy_threshold, ambient_avg * 2.5))
+                        # Set active threshold with 2.8x ambient multiplier + min 0.0035
+                        active_threshold = max(0.0035, ambient_avg * 2.8)
                     continue
 
                 now = time.time()
                 elapsed = now - start_time
 
                 if on_listening_tick:
-                    on_listening_tick(energy)
+                    on_listening_tick(smoothed_energy)
 
-                # Check speech activation against dynamic threshold
-                if energy > active_threshold:
+                # Check speech activation against smoothed energy
+                if smoothed_energy > active_threshold:
                     if not speech_started:
                         speech_started = True
                         if on_speech_start and not speech_start_notified:
                             on_speech_start()
                             speech_start_notified = True
-                    silence_start_time = None
+                    consecutive_silence_chunks = 0
                 else:
                     if speech_started:
-                        if silence_start_time is None:
-                            silence_start_time = now
-                        elif (now - silence_start_time) >= self.silence_duration:
-                            # Silence timeout after speech -> complete
+                        consecutive_silence_chunks += 1
+                        if consecutive_silence_chunks >= chunks_needed_for_silence:
+                            # Natural speech pause reached -> finish recording
                             break
 
                 # Max duration safety cutoff
                 if elapsed >= self.max_record_seconds:
                     break
 
-                # If no speech at all after 20 seconds, exit gracefully
-                if not speech_started and elapsed >= 20.0:
+                # If no speech at all after 15 seconds, exit gracefully
+                if not speech_started and elapsed >= 15.0:
                     break
 
         if recorded_frames:
