@@ -54,7 +54,8 @@ antigravity:
   max_spoken_words: 60         # Summarize agent turn to brief soundbite
   inject_to_active_window: true # Type/submit transcribed text to the active application
 
-# Global Desktop Dictation Hotkey
+# Global Desktop Dictation Hotkeys
 global_hotkey:
   enabled: true
-  hotkey: "<cmd>+<alt>+space"  # Global hotkey to trigger voice dictation anywhere
+  focus_and_talk_hotkey: "`"           # Single key to jump to Antigravity & talk
+  dictate_hotkey: "<cmd>+<shift>+space" # Global shortcut for dictation anywhere
