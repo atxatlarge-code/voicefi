@@ -145,6 +145,61 @@ def cmd_setup(args):
     print(f"⚙️ Configuration saved at: {config_path}")
 
 
+def cmd_autostart(args):
+    """Register macOS LaunchAgent so Talk 2 Me menu bar tray stays on and runs at login."""
+    import shutil
+    launch_agents_dir = Path.home() / "Library" / "LaunchAgents"
+    launch_agents_dir.mkdir(parents=True, exist_ok=True)
+    plist_path = launch_agents_dir / "com.talk2me.menubar.plist"
+
+    venv_bin = Path(sys.executable).parent / "talk2me"
+    bin_path = str(venv_bin) if venv_bin.exists() else (shutil.which("talk2me") or "talk2me")
+
+    plist_content = f"""<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.talk2me.menubar</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>{bin_path}</string>
+        <string>tray</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/tmp/talk2me.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/talk2me.err</string>
+</dict>
+</plist>
+"""
+    with open(plist_path, "w", encoding="utf-8") as f:
+        f.write(plist_content)
+
+    import subprocess
+    subprocess.run(["launchctl", "unload", str(plist_path)], stderr=subprocess.DEVNULL)
+    subprocess.run(["launchctl", "load", str(plist_path)])
+
+    print(f"✅ Talk 2 Me menu bar companion registered to start automatically at login.")
+    print(f"📌 Plist installed at: {plist_path}")
+
+
+def cmd_stop_autostart(args):
+    """Unload and remove macOS LaunchAgent."""
+    import subprocess
+    plist_path = Path.home() / "Library" / "LaunchAgents" / "com.talk2me.menubar.plist"
+    if plist_path.is_file():
+        subprocess.run(["launchctl", "unload", str(plist_path)], stderr=subprocess.DEVNULL)
+        plist_path.unlink(missing_ok=True)
+        print("🛑 Talk 2 Me menu bar companion autostart removed.")
+    else:
+        print("ℹ️ No active autostart service found.")
+
+
 def cmd_info(args):
     """Display active configuration and system capabilities."""
     config = load_config(args.config)
@@ -200,6 +255,10 @@ def main():
     # setup
     subparsers.add_parser("setup", help="Auto-configure Antigravity lifecycle hooks")
 
+    # autostart
+    subparsers.add_parser("autostart", help="Register macOS LaunchAgent to keep menu bar icon persistent")
+    subparsers.add_parser("stop-autostart", help="Remove macOS LaunchAgent autostart")
+
     # info
     subparsers.add_parser("info", help="Show system status and voices")
 
@@ -216,6 +275,8 @@ def main():
         "loop": cmd_loop,
         "tray": cmd_tray,
         "setup": cmd_setup,
+        "autostart": cmd_autostart,
+        "stop-autostart": cmd_stop_autostart,
         "info": cmd_info,
     }
 
