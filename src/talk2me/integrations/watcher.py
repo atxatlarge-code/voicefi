@@ -221,6 +221,12 @@ class TranscriptWatcher:
                     if cfg.audio_cues.enabled:
                         play_chime("done", block=False)
 
+                    try:
+                        import rumps
+                        rumps.notification("Talk 2 Me", "Transcribed Voice", text[:100])
+                    except Exception:
+                        pass
+
                     if cfg.antigravity.inject_to_active_window:
                         inject_text_to_active_app(text, submit_enter=True, target_antigravity=True)
         finally:
