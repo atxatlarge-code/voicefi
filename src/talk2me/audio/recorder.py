@@ -84,8 +84,8 @@ class AudioRecorder:
                 if elapsed >= self.max_record_seconds:
                     break
 
-                # If no speech at all after 12 seconds, exit to avoid hanging forever
-                if not speech_started and elapsed >= 12.0:
+                # If no speech at all after 25 seconds, exit to avoid hanging forever
+                if not speech_started and elapsed >= 25.0:
                     break
 
         if recorded_frames:
