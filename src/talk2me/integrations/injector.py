@@ -7,9 +7,12 @@ import subprocess
 import time
 
 
-def focus_antigravity() -> bool:
-    """Bring Antigravity application window to the front on macOS."""
+def focus_antigravity(focus_input: bool = True) -> bool:
+    """
+    Bring Antigravity application window to the front and focus chat input box.
+    """
     try:
+        # Step 1: Activate Antigravity app
         subprocess.run(
             ["osascript", "-e", 'tell application "Antigravity" to activate'],
             check=True,
@@ -18,6 +21,19 @@ def focus_antigravity() -> bool:
             timeout=3,
         )
         time.sleep(0.2)
+
+        # Step 2: Send Cmd+L if allowed to focus the prompt box
+        if focus_input:
+            subprocess.run(
+                [
+                    "osascript",
+                    "-e",
+                    'tell application "System Events" to keystroke "l" using command down',
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=2,
+            )
         return True
     except Exception as e:
         print(f"[Injector] Error focusing Antigravity: {e}")
@@ -36,7 +52,7 @@ def inject_text_to_active_app(text: str, submit_enter: bool = True, target_antig
     clean_text = text.strip()
 
     if target_antigravity:
-        focus_antigravity()
+        focus_antigravity(focus_input=True)
 
     # Step 1: Copy to macOS clipboard using pbcopy
     try:

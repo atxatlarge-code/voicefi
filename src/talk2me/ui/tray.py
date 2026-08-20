@@ -37,9 +37,15 @@ class Talk2MeTrayApp(rumps.App):
 
         # Build Menu Items
         self.stop_speaking_item = rumps.MenuItem("🛑 Stop Talking (Escape)", callback=self.stop_speaking_now)
-        self.talk_to_agent_item = rumps.MenuItem("🎙️ Talk to Antigravity (Focus & Send)", callback=self.trigger_talk_to_antigravity)
+        self.talk_to_agent_item = rumps.MenuItem(
+            f"🎙️ Talk to Antigravity ({self.config.global_hotkey.focus_and_talk_hotkey})",
+            callback=self.trigger_talk_to_antigravity,
+        )
         self.focus_agent_item = rumps.MenuItem("💬 Switch to Antigravity Window", callback=self.trigger_focus_antigravity)
-        self.listen_anywhere_item = rumps.MenuItem("🎤 Dictate to Current Window", callback=self.trigger_manual_listen)
+        self.listen_anywhere_item = rumps.MenuItem(
+            f"🎤 Dictate to Current Window ({self.config.global_hotkey.dictate_hotkey})",
+            callback=self.trigger_manual_listen,
+        )
 
         self.auto_listen_item = rumps.MenuItem(
             "Auto-Listen on Agent Turn",
@@ -71,8 +77,8 @@ class Talk2MeTrayApp(rumps.App):
             rumps.separator,
         ]
 
-        # Start background hotkey listener for Escape to interrupt speech
-        self._start_hotkey_listener()
+        # Start background hotkey listeners
+        self._start_hotkey_listeners()
 
     def handle_state_change(self, state: str):
         """Update menu bar icon based on current voice layer state."""
@@ -93,13 +99,13 @@ class Talk2MeTrayApp(rumps.App):
         self.title = "🎙️"
 
     def trigger_focus_antigravity(self, _=None):
-        """Switch frontmost window to Antigravity."""
-        focus_antigravity()
+        """Switch frontmost window to Antigravity and focus input."""
+        focus_antigravity(focus_input=True)
 
     def trigger_talk_to_antigravity(self, _=None):
         """Focus Antigravity and start listening for a prompt to send."""
         def _worker():
-            focus_antigravity()
+            focus_antigravity(focus_input=True)
             time.sleep(0.3)
             self.title = "🔴"
             if self.config.audio_cues.enabled:
@@ -127,14 +133,35 @@ class Talk2MeTrayApp(rumps.App):
 
         threading.Thread(target=_worker, daemon=True).start()
 
-    def _start_hotkey_listener(self):
-        """Listen for Escape hotkey to interrupt speech."""
+    def _start_hotkey_listeners(self):
+        """Register global hotkeys for fast access and Escape interrupt."""
         def _listener():
             try:
                 from pynput import keyboard
+
+                hotkey_map = {}
+                if self.config.global_hotkey.enabled:
+                    if self.config.global_hotkey.focus_and_talk_hotkey:
+                        hotkey_map[self.config.global_hotkey.focus_and_talk_hotkey] = (
+                            lambda: self.trigger_talk_to_antigravity()
+                        )
+                    if self.config.global_hotkey.dictate_hotkey:
+                        hotkey_map[self.config.global_hotkey.dictate_hotkey] = (
+                            lambda: self.trigger_manual_listen()
+                        )
+
+                # Combine with Escape handler
                 def on_press(key):
                     if key == keyboard.Key.esc:
                         stop_all_speech()
+
+                if hotkey_map:
+                    try:
+                        gh = keyboard.GlobalHotKeys(hotkey_map)
+                        gh.start()
+                    except Exception:
+                        pass
+
                 with keyboard.Listener(on_press=on_press) as listener:
                     listener.join()
             except Exception:
@@ -158,7 +185,7 @@ class Talk2MeTrayApp(rumps.App):
             save_config(self.config)
         subprocess.run(["open", str(path)])
 
-    def trigger_manual_listen(self, _):
+    def trigger_manual_listen(self, _=None):
         def _worker():
             time.sleep(0.4)
             self.title = "🔴"

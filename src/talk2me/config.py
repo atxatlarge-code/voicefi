@@ -50,7 +50,8 @@ class AntigravityConfig(BaseModel):
 
 class GlobalHotkeyConfig(BaseModel):
     enabled: bool = True
-    hotkey: str = "<cmd>+<alt>+space"
+    focus_and_talk_hotkey: str = "<alt>+`"
+    dictate_hotkey: str = "<cmd>+<alt>+space"
 
 
 class Talk2MeConfig(BaseModel):
