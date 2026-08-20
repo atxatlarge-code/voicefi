@@ -1,6 +1,6 @@
 """
 macOS Menu Bar Companion App using rumps.
-Provides visual status, live transcript watching, voice selection, and dictation triggers.
+Provides visual status, live transcript watching, voice selection, stop speaking button, and hotkeys.
 """
 
 import os
@@ -13,7 +13,7 @@ import rumps
 
 from talk2me.config import load_config, save_config, get_default_config_path
 from talk2me.license import FeatureGate
-from talk2me.tts import get_tts_engine
+from talk2me.tts import get_tts_engine, stop_all_speech
 from talk2me.stt import get_stt_engine
 from talk2me.audio.recorder import AudioRecorder
 from talk2me.audio.chimes import play_chime
@@ -28,11 +28,17 @@ class Talk2MeTrayApp(rumps.App):
         super(Talk2MeTrayApp, self).__init__("Talk 2 Me", icon=None, title="🎙️")
         self.config = load_config()
 
-        # Start live Antigravity transcript watcher
-        self.watcher = TranscriptWatcher(self.config)
+        # Start live Antigravity transcript watcher with UI state callback
+        self.watcher = TranscriptWatcher(
+            self.config,
+            on_state_change=self.handle_state_change,
+        )
         self.watcher.start()
 
         # Build Menu Items
+        self.stop_speaking_item = rumps.MenuItem("🛑 Stop Talking (Escape)", callback=self.stop_speaking_now)
+        self.listen_now_item = rumps.MenuItem("🎤 Listen & Type Now", callback=self.trigger_manual_listen)
+
         self.auto_listen_item = rumps.MenuItem(
             "Auto-Listen on Agent Turn",
             callback=self.toggle_auto_listen,
@@ -45,12 +51,11 @@ class Talk2MeTrayApp(rumps.App):
         )
         self.read_summary_item.state = 1 if self.config.antigravity.read_summary_aloud else 0
 
-        self.listen_now_item = rumps.MenuItem("🎤 Listen & Type Now", callback=self.trigger_manual_listen)
-
         tier_info = FeatureGate.get_tier_summary(self.config)
         self.tier_item = rumps.MenuItem(f"Tier: {tier_info['tier']}", callback=None)
 
         self.menu = [
+            self.stop_speaking_item,
             self.listen_now_item,
             rumps.separator,
             self.auto_listen_item,
@@ -60,6 +65,42 @@ class Talk2MeTrayApp(rumps.App):
             self.tier_item,
             rumps.separator,
         ]
+
+        # Start background hotkey listener for Escape / Option+Escape to interrupt speech
+        self._start_hotkey_listener()
+
+    def handle_state_change(self, state: str):
+        """Update menu bar icon based on current voice layer state."""
+        if state == "speaking":
+            self.title = "🔊"
+        elif state == "listening":
+            self.title = "🔴"
+        elif state == "transcribing":
+            self.title = "⏳"
+        else:
+            self.title = "🎙️"
+
+    def stop_speaking_now(self, _=None):
+        """Instantly stop speech synthesis."""
+        stop_all_speech()
+        if self.watcher:
+            self.watcher.interrupt()
+        self.title = "🎙️"
+
+    def _start_hotkey_listener(self):
+        """Listen for Option+Escape or Escape hotkey to interrupt speech."""
+        def _listener():
+            try:
+                from pynput import keyboard
+                def on_press(key):
+                    if key == keyboard.Key.esc:
+                        stop_all_speech()
+                with keyboard.Listener(on_press=on_press) as listener:
+                    listener.join()
+            except Exception:
+                pass
+
+        threading.Thread(target=_listener, daemon=True).start()
 
     def toggle_auto_listen(self, sender):
         self.config.antigravity.auto_listen = not self.config.antigravity.auto_listen
@@ -79,7 +120,6 @@ class Talk2MeTrayApp(rumps.App):
 
     def trigger_manual_listen(self, _):
         def _worker():
-            # Small pause so menu closes and previous window refocuses
             time.sleep(0.4)
             self.title = "🔴"
             if self.config.audio_cues.enabled:

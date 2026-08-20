@@ -9,10 +9,10 @@ import os
 import time
 import threading
 from pathlib import Path
-from typing import Optional, Dict, Any, Tuple
+from typing import Optional, Dict, Any, Tuple, Callable
 
 from talk2me.config import Talk2MeConfig, load_config
-from talk2me.tts import get_tts_engine
+from talk2me.tts import get_tts_engine, stop_all_speech
 from talk2me.stt import get_stt_engine
 from talk2me.audio.recorder import AudioRecorder
 from talk2me.audio.chimes import play_chime
@@ -31,7 +31,6 @@ def find_latest_transcript_path() -> Optional[Path]:
     if not files:
         return None
 
-    # Sort by modification time, newest first
     files.sort(key=lambda f: os.path.getmtime(f), reverse=True)
     return Path(files[0])
 
@@ -39,13 +38,19 @@ def find_latest_transcript_path() -> Optional[Path]:
 class TranscriptWatcher:
     """Watches active Antigravity transcript for completed turns."""
 
-    def __init__(self, config: Optional[Talk2MeConfig] = None):
+    def __init__(
+        self,
+        config: Optional[Talk2MeConfig] = None,
+        on_state_change: Optional[Callable[[str], None]] = None,
+    ):
         self.config = config or load_config()
+        self.on_state_change = on_state_change
         self._running = False
         self._thread: Optional[threading.Thread] = None
         self._last_processed_step_idx = -1
         self._last_transcript_path: Optional[Path] = None
         self._is_handling_turn = False
+        self._interrupted = False
 
     def start(self):
         """Start the background watcher thread."""
@@ -59,6 +64,21 @@ class TranscriptWatcher:
         """Stop the background watcher thread."""
         self._running = False
 
+    def interrupt(self):
+        """Interrupt active turn handling and stop speaking."""
+        self._interrupted = True
+        stop_all_speech()
+        self._is_handling_turn = False
+        if self.on_state_change:
+            self.on_state_change("idle")
+
+    def _notify_state(self, state: str):
+        if self.on_state_change:
+            try:
+                self.on_state_change(state)
+            except Exception:
+                pass
+
     def _watch_loop(self):
         """Continuous polling loop watching transcript.jsonl."""
         while self._running:
@@ -67,11 +87,10 @@ class TranscriptWatcher:
                 if latest_path and latest_path.is_file():
                     if latest_path != self._last_transcript_path:
                         self._last_transcript_path = latest_path
-                        # Initialize step index on new file to the last line
                         self._last_processed_step_idx = self._get_highest_step_index(latest_path)
 
                     self._check_transcript_update(latest_path)
-            except Exception as e:
+            except Exception:
                 pass
 
             time.sleep(1.0)
@@ -126,11 +145,6 @@ class TranscriptWatcher:
         content = last_step.get("content", "")
         tool_calls = last_step.get("tool_calls", [])
 
-        # An agent turn is ready when:
-        # 1. Source is MODEL / PLANNER_RESPONSE
-        # 2. Status is DONE
-        # 3. No pending tool calls in this step
-        # 4. Content exists (agent response to user)
         if (
             step_type == "PLANNER_RESPONSE"
             and step_source == "MODEL"
@@ -141,23 +155,28 @@ class TranscriptWatcher:
             self._last_processed_step_idx = highest_idx
             self._handle_turn_ready(content)
         elif step_type == "USER_INPUT":
-            # Update last processed on user input
             self._last_processed_step_idx = highest_idx
 
     def _handle_turn_ready(self, agent_message: str):
         """Execute speech and microphone loop for the finished turn."""
         self._is_handling_turn = True
+        self._interrupted = False
         try:
             cfg = self.config
             summary = clean_markdown_for_speech(agent_message, max_words=cfg.antigravity.max_spoken_words)
 
             # 1. Speak summary
-            if cfg.antigravity.read_summary_aloud and summary:
+            if cfg.antigravity.read_summary_aloud and summary and not self._interrupted:
+                self._notify_state("speaking")
                 tts = get_tts_engine(cfg)
                 tts.speak(summary, block=True)
 
+            if self._interrupted:
+                return
+
             # 2. Auto-listen
-            if cfg.antigravity.auto_listen:
+            if cfg.antigravity.auto_listen and not self._interrupted:
+                self._notify_state("listening")
                 if cfg.audio_cues.enabled:
                     play_chime("start", block=False)
 
@@ -170,13 +189,18 @@ class TranscriptWatcher:
 
                 audio_data, temp_wav = recorder.record_speech_auto()
 
+                if self._interrupted:
+                    temp_wav.unlink(missing_ok=True)
+                    return
+
+                self._notify_state("transcribing")
                 stt = get_stt_engine(cfg)
                 try:
                     text = stt.transcribe(temp_wav)
                 finally:
                     temp_wav.unlink(missing_ok=True)
 
-                if text and text.strip():
+                if text and text.strip() and not self._interrupted:
                     if cfg.audio_cues.enabled:
                         play_chime("done", block=False)
 
@@ -184,3 +208,4 @@ class TranscriptWatcher:
                         inject_text_to_active_app(text, submit_enter=True)
         finally:
             self._is_handling_turn = False
+            self._notify_state("idle")

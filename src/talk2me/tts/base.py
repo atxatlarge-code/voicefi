@@ -1,7 +1,8 @@
 """
-Base abstract class and factory for Text-to-Speech (TTS) providers.
+Base abstract class, factory, and global stop utilities for Text-to-Speech (TTS).
 """
 
+import subprocess
 from abc import ABC, abstractmethod
 from typing import Optional
 
@@ -23,4 +24,20 @@ class BaseTTS(ABC):
     @abstractmethod
     def stop(self) -> None:
         """Interrupt any ongoing speech playback."""
+        pass
+
+
+def stop_all_speech() -> None:
+    """
+    Instantly stop any active speech synthesis and audio playback on macOS.
+    Kills any running 'say' or 'afplay' processes.
+    """
+    try:
+        subprocess.run(["killall", "say"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception:
+        pass
+
+    try:
+        subprocess.run(["killall", "afplay"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception:
         pass
