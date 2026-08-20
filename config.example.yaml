@@ -36,7 +36,7 @@ stt:
 # Voice Activity Detection (VAD) & Recording
 vad:
   silence_duration: 1.5    # Seconds of silence after speech to stop recording
-  energy_threshold: 0.015  # RMS energy threshold for speech detection
+  energy_threshold: 0.003  # RMS energy threshold (automatically calibrated)
   max_record_seconds: 45   # Maximum single recording duration
   sample_rate: 16000       # Sample rate for STT (16kHz standard)
 

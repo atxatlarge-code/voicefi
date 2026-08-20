@@ -1,6 +1,6 @@
 """
-Microphone audio capture with Voice Activity Detection (VAD).
-Detects speech start and automatic silence cutoff for hands-free interactions.
+Microphone audio capture with Adaptive Voice Activity Detection (VAD).
+Dynamically calibrates room noise and detects speech start and silence cutoff.
 """
 
 import time
@@ -14,12 +14,12 @@ import soundfile as sf
 
 
 class AudioRecorder:
-    """Records audio from default input device with energy-based VAD."""
+    """Records audio from default input device with adaptive energy VAD."""
 
     def __init__(
         self,
         sample_rate: int = 16000,
-        energy_threshold: float = 0.015,
+        energy_threshold: float = 0.003,
         silence_duration: float = 1.5,
         max_record_seconds: float = 45.0,
     ):
@@ -35,21 +35,24 @@ class AudioRecorder:
     ) -> Tuple[np.ndarray, Path]:
         """
         Record audio from mic until speech is detected and followed by silence.
-        
-        Returns:
-            Tuple of (audio_numpy_array, path_to_temporary_wav_file)
+        Uses dynamic background noise calibration for effortless conversational detection.
         """
         chunk_duration = 0.1  # 100ms chunks
         chunk_size = int(self.sample_rate * chunk_duration)
-        
+
         recorded_frames = []
         speech_started = False
         silence_start_time: Optional[float] = None
         start_time = time.time()
         speech_start_notified = False
 
-        # Use an event to allow graceful abort if needed
+        # Dynamic noise floor calibration
+        ambient_samples = []
+        calibration_chunks = 3  # First 300ms used for calibration
+        active_threshold = self.energy_threshold
+
         with sd.InputStream(samplerate=self.sample_rate, channels=1, dtype="float32") as stream:
+            chunk_count = 0
             while True:
                 chunk, overflowed = stream.read(chunk_size)
                 audio_chunk = chunk.flatten()
@@ -57,6 +60,16 @@ class AudioRecorder:
 
                 # Compute RMS energy
                 energy = float(np.sqrt(np.mean(audio_chunk ** 2)))
+                chunk_count += 1
+
+                # Calibrate ambient noise floor during the first 300ms
+                if chunk_count <= calibration_chunks:
+                    ambient_samples.append(energy)
+                    if chunk_count == calibration_chunks:
+                        ambient_avg = float(np.mean(ambient_samples))
+                        # Set active threshold just above ambient floor (minimum 0.002)
+                        active_threshold = max(0.002, min(self.energy_threshold, ambient_avg * 2.2))
+                    continue
 
                 now = time.time()
                 elapsed = now - start_time
@@ -64,8 +77,8 @@ class AudioRecorder:
                 if on_listening_tick:
                     on_listening_tick(energy)
 
-                # Check speech activation
-                if energy > self.energy_threshold:
+                # Check speech activation against dynamic threshold
+                if energy > active_threshold:
                     if not speech_started:
                         speech_started = True
                         if on_speech_start and not speech_start_notified:
@@ -84,7 +97,7 @@ class AudioRecorder:
                 if elapsed >= self.max_record_seconds:
                     break
 
-                # If no speech at all after 25 seconds, exit to avoid hanging forever
+                # If no speech at all after 25 seconds, exit gracefully
                 if not speech_started and elapsed >= 25.0:
                     break
 
