@@ -226,17 +226,17 @@ class TranscriptWatcher:
                     temp_wav.unlink(missing_ok=True)
 
                 if text and text.strip() and not self._interrupted:
+                    if cfg.antigravity.inject_to_active_window:
+                        inject_text_to_active_app(text, submit_enter=True, target_antigravity=True)
+
                     if cfg.audio_cues.enabled:
-                        play_chime("done", block=False)
+                        play_chime(cfg.audio_cues.sent_chime, block=False)
 
                     try:
                         import rumps
                         rumps.notification("Talk 2 Me", "Transcribed Voice", text[:100])
                     except Exception:
                         pass
-
-                    if cfg.antigravity.inject_to_active_window:
-                        inject_text_to_active_app(text, submit_enter=True, target_antigravity=True)
         finally:
             self._is_handling_turn = False
             self._notify_state("idle")

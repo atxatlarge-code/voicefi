@@ -159,10 +159,10 @@ def handle_antigravity_stop_hook(payload: Dict[str, Any], config: Optional[Talk2
             temp_wav.unlink(missing_ok=True)
 
         if transcription and transcription.strip():
-            if cfg.audio_cues.enabled:
-                play_chime("done", block=False)
-
             if cfg.antigravity.inject_to_active_window:
                 inject_text_to_active_app(transcription, submit_enter=True)
+
+            if cfg.audio_cues.enabled:
+                play_chime(cfg.audio_cues.sent_chime, block=False)
 
     return {}

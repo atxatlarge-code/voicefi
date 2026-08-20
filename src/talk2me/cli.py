@@ -71,13 +71,14 @@ def cmd_listen(args):
         temp_wav.unlink(missing_ok=True)
 
     if text:
-        if config.audio_cues.enabled and not args.quiet:
-            play_chime("done", block=False)
         print(f"\n📝 Transcribed: {text}\n")
 
         if args.inject:
             inject_text_to_active_app(text, submit_enter=args.enter)
             print("🚀 Injected into active window.")
+
+        if config.audio_cues.enabled and not args.quiet:
+            play_chime(config.audio_cues.sent_chime, block=False)
     else:
         print("⚠️ No speech detected.")
 

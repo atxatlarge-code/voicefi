@@ -44,7 +44,8 @@ vad:
 audio_cues:
   enabled: true
   start_chime: "/System/Library/Sounds/Tink.aiff"
-  done_chime: "/System/Library/Sounds/Pop.aiff"
+  sent_chime: "/System/Applications/Mail.app/Contents/Resources/Mail Sent.aiff"
+  done_chime: "/System/Applications/Mail.app/Contents/Resources/Mail Sent.aiff"
   error_chime: "/System/Library/Sounds/Basso.aiff"
 
 # Antigravity Pair-Programming Integration

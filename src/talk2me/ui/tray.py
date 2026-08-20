@@ -1,6 +1,7 @@
 """
 macOS Menu Bar Companion App using rumps.
-Provides visual status, live transcript watching, conversation jumping, and targeted voice dictation.
+Provides visual status, live transcript watching, conversation jumping, targeted voice dictation,
+and multi-agent tool integrations.
 """
 
 import os
@@ -19,6 +20,7 @@ from talk2me.audio.recorder import AudioRecorder
 from talk2me.audio.chimes import play_chime
 from talk2me.integrations.injector import inject_text_to_active_app, focus_antigravity, open_accessibility_settings
 from talk2me.integrations.watcher import TranscriptWatcher
+from talk2me.integrations.discovery import AgentToolDetector
 
 
 class Talk2MeTrayApp(rumps.App):
@@ -44,14 +46,18 @@ class Talk2MeTrayApp(rumps.App):
         # Build Menu Items with explicit keyboard shortcut hints
         self.stop_speaking_item = rumps.MenuItem("🛑 Stop Talking (Esc)", callback=self.stop_speaking_now)
         self.talk_to_agent_item = rumps.MenuItem(
-            "🎙️ Talk to Antigravity ( ` )",
+            "🎙️ Talk to Active Agent ( ` )",
             callback=self.trigger_talk_to_antigravity,
         )
-        self.focus_agent_item = rumps.MenuItem("💬 Switch to Antigravity Window", callback=self.trigger_focus_antigravity)
+        self.focus_agent_item = rumps.MenuItem("💬 Switch to Agent Window", callback=self.trigger_focus_antigravity)
         self.listen_anywhere_item = rumps.MenuItem(
             "🎤 Dictate to Current Window (Ctrl + T)",
             callback=self.trigger_manual_listen,
         )
+
+        # Multi-Agent Integrations Submenu
+        self.integrations_menu = rumps.MenuItem("🔌 Integrations")
+        self._build_integrations_submenu()
 
         self.auto_listen_item = rumps.MenuItem(
             "Auto-Listen on Agent Turn",
@@ -66,7 +72,7 @@ class Talk2MeTrayApp(rumps.App):
         self.read_summary_item.state = 1 if self.config.antigravity.read_summary_aloud else 0
 
         tier_info = FeatureGate.get_tier_summary(self.config)
-        self.tier_item = rumps.MenuItem(f"Tier: {tier_info['tier']}", callback=None)
+        self.tier_item = rumps.MenuItem(f"Tier: {tier_info['tier']} (Patent Pending)", callback=None)
 
         self.menu = [
             self.stop_speaking_item,
@@ -74,6 +80,8 @@ class Talk2MeTrayApp(rumps.App):
             self.talk_to_agent_item,
             self.focus_agent_item,
             self.listen_anywhere_item,
+            rumps.separator,
+            self.integrations_menu,
             rumps.separator,
             self.auto_listen_item,
             self.read_summary_item,
@@ -86,6 +94,38 @@ class Talk2MeTrayApp(rumps.App):
 
         # Start safe background hotkey listener (guarded against SIGABRT)
         self._start_hotkey_listeners()
+
+    def _build_integrations_submenu(self):
+        """Populate integrations submenu with detected agent tools."""
+        detected = AgentToolDetector.get_all_detected_tools()
+        
+        antigravity_status = "Connected ✅" if detected["antigravity"]["detected"] else "Detected"
+        self.item_antigravity = rumps.MenuItem(f"Antigravity ({antigravity_status})", callback=None)
+        self.item_antigravity.state = 1 if self.config.integrations.antigravity else 0
+
+        claude_status = "Connected ✅" if detected["claude_code"]["detected"] else "Available"
+        self.item_claude = rumps.MenuItem(f"Claude Code ({claude_status})", callback=None)
+        self.item_claude.state = 1 if self.config.integrations.claude_code else 0
+
+        cursor_status = "Connected ✅" if detected["cursor"]["detected"] else "Available"
+        self.item_cursor = rumps.MenuItem(f"Cursor Composer ({cursor_status})", callback=None)
+        self.item_cursor.state = 1 if self.config.integrations.cursor else 0
+
+        windsurf_status = "Connected ✅" if detected["windsurf"]["detected"] else "Available"
+        self.item_windsurf = rumps.MenuItem(f"Windsurf Cascade ({windsurf_status})", callback=None)
+        self.item_windsurf.state = 1 if self.config.integrations.windsurf else 0
+
+        self.item_sys_dict = rumps.MenuItem("System-Wide Dictation (Ctrl+T)", callback=None)
+        self.item_sys_dict.state = 1 if self.config.integrations.system_dictation else 0
+
+        self.integrations_menu.update([
+            self.item_antigravity,
+            self.item_claude,
+            self.item_cursor,
+            self.item_windsurf,
+            rumps.separator,
+            self.item_sys_dict,
+        ])
 
     def _update_status_ui(self, _):
         """Called on macOS main runloop every 200ms to redraw menu bar title."""
@@ -140,7 +180,7 @@ class Talk2MeTrayApp(rumps.App):
             recorder = AudioRecorder(
                 sample_rate=self.config.vad.sample_rate,
                 energy_threshold=self.config.vad.energy_threshold,
-                silence_duration=1.1,
+                silence_duration=self.config.vad.silence_duration,
             )
             self.active_recorder = recorder
 
@@ -225,7 +265,7 @@ class Talk2MeTrayApp(rumps.App):
             recorder = AudioRecorder(
                 sample_rate=self.config.vad.sample_rate,
                 energy_threshold=self.config.vad.energy_threshold,
-                silence_duration=1.1,
+                silence_duration=self.config.vad.silence_duration,
             )
             self.active_recorder = recorder
 

@@ -13,6 +13,8 @@ def test_default_config_values():
     assert config.stt.provider == "whisper_local"
     assert config.antigravity.auto_listen is True
     assert config.antigravity.read_summary_aloud is True
+    assert "Mail Sent.aiff" in config.audio_cues.sent_chime
+    assert "Mail Sent.aiff" in config.audio_cues.done_chime
 
 
 def test_custom_config_save_load(tmp_path: Path):

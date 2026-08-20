@@ -37,7 +37,8 @@ class VADConfig(BaseModel):
 class AudioCuesConfig(BaseModel):
     enabled: bool = True
     start_chime: str = "/System/Library/Sounds/Tink.aiff"
-    done_chime: str = "/System/Library/Sounds/Pop.aiff"
+    sent_chime: str = "/System/Applications/Mail.app/Contents/Resources/Mail Sent.aiff"
+    done_chime: str = "/System/Applications/Mail.app/Contents/Resources/Mail Sent.aiff"
     error_chime: str = "/System/Library/Sounds/Basso.aiff"
 
 
@@ -48,6 +49,14 @@ class AntigravityConfig(BaseModel):
     inject_to_active_window: bool = True
 
 
+class IntegrationsConfig(BaseModel):
+    antigravity: bool = True
+    claude_code: bool = True
+    cursor: bool = True
+    windsurf: bool = True
+    system_dictation: bool = True
+
+
 class GlobalHotkeyConfig(BaseModel):
     enabled: bool = True
     focus_and_talk_hotkey: str = "`"
@@ -56,13 +65,14 @@ class GlobalHotkeyConfig(BaseModel):
 
 class Talk2MeConfig(BaseModel):
     version: int = 1
-    tier: Literal["community", "pro"] = "community"
-    license_key: Optional[str] = ""
+    tier: str = "community"
+    license_key: str = ""
     tts: TTSConfig = Field(default_factory=TTSConfig)
     stt: STTConfig = Field(default_factory=STTConfig)
     vad: VADConfig = Field(default_factory=VADConfig)
     audio_cues: AudioCuesConfig = Field(default_factory=AudioCuesConfig)
     antigravity: AntigravityConfig = Field(default_factory=AntigravityConfig)
+    integrations: IntegrationsConfig = Field(default_factory=IntegrationsConfig)
     global_hotkey: GlobalHotkeyConfig = Field(default_factory=GlobalHotkeyConfig)
 
 
