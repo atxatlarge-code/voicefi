@@ -35,15 +35,15 @@ class Talk2MeTrayApp(rumps.App):
         )
         self.watcher.start()
 
-        # Build Menu Items
-        self.stop_speaking_item = rumps.MenuItem("🛑 Stop Talking (Escape)", callback=self.stop_speaking_now)
+        # Build Menu Items with explicit keyboard shortcut hints
+        self.stop_speaking_item = rumps.MenuItem("🛑 Stop Talking (Esc)", callback=self.stop_speaking_now)
         self.talk_to_agent_item = rumps.MenuItem(
-            "🎙️ Talk to Antigravity",
+            "🎙️ Talk to Antigravity ( ` )",
             callback=self.trigger_talk_to_antigravity,
         )
         self.focus_agent_item = rumps.MenuItem("💬 Switch to Antigravity Window", callback=self.trigger_focus_antigravity)
         self.listen_anywhere_item = rumps.MenuItem(
-            "🎤 Dictate to Current Window",
+            "🎤 Dictate to Current Window (Ctrl + T)",
             callback=self.trigger_manual_listen,
         )
 
