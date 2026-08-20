@@ -28,7 +28,7 @@ class STTConfig(BaseModel):
 
 
 class VADConfig(BaseModel):
-    silence_duration: float = 0.8
+    silence_duration: float = 1.3
     energy_threshold: float = 0.004
     max_record_seconds: int = 45
     sample_rate: int = 16000

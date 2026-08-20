@@ -204,7 +204,7 @@ class TranscriptWatcher:
                 recorder = AudioRecorder(
                     sample_rate=cfg.vad.sample_rate,
                     energy_threshold=cfg.vad.energy_threshold,
-                    silence_duration=0.8,
+                    silence_duration=1.3,
                     max_record_seconds=cfg.vad.max_record_seconds,
                 )
                 self.active_recorder = recorder

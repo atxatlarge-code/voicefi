@@ -21,7 +21,7 @@ class AudioRecorder:
         self,
         sample_rate: int = 16000,
         energy_threshold: float = 0.004,
-        silence_duration: float = 0.8,
+        silence_duration: float = 1.3,
         max_record_seconds: float = 45.0,
     ):
         self.sample_rate = sample_rate
