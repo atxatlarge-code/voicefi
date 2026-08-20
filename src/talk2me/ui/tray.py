@@ -38,12 +38,12 @@ class Talk2MeTrayApp(rumps.App):
         # Build Menu Items
         self.stop_speaking_item = rumps.MenuItem("🛑 Stop Talking (Escape)", callback=self.stop_speaking_now)
         self.talk_to_agent_item = rumps.MenuItem(
-            "🎙️ Talk to Antigravity ( ` )",
+            "🎙️ Talk to Antigravity",
             callback=self.trigger_talk_to_antigravity,
         )
         self.focus_agent_item = rumps.MenuItem("💬 Switch to Antigravity Window", callback=self.trigger_focus_antigravity)
         self.listen_anywhere_item = rumps.MenuItem(
-            "🎤 Dictate to Current Window (Control + T)",
+            "🎤 Dictate to Current Window",
             callback=self.trigger_manual_listen,
         )
 
@@ -77,7 +77,7 @@ class Talk2MeTrayApp(rumps.App):
             rumps.separator,
         ]
 
-        # Start background hotkey listeners
+        # Start safe background hotkey listener (guarded against SIGABRT)
         self._start_hotkey_listeners()
 
     def handle_state_change(self, state: str):
@@ -134,36 +134,26 @@ class Talk2MeTrayApp(rumps.App):
         threading.Thread(target=_worker, daemon=True).start()
 
     def _start_hotkey_listeners(self):
-        """Register global hotkeys for fast access and Escape interrupt."""
+        """Register global hotkeys with guarded error handling."""
         def _listener():
             try:
                 from pynput import keyboard
 
                 def on_press(key):
-                    # Escape key stops speaking
-                    if key == keyboard.Key.esc:
-                        stop_all_speech()
-                    # Single backtick ( ` ) key triggers talk to Antigravity
-                    elif hasattr(key, "char") and key.char == "`":
-                        if self.config.global_hotkey.enabled:
-                            self.trigger_talk_to_antigravity()
-
-                # GlobalHotKey for combo shortcuts
-                hotkey_map = {}
-                if self.config.global_hotkey.enabled and self.config.global_hotkey.dictate_hotkey:
-                    hotkey_map[self.config.global_hotkey.dictate_hotkey] = lambda: self.trigger_manual_listen()
-
-                if hotkey_map:
                     try:
-                        gh = keyboard.GlobalHotKeys(hotkey_map)
-                        gh.start()
+                        if key == keyboard.Key.esc:
+                            stop_all_speech()
+                        elif hasattr(key, "char") and key.char == "`":
+                            if self.config.global_hotkey.enabled:
+                                self.trigger_talk_to_antigravity()
                     except Exception:
                         pass
 
-                with keyboard.Listener(on_press=on_press) as listener:
-                    listener.join()
-            except Exception:
-                pass
+                listener = keyboard.Listener(on_press=on_press)
+                listener.daemon = True
+                listener.start()
+            except Exception as e:
+                print(f"[Tray] Hotkey listener notice: {e}")
 
         threading.Thread(target=_listener, daemon=True).start()
 
