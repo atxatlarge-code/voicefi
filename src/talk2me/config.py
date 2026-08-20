@@ -44,7 +44,7 @@ class AudioCuesConfig(BaseModel):
 class AntigravityConfig(BaseModel):
     auto_listen: bool = True
     read_summary_aloud: bool = True
-    max_spoken_words: int = 60
+    max_spoken_words: int = 25
     inject_to_active_window: bool = True
 
 

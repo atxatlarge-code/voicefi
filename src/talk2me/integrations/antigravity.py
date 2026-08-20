@@ -17,9 +17,9 @@ from talk2me.audio.chimes import play_chime
 from talk2me.integrations.injector import inject_text_to_active_app
 
 
-def clean_markdown_for_speech(text: str, max_words: int = 60) -> str:
+def clean_markdown_for_speech(text: str, max_words: int = 25) -> str:
     """
-    Clean markdown formatting and code blocks to produce natural spoken soundbites.
+    Clean markdown formatting and extract punchy 1-2 sentence spoken updates/questions.
     """
     if not text:
         return ""
@@ -49,10 +49,31 @@ def clean_markdown_for_speech(text: str, max_words: int = 60) -> str:
     # Remove excessive whitespace
     text = " ".join(text.split()).strip()
 
+    # If there are multiple sentences, look for questions or concluding statements
+    sentences = re.split(r"(?<=[.!?])\s+", text)
+    if sentences:
+        # Check if the last sentence is a question
+        last_sentence = sentences[-1].strip()
+        if last_sentence.endswith("?") and len(last_sentence.split()) <= max_words:
+            # If previous sentence is also short, combine them
+            if len(sentences) >= 2 and len((sentences[-2] + " " + last_sentence).split()) <= max_words:
+                return f"{sentences[-2]} {last_sentence}"
+            return last_sentence
+        
+        # Otherwise take the first 1-2 sentences up to max_words
+        first_part = ""
+        for s in sentences:
+            if not first_part:
+                first_part = s
+            elif len((first_part + " " + s).split()) <= max_words:
+                first_part += " " + s
+            else:
+                break
+        text = first_part
+
     # Split into words and limit length
     words = text.split()
     if len(words) > max_words:
-        # Try to break at a sentence boundary if possible
         truncated = " ".join(words[:max_words])
         last_punct = max(truncated.rfind("."), truncated.rfind("?"), truncated.rfind("!"))
         if last_punct > len(truncated) // 2:
