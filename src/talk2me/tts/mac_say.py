@@ -30,6 +30,10 @@ class MacSayTTS(BaseTTS):
                     cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
                 )
                 self._current_process.wait()
+                if self._current_process.returncode != 0:
+                    # Fallback to default system voice
+                    fallback = subprocess.Popen(["say", text], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    fallback.wait()
             except Exception as e:
                 print(f"[MacSayTTS] Error speaking: {e}")
             finally:
