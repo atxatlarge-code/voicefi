@@ -28,6 +28,7 @@ class Talk2MeTrayApp(rumps.App):
         super(Talk2MeTrayApp, self).__init__("Talk 2 Me", icon=None, title="🎙️")
         self.config = load_config()
         self._current_status = "idle"
+        self.active_recorder: Optional[AudioRecorder] = None
 
         # Main-thread timer to ensure macOS AppKit redraws the status bar reliably
         self._status_timer = rumps.Timer(self._update_status_ui, 0.2)
@@ -91,7 +92,7 @@ class Talk2MeTrayApp(rumps.App):
         status_map = {
             "speaking": "🔊 Speaking...",
             "listening": "🔴 Listening...",
-            "hearing": "🗣️ Hearing you...",
+            "hearing": "🗣️ Hearing you (Hit Enter when done)...",
             "transcribing": "⏳ Transcribing...",
             "idle": "🎙️",
         }
@@ -103,9 +104,18 @@ class Talk2MeTrayApp(rumps.App):
         """Thread-safe state change handler."""
         self._current_status = state
 
+    def finish_active_recording(self):
+        """Immediately stop recording and trigger transcription (e.g. Enter pressed)."""
+        if self.active_recorder:
+            self.active_recorder.stop()
+        if self.watcher:
+            self.watcher.finish_listening()
+
     def stop_speaking_now(self, _=None):
-        """Instantly stop speech synthesis."""
+        """Instantly stop speech synthesis or cancel recording."""
         stop_all_speech()
+        if self.active_recorder:
+            self.active_recorder.stop()
         if self.watcher:
             self.watcher.interrupt()
         self._current_status = "idle"
@@ -130,12 +140,14 @@ class Talk2MeTrayApp(rumps.App):
             recorder = AudioRecorder(
                 sample_rate=self.config.vad.sample_rate,
                 energy_threshold=self.config.vad.energy_threshold,
-                silence_duration=self.config.vad.silence_duration,
+                silence_duration=1.1,
             )
+            self.active_recorder = recorder
 
             audio_data, temp_wav = recorder.record_speech_auto(
                 on_speech_start=lambda: setattr(self, "_current_status", "hearing")
             )
+            self.active_recorder = None
             self._current_status = "transcribing"
 
             try:
@@ -163,8 +175,16 @@ class Talk2MeTrayApp(rumps.App):
 
                 def on_press(key):
                     try:
+                        # 1. If currently listening/recording and user hits Enter: finish instantly!
+                        if self._current_status in ("listening", "hearing"):
+                            if key in (keyboard.Key.enter, keyboard.Key.space):
+                                self.finish_active_recording()
+                                return
+
+                        # 2. Escape: stop/cancel
                         if key == keyboard.Key.esc:
-                            stop_all_speech()
+                            self.stop_speaking_now()
+                        # 3. Backtick: jump to Antigravity & talk
                         elif hasattr(key, "char") and key.char == "`":
                             if self.config.global_hotkey.enabled:
                                 self.trigger_talk_to_antigravity()
@@ -205,12 +225,14 @@ class Talk2MeTrayApp(rumps.App):
             recorder = AudioRecorder(
                 sample_rate=self.config.vad.sample_rate,
                 energy_threshold=self.config.vad.energy_threshold,
-                silence_duration=self.config.vad.silence_duration,
+                silence_duration=1.1,
             )
+            self.active_recorder = recorder
 
             audio_data, temp_wav = recorder.record_speech_auto(
                 on_speech_start=lambda: setattr(self, "_current_status", "hearing")
             )
+            self.active_recorder = None
             self._current_status = "transcribing"
 
             try:

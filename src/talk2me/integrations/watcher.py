@@ -51,6 +51,12 @@ class TranscriptWatcher:
         self._last_transcript_path: Optional[Path] = None
         self._is_handling_turn = False
         self._interrupted = False
+        self.active_recorder: Optional[AudioRecorder] = None
+
+    def finish_listening(self):
+        """Immediately finish recording and send captured audio."""
+        if self.active_recorder:
+            self.active_recorder.stop()
 
     def start(self):
         """Start the background watcher thread."""
@@ -198,13 +204,15 @@ class TranscriptWatcher:
                 recorder = AudioRecorder(
                     sample_rate=cfg.vad.sample_rate,
                     energy_threshold=cfg.vad.energy_threshold,
-                    silence_duration=cfg.vad.silence_duration,
+                    silence_duration=1.1,
                     max_record_seconds=cfg.vad.max_record_seconds,
                 )
+                self.active_recorder = recorder
 
                 audio_data, temp_wav = recorder.record_speech_auto(
                     on_speech_start=lambda: self._notify_state("hearing")
                 )
+                self.active_recorder = None
 
                 if self._interrupted:
                     temp_wav.unlink(missing_ok=True)

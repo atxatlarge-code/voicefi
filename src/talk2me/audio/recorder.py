@@ -1,6 +1,7 @@
 """
 Microphone audio capture with Adaptive Voice Activity Detection (VAD).
 Dynamically calibrates room noise and detects speech start and silence cutoff.
+Supports immediate manual stop via stop_event or Enter key.
 """
 
 import time
@@ -20,23 +21,32 @@ class AudioRecorder:
         self,
         sample_rate: int = 16000,
         energy_threshold: float = 0.003,
-        silence_duration: float = 1.5,
+        silence_duration: float = 1.1,
         max_record_seconds: float = 45.0,
     ):
         self.sample_rate = sample_rate
         self.energy_threshold = energy_threshold
         self.silence_duration = silence_duration
         self.max_record_seconds = max_record_seconds
+        self.stop_event = threading.Event()
+
+    def stop(self):
+        """Immediately signal recorder to stop and process captured audio."""
+        self.stop_event.set()
 
     def record_speech_auto(
         self,
         on_speech_start: Optional[Callable[[], None]] = None,
         on_listening_tick: Optional[Callable[[float], None]] = None,
+        stop_event: Optional[threading.Event] = None,
     ) -> Tuple[np.ndarray, Path]:
         """
         Record audio from mic until speech is detected and followed by silence.
-        Uses dynamic background noise calibration for effortless conversational detection.
+        Can be terminated immediately via stop_event / Enter key.
         """
+        self.stop_event.clear()
+        trigger_stop = stop_event or self.stop_event
+
         chunk_duration = 0.1  # 100ms chunks
         chunk_size = int(self.sample_rate * chunk_duration)
 
@@ -54,6 +64,10 @@ class AudioRecorder:
         with sd.InputStream(samplerate=self.sample_rate, channels=1, dtype="float32") as stream:
             chunk_count = 0
             while True:
+                # Check for manual instant stop (e.g. Enter key pressed)
+                if trigger_stop.is_set():
+                    break
+
                 chunk, overflowed = stream.read(chunk_size)
                 audio_chunk = chunk.flatten()
                 recorded_frames.append(audio_chunk)
@@ -67,8 +81,8 @@ class AudioRecorder:
                     ambient_samples.append(energy)
                     if chunk_count == calibration_chunks:
                         ambient_avg = float(np.mean(ambient_samples))
-                        # Set active threshold just above ambient floor (minimum 0.002)
-                        active_threshold = max(0.002, min(self.energy_threshold, ambient_avg * 2.2))
+                        # Set active threshold just above ambient floor with safety margin
+                        active_threshold = max(0.003, min(self.energy_threshold, ambient_avg * 2.5))
                     continue
 
                 now = time.time()
@@ -97,8 +111,8 @@ class AudioRecorder:
                 if elapsed >= self.max_record_seconds:
                     break
 
-                # If no speech at all after 25 seconds, exit gracefully
-                if not speech_started and elapsed >= 25.0:
+                # If no speech at all after 20 seconds, exit gracefully
+                if not speech_started and elapsed >= 20.0:
                     break
 
         if recorded_frames:
