@@ -27,6 +27,11 @@ class Talk2MeTrayApp(rumps.App):
     def __init__(self):
         super(Talk2MeTrayApp, self).__init__("Talk 2 Me", icon=None, title="🎙️")
         self.config = load_config()
+        self._current_status = "idle"
+
+        # Main-thread timer to ensure macOS AppKit redraws the status bar reliably
+        self._status_timer = rumps.Timer(self._update_status_ui, 0.2)
+        self._status_timer.start()
 
         # Start live Antigravity transcript watcher with UI state callback
         self.watcher = TranscriptWatcher(
@@ -80,25 +85,29 @@ class Talk2MeTrayApp(rumps.App):
         # Start safe background hotkey listener (guarded against SIGABRT)
         self._start_hotkey_listeners()
 
+    def _update_status_ui(self, _):
+        """Called on macOS main runloop every 200ms to redraw menu bar title."""
+        status_map = {
+            "speaking": "🔊 Speaking...",
+            "listening": "🔴 Listening...",
+            "hearing": "🗣️ Hearing you...",
+            "transcribing": "⏳ Transcribing...",
+            "idle": "🎙️",
+        }
+        new_title = status_map.get(self._current_status, "🎙️")
+        if self.title != new_title:
+            self.title = new_title
+
     def handle_state_change(self, state: str):
-        """Update menu bar icon based on current voice layer state."""
-        if state == "speaking":
-            self.title = "🔊 Speaking..."
-        elif state == "listening":
-            self.title = "🔴 Listening..."
-        elif state == "hearing":
-            self.title = "🗣️ Hearing you..."
-        elif state == "transcribing":
-            self.title = "⏳ Transcribing..."
-        else:
-            self.title = "🎙️"
+        """Thread-safe state change handler."""
+        self._current_status = state
 
     def stop_speaking_now(self, _=None):
         """Instantly stop speech synthesis."""
         stop_all_speech()
         if self.watcher:
             self.watcher.interrupt()
-        self.title = "🎙️"
+        self._current_status = "idle"
 
     def trigger_focus_antigravity(self, _=None):
         """Switch frontmost window to Antigravity and focus input."""
@@ -109,9 +118,9 @@ class Talk2MeTrayApp(rumps.App):
         def _worker():
             focus_antigravity(focus_input=True)
             time.sleep(0.3)
-            self.title = "🔴 Listening..."
+            self._current_status = "listening"
             if self.config.audio_cues.enabled:
-                play_chime("start", block=False)
+                play_chime("start", block=True)
 
             recorder = AudioRecorder(
                 sample_rate=self.config.vad.sample_rate,
@@ -120,9 +129,9 @@ class Talk2MeTrayApp(rumps.App):
             )
 
             audio_data, temp_wav = recorder.record_speech_auto(
-                on_speech_start=lambda: setattr(self, "title", "🗣️ Hearing you...")
+                on_speech_start=lambda: setattr(self, "_current_status", "hearing")
             )
-            self.title = "⏳ Transcribing..."
+            self._current_status = "transcribing"
 
             try:
                 stt = get_stt_engine(self.config)
@@ -137,7 +146,7 @@ class Talk2MeTrayApp(rumps.App):
                         pass
             finally:
                 temp_wav.unlink(missing_ok=True)
-                self.title = "🎙️"
+                self._current_status = "idle"
 
         threading.Thread(target=_worker, daemon=True).start()
 
@@ -184,9 +193,9 @@ class Talk2MeTrayApp(rumps.App):
     def trigger_manual_listen(self, _=None):
         def _worker():
             time.sleep(0.4)
-            self.title = "🔴 Listening..."
+            self._current_status = "listening"
             if self.config.audio_cues.enabled:
-                play_chime("start", block=False)
+                play_chime("start", block=True)
 
             recorder = AudioRecorder(
                 sample_rate=self.config.vad.sample_rate,
@@ -195,9 +204,9 @@ class Talk2MeTrayApp(rumps.App):
             )
 
             audio_data, temp_wav = recorder.record_speech_auto(
-                on_speech_start=lambda: setattr(self, "title", "🗣️ Hearing you...")
+                on_speech_start=lambda: setattr(self, "_current_status", "hearing")
             )
-            self.title = "⏳ Transcribing..."
+            self._current_status = "transcribing"
 
             try:
                 stt = get_stt_engine(self.config)
@@ -212,7 +221,7 @@ class Talk2MeTrayApp(rumps.App):
                         pass
             finally:
                 temp_wav.unlink(missing_ok=True)
-                self.title = "🎙️"
+                self._current_status = "idle"
 
         threading.Thread(target=_worker, daemon=True).start()
 
