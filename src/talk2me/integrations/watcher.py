@@ -76,7 +76,6 @@ class TranscriptWatcher:
         """Return the active Antigravity conversation UUID if available."""
         path = self._last_transcript_path or find_latest_transcript_path()
         if path and path.is_file():
-            # Path structure: ~/.gemini/antigravity/brain/<conv_id>/.system_generated/logs/transcript.jsonl
             try:
                 return path.parent.parent.parent.name
             except Exception:
@@ -185,11 +184,16 @@ class TranscriptWatcher:
             if self._interrupted:
                 return
 
+            # Brief pause for speaker acoustics to clear before opening mic
+            time.sleep(0.4)
+
             # 2. Auto-listen
             if cfg.antigravity.auto_listen and not self._interrupted:
-                self._notify_state("listening")
                 if cfg.audio_cues.enabled:
-                    play_chime("start", block=False)
+                    play_chime("start", block=True)
+
+                self._notify_state("listening")
+                time.sleep(0.1)
 
                 recorder = AudioRecorder(
                     sample_rate=cfg.vad.sample_rate,
@@ -198,7 +202,9 @@ class TranscriptWatcher:
                     max_record_seconds=cfg.vad.max_record_seconds,
                 )
 
-                audio_data, temp_wav = recorder.record_speech_auto()
+                audio_data, temp_wav = recorder.record_speech_auto(
+                    on_speech_start=lambda: self._notify_state("hearing")
+                )
 
                 if self._interrupted:
                     temp_wav.unlink(missing_ok=True)
