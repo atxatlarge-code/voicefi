@@ -4,10 +4,13 @@
 
 **A hands-free, two-way voice layer for AI coding agents & macOS desktop computing.**
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![Status: Patent Pending](https://img.shields.io/badge/Status-Patent%20Pending%20(64%2F137%2C300)-blue.svg)]()
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 [![Python: 3.10+](https://img.shields.io/badge/Python-3.10+-3776AB.svg?logo=python&logoColor=white)](https://python.org)
 [![Platform: macOS](https://img.shields.io/badge/Platform-macOS-lightgrey.svg?logo=apple&logoColor=white)](https://apple.com)
 [![Engine: Antigravity](https://img.shields.io/badge/Engine-Antigravity%20Ready-purple.svg)]()
+
+*U.S. Patent Application No. 64/137,300 — LienLogic Data LLC*
 
 </div>
 
