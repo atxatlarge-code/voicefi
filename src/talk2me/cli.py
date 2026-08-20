@@ -102,6 +102,7 @@ def cmd_tray(args):
 
 def cmd_setup(args):
     """Automatically register Talk 2 Me hook with Antigravity."""
+    import shutil
     global_hooks_path = Path.home() / ".gemini" / "config" / "hooks.json"
     global_hooks_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -113,7 +114,14 @@ def cmd_setup(args):
         except Exception:
             hooks_data = {}
 
-    hook_command = "talk2me hook"
+    # Prefer current venv executable path for reliable invocation
+    venv_bin = Path(sys.executable).parent / "talk2me"
+    if venv_bin.exists():
+        bin_path = str(venv_bin)
+    else:
+        bin_path = shutil.which("talk2me") or "talk2me"
+
+    hook_command = f"{bin_path} hook"
     hooks_data["talk2me-voice-layer"] = {
         "enabled": True,
         "Stop": [
