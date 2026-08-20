@@ -1,0 +1,60 @@
+# Talk 2 Me Configuration
+# Place this file at ~/.talk2me/config.yaml or in your working directory as config.yaml
+
+version: 1
+
+# Tier: "community" (free open-source) or "pro"
+tier: "community"
+license_key: "" # Leave empty for community tier
+
+# Text-to-Speech (TTS) Settings
+tts:
+  # Providers: "mac_say" (fast, built-in macOS), "edge_tts" (neural high quality), "elevenlabs" (pro)
+  provider: "mac_say"
+  
+  # For mac_say: "Samantha", "Alex", "Daniel", "Karen", "Victoria", or any macOS voice
+  # For edge_tts: "en-US-ChristopherNeural", "en-US-EricNeural", "en-US-GuyNeural", "en-US-JennyNeural"
+  voice: "Samantha"
+  rate: 200        # Words per minute (mac_say) or speed percentage (edge_tts)
+  volume: 1.0
+  elevenlabs_api_key: ""
+  elevenlabs_voice_id: "21m00Tcm4TlvDq8ikWAM" # Rachel
+
+# Speech-to-Text (STT) Settings
+stt:
+  # Providers: "whisper_local" (offline faster-whisper), "groq" (fast cloud), "apple_speech"
+  provider: "whisper_local"
+  
+  # Local whisper model size: "tiny.en", "base.en", "small.en", "medium.en"
+  model_size: "base.en"
+  language: "en"
+  
+  # Groq Cloud Whisper settings (requires free api key from console.groq.com)
+  groq_api_key: ""
+  groq_model: "whisper-large-v3-turbo"
+
+# Voice Activity Detection (VAD) & Recording
+vad:
+  silence_duration: 1.5    # Seconds of silence after speech to stop recording
+  energy_threshold: 0.015  # RMS energy threshold for speech detection
+  max_record_seconds: 45   # Maximum single recording duration
+  sample_rate: 16000       # Sample rate for STT (16kHz standard)
+
+# Audio Feedback Cues
+audio_cues:
+  enabled: true
+  start_chime: "/System/Library/Sounds/Tink.aiff"
+  done_chime: "/System/Library/Sounds/Pop.aiff"
+  error_chime: "/System/Library/Sounds/Basso.aiff"
+
+# Antigravity Pair-Programming Integration
+antigravity:
+  auto_listen: true            # Automatically start listening after speaking agent turn
+  read_summary_aloud: true     # Speak agent turn summary
+  max_spoken_words: 60         # Summarize agent turn to brief soundbite
+  inject_to_active_window: true # Type/submit transcribed text to the active application
+
+# Global Desktop Dictation Hotkey
+global_hotkey:
+  enabled: true
+  hotkey: "<cmd>+<alt>+space"  # Global hotkey to trigger voice dictation anywhere
