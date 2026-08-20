@@ -51,7 +51,7 @@ class AntigravityConfig(BaseModel):
 class GlobalHotkeyConfig(BaseModel):
     enabled: bool = True
     focus_and_talk_hotkey: str = "`"
-    dictate_hotkey: str = "<alt>+t"
+    dictate_hotkey: str = "<ctrl>+t"
 
 
 class Talk2MeConfig(BaseModel):

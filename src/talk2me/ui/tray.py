@@ -43,7 +43,7 @@ class Talk2MeTrayApp(rumps.App):
         )
         self.focus_agent_item = rumps.MenuItem("💬 Switch to Antigravity Window", callback=self.trigger_focus_antigravity)
         self.listen_anywhere_item = rumps.MenuItem(
-            "🎤 Dictate to Current Window (Option + T)",
+            "🎤 Dictate to Current Window (Control + T)",
             callback=self.trigger_manual_listen,
         )
 
