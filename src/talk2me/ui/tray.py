@@ -77,7 +77,7 @@ class Talk2MeTrayApp(rumps.App):
             rumps.separator,
         ]
 
-        # Start safe background hotkey listener (guarded against SIGABRT)
+        # Start background hotkey listeners
         self._start_hotkey_listeners()
 
     def handle_state_change(self, state: str):
@@ -134,22 +134,38 @@ class Talk2MeTrayApp(rumps.App):
         threading.Thread(target=_worker, daemon=True).start()
 
     def _start_hotkey_listeners(self):
-        """Register global hotkeys with guarded error handling."""
+        """Register global hotkeys for ` and Ctrl+T with full modifier tracking."""
         def _listener():
             try:
                 from pynput import keyboard
 
+                ctrl_pressed = False
+
                 def on_press(key):
+                    nonlocal ctrl_pressed
                     try:
-                        if key == keyboard.Key.esc:
+                        if key in (keyboard.Key.ctrl, keyboard.Key.ctrl_l, keyboard.Key.ctrl_r):
+                            ctrl_pressed = True
+                        elif key == keyboard.Key.esc:
                             stop_all_speech()
-                        elif hasattr(key, "char") and key.char == "`":
-                            if self.config.global_hotkey.enabled:
-                                self.trigger_talk_to_antigravity()
+                        elif hasattr(key, "char") and key.char:
+                            # Single backtick ( ` ) key
+                            if key.char == "`":
+                                if self.config.global_hotkey.enabled:
+                                    self.trigger_talk_to_antigravity()
+                            # Control + T (ASCII 20 or 't' with ctrl)
+                            elif key.char == "\x14" or (ctrl_pressed and key.char.lower() == "t"):
+                                if self.config.global_hotkey.enabled:
+                                    self.trigger_manual_listen()
                     except Exception:
                         pass
 
-                listener = keyboard.Listener(on_press=on_press)
+                def on_release(key):
+                    nonlocal ctrl_pressed
+                    if key in (keyboard.Key.ctrl, keyboard.Key.ctrl_l, keyboard.Key.ctrl_r):
+                        ctrl_pressed = False
+
+                listener = keyboard.Listener(on_press=on_press, on_release=on_release)
                 listener.daemon = True
                 listener.start()
             except Exception as e:
