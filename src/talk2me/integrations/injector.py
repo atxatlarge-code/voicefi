@@ -1,15 +1,32 @@
 """
-Text injection utilities for macOS.
-Uses AppleScript to paste or type transcribed text into the frontmost application.
+Text injection and window focus utilities for macOS.
+Uses AppleScript to paste or type transcribed text into Antigravity or the frontmost application.
 """
 
 import subprocess
 import time
 
 
-def inject_text_to_active_app(text: str, submit_enter: bool = True) -> bool:
+def focus_antigravity() -> bool:
+    """Bring Antigravity application window to the front on macOS."""
+    try:
+        subprocess.run(
+            ["osascript", "-e", 'tell application "Antigravity" to activate'],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=3,
+        )
+        time.sleep(0.2)
+        return True
+    except Exception as e:
+        print(f"[Injector] Error focusing Antigravity: {e}")
+        return False
+
+
+def inject_text_to_active_app(text: str, submit_enter: bool = True, target_antigravity: bool = False) -> bool:
     """
-    Inject text into the active application on macOS.
+    Inject text into the active application or specifically Antigravity on macOS.
     
     Copies text to clipboard via pbcopy and triggers Cmd+V paste via AppleScript.
     """
@@ -17,6 +34,9 @@ def inject_text_to_active_app(text: str, submit_enter: bool = True) -> bool:
         return False
 
     clean_text = text.strip()
+
+    if target_antigravity:
+        focus_antigravity()
 
     # Step 1: Copy to macOS clipboard using pbcopy
     try:
@@ -49,7 +69,6 @@ def inject_text_to_active_app(text: str, submit_enter: bool = True) -> bool:
         if result.returncode == 0:
             return True
         else:
-            # Fallback notice: text is in clipboard
             print(f"[Injector] osascript notice (text is in clipboard): {result.stderr.strip()}")
             return False
     except Exception as e:

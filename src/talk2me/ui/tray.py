@@ -1,6 +1,6 @@
 """
 macOS Menu Bar Companion App using rumps.
-Provides visual status, live transcript watching, voice selection, stop speaking button, and hotkeys.
+Provides visual status, live transcript watching, conversation jumping, and targeted voice dictation.
 """
 
 import os
@@ -17,7 +17,7 @@ from talk2me.tts import get_tts_engine, stop_all_speech
 from talk2me.stt import get_stt_engine
 from talk2me.audio.recorder import AudioRecorder
 from talk2me.audio.chimes import play_chime
-from talk2me.integrations.injector import inject_text_to_active_app
+from talk2me.integrations.injector import inject_text_to_active_app, focus_antigravity
 from talk2me.integrations.watcher import TranscriptWatcher
 
 
@@ -37,7 +37,9 @@ class Talk2MeTrayApp(rumps.App):
 
         # Build Menu Items
         self.stop_speaking_item = rumps.MenuItem("🛑 Stop Talking (Escape)", callback=self.stop_speaking_now)
-        self.listen_now_item = rumps.MenuItem("🎤 Listen & Type Now", callback=self.trigger_manual_listen)
+        self.talk_to_agent_item = rumps.MenuItem("🎙️ Talk to Antigravity (Focus & Send)", callback=self.trigger_talk_to_antigravity)
+        self.focus_agent_item = rumps.MenuItem("💬 Switch to Antigravity Window", callback=self.trigger_focus_antigravity)
+        self.listen_anywhere_item = rumps.MenuItem("🎤 Dictate to Current Window", callback=self.trigger_manual_listen)
 
         self.auto_listen_item = rumps.MenuItem(
             "Auto-Listen on Agent Turn",
@@ -56,7 +58,10 @@ class Talk2MeTrayApp(rumps.App):
 
         self.menu = [
             self.stop_speaking_item,
-            self.listen_now_item,
+            rumps.separator,
+            self.talk_to_agent_item,
+            self.focus_agent_item,
+            self.listen_anywhere_item,
             rumps.separator,
             self.auto_listen_item,
             self.read_summary_item,
@@ -66,7 +71,7 @@ class Talk2MeTrayApp(rumps.App):
             rumps.separator,
         ]
 
-        # Start background hotkey listener for Escape / Option+Escape to interrupt speech
+        # Start background hotkey listener for Escape to interrupt speech
         self._start_hotkey_listener()
 
     def handle_state_change(self, state: str):
@@ -87,8 +92,43 @@ class Talk2MeTrayApp(rumps.App):
             self.watcher.interrupt()
         self.title = "🎙️"
 
+    def trigger_focus_antigravity(self, _=None):
+        """Switch frontmost window to Antigravity."""
+        focus_antigravity()
+
+    def trigger_talk_to_antigravity(self, _=None):
+        """Focus Antigravity and start listening for a prompt to send."""
+        def _worker():
+            focus_antigravity()
+            time.sleep(0.3)
+            self.title = "🔴"
+            if self.config.audio_cues.enabled:
+                play_chime("start", block=False)
+
+            recorder = AudioRecorder(
+                sample_rate=self.config.vad.sample_rate,
+                energy_threshold=self.config.vad.energy_threshold,
+                silence_duration=self.config.vad.silence_duration,
+            )
+
+            audio_data, temp_wav = recorder.record_speech_auto()
+            self.title = "⏳"
+
+            try:
+                stt = get_stt_engine(self.config)
+                text = stt.transcribe(temp_wav)
+                if text:
+                    if self.config.audio_cues.enabled:
+                        play_chime("done", block=False)
+                    inject_text_to_active_app(text, submit_enter=True, target_antigravity=True)
+            finally:
+                temp_wav.unlink(missing_ok=True)
+                self.title = "🎙️"
+
+        threading.Thread(target=_worker, daemon=True).start()
+
     def _start_hotkey_listener(self):
-        """Listen for Option+Escape or Escape hotkey to interrupt speech."""
+        """Listen for Escape hotkey to interrupt speech."""
         def _listener():
             try:
                 from pynput import keyboard

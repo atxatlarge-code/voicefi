@@ -17,7 +17,7 @@ from talk2me.stt import get_stt_engine
 from talk2me.audio.recorder import AudioRecorder
 from talk2me.audio.chimes import play_chime
 from talk2me.integrations.antigravity import clean_markdown_for_speech
-from talk2me.integrations.injector import inject_text_to_active_app
+from talk2me.integrations.injector import inject_text_to_active_app, focus_antigravity
 
 
 def find_latest_transcript_path() -> Optional[Path]:
@@ -71,6 +71,17 @@ class TranscriptWatcher:
         self._is_handling_turn = False
         if self.on_state_change:
             self.on_state_change("idle")
+
+    def get_current_conversation_id(self) -> Optional[str]:
+        """Return the active Antigravity conversation UUID if available."""
+        path = self._last_transcript_path or find_latest_transcript_path()
+        if path and path.is_file():
+            # Path structure: ~/.gemini/antigravity/brain/<conv_id>/.system_generated/logs/transcript.jsonl
+            try:
+                return path.parent.parent.parent.name
+            except Exception:
+                pass
+        return None
 
     def _notify_state(self, state: str):
         if self.on_state_change:
@@ -205,7 +216,7 @@ class TranscriptWatcher:
                         play_chime("done", block=False)
 
                     if cfg.antigravity.inject_to_active_window:
-                        inject_text_to_active_app(text, submit_enter=True)
+                        inject_text_to_active_app(text, submit_enter=True, target_antigravity=True)
         finally:
             self._is_handling_turn = False
             self._notify_state("idle")
