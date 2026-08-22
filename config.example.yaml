@@ -1,5 +1,5 @@
-# Talk 2 Me Configuration
-# Place this file at ~/.talk2me/config.yaml or in your working directory as config.yaml
+# Voicegency Configuration
+# Place this file at ~/.voicegency/config.yaml or in your working directory as config.yaml
 
 version: 1
 
@@ -17,6 +17,7 @@ tts:
   voice: "Samantha"
   rate: 200        # Words per minute (mac_say) or speed percentage (edge_tts)
   volume: 1.0
+  streaming: true  # Stream audio chunks with sub-250ms time-to-first-byte playback
   elevenlabs_api_key: ""
   elevenlabs_voice_id: "21m00Tcm4TlvDq8ikWAM" # Rachel
 
@@ -28,6 +29,7 @@ stt:
   # Local whisper model size: "tiny.en", "base.en", "small.en", "medium.en"
   model_size: "base.en"
   language: "en"
+  streaming: false # Enable live sliding-window streaming transcription
   
   # Groq Cloud Whisper settings (requires free api key from console.groq.com)
   groq_api_key: ""
@@ -35,10 +37,14 @@ stt:
 
 # Voice Activity Detection (VAD) & Recording
 vad:
-  silence_duration: 1.5    # Seconds of silence after speech to stop recording
+  mode: "hybrid"           # "hybrid" (Tap=Auto / Hold=PTT) | "ptt" (Push-to-Talk) | "auto" (Auto-VAD)
+  silence_duration: 2.0    # Seconds of silence after speech to stop recording (in auto mode)
   energy_threshold: 0.003  # RMS energy threshold (automatically calibrated)
   max_record_seconds: 45   # Maximum single recording duration
   sample_rate: 16000       # Sample rate for STT (16kHz standard)
+  ptt_release_delay_ms: 150 # Trailing buffer on key release to prevent clipped speech
+  barge_in: true           # Enable active voice interruption (cuts agent speech on user voice)
+  barge_in_sensitivity: 1.0 # Sensitivity multiplier for barge-in voice detection
 
 # Audio Feedback Cues
 audio_cues:
@@ -58,5 +64,30 @@ antigravity:
 # Global Desktop Dictation Hotkeys
 global_hotkey:
   enabled: true
-  focus_and_talk_hotkey: "`"     # Single key to jump to Antigravity & talk
+  focus_and_talk_hotkey: "<ctrl>+r" # Control + R for Respond (jump to Antigravity & talk)
   dictate_hotkey: "<ctrl>+t"     # Control + T for Talk (dictate anywhere)
+
+# Per-Agent Voice Personas (Agent-First Customization)
+agents:
+  antigravity:
+    provider: "edge_tts"
+    voice: "en-US-ChristopherNeural"
+  claude_code:
+    provider: "edge_tts"
+    voice: "en-US-GuyNeural"
+  cursor:
+    provider: "edge_tts"
+    voice: "en-US-JennyNeural"
+
+# Distinct Subagent Personas by Role
+subagents:
+  researcher:
+    provider: "edge_tts"
+    voice: "en-GB-SoniaNeural"
+  debugger:
+    provider: "edge_tts"
+    voice: "en-US-AriaNeural"
+  architect:
+    provider: "edge_tts"
+    voice: "en-AU-WilliamNeural"
+

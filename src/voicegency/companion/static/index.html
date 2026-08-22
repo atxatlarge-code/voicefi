@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-950 text-slate-100">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Voicegency Mobile Companion</title>
+  <meta name="description" content="Talk hands-free to your Antigravity AI agents from your phone.">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#090d16">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+    
+    /* Pulse orb animations */
+    @keyframes pulse-ring {
+      0% { transform: scale(0.95); opacity: 0.8; }
+      50% { transform: scale(1.15); opacity: 0.4; }
+      100% { transform: scale(0.95); opacity: 0.8; }
+    }
+    @keyframes wave-bars {
+      0%, 100% { height: 6px; }
+      50% { height: 28px; }
+    }
+    .anim-pulse-ring {
+      animation: pulse-ring 2.5s infinite ease-in-out;
+    }
+    .anim-listening-pulse {
+      animation: pulse-ring 1.2s infinite ease-in-out;
+    }
+    .wave-bar {
+      animation: wave-bars 1s infinite ease-in-out;
+    }
+    .wave-bar:nth-child(1) { animation-delay: 0.0s; }
+    .wave-bar:nth-child(2) { animation-delay: 0.15s; }
+    .wave-bar:nth-child(3) { animation-delay: 0.3s; }
+    .wave-bar:nth-child(4) { animation-delay: 0.45s; }
+    .wave-bar:nth-child(5) { animation-delay: 0.6s; }
+
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+  </style>
+</head>
+<body class="h-full flex flex-col justify-between overflow-hidden bg-[#090d16] text-white">
+
+  <!-- Header -->
+  <header class="px-5 pt-12 pb-3 border-b border-slate-800/60 flex items-center justify-between z-10 glass-panel">
+    <div class="flex items-center gap-2.5">
+      <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-indigo-400 flex items-center justify-center text-base shadow-sm shadow-indigo-500/30">
+        🎙️
+      </div>
+      <div>
+        <h1 class="font-bold text-sm text-slate-100 tracking-tight flex items-center gap-1.5">
+          Voicegency <span class="text-[10px] font-mono font-medium px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">PWA</span>
+        </h1>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-3">
+      <div id="connStatus" class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-900 border border-slate-800 text-xs font-mono text-slate-400">
+        <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse" id="connDot"></span>
+        <span id="connText">Connecting...</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Voice Stage -->
+  <main class="flex-1 flex flex-col items-center justify-between p-6 max-w-md mx-auto w-full z-10">
+
+    <!-- Active Conversation Selector -->
+    <div class="w-full">
+      <div class="flex items-center justify-between text-xs text-slate-400 mb-1.5 px-1 font-medium">
+        <span>Target Agent Session</span>
+        <span id="agentRoleBadge" class="text-indigo-400 font-mono">antigravity</span>
+      </div>
+      <div class="relative">
+        <select id="convSelect" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900/90 border border-slate-800 text-xs text-slate-200 font-medium appearance-none focus:outline-none focus:border-indigo-500 transition">
+          <option value="">Loading active conversations...</option>
+        </select>
+        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-400">
+          <svg class="w-4 h-4 fill-current" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/></svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- Center Pulse Orb -->
+    <div class="my-auto flex flex-col items-center justify-center relative">
+      <!-- Outer Glow Ring -->
+      <div id="orbRing" class="absolute w-56 h-56 rounded-full bg-indigo-600/15 anim-pulse-ring blur-xl pointer-events-none transition-all duration-700"></div>
+
+      <!-- Interactive Orb Button -->
+      <button id="orbBtn" class="relative w-40 h-40 rounded-full flex flex-col items-center justify-center shadow-2xl transition-all duration-300 transform active:scale-95 bg-gradient-to-b from-indigo-500 to-indigo-700 shadow-indigo-500/25 border-4 border-indigo-400/30">
+        <div id="orbIcon" class="text-4xl transition-transform duration-300">🎙️</div>
+        
+        <!-- Live Waveform Animation (Visible while speaking/listening) -->
+        <div id="orbWave" class="hidden flex items-center gap-1 mt-2">
+          <span class="w-1 bg-white rounded-full wave-bar"></span>
+          <span class="w-1 bg-white rounded-full wave-bar"></span>
+          <span class="w-1 bg-white rounded-full wave-bar"></span>
+          <span class="w-1 bg-white rounded-full wave-bar"></span>
+          <span class="w-1 bg-white rounded-full wave-bar"></span>
+        </div>
+      </button>
+
+      <!-- Status Indicator -->
+      <div class="mt-6 text-center">
+        <div id="stateTitle" class="text-lg font-bold text-slate-100 tracking-tight">Tap to Start Voice</div>
+        <p id="stateSubtitle" class="text-xs text-slate-400 mt-1 max-w-xs transition-all">Connect microphone & audio stream</p>
+      </div>
+    </div>
+
+    <!-- Transcript / Soundbite Card -->
+    <div class="w-full glass-panel rounded-2xl p-4 border border-slate-800 shadow-lg">
+      <div class="flex items-center justify-between text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
+        <span id="logType">Latest Agent Turn</span>
+        <span id="autoListenTag" class="text-emerald-400 font-mono lowercase">auto-listen on</span>
+      </div>
+      <p id="latestText" class="text-xs sm:text-sm text-slate-200 leading-relaxed max-h-24 overflow-y-auto">
+        "Ready to pair with your Mac. Tap the orb to begin speaking."
+      </p>
+
+      <!-- Quick Typing Input Fallback -->
+      <form id="textForm" class="mt-3 flex gap-2 pt-2 border-t border-slate-800/80">
+        <input id="textInput" type="text" placeholder="Or type a command here..." class="flex-1 bg-slate-900/90 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition">
+        <button type="submit" class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold shadow-sm transition">
+          Send
+        </button>
+      </form>
+    </div>
+
+  </main>
+
+  <!-- Footer Controls -->
+  <footer class="px-6 py-4 border-t border-slate-800/60 flex items-center justify-between text-xs text-slate-400 glass-panel">
+    <label class="flex items-center gap-2 cursor-pointer">
+      <input id="autoListenToggle" type="checkbox" checked class="w-4 h-4 rounded bg-slate-900 border-slate-700 text-indigo-600 focus:ring-0 focus:ring-offset-0 transition">
+      <span class="font-medium text-slate-300">Hands-Free Loop</span>
+    </label>
+
+    <button id="wakeLockBtn" class="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition">
+      <span id="wakeLockDot" class="w-2 h-2 rounded-full bg-emerald-400"></span>
+      <span id="wakeLockText">Screen Awake</span>
+    </button>
+  </footer>
+
+  <!-- Audio element for remote speech playback -->
+  <audio id="ttsAudio" class="hidden" playsinline></audio>
+
+  <script>
+    // State
+    let ws = null;
+    let isListening = false;
+    let isSpeaking = false;
+    let activeConvId = "";
+    let autoListen = true;
+    let wakeLock = null;
+    let recognition = null;
+    let audioCtx = null;
+
+    // Elements
+    const connStatus = document.getElementById("connStatus");
+    const connDot = document.getElementById("connDot");
+    const connText = document.getElementById("connText");
+    const convSelect = document.getElementById("convSelect");
+    const agentRoleBadge = document.getElementById("agentRoleBadge");
+    const orbBtn = document.getElementById("orbBtn");
+    const orbRing = document.getElementById("orbRing");
+    const orbIcon = document.getElementById("orbIcon");
+    const orbWave = document.getElementById("orbWave");
+    const stateTitle = document.getElementById("stateTitle");
+    const stateSubtitle = document.getElementById("stateSubtitle");
+    const latestText = document.getElementById("latestText");
+    const logType = document.getElementById("logType");
+    const textForm = document.getElementById("textForm");
+    const textInput = document.getElementById("textInput");
+    const autoListenToggle = document.getElementById("autoListenToggle");
+    const wakeLockBtn = document.getElementById("wakeLockBtn");
+    const wakeLockDot = document.getElementById("wakeLockDot");
+    const wakeLockText = document.getElementById("wakeLockText");
+    const ttsAudio = document.getElementById("ttsAudio");
+
+    // Initialize Web Audio Context for Chimes
+    function initAudioContext() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+    }
+
+    function playTone(freq, type = 'sine', duration = 0.12, gainVal = 0.15) {
+      try {
+        initAudioContext();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(gainVal, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+      } catch (e) {
+        console.log("Audio tone notice:", e);
+      }
+    }
+
+    function playChimeStart() {
+      playTone(587.33, 'sine', 0.08, 0.12); // D5
+      setTimeout(() => playTone(880.00, 'sine', 0.14, 0.15), 70); // A5
+    }
+
+    function playChimeSent() {
+      playTone(523.25, 'triangle', 0.08, 0.15); // C5
+      setTimeout(() => playTone(659.25, 'triangle', 0.08, 0.15), 60); // E5
+      setTimeout(() => playTone(783.99, 'triangle', 0.16, 0.18), 120); // G5
+    }
+
+    // Web Speech Recognition
+    function initSpeechRecognition() {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        console.log("Web Speech API not supported; fallback to touch controls.");
+        return null;
+      }
+      const rec = new SpeechRecognition();
+      rec.continuous = false;
+      rec.interimResults = true;
+      rec.lang = 'en-US';
+
+      rec.onstart = () => {
+        isListening = true;
+        setOrbState('listening');
+        playChimeStart();
+      };
+
+      rec.onresult = (event) => {
+        let interim = '';
+        let final = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            final += event.results[i][0].transcript;
+          } else {
+            interim += event.results[i][0].transcript;
+          }
+        }
+        if (interim) {
+          stateSubtitle.innerText = `"${interim}"`;
+        }
+        if (final) {
+          sendVoiceCommand(final.trim());
+        }
+      };
+
+      rec.onerror = (event) => {
+        console.log("Speech recognition event:", event.error);
+        if (event.error !== 'no-speech') {
+          setOrbState('idle');
+        }
+      };
+
+      rec.onend = () => {
+        isListening = false;
+        if (!isSpeaking) {
+          setOrbState('idle');
+        }
+      };
+
+      return rec;
+    }
+
+    // Screen Wake Lock API
+    async function requestWakeLock() {
+      try {
+        if ('wakeLock' in navigator) {
+          wakeLock = await navigator.wakeLock.request('screen');
+          wakeLockDot.className = "w-2 h-2 rounded-full bg-emerald-400";
+          wakeLockText.innerText = "Screen Awake";
+          wakeLock.addEventListener('release', () => {
+            wakeLockDot.className = "w-2 h-2 rounded-full bg-slate-600";
+            wakeLockText.innerText = "Screen Auto";
+          });
+        }
+      } catch (e) {
+        console.log("WakeLock notice:", e);
+      }
+    }
+
+    // Set Visual Orb State
+    function setOrbState(state) {
+      if (state === 'listening') {
+        orbBtn.className = "relative w-40 h-40 rounded-full flex flex-col items-center justify-center shadow-2xl transition-all duration-300 transform scale-105 bg-gradient-to-b from-emerald-500 to-teal-700 shadow-emerald-500/40 border-4 border-emerald-300/40";
+        orbRing.className = "absolute w-56 h-56 rounded-full bg-emerald-500/30 anim-listening-pulse blur-xl pointer-events-none transition-all duration-300";
+        orbIcon.innerText = "🎙️";
+        orbWave.classList.remove("hidden");
+        stateTitle.innerText = "Listening...";
+        stateSubtitle.innerText = "Speak your response...";
+      } else if (state === 'speaking') {
+        orbBtn.className = "relative w-40 h-40 rounded-full flex flex-col items-center justify-center shadow-2xl transition-all duration-300 transform scale-105 bg-gradient-to-b from-purple-500 to-indigo-700 shadow-purple-500/40 border-4 border-purple-300/40";
+        orbRing.className = "absolute w-56 h-56 rounded-full bg-purple-500/30 anim-listening-pulse blur-xl pointer-events-none transition-all duration-300";
+        orbIcon.innerText = "🔊";
+        orbWave.classList.remove("hidden");
+        stateTitle.innerText = "Agent Speaking";
+        stateSubtitle.innerText = "Streaming response...";
+      } else if (state === 'transcribing') {
+        orbBtn.className = "relative w-40 h-40 rounded-full flex flex-col items-center justify-center shadow-2xl transition-all duration-300 transform bg-gradient-to-b from-amber-500 to-amber-700 shadow-amber-500/30 border-4 border-amber-300/40";
+        orbRing.className = "absolute w-56 h-56 rounded-full bg-amber-500/20 anim-pulse-ring blur-xl pointer-events-none transition-all duration-300";
+        orbIcon.innerText = "⚡";
+        orbWave.classList.add("hidden");
+        stateTitle.innerText = "Injecting Prompt...";
+        stateSubtitle.innerText = "Delivering to Antigravity...";
+      } else {
+        orbBtn.className = "relative w-40 h-40 rounded-full flex flex-col items-center justify-center shadow-2xl transition-all duration-300 transform bg-gradient-to-b from-indigo-500 to-indigo-700 shadow-indigo-500/25 border-4 border-indigo-400/30";
+        orbRing.className = "absolute w-56 h-56 rounded-full bg-indigo-600/15 anim-pulse-ring blur-xl pointer-events-none transition-all duration-700";
+        orbIcon.innerText = "🎙️";
+        orbWave.classList.add("hidden");
+        stateTitle.innerText = "Tap to Speak";
+        stateSubtitle.innerText = autoListen ? "Auto-listen active on turn complete" : "Tap orb or type below";
+      }
+    }
+
+    // Speak text through mobile browser synthesis
+    function speakTextAloud(text, onComplete) {
+      if (!text) {
+        if (onComplete) onComplete();
+        return;
+      }
+      isSpeaking = true;
+      setOrbState('speaking');
+
+      // Try server TTS audio stream first
+      fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: text })
+      })
+      .then(res => {
+        if (res.ok) return res.blob();
+        throw new Error("Server TTS fallback");
+      })
+      .then(blob => {
+        const audioUrl = URL.createObjectURL(blob);
+        ttsAudio.src = audioUrl;
+        ttsAudio.onended = () => {
+          isSpeaking = false;
+          setOrbState('idle');
+          if (onComplete) onComplete();
+        };
+        ttsAudio.play().catch(() => fallbackSpeechSynthesis(text, onComplete));
+      })
+      .catch(() => {
+        fallbackSpeechSynthesis(text, onComplete);
+      });
+    }
+
+    function fallbackSpeechSynthesis(text, onComplete) {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.rate = 1.05;
+        utter.onend = () => {
+          isSpeaking = false;
+          setOrbState('idle');
+          if (onComplete) onComplete();
+        };
+        utter.onerror = () => {
+          isSpeaking = false;
+          setOrbState('idle');
+          if (onComplete) onComplete();
+        };
+        window.speechSynthesis.speak(utter);
+      } else {
+        isSpeaking = false;
+        setOrbState('idle');
+        if (onComplete) onComplete();
+      }
+    }
+
+    function startListening() {
+      initAudioContext();
+      if (isSpeaking) {
+        if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+        ttsAudio.pause();
+        isSpeaking = false;
+      }
+      if (!recognition) {
+        recognition = initSpeechRecognition();
+      }
+      if (recognition) {
+        try {
+          recognition.start();
+        } catch (e) {
+          console.log("Recognition start notice:", e);
+        }
+      } else {
+        const text = prompt("Enter your instruction for Antigravity:");
+        if (text) sendVoiceCommand(text);
+      }
+    }
+
+    function sendVoiceCommand(text) {
+      if (!text || !text.trim()) return;
+      setOrbState('transcribing');
+      playChimeSent();
+
+      latestText.innerText = `"${text}"`;
+      logType.innerText = "You Spoke";
+
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: "user_voice_command",
+          conv_id: activeConvId,
+          text: text
+        }));
+      } else {
+        fetch('/api/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ conv_id: activeConvId, text: text })
+        });
+      }
+
+      setTimeout(() => {
+        setOrbState('idle');
+      }, 1200);
+    }
+
+    // WebSocket Connection with Heartbeat & Auto-Reconnect
+    let heartbeatTimer = null;
+    let reconnectDelay = 1000;
+
+    function connectWebSocket() {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${window.location.host}/ws`;
+      ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        reconnectDelay = 1000;
+        connDot.className = "w-2 h-2 rounded-full bg-emerald-400";
+        connText.innerText = "Connected";
+        requestWakeLock();
+        fetchConversations();
+
+        if (heartbeatTimer) clearInterval(heartbeatTimer);
+        heartbeatTimer = setInterval(() => {
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: "ping" }));
+          }
+        }, 10000);
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === "pong") return;
+          handleServerEvent(data);
+        } catch (e) {
+          console.error("WS Parse error", e);
+        }
+      };
+
+      ws.onclose = () => {
+        if (heartbeatTimer) clearInterval(heartbeatTimer);
+        connDot.className = "w-2 h-2 rounded-full bg-amber-400 animate-pulse";
+        connText.innerText = "Reconnecting...";
+        setTimeout(connectWebSocket, reconnectDelay);
+        reconnectDelay = Math.min(reconnectDelay * 1.5, 8000);
+      };
+
+      ws.onerror = () => {
+        ws.close();
+      };
+    }
+
+    function handleServerEvent(data) {
+      if (data.type === "agent_turn_completed") {
+        logType.innerText = `Agent Finished (${data.agent_role || 'antigravity'})`;
+        latestText.innerText = data.summary;
+        if (data.conv_id) activeConvId = data.conv_id;
+
+        // Speak aloud through phone and auto-listen
+        speakTextAloud(data.summary, () => {
+          if (autoListen && !isListening) {
+            setTimeout(startListening, 300);
+          }
+        });
+      } else if (data.type === "status_update") {
+        if (data.active_conversation) {
+          activeConvId = data.active_conversation.id;
+          agentRoleBadge.innerText = data.active_conversation.status;
+        }
+      }
+    }
+
+    async function fetchConversations() {
+      try {
+        const res = await fetch('/api/conversations');
+        const data = await res.json();
+        convSelect.innerHTML = "";
+        data.conversations.forEach((c) => {
+          const opt = document.createElement("option");
+          opt.value = c.id;
+          opt.innerText = `${c.title} (${c.status})`;
+          if (c.id === data.active_id) {
+            opt.selected = true;
+            activeConvId = c.id;
+          }
+          convSelect.appendChild(opt);
+        });
+      } catch (e) {
+        console.log("Fetch conversations error:", e);
+      }
+    }
+
+    // Event Listeners
+    orbBtn.addEventListener("click", () => {
+      initAudioContext();
+      if (isListening) {
+        if (recognition) recognition.stop();
+      } else {
+        startListening();
+      }
+    });
+
+    convSelect.addEventListener("change", async (e) => {
+      activeConvId = e.target.value;
+      await fetch('/api/switch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conv_id: activeConvId })
+      });
+    });
+
+    autoListenToggle.addEventListener("change", (e) => {
+      autoListen = e.target.checked;
+      document.getElementById("autoListenTag").innerText = autoListen ? "auto-listen on" : "auto-listen off";
+      document.getElementById("autoListenTag").className = autoListen ? "text-emerald-400 font-mono lowercase" : "text-slate-500 font-mono lowercase";
+      setOrbState('idle');
+    });
+
+    textForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const val = textInput.value.trim();
+      if (val) {
+        sendVoiceCommand(val);
+        textInput.value = "";
+      }
+    });
+
+    wakeLockBtn.addEventListener("click", () => {
+      if (wakeLock) {
+        wakeLock.release();
+        wakeLock = null;
+      } else {
+        requestWakeLock();
+      }
+    });
+
+    // PWA Service Worker Registration
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW Registration notice:', err));
+    }
+
+    // Initialize
+    window.addEventListener("DOMContentLoaded", () => {
+      connectWebSocket();
+      recognition = initSpeechRecognition();
+    });
+  </script>
+</body>
+</html>

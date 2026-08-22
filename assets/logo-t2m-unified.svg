@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Background Radial Gradient -->
+    <radialGradient id="bgT2M_1" cx="50%" cy="35%" r="75%">
+      <stop offset="0%" stop-color="#18181b"/>
+      <stop offset="100%" stop-color="#09090b"/>
+    </radialGradient>
+
+    <!-- Luxury Gold Gradient -->
+    <linearGradient id="goldT2M" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FDE68A"/>
+      <stop offset="30%" stop-color="#F59E0B"/>
+      <stop offset="70%" stop-color="#D97706"/>
+      <stop offset="100%" stop-color="#92400E"/>
+    </linearGradient>
+
+    <!-- Glow Effect -->
+    <filter id="glowT2M" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+
+    <!-- Soft Drop Shadow -->
+    <filter id="shadowT2M" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#000000" flood-opacity="0.6"/>
+    </filter>
+  </defs>
+
+  <!-- App Canvas -->
+  <rect width="512" height="512" rx="112" fill="url(#bgT2M_1)"/>
+  <rect width="510" height="510" x="1" y="1" rx="111" fill="none" stroke="#27272a" stroke-width="2"/>
+
+  <!-- Unified T2M Glyph: T forms the crown, 2 weaves through the center, M anchors the base -->
+  <g filter="url(#shadowT2M)" transform="translate(0, 0)">
+
+    <!-- T: Top Crossbar -->
+    <path d="M 120 135 C 120 135, 256 135, 392 135" 
+          stroke="url(#goldT2M)" stroke-width="22" stroke-linecap="round"/>
+
+    <!-- T Stem & 2 Neck: Seamlessly curving from T into the 2 -->
+    <path d="M 256 135 V 190 C 256 190, 256 175, 310 175 C 355 175, 365 210, 345 245 C 315 295, 180 375, 150 405 H 365" 
+          fill="none" 
+          stroke="url(#goldT2M)" 
+          stroke-width="22" 
+          stroke-linecap="round" 
+          stroke-linejoin="round"/>
+
+    <!-- M: Intersecting dual arches emerging from the base -->
+    <path d="M 150 405 V 275 L 256 360 L 362 275 V 405" 
+          fill="none" 
+          stroke="url(#goldT2M)" 
+          stroke-width="20" 
+          stroke-linecap="round" 
+          stroke-linejoin="round"/>
+
+    <!-- Soundwave Equalizer Accent at Center Peak -->
+    <circle cx="256" cy="100" r="8" fill="url(#goldT2M)" filter="url(#glowT2M)"/>
+    <line x1="205" y1="100" x2="215" y2="100" stroke="url(#goldT2M)" stroke-width="5" stroke-linecap="round"/>
+    <line x1="297" y1="100" x2="307" y2="100" stroke="url(#goldT2M)" stroke-width="5" stroke-linecap="round"/>
+  </g>
+</svg>

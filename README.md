@@ -1,16 +1,29 @@
-# 🎙️ Talk 2 Me™
+# 🎙️ Voicegency™
 
 <div align="center">
 
-**The Universal Voice Layer for AI Agents & macOS Desktop Computing.**
+<img src="assets/voicegency-hero-banner.svg" alt="Voicegency Banner" width="100%">
 
-[![Status: Patent Pending](https://img.shields.io/badge/Status-Patent%20Pending%20(64%2F137%2C300)-blue.svg)]()
+<br><br>
+
+### **Give a voice to your agents, and agency to your voice.**  
+*The Universal Ambient Voice Layer for AI Agents & macOS Desktop Computing.*
+
+[![Status: Patent Pending](https://img.shields.io/badge/Status-Patent%20Pending%20(64%2F137%2C300)-blue.svg)](https://voicegency.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 [![Python: 3.10+](https://img.shields.io/badge/Python-3.10+-3776AB.svg?logo=python&logoColor=white)](https://python.org)
 [![Platform: macOS](https://img.shields.io/badge/Platform-macOS-lightgrey.svg?logo=apple&logoColor=white)](https://apple.com)
 [![Engine: Multi-Agent Ready](https://img.shields.io/badge/Engine-Antigravity%20%7C%20Claude%20%7C%20Cursor-purple.svg)]()
+[![Website: voicegency.com](https://img.shields.io/badge/Website-voicegency.com-indigo.svg)](https://voicegency.com)
 
 *U.S. Patent Application No. 64/137,300 — LienLogic Data LLC*
+
+<br>
+
+> *"A magnum opus may be flowing through me in this moment,*  
+> *Expialidocious may be growing new trees like they golden.*  
+> *Computer usage and voice translation proving they be a nuisance,*  
+> *Download Voicegency and be free to speak your movement."*
 
 </div>
 
@@ -18,9 +31,9 @@
 
 ## ⚡ The Vision
 
-Whether you are pair-programming with autonomous AI agents (**Antigravity, Claude Code, Cursor, Aider**) or navigating your everyday desktop workflow, **Talk 2 Me** provides an ambient, hands-free voice layer across your entire computer.
+Whether you are orchestrating a fleet of autonomous AI agents (**Antigravity, Claude Code, Cursor, Aider**) or navigating your everyday desktop workflow, **Voicegency** eliminates the friction of chasing terminal tabs, babysitting split-panes, and clicking buttons.
 
-1. **For AI Agents**: When your agent finishes writing code, running migrations, or executing tests in the background, Talk 2 Me speaks a brief soundbite, chimes, and auto-listens for your next instruction — no clicking or window switching required.
+1. **For AI Agents**: When your agent finishes writing code, running migrations, or executing tests in the background, Voicegency speaks a brief soundbite, chimes, and auto-listens for your next instruction — completely hands-free.
 2. **For Your Desktop**: Hit `Control + T` to dictate with local Whisper neural accuracy into Slack, Chrome, Notes, Terminal, or any text box on macOS. Hit `` ` `` (Backtick) to jump straight to your agent.
 
 ```
@@ -30,7 +43,7 @@ Whether you are pair-programming with autonomous AI agents (**Antigravity, Claud
                                        │ (Stop Hook)
                                        ▼
                   ┌─────────────────────────────────────────┐
-                  │   Talk 2 Me Summarizes & Speaks Aloud   │
+                  │   Voicegency Summarizes & Speaks Aloud  │
                   │   "Tests passed! Ready to deploy?"      │
                   └────────────────────┬────────────────────┘
                                        │
@@ -62,8 +75,8 @@ Whether you are pair-programming with autonomous AI agents (**Antigravity, Claud
   - **`faster-whisper`** (Runs 100% locally and offline on Apple Silicon / CPU).
   - **Groq Cloud Whisper** (~150ms instant cloud transcription).
   - **Apple Speech Framework** (macOS native speech recognition).
-- 🖥️ **macOS Menu Bar Companion (`talk2me tray`)**: Lightweight menu bar item displaying live listening/speaking status and instant controls.
-- ⌨️ **Global Desktop Voice Hotkey**: Press `<cmd>+<alt>+space` anywhere on macOS to dictate directly into any application.
+- 🖥️ **macOS Menu Bar Companion (`voicegency tray`)**: Lightweight menu bar item displaying live listening/speaking status and instant controls.
+- ⌨️ **Global Desktop Voice Hotkey**: Press `<ctrl>+t` anywhere on macOS to dictate directly into any application.
 
 ---
 
@@ -74,8 +87,8 @@ Whether you are pair-programming with autonomous AI agents (**Antigravity, Claud
 Clone and install using `uv` (recommended) or standard `pip`:
 
 ```bash
-git clone https://github.com/jaketrigg/talk-2-me.git
-cd talk-2-me
+git clone https://github.com/jaketrigg/voicegency.git
+cd voicegency
 
 # Install in virtual environment
 uv venv --python 3.12
@@ -85,33 +98,50 @@ uv pip install -e .
 
 ### 2. Connect with Antigravity (1-Command Setup)
 
-Run the automated setup to register the Talk 2 Me hook in `~/.gemini/config/hooks.json`:
+Run the automated setup to register the Voicegency hook in `~/.gemini/config/hooks.json`:
 
 ```bash
-talk2me setup
+voicegency setup
+# Or use the shorthand alias:
+vg setup
 ```
 
-Now, whenever Antigravity completes a task or asks a question, **Talk 2 Me** will speak the update, listen for your voice response, and paste it right back to the agent!
+Now, whenever Antigravity completes a task or asks a question, **Voicegency** will speak the update, listen for your voice response, and paste it right back to the agent!
 
 ---
 
 ## 💻 CLI Usage
 
+Both `voicegency` and the `vg` shorthand alias are available:
+
 | Command | Description |
 | :--- | :--- |
-| `talk2me setup` | Auto-registers Talk 2 Me lifecycle hook with Antigravity |
-| `talk2me hook` | Executes Antigravity hook handler (called by `hooks.json`) |
-| `talk2me listen` | One-shot voice dictation (records, transcribes, pastes to active app) |
-| `talk2me speak "Hello world"` | Speaks text aloud using configured TTS provider |
-| `talk2me loop` | Starts continuous hands-free voice loop in the terminal |
-| `talk2me tray` | Launches the macOS Menu Bar companion app |
-| `talk2me info` | Displays active tier, audio devices, and voice models |
+| `vg setup` / `voicegency setup` | Auto-registers Voicegency lifecycle hook with Antigravity |
+| `vg voice list` | Lists curated agent personas and neural voice catalog |
+| `vg voice audition` | Plays live multi-voice showcase over speakers |
+| `vg voice test <voice>` | Auditions a specific voice with sample text |
+| `vg voice set <agent> <voice>` | Assigns a signature voice persona to an agent or subagent |
+| `vg voice get` | Displays active voice assignments |
+| `vg feedback submit <title>` | Submits bug reports, diagnostics, or voice tuning requests |
+| `vg feedback list` | Lists recent feedback submissions |
+| `vg hook` / `voicegency hook` | Executes Antigravity hook handler (called by `hooks.json`) |
+| `vg listen` / `voicegency listen` | One-shot voice dictation (records, transcribes, pastes to active app) |
+| `vg speak "Hello world"` | Speaks text aloud using configured TTS provider |
+| `vg loop` / `voicegency loop` | Starts continuous hands-free voice loop in the terminal |
+| `vg companion` / `vg remote` | Launches Web & Mobile Voice Companion with QR code pairing & PWA |
+| `vg tray` / `voicegency tray` | Launches the macOS Menu Bar companion app |
+| `vg memo record [-d 3m]` | Captures 2-5 min developer voice ramble with elegant countdown timer |
+| `vg memo synth --text "..."` | Synthesizes stream-of-consciousness thoughts into Plan, Mermaid diagram & PR checklist |
+| `vg memo list` | Lists recorded brain dumps and synthesized software plans |
+| `vg memo show <id>` | Displays full synthesized implementation plan or Mermaid diagram |
+| `vg memo export <id>` | Exports plan to markdown artifact or macOS clipboard |
+| `vg info` / `voicegency info` | Displays active tier, audio devices, and voice models |
 
 ---
 
 ## ⚙️ Configuration
 
-Configuration is stored at `~/.talk2me/config.yaml`. Customize your voices, models, and sensitivities:
+Configuration is stored at `~/.voicegency/config.yaml`. Customize your voices, models, and sensitivities:
 
 ```yaml
 version: 1
@@ -131,15 +161,16 @@ stt:
 
 # Voice Activity Detection (VAD)
 vad:
+  mode: "hybrid"           # "hybrid" | "ptt" | "auto"
   silence_duration: 1.5    # Seconds of silence to finish listening
-  energy_threshold: 0.015  # Mic sensitivity
+  energy_threshold: 0.003  # Mic sensitivity
   max_record_seconds: 45
 
 # Antigravity Behavior
 antigravity:
   auto_listen: true            # Automatically open mic after agent speaks
   read_summary_aloud: true     # Speak agent turn summary
-  max_spoken_words: 60         # Soundbite word limit
+  max_spoken_words: 25         # Soundbite word limit
   inject_to_active_window: true
 ```
 
@@ -178,6 +209,8 @@ uv run python scripts/test_loop.py
 
 ---
 
-## 📄 License
+## 📄 License & Patent Notice
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+- **Software License**: Licensed under the [MIT License](LICENSE).
+- **Patent Notice**: *U.S. Patent Application No. 64/137,300* — LienLogic Data LLC.
+- **Website**: [https://voicegency.com](https://voicegency.com)

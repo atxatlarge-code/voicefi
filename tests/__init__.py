@@ -1,1 +1,1 @@
-"""Test suite for Talk 2 Me."""
+"""Test suite for Voicegency."""

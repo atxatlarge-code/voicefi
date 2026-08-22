@@ -1,0 +1,143 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <!-- Dark Background -->
+    <radialGradient id="bannerBg" cx="30%" cy="20%" r="90%">
+      <stop offset="0%" stop-color="#191920"/>
+      <stop offset="50%" stop-color="#0e0e12"/>
+      <stop offset="100%" stop-color="#050507"/>
+    </radialGradient>
+
+    <!-- Gold Gradients -->
+    <linearGradient id="heroGoldText" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#FFFBEB"/>
+      <stop offset="25%" stop-color="#FDE047"/>
+      <stop offset="65%" stop-color="#F59E0B"/>
+      <stop offset="100%" stop-color="#D97706"/>
+    </linearGradient>
+
+    <linearGradient id="goldIconGlow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFBEB"/>
+      <stop offset="35%" stop-color="#FDE047"/>
+      <stop offset="70%" stop-color="#F59E0B"/>
+      <stop offset="100%" stop-color="#B45309"/>
+    </linearGradient>
+
+    <linearGradient id="goldIconDark" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#D97706"/>
+      <stop offset="100%" stop-color="#78350F"/>
+    </linearGradient>
+
+    <!-- Card Shadow & Ambient Lighting -->
+    <filter id="tileGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="20" stdDeviation="30" flood-color="#000000" flood-opacity="0.9"/>
+      <feDropShadow dx="0" dy="6" stdDeviation="16" flood-color="#F59E0B" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+
+  <!-- Background Base -->
+  <rect width="1200" height="630" fill="url(#bannerBg)"/>
+
+  <!-- Ambient Light Orbs -->
+  <circle cx="1080" cy="120" r="320" fill="#F59E0B" opacity="0.09" filter="blur(80px)"/>
+  <circle cx="120" cy="540" r="280" fill="#6366F1" opacity="0.07" filter="blur(70px)"/>
+
+  <!-- Border Outline -->
+  <rect x="20" y="20" width="1160" height="590" rx="28" fill="none" stroke="#26262e" stroke-width="2"/>
+
+  <!-- LEFT HERO CONTENT -->
+  <g transform="translate(75, 75)">
+    
+    <!-- Top Superbadge -->
+    <g transform="translate(0, 0)">
+      <rect width="210" height="34" rx="17" fill="#F59E0B" fill-opacity="0.12" stroke="#F59E0B" stroke-opacity="0.35" stroke-width="1"/>
+      <text x="105" y="22" fill="#FBBF24" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif" font-size="12" font-weight="700" letter-spacing="2" text-anchor="middle">
+        VOICEGENCY™ 2.0
+      </text>
+    </g>
+
+    <!-- Master Slogan / Chiasmus Headline -->
+    <text x="0" y="98" fill="#FFFFFF" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif" font-weight="800" font-size="44" letter-spacing="-0.03em">
+      Give a voice to your agents,
+    </text>
+    <text x="0" y="152" fill="url(#heroGoldText)" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif" font-weight="800" font-size="44" letter-spacing="-0.03em">
+      and agency to your voice.
+    </text>
+
+    <!-- Sub-headline / Core Thesis -->
+    <text x="0" y="210" fill="#A1A1AA" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif" font-size="19" font-weight="400" line-height="1.5">
+      The Universal Ambient Voice Layer for AI Agents &amp; macOS Computing.
+    </text>
+    <text x="0" y="238" fill="#71717A" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif" font-size="15" font-weight="400">
+      Auto-listen turn handoffs, audible completions, and system-wide Whisper neural dictation.
+    </text>
+
+    <!-- 3 Core Feature Badges / Pillars -->
+    <g transform="translate(0, 280)">
+      <!-- Pillar 1: Voice for Agents -->
+      <rect x="0" y="0" width="200" height="52" rx="12" fill="#141418" stroke="#27272a" stroke-width="1.2"/>
+      <text x="16" y="24" fill="#FBBF24" font-size="14">🔊</text>
+      <text x="38" y="23" fill="#E4E4E7" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="13" font-weight="700">Voice for Agents</text>
+      <text x="38" y="40" fill="#71717A" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="11">Persona TTS &amp; Soundbites</text>
+
+      <!-- Pillar 2: Agency for Voice -->
+      <rect x="215" y="0" width="205" height="52" rx="12" fill="#141418" stroke="#27272a" stroke-width="1.2"/>
+      <text x="231" y="24" fill="#FBBF24" font-size="14">🎙️</text>
+      <text x="253" y="23" fill="#E4E4E7" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="13" font-weight="700">Agency for Voice</text>
+      <text x="253" y="40" fill="#71717A" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="11">Hands-Free Control Loop</text>
+
+      <!-- Pillar 3: Universal Integrations -->
+      <rect x="435" y="0" width="205" height="52" rx="12" fill="#141418" stroke="#27272a" stroke-width="1.2"/>
+      <text x="451" y="24" fill="#6366F1" font-size="14">⚡</text>
+      <text x="473" y="23" fill="#E4E4E7" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="13" font-weight="700">Zero-Friction macOS</text>
+      <text x="473" y="40" fill="#71717A" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="11">Antigravity, Whisper, Tray</text>
+    </g>
+
+    <!-- Bottom Footer Meta -->
+    <g transform="translate(0, 420)">
+      <text x="0" y="0" fill="#E4E4E7" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="15" font-weight="600">
+        voicegency.com
+      </text>
+      <text x="145" y="0" fill="#52525B" font-size="15">•</text>
+      <text x="165" y="0" fill="#A1A1AA" font-family="ui-monospace, monospace" font-size="13">
+        U.S. Patent App. No. 64/137,300
+      </text>
+      <text x="430" y="0" fill="#52525B" font-size="15">•</text>
+      <text x="450" y="0" fill="#A1A1AA" font-family="ui-monospace, monospace" font-size="13">
+        LienLogic Data LLC
+      </text>
+    </g>
+  </g>
+
+  <!-- RIGHT HERO APP ICON TILE (High-Gloss Prestige Squircle) -->
+  <g transform="translate(790, 140)" filter="url(#tileGlow)">
+    <!-- Squircle container -->
+    <rect width="320" height="320" rx="72" fill="#121217" stroke="#2b2b35" stroke-width="2.5"/>
+
+    <!-- Subtle inner radial glow -->
+    <circle cx="160" cy="160" r="120" fill="#F59E0B" opacity="0.12"/>
+
+    <!-- Scaled V-Delta Emblem -->
+    <g transform="translate(25, 20) scale(0.53)">
+      <!-- Acoustic Waves Left -->
+      <path d="M 96 180 C 80 216 80 264 100 296" fill="none" stroke="url(#goldIconGlow)" stroke-width="14" stroke-linecap="round" opacity="0.45"/>
+      <path d="M 64 200 C 50 230 50 260 68 284" fill="none" stroke="url(#goldIconGlow)" stroke-width="9" stroke-linecap="round" opacity="0.25"/>
+
+      <!-- Acoustic Waves Right -->
+      <path d="M 416 180 C 432 216 432 264 412 296" fill="none" stroke="url(#goldIconGlow)" stroke-width="14" stroke-linecap="round" opacity="0.45"/>
+      <path d="M 448 200 C 462 230 462 260 444 284" fill="none" stroke="url(#goldIconGlow)" stroke-width="9" stroke-linecap="round" opacity="0.25"/>
+
+      <!-- Primary 'V' Monogram Structure -->
+      <path d="M 148 136 L 208 136 L 256 320 L 226 320 Z" fill="url(#goldIconGlow)"/>
+      <path d="M 364 136 L 304 136 L 256 320 L 286 320 Z" fill="url(#goldIconGlow)"/>
+
+      <!-- Central Agency Delta / Arrow -->
+      <polygon points="256,170 292,260 256,242 220,260" fill="url(#goldIconGlow)"/>
+      <polygon points="256,170 256,242 220,260" fill="url(#goldIconDark)" opacity="0.6"/>
+
+      <!-- Vocal Resonance Core Node -->
+      <circle cx="256" cy="380" r="18" fill="#FFFBEB"/>
+      <circle cx="256" cy="380" r="32" fill="none" stroke="url(#goldIconGlow)" stroke-width="3" opacity="0.6"/>
+      <circle cx="256" cy="380" r="48" fill="none" stroke="url(#goldIconGlow)" stroke-width="1.5" stroke-dasharray="4 4" opacity="0.35"/>
+    </g>
+  </g>
+</svg>

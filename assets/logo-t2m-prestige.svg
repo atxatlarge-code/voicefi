@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- macOS Squircle Clip Path -->
+    <clipPath id="squircle">
+      <rect width="512" height="512" rx="115" ry="115"/>
+    </clipPath>
+
+    <!-- Deep Satin Obsidian Canvas -->
+    <radialGradient id="canvasBg" cx="50%" cy="20%" r="90%">
+      <stop offset="0%" stop-color="#1c1c21"/>
+      <stop offset="60%" stop-color="#0e0e11"/>
+      <stop offset="100%" stop-color="#050507"/>
+    </radialGradient>
+
+    <!-- Refined Champagne Gold Gradient -->
+    <linearGradient id="goldTitanium" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFBEB"/>
+      <stop offset="25%" stop-color="#FCD34D"/>
+      <stop offset="60%" stop-color="#D97706"/>
+      <stop offset="100%" stop-color="#78350F"/>
+    </linearGradient>
+
+    <!-- Secondary Dark Gold for Depth -->
+    <linearGradient id="goldShadow" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#B45309"/>
+      <stop offset="100%" stop-color="#451A03"/>
+    </linearGradient>
+
+    <!-- High-End Glass Edge Highlight -->
+    <linearGradient id="borderHighlight" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.18"/>
+      <stop offset="50%" stop-color="#ffffff" stop-opacity="0.04"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.01"/>
+    </linearGradient>
+
+    <!-- Precision Drop Shadow -->
+    <filter id="monogramShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="16" stdDeviation="20" flood-color="#000000" flood-opacity="0.8"/>
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#F59E0B" flood-opacity="0.2"/>
+    </filter>
+  </defs>
+
+  <!-- Background Base with subtle border -->
+  <g clip-path="url(#squircle)">
+    <rect width="512" height="512" fill="url(#canvasBg)"/>
+    
+    <!-- Subtle Ambient Acoustic Light Cone in Background -->
+    <circle cx="256" cy="230" r="180" fill="#F59E0B" opacity="0.06" filter="blur(40px)"/>
+    
+    <!-- THE T2M ARCHITECTURAL MONOGRAM (Pure Solid Geometry) -->
+    <g filter="url(#monogramShadow)" transform="translate(0, -6)">
+      
+      <!-- Top Crossbar of 'T' (Floating Architectural Wing) -->
+      <rect x="120" y="132" width="272" height="42" rx="10" fill="url(#goldTitanium)"/>
+
+      <!-- Left Vertical Column of 'M' -->
+      <rect x="120" y="196" width="42" height="184" rx="10" fill="url(#goldTitanium)"/>
+
+      <!-- Right Vertical Column of 'M' -->
+      <rect x="350" y="196" width="42" height="184" rx="10" fill="url(#goldTitanium)"/>
+
+      <!-- The Dynamic '2' Diagonal & 'M' Chevron Spine -->
+      <!-- Left Chevron (M leg & 2 return) -->
+      <path d="M 162 380 L 256 264 L 286 300 L 210 380 Z" fill="url(#goldShadow)"/>
+      
+      <!-- Main '2' Sweeping Blade (Connecting top-right to bottom-left) -->
+      <path d="M 392 174 L 392 216 L 202 380 L 162 380 L 336 216 L 336 174 Z" fill="url(#goldTitanium)"/>
+
+      <!-- Central Acoustic Peak / Chevron (Completing the 'M' & '2' core) -->
+      <polygon points="256,236 304,300 280,300 256,268 232,300 208,300" fill="url(#goldTitanium)"/>
+
+      <!-- Base Grounding Bar of '2' -->
+      <rect x="162" y="346" width="230" height="34" rx="8" fill="url(#goldTitanium)"/>
+    </g>
+
+    <!-- Apple-style Inner Border Highlight -->
+    <rect width="512" height="512" rx="115" ry="115" fill="none" stroke="url(#borderHighlight)" stroke-width="2"/>
+  </g>
+</svg>

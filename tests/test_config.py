@@ -2,11 +2,11 @@
 
 import pytest
 from pathlib import Path
-from talk2me.config import Talk2MeConfig, load_config, save_config
+from voicegency.config import VoicegencyConfig, load_config, save_config
 
 
 def test_default_config_values():
-    config = Talk2MeConfig()
+    config = VoicegencyConfig()
     assert config.version == 1
     assert config.tier == "community"
     assert config.tts.provider == "mac_say"
@@ -15,11 +15,13 @@ def test_default_config_values():
     assert config.antigravity.read_summary_aloud is True
     assert "Mail Sent.aiff" in config.audio_cues.sent_chime
     assert "Mail Sent.aiff" in config.audio_cues.done_chime
+    assert config.global_hotkey.focus_and_talk_hotkey == "<ctrl>+r"
+    assert config.global_hotkey.dictate_hotkey == "<ctrl>+t"
 
 
 def test_custom_config_save_load(tmp_path: Path):
     custom_yaml = tmp_path / "config.yaml"
-    cfg = Talk2MeConfig(
+    cfg = VoicegencyConfig(
         tier="pro",
         license_key="PRO-1234-5678",
     )

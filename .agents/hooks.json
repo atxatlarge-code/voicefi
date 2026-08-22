@@ -1,10 +1,10 @@
 {
-  "talk2me-voice-layer": {
+  "voicegency-voice-layer": {
     "enabled": true,
     "Stop": [
       {
         "type": "command",
-        "command": "/Users/jaketrigg/Projects/Talk 2 Me/.venv/bin/talk2me hook",
+        "command": "/Users/jaketrigg/Projects/Talk 2 Me/.venv/bin/voicegency hook",
         "timeout": 60
       }
     ]

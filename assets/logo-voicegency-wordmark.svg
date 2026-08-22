@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 220" width="100%" height="100%">
+  <defs>
+    <!-- Imperial Gold Gradients -->
+    <linearGradient id="goldWordmark" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#FFFBEB"/>
+      <stop offset="30%" stop-color="#FDE047"/>
+      <stop offset="70%" stop-color="#F59E0B"/>
+      <stop offset="100%" stop-color="#D97706"/>
+    </linearGradient>
+
+    <linearGradient id="goldIcon" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFBEB"/>
+      <stop offset="35%" stop-color="#FDE047"/>
+      <stop offset="70%" stop-color="#F59E0B"/>
+      <stop offset="100%" stop-color="#B45309"/>
+    </linearGradient>
+
+    <linearGradient id="goldDark" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#D97706"/>
+      <stop offset="100%" stop-color="#78350F"/>
+    </linearGradient>
+
+    <!-- Drop Shadow Filter -->
+    <filter id="subtleGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="6" stdDeviation="12" flood-color="#000000" flood-opacity="0.6"/>
+      <feDropShadow dx="0" dy="2" stdDeviation="6" flood-color="#F59E0B" flood-opacity="0.2"/>
+    </filter>
+  </defs>
+
+  <!-- Left Icon Emblem (Scale & Positioned) -->
+  <g transform="translate(30, 25)" filter="url(#subtleGlow)">
+    <!-- Squircle Tile -->
+    <rect width="170" height="170" rx="38" fill="#121216" stroke="#27272a" stroke-width="1.5"/>
+    
+    <!-- Mini V-Wave Delta Symbol -->
+    <g transform="translate(18, 14) scale(0.26)">
+      <!-- Acoustic Waves Left -->
+      <path d="M 96 180 C 80 216 80 264 100 296" fill="none" stroke="url(#goldIcon)" stroke-width="14" stroke-linecap="round" opacity="0.45"/>
+      <path d="M 64 200 C 50 230 50 260 68 284" fill="none" stroke="url(#goldIcon)" stroke-width="9" stroke-linecap="round" opacity="0.25"/>
+
+      <!-- Acoustic Waves Right -->
+      <path d="M 416 180 C 432 216 432 264 412 296" fill="none" stroke="url(#goldIcon)" stroke-width="14" stroke-linecap="round" opacity="0.45"/>
+      <path d="M 448 200 C 462 230 462 260 444 284" fill="none" stroke="url(#goldIcon)" stroke-width="9" stroke-linecap="round" opacity="0.25"/>
+
+      <!-- V Blades -->
+      <path d="M 148 136 L 208 136 L 256 320 L 226 320 Z" fill="url(#goldIcon)"/>
+      <path d="M 364 136 L 304 136 L 256 320 L 286 320 Z" fill="url(#goldIcon)"/>
+
+      <!-- Delta Arrow -->
+      <polygon points="256,170 292,260 256,242 220,260" fill="url(#goldIcon)"/>
+      <polygon points="256,170 256,242 220,260" fill="url(#goldDark)" opacity="0.6"/>
+
+      <!-- Resonance Dot -->
+      <circle cx="256" cy="380" r="20" fill="#FFFBEB"/>
+      <circle cx="256" cy="380" r="34" fill="none" stroke="url(#goldIcon)" stroke-width="4" opacity="0.6"/>
+    </g>
+  </g>
+
+  <!-- Typography Right Column -->
+  <g transform="translate(235, 30)">
+    <!-- Badge -->
+    <rect x="0" y="8" width="132" height="24" rx="12" fill="#F59E0B" fill-opacity="0.12" stroke="#F59E0B" stroke-opacity="0.3" stroke-width="1"/>
+    <text x="66" y="24" fill="#FBBF24" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif" font-size="10.5" font-weight="700" letter-spacing="1.5" text-anchor="middle">VOICE LAYER</text>
+
+    <!-- Main Wordmark -->
+    <text x="0" y="94" fill="url(#goldWordmark)" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', sans-serif" font-weight="800" font-size="56" letter-spacing="-0.03em">
+      Voicegency<tspan fill="#F59E0B" font-size="30" font-weight="400" dy="-20">™</tspan>
+    </text>
+
+    <!-- The Master Tagline (Chiasmus) -->
+    <text x="0" y="132" fill="#F4F4F5" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif" font-weight="600" font-size="16.5" letter-spacing="-0.01em">
+      Give a voice to your agents, <tspan fill="#FBBF24">and agency to your voice.</tspan>
+    </text>
+
+    <!-- Subtext -->
+    <text x="0" y="156" fill="#71717A" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif" font-weight="500" font-size="12.5" letter-spacing="0.02em">
+      Ambient AI Agent Orchestration &amp; Hands-Free Desktop Computing
+    </text>
+  </g>
+</svg>

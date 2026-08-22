@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Voicegency™ — Brand Identity Showcase</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #060608;
+      --card-bg: #141419;
+      --border: #22222a;
+      --text: #fafafa;
+      --muted: #a1a1aa;
+      --gold: #f59e0b;
+      --gold-light: #fde047;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 50px 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    header {
+      text-align: center;
+      max-width: 840px;
+      margin-bottom: 40px;
+    }
+    .tag {
+      display: inline-block;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--gold);
+      background: rgba(245, 158, 11, 0.12);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      padding: 5px 14px;
+      border-radius: 999px;
+      margin-bottom: 18px;
+    }
+    h1 {
+      font-size: clamp(2.2rem, 5vw, 3.4rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      margin-bottom: 16px;
+      background: linear-gradient(135deg, #ffffff 40%, var(--gold-light) 80%, var(--gold) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .slogan-card {
+      background: linear-gradient(180deg, #1c1919 0%, #141419 100%);
+      border: 1px solid rgba(245, 158, 11, 0.35);
+      border-radius: 18px;
+      padding: 20px 28px;
+      margin: 16px 0 24px;
+      box-shadow: 0 16px 36px -10px rgba(245, 158, 11, 0.15);
+    }
+    .slogan-text {
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: #fff;
+    }
+    .slogan-text span {
+      color: var(--gold-light);
+    }
+    p.subtitle {
+      color: var(--muted);
+      font-size: 1.05rem;
+      line-height: 1.6;
+    }
+    .nav-guide {
+      margin-top: 14px;
+      font-size: 0.9rem;
+    }
+    .nav-guide a {
+      color: var(--gold-light);
+      text-decoration: none;
+      font-weight: 600;
+      border-bottom: 1px dashed var(--gold);
+      padding-bottom: 2px;
+    }
+    .nav-guide a:hover {
+      color: #fff;
+    }
+    .section-title {
+      width: 100%;
+      max-width: 1160px;
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: #e4e4e7;
+      margin: 40px 0 20px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 28px;
+      width: 100%;
+      max-width: 1160px;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 30px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .card.highlight {
+      border-color: rgba(245, 158, 11, 0.6);
+      background: linear-gradient(180deg, #1c1917, #141417);
+    }
+    .card:hover {
+      transform: translateY(-5px);
+      border-color: rgba(245, 158, 11, 0.8);
+      box-shadow: 0 20px 40px -15px rgba(245, 158, 11, 0.2);
+    }
+    .preview-box {
+      width: 220px;
+      height: 220px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .preview-box img, .preview-box svg {
+      width: 100%;
+      height: 100%;
+      border-radius: 46px;
+      box-shadow: 0 16px 36px -10px rgba(0,0,0,0.7);
+    }
+    h2 {
+      font-size: 1.25rem;
+      margin-bottom: 8px;
+      font-weight: 700;
+      text-align: center;
+    }
+    .desc {
+      color: var(--muted);
+      font-size: 0.92rem;
+      text-align: center;
+      line-height: 1.55;
+      margin-bottom: 22px;
+      flex-grow: 1;
+    }
+    .path-badge {
+      background: #09090b;
+      border: 1px solid #27272a;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      color: #fbbf24;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="tag">Brand Identity &amp; Asset Review</div>
+    <h1>Voicegency™</h1>
+    
+    <div class="slogan-card">
+      <div class="slogan-text">
+        “Give a voice to your agents, <span>and agency to your voice.</span>”
+      </div>
+    </div>
+
+    <p class="subtitle">The Universal Ambient Voice Layer for AI Agents &amp; macOS Desktop Computing.</p>
+    <p class="nav-guide">👉 Open the full interactive <a href="brand-guide.html">Brand Design System Guide (brand-guide.html)</a></p>
+  </header>
+
+  <!-- HERO OPEN GRAPH BANNER -->
+  <div class="section-title">
+    <span>📢 1200×630 Hero Open Graph &amp; Social Banner</span>
+    <span style="font-size: 0.8rem; font-family: 'JetBrains Mono'; color: #71717a;">TWITTER / GITHUB / SOCIAL</span>
+  </div>
+  
+  <div style="width: 100%; max-width: 1160px; margin-bottom: 30px;">
+    <div class="card" style="padding: 20px; align-items: stretch;">
+      <div style="width: 100%; border-radius: 16px; overflow: hidden; box-shadow: 0 20px 40px -10px rgba(0,0,0,0.8);">
+        <img src="voicegency-hero-banner.svg" alt="Social Hero Banner" style="width: 100%; height: auto; display: block; border-radius: 16px;">
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px;">
+        <span class="path-badge">assets/voicegency-hero-banner.svg</span>
+        <span style="font-size: 0.85rem; color: #a1a1aa;">Hero Tagline, Product Value Pillars &amp; Patent Notice</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- FULL HORIZONTAL WORDMARK -->
+  <div class="section-title">
+    <span>✨ Primary Brand Lockup &amp; Wordmark</span>
+    <span style="font-size: 0.8rem; font-family: 'JetBrains Mono'; color: #71717a;">TYPOGRAPHY &amp; EMBLEM</span>
+  </div>
+
+  <div style="width: 100%; max-width: 1160px; margin-bottom: 30px;">
+    <div class="card" style="padding: 30px; align-items: stretch; background: #0d0d12;">
+      <div style="max-width: 900px; margin: 0 auto;">
+        <img src="logo-voicegency-wordmark.svg" alt="Voicegency Wordmark" style="width: 100%; height: auto; display: block; box-shadow: none;">
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px;">
+        <span class="path-badge">assets/logo-voicegency-wordmark.svg</span>
+        <span style="font-size: 0.85rem; color: #a1a1aa;">Vector Horizontal Lockup for Headers, Docs &amp; Sites</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ICON MARKS SUITE -->
+  <div class="section-title">
+    <span>💎 Icon Mark Variations</span>
+    <span style="font-size: 0.8rem; font-family: 'JetBrains Mono'; color: #71717a;">APP SQUIRCLES</span>
+  </div>
+
+  <div class="grid">
+    <!-- Primary: V-Wave Delta -->
+    <div class="card highlight">
+      <div class="preview-box">
+        <img src="logo-voicegency-mark.svg" alt="V-Wave Delta Mark">
+      </div>
+      <h2>1. The V-Wave Delta (Official Primary)</h2>
+      <p class="desc">Acoustic voice wings converging into an ascending autonomous agency delta/arrow with a focal vocal resonance node.</p>
+      <span class="path-badge">assets/logo-voicegency-mark.svg</span>
+    </div>
+
+    <!-- Prestige Monogram -->
+    <div class="card">
+      <div class="preview-box">
+        <img src="logo-t2m-prestige.svg" alt="T2M Prestige Monogram">
+      </div>
+      <h2>2. The Prestige Architectural Monogram</h2>
+      <p class="desc">Solid geometric polygons with beveled titanium reflections forming an engineered letterform structure.</p>
+      <span class="path-badge">assets/logo-t2m-prestige.svg</span>
+    </div>
+
+    <!-- Acoustic Dialogue Mark -->
+    <div class="card">
+      <div class="preview-box">
+        <img src="logo-t2m-acoustic.svg" alt="T2M Acoustic Dialogue">
+      </div>
+      <h2>3. Acoustic Dialogue Loops</h2>
+      <p class="desc">Minimalist harmonic wave loops evoking voice oscillation and real-time bidirectional turn-taking.</p>
+      <span class="path-badge">assets/logo-t2m-acoustic.svg</span>
+    </div>
+  </div>
+
+</body>
+</html>

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Setup helper to register the Talk 2 Me hook into ~/.gemini/config/hooks.json.
+Setup helper to register the Voicegency hook into ~/.gemini/config/hooks.json.
 """
 
 import sys
@@ -10,7 +10,7 @@ from pathlib import Path
 root_dir = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(root_dir / "src"))
 
-from talk2me.cli import cmd_setup
+from voicegency.cli import cmd_setup
 import argparse
 
 if __name__ == "__main__":

@@ -1,8 +1,8 @@
-"""Unit tests for Talk 2 Me audio feedback chimes and sound effects."""
+"""Unit tests for Voicegency audio feedback chimes and sound effects."""
 
 import os
 from unittest.mock import patch
-from talk2me.audio.chimes import (
+from voicegency.audio.chimes import (
     SYSTEM_SOUNDS,
     DEFAULT_SENT_SOUND,
     get_default_sent_sound,

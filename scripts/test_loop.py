@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Interactive test script for Talk 2 Me TTS, VAD, and STT pipelines.
+Interactive test script for Voicegency TTS, VAD, and STT pipelines.
 """
 
 import sys
@@ -10,23 +10,23 @@ from pathlib import Path
 root_dir = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(root_dir / "src"))
 
-from talk2me.config import load_config
-from talk2me.tts import get_tts_engine
-from talk2me.stt import get_stt_engine
-from talk2me.audio.recorder import AudioRecorder
-from talk2me.audio.chimes import play_chime
+from voicegency.config import load_config
+from voicegency.tts import get_tts_engine
+from voicegency.stt import get_stt_engine
+from voicegency.audio.recorder import AudioRecorder
+from voicegency.audio.chimes import play_chime
 
 
 def run_interactive_test():
     config = load_config()
-    print("\n--- Talk 2 Me Interactive Test Suite ---")
+    print("\n--- Voicegency Interactive Test Suite ---")
     print(f"Active TTS: {config.tts.provider} ({config.tts.voice})")
     print(f"Active STT: {config.stt.provider} ({config.stt.model_size})")
 
     # 1. Test TTS
     print("\n[1/3] Testing Text-to-Speech...")
     tts = get_tts_engine(config)
-    tts.speak("Hello! Talk 2 Me is initialized and ready.", block=True)
+    tts.speak("Hello! Voicegency is initialized and ready.", block=True)
     print("✓ TTS playback finished.")
 
     # 2. Test Chimes

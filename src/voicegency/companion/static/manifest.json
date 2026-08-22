@@ -1,0 +1,22 @@
+{
+  "name": "Voicegency Companion",
+  "short_name": "Voicegency",
+  "description": "Ambient Hands-Free Voice Layer for Antigravity & AI Agents",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#090d16",
+  "theme_color": "#090d16",
+  "icons": [
+    {
+      "src": "/api/icon",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/api/icon",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
