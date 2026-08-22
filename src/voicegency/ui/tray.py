@@ -117,6 +117,10 @@ class VoicegencyTrayApp(rumps.App):
         self.voice_mode_menu = rumps.MenuItem("🎙️ Capture Mode")
         self._build_voice_mode_submenu()
 
+        # Voice Memo & Brain Dump Submenu
+        self.voice_memo_menu = rumps.MenuItem("🧠 Voice Memo (Brain Dump)")
+        self._build_memo_submenu()
+
         tier_info = FeatureGate.get_tier_summary(self.config)
         self.tier_item = rumps.MenuItem(f"Tier: {tier_info['tier']} (Patent Pending)", callback=None)
 
@@ -128,6 +132,7 @@ class VoicegencyTrayApp(rumps.App):
             self.hub_item,
             self.conversations_menu,
             self.listen_anywhere_item,
+            self.voice_memo_menu,
             rumps.separator,
             self.companion_item,
             self.panel_item,
@@ -257,6 +262,67 @@ class VoicegencyTrayApp(rumps.App):
         item_auto.state = 1 if current_mode == "auto" else 0
 
         self.voice_mode_menu.update([item_hybrid, item_ptt, item_auto])
+
+    def _build_memo_submenu(self):
+        """Populate voice memo and brain dump actions."""
+        from voicegency.memo import MemoStore, get_memos_dir
+
+        def _launch_memo(duration_str: str):
+            return lambda _: self.launch_terminal_memo(duration_str)
+
+        items = [
+            rumps.MenuItem("▶️ Start 3-Minute Voice Memo (Pacing Dump)", callback=_launch_memo("3m")),
+            rumps.MenuItem("▶️ Start 5-Minute Voice Memo", callback=_launch_memo("5m")),
+            rumps.MenuItem("▶️ Start 2-Minute Quick Memo", callback=_launch_memo("2m")),
+            rumps.separator,
+            rumps.MenuItem("📂 Open Saved Memos Folder...", callback=self.open_memos_folder),
+        ]
+
+        store = MemoStore()
+        recent = store.list_memos(limit=5)
+        if recent:
+            items.append(rumps.separator)
+            items.append(rumps.MenuItem("Recent Voice Memos:", callback=None))
+            for m in recent:
+                title = m.get("title", "Voice Memo")[:28]
+                mid = m.get("id", "")
+                dur = f"{int(m.get('duration_seconds', 0)) // 60:02d}:{int(m.get('duration_seconds', 0)) % 60:02d}"
+                items.append(rumps.MenuItem(f"  • {title} ({dur})", callback=lambda _, id=mid: self.show_memo_plan(id)))
+
+        self.voice_memo_menu.update(items)
+
+    def launch_terminal_memo(self, duration: str = "3m"):
+        """Launch interactive Voice Memo recording session in Terminal with elegant countdown timer."""
+        import sys
+        vg_bin = Path(sys.executable).parent / "voicegency"
+        vg_cmd = f"'{vg_bin}' memo record -d {duration}" if vg_bin.is_file() else f"vg memo record -d {duration}"
+
+        script = f'''
+        tell application "Terminal"
+            activate
+            do script "{vg_cmd}"
+        end tell
+        '''
+        try:
+            subprocess.run(["osascript", "-e", script])
+        except Exception:
+            pass
+
+    def open_memos_folder(self, _=None):
+        """Reveal saved voice memos in Finder."""
+        from voicegency.memo import get_memos_dir
+        subprocess.run(["open", str(get_memos_dir())])
+
+    def show_memo_plan(self, memo_id: str):
+        """Open synthesized memo plan markdown file in default editor."""
+        from voicegency.memo import MemoStore
+        store = MemoStore()
+        res = store.get_memo(memo_id)
+        if res:
+            rec, synth = res
+            md_path = store.root_dir / rec.id / "plan.md"
+            if md_path.is_file():
+                subprocess.run(["open", str(md_path)])
 
     def open_control_panel_ui(self, _=None):
         """Open the interactive Voice Control Panel."""
