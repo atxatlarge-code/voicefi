@@ -95,8 +95,10 @@ ln -sf "$BIN_DIR/vifi" "$BIN_DIR/vg"
 #    - Registers a user-space 'Stop' hook in ~/.gemini/config/hooks.json
 #      so VoiceFi speaks turn completions and auto-listens hands-free.
 #    - Writes user preferences (voice selection, sensitivity) to ~/.voicefi/config.yaml.
+#    - For Claude Code, Cursor & Windsurf: VoiceFi uses system-wide audio dictation (Ctrl+T)
+#      and terminal loop mode without modifying any of their files or configs.
 #    - Modifies zero system/root binaries and adds no daemon/telemetry services.
-echo -e "${CYAN}⚡ Configuring user hook (~/.gemini/config/hooks.json)...${NC}"
+echo -e "${CYAN}⚡ Configuring Antigravity hook (~/.gemini/config/hooks.json)...${NC}"
 "$INSTALL_DIR/venv/bin/voicefi" setup >/dev/null 2>&1 || true
 
 # 6. Check for Obsidian and prompt user interactively
@@ -130,13 +132,15 @@ fi
 echo ""
 echo -e "${GREEN}${BOLD}🎉 VoiceFi Installation Complete!${NC}"
 echo "------------------------------------------------------------------"
-echo -e "🗣️  ${BOLD}Active Agents:${NC}  Antigravity, Claude Code, Cursor, Windsurf"
-echo -e "📓 ${BOLD}Obsidian:${NC}       Auto-configured across all local vaults"
-echo -e "🔊 ${BOLD}Test Voice:${NC}     Run ${CYAN}${BOLD}vifi voice test${NC} (or ${CYAN}${BOLD}vg voice test${NC})"
-echo -e "👂 ${BOLD}Hearing Test:${NC}   Run ${CYAN}${BOLD}vifi hearing-test${NC}"
-echo -e "🔄 ${BOLD}Feedback Loop:${NC}  Run ${CYAN}${BOLD}vifi feedback-loop${NC}"
-echo -e "🎛️  ${BOLD}Control Panel:${NC}  Run ${CYAN}${BOLD}vifi panel${NC} (http://localhost:8765)"
-echo -e "📖 ${BOLD}Commands:${NC}       Run ${CYAN}${BOLD}vifi --help${NC}"
+echo -e "🗣️  ${BOLD}Claude Code & Terminal:${NC} Press ${CYAN}${BOLD}<Ctrl>+T${NC} to dictate prompts, or run ${CYAN}${BOLD}vifi loop${NC}"
+echo -e "🤖 ${BOLD}Antigravity Hook:${NC}        Turn soundbite active in ~/.gemini/config/hooks.json"
+echo -e "💻 ${BOLD}Cursor & macOS:${NC}          Universal ${CYAN}${BOLD}<Ctrl>+T${NC} dictation into any text box"
+echo -e "📓 ${BOLD}Obsidian:${NC}                Auto-configured across local vaults"
+echo -e "🔊 ${BOLD}Test Voice:${NC}              Run ${CYAN}${BOLD}vifi voice test${NC} (or ${CYAN}${BOLD}vg voice test${NC})"
+echo -e "👂 ${BOLD}Hearing Test:${NC}            Run ${CYAN}${BOLD}vifi hearing-test${NC}"
+echo -e "🔄 ${BOLD}Feedback Loop:${NC}           Run ${CYAN}${BOLD}vifi feedback-loop${NC}"
+echo -e "🎛️  ${BOLD}Control Panel:${NC}           Run ${CYAN}${BOLD}vifi panel${NC} (http://localhost:8765)"
+echo -e "📖 ${BOLD}Commands:${NC}                Run ${CYAN}${BOLD}vifi --help${NC}"
 echo "------------------------------------------------------------------"
 echo ""
 
