@@ -116,6 +116,15 @@ class AntigravityConfig(BaseModel):
     speech_popup_position: Literal["top_center", "top_right", "bottom_right"] = "top_center"
 
 
+class ClaudeConfig(BaseModel):
+    auto_listen: bool = True
+    read_summary_aloud: bool = True
+    auto_submit: bool = False  # False = paste into terminal prompt for manual review; True = auto-press Enter
+    max_spoken_words: int = 25
+    inject_to_active_window: bool = True
+    show_speech_popup: bool = True
+
+
 class IntegrationsConfig(BaseModel):
     antigravity: bool = True
     claude_code: bool = True
@@ -169,9 +178,10 @@ class STTBiasingConfig(BaseModel):
 class CompanionConfig(BaseModel):
     enabled: bool = True
     port: int = 8765
-    host: str = "0.0.0.0"
+    host: str = "127.0.0.1"  # Default to loopback for security
     audio_routing: Literal["smart", "origin_only", "phone_only", "mac_only", "both"] = "smart"
     mute_mac_when_companion_active: bool = False
+    auth_token: Optional[str] = None
 
 
 class StudioConfig(BaseModel):
@@ -202,6 +212,7 @@ def default_agents_catalog() -> dict[str, AgentVoiceProfile]:
 
 class VoiceFiConfig(BaseModel):
     version: int = 1
+    enabled: bool = True  # Global pause/resume kill-switch
     tier: str = "community"
     license_key: str = ""
     user_name: str = Field(default_factory=detect_system_user_name)
@@ -212,6 +223,7 @@ class VoiceFiConfig(BaseModel):
     ambient: AmbientConfig = Field(default_factory=AmbientConfig)
     audio_cues: AudioCuesConfig = Field(default_factory=AudioCuesConfig)
     antigravity: AntigravityConfig = Field(default_factory=AntigravityConfig)
+    claude: ClaudeConfig = Field(default_factory=ClaudeConfig)
     companion: CompanionConfig = Field(default_factory=CompanionConfig)
     studio: StudioConfig = Field(default_factory=StudioConfig)
     integrations: IntegrationsConfig = Field(default_factory=IntegrationsConfig)

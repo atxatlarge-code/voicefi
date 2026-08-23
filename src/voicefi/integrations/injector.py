@@ -10,6 +10,57 @@ from pathlib import Path
 from typing import Optional
 
 
+DEFAULT_TERMINAL_APPS = (
+    "Terminal",
+    "iTerm2",
+    "iTerm",
+    "Warp",
+    "Ghostty",
+    "Alacritty",
+    "kitty",
+    "WezTerm",
+    "Hyper",
+    "Code",
+    "Visual Studio Code",
+    "Cursor",
+    "Windsurf",
+)
+
+
+def get_frontmost_app_name() -> str:
+    """Return the display name of the current frontmost active application on macOS."""
+    applescript = '''
+    tell application "System Events"
+        set frontApp to first application process whose frontmost is true
+        return name of frontApp
+    end tell
+    '''
+    try:
+        result = subprocess.run(
+            ["osascript", "-e", applescript],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=2,
+        )
+        return result.stdout.strip()
+    except Exception:
+        return ""
+
+
+def is_frontmost_app_a_terminal(allowed_apps: tuple = DEFAULT_TERMINAL_APPS) -> bool:
+    """Check if the currently active application is a supported terminal or coding editor."""
+    app_name = get_frontmost_app_name()
+    if not app_name:
+        return True  # Fallback to allow if unable to query
+    app_lower = app_name.lower()
+    for allowed in allowed_apps:
+        if allowed.lower() in app_lower:
+            return True
+    return False
+
+
 def open_accessibility_settings() -> None:
     """Open the macOS Accessibility Privacy settings pane directly."""
     try:

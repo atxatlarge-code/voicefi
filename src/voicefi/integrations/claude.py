@@ -2,12 +2,15 @@
 Claude Code lifecycle hook and transcript integration.
 Listens to Claude Code Stop events, extracts assistant turns, speaks aloud with Guy persona,
 and captures voice response with hands-free microphone turn-handoff.
+Hardened with recursion guards, kill switch, terminal window focus verification,
+and atomic backup handling.
 """
 
 import json
 import os
 import re
 import sys
+import tempfile
 import threading
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple
@@ -17,8 +20,14 @@ from voicefi.tts import get_tts_engine, stop_all_speech
 from voicefi.stt import get_stt_engine
 from voicefi.audio.recorder import AudioRecorder
 from voicefi.audio.chimes import play_chime
-from voicefi.integrations.injector import inject_text_to_active_app
+from voicefi.integrations.injector import (
+    inject_text_to_active_app,
+    is_frontmost_app_a_terminal,
+    get_frontmost_app_name,
+    set_clipboard_text,
+)
 from voicefi.integrations.antigravity import clean_markdown_for_speech
+from voicefi.integrations.conversations import claim_turn
 
 
 def find_latest_claude_session(base_dir: Optional[Path] = None) -> Optional[Path]:
@@ -47,7 +56,7 @@ def find_latest_claude_session(base_dir: Optional[Path] = None) -> Optional[Path
 
 def extract_latest_claude_summary(
     session_path: Optional[Path] = None,
-    max_words: int = 40,
+    max_words: int = 25,
 ) -> str:
     """
     Extract the latest assistant response from a Claude Code session JSONL file.
@@ -97,16 +106,28 @@ def handle_claude_stop_hook(
 ) -> Dict[str, Any]:
     """
     Handle Claude Code turn-completion Stop hook.
-    1. Extracts latest assistant message
-    2. Speaks aloud in Claude's voice persona (default: Guy)
-    3. Auto-opens microphone with VAD and transcribes
-    4. Injects transcribed prompt back into Claude terminal window
+    1. Checks recursion & enabled guards
+    2. Extracts latest assistant message
+    3. Speaks aloud in Claude's voice persona (default: Guy)
+    4. Auto-opens microphone with VAD and transcribes
+    5. Checks terminal focus before pasting to prevent misdirected text
     """
+    # Guard 1: Prevent recursive loop if Stop hook was triggered during hook processing
+    if isinstance(payload, dict) and payload.get("stop_hook_active"):
+        return {"status": "skipped_recursive"}
+
     cfg = config or load_config()
+
+    # Guard 2: Instant pause kill-switch check
+    if not cfg.enabled:
+        return {"status": "paused"}
 
     # 1. Extract summary text from payload or session file
     text_to_speak = ""
+    session_file = None
     if isinstance(payload, dict):
+        if payload.get("session_path"):
+            session_file = Path(payload["session_path"])
         if payload.get("message"):
             text_to_speak = str(payload["message"])
         elif payload.get("text"):
@@ -114,26 +135,32 @@ def handle_claude_stop_hook(
         elif payload.get("content"):
             text_to_speak = str(payload["content"])
 
+    if not session_file:
+        session_file = find_latest_claude_session()
+
     if not text_to_speak:
-        session_file = None
-        if payload.get("session_path"):
-            session_file = Path(payload["session_path"])
         text_to_speak = extract_latest_claude_summary(
             session_path=session_file,
-            max_words=cfg.antigravity.max_spoken_words or 30,
+            max_words=cfg.claude.max_spoken_words,
         )
+
+    # Guard 3: Session turn deduplication
+    conv_id = session_file.stem if session_file else "claude_active"
+    if not claim_turn(conv_id, text_to_speak):
+        return {"status": "skipped_duplicate"}
 
     print(f"\n🎭 [Claude Hook] Turn complete: \"{text_to_speak}\"")
 
-    # 2. Speak the soundbite aloud using Claude's voice persona
-    tts_engine = get_tts_engine(cfg, agent_name="claude")
-    try:
-        tts_engine.speak(text_to_speak, block=True)
-    except Exception as e:
-        print(f"[Claude Hook] Speech error: {e}", file=sys.stderr)
+    # 2. Speak the soundbite aloud using Claude's voice persona (Guy)
+    if cfg.claude.read_summary_aloud:
+        tts_engine = get_tts_engine(cfg, agent_name="claude")
+        try:
+            tts_engine.speak(text_to_speak, block=True)
+        except Exception as e:
+            print(f"[Claude Hook] Speech error: {e}", file=sys.stderr)
 
     # 3. If auto_listen is disabled, finish early
-    if not cfg.antigravity.auto_listen:
+    if not cfg.claude.auto_listen:
         return {"status": "spoken", "agent": "claude"}
 
     # 4. Play start listening chime
@@ -170,10 +197,19 @@ def handle_claude_stop_hook(
 
     print(f"\n📝 Transcribed: {transcription}\n")
 
-    # 7. Inject transcription into active window (Claude terminal)
-    if cfg.antigravity.inject_to_active_window:
-        inject_text_to_active_app(transcription, submit_enter=True)
-        print("🚀 Injected response into Claude Code.")
+    # 7. Safe Window Injection: Verify frontmost app is a terminal/editor before pasting
+    if cfg.claude.inject_to_active_window:
+        if not is_frontmost_app_a_terminal():
+            front_app = get_frontmost_app_name()
+            print(f"⚠️ [Claude Hook] Active app ({front_app}) is not a terminal. Copied speech to clipboard without pasting.")
+            set_clipboard_text(transcription)
+            return {"status": "clipboard_only", "text": transcription, "frontmost_app": front_app}
+
+        inject_text_to_active_app(transcription, submit_enter=cfg.claude.auto_submit)
+        if cfg.claude.auto_submit:
+            print("🚀 Injected and submitted response into Claude Code.")
+        else:
+            print("📋 Injected prompt into Claude Code (press Enter to run).")
 
     # 8. Play sent chime
     if cfg.audio_cues.enabled:
@@ -188,6 +224,7 @@ def install_claude_hook(
 ) -> Path:
     """
     Register VoiceFi Stop hook in ~/.claude/settings.json.
+    Creates .bak backup and writes atomically via os.replace.
     """
     import shutil
     target_path = settings_path or (Path.home() / ".claude" / "settings.json")
@@ -195,6 +232,15 @@ def install_claude_hook(
 
     settings_data: Dict[str, Any] = {}
     if target_path.is_file():
+        # Backup original settings.json once if no backup exists
+        backup_path = target_path.with_name(f"{target_path.stem}.json.bak")
+        if not backup_path.exists():
+            try:
+                import shutil
+                shutil.copy2(target_path, backup_path)
+            except Exception as e:
+                print(f"[Claude Hook] Notice: could not write settings backup: {e}", file=sys.stderr)
+
         try:
             with open(target_path, "r", encoding="utf-8") as f:
                 settings_data = json.load(f) or {}
@@ -235,7 +281,10 @@ def install_claude_hook(
 
     settings_data["hooks"]["Stop"] = stop_hooks
 
-    with open(target_path, "w", encoding="utf-8") as f:
+    # Atomic write via temp file
+    temp_file = target_path.with_suffix(".json.tmp")
+    with open(temp_file, "w", encoding="utf-8") as f:
         json.dump(settings_data, f, indent=2)
+    os.replace(temp_file, target_path)
 
     return target_path

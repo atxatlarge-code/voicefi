@@ -210,6 +210,22 @@ def cmd_setup(args):
     print(f"⚙️ Configuration saved at: {config_path}")
 
 
+def cmd_pause(args):
+    """Pause VoiceFi audio hooks and active turn-handoffs globally."""
+    config = load_config(args.config)
+    config.enabled = False
+    save_config(config)
+    print("⏸️  VoiceFi paused globally. Audio hooks and auto-listen are temporarily disabled.")
+
+
+def cmd_resume(args):
+    """Resume VoiceFi audio hooks and active turn-handoffs globally."""
+    config = load_config(args.config)
+    config.enabled = True
+    save_config(config)
+    print("▶️  VoiceFi resumed globally. Audio hooks and auto-listen are active.")
+
+
 def cmd_autostart(args):
     """Register macOS LaunchAgent so VoiceFi menu bar tray stays on and runs at login."""
     import shutil
@@ -1563,6 +1579,10 @@ def main():
     setup_p.add_argument("--claude", action="store_true", help="Configure Claude Code hooks")
     setup_p.add_argument("--all", action="store_true", help="Configure all detected AI agent hooks")
 
+    # pause / resume
+    subparsers.add_parser("pause", help="Pause VoiceFi audio hooks and active turn-handoffs globally")
+    subparsers.add_parser("resume", help="Resume VoiceFi audio hooks and active turn-handoffs globally")
+
     # autostart
     subparsers.add_parser("autostart", help="Register macOS LaunchAgent to keep menu bar icon persistent")
     subparsers.add_parser("stop-autostart", help="Remove macOS LaunchAgent autostart")
@@ -1823,6 +1843,8 @@ def main():
         "tray": cmd_tray,
         "dev": cmd_dev,
         "setup": cmd_setup,
+        "pause": cmd_pause,
+        "resume": cmd_resume,
         "autostart": cmd_autostart,
         "stop-autostart": cmd_stop_autostart,
         "companion": cmd_companion,
