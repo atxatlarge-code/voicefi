@@ -84,26 +84,48 @@ Whether you are orchestrating a fleet of autonomous AI agents (**Antigravity, Cl
 
 ### 1. Installation
 
-Clone and install using `uv` (recommended) or standard `pip`:
+Choose the installation method that fits your workflow:
 
+#### ⚡ Quick Install (Terminal One-Liner)
 ```bash
-git clone https://github.com/jaketrigg/voicegency.git
-cd voicegency
+curl -fsSL https://vifi.sh | bash
+```
 
-# Install in virtual environment
+#### 🤖 For Claude Code & AI Agents (Two-Step Safe Download)
+```bash
+curl -fsSL https://vifi.sh -o /tmp/install.sh && bash /tmp/install.sh
+```
+
+#### 🛠️ Developer / Local Repo Install
+```bash
+git clone https://github.com/atxatlarge-code/voicefi.git
+cd voicefi
+
+# Option A: Run automated installer
+./install.sh
+
+# Option B: Install in virtual environment
 uv venv --python 3.12
 source .venv/bin/activate
 uv pip install -e .
 ```
 
-### 2. Connect with Antigravity (1-Command Setup)
+#### 📦 Python Package Manager
+```bash
+uv tool install voicefi
+# or
+pip install voicefi
+```
 
-Run the automated setup to register the Voicegency hook in `~/.gemini/config/hooks.json`:
+### 2. Connect with Antigravity & AI Agents (1-Command Setup)
+
+Run the automated setup to register the VoiceFi hooks:
 
 ```bash
-voicegency setup
-# Or use the shorthand alias:
+vifi setup
+# Or use the shorthand aliases:
 vg setup
+voicefi setup
 ```
 
 Now, whenever Antigravity completes a task or asks a question, **Voicegency** will speak the update, listen for your voice response, and paste it right back to the agent!
