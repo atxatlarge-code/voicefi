@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <!-- Pure White Canvas -->
+  <rect width="512" height="512" fill="#FFFFFF"/>
+
+  <!-- Minimal Frame -->
+  <rect x="36" y="36" width="440" height="440" fill="none" stroke="#EAEAEA" stroke-width="1.5"/>
+  <text x="52" y="58" fill="#000000" font-family="'JetBrains Mono', monospace" font-size="11" font-weight="900" letter-spacing="1.5">MINIMAL 03 // STENCIL AMBIGRAM</text>
+  <rect x="254" y="48" width="76" height="14" fill="#FF2A2A"/>
+  <text x="292" y="59" fill="#FFFFFF" font-family="'JetBrains Mono', monospace" font-size="8.5" font-weight="900" text-anchor="middle">● ON AIR</text>
+  <text x="460" y="58" fill="#888888" font-family="'JetBrains Mono', monospace" font-size="10" font-weight="700" text-anchor="end">VOICEGENCY</text>
+
+  <!-- THE MARK: 03 STENCIL AMBIGRAM -->
+  <g id="minimal03" transform="translate(0, 16)">
+    
+    <!-- Outer Heavy 'V' Blades -->
+    <polygon points="120,100 184,100 256,356 222,356" fill="#000000"/>
+    <polygon points="392,100 328,100 256,356 290,356" fill="#000000"/>
+
+    <!-- Inner 'A' Apex (Solid Black Chevron) -->
+    <polygon points="256,110 304,210 256,188 208,210" fill="#000000"/>
+
+    <!-- 'A' Crossbar / Shockmount Ring (Solid Studio Red) -->
+    <rect x="166" y="214" width="180" height="18" fill="#FF2A2A"/>
+
+    <!-- Single Acoustic Diaphragm Node -->
+    <circle cx="256" cy="276" r="22" fill="#000000"/>
+    <circle cx="256" cy="276" r="8" fill="#FF2A2A"/>
+    <circle cx="256" cy="276" r="3" fill="#FFD166"/>
+
+    <!-- Base Mount -->
+    <rect x="238" y="386" width="36" height="14" fill="#000000"/>
+  </g>
+</svg>

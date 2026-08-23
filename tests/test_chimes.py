@@ -1,8 +1,8 @@
-"""Unit tests for Voicegency audio feedback chimes and sound effects."""
+"""Unit tests for VoiceFi audio feedback chimes and sound effects."""
 
 import os
 from unittest.mock import patch
-from voicegency.audio.chimes import (
+from voicefi.audio.chimes import (
     SYSTEM_SOUNDS,
     DEFAULT_SENT_SOUND,
     get_default_sent_sound,

@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <!-- Pure White Canvas -->
+  <rect width="512" height="512" fill="#FFFFFF"/>
+  <rect x="36" y="36" width="440" height="440" fill="none" stroke="#EAEAEA" stroke-width="1.5"/>
+  <text x="52" y="58" fill="#000000" font-family="'JetBrains Mono', monospace" font-size="11" font-weight="900" letter-spacing="1.5">VAR.07 // COMPACT BROADCAST</text>
+  <rect x="250" y="48" width="80" height="14" fill="#FF2A2A"/>
+  <text x="290" y="59" fill="#FFFFFF" font-family="'JetBrains Mono', monospace" font-size="8.5" font-weight="900" text-anchor="middle">● ON AIR</text>
+  <text x="460" y="58" fill="#888888" font-family="'JetBrains Mono', monospace" font-size="10" font-weight="700" text-anchor="end">VOICEGENCY</text>
+
+  <!-- THE MARK: 07 COMPACT BROADCAST -->
+  <g id="var07" transform="translate(0, 16)">
+    <!-- Compact Heavy Yoke (V) -->
+    <polygon points="104,136 156,136 232,364 192,364" fill="#000000"/>
+    <polygon points="408,136 356,136 280,364 320,364" fill="#000000"/>
+
+    <!-- Yoke Pivot Ring Studs -->
+    <circle cx="130" cy="204" r="16" fill="#000000"/>
+    <circle cx="130" cy="204" r="7" fill="#FFFFFF"/>
+    
+    <circle cx="382" cy="204" r="16" fill="#000000"/>
+    <circle cx="382" cy="204" r="7" fill="#FFFFFF"/>
+
+    <!-- Compact Capsule Head (A) -->
+    <path d="M 188 94 C 188 44, 324 44, 324 94 Z" fill="#000000"/>
+    <rect x="212" y="66" width="88" height="10" fill="#FF2A2A"/>
+
+    <rect x="188" y="98" width="136" height="168" fill="#000000"/>
+
+    <!-- 3 Heavyweight Variable-D Slats (Maximum Small-Size Legibility) -->
+    <g fill="#FFFFFF">
+      <rect x="204" y="112" width="104" height="14" rx="2"/>
+      <rect x="204" y="136" width="104" height="14" rx="2"/>
+      <rect x="204" y="160" width="104" height="14" rx="2"/>
+    </g>
+
+    <!-- Shockmount Clamp ('A' Crossbar) -->
+    <rect x="140" y="194" width="232" height="24" fill="#000000"/>
+    <rect x="148" y="200" width="216" height="12" fill="#FF2A2A"/>
+
+    <!-- Diaphragm Core Node -->
+    <circle cx="256" cy="242" r="22" fill="#FFFFFF" stroke="#000000" stroke-width="4"/>
+    <circle cx="256" cy="242" r="14" fill="#FF2A2A"/>
+    <circle cx="256" cy="242" r="5" fill="#FFD166"/>
+
+    <!-- Base XLR Mount -->
+    <polygon points="204,272 308,272 284,336 228,336" fill="#000000"/>
+    <circle cx="256" cy="380" r="14" fill="#000000"/>
+    <rect x="236" y="404" width="40" height="16" fill="#000000"/>
+  </g>
+</svg>

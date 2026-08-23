@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- macOS Squircle Clip -->
+    <clipPath id="squircleClip3">
+      <rect width="512" height="512" rx="115" ry="115"/>
+    </clipPath>
+
+    <!-- Deep Obsidian Canvas -->
+    <radialGradient id="obsidianBg" cx="50%" cy="35%" r="80%">
+      <stop offset="0%" stop-color="#141418"/>
+      <stop offset="55%" stop-color="#09090c"/>
+      <stop offset="100%" stop-color="#020203"/>
+    </radialGradient>
+
+    <!-- Hyper-clean Liquid Gold Gradient -->
+    <linearGradient id="liquidGold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFDF5"/>
+      <stop offset="25%" stop-color="#FDE047"/>
+      <stop offset="65%" stop-color="#F59E0B"/>
+      <stop offset="100%" stop-color="#B45309"/>
+    </linearGradient>
+
+    <linearGradient id="liquidGoldDark" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#D97706"/>
+      <stop offset="100%" stop-color="#78350F"/>
+    </linearGradient>
+
+    <!-- Drop Shadow Filter -->
+    <filter id="cleanGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="#000000" flood-opacity="0.9"/>
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#F59E0B" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+
+  <g clip-path="url(#squircleClip3)">
+    <rect width="512" height="512" fill="url(#obsidianBg)"/>
+
+    <!-- Center Halo -->
+    <circle cx="256" cy="256" r="140" fill="#F59E0B" opacity="0.07" filter="blur(25px)"/>
+
+    <!-- THE MINIMALIST AV STUDIO MIC EMBLEM -->
+    <g filter="url(#cleanGlow)" id="minimalAV">
+      
+      <!-- Microphone Acoustic Arch / Grille Header -->
+      <path d="M 180 130 C 180 90, 332 90, 332 130" fill="none" stroke="url(#liquidGold)" stroke-width="12" stroke-linecap="round"/>
+
+      <!-- Outer 'V' Monogram (Microphone Chassis & Sound Channel) -->
+      <path d="M 116 140 L 168 140 L 256 348 L 220 348 Z" fill="url(#liquidGold)"/>
+      <path d="M 396 140 L 344 140 L 256 348 L 292 348 Z" fill="url(#liquidGold)"/>
+
+      <!-- Inner 'A' Monogram (Agency Apex & Diaphragm Core) -->
+      <polygon points="256,156 298,252 256,234 214,252" fill="url(#liquidGold)"/>
+      <polygon points="256,156 256,234 214,252" fill="url(#liquidGoldDark)" opacity="0.6"/>
+
+      <!-- 'A' Structural Crossbar / Acoustic Divider -->
+      <rect x="202" y="244" width="108" height="12" rx="6" fill="url(#liquidGold)"/>
+
+      <!-- Acoustic Soundwave Rings (Left / Right) -->
+      <g stroke="url(#liquidGold)" stroke-width="8" stroke-linecap="round" opacity="0.4">
+        <path d="M 84 190 C 70 220 70 260 88 290"/>
+        <path d="M 428 190 C 442 220 442 260 424 290"/>
+      </g>
+
+      <!-- Center Voice Pickup Sphere (Capsule Node) -->
+      <circle cx="256" cy="392" r="16" fill="#FFFDF5" filter="drop-shadow(0 0 10px #F59E0B)"/>
+      <circle cx="256" cy="392" r="28" fill="none" stroke="url(#liquidGold)" stroke-width="2.5" opacity="0.6"/>
+
+      <!-- Base Grounding Bar -->
+      <rect x="236" y="440" width="40" height="6" rx="3" fill="url(#liquidGold)" opacity="0.8"/>
+    </g>
+
+    <!-- Beveled Outer Ring -->
+    <rect width="512" height="512" rx="115" ry="115" fill="none" stroke="#26262e" stroke-width="2"/>
+    <rect width="512" height="512" rx="115" ry="115" fill="none" stroke="url(#liquidGold)" stroke-width="1" opacity="0.15"/>
+  </g>
+</svg>

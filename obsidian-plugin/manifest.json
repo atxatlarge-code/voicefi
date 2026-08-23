@@ -1,0 +1,10 @@
+{
+  "id": "voicefi-obsidian",
+  "name": "VoiceFi",
+  "version": "1.0.0",
+  "minAppVersion": "1.0.0",
+  "description": "Second Brain, Second Voice. The vocal cords for your vault.",
+  "author": "LienLogic Data LLC",
+  "authorUrl": "https://voicefi.org",
+  "isDesktopOnly": true
+}

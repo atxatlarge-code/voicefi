@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="100%" height="100%">
+  <!-- Studio White & Electric Red Master OpenGraph Banner (Clean Base) -->
+  <defs>
+    <linearGradient id="whiteHeroBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="100%" stop-color="#F8FAFC" />
+    </linearGradient>
+
+    <linearGradient id="redSignalBanner" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF3B30" />
+      <stop offset="100%" stop-color="#FF2A2A" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background (Borderless) -->
+  <rect width="1200" height="630" fill="url(#whiteHeroBg)" />
+
+  <!-- Subtle Studio Technical Grid -->
+  <g opacity="0.04" stroke="#000000" stroke-width="1">
+    <line x1="0" y1="100" x2="1200" y2="100" />
+    <line x1="0" y1="200" x2="1200" y2="200" />
+    <line x1="0" y1="300" x2="1200" y2="300" />
+    <line x1="0" y1="400" x2="1200" y2="400" />
+    <line x1="0" y1="500" x2="1200" y2="500" />
+    <line x1="200" y1="0" x2="200" y2="630" />
+    <line x1="400" y1="0" x2="400" y2="630" />
+    <line x1="600" y1="0" x2="600" y2="630" />
+    <line x1="800" y1="0" x2="800" y2="630" />
+    <line x1="1000" y1="0" x2="1000" y2="630" />
+  </g>
+
+  <!-- Top Pill Badge (ON AIR Studio Badge) -->
+  <g transform="translate(90, 75)">
+    <rect width="100" height="34" rx="6" fill="#FF2A2A" />
+    <text x="50" y="22" font-family="'JetBrains Mono', monospace" font-size="12" font-weight="900" fill="#FFFFFF" text-anchor="middle" letter-spacing="2">
+      ● ON AIR
+    </text>
+    <rect x="110" y="0" width="270" height="34" rx="6" fill="#F1F5F9" stroke="#E2E8F0" stroke-width="1" />
+    <text x="122" y="22" font-family="'JetBrains Mono', monospace" font-size="12" font-weight="700" fill="#475569" letter-spacing="1">
+      VOICEFI.ORG · OPEN VOICE PROTOCOL
+    </text>
+  </g>
+
+  <!-- Main Headline -->
+  <text x="90" y="195" font-family="-apple-system, BlinkMacSystemFont, 'Plus Jakarta Sans', sans-serif" font-weight="900" font-size="76" fill="#000000" letter-spacing="-3">
+    Voice<tspan fill="#FF2A2A">Fi</tspan><tspan font-size="28" font-weight="600" fill="#94A3B8" dy="-32">™</tspan>
+  </text>
+
+  <!-- Subheadline -->
+  <text x="90" y="260" font-family="-apple-system, BlinkMacSystemFont, 'Plus Jakarta Sans', sans-serif" font-weight="600" font-size="28" fill="#334155" letter-spacing="-0.5">
+    The Open Source Voice Protocol for AI Agents &amp; macOS
+  </text>
+
+  <!-- Feature bullets -->
+  <g transform="translate(90, 310)" font-family="-apple-system, BlinkMacSystemFont, 'Plus Jakarta Sans', sans-serif" font-size="18" fill="#64748B">
+    <text x="0" y="0">✦ <tspan fill="#000000" font-weight="700">Zero-Friction Dictation:</tspan> Fast local Whisper transcription in any Mac app</text>
+    <text x="0" y="36">✦ <tspan fill="#000000" font-weight="700">Agentic Auto-Listen Loop:</tspan> Speaks turn results aloud &amp; opens hands-free mic</text>
+    <text x="0" y="72">✦ <tspan fill="#000000" font-weight="700">Developer First:</tspan> Integrated with Antigravity, Claude Code, &amp; Cursor</text>
+  </g>
+
+  <!-- Terminal Install Command Card -->
+  <g transform="translate(90, 460)">
+    <rect width="480" height="74" rx="14" fill="#0F172A" stroke="#1E293B" stroke-width="1.5" />
+    <circle cx="28" cy="37" r="5" fill="#FF2A2A" />
+    <text x="50" y="44" font-family="'JetBrains Mono', monospace" font-size="20" font-weight="700" fill="#FF2A2A">
+      $&gt; <tspan fill="#FFFFFF">curl -fsSL </tspan><tspan fill="#FF2A2A">vifi.sh</tspan><tspan fill="#FFFFFF"> | sh</tspan>
+    </text>
+  </g>
+
+  <!-- Right Side Visual / Studio White & Red Cyber Character Mark (Clean Base) -->
+  <g transform="translate(730, 80) scale(0.95)">
+    <rect width="420" height="420" rx="90" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="2" filter="drop-shadow(0 20px 30px rgba(0,0,0,0.06))" />
+    
+    <g transform="translate(0, 5)">
+      <!-- 1. Electric Red Wi-Fi Hat -->
+      <path d="M 120 120 A 100 100 0 0 1 300 120" fill="none" stroke="url(#redSignalBanner)" stroke-width="16" stroke-linecap="round" />
+      <path d="M 148 150 A 65 65 0 0 1 272 150" fill="none" stroke="url(#redSignalBanner)" stroke-width="15" stroke-linecap="round" />
+      <path d="M 175 180 A 35 35 0 0 1 245 180" fill="none" stroke="url(#redSignalBanner)" stroke-width="14" stroke-linecap="round" />
+
+      <!-- 2. Cyber Eyes in Crisp Black -->
+      <line x1="165" y1="220" x2="190" y2="220" stroke="#000000" stroke-width="7" stroke-linecap="round" />
+      <line x1="230" y1="220" x2="255" y2="220" stroke="#000000" stroke-width="7" stroke-linecap="round" />
+
+      <!-- 3. USB-C Port Nose -->
+      <rect x="195" y="235" width="30" height="13" rx="6.5" fill="#FFFFFF" stroke="#FF2A2A" stroke-width="2.5" />
+      <line x1="202" y1="241.5" x2="218" y2="241.5" stroke="#000000" stroke-width="2" stroke-linecap="round" />
+
+      <!-- Smile -->
+      <path d="M 188 270 Q 210 288 232 270" fill="none" stroke="#FF2A2A" stroke-width="4.5" stroke-linecap="round" />
+
+      <!-- 4. Studio Black Cradle & Plug Base (No Base Dot) -->
+      <path d="M 100 185 C 100 295, 142 325, 210 325 C 278 325, 320 295, 320 185" fill="none" stroke="#000000" stroke-width="10" stroke-linecap="round" />
+      <rect x="88" y="172" width="24" height="26" rx="5" fill="#FFFFFF" stroke="#000000" stroke-width="2.5" />
+      <circle cx="100" cy="185" r="3" fill="#FF2A2A" />
+      <rect x="308" y="172" width="24" height="26" rx="5" fill="#FFFFFF" stroke="#000000" stroke-width="2.5" />
+      <circle cx="320" cy="185" r="3" fill="#FF2A2A" />
+
+      <line x1="210" y1="325" x2="210" y2="360" stroke="#000000" stroke-width="11" stroke-linecap="round" />
+      <line x1="155" y1="360" x2="265" y2="360" stroke="#000000" stroke-width="11" stroke-linecap="round" />
+    </g>
+  </g>
+
+  <!-- Footer Info -->
+  <text x="90" y="585" font-family="'JetBrains Mono', monospace" font-size="13" fill="#94A3B8">
+    VOICEFI.ORG · VIFI.SH · U.S. PATENT PENDING 64/137,300
+  </text>
+</svg>

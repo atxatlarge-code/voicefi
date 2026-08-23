@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <!-- Refinement C: Studio Suspension Shockmount -->
+  <defs>
+    <linearGradient id="refCBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#040711" />
+      <stop offset="100%" stop-color="#020308" />
+    </linearGradient>
+    <linearGradient id="refCSignal" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38BDF8" />
+      <stop offset="50%" stop-color="#6366F1" />
+      <stop offset="100%" stop-color="#A855F7" />
+    </linearGradient>
+    <filter id="refCGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="7" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <rect width="512" height="512" rx="112" fill="url(#refCBg)" />
+  <rect width="510" height="510" x="1" y="1" rx="111" fill="none" stroke="#1E293B" stroke-width="2" />
+
+  <g transform="translate(0, 15)">
+    <!-- Shockmount Outer Enclosure Ring (Subtle Studio Ring) -->
+    <circle cx="256" cy="245" r="145" fill="none" stroke="#1E293B" stroke-width="3" stroke-dasharray="6 6" />
+
+    <!-- Elastic Shockmount Suspension Lines -->
+    <g stroke="#38BDF8" stroke-opacity="0.35" stroke-width="2" stroke-dasharray="3 3">
+      <line x1="140" y1="210" x2="216" y2="250" />
+      <line x1="372" y1="210" x2="296" y2="250" />
+      <line x1="160" y1="310" x2="228" y2="300" />
+      <line x1="352" y1="310" x2="284" y2="300" />
+    </g>
+
+    <!-- Wi-Fi Broadcast Arcs -->
+    <path d="M 148 165 A 130 130 0 0 1 364 165" fill="none" stroke="url(#refCSignal)" stroke-width="18" stroke-linecap="round" filter="url(#refCGlow)" />
+    <path d="M 184 208 A 88 88 0 0 1 328 208" fill="none" stroke="url(#refCSignal)" stroke-width="16" stroke-linecap="round" />
+    <path d="M 218 250 A 46 46 0 0 1 294 250" fill="none" stroke="url(#refCSignal)" stroke-width="15" stroke-linecap="round" />
+
+    <!-- Center Waveform Pillar -->
+    <line x1="256" y1="205" x2="256" y2="322" stroke="#FFFFFF" stroke-width="14" stroke-linecap="round" filter="url(#refCGlow)" />
+    <circle cx="256" cy="336" r="8" fill="#38BDF8" filter="url(#refCGlow)" />
+
+    <!-- Studio Mic Heavy Metal Cradle -->
+    <path d="M 112 210 C 112 345, 172 385, 256 385 C 340 385, 400 345, 400 210" 
+          fill="none" 
+          stroke="#475569" 
+          stroke-width="13" 
+          stroke-linecap="round" />
+
+    <!-- Heavy Knurled Locking Screws -->
+    <circle cx="112" cy="210" r="10" fill="#0E172A" stroke="#64748B" stroke-width="3" />
+    <circle cx="112" cy="210" r="4" fill="#38BDF8" />
+    <circle cx="400" cy="210" r="10" fill="#0E172A" stroke="#64748B" stroke-width="3" />
+    <circle cx="400" cy="210" r="4" fill="#38BDF8" />
+
+    <!-- Base Mount & Stand -->
+    <line x1="256" y1="385" x2="256" y2="430" stroke="#475569" stroke-width="14" stroke-linecap="round" />
+    <line x1="188" y1="430" x2="324" y2="430" stroke="#64748B" stroke-width="14" stroke-linecap="round" />
+    <circle cx="256" cy="430" r="4" fill="#38BDF8" filter="url(#refCGlow)" />
+  </g>
+</svg>

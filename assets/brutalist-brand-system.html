@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Voicegency™ — Kinetic Brutalism Brand System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #000000;
+      --card-bg: #0a0a0c;
+      --border: #222226;
+      --border-bright: #33333b;
+      --text: #ffffff;
+      --muted: #777780;
+      --acid: #D4FF00;
+      --acid-glow: rgba(212, 255, 0, 0.15);
+    }
+
+    .light-mode {
+      --bg: #f4f4f6;
+      --card-bg: #ffffff;
+      --border: #d4d4d8;
+      --border-bright: #a1a1aa;
+      --text: #000000;
+      --muted: #52525b;
+      --acid: #000000;
+      --acid-glow: rgba(0, 0, 0, 0.05);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, "Helvetica Neue", "Neue Haas Grotesk", "SF Pro Display", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 40px 24px 100px;
+      line-height: 1.5;
+      transition: background 0.2s ease, color 0.2s ease;
+    }
+
+    .mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    /* Top Nav Bar */
+    .top-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 2px solid var(--border);
+      padding-bottom: 16px;
+      margin-bottom: 40px;
+    }
+
+    .top-nav .brand-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 900;
+      font-size: 1.1rem;
+      letter-spacing: -0.02em;
+    }
+
+    .acid-tag {
+      background: var(--acid);
+      color: #000000;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      font-weight: 900;
+      padding: 3px 8px;
+      letter-spacing: 0.1em;
+    }
+
+    .theme-btn {
+      background: transparent;
+      border: 1px solid var(--border-bright);
+      color: var(--text);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      font-weight: 700;
+      padding: 6px 14px;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .theme-btn:hover {
+      background: var(--acid);
+      color: #000000;
+      border-color: var(--acid);
+    }
+
+    /* Hero Manifesto Poster */
+    .manifesto-poster {
+      border: 2px solid var(--border);
+      background: var(--card-bg);
+      padding: 48px;
+      margin-bottom: 60px;
+      position: relative;
+    }
+
+    .poster-meta {
+      display: flex;
+      justify-content: space-between;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 28px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 12px;
+    }
+
+    h1.hero-title {
+      font-size: clamp(2.4rem, 6vw, 4.6rem);
+      font-weight: 900;
+      letter-spacing: -0.05em;
+      line-height: 0.95;
+      text-transform: uppercase;
+      margin-bottom: 24px;
+    }
+
+    h1.hero-title span.acid {
+      color: var(--acid);
+    }
+
+    .hero-slogan-lockup {
+      font-size: clamp(1.2rem, 2.5vw, 1.8rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      border-left: 4px solid var(--acid);
+      padding-left: 18px;
+      margin-bottom: 30px;
+    }
+
+    .poem-quote {
+      font-family: Georgia, serif;
+      font-style: italic;
+      font-size: 1.15rem;
+      color: var(--muted);
+      line-height: 1.7;
+      max-width: 720px;
+    }
+
+    /* Section Headers */
+    .section-title {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.9rem;
+      font-weight: 900;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--acid);
+      margin: 60px 0 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .section-title::after {
+      content: "";
+      flex-grow: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* Hero Banner Embed */
+    .banner-container {
+      border: 2px solid var(--border);
+      background: var(--card-bg);
+      padding: 20px;
+      margin-bottom: 40px;
+    }
+
+    .banner-container img {
+      width: 100%;
+      height: auto;
+      display: block;
+      border: 1px solid var(--border);
+    }
+
+    /* Marks 3-Column Grid */
+    .marks-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 24px;
+      margin-bottom: 40px;
+    }
+
+    .mark-box {
+      border: 2px solid var(--border);
+      background: var(--card-bg);
+      padding: 28px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: relative;
+    }
+
+    .mark-box:hover {
+      border-color: var(--acid);
+    }
+
+    .mark-meta-tag {
+      align-self: flex-start;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      font-weight: 800;
+      color: var(--acid);
+      letter-spacing: 0.1em;
+      margin-bottom: 20px;
+    }
+
+    .mark-preview {
+      width: 240px;
+      height: 240px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--border);
+      background: #000000;
+    }
+
+    .mark-preview img {
+      width: 100%;
+      height: 100%;
+    }
+
+    .mark-name {
+      font-size: 1.25rem;
+      font-weight: 900;
+      letter-spacing: -0.02em;
+      margin-bottom: 8px;
+      text-align: center;
+      text-transform: uppercase;
+    }
+
+    .mark-desc {
+      font-size: 0.88rem;
+      color: var(--muted);
+      text-align: center;
+      line-height: 1.5;
+      margin-bottom: 20px;
+      flex-grow: 1;
+    }
+
+    .code-badge {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      background: #000;
+      border: 1px solid var(--border-bright);
+      color: var(--acid);
+      padding: 6px 12px;
+    }
+
+    /* Wordmark Container */
+    .wordmark-container {
+      border: 2px solid var(--border);
+      background: #000000;
+      padding: 36px 24px;
+      margin-bottom: 40px;
+    }
+
+    .wordmark-container img {
+      width: 100%;
+      max-width: 960px;
+      display: block;
+      margin: 0 auto;
+    }
+
+    /* Rules & Values Table */
+    .rules-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+    }
+
+    .rule-card {
+      border: 1px solid var(--border);
+      background: var(--card-bg);
+      padding: 24px;
+    }
+
+    .rule-num {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.2rem;
+      font-weight: 900;
+      color: var(--acid);
+      margin-bottom: 8px;
+    }
+
+    .rule-title {
+      font-size: 1.05rem;
+      font-weight: 800;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+    }
+
+    .rule-body {
+      font-size: 0.85rem;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    
+    <!-- Top Nav -->
+    <nav class="top-nav">
+      <div class="brand-badge">
+        <span class="acid-tag">SYS.IDENTITY</span>
+        <span>VOICEGENCY™ // KINETIC BRUTALISM</span>
+      </div>
+      <button class="theme-btn" onclick="document.body.classList.toggle('light-mode')">Toggle Contrast Mode</button>
+    </nav>
+
+    <!-- MANIFESTO POSTER -->
+    <div class="manifesto-poster">
+      <div class="poster-meta">
+        <span>01 // DIRECTION C: KINETIC BRUTALISM</span>
+        <span>U.S. PATENT APP. NO. 64/137,300</span>
+        <span>ZERO FAKE GLOWS</span>
+      </div>
+
+      <h1 class="hero-title">
+        SPEAK YOUR<br>
+        <span class="acid">MOVEMENT.</span>
+      </h1>
+
+      <div class="hero-slogan-lockup">
+        GIVE A VOICE TO YOUR AGENTS, AND AGENCY TO YOUR VOICE.
+      </div>
+
+      <p class="poem-quote">
+        “A magnum opus may be flowing through me in this moment,<br>
+        Expialidocious may be growing new trees like they golden.<br>
+        Computer usage and voice translation proving they be a nuisance,<br>
+        Download Voicegency and be free to speak your movement.”
+      </p>
+    </div>
+
+    <!-- SECTION 1: 1200x630 POSTER HERO BANNER -->
+    <div class="section-title">01 // POSTER BANNER (1200×630 OPEN GRAPH / SOCIAL)</div>
+    <div class="banner-container">
+      <img src="brutalist-hero-banner.svg" alt="Brutalist Hero Banner">
+      <div style="display: flex; justify-content: space-between; font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; color: var(--muted); margin-top: 14px;">
+        <span>PATH: assets/brutalist-hero-banner.svg</span>
+        <span>HIGH-CONTRAST VECTOR POSTER</span>
+      </div>
+    </div>
+
+    <!-- SECTION 2: THE 3 BRUTALIST MARKS -->
+    <div class="section-title">02 // THE 3 BRUTALIST LOGO MARKS</div>
+    <div class="marks-grid">
+      
+      <!-- Mark 1: V-Impulse Monolith -->
+      <div class="mark-box">
+        <div class="mark-meta-tag">SPEC. C1 // RECOMMENDED PRIMARY</div>
+        <div class="mark-preview">
+          <img src="brutalist-logo-1.svg" alt="Kinetic V-Impulse Monolith">
+        </div>
+        <div class="mark-name">The V-Impulse Monolith</div>
+        <p class="mark-desc">
+          Heavy monolithic geometric V sliced by razor-sharp acoustic soundwave impulse bars and an aggressive downward kinetic strike.
+        </p>
+        <span class="code-badge">assets/brutalist-logo-1.svg</span>
+      </div>
+
+      <!-- Mark 2: Sonic Wave Strike -->
+      <div class="mark-box">
+        <div class="mark-meta-tag">SPEC. C2 // ACOUSTIC STENCIL</div>
+        <div class="mark-preview">
+          <img src="brutalist-logo-2.svg" alt="Sonic Strike Monogram">
+        </div>
+        <div class="mark-name">The Sonic Wave Strike</div>
+        <p class="mark-desc">
+          Architectural stepped equalizer slabs converging into an acid-volt kinetic wedge with an acoustic notch core.
+        </p>
+        <span class="code-badge">assets/brutalist-logo-2.svg</span>
+      </div>
+
+      <!-- Mark 3: Sonic Aperture / Crosshair -->
+      <div class="mark-box">
+        <div class="mark-meta-tag">SPEC. C3 // RADIAL APERTURE</div>
+        <div class="mark-preview">
+          <img src="brutalist-logo-3.svg" alt="Acoustic Crosshair">
+        </div>
+        <div class="mark-name">The Acoustic Aperture</div>
+        <p class="mark-desc">
+          Concentric oscillating acoustic rings intersected by four cardinal direction vectors representing human intent and machine response.
+        </p>
+        <span class="code-badge">assets/brutalist-logo-3.svg</span>
+      </div>
+
+    </div>
+
+    <!-- SECTION 3: WORDMARK LOCKUP -->
+    <div class="section-title">03 // SWISS GROTESK WORDMARK LOCKUP</div>
+    <div class="wordmark-container">
+      <img src="brutalist-wordmark.svg" alt="Brutalist Wordmark">
+    </div>
+
+    <!-- SECTION 4: DESIGN SYSTEM PILLARS -->
+    <div class="section-title">04 // BRUTALIST DESIGN RULES</div>
+    <div class="rules-grid">
+      <div class="rule-card">
+        <div class="rule-num">01</div>
+        <div class="rule-title">NO FAKE GLOWS</div>
+        <div class="rule-body">
+          Zero blurry radial color blobs or fake glassmorphism. Contrast is generated through raw geometry, positive/negative space, and stark boundaries.
+        </div>
+      </div>
+
+      <div class="rule-card">
+        <div class="rule-num">02</div>
+        <div class="rule-title">STARK VOLTAGE</div>
+        <div class="rule-body">
+          Void Black (#000), Chalk White (#FFF), and Electric Acid Volt (#D4FF00). Maximum optical impact on screen, print, or hardware.
+        </div>
+      </div>
+
+      <div class="rule-card">
+        <div class="rule-num">03</div>
+        <div class="rule-title">ACOUSTIC FORCE</div>
+        <div class="rule-body">
+          Soundwaves are drawn as physical force, mechanical impulse bars, and discrete oscillating units rather than gentle sine waves.
+        </div>
+      </div>
+
+      <div class="rule-card">
+        <div class="rule-num">04</div>
+        <div class="rule-title">STENCIL READY</div>
+        <div class="rule-body">
+          Every mark must work as a monochrome laser engraving, physical metal badge, 16px menu bar template, or vinyl record label.
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</body>
+</html>

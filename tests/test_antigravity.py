@@ -2,7 +2,7 @@
 
 import json
 from pathlib import Path
-from voicegency.integrations.antigravity import clean_markdown_for_speech, extract_latest_agent_summary
+from voicefi.integrations.antigravity import clean_markdown_for_speech, extract_latest_agent_summary
 
 
 def test_clean_markdown_strips_code_blocks():
@@ -49,10 +49,10 @@ def test_extract_latest_agent_summary_from_transcript(tmp_path: Path):
 
 
 def test_session_cookie_handshake(tmp_path: Path, monkeypatch):
-    from voicegency.integrations.conversations import save_session_cookie, load_session_cookie, ConversationTracker
+    from voicefi.integrations.conversations import save_session_cookie, load_session_cookie, ConversationTracker
 
     cookie_file = tmp_path / "active_session.json"
-    monkeypatch.setattr("voicegency.integrations.conversations.get_session_cookie_path", lambda: cookie_file)
+    monkeypatch.setattr("voicefi.integrations.conversations.get_session_cookie_path", lambda: cookie_file)
 
     test_conv_id = "test-conv-123456"
     test_title = "Feature Development Session"
@@ -76,11 +76,11 @@ def test_session_cookie_handshake(tmp_path: Path, monkeypatch):
 
 
 def test_handle_stop_hook_injects_with_target_antigravity(tmp_path: Path, monkeypatch):
-    from voicegency.integrations.antigravity import handle_antigravity_stop_hook
-    from voicegency.config import VoicegencyConfig
+    from voicefi.integrations.antigravity import handle_antigravity_stop_hook
+    from voicefi.config import VoiceFiConfig
     from unittest.mock import MagicMock
 
-    cfg = VoicegencyConfig()
+    cfg = VoiceFiConfig()
     cfg.antigravity.read_summary_aloud = False
     cfg.antigravity.auto_listen = True
     cfg.antigravity.inject_to_active_window = True
@@ -94,15 +94,15 @@ def test_handle_stop_hook_injects_with_target_antigravity(tmp_path: Path, monkey
     # Mock recorder and STT
     dummy_wav = tmp_path / "dummy.wav"
     dummy_wav.write_text("audio")
-    monkeypatch.setattr("voicegency.integrations.antigravity.AudioRecorder.record_speech_auto", lambda self, *args, **kwargs: (None, dummy_wav))
+    monkeypatch.setattr("voicefi.integrations.antigravity.AudioRecorder.record_speech_auto", lambda self, *args, **kwargs: (None, dummy_wav))
     
     mock_stt = MagicMock()
     mock_stt.transcribe.return_value = "Run the tests next"
-    monkeypatch.setattr("voicegency.integrations.antigravity.get_stt_engine", lambda cfg: mock_stt)
+    monkeypatch.setattr("voicefi.integrations.antigravity.get_stt_engine", lambda cfg: mock_stt)
 
     mock_inject = MagicMock()
-    monkeypatch.setattr("voicegency.integrations.antigravity.inject_text_to_active_app", mock_inject)
-    monkeypatch.setattr("voicegency.integrations.antigravity.claim_turn", lambda cid, sig: True)
+    monkeypatch.setattr("voicefi.integrations.antigravity.inject_text_to_active_app", mock_inject)
+    monkeypatch.setattr("voicefi.integrations.antigravity.claim_turn", lambda cid, sig: True)
 
     payload = {"conversationId": "test-123", "transcriptPath": str(tfile)}
     handle_antigravity_stop_hook(payload, config=cfg)

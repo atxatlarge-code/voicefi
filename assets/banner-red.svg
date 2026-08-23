@@ -1,0 +1,115 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <!-- Pure Stark White Canvas -->
+  <rect width="1200" height="630" fill="#FFFFFF"/>
+
+  <!-- Brutalist Outer Framing -->
+  <rect x="24" y="24" width="1152" height="582" fill="none" stroke="#E5E5E5" stroke-width="2"/>
+  
+  <!-- Technical Grid Dividers -->
+  <line x1="720" y1="24" x2="720" y2="606" stroke="#E5E5E5" stroke-width="2"/>
+  <line x1="24" y1="460" x2="720" y2="460" stroke="#E5E5E5" stroke-width="2"/>
+
+  <!-- Top Left Stamp -->
+  <g transform="translate(60, 60)">
+    <rect x="0" y="0" width="120" height="24" fill="#FF2A2A"/>
+    <text x="60" y="16" fill="#FFFFFF" font-family="'JetBrains Mono', monospace" font-size="11" font-weight="900" letter-spacing="2" text-anchor="middle">● ON AIR</text>
+    <text x="135" y="16" fill="#666666" font-family="'JetBrains Mono', monospace" font-size="11" font-weight="700">STUDIO RECORDING SPEC // V2.0</text>
+  </g>
+
+  <!-- Left Main Hero Headline -->
+  <g transform="translate(60, 145)">
+    <!-- Massive Impact Typography in Stark Black -->
+    <text x="0" y="0" fill="#000000" font-family="-apple-system, 'Helvetica Neue', 'Neue Haas Grotesk', 'Inter', sans-serif" font-weight="900" font-size="52" letter-spacing="-0.04em">
+      GIVE A VOICE TO
+    </text>
+    <text x="0" y="58" fill="#000000" font-family="-apple-system, 'Helvetica Neue', 'Neue Haas Grotesk', 'Inter', sans-serif" font-weight="900" font-size="52" letter-spacing="-0.04em">
+      YOUR AGENTS.
+    </text>
+
+    <text x="0" y="126" fill="#000000" font-family="-apple-system, 'Helvetica Neue', 'Neue Haas Grotesk', 'Inter', sans-serif" font-weight="900" font-size="52" letter-spacing="-0.04em">
+      AND AGENCY TO
+    </text>
+    <text x="0" y="184" fill="#000000" font-family="-apple-system, 'Helvetica Neue', 'Neue Haas Grotesk', 'Inter', sans-serif" font-weight="900" font-size="52" letter-spacing="-0.04em">
+      YOUR VOICE.
+    </text>
+
+    <!-- Sub-Statement with Red Underline -->
+    <text x="0" y="240" fill="#555555" font-family="'JetBrains Mono', monospace" font-size="14" font-weight="700" letter-spacing="0.02em">
+      THE ZERO-CLICK AMBIENT VOICE LAYER FOR AUTONOMOUS COMPUTING.
+    </text>
+    <rect x="0" y="254" width="580" height="4" fill="#FF2A2A"/>
+  </g>
+
+  <!-- Bottom Left Manifesto Block -->
+  <g transform="translate(60, 490)">
+    <text x="0" y="22" fill="#000000" font-family="Georgia, serif" font-style="italic" font-size="15" letter-spacing="-0.01em">
+      “Download Voicegency and be free to speak your movement.”
+    </text>
+    <text x="0" y="48" fill="#888888" font-family="'JetBrains Mono', monospace" font-size="11" font-weight="700">
+      U.S. PATENT APP. NO. 64/137,300 • LIENLOGIC DATA LLC • VOICEGENCY.COM
+    </text>
+  </g>
+
+  <!-- Right Panel: Studio Mic VA Red Centerpiece -->
+  <g transform="translate(740, 24)">
+    
+    <!-- Background Technical Grid -->
+    <g stroke="#F0F0F0" stroke-width="1">
+      <line x1="0" y1="145" x2="436" y2="145"/>
+      <line x1="0" y1="290" x2="436" y2="290"/>
+      <line x1="0" y1="435" x2="436" y2="435"/>
+      <line x1="218" y1="0" x2="218" y2="582"/>
+    </g>
+
+    <!-- Header Right Metadata -->
+    <text x="396" y="40" fill="#000000" font-family="'JetBrains Mono', monospace" font-size="10" font-weight="900" text-anchor="end" letter-spacing="2">SPEC: HYBRID-01 RED</text>
+    <rect x="20" y="30" width="8" height="8" fill="#FF2A2A"/>
+    <text x="36" y="38" fill="#666666" font-family="'JetBrains Mono', monospace" font-size="10" font-weight="700">LIVE RECORDING MIC</text>
+
+    <!-- The Studio Mic Symbol Centered -->
+    <g transform="translate(20, 50) scale(0.8)">
+      <!-- Top Grille Dome -->
+      <path d="M 176 100 C 176 60, 336 60, 336 100" fill="none" stroke="#000000" stroke-width="16" stroke-linecap="square"/>
+      <line x1="204" y1="82" x2="308" y2="82" stroke="#FF2A2A" stroke-width="8"/>
+      <line x1="228" y1="68" x2="284" y2="68" stroke="#000000" stroke-width="6"/>
+
+      <!-- Solid Left & Right V Blades -->
+      <polygon points="124,116 188,116 256,360 220,360" fill="#000000"/>
+      <polygon points="388,116 324,116 256,360 292,360" fill="#000000"/>
+
+      <!-- Slits (White Cutouts) -->
+      <g fill="#FFFFFF">
+        <rect x="146" y="136" width="34" height="8"/>
+        <rect x="160" y="158" width="34" height="8"/>
+        <rect x="174" y="180" width="34" height="8"/>
+        
+        <rect x="332" y="136" width="34" height="8"/>
+        <rect x="318" y="158" width="34" height="8"/>
+        <rect x="304" y="180" width="34" height="8"/>
+      </g>
+
+      <!-- Crossbar Band -->
+      <rect x="180" y="210" width="152" height="18" fill="#000000"/>
+      <rect x="188" y="214" width="136" height="10" fill="#FF2A2A"/>
+
+      <!-- Condenser Diaphragm -->
+      <circle cx="256" cy="156" r="32" fill="#FFFFFF" stroke="#000000" stroke-width="5"/>
+      <circle cx="256" cy="156" r="22" fill="#FF2A2A" stroke="#000000" stroke-width="3"/>
+      <circle cx="256" cy="156" r="8" fill="#FFD166" stroke="#000000" stroke-width="1.5"/>
+
+      <!-- Base Mount -->
+      <circle cx="256" cy="392" r="14" fill="#000000"/>
+      <circle cx="256" cy="392" r="6" fill="#FF2A2A"/>
+      <rect x="236" y="420" width="40" height="14" fill="#000000"/>
+      <rect x="248" y="434" width="16" height="8" fill="#FF2A2A"/>
+    </g>
+
+    <!-- Bottom Features Tagged -->
+    <g transform="translate(30, 480)">
+      <rect x="0" y="0" width="376" height="42" fill="#F8F8F8" stroke="#000000" stroke-width="1.5"/>
+      <text x="16" y="26" fill="#000000" font-family="'JetBrains Mono', monospace" font-size="11" font-weight="900">01. PHONE PWA</text>
+      <text x="136" y="26" fill="#FF2A2A" font-family="'JetBrains Mono', monospace" font-size="11" font-weight="900">02. LIVE VAD</text>
+      <text x="256" y="26" fill="#000000" font-family="'JetBrains Mono', monospace" font-size="11" font-weight="900">03. LOCAL STT</text>
+    </g>
+  </g>
+</svg>

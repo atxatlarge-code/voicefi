@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Voicegency™ — Minimalist Brutalist AV Microphone Marks</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #000000;
+      --card-bg: #0a0a0c;
+      --border: #222226;
+      --text: #ffffff;
+      --muted: #777780;
+      --acid: #D4FF00;
+    }
+
+    .light-mode {
+      --bg: #f4f4f6;
+      --card-bg: #ffffff;
+      --border: #d4d4d8;
+      --text: #000000;
+      --muted: #52525b;
+      --acid: #000000;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, "Helvetica Neue", "Neue Haas Grotesk", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 40px 24px 100px;
+      line-height: 1.5;
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    /* Top Nav */
+    .top-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 2px solid var(--border);
+      padding-bottom: 16px;
+      margin-bottom: 40px;
+    }
+
+    .brand-tag {
+      background: var(--acid);
+      color: #000000;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      font-weight: 900;
+      padding: 4px 8px;
+      letter-spacing: 0.1em;
+      margin-right: 10px;
+    }
+
+    .top-title {
+      font-weight: 900;
+      font-size: 1.1rem;
+      letter-spacing: -0.02em;
+    }
+
+    .theme-toggle-btn {
+      background: transparent;
+      border: 1px solid var(--text);
+      color: var(--text);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      font-weight: 800;
+      padding: 6px 14px;
+      cursor: pointer;
+      text-transform: uppercase;
+    }
+
+    .theme-toggle-btn:hover {
+      background: var(--acid);
+      color: #000000;
+      border-color: var(--acid);
+    }
+
+    /* Hero Header */
+    header {
+      margin-bottom: 48px;
+    }
+
+    h1 {
+      font-size: clamp(2rem, 5vw, 3.8rem);
+      font-weight: 900;
+      letter-spacing: -0.04em;
+      line-height: 1;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+
+    h1 span.acid {
+      color: var(--acid);
+    }
+
+    .subtitle {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.95rem;
+      color: var(--muted);
+      max-width: 720px;
+    }
+
+    /* Anatomy Box */
+    .anatomy-box {
+      border: 2px solid var(--border);
+      background: var(--card-bg);
+      padding: 24px 30px;
+      margin-bottom: 40px;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 20px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+    }
+
+    @media (max-width: 768px) {
+      .anatomy-box { grid-template-columns: 1fr; }
+    }
+
+    .anatomy-box .col h4 {
+      color: var(--acid);
+      font-weight: 900;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+    }
+
+    .anatomy-box .col p {
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
+
+    /* Marks Grid */
+    .marks-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 28px;
+      margin-bottom: 60px;
+    }
+
+    .mark-card {
+      border: 2px solid var(--border);
+      background: var(--card-bg);
+      padding: 28px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: relative;
+    }
+
+    .mark-card.highlight {
+      border-color: var(--acid);
+    }
+
+    .spec-tag {
+      align-self: flex-start;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      font-weight: 900;
+      color: var(--acid);
+      margin-bottom: 20px;
+      letter-spacing: 0.1em;
+    }
+
+    .preview-box {
+      width: 250px;
+      height: 250px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--border);
+      background: #000000;
+    }
+
+    .preview-box img {
+      width: 100%;
+      height: 100%;
+    }
+
+    .mark-name {
+      font-size: 1.2rem;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: -0.02em;
+      margin-bottom: 8px;
+      text-align: center;
+    }
+
+    .mark-desc {
+      font-size: 0.85rem;
+      color: var(--muted);
+      text-align: center;
+      line-height: 1.5;
+      margin-bottom: 20px;
+      flex-grow: 1;
+    }
+
+    .path-pill {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      background: #000;
+      border: 1px solid var(--border);
+      color: var(--acid);
+      padding: 6px 12px;
+      font-weight: 700;
+    }
+
+    /* Size Scale Test Bench */
+    .scale-bench {
+      border: 2px solid var(--border);
+      background: var(--card-bg);
+      padding: 30px;
+    }
+
+    .scale-header {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      font-weight: 900;
+      color: var(--acid);
+      margin-bottom: 24px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .scale-row {
+      display: flex;
+      align-items: center;
+      gap: 36px;
+      flex-wrap: wrap;
+    }
+
+    .scale-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .scale-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+
+    <!-- Top Nav -->
+    <div class="top-nav">
+      <div class="top-title">
+        <span class="brand-tag">SYS.IDENTITY</span>
+        VOICEGENCY™ // A+V MINIMALIST BRUTALISM
+      </div>
+      <button class="theme-toggle-btn" onclick="document.body.classList.toggle('light-mode')">Toggle Contrast Mode</button>
+    </div>
+
+    <!-- Header -->
+    <header>
+      <h1>
+        THE <span class="acid">AV</span> MICROPHONE
+      </h1>
+      <p class="subtitle">
+        Zero gradients. Zero fake glows. Pure flat vector geometry where the V is the microphone chassis and the A is nested inside it.
+      </p>
+    </header>
+
+    <!-- Anatomy Grid -->
+    <div class="anatomy-box">
+      <div class="col">
+        <h4>01. The 'V' (Voice)</h4>
+        <p>Outer solid white slabs forming the studio microphone chassis, sound funnel, and acoustic slit cuts.</p>
+      </div>
+      <div class="col">
+        <h4>02. The 'A' (Agency)</h4>
+        <p>Ascending acid volt chevron nested inside the V, with a horizontal crossbar anchoring the diaphragm.</p>
+      </div>
+      <div class="col">
+        <h4>03. The Microphone</h4>
+        <p>Acoustic top grille slats, central pickup node, and XLR grounding base notch.</p>
+      </div>
+    </div>
+
+    <!-- 3 MARKS GRID -->
+    <div class="marks-grid">
+      
+      <!-- Option 1: The Monolith -->
+      <div class="mark-card highlight">
+        <div class="spec-tag">SPEC 01 // RECOMMENDED PRIMARY</div>
+        <div class="preview-box">
+          <img src="logo-av-minimal-brutalist-1.svg" alt="AV Monolith">
+        </div>
+        <div class="mark-name">1. The AV Monolith</div>
+        <p class="mark-desc">
+          Solid heavy V pillars with negative-space acoustic slits, nested Acid Volt A chevron, horizontal crossbar, and top grille slats.
+        </p>
+        <span class="path-pill">assets/logo-av-minimal-brutalist-1.svg</span>
+      </div>
+
+      <!-- Option 2: Pure Line Stencil -->
+      <div class="mark-card">
+        <div class="spec-tag">SPEC 02 // MONOLINE STENCIL</div>
+        <div class="preview-box">
+          <img src="logo-av-minimal-brutalist-2.svg" alt="AV Line Stencil">
+        </div>
+        <div class="mark-name">2. The Line Stencil</div>
+        <p class="mark-desc">
+          High-voltage monoline geometry. Rounded top condenser arch, heavy white V strokes, and nested acid-volt A line.
+        </p>
+        <span class="path-pill">assets/logo-av-minimal-brutalist-2.svg</span>
+      </div>
+
+      <!-- Option 3: Negative Space Cut -->
+      <div class="mark-card">
+        <div class="spec-tag">SPEC 03 // SOLID NEGATIVE CUT</div>
+        <div class="preview-box">
+          <img src="logo-av-minimal-brutalist-3.svg" alt="AV Negative Cut">
+        </div>
+        <div class="mark-name">3. The Negative Cut</div>
+        <p class="mark-desc">
+          Ultra-bold condenser silhouette with angular negative-space notches and an acid-volt acoustic cap.
+        </p>
+        <span class="path-pill">assets/logo-av-minimal-brutalist-3.svg</span>
+      </div>
+
+    </div>
+
+    <!-- SIZE SCALE BENCH -->
+    <div class="scale-bench">
+      <div class="scale-header">Optical Scaling Test (16px Menu Bar to 128px App Icon)</div>
+      <div class="scale-row">
+        
+        <div class="scale-item">
+          <div style="width: 128px; height: 128px; border: 1px solid var(--border); background: #000;">
+            <img src="logo-av-minimal-brutalist-1.svg" style="width: 100%; height: 100%;">
+          </div>
+          <span class="scale-label">128px</span>
+        </div>
+
+        <div class="scale-item">
+          <div style="width: 64px; height: 64px; border: 1px solid var(--border); background: #000;">
+            <img src="logo-av-minimal-brutalist-1.svg" style="width: 100%; height: 100%;">
+          </div>
+          <span class="scale-label">64px</span>
+        </div>
+
+        <div class="scale-item">
+          <div style="width: 32px; height: 32px; border: 1px solid var(--border); background: #000;">
+            <img src="logo-av-minimal-brutalist-1.svg" style="width: 100%; height: 100%;">
+          </div>
+          <span class="scale-label">32px (Dock)</span>
+        </div>
+
+        <div class="scale-item">
+          <div style="width: 16px; height: 16px; border: 1px solid var(--border); background: #000;">
+            <img src="logo-av-minimal-brutalist-1.svg" style="width: 100%; height: 100%;">
+          </div>
+          <span class="scale-label">16px (Menu Bar)</span>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+</body>
+</html>

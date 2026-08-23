@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <!-- Pure Void Canvas -->
+  <rect width="512" height="512" fill="#000000"/>
+
+  <!-- Technical Framing -->
+  <rect x="28" y="28" width="456" height="456" fill="none" stroke="#222222" stroke-width="1.5"/>
+  
+  <!-- Subtle Crosshairs -->
+  <path d="M 256 16 V 36 M 256 476 V 496 M 16 256 H 36 M 476 256 H 496" stroke="#444444" stroke-width="1.5"/>
+
+  <!-- Header Coordinate Stamping -->
+  <text x="40" y="52" fill="#FFFFFF" font-family="'JetBrains Mono', monospace" font-size="11" font-weight="800" letter-spacing="1">TYPE-C2 // SONIC STRIKE</text>
+  <text x="472" y="52" fill="#D4FF00" font-family="'JetBrains Mono', monospace" font-size="11" font-weight="700" text-anchor="end" letter-spacing="2">ACOUSTIC STENCIL</text>
+
+  <!-- THE MARK: Monolithic Solid V with Stepped Acoustic Columns -->
+  <g id="sonicStrike">
+    <!-- Left Staggered Acoustic Slabs (White) -->
+    <rect x="80" y="100" width="32" height="120" fill="#FFFFFF"/>
+    <rect x="122" y="130" width="32" height="130" fill="#FFFFFF"/>
+    <rect x="164" y="160" width="32" height="140" fill="#FFFFFF"/>
+    <rect x="206" y="190" width="32" height="150" fill="#FFFFFF"/>
+
+    <!-- Right Staggered Acoustic Slabs (White) -->
+    <rect x="400" y="100" width="32" height="120" fill="#FFFFFF"/>
+    <rect x="358" y="130" width="32" height="130" fill="#FFFFFF"/>
+    <rect x="316" y="160" width="32" height="140" fill="#FFFFFF"/>
+    <rect x="274" y="190" width="32" height="150" fill="#FFFFFF"/>
+
+    <!-- Central Strike / Downward Kinetic Wedge (Acid Volt) -->
+    <polygon points="256,410 180,260 332,260" fill="#D4FF00"/>
+
+    <!-- The Vocal Core Notch (Solid Cut) -->
+    <rect x="240" y="275" width="32" height="32" fill="#000000"/>
+    <circle cx="256" cy="291" r="7" fill="#D4FF00"/>
+
+    <!-- Ground Strike Bars -->
+    <rect x="220" y="426" width="72" height="8" fill="#FFFFFF"/>
+    <rect x="236" y="440" width="40" height="6" fill="#D4FF00"/>
+  </g>
+
+  <!-- Technical Footer Stamp -->
+  <text x="40" y="466" fill="#666666" font-family="'JetBrains Mono', monospace" font-size="10" font-weight="600">SCALE: 1:1 // RAW WAVE</text>
+  <text x="472" y="466" fill="#888888" font-family="'JetBrains Mono', monospace" font-size="10" font-weight="600" text-anchor="end">VOICEGENCY PROTOCOL</text>
+</svg>

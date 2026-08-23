@@ -4,7 +4,7 @@ Unit tests for DictationHUD and floating status capsule.
 
 from unittest.mock import MagicMock, patch
 import pytest
-from voicegency.ui.dictation_hud import DictationHUD
+from voicefi.ui.dictation_hud import DictationHUD
 
 
 def test_dictation_hud_singleton():

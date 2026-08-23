@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 200" width="100%" height="100%">
+  <defs>
+    <linearGradient id="cliBorderGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38BDF8" />
+      <stop offset="100%" stop-color="#6366F1" />
+    </linearGradient>
+  </defs>
+
+  <rect width="600" height="200" rx="24" fill="#030712" />
+  <rect width="598" height="198" x="1" y="1" rx="23" fill="none" stroke="url(#cliBorderGrad)" stroke-width="2" stroke-opacity="0.6" />
+
+  <!-- Terminal Window Dots -->
+  <circle cx="36" cy="36" r="6" fill="#EF4444" opacity="0.8" />
+  <circle cx="56" cy="36" r="6" fill="#F59E0B" opacity="0.8" />
+  <circle cx="76" cy="36" r="6" fill="#10B981" opacity="0.8" />
+
+  <!-- Terminal Title -->
+  <text x="300" y="42" font-family="'JetBrains Mono', 'Fira Code', monospace" font-size="13" font-weight="600" fill="#64748B" text-anchor="middle" letter-spacing="1">
+    vifi.sh — developer cli
+  </text>
+
+  <!-- CLI Command Prompt -->
+  <g transform="translate(36, 110)">
+    <text x="0" y="0" font-family="'JetBrains Mono', 'Fira Code', monospace" font-size="28" font-weight="700" fill="#38BDF8">
+      $&gt;
+    </text>
+    <text x="50" y="0" font-family="'JetBrains Mono', 'Fira Code', monospace" font-size="28" font-weight="700" fill="#F8FAFC">
+      curl -fsSL <tspan fill="#38BDF8" font-weight="800">vifi.sh</tspan> | sh
+    </text>
+  </g>
+
+  <!-- Subtext info -->
+  <text x="36" y="156" font-family="'JetBrains Mono', 'Fira Code', monospace" font-size="14" font-weight="500" fill="#94A3B8">
+    ⚡ 4-letter binary: <tspan fill="#A855F7">vifi start</tspan> · <tspan fill="#6366F1">vifi listen</tspan> · <tspan fill="#38BDF8">vifi agent</tspan>
+  </text>
+</svg>

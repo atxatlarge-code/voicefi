@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <!-- Pure White Canvas -->
+  <rect width="512" height="512" fill="#FFFFFF"/>
+  <rect x="36" y="36" width="440" height="440" fill="none" stroke="#EAEAEA" stroke-width="1.5"/>
+  <text x="52" y="58" fill="#000000" font-family="'JetBrains Mono', monospace" font-size="11" font-weight="900" letter-spacing="1.5">VAR.02 // STEPPED PYRAMID</text>
+  <rect x="250" y="48" width="80" height="14" fill="#FF2A2A"/>
+  <text x="290" y="59" fill="#FFFFFF" font-family="'JetBrains Mono', monospace" font-size="8.5" font-weight="900" text-anchor="middle">● ON AIR</text>
+  <text x="460" y="58" fill="#888888" font-family="'JetBrains Mono', monospace" font-size="10" font-weight="700" text-anchor="end">VOICEGENCY</text>
+
+  <!-- THE MARK: 02 STEPPED PYRAMID -->
+  <g id="var02" transform="translate(0, 10)">
+    <!-- Yoke Arms (V) -->
+    <path d="M 112 136 L 146 136 L 226 370 L 194 370 Z" fill="#000000"/>
+    <path d="M 400 136 L 366 136 L 286 370 L 318 370 Z" fill="#000000"/>
+
+    <!-- Yoke Pivot Ring Knobs -->
+    <circle cx="129" cy="214" r="14" fill="#000000"/>
+    <circle cx="129" cy="214" r="6" fill="#FFFFFF"/>
+    <circle cx="383" cy="214" r="14" fill="#000000"/>
+    <circle cx="383" cy="214" r="6" fill="#FFFFFF"/>
+
+    <!-- Capsule Head -->
+    <path d="M 190 90 C 190 44, 322 44, 322 90 Z" fill="#000000"/>
+    <polygon points="256,60 276,82 236,82" fill="#FF2A2A"/>
+
+    <rect x="190" y="94" width="132" height="186" fill="#000000"/>
+
+    <!-- Stepped Variable-D Pyramid (Acoustic Slats forming 'A' triangle) -->
+    <g fill="#FFFFFF">
+      <rect x="236" y="106" width="40" height="8" rx="1"/>
+      <rect x="226" y="122" width="60" height="8" rx="1"/>
+      <rect x="216" y="138" width="80" height="8" rx="1"/>
+      <rect x="206" y="154" width="100" height="8" rx="1"/>
+      <rect x="196" y="170" width="120" height="8" rx="1"/>
+      <rect x="196" y="186" width="120" height="8" rx="1"/>
+    </g>
+
+    <!-- Shockmount Clamp ('A' Crossbar) -->
+    <rect x="146" y="204" width="220" height="20" fill="#000000"/>
+    <rect x="154" y="210" width="204" height="8" fill="#FF2A2A"/>
+
+    <!-- Diaphragm Core -->
+    <circle cx="256" cy="250" r="22" fill="#FFFFFF" stroke="#000000" stroke-width="4"/>
+    <circle cx="256" cy="250" r="13" fill="#FF2A2A"/>
+    <circle cx="256" cy="250" r="5" fill="#FFD166"/>
+
+    <!-- Lower Body & Mount -->
+    <polygon points="206,280 306,280 284,346 228,346" fill="#000000"/>
+    <circle cx="256" cy="390" r="14" fill="#000000"/>
+    <rect x="238" y="416" width="36" height="14" fill="#000000"/>
+    <rect x="248" y="430" width="16" height="6" fill="#FF2A2A"/>
+  </g>
+</svg>

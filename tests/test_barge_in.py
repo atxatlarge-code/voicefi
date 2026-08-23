@@ -10,21 +10,21 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from voicegency.config import VoicegencyConfig, load_config
-from voicegency.audio.recorder import AudioRecorder
-from voicegency.tts.base import (
+from voicefi.config import VoiceFiConfig, load_config
+from voicefi.audio.recorder import AudioRecorder
+from voicefi.tts.base import (
     set_agent_speaking,
     is_agent_speaking,
     stop_all_speech,
     speech_turn_lock,
 )
-from voicegency.integrations.watcher import TranscriptWatcher
-from voicegency.integrations.antigravity import handle_antigravity_stop_hook
+from voicefi.integrations.watcher import TranscriptWatcher
+from voicefi.integrations.antigravity import handle_antigravity_stop_hook
 
 
 def test_vad_config_barge_in_defaults():
     """Verify VADConfig has barge_in enabled by default with 1.0 sensitivity."""
-    cfg = VoicegencyConfig()
+    cfg = VoiceFiConfig()
     assert cfg.vad.barge_in is True
     assert cfg.vad.barge_in_sensitivity == 1.0
 
@@ -100,8 +100,8 @@ def test_audio_recorder_barge_in_triggers_and_preserves_audio():
         return speaking_states[idx]
 
     with patch("sounddevice.InputStream", side_effect=MockStream), \
-         patch("voicegency.tts.base.stop_all_speech") as mock_stop_speech, \
-         patch("voicegency.audio.recorder.is_agent_speaking", side_effect=mock_is_agent_speaking):
+         patch("voicefi.tts.base.stop_all_speech") as mock_stop_speech, \
+         patch("voicefi.audio.recorder.is_agent_speaking", side_effect=mock_is_agent_speaking):
 
         def wrapped_barge_in():
             on_barge()
@@ -165,8 +165,8 @@ def test_audio_recorder_barge_in_disabled_maintains_pause():
             return silence_chunk, False
 
     with patch("sounddevice.InputStream", side_effect=MockStream), \
-         patch("voicegency.tts.base.stop_all_speech") as mock_stop_speech, \
-         patch("voicegency.audio.recorder.is_agent_speaking", return_value=True):
+         patch("voicefi.tts.base.stop_all_speech") as mock_stop_speech, \
+         patch("voicefi.audio.recorder.is_agent_speaking", return_value=True):
 
         # Stop recorder after a few iterations to prevent timeout hang
         timer = threading.Timer(0.3, recorder.stop)
@@ -209,8 +209,8 @@ def test_ptt_barge_in_instant_speech_stop():
             return silence_chunk, False
 
     with patch("sounddevice.InputStream", side_effect=MockStream), \
-         patch("voicegency.tts.base.stop_all_speech") as mock_stop_speech, \
-         patch("voicegency.audio.recorder.is_agent_speaking", return_value=True):
+         patch("voicefi.tts.base.stop_all_speech") as mock_stop_speech, \
+         patch("voicefi.audio.recorder.is_agent_speaking", return_value=True):
 
         audio_data, wav_path = recorder.record_push_to_talk(stop_event=stop_event)
         try:
@@ -221,7 +221,7 @@ def test_ptt_barge_in_instant_speech_stop():
 
 def test_transcript_watcher_turn_ready_with_barge_in(tmp_path):
     """Verify TranscriptWatcher coordinates TTS in background and auto-listen with barge-in."""
-    cfg = VoicegencyConfig()
+    cfg = VoiceFiConfig()
     cfg.vad.barge_in = True
     cfg.antigravity.read_summary_aloud = True
     cfg.antigravity.auto_listen = True
@@ -238,13 +238,13 @@ def test_transcript_watcher_turn_ready_with_barge_in(tmp_path):
     mock_stt = MagicMock()
     mock_stt.transcribe.return_value = "Yes deploy it now"
 
-    with patch("voicegency.integrations.watcher.load_config", return_value=cfg), \
-         patch("voicegency.integrations.watcher.claim_turn", return_value=True), \
-         patch("voicegency.integrations.watcher.is_system_audio_playing", return_value=False), \
-         patch("voicegency.integrations.watcher.play_chime"), \
-         patch("voicegency.integrations.watcher.get_tts_engine", return_value=mock_tts), \
-         patch("voicegency.integrations.watcher.get_stt_engine", return_value=mock_stt), \
-         patch("voicegency.integrations.watcher.send_message_to_antigravity") as mock_send, \
+    with patch("voicefi.integrations.watcher.load_config", return_value=cfg), \
+         patch("voicefi.integrations.watcher.claim_turn", return_value=True), \
+         patch("voicefi.integrations.watcher.is_system_audio_playing", return_value=False), \
+         patch("voicefi.integrations.watcher.play_chime"), \
+         patch("voicefi.integrations.watcher.get_tts_engine", return_value=mock_tts), \
+         patch("voicefi.integrations.watcher.get_stt_engine", return_value=mock_stt), \
+         patch("voicefi.integrations.watcher.send_message_to_antigravity") as mock_send, \
          patch.object(AudioRecorder, "record_speech_auto", return_value=(np.zeros(16000), fake_wav)):
 
         watcher._handle_turn_ready("Finished running migrations. Ready to deploy?", is_active=True)
@@ -252,12 +252,12 @@ def test_transcript_watcher_turn_ready_with_barge_in(tmp_path):
         assert "speaking" in states
         assert mock_stt.transcribe.called
         assert mock_send.called
-        mock_send.assert_called_with(conv_id=None, text="Yes deploy it now")
+        mock_send.assert_called_with(conv_id=None, text="Yes deploy it now", sender_name=cfg.user_name)
 
 
 def test_antigravity_stop_hook_with_barge_in(tmp_path):
     """Verify handle_antigravity_stop_hook runs barge-in enabled recording loop."""
-    cfg = VoicegencyConfig()
+    cfg = VoiceFiConfig()
     cfg.vad.barge_in = True
     cfg.antigravity.read_summary_aloud = True
     cfg.antigravity.auto_listen = True
@@ -271,14 +271,14 @@ def test_antigravity_stop_hook_with_barge_in(tmp_path):
     mock_stt = MagicMock()
     mock_stt.transcribe.return_value = "Approve PR"
 
-    with patch("voicegency.integrations.antigravity.load_config", return_value=cfg), \
-         patch("voicegency.integrations.antigravity.claim_turn", return_value=True), \
-         patch("voicegency.integrations.antigravity.play_chime"), \
-         patch("voicegency.integrations.antigravity.extract_latest_agent_summary", return_value=("Ready to merge?", "antigravity")), \
-         patch("voicegency.integrations.antigravity.get_tts_engine", return_value=mock_tts), \
-         patch("voicegency.integrations.antigravity.get_stt_engine", return_value=mock_stt), \
-         patch("voicegency.integrations.antigravity.inject_text_to_active_app") as mock_inject, \
-         patch("voicegency.integrations.antigravity.AudioRecorder.record_speech_auto", return_value=(np.zeros(16000), fake_wav)):
+    with patch("voicefi.integrations.antigravity.load_config", return_value=cfg), \
+         patch("voicefi.integrations.antigravity.claim_turn", return_value=True), \
+         patch("voicefi.integrations.antigravity.play_chime"), \
+         patch("voicefi.integrations.antigravity.extract_latest_agent_summary", return_value=("Ready to merge?", "antigravity")), \
+         patch("voicefi.integrations.antigravity.get_tts_engine", return_value=mock_tts), \
+         patch("voicefi.integrations.antigravity.get_stt_engine", return_value=mock_stt), \
+         patch("voicefi.integrations.antigravity.inject_text_to_active_app") as mock_inject, \
+         patch("voicefi.integrations.antigravity.AudioRecorder.record_speech_auto", return_value=(np.zeros(16000), fake_wav)):
 
         handle_antigravity_stop_hook({"conversationId": "test-conv-123"}, config=cfg)
 
@@ -288,17 +288,17 @@ def test_antigravity_stop_hook_with_barge_in(tmp_path):
 
 
 def test_tray_app_barge_in_toggle():
-    """Verify VoicegencyTrayApp barge-in menu item toggles configuration and saves."""
-    from voicegency.ui.tray import VoicegencyTrayApp
+    """Verify VoiceFiTrayApp barge-in menu item toggles configuration and saves."""
+    from voicefi.ui.tray import VoiceFiTrayApp
 
-    with patch("voicegency.integrations.watcher.TranscriptWatcher"), \
-         patch("voicegency.ui.hub.ConversationHubWindow.get_instance"), \
-         patch("voicegency.ui.dictation_hud.DictationHUD.get_instance"), \
-         patch("voicegency.ui.tray.VoicegencyTrayApp._start_global_hotkey_listener"), \
-         patch("voicegency.ui.tray.save_config") as mock_save, \
+    with patch("voicefi.integrations.watcher.TranscriptWatcher"), \
+         patch("voicefi.ui.hub.ConversationHubWindow.get_instance"), \
+         patch("voicefi.ui.dictation_hud.DictationHUD.get_instance"), \
+         patch("voicefi.ui.tray.VoiceFiTrayApp._start_global_hotkey_listener"), \
+         patch("voicefi.ui.tray.save_config") as mock_save, \
          patch("rumps.Timer"):
 
-        app = VoicegencyTrayApp()
+        app = VoiceFiTrayApp()
         assert app.barge_in_item.state == 1
 
         # Toggle barge-in

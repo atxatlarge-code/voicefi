@@ -1,0 +1,1839 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-black text-white selection:bg-blue-500 selection:text-white">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Google Antigravity AI • Interactive Demo & Introduction</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Google+Sans+Flex:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      font-family: 'Google Sans Flex', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      overflow: hidden;
+      user-select: none;
+      background: #000000;
+    }
+    .mono {
+      font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+    }
+    
+    /* Glassmorphism & UI Accents */
+    .glass-card {
+      background: rgba(12, 14, 20, 0.72);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.8), 0 0 1px 1px rgba(255, 255, 255, 0.05);
+    }
+    .glass-card-elevated {
+      background: rgba(16, 18, 26, 0.88);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      box-shadow: 0 35px 80px rgba(0, 0, 0, 0.9), 0 0 30px rgba(66, 133, 244, 0.15);
+    }
+    .glass-button {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      backdrop-filter: blur(10px);
+      transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .glass-button:hover {
+      background: rgba(255, 255, 255, 0.15);
+      border-color: rgba(255, 255, 255, 0.35);
+      transform: translateY(-1px);
+    }
+    .glass-button:active {
+      transform: translateY(1px) scale(0.98);
+    }
+    .glass-button.active {
+      background: #ffffff;
+      color: #000000;
+      border-color: #ffffff;
+      font-weight: 700;
+      box-shadow: 0 0 24px rgba(255, 255, 255, 0.45);
+    }
+
+    /* Range Sliders */
+    input[type=range] {
+      -webkit-appearance: none;
+      background: rgba(255, 255, 255, 0.15);
+      height: 4px;
+      border-radius: 2px;
+      outline: none;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 13px;
+      height: 13px;
+      border-radius: 50%;
+      background: #ffffff;
+      cursor: pointer;
+      box-shadow: 0 0 10px rgba(255, 255, 255, 0.9);
+      transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    input[type=range]::-webkit-slider-thumb:hover {
+      transform: scale(1.3);
+    }
+
+    /* Animations */
+    @keyframes pulseRing {
+      0% { transform: scale(0.92); opacity: 0.85; }
+      50% { transform: scale(1.22); opacity: 0.25; }
+      100% { transform: scale(1.45); opacity: 0; }
+    }
+    .pulse-ring {
+      animation: pulseRing 2.2s infinite cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes floatGentle {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-6px); }
+    }
+    .float-anim {
+      animation: floatGentle 4.5s ease-in-out infinite;
+    }
+
+    @keyframes phoneEntrance {
+      0% { opacity: 0; transform: scale(0.85) translateY(40px) rotateX(10deg); }
+      100% { opacity: 1; transform: scale(1) translateY(0) rotateX(0deg); }
+    }
+    .phone-appear {
+      animation: phoneEntrance 0.65s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    /* Mobile Device Frame styling */
+    .device-iphone {
+      width: 360px;
+      height: 720px;
+      border-radius: 50px;
+      border: 9px solid #1f222e;
+      box-shadow: 0 35px 90px -15px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(255, 255, 255, 0.15), 0 0 50px rgba(66, 133, 244, 0.2);
+    }
+    .device-pixel {
+      width: 375px;
+      height: 740px;
+      border-radius: 46px;
+      border: 3.5px solid transparent;
+      background-image: 
+        linear-gradient(#000000, #000000), 
+        linear-gradient(135deg, 
+          #ffffff 0%, 
+          #cbd5e1 12%, 
+          #64748b 24%, 
+          #94a3b8 38%, 
+          #ffffff 50%, 
+          #94a3b8 62%, 
+          #475569 76%, 
+          #cbd5e1 88%, 
+          #ffffff 100%
+        );
+      background-origin: border-box;
+      background-clip: padding-box, border-box;
+      padding: 9px 8px 10px 8px;
+      box-shadow: 
+        0 35px 95px -15px rgba(0, 0, 0, 0.98),
+        0 0 0 1px rgba(255, 255, 255, 0.85),
+        0 0 0 2px #334155,
+        0 0 30px rgba(226, 232, 240, 0.15),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+    }
+    .device-compact {
+      width: 340px;
+      height: 640px;
+      border-radius: 36px;
+      border: 7px solid #1f222e;
+    }
+
+    /* Acoustic Waveform Bars */
+    .wave-bar {
+      display: inline-block;
+      width: 3px;
+      border-radius: 3px;
+      background: #4285f4;
+      animation: waveJump 1s ease-in-out infinite alternate;
+    }
+    @keyframes waveJump {
+      0% { height: 4px; }
+      100% { height: 20px; }
+    }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 10px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.4); }
+  </style>
+</head>
+<body class="relative w-screen h-screen flex flex-col justify-between p-4 sm:p-6 overflow-hidden">
+
+  <!-- FULLSCREEN ZERO-G CANVAS -->
+  <canvas id="antigravityCanvas" class="absolute inset-0 w-full h-full pointer-events-auto cursor-crosshair z-0"></canvas>
+
+  <!-- TOP BAR / NAVIGATION & AI STATUS -->
+  <header class="relative z-20 flex items-center justify-between gap-3 pointer-events-none shrink-0">
+    
+    <!-- App Logo & Branding Badge -->
+    <div class="glass-card px-4 py-2.5 rounded-2xl flex items-center gap-3 pointer-events-auto shadow-lg">
+      <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-500 via-red-500 to-yellow-400 p-[1.5px] flex items-center justify-center shadow-md">
+        <div class="w-full h-full bg-black rounded-[10px] flex items-center justify-center font-extrabold text-xs mono text-white">
+          AG
+        </div>
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="text-sm font-bold tracking-tight text-white flex items-center gap-1.5">
+            GOOGLE ANTIGRAVITY <span class="text-[9px] mono px-1.5 py-0.5 rounded bg-white text-black font-extrabold">DEMO</span>
+          </h1>
+        </div>
+        <p class="text-[11px] text-zinc-400">Autonomous AI Pair-Programmer & Voice Handoff</p>
+      </div>
+    </div>
+
+    <!-- Center Agent Live State Indicator -->
+    <div id="stateBadge" class="hidden md:inline-flex glass-card px-4 py-2 rounded-full items-center gap-2.5 pointer-events-auto transition-all duration-300">
+      <div class="relative flex items-center justify-center">
+        <span id="stateDotRing" class="absolute w-4 h-4 rounded-full bg-blue-500 pulse-ring"></span>
+        <span id="stateDot" class="w-2 h-2 rounded-full bg-blue-400"></span>
+      </div>
+      <span id="stateText" class="text-xs font-semibold tracking-wider mono uppercase text-white">ANTIGRAVITY • READY</span>
+    </div>
+
+    <!-- Right Controls: Info Guide, Voice Toggle, Stats -->
+    <div class="flex items-center gap-2 pointer-events-auto">
+      
+      <!-- Audio Speech Toggle -->
+      <button id="ttsToggleBtn" class="glass-button px-3 py-2 rounded-2xl text-xs flex items-center gap-1.5 text-zinc-300 hover:text-white" title="Toggle Bot Voice Audio (Web Speech API)">
+        <span id="ttsIcon" class="text-sm">🔊</span>
+        <span class="hidden sm:inline mono text-[11px]" id="ttsText">Voice: ON</span>
+      </button>
+
+      <!-- AI Introduction / Guide Modal Toggle -->
+      <button id="introModalBtn" class="glass-button px-3.5 py-2 rounded-2xl text-xs flex items-center gap-1.5 text-white font-medium bg-blue-500/20 border-blue-400/40 hover:bg-blue-500/30">
+        <span>✨</span>
+        <span class="font-semibold">About Antigravity AI</span>
+      </button>
+
+      <!-- FPS & Stats -->
+      <div class="hidden lg:flex glass-card px-3.5 py-2 rounded-2xl items-center gap-3 text-xs mono">
+        <div class="flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span class="text-zinc-400 text-[11px]">FPS:</span>
+          <span id="fpsCounter" class="font-bold text-white">60</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN STAGE / INTERACTIVE CONVERSATION & PHONE MOCKUP -->
+  <main class="relative z-10 flex-1 flex items-center justify-center my-auto px-2 pointer-events-none">
+    
+    <div class="w-full max-w-5xl flex flex-col lg:flex-row items-center justify-center gap-6 pointer-events-auto">
+
+      <!-- LEFT / CENTER: CONVERSATION STAGE & BOT INTRODUCTION -->
+      <div id="conversationStage" class="flex-1 max-w-xl w-full flex flex-col items-center text-center space-y-4 transition-all duration-500">
+        
+        <!-- Task Completion Banner -->
+        <div id="taskCompleteBanner" class="glass-card px-4 py-1.5 rounded-full inline-flex items-center gap-2 border-emerald-500/30 text-emerald-300 text-xs mono">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+          <span class="font-semibold">Autonomous Task Completed</span>
+          <span class="text-zinc-400 text-[10px]">• Generated Brand & Mobile UI System</span>
+        </div>
+
+        <!-- Bot Avatar & Speech Card -->
+        <div class="w-full glass-card-elevated p-5 sm:p-6 rounded-3xl relative overflow-hidden text-left border border-white/15">
+          
+          <!-- Subtle top gradient accent line -->
+          <div class="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-blue-500 via-red-500 to-yellow-400"></div>
+
+          <!-- Bot Header -->
+          <div class="flex items-center justify-between pb-3.5 border-b border-zinc-800/80">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-500 to-cyan-400 p-[1px] flex items-center justify-center shadow-lg">
+                <div class="w-full h-full bg-black rounded-[15px] flex items-center justify-center font-black text-sm mono text-white">
+                  AG
+                </div>
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <h2 class="text-sm font-bold text-white tracking-tight">Antigravity AI</h2>
+                  <span class="text-[9px] mono px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 font-semibold">PAIR AGENT</span>
+                </div>
+                <p class="text-[11px] text-zinc-400">Autonomous Coding & Multi-Modal Assistant</p>
+              </div>
+            </div>
+
+            <!-- Waveform Activity visualizer when speaking -->
+            <div id="botSpeakingWave" class="hidden flex items-center gap-1">
+              <span class="wave-bar" style="animation-delay: 0s"></span>
+              <span class="wave-bar" style="animation-delay: 0.2s"></span>
+              <span class="wave-bar" style="animation-delay: 0.4s"></span>
+              <span class="wave-bar" style="animation-delay: 0.1s"></span>
+              <span class="wave-bar" style="animation-delay: 0.3s"></span>
+            </div>
+          </div>
+
+          <!-- Live Speech Dialog Bubble -->
+          <div class="py-4">
+            <div class="text-base sm:text-lg font-medium text-white leading-relaxed flex items-start gap-2">
+              <span class="text-blue-400 font-serif text-2xl leading-none">“</span>
+              <span id="botMessageText" class="font-semibold text-zinc-100">
+                Done! The designs are now ready.
+              </span>
+            </div>
+            
+            <p id="botSubtext" class="text-xs text-zinc-400 mt-2 pl-4">
+              I've finalized the minimalist brand identity, dark/light token palettes, and mobile companion components.
+            </p>
+          </div>
+
+          <!-- Turn History / Interaction Stream -->
+          <div id="turnHistory" class="hidden space-y-2.5 py-2 border-t border-zinc-800/80 my-2 max-h-44 overflow-y-auto pr-1">
+            <!-- Dynamically populated turn messages -->
+          </div>
+
+          <!-- Quick Action Prompts / Suggested Replies -->
+          <div class="pt-3 border-t border-zinc-800/80 space-y-2.5">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] mono text-zinc-400 font-semibold uppercase tracking-wider">Suggested Response:</span>
+              <span class="text-[10px] text-zinc-500 mono">Tap to speak or click</span>
+            </div>
+
+            <!-- Primary Script Prompt Button -->
+            <button id="scriptPromptBtn" class="w-full text-left p-3 rounded-2xl bg-gradient-to-r from-blue-600/20 via-blue-500/10 to-transparent border border-blue-500/40 hover:border-blue-400 hover:bg-blue-600/30 transition-all duration-200 group cursor-pointer flex items-center justify-between gap-3 shadow-lg">
+              <div class="flex items-center gap-3">
+                <span class="w-8 h-8 rounded-xl bg-blue-500/20 border border-blue-400/30 flex items-center justify-center text-sm group-hover:scale-110 transition-transform">
+                  💬
+                </span>
+                <div>
+                  <div class="text-xs sm:text-sm font-bold text-white group-hover:text-blue-200 transition-colors">
+                    "Great thanks! Now can you open them for me on my phone?"
+                  </div>
+                  <div class="text-[10px] text-blue-300/80 mono mt-0.5">
+                    Triggers mobile companion sync & handoff
+                  </div>
+                </div>
+              </div>
+              <span class="text-xs mono px-2.5 py-1 rounded-xl bg-blue-500 text-white font-bold shrink-0 group-hover:translate-x-1 transition-transform">
+                Send ➔
+              </span>
+            </button>
+          </div>
+
+          <!-- Input Bar with Mic & Free-form typing -->
+          <form id="chatInputForm" class="mt-3.5 flex items-center gap-2">
+            <!-- Voice Dictate Button -->
+            <button type="button" id="micBtn" class="p-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white flex items-center justify-center transition active:scale-95 cursor-pointer shrink-0" title="Click to speak your reply">
+              <span id="micIcon" class="text-sm">🎙️</span>
+            </button>
+
+            <input id="userTextInput" type="text" placeholder="Type or click the suggestion above..." class="flex-1 bg-black/60 border border-white/15 focus:border-blue-400 rounded-xl px-3.5 py-2 text-xs sm:text-sm text-white placeholder-zinc-500 focus:outline-none transition">
+
+            <button type="submit" class="px-4 py-2 rounded-xl bg-white text-black font-bold text-xs hover:bg-zinc-200 transition active:scale-95 cursor-pointer shrink-0">
+              Send
+            </button>
+          </form>
+
+        </div>
+
+        <!-- Secondary controls / Replay flow -->
+        <div class="flex flex-wrap items-center justify-center gap-2 pt-1">
+          <button id="replayBtn" class="glass-button px-3.5 py-1.5 rounded-xl text-xs mono text-zinc-300 hover:text-white flex items-center gap-1.5">
+            <span>🔄</span> <span>Replay Demo Flow</span>
+          </button>
+          <button id="togglePhoneDirectBtn" class="glass-button px-3.5 py-1.5 rounded-xl text-xs mono text-zinc-300 hover:text-white flex items-center gap-1.5">
+            <span>📱</span> <span id="togglePhoneText">Open Phone View</span>
+          </button>
+          <button id="shockwaveCenterBtn" class="glass-button px-3.5 py-1.5 rounded-xl text-xs mono text-zinc-300 hover:text-white flex items-center gap-1.5">
+            <span>✨</span> <span>Pulse Shockwave</span>
+          </button>
+        </div>
+
+      </div>
+
+      <!-- RIGHT / MODAL: INTERACTIVE PHONE COMPANION MOCKUP -->
+      <div id="phoneContainer" class="hidden flex-col items-center transition-all duration-500">
+        
+        <div class="flex items-center justify-between w-full max-w-[360px] mb-2 px-1 text-xs mono">
+          <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span class="font-bold text-white">PHONE HANDOFF ACTIVE</span>
+          </div>
+          <button id="closePhoneBtn" class="text-zinc-400 hover:text-white underline cursor-pointer">Close Phone</button>
+        </div>
+
+        <!-- Phone Mockup Frame -->
+        <div id="phoneDeviceFrame" class="device-iphone phone-appear bg-black text-white relative overflow-hidden flex flex-col transition-all duration-300">
+          
+          <!-- iPhone Dynamic Island -->
+          <div id="dynamicIsland" class="absolute top-2.5 left-1/2 -translate-x-1/2 w-24 h-5 bg-black rounded-full z-40 flex items-center justify-between px-2 pointer-events-none border border-zinc-800">
+            <div class="w-2 h-2 rounded-full bg-zinc-900"></div>
+            <div class="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></div>
+          </div>
+
+          <!-- Phone App Header -->
+          <header class="pt-9 pb-2 px-3.5 border-b border-zinc-800/80 bg-zinc-950/90 backdrop-blur-md z-20 shrink-0">
+            <div class="flex items-center justify-between gap-2 mb-2">
+              <div class="flex items-center gap-2">
+                <div class="w-6 h-6 rounded-lg bg-gradient-to-tr from-blue-500 to-indigo-600 p-[1px] flex items-center justify-center">
+                  <div class="w-full h-full bg-black rounded-[7px] flex items-center justify-center font-bold text-[10px] mono">
+                    VG
+                  </div>
+                </div>
+                <div>
+                  <h1 class="font-bold text-xs tracking-tight text-white flex items-center gap-1">
+                    VOICEGENCY <span class="text-[8px] mono px-1 py-0.2 rounded bg-white text-black font-extrabold">MOBILE</span>
+                  </h1>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-1">
+                <span class="text-[9px] mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">SYNCED</span>
+              </div>
+            </div>
+
+            <!-- Phone Navigation Tabs -->
+            <div class="flex items-center bg-zinc-900 p-0.5 rounded-xl border border-zinc-800 text-[10px] sm:text-[11px] font-semibold">
+              <button id="pTabLive" class="flex-1 py-1 rounded-lg text-center transition bg-white text-black font-bold shadow-sm cursor-pointer">
+                Live App
+              </button>
+              <button id="pTabDesigns" class="flex-1 py-1 rounded-lg text-center transition text-zinc-400 hover:text-white cursor-pointer">
+                Designs
+              </button>
+              <button id="pTabLogs" class="flex-1 py-1 rounded-lg text-center transition text-zinc-400 hover:text-white cursor-pointer">
+                Work Logs
+              </button>
+              <button id="pTabQR" class="flex-1 py-1 rounded-lg text-center transition text-zinc-400 hover:text-white cursor-pointer">
+                QR / Phone
+              </button>
+            </div>
+          </header>
+
+          <!-- Phone Main Content Area -->
+          <div class="flex-1 overflow-y-auto p-3.5 bg-black space-y-3">
+            
+            <!-- PHONE VIEW 0: ACTUAL LIVE COMPANION APP IFRAME -->
+            <div id="pViewLive" class="h-full flex flex-col space-y-2">
+              <div class="flex items-center justify-between text-[10px] mono">
+                <span class="text-zinc-400">Target: <strong class="text-white">http://192.168.1.60:8765</strong></span>
+                <a href="http://192.168.1.60:8765" target="_blank" class="text-blue-400 hover:text-blue-300 flex items-center gap-0.5 underline">
+                  <span>Open New Tab</span> ↗
+                </a>
+              </div>
+              <div class="flex-1 w-full min-h-[440px] rounded-2xl overflow-hidden border border-zinc-800 bg-black relative">
+                <iframe src="http://127.0.0.1:8765/" class="w-full h-full border-0 absolute inset-0" title="Voicegency Live Mobile App"></iframe>
+              </div>
+            </div>
+
+            <!-- PHONE VIEW 1: READY DESIGNS SHOWCASE -->
+            <div id="pViewDesigns" class="hidden space-y-3">
+              <div class="flex items-center justify-between">
+                <h3 class="text-[11px] font-bold text-zinc-300 mono uppercase tracking-wider">Ready Assets (4 Files)</h3>
+                <span class="text-[9px] text-zinc-500 mono">Generated 1m ago</span>
+              </div>
+
+              <!-- Design Item 1: Brand System -->
+              <div class="p-3 rounded-2xl bg-zinc-900/80 border border-zinc-800 hover:border-zinc-600 transition space-y-2">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <span class="w-6 h-6 rounded-lg bg-blue-500/20 border border-blue-500/40 flex items-center justify-center text-xs">🎨</span>
+                    <div>
+                      <h4 class="text-xs font-bold text-white">Voicegency Brand System</h4>
+                      <p class="text-[9px] text-zinc-400 mono">Brutalist Dark & Pure Monochrome</p>
+                    </div>
+                  </div>
+                  <span class="text-[9px] mono px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300">SVG/HTML</span>
+                </div>
+
+                <div class="h-20 rounded-xl bg-gradient-to-br from-zinc-900 to-black border border-zinc-800 flex items-center justify-center p-2 relative overflow-hidden">
+                  <div class="absolute inset-0 bg-blue-500/5 backdrop-blur-xs"></div>
+                  <div class="relative flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-black border border-white/40 flex items-center justify-center font-bold text-sm tracking-tighter mono">
+                      VG
+                    </div>
+                    <div class="text-left">
+                      <div class="text-xs font-extrabold tracking-tight text-white">VOICEGENCY</div>
+                      <div class="text-[9px] text-zinc-400 mono tracking-widest">AGENTIC VOICE LAYER</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Design Item 2: Mobile Companion UI -->
+              <div class="p-3 rounded-2xl bg-zinc-900/80 border border-zinc-800 hover:border-zinc-600 transition space-y-2">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <span class="w-6 h-6 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-xs">📱</span>
+                    <div>
+                      <h4 class="text-xs font-bold text-white">Mobile Companion Layout</h4>
+                      <p class="text-[9px] text-zinc-400 mono">PWA Responsive Shell</p>
+                    </div>
+                  </div>
+                  <span class="text-[9px] mono px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300">COMPLETED</span>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2 text-center text-[10px] mono">
+                  <div class="p-2 rounded-lg bg-black border border-zinc-800">
+                    <div class="text-white font-bold">Acoustic Disc</div>
+                    <div class="text-[8px] text-zinc-500">Zero-latency talk</div>
+                  </div>
+                  <div class="p-2 rounded-lg bg-black border border-zinc-800">
+                    <div class="text-white font-bold">Turn Sync</div>
+                    <div class="text-[8px] text-zinc-500">Live WebSockets</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Design Item 3: Acoustic Persona Cards -->
+              <div class="p-3 rounded-2xl bg-zinc-900/80 border border-zinc-800 hover:border-zinc-600 transition space-y-1.5">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <span class="w-6 h-6 rounded-lg bg-purple-500/20 border border-purple-500/40 flex items-center justify-center text-xs">🎙️</span>
+                    <div>
+                      <h4 class="text-xs font-bold text-white">A Voice For Every Agent</h4>
+                      <p class="text-[9px] text-zinc-400 mono">Christopher • Aria • Sonia • Guy</p>
+                    </div>
+
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- PHONE VIEW 2: WORKING LOGS ACCORDION -->
+            <div id="pViewLogs" class="hidden space-y-2.5">
+              <div class="flex items-center justify-between">
+                <h3 class="text-[11px] font-bold text-zinc-300 mono uppercase tracking-wider">Activity Stream</h3>
+                <span class="text-[9px] px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-emerald-300 mono">DONE</span>
+              </div>
+
+              <div class="p-2.5 rounded-xl bg-zinc-900 border border-zinc-800 font-mono text-[10px] space-y-2">
+                <div class="flex items-center justify-between text-white font-bold">
+                  <span>› build_brand_system</span>
+                  <span class="text-emerald-400">PASSED</span>
+                </div>
+                <div class="p-2 rounded bg-black border border-zinc-800/80 text-zinc-400 leading-relaxed text-[9px]">
+                  ✓ SVG vectors rendered (1024x1024)<br>
+                  ✓ Typography: Google Sans Flex + JetBrains Mono<br>
+                  ✓ Color tokens: Google Glow, Pure Monochrome
+                </div>
+              </div>
+
+              <div class="p-2.5 rounded-xl bg-zinc-900 border border-zinc-800 font-mono text-[10px] space-y-2">
+                <div class="flex items-center justify-between text-white font-bold">
+                  <span>› pytest test_companion.py</span>
+                  <span class="text-emerald-400">118 PASSED</span>
+                </div>
+                <div class="p-2 rounded bg-black border border-zinc-800/80 text-zinc-400 leading-relaxed text-[9px]">
+                  ================ 118 passed in 4.15s ================
+                </div>
+              </div>
+            </div>
+
+            <!-- PHONE VIEW 3: QR CODE & MOBILE LAN PAIRING -->
+            <div id="pViewQR" class="hidden flex flex-col items-center justify-center py-4 space-y-3 text-center">
+              <div class="p-3 bg-white rounded-2xl shadow-xl border border-zinc-300">
+                <img src="http://127.0.0.1:8765/api/qr" alt="Scan to open on phone" class="w-44 h-44 rounded-lg object-contain" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'180\' height=\'180\' viewBox=\'0 0 180 180\'><rect width=\'180\' height=\'180\' fill=\'white\'/><text x=\'90\' y=\'90\' font-family=\'sans-serif\' font-size=\'12\' text-anchor=\'middle\' fill=\'black\'>http://192.168.1.60:8765</text></svg>'">
+              </div>
+              <div class="space-y-1">
+                <h4 class="font-bold text-xs text-white">Scan with Camera</h4>
+                <p class="text-[10px] text-zinc-400">Open on your iPhone or Android on the same Wi-Fi</p>
+                <div class="pt-1">
+                  <a href="http://192.168.1.60:8765" target="_blank" class="inline-block px-3 py-1 bg-zinc-900 border border-zinc-700 hover:border-white rounded-lg text-xs mono text-blue-400 font-bold">
+                    http://192.168.1.60:8765
+                  </a>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Bottom Device Bar -->
+          <div class="p-2 bg-zinc-950 border-t border-zinc-800 flex items-center justify-between text-[10px] mono text-zinc-400">
+            <span>Voicegency OS 2.0</span>
+            <button id="deviceSwitchBtn" class="text-blue-400 hover:text-blue-300">iPhone 16 Pro ▾</button>
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- BOTTOM CONTROL DECK / THEMES, STATES & PHYSICS TUNER -->
+  <footer class="relative z-20 flex flex-col lg:flex-row items-end lg:items-center justify-between gap-3 pointer-events-none shrink-0">
+    
+    <!-- Left: Themes & Agent States Switchers -->
+    <div class="glass-card p-3 sm:p-3.5 rounded-3xl flex flex-col gap-2.5 pointer-events-auto max-w-xl w-full lg:w-auto shadow-lg">
+      
+      <!-- Theme Selection -->
+      <div class="flex items-center gap-2">
+        <span class="text-[11px] font-semibold text-zinc-400 mono uppercase tracking-wider w-16">Theme:</span>
+        <div class="flex flex-wrap items-center gap-1.5">
+          <button data-theme="google" class="theme-btn glass-button active px-2.5 py-1 rounded-xl text-xs flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+            <span>Google Glow</span>
+          </button>
+          <button data-theme="monochrome" class="theme-btn glass-button px-2.5 py-1 rounded-xl text-xs flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-white"></span>
+            <span>Cyber Mono</span>
+          </button>
+          <button data-theme="broadcast" class="theme-btn glass-button px-2.5 py-1 rounded-xl text-xs flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-red-500"></span>
+            <span>Studio Red</span>
+          </button>
+          <button data-theme="emerald" class="theme-btn glass-button px-2.5 py-1 rounded-xl text-xs flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+            <span>Matrix</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Agent State Simulators -->
+      <div class="flex items-center gap-2">
+        <span class="text-[11px] font-semibold text-zinc-400 mono uppercase tracking-wider w-16">State:</span>
+        <div class="flex flex-wrap items-center gap-1.5">
+          <button data-state="idle" class="state-btn glass-button px-2.5 py-1 rounded-xl text-xs">Idle Float</button>
+          <button data-state="speaking" class="state-btn glass-button active px-2.5 py-1 rounded-xl text-xs">Speaking Liftoff</button>
+          <button data-state="listening" class="state-btn glass-button px-2.5 py-1 rounded-xl text-xs">Listening Pull</button>
+          <button data-state="thinking" class="state-btn glass-button px-2.5 py-1 rounded-xl text-xs">Thinking Swirl</button>
+          <button id="pulseBottomBtn" class="glass-button px-2.5 py-1 rounded-xl text-xs bg-white/10 hover:bg-white/20 text-white font-medium">✨ Pulse</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Physics Tuner Accordion Card -->
+    <div class="glass-card p-3 sm:p-3.5 rounded-3xl flex flex-col gap-2 pointer-events-auto w-full lg:w-72 text-xs shadow-lg">
+      <div class="flex items-center justify-between">
+        <span class="font-bold text-zinc-300 mono uppercase tracking-wider text-[11px]">Zero-G Physics</span>
+        <button id="resetPhysicsBtn" class="text-[10px] mono text-zinc-400 hover:text-white underline cursor-pointer">Reset</button>
+      </div>
+
+      <!-- Black Hole Pull (Listening Gravity) -->
+      <div class="flex items-center justify-between gap-2">
+        <span class="text-blue-300 mono text-[10px] font-bold">Black Hole Pull</span>
+        <input type="range" id="listeningPullInput" min="5" max="60" value="20" class="w-24 accent-blue-400">
+        <span id="listeningPullVal" class="w-7 text-right mono text-blue-300 font-bold text-[10px]">2.0x</span>
+      </div>
+
+      <!-- Vortex Swirl -->
+      <div class="flex items-center justify-between gap-2">
+        <span class="text-zinc-400 mono text-[10px]">Vortex Swirl</span>
+        <input type="range" id="listeningSwirlInput" min="0" max="40" value="12" class="w-24">
+        <span id="listeningSwirlVal" class="w-7 text-right mono text-white text-[10px]">1.2x</span>
+      </div>
+
+      <!-- Repulsion Anti-G Force -->
+      <div class="flex items-center justify-between gap-2">
+        <span class="text-zinc-400 mono text-[10px]">Anti-G Force</span>
+        <input type="range" id="repulsionInput" min="50" max="300" value="150" class="w-24">
+        <span id="repulsionVal" class="w-7 text-right mono text-white text-[10px]">150</span>
+      </div>
+    </div>
+
+  </footer>
+
+  <!-- MODAL: ABOUT ANTIGRAVITY AI INTRODUCTION & WALKTHROUGH -->
+  <div id="introModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+    <div class="w-full max-w-xl glass-card-elevated p-6 rounded-3xl border border-white/20 relative space-y-4">
+      <button id="closeIntroModalBtn" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-zinc-800 hover:bg-zinc-700 text-white flex items-center justify-center font-bold text-sm cursor-pointer transition">
+        ✕
+      </button>
+
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-500 via-red-500 to-yellow-400 p-[1.5px] flex items-center justify-center">
+          <div class="w-full h-full bg-black rounded-[14px] flex items-center justify-center font-black text-sm mono text-white">
+            AG
+          </div>
+        </div>
+        <div>
+          <h2 class="text-base font-bold text-white">Introduction to Google Antigravity AI</h2>
+          <p class="text-xs text-zinc-400">Autonomous Pair-Programming & Multi-Modal Voice Layer</p>
+        </div>
+      </div>
+
+      <div class="space-y-3 text-xs text-zinc-300 leading-relaxed max-h-96 overflow-y-auto pr-1">
+        <div class="p-3 rounded-2xl bg-white/[0.04] border border-white/10 space-y-1">
+          <h4 class="font-bold text-white flex items-center gap-1.5">
+            <span>🚀</span> <span>1. Asynchronous Autonomous Execution</span>
+          </h4>
+          <p class="text-zinc-400">
+            Antigravity runs deep tasks in the background—compiling code, executing test suites, conducting codebase research, and generating UI assets without blocking your workflow.
+          </p>
+        </div>
+
+        <div class="p-3 rounded-2xl bg-white/[0.04] border border-white/10 space-y-1">
+          <h4 class="font-bold text-white flex items-center gap-1.5">
+            <span>🌌</span> <span>2. Zero-G Acoustic Feedback Field</span>
+          </h4>
+          <p class="text-zinc-400">
+            The floating particle mesh provides ambient non-verbal cognitive state feedback. When you speak, the field pulls toward a gravitational black hole singularity; when the AI speaks, particles liftoff and bloom with voice luminescence.
+          </p>
+        </div>
+
+        <div class="p-3 rounded-2xl bg-white/[0.04] border border-white/10 space-y-1">
+          <h4 class="font-bold text-white flex items-center gap-1.5">
+            <span>📱</span> <span>3. Mobile Companion & Seamless Handoff</span>
+          </h4>
+          <p class="text-zinc-400">
+            Finished designs, reviewable diffs, and live test logs instantly stream to your mobile companion phone. Review code and approve plans hands-free from anywhere.
+          </p>
+        </div>
+      </div>
+
+      <div class="pt-2 flex justify-end">
+        <button id="gotItIntroBtn" class="px-5 py-2 rounded-xl bg-white text-black font-bold text-xs hover:bg-zinc-200 transition cursor-pointer">
+          Try the Demo ➔
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ANTIGRAVITY ENGINE JAVASCRIPT -->
+  <script src="../src/voicegency/companion/static/antigravity-particles.js"></script>
+
+  <!-- Self-Contained Fallback Antigravity Particle Engine if local file path differs -->
+  <script>
+    if (typeof AntigravityField === 'undefined') {
+      console.warn("Loading inline AntigravityField engine fallback...");
+      const THEMES = {
+        google: {
+          name: 'Google Antigravity Glow',
+          background: '#05070d',
+          colors: [
+            { r: 66, g: 133, b: 244 },
+            { r: 234, g: 67, b: 53 },
+            { r: 251, g: 188, b: 5 },
+            { r: 52, g: 168, b: 83 },
+            { r: 168, g: 199, b: 250 },
+          ],
+          lineColor: 'rgba(100, 149, 237, ',
+          particleAlpha: 0.85,
+          glowAlpha: 0.35,
+          ambientGlow: 'rgba(66, 133, 244, 0.04)',
+        },
+        monochrome: {
+          name: 'Cyber Monochrome',
+          background: '#000000',
+          colors: [
+            { r: 255, g: 255, b: 255 },
+            { r: 212, g: 212, b: 216 },
+            { r: 161, g: 161, b: 170 },
+            { r: 113, g: 113, b: 122 },
+          ],
+          lineColor: 'rgba(255, 255, 255, ',
+          particleAlpha: 0.75,
+          glowAlpha: 0.25,
+          ambientGlow: 'rgba(255, 255, 255, 0.02)',
+        },
+        broadcast: {
+          name: 'Studio Broadcast Red',
+          background: '#090000',
+          colors: [
+            { r: 255, g: 51, b: 51 },
+            { r: 255, g: 102, b: 102 },
+            { r: 255, g: 170, b: 0 },
+            { r: 220, g: 38, b: 38 },
+          ],
+          lineColor: 'rgba(255, 51, 51, ',
+          particleAlpha: 0.85,
+          glowAlpha: 0.35,
+          ambientGlow: 'rgba(255, 51, 51, 0.05)',
+        },
+        emerald: {
+          name: 'Neural Matrix',
+          background: '#020904',
+          colors: [
+            { r: 16, g: 185, b: 129 },
+            { r: 52, g: 211, b: 153 },
+            { r: 110, g: 231, b: 183 },
+            { r: 5, g: 150, b: 105 },
+          ],
+          lineColor: 'rgba(52, 211, 153, ',
+          particleAlpha: 0.8,
+          glowAlpha: 0.3,
+          ambientGlow: 'rgba(16, 185, 129, 0.04)',
+        }
+      };
+
+      class Particle {
+        constructor(field, isDust = false) {
+          this.field = field;
+          this.isDust = isDust;
+          this.reset(true);
+        }
+
+        reset(initial = false) {
+          const w = this.field.width;
+          const h = this.field.height;
+          this.x = Math.random() * w;
+          this.y = initial ? Math.random() * h : h + Math.random() * 20;
+          
+          if (this.isDust) {
+            this.baseRadius = 0.5 + Math.random() * 1.2;
+            this.vx = (Math.random() - 0.5) * 0.15;
+            this.vy = -(0.08 + Math.random() * 0.2);
+            this.mass = 0.5;
+            this.alpha = 0.15 + Math.random() * 0.35;
+          } else {
+            this.baseRadius = 1.2 + Math.random() * 2.4;
+            this.vx = (Math.random() - 0.5) * 0.4;
+            this.vy = -(0.15 + Math.random() * 0.5);
+            this.mass = 1.0 + Math.random() * 1.5;
+            this.alpha = 0.4 + Math.random() * 0.55;
+          }
+
+          this.radius = this.baseRadius;
+          this.color = this.field.getRandomColor();
+          this.phase = Math.random() * Math.PI * 2;
+          this.pulseSpeed = 0.02 + Math.random() * 0.03;
+          this.originalVy = this.vy;
+
+          const minDim = Math.min(w || 800, h || 600);
+          this.baseOrbitRadius = 45 + Math.random() * (minDim * 0.42);
+          this.orbitDirection = Math.random() < 0.25 ? -1 : 1;
+          this.orbitSpeed = 0.35 + Math.random() * 0.25;
+          this.neuralPhase = Math.random() * Math.PI * 2;
+          this.synapticFlash = 0;
+        }
+
+        update(dt, pointer, state, audioLevel) {
+          const timeScale = dt / 16.6;
+          this.phase += this.pulseSpeed * timeScale;
+          this.neuralPhase += 0.012 * timeScale;
+
+          if (this.synapticFlash > 0) {
+            this.synapticFlash = Math.max(0, this.synapticFlash - (dt / 1000) * 4.8);
+          }
+
+          if (state === 'speaking') {
+            const buoyancy = this.field.options.buoyancy * 3.8;
+            this.vy += buoyancy * timeScale;
+            const liftoffForce = (0.26 + (this.isDust ? 0.12 : 0.38) + (audioLevel * 1.4)) * timeScale;
+            this.vy -= liftoffForce;
+            const acousticWave = Math.sin(this.phase * 3 + (this.field.time || 0) * 12) * (0.35 + audioLevel * 1.5) * (this.isDust ? 0.4 : 1.0);
+            this.vx += acousticWave * timeScale;
+            this.x += this.vx * timeScale;
+            this.y += this.vy * timeScale;
+          } else if (state === 'thinking') {
+            const cx = this.field.options.pullCenterX !== undefined ? this.field.options.pullCenterX : this.field.width / 2;
+            const cy = this.field.options.pullCenterY !== undefined ? this.field.options.pullCenterY : this.field.height / 2;
+            const dx = cx - this.x;
+            const dy = cy - this.y;
+            const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+            const normX = dx / dist;
+            const normY = dy / dist;
+            const breathing = 1.0 + Math.sin((this.field.time || 0) * 0.75 + this.neuralPhase) * 0.04;
+            const targetR = this.baseOrbitRadius * breathing;
+            const rDiff = dist - targetR;
+            const spring = (this.isDust ? 0.008 : 0.016) * timeScale;
+            this.vx += normX * rDiff * spring;
+            this.vy += normY * rDiff * spring;
+            const orbitalVelocity = (0.25 + (40 / (dist + 50))) * 0.08 * (this.orbitDirection || 1) * this.orbitSpeed * 0.35 * timeScale;
+            this.vx += -normY * orbitalVelocity;
+            this.vy += normX * orbitalVelocity;
+            const radialPulse = Math.sin((this.field.time || 0) * 0.8 + this.phase) * (this.isDust ? 0.012 : 0.025) * timeScale;
+            this.vx += normX * radialPulse;
+            this.vy += normY * radialPulse;
+            this.x += this.vx * timeScale;
+            this.y += this.vy * timeScale;
+          } else if (state === 'listening') {
+            let buoyancy = this.field.options.buoyancy * 0.08;
+            this.vy += buoyancy * timeScale;
+            const cx = this.field.width / 2;
+            const cy = this.field.height / 2;
+            const dx = cx - this.x;
+            const dy = cy - this.y;
+            const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+            const pullStrength = this.field.options.listeningPullStrength || 2.0;
+            const swirlStrength = this.field.options.listeningSwirl || 1.2;
+            const audioBoost = 1.0 + (audioLevel * 1.5);
+
+            if (dist > 0.5) {
+              const normX = dx / dist;
+              const normY = dy / dist;
+              const gravity = (0.16 + (240 / (dist + 38))) * pullStrength * 0.28 * audioBoost * timeScale;
+              this.vx += (normX * gravity) / Math.sqrt(this.mass);
+              this.vy += (normY * gravity) / Math.sqrt(this.mass);
+              const tangentialSpeed = (0.10 + (160 / (dist + 45))) * swirlStrength * 0.24 * audioBoost * timeScale;
+              this.vx += (-normY * tangentialSpeed) / Math.sqrt(this.mass);
+              this.vy += (normX * tangentialSpeed) / Math.sqrt(this.mass);
+              if (dist < 26) {
+                const corePush = (1 - dist / 26) * 0.9 * pullStrength * timeScale;
+                this.vx -= normX * corePush;
+                this.vy -= normY * corePush;
+              }
+            }
+            const drift = 0.03 * Math.sin(this.phase) * (this.isDust ? 0.05 : 0.12);
+            this.x += (this.vx + drift) * timeScale;
+            this.y += this.vy * timeScale;
+          } else {
+            let buoyancy = this.field.options.buoyancy;
+            this.vy += buoyancy * timeScale;
+            const drift = Math.sin(this.phase) * (this.isDust ? 0.05 : 0.12);
+            this.x += (this.vx + drift) * timeScale;
+            this.y += this.vy * timeScale;
+          }
+
+          if (pointer.active) {
+            const dx = this.x - pointer.x;
+            const dy = this.y - pointer.y;
+            const distSq = dx * dx + dy * dy;
+            const radius = this.field.options.repulsionRadius;
+            if (distSq < radius * radius && distSq > 0.1) {
+              const dist = Math.sqrt(distSq);
+              const force = Math.pow(1 - dist / radius, 2) * this.field.options.repulsionStrength;
+              this.vx += ((dx / dist) * force * 4) / this.mass;
+              this.vy += ((dy / dist) * force * 4) / this.mass;
+            }
+          }
+
+          if (state === 'listening') {
+            this.vx *= 0.965;
+            this.vy *= 0.965;
+          } else if (state === 'thinking') {
+            this.vx *= 0.945;
+            this.vy *= 0.945;
+          } else if (state === 'speaking') {
+            this.vx *= 0.92;
+            this.vy *= 0.97;
+          } else {
+            this.vx *= 0.94;
+            this.vy *= 0.96;
+          }
+
+          const margin = 50;
+          if (this.y < -margin) { 
+            this.y = this.field.height + margin; 
+            this.x = Math.random() * this.field.width;
+            if (state === 'speaking') this.vy = -(1.8 + Math.random() * 2.8 + audioLevel * 1.5);
+          }
+          else if (this.y > this.field.height + margin) { this.y = -margin; }
+          if (this.x < -margin) { this.x = this.field.width + margin; }
+          else if (this.x > this.field.width + margin) { this.x = -margin; }
+        }
+
+        draw(ctx) {
+          const c = this.color;
+          const audio = this.field.audioLevel || 0;
+          let alpha = this.alpha * (this.isDust ? 0.4 : 1.0);
+          if (audio > 0.02) alpha = Math.min(1.0, alpha + audio * 0.5);
+
+          ctx.beginPath();
+          ctx.arc(this.x, this.y, Math.max(0.5, this.radius), 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(${c.r}, ${c.g}, ${c.b}, ${alpha})`;
+          ctx.fill();
+
+          if (!this.isDust && this.field.options.glowEnabled && this.radius > 1.2) {
+            const glowRadius = this.radius * (3.5 + audio * 6.0);
+            const grad = ctx.createRadialGradient(this.x, this.y, this.radius * 0.2, this.x, this.y, glowRadius);
+            grad.addColorStop(0, `rgba(${c.r}, ${c.g}, ${c.b}, ${alpha * 0.45})`);
+            grad.addColorStop(1, `rgba(${c.r}, ${c.g}, ${c.b}, 0)`);
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, glowRadius, 0, Math.PI * 2);
+            ctx.fillStyle = grad;
+            ctx.fill();
+          }
+
+          if (this.synapticFlash > 0.02) {
+            const flash = this.synapticFlash;
+            const flashRadius = this.radius * (4.0 + flash * 5.0);
+            const flashGrad = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, flashRadius);
+            flashGrad.addColorStop(0, `rgba(255, 255, 255, ${Math.min(1.0, flash * 0.98)})`);
+            flashGrad.addColorStop(0.25, `rgba(${c.r}, ${c.g}, ${c.b}, ${Math.min(1.0, flash * 0.8)})`);
+            flashGrad.addColorStop(0.7, `rgba(${c.r}, ${c.g}, ${c.b}, ${flash * 0.3})`);
+            flashGrad.addColorStop(1, `rgba(${c.r}, ${c.g}, ${c.b}, 0)`);
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, flashRadius, 0, Math.PI * 2);
+            ctx.fillStyle = flashGrad;
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, Math.max(1.0, this.radius * (0.9 + flash * 0.6)), 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(255, 255, 255, ${Math.min(1.0, flash * 0.95)})`;
+            ctx.fill();
+          }
+        }
+      }
+
+      class LightningArc {
+        constructor(x1, y1, x2, y2, color, options = {}) {
+          this.x1 = x1; this.y1 = y1; this.x2 = x2; this.y2 = y2;
+          this.color = color || { r: 168, g: 215, b: 255 };
+          this.maxLife = options.maxLife || (0.14 + Math.random() * 0.10);
+          this.delay = options.delay || 0;
+          this.life = 0;
+          this.branches = [];
+          this.points = this._generatePoints(x1, y1, x2, y2, 6, 18);
+          if (Math.random() < 0.5 && this.points.length > 3) {
+            const branchIdx = Math.floor(Math.random() * (this.points.length - 2)) + 1;
+            const bp = this.points[branchIdx];
+            const angle = Math.atan2(y2 - y1, x2 - x1) + (Math.random() - 0.5) * 1.3;
+            const branchLen = Math.sqrt((x2 - x1)**2 + (y2 - y1)**2) * 0.38;
+            this.branches.push(this._generatePoints(bp.x, bp.y, bp.x + Math.cos(angle)*branchLen, bp.y + Math.sin(angle)*branchLen, 4, 10));
+          }
+        }
+
+        _generatePoints(x1, y1, x2, y2, segments = 6, maxJitter = 18) {
+          const pts = [{ x: x1, y: y1 }];
+          const dx = x2 - x1, dy = y2 - y1, dist = Math.sqrt(dx*dx + dy*dy) || 1;
+          const nx = -dy / dist, ny = dx / dist;
+          for (let i = 1; i < segments; i++) {
+            const t = i / segments;
+            const jitter = (Math.random() - 0.5) * maxJitter * 2 * Math.sin(t * Math.PI);
+            pts.push({ x: x1 + dx * t + nx * jitter, y: y1 + dy * t + ny * jitter });
+          }
+          pts.push({ x: x2, y: y2 });
+          return pts;
+        }
+
+        update(dt) {
+          if (this.delay > 0) {
+            this.delay -= dt / 1000;
+            return true;
+          }
+          this.life += dt / 1000;
+          return this.life < this.maxLife;
+        }
+
+        draw(ctx) {
+          if (this.delay > 0) return;
+          const progress = this.life / this.maxLife;
+          const alpha = Math.max(0, (1 - Math.pow(progress, 1.4)) * (0.72 + Math.random() * 0.28));
+          if (alpha <= 0.01) return;
+          const c = this.color;
+          const renderBolt = (pts, widthScale = 1.0) => {
+            if (pts.length < 2) return;
+            ctx.beginPath();
+            ctx.moveTo(pts[0].x, pts[0].y);
+            for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+            ctx.strokeStyle = `rgba(${c.r}, ${c.g}, ${c.b}, ${alpha * 0.45 * widthScale})`;
+            ctx.lineWidth = 3.8 * widthScale;
+            ctx.stroke();
+            ctx.strokeStyle = `rgba(${Math.min(255, c.r + 60)}, ${Math.min(255, c.g + 60)}, ${Math.min(255, c.b + 60)}, ${alpha * 0.85 * widthScale})`;
+            ctx.lineWidth = 1.8 * widthScale;
+            ctx.stroke();
+            ctx.strokeStyle = `rgba(255, 255, 255, ${alpha * 0.95 * widthScale})`;
+            ctx.lineWidth = 0.75 * widthScale;
+            ctx.stroke();
+          };
+          ctx.save();
+          ctx.lineCap = 'round';
+          renderBolt(this.points, 1.0);
+          for (let b = 0; b < this.branches.length; b++) renderBolt(this.branches[b], 0.65);
+          ctx.restore();
+        }
+      }
+
+      window.AntigravityField = class AntigravityField {
+        constructor(canvas, options = {}) {
+          this.canvas = typeof canvas === 'string' ? document.querySelector(canvas) : canvas;
+          this.ctx = this.canvas.getContext('2d', { alpha: true });
+          this.options = Object.assign({
+            theme: 'google',
+            particleCount: 75,
+            dustCount: 90,
+            connectionDistance: 130,
+            repulsionRadius: 150,
+            repulsionStrength: 1.6,
+            buoyancy: -0.012,
+            glowEnabled: true,
+            connectConstellations: true,
+            enablePointerGravity: true,
+            autoResize: true,
+            listeningPullStrength: 2.0,
+            listeningSwirl: 1.2,
+            thinkingSwirlSpeed: 0.35,
+            enableIdeaLightning: true,
+            ideaLightningInterval: 0.50,
+          }, options);
+
+          this.theme = THEMES[this.options.theme] || THEMES.google;
+          this.state = 'idle';
+          this.audioLevel = 0.0;
+          this.particles = [];
+          this.dust = [];
+          this.running = false;
+          this.pointer = { x: -1000, y: -1000, active: false };
+          this.shockwaves = [];
+          this.lightningArcs = [];
+          this.ideaLightningTimer = 0;
+          this.nextLightningStrike = 0.35;
+
+          this._init();
+        }
+
+        _init() {
+          this._bindEvents();
+          this.resize();
+          this._spawnParticles();
+          this.start();
+        }
+
+        _bindEvents() {
+          window.addEventListener('resize', () => this.resize(), { passive: true });
+          const onMove = (e) => {
+            const rect = this.canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            this.pointer.x = clientX - rect.left;
+            this.pointer.y = clientY - rect.top;
+            this.pointer.active = true;
+          };
+          window.addEventListener('mousemove', onMove, { passive: true });
+          window.addEventListener('touchmove', onMove, { passive: true });
+          window.addEventListener('touchstart', onMove, { passive: true });
+          window.addEventListener('touchend', () => { this.pointer.active = false; }, { passive: true });
+        }
+
+        resize() {
+          const dpr = Math.min(window.devicePixelRatio || 1, 2);
+          this.width = window.innerWidth;
+          this.height = window.innerHeight;
+          this.canvas.width = Math.floor(this.width * dpr);
+          this.canvas.height = Math.floor(this.height * dpr);
+          this.canvas.style.width = `${this.width}px`;
+          this.canvas.style.height = `${this.height}px`;
+          this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+
+        _spawnParticles() {
+          this.particles = [];
+          this.dust = [];
+          for (let i = 0; i < this.options.particleCount; i++) this.particles.push(new Particle(this, false));
+          for (let i = 0; i < this.options.dustCount; i++) this.dust.push(new Particle(this, true));
+        }
+
+        getRandomColor() {
+          const colors = this.theme.colors;
+          return colors[Math.floor(Math.random() * colors.length)];
+        }
+
+        setTheme(name) {
+          if (THEMES[name]) {
+            this.theme = THEMES[name];
+            this.options.theme = name;
+            this.particles.forEach(p => p.color = this.getRandomColor());
+            this.dust.forEach(p => p.color = this.getRandomColor());
+          }
+        }
+
+        setState(name) {
+          this.state = name;
+        }
+
+        setAudioLevel(rms) {
+          this.audioLevel = Math.max(0, Math.min(1.0, rms));
+        }
+
+        pulse(intensity = 1.0, x = this.width / 2, y = this.height / 2) {
+          this.shockwaves.push({
+            x, y, radius: 10, maxRadius: Math.max(this.width, this.height) * 0.6,
+            alpha: 0.6 * intensity, speed: 8 * intensity, color: this.getRandomColor()
+          });
+          this.particles.forEach(p => {
+            const dx = p.x - x;
+            const dy = p.y - y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < 350 && dist > 1) {
+              const force = (1 - dist / 350) * 12 * intensity;
+              p.vx += (dx / dist) * force;
+              p.vy += (dy / dist) * force;
+            }
+          });
+        }
+
+        triggerIdeaLightning(sourceNode, targetNode, targetJumps) {
+          if (!this.particles || this.particles.length < 2) return;
+          let p1 = sourceNode || this.particles[Math.floor(Math.random() * this.particles.length)];
+          const numJumps = targetJumps !== undefined ? Math.min(6, Math.max(1, targetJumps)) : (3 + Math.floor(Math.random() * 4));
+          const colors = [{r:170,g:215,b:255},{r:255,g:255,b:255},{r:190,g:240,b:255},{r:220,g:190,b:255},{r:140,g:230,b:255}];
+          const color = Math.random() < 0.7 ? colors[Math.floor(Math.random()*colors.length)] : this.getRandomColor();
+          const visited = new Set([p1]);
+          let current = p1;
+          current.synapticFlash = 1.0;
+
+          for (let jump = 0; jump < numJumps; jump++) {
+            let next = null;
+            if (jump === 0 && targetNode && targetNode !== p1) {
+              next = targetNode;
+            } else {
+              const cands = [];
+              for (let i = 0; i < this.particles.length; i++) {
+                const p = this.particles[i];
+                if (visited.has(p)) continue;
+                const d = Math.sqrt((p.x - current.x)**2 + (p.y - current.y)**2);
+                if (d >= 25 && d <= 260) cands.push({ p, d });
+              }
+              if (cands.length > 0) {
+                cands.sort((a,b) => a.d - b.d);
+                next = cands[Math.floor(Math.random() * Math.min(cands.length, 4))].p;
+              } else {
+                for (let i = 0; i < this.particles.length; i++) {
+                  const p = this.particles[i];
+                  if (visited.has(p)) continue;
+                  const d = Math.sqrt((p.x - current.x)**2 + (p.y - current.y)**2);
+                  if (d <= 380) cands.push({ p, d });
+                }
+                if (cands.length > 0) {
+                  cands.sort((a,b) => a.d - b.d);
+                  next = cands[0].p;
+                }
+              }
+            }
+
+            if (!next) break;
+            visited.add(next);
+            next.synapticFlash = 1.0;
+            const delay = jump * 0.032;
+            this.lightningArcs.push(new LightningArc(current.x, current.y, next.x, next.y, color, {
+              delay: delay,
+              maxLife: 0.15 + (jump * 0.015)
+            }));
+
+            if (Math.random() < 0.30 && jump < numJumps - 1) {
+              for (let i = 0; i < this.particles.length; i++) {
+                const p = this.particles[i];
+                if (visited.has(p)) continue;
+                const d = Math.sqrt((p.x - current.x)**2 + (p.y - current.y)**2);
+                if (d >= 30 && d <= 200) {
+                  visited.add(p);
+                  p.synapticFlash = 1.0;
+                  this.lightningArcs.push(new LightningArc(current.x, current.y, p.x, p.y, color, {
+                    delay: delay + 0.015,
+                    maxLife: 0.14
+                  }));
+                  break;
+                }
+              }
+            }
+            current = next;
+          }
+        }
+
+        update(dt) {
+          if (this.state === 'thinking' && this.options.enableIdeaLightning) {
+            this.ideaLightningTimer = (this.ideaLightningTimer || 0) + (dt / 1000);
+            if (this.ideaLightningTimer >= (this.nextLightningStrike || 0.45)) {
+              this.triggerIdeaLightning();
+              if (Math.random() < 0.3) this.triggerIdeaLightning();
+              const base = this.options.ideaLightningInterval || 0.50;
+              this.nextLightningStrike = (base * 0.4) + Math.random() * base * 1.2;
+              this.ideaLightningTimer = 0;
+            }
+          }
+          for (let i = this.lightningArcs.length - 1; i >= 0; i--) {
+            if (!this.lightningArcs[i].update(dt)) this.lightningArcs.splice(i, 1);
+          }
+          for (let i = 0; i < this.dust.length; i++) this.dust[i].update(dt, this.pointer, this.state, this.audioLevel * 0.3);
+          for (let i = 0; i < this.particles.length; i++) this.particles[i].update(dt, this.pointer, this.state, this.audioLevel);
+          for (let i = this.shockwaves.length - 1; i >= 0; i--) {
+            const sw = this.shockwaves[i];
+            sw.radius += sw.speed * (dt / 16.6);
+            sw.alpha *= 0.94;
+            if (sw.alpha < 0.01 || sw.radius > sw.maxRadius) this.shockwaves.splice(i, 1);
+          }
+        }
+
+        draw() {
+          const ctx = this.ctx;
+          ctx.clearRect(0, 0, this.width, this.height);
+
+          // Ambient Glow Orb
+          if (this.theme.ambientGlow) {
+            const cx = this.width / 2;
+            const cy = this.height / 2;
+            const grad = ctx.createRadialGradient(cx, cy, 20, cx, cy, Math.max(this.width, this.height) * 0.75);
+            grad.addColorStop(0, this.theme.ambientGlow);
+            grad.addColorStop(1, 'transparent');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, this.width, this.height);
+          }
+
+          // Shockwaves
+          for (let i = 0; i < this.shockwaves.length; i++) {
+            const sw = this.shockwaves[i];
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(sw.x, sw.y, sw.radius, 0, Math.PI * 2);
+            ctx.strokeStyle = `rgba(${sw.color.r}, ${sw.color.g}, ${sw.color.b}, ${sw.alpha})`;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.restore();
+          }
+
+          // Constellations
+          if (this.options.connectConstellations) {
+            const maxDist = this.options.connectionDistance;
+            const maxDistSq = maxDist * maxDist;
+            const len = this.particles.length;
+            for (let i = 0; i < len; i++) {
+              const pi = this.particles[i];
+              for (let j = i + 1; j < len; j++) {
+                const pj = this.particles[j];
+                const dx = pi.x - pj.x;
+                const dy = pi.y - pj.y;
+                const distSq = dx * dx + dy * dy;
+                if (distSq < maxDistSq) {
+                  const dist = Math.sqrt(distSq);
+                  const alpha = (1 - dist / maxDist) * 0.25;
+                  ctx.beginPath();
+                  ctx.moveTo(pi.x, pi.y);
+                  ctx.lineTo(pj.x, pj.y);
+                  ctx.strokeStyle = `${this.theme.lineColor}${alpha})`;
+                  ctx.lineWidth = 0.8;
+                  ctx.stroke();
+                }
+              }
+            }
+          }
+
+          // Draw Idea Lightning Arcs
+          for (let i = 0; i < this.lightningArcs.length; i++) this.lightningArcs[i].draw(ctx);
+
+          for (let i = 0; i < this.dust.length; i++) this.dust[i].draw(ctx);
+          for (let i = 0; i < this.particles.length; i++) this.particles[i].draw(ctx);
+        }
+
+        start() {
+          if (this.running) return;
+          this.running = true;
+          this.lastTime = performance.now();
+          const loop = (t) => {
+            if (!this.running) return;
+            const dt = Math.min(t - this.lastTime, 50);
+            this.lastTime = t;
+            this.update(dt);
+            this.draw();
+            requestAnimationFrame(loop);
+          };
+          requestAnimationFrame(loop);
+        }
+      };
+    }
+  </script>
+
+  <!-- INTERACTIVE DEMO APPLICATION SCRIPT -->
+  <script>
+    // 1. Initialize Antigravity Field Canvas
+    const canvas = document.getElementById('antigravityCanvas');
+    const field = new AntigravityField(canvas, {
+      theme: 'google',
+      particleCount: 75,
+      dustCount: 90,
+      connectionDistance: 130,
+      repulsionRadius: 150,
+      repulsionStrength: 1.6,
+      buoyancy: -0.012,
+      glowEnabled: true,
+      connectConstellations: true,
+      listeningPullStrength: 2.0,
+      listeningSwirl: 1.2,
+    });
+    window.field = field;
+
+    // 2. Demo State & Elements
+    let isTtsEnabled = true;
+    let recognition = null;
+    let isListening = false;
+
+    const stateText = document.getElementById('stateText');
+    const stateDot = document.getElementById('stateDot');
+    const stateDotRing = document.getElementById('stateDotRing');
+    const botSpeakingWave = document.getElementById('botSpeakingWave');
+    const botMessageText = document.getElementById('botMessageText');
+    const botSubtext = document.getElementById('botSubtext');
+    const turnHistory = document.getElementById('turnHistory');
+    const scriptPromptBtn = document.getElementById('scriptPromptBtn');
+    const chatInputForm = document.getElementById('chatInputForm');
+    const userTextInput = document.getElementById('userTextInput');
+    const micBtn = document.getElementById('micBtn');
+    const micIcon = document.getElementById('micIcon');
+    const phoneContainer = document.getElementById('phoneContainer');
+    const togglePhoneDirectBtn = document.getElementById('togglePhoneDirectBtn');
+    const togglePhoneText = document.getElementById('togglePhoneText');
+    const closePhoneBtn = document.getElementById('closePhoneBtn');
+    const replayBtn = document.getElementById('replayBtn');
+    const ttsToggleBtn = document.getElementById('ttsToggleBtn');
+    const ttsIcon = document.getElementById('ttsIcon');
+    const ttsText = document.getElementById('ttsText');
+
+    let lastSpokenAgentText = "";
+    let lastSpokenTime = 0;
+    let isTtsSpeaking = false;
+
+    function isAcousticEcho(userInput) {
+      if (!userInput || !lastSpokenAgentText) return false;
+      const now = Date.now();
+      if (now - lastSpokenTime > 25000) return false;
+
+      const cleanUser = userInput.toLowerCase().replace(/[^a-z0-9]/g, "");
+      const cleanAgent = lastSpokenAgentText.toLowerCase().replace(/[^a-z0-9]/g, "");
+      if (cleanUser.length < 3) return false;
+
+      if (cleanAgent.includes(cleanUser) || (cleanUser.length >= 8 && cleanUser.includes(cleanAgent))) return true;
+
+      const userWords = new Set(userInput.toLowerCase().split(/\s+/).filter(w => w.length > 2));
+      const agentWords = new Set(lastSpokenAgentText.toLowerCase().split(/\s+/).filter(w => w.length > 2));
+      if (userWords.size === 0) return false;
+
+      let matchCount = 0;
+      userWords.forEach(w => { if (agentWords.has(w)) matchCount++; });
+      return (matchCount / userWords.size) >= 0.50;
+    }
+
+    // 3. Speech Synthesis (TTS) Helper
+    function speakText(text, callback) {
+      if (!isTtsEnabled || !('speechSynthesis' in window)) {
+        if (callback) setTimeout(callback, 800);
+        return;
+      }
+
+      window.speechSynthesis.cancel();
+      lastSpokenAgentText = text;
+      lastSpokenTime = Date.now();
+      isTtsSpeaking = true;
+
+      if (recognition && isListening) {
+        try { recognition.abort(); } catch (e) {}
+        isListening = false;
+      }
+
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 1.05;
+      utterance.pitch = 1.0;
+
+      // Try selecting a natural English voice if available
+      const voices = window.speechSynthesis.getVoices();
+      const naturalVoice = voices.find(v => (v.name.includes('Natural') || v.name.includes('Google') || v.name.includes('Samantha') || v.name.includes('Daniel')) && v.lang.startsWith('en')) || voices[0];
+      if (naturalVoice) utterance.voice = naturalVoice;
+
+      field.setState('speaking');
+      updateStateVisuals('speaking');
+      botSpeakingWave.classList.remove('hidden');
+
+      // Voice bloom simulation
+      let audioSimTimer = setInterval(() => {
+        field.setAudioLevel(0.25 + Math.random() * 0.4);
+      }, 100);
+
+      utterance.onend = () => {
+        clearInterval(audioSimTimer);
+        field.setAudioLevel(0.0);
+        botSpeakingWave.classList.add('hidden');
+        field.setState('idle');
+        updateStateVisuals('idle');
+        setTimeout(() => {
+          isTtsSpeaking = false;
+          lastSpokenTime = Date.now();
+          if (callback) callback();
+        }, 400);
+      };
+
+      utterance.onerror = () => {
+        clearInterval(audioSimTimer);
+        field.setAudioLevel(0.0);
+        botSpeakingWave.classList.add('hidden');
+        field.setState('idle');
+        updateStateVisuals('idle');
+        isTtsSpeaking = false;
+        if (callback) callback();
+      };
+
+      window.speechSynthesis.speak(utterance);
+    }
+
+
+    // Preload voices
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+    }
+
+    // 4. State Update Visuals
+    function updateStateVisuals(state) {
+      const stateLabels = {
+        idle: 'ANTIGRAVITY • READY',
+        speaking: 'ANTIGRAVITY LIFTOFF • SPEAKING',
+        listening: 'BLACK HOLE VORTEX • LISTENING',
+        thinking: 'NEURAL CONSTELLATION • THINKING'
+      };
+      stateText.textContent = stateLabels[state] || state.toUpperCase();
+
+      document.querySelectorAll('.state-btn').forEach(btn => {
+        if (btn.getAttribute('data-state') === state) {
+          btn.classList.add('active');
+        } else {
+          btn.classList.remove('active');
+        }
+      });
+    }
+
+    // 5. Conversational Step Machine
+    // Step 1: Initial load
+    function initBotGreeting() {
+      botMessageText.textContent = "Done! The designs are now ready.";
+      botSubtext.textContent = "I've finalized the brand system, token palettes, and mobile companion components.";
+      speakText("Done! The designs are now ready.");
+    }
+
+    // Execute scripted turn when user asks to open on phone
+    function handleUserPhoneRequest(userText = "Great thanks! Now can you open them for me on my phone?") {
+      appendTurn('YOU', userText, 'user');
+      userTextInput.value = '';
+
+      // Transition to thinking briefly
+      field.setState('thinking');
+      updateStateVisuals('thinking');
+      field.pulse(1.4, window.innerWidth / 2, window.innerHeight / 2);
+
+      setTimeout(() => {
+        const botResponse = "Sure, here you go.";
+        botMessageText.textContent = botResponse;
+        botSubtext.textContent = "Streaming live design assets and mobile companion to your phone screen...";
+        appendTurn('ANTIGRAVITY', botResponse, 'agent');
+
+        speakText(botResponse, () => {
+          // Open phone companion mockup with smooth animation
+          openPhoneView();
+        });
+      }, 700);
+    }
+
+    function appendTurn(sender, text, type) {
+      turnHistory.classList.remove('hidden');
+      const div = document.createElement('div');
+      div.className = `p-2.5 rounded-xl text-xs mono ${
+        type === 'user' 
+          ? 'bg-blue-500/15 border border-blue-500/30 text-blue-100 ml-4' 
+          : 'bg-zinc-900/90 border border-zinc-800 text-zinc-100 mr-4'
+      }`;
+      div.innerHTML = `
+        <div class="flex items-center justify-between font-bold text-[10px] text-zinc-400 mb-1">
+          <span>${sender}</span>
+          <span>${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+        </div>
+        <div class="leading-relaxed">${text}</div>
+      `;
+      turnHistory.appendChild(div);
+      turnHistory.scrollTop = turnHistory.scrollHeight;
+    }
+
+    function openPhoneView() {
+      phoneContainer.classList.remove('hidden');
+      togglePhoneText.textContent = "Close Phone View";
+      field.pulse(1.6, window.innerWidth * 0.75, window.innerHeight / 2);
+    }
+
+    function closePhoneView() {
+      phoneContainer.classList.add('hidden');
+      togglePhoneText.textContent = "Open Phone View";
+    }
+
+    // Event Listeners for Scripted Trigger & Input
+    scriptPromptBtn.addEventListener('click', () => {
+      handleUserPhoneRequest("Great thanks! Now can you open them for me on my phone?");
+    });
+
+    chatInputForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const val = userTextInput.value.trim();
+      if (!val) return;
+
+      if (val.toLowerCase().includes('phone') || val.toLowerCase().includes('open')) {
+        handleUserPhoneRequest(val);
+      } else {
+        appendTurn('YOU', val, 'user');
+        userTextInput.value = '';
+        field.setState('thinking');
+        updateStateVisuals('thinking');
+
+        setTimeout(() => {
+          const resp = "I've processed your request. You can inspect the updated preview on your phone.";
+          botMessageText.textContent = resp;
+          appendTurn('ANTIGRAVITY', resp, 'agent');
+          speakText(resp, () => openPhoneView());
+        }, 800);
+      }
+    });
+
+    // Toggle Phone view directly
+    togglePhoneDirectBtn.addEventListener('click', () => {
+      if (phoneContainer.classList.contains('hidden')) {
+        openPhoneView();
+      } else {
+        closePhoneView();
+      }
+    });
+
+    closePhoneBtn.addEventListener('click', closePhoneView);
+
+    // Replay Demo Flow
+    replayBtn.addEventListener('click', () => {
+      closePhoneView();
+      turnHistory.innerHTML = '';
+      turnHistory.classList.add('hidden');
+      initBotGreeting();
+    });
+
+    // 6. Speech Recognition (STT) Setup
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.lang = 'en-US';
+
+      recognition.onstart = () => {
+        if (isTtsSpeaking || (Date.now() - lastSpokenTime < 400)) {
+          try { recognition.abort(); } catch (e) {}
+          return;
+        }
+        isListening = true;
+        micBtn.classList.add('bg-red-500/30', 'border-red-500');
+        micIcon.textContent = '🔴';
+        field.setState('listening');
+        updateStateVisuals('listening');
+      };
+
+      recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        if (isAcousticEcho(transcript)) {
+          console.warn("[Demo] 🛡️ Acoustic self-echo suppressed:", transcript);
+          return;
+        }
+        userTextInput.value = transcript;
+        handleUserPhoneRequest(transcript);
+      };
+
+
+      recognition.onerror = (e) => {
+        console.warn('Speech recognition error:', e);
+        isListening = false;
+        micBtn.classList.remove('bg-red-500/30', 'border-red-500');
+        micIcon.textContent = '🎙️';
+        field.setState('idle');
+        updateStateVisuals('idle');
+      };
+
+      recognition.onend = () => {
+        isListening = false;
+        micBtn.classList.remove('bg-red-500/30', 'border-red-500');
+        micIcon.textContent = '🎙️';
+      };
+
+      micBtn.addEventListener('click', () => {
+        if (isListening) {
+          recognition.stop();
+        } else {
+          try {
+            recognition.start();
+          } catch (err) {
+            console.error(err);
+          }
+        }
+      });
+    } else {
+      micBtn.title = "Web Speech Recognition not supported in this browser; click prompt to test";
+    }
+
+    // 7. TTS Toggle
+    ttsToggleBtn.addEventListener('click', () => {
+      isTtsEnabled = !isTtsEnabled;
+      ttsIcon.textContent = isTtsEnabled ? '🔊' : '🔇';
+      ttsText.textContent = isTtsEnabled ? 'Voice: ON' : 'Voice: OFF';
+    });
+
+    // 8. Shockwaves & Clicks
+    canvas.addEventListener('click', (e) => {
+      field.pulse(1.2, e.clientX, e.clientY);
+    });
+    document.getElementById('shockwaveCenterBtn').addEventListener('click', () => {
+      field.pulse(1.8, window.innerWidth / 2, window.innerHeight / 2);
+    });
+    document.getElementById('pulseBottomBtn').addEventListener('click', () => {
+      field.pulse(1.8, window.innerWidth / 2, window.innerHeight / 2);
+    });
+
+    // 9. Themes Switcher
+    const themeButtons = document.querySelectorAll('.theme-btn');
+    themeButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        themeButtons.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const theme = btn.getAttribute('data-theme');
+        field.setTheme(theme);
+        updateThemeAccents(theme);
+      });
+    });
+
+    function updateThemeAccents(theme) {
+      if (theme === 'google') {
+        stateDot.className = 'w-2 h-2 rounded-full bg-blue-400';
+        stateDotRing.className = 'absolute w-4 h-4 rounded-full bg-blue-500 pulse-ring';
+      } else if (theme === 'broadcast') {
+        stateDot.className = 'w-2 h-2 rounded-full bg-red-500';
+        stateDotRing.className = 'absolute w-4 h-4 rounded-full bg-red-500 pulse-ring';
+      } else if (theme === 'emerald') {
+        stateDot.className = 'w-2 h-2 rounded-full bg-emerald-400';
+        stateDotRing.className = 'absolute w-4 h-4 rounded-full bg-emerald-500 pulse-ring';
+      } else {
+        stateDot.className = 'w-2 h-2 rounded-full bg-white';
+        stateDotRing.className = 'absolute w-4 h-4 rounded-full bg-zinc-400 pulse-ring';
+      }
+    }
+
+    // 10. State Switcher
+    const stateButtons = document.querySelectorAll('.state-btn');
+    stateButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const state = btn.getAttribute('data-state');
+        field.setState(state);
+        updateStateVisuals(state);
+      });
+    });
+
+    // 11. Physics Tuner Sliders
+    const listeningPullInput = document.getElementById('listeningPullInput');
+    const listeningPullVal = document.getElementById('listeningPullVal');
+    const listeningSwirlInput = document.getElementById('listeningSwirlInput');
+    const listeningSwirlVal = document.getElementById('listeningSwirlVal');
+    const repulsionInput = document.getElementById('repulsionInput');
+    const repulsionVal = document.getElementById('repulsionVal');
+
+    listeningPullInput.addEventListener('input', (e) => {
+      const val = parseInt(e.target.value) / 10;
+      listeningPullVal.textContent = val.toFixed(1) + 'x';
+      field.options.listeningPullStrength = val;
+    });
+
+    listeningSwirlInput.addEventListener('input', (e) => {
+      const val = parseInt(e.target.value) / 10;
+      listeningSwirlVal.textContent = val.toFixed(1) + 'x';
+      field.options.listeningSwirl = val;
+    });
+
+    repulsionInput.addEventListener('input', (e) => {
+      const val = parseInt(e.target.value);
+      repulsionVal.textContent = val;
+      field.options.repulsionRadius = val;
+    });
+
+    document.getElementById('resetPhysicsBtn').addEventListener('click', () => {
+      listeningPullInput.value = 20;
+      listeningPullVal.textContent = '2.0x';
+      listeningSwirlInput.value = 12;
+      listeningSwirlVal.textContent = '1.2x';
+      repulsionInput.value = 150;
+      repulsionVal.textContent = '150';
+
+      field.options.listeningPullStrength = 2.0;
+      field.options.listeningSwirl = 1.2;
+      field.options.repulsionRadius = 150;
+    });
+
+    // 12. Phone Internal Tabs
+    const pTabLive = document.getElementById('pTabLive');
+    const pTabDesigns = document.getElementById('pTabDesigns');
+    const pTabLogs = document.getElementById('pTabLogs');
+    const pTabQR = document.getElementById('pTabQR');
+    const pViewLive = document.getElementById('pViewLive');
+    const pViewDesigns = document.getElementById('pViewDesigns');
+    const pViewLogs = document.getElementById('pViewLogs');
+    const pViewQR = document.getElementById('pViewQR');
+
+    function switchPhoneTab(tab) {
+      [pViewLive, pViewDesigns, pViewLogs, pViewQR].forEach(v => { if (v) v.classList.add('hidden'); });
+      [pTabLive, pTabDesigns, pTabLogs, pTabQR].forEach(t => {
+        if (t) t.className = "flex-1 py-1 rounded-lg text-center transition text-zinc-400 hover:text-white cursor-pointer";
+      });
+
+      if (tab === 'live' && pViewLive && pTabLive) {
+        pViewLive.classList.remove('hidden');
+        pTabLive.className = "flex-1 py-1 rounded-lg text-center transition bg-white text-black font-bold shadow-sm cursor-pointer";
+      } else if (tab === 'designs' && pViewDesigns && pTabDesigns) {
+        pViewDesigns.classList.remove('hidden');
+        pTabDesigns.className = "flex-1 py-1 rounded-lg text-center transition bg-white text-black font-bold shadow-sm cursor-pointer";
+      } else if (tab === 'logs' && pViewLogs && pTabLogs) {
+        pViewLogs.classList.remove('hidden');
+        pTabLogs.className = "flex-1 py-1 rounded-lg text-center transition bg-white text-black font-bold shadow-sm cursor-pointer";
+      } else if (tab === 'qr' && pViewQR && pTabQR) {
+        pViewQR.classList.remove('hidden');
+        pTabQR.className = "flex-1 py-1 rounded-lg text-center transition bg-white text-black font-bold shadow-sm cursor-pointer";
+      }
+    }
+
+    if (pTabLive) pTabLive.addEventListener('click', () => switchPhoneTab('live'));
+    if (pTabDesigns) pTabDesigns.addEventListener('click', () => switchPhoneTab('designs'));
+    if (pTabLogs) pTabLogs.addEventListener('click', () => switchPhoneTab('logs'));
+    if (pTabQR) pTabQR.addEventListener('click', () => switchPhoneTab('qr'));
+
+    // Device Switcher
+    const phoneDeviceFrame = document.getElementById('phoneDeviceFrame');
+    const deviceSwitchBtn = document.getElementById('deviceSwitchBtn');
+    let currentDevice = 'iphone';
+
+    deviceSwitchBtn.addEventListener('click', () => {
+      if (currentDevice === 'iphone') {
+        currentDevice = 'pixel';
+        phoneDeviceFrame.className = 'device-pixel phone-appear bg-black text-white relative overflow-hidden flex flex-col transition-all duration-300';
+        deviceSwitchBtn.textContent = 'Pixel 11 ▾';
+        dynamicIsland.className = 'absolute top-2.5 left-1/2 -translate-x-1/2 w-4 h-4 bg-black rounded-full z-40 flex items-center justify-center pointer-events-none border border-zinc-700 shadow-inner';
+        dynamicIsland.innerHTML = '<div class="w-1.5 h-1.5 rounded-full bg-slate-900 border border-blue-400/40"></div>';
+      } else if (currentDevice === 'pixel') {
+        currentDevice = 'compact';
+        phoneDeviceFrame.className = 'device-compact phone-appear bg-black text-white relative overflow-hidden flex flex-col transition-all duration-300';
+        deviceSwitchBtn.textContent = 'Compact ▾';
+        dynamicIsland.className = 'hidden';
+      } else {
+        currentDevice = 'iphone';
+        phoneDeviceFrame.className = 'device-iphone phone-appear bg-black text-white relative overflow-hidden flex flex-col transition-all duration-300';
+        deviceSwitchBtn.textContent = 'iPhone 16 Pro ▾';
+        dynamicIsland.className = 'absolute top-2.5 left-1/2 -translate-x-1/2 w-24 h-5 bg-black rounded-full z-40 flex items-center justify-between px-2 pointer-events-none border border-zinc-800';
+        dynamicIsland.innerHTML = '<div class="w-2 h-2 rounded-full bg-zinc-900"></div><div class="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></div>';
+      }
+    });
+
+    // 13. Intro Guide Modal
+    const introModal = document.getElementById('introModal');
+    const introModalBtn = document.getElementById('introModalBtn');
+    const closeIntroModalBtn = document.getElementById('closeIntroModalBtn');
+    const gotItIntroBtn = document.getElementById('gotItIntroBtn');
+
+    introModalBtn.addEventListener('click', () => introModal.classList.remove('hidden'));
+    closeIntroModalBtn.addEventListener('click', () => introModal.classList.add('hidden'));
+    gotItIntroBtn.addEventListener('click', () => introModal.classList.add('hidden'));
+
+    // 14. FPS Meter
+    let frameCount = 0;
+    let lastFpsTime = performance.now();
+    const fpsCounter = document.getElementById('fpsCounter');
+
+    function updateFps() {
+      frameCount++;
+      const now = performance.now();
+      if (now - lastFpsTime >= 1000) {
+        const fps = Math.round((frameCount * 1000) / (now - lastFpsTime));
+        if (fpsCounter) fpsCounter.textContent = fps;
+        frameCount = 0;
+        lastFpsTime = now;
+      }
+      requestAnimationFrame(updateFps);
+    }
+    requestAnimationFrame(updateFps);
+
+    // Initial Trigger on load
+    window.addEventListener('DOMContentLoaded', () => {
+      setTimeout(() => {
+        initBotGreeting();
+      }, 400);
+    });
+  </script>
+</body>
+</html>

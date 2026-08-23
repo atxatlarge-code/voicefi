@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <!-- Pure Void Black Canvas -->
+  <rect width="512" height="512" fill="#000000"/>
+
+  <!-- Minimal Frame -->
+  <rect x="36" y="36" width="440" height="440" fill="none" stroke="#1c1c1c" stroke-width="1.5"/>
+
+  <!-- Technical Header -->
+  <text x="52" y="58" fill="#D4FF00" font-family="'JetBrains Mono', monospace" font-size="11" font-weight="900" letter-spacing="1.5">01-B // ARCHITECTURAL</text>
+  <text x="460" y="58" fill="#666666" font-family="'JetBrains Mono', monospace" font-size="10" font-weight="700" text-anchor="end">CAPSULE GRILLE</text>
+
+  <!-- THE MARK: 01-B ARCHITECTURAL CAPSULE -->
+  <g id="mark01B" transform="translate(0, 8)">
+    
+    <!-- Top Acoustic Grille Arch (Rounded Studio Condenser Cap) -->
+    <path d="M 206 120 C 206 80, 306 80, 306 120" fill="none" stroke="#D4FF00" stroke-width="12" stroke-linecap="square"/>
+    <line x1="230" y1="102" x2="282" y2="102" stroke="#D4FF00" stroke-width="6"/>
+
+    <!-- THE 'V' (Voice & Microphone Chassis) -->
+    <!-- Solid Left & Right V Blades -->
+    <polygon points="120,126 182,126 256,336 224,336" fill="#FFFFFF"/>
+    <polygon points="392,126 330,126 256,336 288,336" fill="#FFFFFF"/>
+
+    <!-- Horizontal Acoustic Slits across V -->
+    <g fill="#000000">
+      <rect x="144" y="156" width="30" height="8"/>
+      <rect x="160" y="184" width="30" height="8"/>
+      <rect x="176" y="212" width="30" height="8"/>
+      
+      <rect x="338" y="156" width="30" height="8"/>
+      <rect x="322" y="184" width="30" height="8"/>
+      <rect x="306" y="212" width="30" height="8"/>
+    </g>
+
+    <!-- THE 'A' (Agency Arrow) -->
+    <!-- Solid Acid Volt Arrowhead -->
+    <polygon points="256,134 308,244 256,220 204,244" fill="#D4FF00"/>
+
+    <!-- 'A' Structural Crossbar -->
+    <rect x="194" y="246" width="124" height="14" fill="#D4FF00"/>
+
+    <!-- Dynamic Acoustic Node Base (Voice Coil) -->
+    <circle cx="256" cy="380" r="18" fill="#D4FF00"/>
+    <circle cx="256" cy="380" r="30" fill="none" stroke="#FFFFFF" stroke-width="3"/>
+    
+    <!-- Base XLR Mount -->
+    <rect x="236" y="426" width="40" height="8" fill="#FFFFFF"/>
+  </g>
+
+  <!-- Technical Footer -->
+  <text x="52" y="462" fill="#666666" font-family="'JetBrains Mono', monospace" font-size="10" font-weight="700">STUDIO CONDENSER</text>
+  <text x="460" y="462" fill="#D4FF00" font-family="'JetBrains Mono', monospace" font-size="10" font-weight="900" text-anchor="end">SOLID GEOMETRY</text>
+</svg>

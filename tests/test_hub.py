@@ -7,8 +7,8 @@ import threading
 from unittest.mock import MagicMock, patch
 import pytest
 
-from voicegency.integrations.conversations import ConversationTracker, ConversationInfo
-from voicegency.ui.hub import ConversationHubWindow, HubActionTarget
+from voicefi.integrations.conversations import ConversationTracker, ConversationInfo
+from voicefi.ui.hub import ConversationHubWindow, HubActionTarget
 
 
 @pytest.fixture
@@ -100,22 +100,22 @@ def test_conversation_hub_auto_refresh_lifecycle(mock_tracker):
 
 
 def test_tray_toggle_hub_debouncing():
-    """Test VoicegencyTrayApp.toggle_hub debounces rapid duplicate calls."""
-    from voicegency.ui.tray import VoicegencyTrayApp
+    """Test VoiceFiTrayApp.toggle_hub debounces rapid duplicate calls."""
+    from voicefi.ui.tray import VoiceFiTrayApp
 
-    with patch("voicegency.ui.tray.TranscriptWatcher"), \
-         patch("voicegency.ui.tray.ConversationHubWindow") as mock_hub_cls, \
-         patch("voicegency.ui.tray.rumps.App.__init__"), \
-         patch("voicegency.ui.tray.VoicegencyTrayApp._setup_cocoa_hotkeys"), \
-         patch("voicegency.ui.tray.VoicegencyTrayApp._build_conversations_submenu"), \
-         patch("voicegency.ui.tray.VoicegencyTrayApp._build_integrations_submenu"), \
-         patch("voicegency.ui.tray.VoicegencyTrayApp._build_personas_submenu"), \
-         patch("voicegency.ui.tray.VoicegencyTrayApp._build_voice_mode_submenu"):
+    with patch("voicefi.ui.tray.TranscriptWatcher"), \
+         patch("voicefi.ui.tray.ConversationHubWindow") as mock_hub_cls, \
+         patch("voicefi.ui.tray.rumps.App.__init__"), \
+         patch("voicefi.ui.tray.VoiceFiTrayApp._setup_cocoa_hotkeys"), \
+         patch("voicefi.ui.tray.VoiceFiTrayApp._build_conversations_submenu"), \
+         patch("voicefi.ui.tray.VoiceFiTrayApp._build_integrations_submenu"), \
+         patch("voicefi.ui.tray.VoiceFiTrayApp._build_personas_submenu"), \
+         patch("voicefi.ui.tray.VoiceFiTrayApp._build_voice_mode_submenu"):
 
         mock_hub_instance = MagicMock()
         mock_hub_cls.get_instance.return_value = mock_hub_instance
 
-        app = VoicegencyTrayApp.__new__(VoicegencyTrayApp)
+        app = VoiceFiTrayApp.__new__(VoiceFiTrayApp)
         app.hub = mock_hub_instance
 
         # First call should call hub.toggle()

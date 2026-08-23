@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from voicegency.tts.base import (
+from voicefi.tts.base import (
     set_agent_speaking,
     is_agent_speaking,
     is_system_audio_playing,
@@ -13,9 +13,9 @@ from voicegency.tts.base import (
     stop_all_speech,
     AGENT_SPEAKING_STATUS_FILE,
 )
-from voicegency.audio.recorder import AudioRecorder
-from voicegency.ui.dictation_hud import DictationHUD
-from voicegency.config import VoicegencyConfig
+from voicefi.audio.recorder import AudioRecorder
+from voicefi.ui.dictation_hud import DictationHUD
+from voicefi.config import VoiceFiConfig
 
 
 def test_agent_speaking_flag_lifecycle(tmp_path):
@@ -129,7 +129,7 @@ def test_audio_recorder_pauses_during_agent_speech_and_discards_audio():
         return speaking_states[idx]
 
     with patch("sounddevice.InputStream", side_effect=MockStream), \
-         patch("voicegency.audio.recorder.is_agent_speaking", side_effect=mock_is_agent_speaking):
+         patch("voicefi.audio.recorder.is_agent_speaking", side_effect=mock_is_agent_speaking):
         
         audio_data, wav_path = recorder.record_speech_auto(
             on_speech_start=on_start,
@@ -166,15 +166,15 @@ def test_dictation_hud_show_paused():
 
 
 def test_tray_status_map_includes_paused():
-    """Verify VoicegencyTrayApp status map displays appropriate paused icon and text."""
-    from voicegency.ui.tray import VoicegencyTrayApp
+    """Verify VoiceFiTrayApp status map displays appropriate paused icon and text."""
+    from voicefi.ui.tray import VoiceFiTrayApp
 
     # Mock rumps to instantiate tray app
-    with patch("voicegency.integrations.watcher.TranscriptWatcher"), \
-         patch("voicegency.ui.hub.ConversationHubWindow.get_instance"), \
-         patch("voicegency.ui.tray.VoicegencyTrayApp._start_global_hotkey_listener"), \
+    with patch("voicefi.integrations.watcher.TranscriptWatcher"), \
+         patch("voicefi.ui.hub.ConversationHubWindow.get_instance"), \
+         patch("voicefi.ui.tray.VoiceFiTrayApp._start_global_hotkey_listener"), \
          patch("rumps.Timer"):
-        app = VoicegencyTrayApp()
+        app = VoiceFiTrayApp()
         
         # Test speaking state
         app._current_status = "speaking"

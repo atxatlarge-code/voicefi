@@ -1,0 +1,127 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <!-- Concept A: The Broadcast Persona (Studio Mic Face + Wi-Fi Hat/Crown + Headphone Cradle) -->
+  <defs>
+    <linearGradient id="charABg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#040711" />
+      <stop offset="50%" stop-color="#091020" />
+      <stop offset="100%" stop-color="#020409" />
+    </linearGradient>
+
+    <!-- Electric Signal Gradient for Wi-Fi Hat & Eyes -->
+    <linearGradient id="hatSignalGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38BDF8" />
+      <stop offset="45%" stop-color="#6366F1" />
+      <stop offset="100%" stop-color="#A855F7" />
+    </linearGradient>
+
+    <!-- Face Capsule Gradient -->
+    <linearGradient id="faceCapsuleGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0F172A" />
+      <stop offset="100%" stop-color="#090E1A" />
+    </linearGradient>
+
+    <filter id="charAGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Container Squircle Badge -->
+  <rect width="512" height="512" rx="112" fill="url(#charABg)" />
+  <rect width="510" height="510" x="1" y="1" rx="111" fill="none" stroke="#1E293B" stroke-width="2" stroke-opacity="0.6" />
+
+  <!-- Main Character Lockup -->
+  <g transform="translate(0, 10)">
+    
+    <!-- ============================================================= -->
+    <!-- 1. THE WI-FI HAT / BROADCAST CROWN (Aura atop the head)      -->
+    <!-- ============================================================= -->
+    <g filter="url(#charAGlow)">
+      <!-- Outer Wi-Fi Hat Brim -->
+      <path d="M 148 135 A 130 130 0 0 1 364 135" 
+            fill="none" 
+            stroke="url(#hatSignalGrad)" 
+            stroke-width="16" 
+            stroke-linecap="round" />
+
+      <!-- Mid Wi-Fi Hat Arc -->
+      <path d="M 182 170 A 88 88 0 0 1 330 170" 
+            fill="none" 
+            stroke="url(#hatSignalGrad)" 
+            stroke-width="15" 
+            stroke-linecap="round" />
+
+      <!-- Inner Wi-Fi Hat Crest -->
+      <path d="M 216 205 A 46 46 0 0 1 296 205" 
+            fill="none" 
+            stroke="url(#hatSignalGrad)" 
+            stroke-width="14" 
+            stroke-linecap="round" />
+
+      <!-- Hat Top Antenna / Node Dot -->
+      <circle cx="256" cy="98" r="7" fill="#38BDF8" />
+    </g>
+
+    <!-- ============================================================= -->
+    <!-- 2. THE MICROPHONE FACE / AGENT CAPSULE                       -->
+    <!-- ============================================================= -->
+    
+    <!-- Rounded Studio Capsule Head (The Face) -->
+    <rect x="176" y="215" width="160" height="150" rx="48" 
+          fill="url(#faceCapsuleGrad)" 
+          stroke="#334155" 
+          stroke-width="3" />
+
+    <!-- Intelligent Agent Eyes (Two Glowing Cyber Lenses / Audio Dots) -->
+    <g filter="url(#charAGlow)">
+      <!-- Left Eye -->
+      <circle cx="222" cy="270" r="10" fill="#38BDF8" />
+      <circle cx="222" cy="270" r="4" fill="#FFFFFF" />
+
+      <!-- Right Eye -->
+      <circle cx="290" cy="270" r="10" fill="#38BDF8" />
+      <circle cx="290" cy="270" r="4" fill="#FFFFFF" />
+    </g>
+
+    <!-- Waveform Smile / Microphone Audio Grill (Mouth) -->
+    <g stroke-linecap="round" filter="url(#charAGlow)">
+      <line x1="230" y1="318" x2="230" y2="326" stroke="#818CF8" stroke-width="4" />
+      <line x1="243" y1="314" x2="243" y2="330" stroke="#6366F1" stroke-width="4" />
+      <line x1="256" y1="310" x2="256" y2="334" stroke="#FFFFFF" stroke-width="5" />
+      <line x1="269" y1="314" x2="269" y2="330" stroke="#6366F1" stroke-width="4" />
+      <line x1="282" y1="318" x2="282" y2="326" stroke="#818CF8" stroke-width="4" />
+    </g>
+
+    <!-- ============================================================= -->
+    <!-- 3. THE STUDIO U-CRADLE (Headphones / Chin Mount / Plug Base) -->
+    <!-- ============================================================= -->
+    
+    <!-- U-Cradle Arms curving around the head like Studio Headphones -->
+    <path d="M 124 235 C 124 380, 178 405, 256 405 C 334 405, 388 380, 388 235" 
+          fill="none" 
+          stroke="#E2E8F0" 
+          stroke-width="12" 
+          stroke-linecap="round" />
+
+    <!-- Headphone / Pivot Earcups on Left & Right -->
+    <g>
+      <!-- Left Earcup Mount -->
+      <rect x="110" y="215" width="28" height="42" rx="14" fill="#091020" stroke="#38BDF8" stroke-width="3" />
+      <circle cx="124" cy="236" r="4" fill="#FFFFFF" filter="url(#charAGlow)" />
+
+      <!-- Right Earcup Mount -->
+      <rect x="374" y="215" width="28" height="42" rx="14" fill="#091020" stroke="#38BDF8" stroke-width="3" />
+      <circle cx="388" cy="236" r="4" fill="#FFFFFF" filter="url(#charAGlow)" />
+    </g>
+
+    <!-- Support Stem / Plug Connector -->
+    <line x1="256" y1="405" x2="256" y2="445" stroke="#E2E8F0" stroke-width="13" stroke-linecap="round" />
+
+    <!-- Desktop Pedestal Base / Plug Ground -->
+    <line x1="196" y1="445" x2="316" y2="445" stroke="#E2E8F0" stroke-width="13" stroke-linecap="round" />
+    
+    <!-- Status LED Dot -->
+    <circle cx="256" cy="445" r="3.5" fill="#38BDF8" filter="url(#charAGlow)" />
+
+  </g>
+</svg>

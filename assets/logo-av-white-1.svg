@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <!-- Pure Stark White Canvas -->
+  <rect width="512" height="512" fill="#FFFFFF"/>
+
+  <!-- Minimalist Structural Grid & Framing (Stark Black on White) -->
+  <rect x="36" y="36" width="440" height="440" fill="none" stroke="#E5E5E5" stroke-width="1.5"/>
+  <path d="M 256 20 V 36 M 256 476 V 492 M 20 256 H 36 M 476 256 H 492" stroke="#CCCCCC" stroke-width="1.5"/>
+
+  <!-- Corner Registration Markers -->
+  <path d="M 36 50 V 36 H 50 M 462 36 H 476 V 50 M 36 462 V 476 H 50 M 462 476 H 476 V 462" stroke="#000000" stroke-width="2" fill="none"/>
+
+  <!-- Technical Header Tag -->
+  <text x="52" y="58" fill="#000000" font-family="'JetBrains Mono', monospace" font-size="11" font-weight="900" letter-spacing="1.5">AV.MIC // WHITE CANVAS</text>
+  <rect x="236" y="48" width="58" height="14" fill="#D4FF00"/>
+  <text x="265" y="59" fill="#000000" font-family="'JetBrains Mono', monospace" font-size="8.5" font-weight="900" text-anchor="middle" letter-spacing="1">SPEC 01</text>
+  <text x="460" y="58" fill="#888888" font-family="'JetBrains Mono', monospace" font-size="10" font-weight="700" text-anchor="end">VOICEGENCY</text>
+
+  <!-- THE AV MICROPHONE MARK (Solid Pitch Black & Acid Volt on White) -->
+  <g id="avWhiteMark" transform="translate(0, 12)">
+    
+    <!-- Top Acoustic Grille Header (Stepped Bars) -->
+    <rect x="216" y="80" width="80" height="8" fill="#000000"/>
+    <rect x="228" y="96" width="56" height="8" fill="#D4FF00"/>
+    <rect x="240" y="112" width="32" height="8" fill="#000000"/>
+
+    <!-- THE 'V' (Voice & Outer Microphone Chassis) - Solid Pitch Black Slabs -->
+    <!-- Left V Pillar -->
+    <polygon points="116,134 180,134 256,336 222,336" fill="#000000"/>
+    <!-- Right V Pillar -->
+    <polygon points="396,134 332,134 256,336 290,336" fill="#000000"/>
+
+    <!-- Acoustic Slits Cut into V Arms (Pure White Negative Space) -->
+    <g fill="#FFFFFF">
+      <polygon points="152,162 178,162 166,182 140,182"/>
+      <polygon points="168,194 194,194 182,214 156,214"/>
+      <polygon points="184,226 210,226 198,246 172,246"/>
+
+      <polygon points="360,162 334,162 346,182 372,182"/>
+      <polygon points="344,194 318,194 330,214 356,214"/>
+      <polygon points="328,226 302,226 314,246 340,246"/>
+    </g>
+
+    <!-- THE 'A' (Agency Arrow) - Solid Electric Acid Volt Chevron with Black Crossbar -->
+    <!-- Ascending Agency Apex -->
+    <polygon points="256,140 304,240 256,218 208,240" fill="#D4FF00" stroke="#000000" stroke-width="2"/>
+
+    <!-- 'A' Horizontal Acoustic Crossbar (Diaphragm Anchor) -->
+    <rect x="194" y="244" width="124" height="14" fill="#000000"/>
+
+    <!-- Central Diaphragm Core Node (Vocal Pickup Origin) -->
+    <circle cx="256" cy="378" r="18" fill="#D4FF00" stroke="#000000" stroke-width="3"/>
+    <circle cx="256" cy="378" r="30" fill="none" stroke="#000000" stroke-width="2.5" stroke-dasharray="6 4"/>
+
+    <!-- Base Microphone Mount (XLR Ground) -->
+    <rect x="236" y="424" width="40" height="8" fill="#000000"/>
+  </g>
+
+  <!-- Technical Footer Tag -->
+  <text x="52" y="462" fill="#888888" font-family="'JetBrains Mono', monospace" font-size="10" font-weight="700">INK ON PAPER // HIGH CONTRAST</text>
+  <text x="460" y="462" fill="#000000" font-family="'JetBrains Mono', monospace" font-size="10" font-weight="900" text-anchor="end">[A + V PROTOCOL]</text>
+</svg>

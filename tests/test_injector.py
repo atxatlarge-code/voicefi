@@ -4,7 +4,7 @@ Unit tests for text injector, clipboard preservation, and voice macros.
 
 from unittest.mock import MagicMock, patch
 import pytest
-from voicegency.integrations.injector import (
+from voicefi.integrations.injector import (
     process_dictation_macros,
     inject_text_to_active_app,
     get_clipboard_text,
@@ -35,9 +35,9 @@ def test_process_dictation_macros_formatting():
 
 def test_inject_text_to_active_app_with_clipboard_preservation():
     """Test text injection preserves previous clipboard content."""
-    with patch("voicegency.integrations.injector.get_clipboard_text", return_value="PREVIOUS_CLIPBOARD"), \
-         patch("voicegency.integrations.injector.set_clipboard_text", return_value=True) as mock_set, \
-         patch("voicegency.integrations.injector.restore_clipboard_delayed") as mock_restore, \
+    with patch("voicefi.integrations.injector.get_clipboard_text", return_value="PREVIOUS_CLIPBOARD"), \
+         patch("voicefi.integrations.injector.set_clipboard_text", return_value=True) as mock_set, \
+         patch("voicefi.integrations.injector.restore_clipboard_delayed") as mock_restore, \
          patch("subprocess.run") as mock_run:
 
         mock_run.return_value = MagicMock(returncode=0)

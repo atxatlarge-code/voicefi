@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 240" width="100%" height="100%">
+  <!-- Pure Stark White Canvas -->
+  <rect width="1000" height="240" fill="#FFFFFF"/>
+
+  <!-- Left Emblem Tile -->
+  <g transform="translate(36, 36)">
+    <!-- Box Frame -->
+    <rect width="168" height="168" fill="#F8F8F8" stroke="#000000" stroke-width="2"/>
+    
+    <!-- Mini Studio Mic VA Red inside Tile -->
+    <g transform="translate(14, 10) scale(0.74)">
+      <!-- Top Dome -->
+      <path d="M 64 36 C 64 16, 128 16, 128 36" fill="none" stroke="#000000" stroke-width="8"/>
+      <line x1="78" y1="28" x2="114" y2="28" stroke="#FF2A2A" stroke-width="4"/>
+
+      <!-- V Blades -->
+      <polygon points="36,44 64,44 96,136 82,136" fill="#000000"/>
+      <polygon points="156,44 128,44 96,136 110,136" fill="#000000"/>
+
+      <!-- Crossbar -->
+      <rect x="62" y="80" width="68" height="8" fill="#000000"/>
+      <rect x="66" y="82" width="60" height="4" fill="#FF2A2A"/>
+
+      <!-- Diaphragm Core -->
+      <circle cx="96" cy="58" r="14" fill="#FF2A2A" stroke="#000000" stroke-width="2"/>
+      <circle cx="96" cy="58" r="5" fill="#FFD166"/>
+
+      <!-- Base Node -->
+      <circle cx="96" cy="148" r="6" fill="#000000"/>
+      <rect x="88" y="160" width="16" height="6" fill="#000000"/>
+    </g>
+
+    <!-- Technical Tag in Tile -->
+    <text x="12" y="156" fill="#888888" font-family="'JetBrains Mono', monospace" font-size="9" font-weight="700">STUDIO.REC</text>
+    <rect x="144" y="12" width="12" height="12" fill="#FF2A2A" stroke="#000000" stroke-width="1"/>
+  </g>
+
+  <!-- Typography Right Column -->
+  <g transform="translate(236, 42)">
+    
+    <!-- Superheader Technical Stamp -->
+    <g transform="translate(0, 14)">
+      <rect x="0" y="-12" width="100" height="20" fill="#FF2A2A"/>
+      <text x="50" y="2" fill="#FFFFFF" font-family="'JetBrains Mono', monospace" font-size="10" font-weight="900" letter-spacing="1.5" text-anchor="middle">● ON AIR</text>
+      
+      <text x="114" y="2" fill="#666666" font-family="'JetBrains Mono', monospace" font-size="10.5" font-weight="700" letter-spacing="1">U.S. PAT. APP. 64/137,300</text>
+    </g>
+
+    <!-- Main Bold Swiss Wordmark -->
+    <text x="0" y="86" fill="#000000" font-family="-apple-system, 'Helvetica Neue', 'Neue Haas Grotesk', 'Inter', sans-serif" font-weight="900" font-size="62" letter-spacing="-0.04em">
+      VOICEGENCY<tspan fill="#FF2A2A">.</tspan>
+    </text>
+
+    <!-- The Master Slogan / Chiasmus in Stark Technical Typography -->
+    <text x="0" y="124" fill="#000000" font-family="-apple-system, 'Helvetica Neue', sans-serif" font-weight="800" font-size="16.5" letter-spacing="-0.01em">
+      GIVE A VOICE TO YOUR AGENTS, <tspan fill="#000000" text-decoration="underline" style="text-decoration-color: #FF2A2A; text-decoration-thickness: 3px;">AND AGENCY TO YOUR VOICE.</tspan>
+    </text>
+
+    <!-- Descriptor Subtitle -->
+    <text x="0" y="148" fill="#737373" font-family="'JetBrains Mono', monospace" font-size="11.5" font-weight="600" letter-spacing="0.04em">
+      UNIVERSAL AMBIENT VOICE LAYER // MACOS &amp; AUTONOMOUS AGENTS
+    </text>
+  </g>
+</svg>

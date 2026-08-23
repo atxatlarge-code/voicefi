@@ -4,8 +4,8 @@ Unit tests for AgentSpeechHUD (Native macOS Floating Speech Pop-up).
 
 from unittest.mock import MagicMock, patch
 import pytest
-from voicegency.ui.speech_hud import AgentSpeechHUD, AVATAR_ICONS
-from voicegency.config import VoicegencyConfig, AntigravityConfig
+from voicefi.ui.speech_hud import AgentSpeechHUD, AVATAR_ICONS
+from voicefi.config import VoiceFiConfig, AntigravityConfig
 
 
 def test_speech_hud_singleton():
@@ -76,7 +76,7 @@ def test_speech_hud_show_and_update():
 
 def test_speech_hud_config_integration():
     """Test configuration fields for speech pop-up."""
-    cfg = VoicegencyConfig()
+    cfg = VoiceFiConfig()
     assert cfg.antigravity.show_speech_popup is True
     assert cfg.antigravity.speech_popup_linger_seconds == 3.0
     assert cfg.antigravity.speech_popup_position == "top_center"

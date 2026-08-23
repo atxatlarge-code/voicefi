@@ -1,0 +1,3186 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-black text-white">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
+  <title>VoiceFi Companion</title>
+  <meta name="description" content="Talk hands-free to Antigravity AI agents from your phone and inspect full working logs & responses.">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#000000">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Markdown & Syntax Highlighting -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+
+  <!-- Antigravity Background Effect Engine -->
+  <script src="antigravity-particles.js"></script>
+
+  <style>
+    :root {
+      --app-height: 100dvh;
+    }
+    html, body {
+      height: 100%;
+      height: var(--app-height, 100dvh);
+      max-height: var(--app-height, 100dvh);
+      background-color: #000000;
+      color: #ffffff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      overflow: hidden;
+      position: fixed;
+      inset: 0;
+      width: 100%;
+    }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    
+    /* Safe Area Helpers for Mobile (iPhone Notch / Island / Home Indicator) */
+    .safe-top {
+      padding-top: max(1.25rem, calc(env(safe-area-inset-top) + 0.5rem));
+    }
+    .safe-bottom {
+      padding-bottom: max(0.85rem, env(safe-area-inset-bottom));
+    }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+    /* Minimalist Acoustic Breathing */
+    @keyframes subtlePulse {
+      0%, 100% { transform: scale(1); border-color: rgba(255, 255, 255, 0.4); }
+      50% { transform: scale(1.025); border-color: rgba(255, 255, 255, 0.9); }
+    }
+    @keyframes listeningWave {
+      0% { transform: scale(0.96); opacity: 0.8; }
+      50% { transform: scale(1.08); opacity: 0.25; }
+      100% { transform: scale(1.18); opacity: 0; }
+    }
+    .orb-minimal-breathe {
+      animation: subtlePulse 3s infinite ease-in-out;
+    }
+    .orb-pulse-ring {
+      animation: listeningWave 2s infinite cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /* Acoustic Waveform Bars */
+    .wave-bar {
+      display: inline-block;
+      width: 3.5px;
+      height: 6px;
+      border-radius: 3px;
+      background: #ffffff;
+      animation: waveJump 0.8s ease-in-out infinite alternate;
+    }
+    @keyframes waveJump {
+      0% { height: 4px; opacity: 0.35; transform: scaleY(0.4); }
+      100% { height: 24px; opacity: 1; transform: scaleY(1); }
+    }
+
+    /* Markdown Styling in Pure Monochrome */
+    .prose-dark {
+      color: #ffffff;
+      font-size: 0.875rem;
+      line-height: 1.6;
+    }
+    .prose-dark h1, .prose-dark h2, .prose-dark h3, .prose-dark h4 {
+      color: #ffffff;
+      font-weight: 700;
+      margin-top: 0.85rem;
+      margin-bottom: 0.35rem;
+      letter-spacing: -0.01em;
+    }
+    .prose-dark h1 { font-size: 1.15rem; border-bottom: 1px solid #222222; padding-bottom: 0.3rem; }
+    .prose-dark h2 { font-size: 1.05rem; }
+    .prose-dark h3 { font-size: 0.95rem; }
+    .prose-dark p { margin-bottom: 0.65rem; color: #d4d4d8; }
+    .prose-dark ul { list-style-type: disc; padding-left: 1.25rem; margin-bottom: 0.65rem; color: #d4d4d8; }
+    .prose-dark ol { list-style-type: decimal; padding-left: 1.25rem; margin-bottom: 0.65rem; color: #d4d4d8; }
+    .prose-dark li { margin-bottom: 0.2rem; }
+    .prose-dark blockquote {
+      border-left: 2px solid #ffffff;
+      padding-left: 0.75rem;
+      margin: 0.65rem 0;
+      color: #a1a1aa;
+      font-style: italic;
+    }
+    .prose-dark table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0.65rem 0;
+      font-size: 0.775rem;
+    }
+    .prose-dark th, .prose-dark td {
+      border: 1px solid #27272a;
+      padding: 0.45rem 0.6rem;
+      text-align: left;
+    }
+    .prose-dark th { background: #141414; color: #ffffff; font-weight: 600; }
+    .prose-dark code:not(pre code) {
+      background: #18181b;
+      color: #ffffff;
+      border: 1px solid #27272a;
+      padding: 0.15rem 0.35rem;
+      border-radius: 0.35rem;
+      font-size: 0.775rem;
+      font-family: ui-monospace, monospace;
+    }
+    .prose-dark pre {
+      background: #050505 !important;
+      border: 1px solid #222222;
+      border-radius: 0.65rem;
+      padding: 0.75rem;
+      margin: 0.65rem 0;
+      overflow-x: auto;
+      font-family: ui-monospace, monospace;
+      font-size: 0.775rem;
+      color: #e4e4e7;
+    }
+
+    /* Monochrome Alert Callouts */
+    .alert-box {
+      border-left: 2px solid #ffffff;
+      background: #0c0c0c;
+      border-right: 1px solid #222222;
+      border-top: 1px solid #222222;
+      border-bottom: 1px solid #222222;
+      padding: 0.6rem 0.8rem;
+      border-radius: 0 0.5rem 0.5rem 0;
+      margin: 0.65rem 0;
+      font-size: 0.8rem;
+      color: #e4e4e7;
+    }
+    .alert-note, .alert-tip, .alert-important, .alert-warning, .alert-caution {
+      background: #0c0c0c;
+      border-left-color: #ffffff;
+      color: #e4e4e7;
+    }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #333333; border-radius: 10px; }
+    ::-webkit-scrollbar-thumb:hover { background: #555555; }
+  </style>
+</head>
+<body class="h-full flex flex-col justify-between overflow-hidden bg-black text-white relative">
+
+  <!-- Fullscreen Zero-Gravity Particle Backdrop -->
+  <canvas id="bgAntigravityCanvas" class="fixed inset-0 w-full h-full pointer-events-none z-0"></canvas>
+
+  <!-- Floating Toast Confirmation Banner -->
+  <div id="toastBanner" class="fixed top-12 left-1/2 -translate-x-1/2 z-50 transition-all duration-300 transform -translate-y-16 opacity-0 pointer-events-none px-3.5 py-1.5 rounded-xl bg-black/90 border border-white text-white shadow-2xl flex items-center gap-2 text-xs backdrop-blur-md">
+    <span class="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span>
+    <span id="toastText" class="font-medium tracking-tight">Command received by Antigravity</span>
+  </div>
+
+  <!-- Header with Session Switcher and View Tabs -->
+  <header class="safe-top pb-2 px-3.5 border-b border-[#1c1c1c] bg-black/85 backdrop-blur-md z-20 shrink-0">
+    <div class="flex items-center justify-between gap-3 mb-2.5">
+      <div class="flex items-center gap-2">
+        <div class="w-8 h-8 flex items-center justify-center shrink-0">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="68 68 376 388" class="w-full h-full object-contain">
+            <defs>
+              <linearGradient id="vfHdrSymRed" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#FF3B30" />
+                <stop offset="50%" stop-color="#FF2A2A" />
+                <stop offset="100%" stop-color="#E0002A" />
+              </linearGradient>
+            </defs>
+            <g transform="translate(0, 5)">
+              <!-- 1. ELECTRIC RED WI-FI BROADCAST HAT -->
+              <g stroke="url(#vfHdrSymRed)" stroke-linecap="round" fill="none">
+                <path d="M 152 145 A 120 120 0 0 1 360 145" stroke-width="26" />
+                <path d="M 184 180 A 80 80 0 0 1 328 180" stroke-width="24" />
+                <path d="M 216 215 A 42 42 0 0 1 296 215" stroke-width="22" />
+              </g>
+              <!-- 2. CYBER FACE -->
+              <g stroke="#FFFFFF" stroke-width="14" stroke-linecap="round">
+                <line x1="202" y1="262" x2="234" y2="262" />
+                <line x1="278" y1="262" x2="310" y2="262" />
+              </g>
+              <!-- USB-C Port Nose -->
+              <g>
+                <rect x="236" y="276" width="40" height="18" rx="9" fill="#000000" stroke="#FF2A2A" stroke-width="4" />
+                <line x1="246" y1="285" x2="266" y2="285" stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round" />
+              </g>
+              <!-- Friendly Electric Red Waveform Smile -->
+              <path d="M 228 322 Q 256 348 284 322" fill="none" stroke="#FF2A2A" stroke-width="8" stroke-linecap="round" />
+              <!-- 3. STUDIO CRADLE & PLUG BASE in Crisp White -->
+              <path d="M 124 220 C 124 350, 175 385, 256 385 C 337 385, 388 350, 388 220" 
+                    fill="none" 
+                    stroke="#FFFFFF" 
+                    stroke-width="20" 
+                    stroke-linecap="round" />
+              <!-- Plug Prongs with Red Knurled Accents -->
+              <g>
+                <rect x="108" y="202" width="32" height="34" rx="7" fill="#000000" stroke="#FFFFFF" stroke-width="4.5" />
+                <circle cx="124" cy="219" r="5.5" fill="#FF2A2A" />
+                <rect x="372" y="202" width="32" height="34" rx="7" fill="#000000" stroke="#FFFFFF" stroke-width="4.5" />
+                <circle cx="388" cy="219" r="5.5" fill="#FF2A2A" />
+              </g>
+              <!-- Stem & Solid Base in Crisp White -->
+              <line x1="256" y1="385" x2="256" y2="435" stroke="#FFFFFF" stroke-width="22" stroke-linecap="round" />
+              <line x1="185" y1="435" x2="327" y2="435" stroke="#FFFFFF" stroke-width="22" stroke-linecap="round" />
+            </g>
+          </svg>
+        </div>
+        <div>
+          <h1 class="font-extrabold text-sm tracking-tight text-white flex items-center font-sans">
+            Voice<span class="text-[#FF2A2A]">Fi</span>
+          </h1>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-1.5">
+        <button id="qrPairBtn" title="Pair Mobile Phone (Scan QR Code)" class="px-2 py-1 text-white hover:text-white bg-[#18181b] hover:bg-[#27272a] border border-[#333333] rounded-lg text-[10px] mono transition flex items-center gap-1 cursor-pointer font-bold">
+          📱 PAIR
+        </button>
+        <button id="agRemoteBtn" title="Antigravity Remote Control Bridge" class="px-2 py-1 text-zinc-400 hover:text-white bg-[#111111] hover:bg-[#1c1c1c] border border-[#222222] rounded-lg text-[10px] mono transition flex items-center gap-1 cursor-pointer">
+          REMOTE
+        </button>
+        <button id="agThemeBtn" title="Cycle Antigravity Zero-G Theme (Google Glow / Mono / Studio Red)" class="px-2 py-1 text-zinc-400 hover:text-white bg-[#111111] hover:bg-[#1c1c1c] border border-[#222222] rounded-lg text-[10px] mono transition flex items-center gap-1 cursor-pointer">
+          <span class="w-1.5 h-1.5 rounded-full bg-blue-500" id="agThemeDot"></span>
+          <span id="agThemeText">AG</span>
+        </button>
+        <button id="speakerMuteBtn" title="Toggle Phone Voice Output (Mute / Unmute)" class="px-2 py-1 text-[#888888] hover:text-white bg-[#111111] border border-[#222222] rounded-lg text-[10px] mono transition flex items-center gap-1">
+          <span id="speakerMuteIcon">AUDIO</span>
+        </button>
+        <button id="refreshBtn" title="Refresh Session Details" class="px-2 py-1 text-[#888888] hover:text-white bg-[#111111] border border-[#222222] rounded-lg text-[10px] mono transition cursor-pointer">
+          SYNC
+        </button>
+        <div id="connStatus" class="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[#111111] border border-[#222222] text-[10px] font-mono text-[#888888]">
+          <span class="w-1.5 h-1.5 rounded-full bg-white" id="connDot"></span>
+          <span id="connText">Connecting...</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Active Conversation Dropdown Selector & New Chat Button -->
+    <div class="flex items-center gap-1.5 mb-2">
+      <div class="relative flex-1 min-w-0">
+        <select id="convSelect" class="w-full px-2.5 py-1.5 rounded-xl bg-[#0c0c0c] border border-[#222222] text-xs font-medium text-white appearance-none focus:outline-none focus:border-white transition pr-7 truncate cursor-pointer">
+          <option value="">Loading active conversations...</option>
+        </select>
+        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-[#666666] text-xs">
+          ▼
+        </div>
+      </div>
+
+      <!-- New Conversation Button -->
+      <button id="newConvBtn" title="Start a New Antigravity Conversation" class="px-2.5 py-1.5 bg-white text-black active:scale-95 text-xs font-bold rounded-xl flex items-center gap-1 shadow-sm transition shrink-0 cursor-pointer">
+        <span class="text-sm font-bold leading-none">+</span>
+        <span>New</span>
+      </button>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div class="flex items-center bg-[#0c0c0c] p-0.5 rounded-xl border border-[#222222] text-xs font-semibold">
+      <button id="tabVoice" class="flex-1 py-1 rounded-lg text-center transition flex items-center justify-center gap-1 text-[#888888] hover:text-white cursor-pointer">
+        <span>Voice</span>
+      </button>
+      <button id="tabChat" class="flex-1 py-1 rounded-lg text-center transition flex items-center justify-center gap-1 bg-white text-black shadow-sm cursor-pointer font-bold">
+        <span>Chat & Logs</span>
+      </button>
+      <button id="tabArtifacts" class="flex-1 py-1 rounded-lg text-center transition flex items-center justify-center gap-1 text-[#888888] hover:text-white cursor-pointer">
+        <span>Artifacts</span> <span id="artifactBadge" class="hidden text-[9px] bg-[#222222] text-white px-1 rounded-full mono">0</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Container for Main Views -->
+  <div class="flex-1 relative overflow-hidden flex flex-col bg-transparent">
+
+    <!-- VIEW 1: Voice Stage -->
+    <section id="viewVoice" class="hidden flex-1 flex flex-col items-center justify-between p-4 max-w-sm mx-auto w-full z-10 overflow-y-auto">
+      
+      <!-- Insecure HTTP Helper Banner (Prompts user to switch to HTTPS for Phone Mic) -->
+      <div id="httpsPromptBanner" class="hidden w-full bg-amber-950/60 border border-amber-500/50 rounded-2xl p-2.5 mb-2.5 text-left shrink-0">
+        <div class="flex items-center justify-between gap-2">
+          <div class="flex items-center gap-1.5 min-w-0">
+            <span class="text-xs">🔒</span>
+            <p class="text-[10px] text-amber-200 leading-snug">
+              Direct Phone Mic requires HTTPS on mobile.
+            </p>
+          </div>
+          <a id="httpsRedirectBtn" href="#" class="px-2.5 py-1 bg-amber-400 hover:bg-amber-300 text-black font-bold text-[10px] rounded-lg shrink-0 font-mono shadow-sm active:scale-95">
+            Switch to HTTPS
+          </a>
+        </div>
+      </div>
+
+      <!-- Top Quick Command & Mac Remote Shortcuts Bar -->
+      <div class="w-full bg-[#0c0c0c]/90 backdrop-blur-md rounded-2xl p-2.5 border border-[#222222] shadow-sm space-y-2 shrink-0">
+        <!-- Quick Typing Input Form -->
+        <form id="textForm" class="flex gap-1.5">
+          <input id="textInput" type="text" placeholder="Type a prompt to Mac..." class="flex-1 bg-[#050505] border border-[#222222] rounded-xl px-3 py-2 text-xs text-white placeholder-[#555555] focus:outline-none focus:border-white transition">
+          <button type="submit" class="px-3.5 py-2 bg-white text-black hover:bg-[#e4e4e7] rounded-xl text-xs font-bold shadow-sm transition cursor-pointer shrink-0">
+            Send
+          </button>
+        </form>
+
+        <!-- Mac Remote Shortcuts & Mic Routing Bar -->
+        <div class="pt-1.5 border-t border-[#1c1c1c]">
+          <div class="flex items-center justify-between text-[9px] font-mono text-zinc-400 mb-1.5 uppercase tracking-wider px-0.5">
+            <span>Mac Remote Shortcuts</span>
+            <!-- Live Voice & Agent State Badge Pill (Top-Right Aligned) -->
+            <div id="orbIcon" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#111111]/90 backdrop-blur-md border border-[#27272a] text-[10px] font-mono font-bold text-zinc-300 tracking-wider shadow-sm transition-all">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400" id="orbStatusDot"></span>
+              <span id="orbStatusText">[PHONE MIC]</span>
+            </div>
+          </div>
+          <div class="grid grid-cols-4 gap-1.5 font-mono text-[10px]">
+            <button type="button" id="macScreenshotBtn" class="py-1.5 px-1 bg-[#141414] hover:bg-[#222222] border border-[#27272a] rounded-xl font-bold text-white flex flex-col items-center justify-center gap-0.5 transition active:scale-95 cursor-pointer" title="Capture Mac Desktop Screen">
+              <span class="text-xs">🖥️</span>
+              <span class="text-[9px]">Screen</span>
+            </button>
+            <button type="button" id="macMicBtn" class="py-1.5 px-1 bg-[#141414] hover:bg-[#222222] border border-[#27272a] rounded-xl font-bold text-white flex flex-col items-center justify-center gap-0.5 transition active:scale-95 cursor-pointer" title="Speak into Mac Studio Microphone">
+              <span class="text-xs">🎙️</span>
+              <span class="text-[9px]">Mac Mic</span>
+            </button>
+            <button type="button" id="micSourceToggleBtn" class="py-1.5 px-1 bg-[#141414] hover:bg-[#222222] border border-[#27272a] rounded-xl font-bold text-white flex flex-col items-center justify-center gap-0.5 transition active:scale-95 cursor-pointer" title="Toggle Default Microphone (Phone / Mac)">
+              <span id="micSourceToggleIcon" class="text-xs">📱</span>
+              <span id="micSourceToggleTitle" class="text-[9px]">Phone</span>
+            </button>
+            <button type="button" id="phoneScreenshotBtn" class="py-1.5 px-1 bg-[#141414] hover:bg-[#222222] border border-[#27272a] rounded-xl font-bold text-white flex flex-col items-center justify-center gap-0.5 transition active:scale-95 cursor-pointer" title="Attach Phone Camera Photo / Screenshot">
+              <span class="text-xs">📎</span>
+              <span class="text-[9px]">Photo</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Attached Screenshot Preview Chip (Voice View) -->
+        <div id="voiceAttachedImagePreview" class="hidden p-2 bg-[#141414] border border-white/50 rounded-xl shadow-xl flex items-center justify-between">
+          <div class="flex items-center gap-2.5 truncate">
+            <img id="voiceAttachedThumbnail" src="" class="w-10 h-10 object-cover rounded-lg border border-zinc-600 bg-black cursor-pointer" title="View attached screenshot">
+            <div class="truncate text-left">
+              <span class="text-[11px] font-bold text-white flex items-center gap-1 font-mono"><span class="text-[9px] text-[#888888]">[ATTACHED]</span> <span id="voiceAttachedFilename" class="truncate">screenshot.jpg</span></span>
+              <p class="text-[9px] text-zinc-400 font-mono">Will be sent with next prompt</p>
+            </div>
+          </div>
+          <button type="button" id="voiceRemoveAttachedBtn" class="p-1 text-[#888888] hover:text-white text-xs font-bold transition cursor-pointer" title="Remove attachment">✕</button>
+        </div>
+      </div>
+
+      <!-- Center Voice Stage (Aligned directly with Antigravity Zero-G Particle Singularity) -->
+      <div id="voiceCenterStage" class="my-auto flex flex-col items-center justify-center relative py-4 w-full max-w-xs mx-auto">
+        <!-- Interactive Minimal Voice Stage (Concentric, Borderless, Singularity-Aligned) -->
+        <button id="orbBtn" type="button" class="group relative flex flex-col items-center justify-center text-center p-3 w-full rounded-3xl transition-all duration-300 active:scale-95 cursor-pointer select-none focus:outline-none bg-transparent border-0">
+          
+          <!-- State Title -->
+          <div id="stateTitle" class="text-2xl sm:text-3xl font-extrabold text-white tracking-tight leading-tight transition-all">
+            Tap to Speak on Phone
+          </div>
+          
+          <!-- Live Waveform Animation -->
+          <div id="orbWave" class="hidden flex items-center justify-center gap-1.5 my-2.5 h-6">
+            <span class="wave-bar" style="animation-delay: 0s"></span>
+            <span class="wave-bar" style="animation-delay: 0.15s"></span>
+            <span class="wave-bar" style="animation-delay: 0.3s"></span>
+            <span class="wave-bar" style="animation-delay: 0.1s"></span>
+            <span class="wave-bar" style="animation-delay: 0.25s"></span>
+            <span class="wave-bar" style="animation-delay: 0.05s"></span>
+            <span class="wave-bar" style="animation-delay: 0.2s"></span>
+          </div>
+
+          <!-- State Subtitle -->
+          <p id="stateSubtitle" class="text-xs text-zinc-400 mt-1 max-w-xs font-mono leading-relaxed transition-all">
+            Microphone ready
+          </p>
+        </button>
+      </div>
+
+      <!-- Transcript / Soundbite Card -->
+      <div class="w-full bg-[#0c0c0c]/85 backdrop-blur-md rounded-2xl p-3.5 border border-[#222222] shadow-sm shrink-0">
+        <div class="flex items-center justify-between text-[10px] font-semibold text-[#888888] uppercase tracking-wider mb-1.5">
+          <span id="logType">Latest Agent Turn</span>
+          <span id="autoListenTag" class="text-white font-mono lowercase">[auto-listen on]</span>
+        </div>
+        <p id="latestText" class="text-xs text-[#e4e4e7] leading-relaxed max-h-24 overflow-y-auto">
+          "Ready to pair with your Mac. Tap the button to begin speaking."
+        </p>
+      </div>
+
+      <!-- Plan Review & Approval Card (Voice View) -->
+      <div id="voicePlanReviewCard" class="hidden w-full mt-2.5 p-3 bg-[#0a0a0a]/95 border border-[#333333] rounded-2xl backdrop-blur-md shadow-lg space-y-2 shrink-0">
+        <div class="flex items-center justify-between pb-1.5 border-b border-[#222222]">
+          <div class="flex items-center gap-1.5">
+            <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
+            <span class="text-[10px] font-bold text-white mono uppercase tracking-wider">PLAN REVIEW REQUIRED</span>
+          </div>
+          <button id="voiceViewPlanBtn" type="button" class="text-[10px] font-mono text-zinc-400 hover:text-white underline cursor-pointer">
+            [VIEW PLAN]
+          </button>
+        </div>
+        <div class="flex items-center justify-between text-xs">
+          <span class="font-mono text-zinc-300 text-[11px] truncate">implementation_plan.md</span>
+          <span class="text-[9px] font-mono text-zinc-500">[AWAITING APPROVAL]</span>
+        </div>
+        <div class="grid grid-cols-3 gap-1.5 pt-0.5">
+          <button type="button" id="voiceApprovePlanBtn" class="py-1.5 px-1 text-center bg-white text-black font-bold text-[10px] font-mono rounded-lg hover:bg-zinc-200 transition active:scale-95 cursor-pointer">
+            [APPROVE]
+          </button>
+          <button type="button" id="voiceRequestPlanChangesBtn" class="py-1.5 px-1 text-center bg-[#141414] hover:bg-[#222222] text-white border border-[#333333] font-bold text-[10px] font-mono rounded-lg transition active:scale-95 cursor-pointer">
+            [REVISE]
+          </button>
+          <button type="button" id="voiceTriggerVoiceReviewBtn" class="py-1.5 px-1 text-center bg-[#141414] hover:bg-[#222222] text-white border border-[#333333] font-bold text-[10px] font-mono rounded-lg transition active:scale-95 cursor-pointer">
+            [VOICE REVIEW]
+          </button>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- VIEW 2: Full Antigravity Chat & Working Logs -->
+    <section id="viewChat" class="flex-1 flex flex-col h-full overflow-hidden max-w-4xl mx-auto w-full bg-transparent">
+      
+      <!-- Session Bar -->
+      <div class="px-3.5 py-1.5 bg-[#0a0a0a]/80 backdrop-blur-md border-b border-[#1c1c1c] flex items-center justify-between text-xs text-[#888888]">
+        <div class="flex items-center gap-2 truncate text-white">
+          <span class="w-1.5 h-1.5 rounded-full bg-white" id="chatSessionDot"></span>
+          <span id="chatSessionTitle" class="font-semibold truncate text-xs">Active Session Details</span>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+          <span id="chatStatusTag" class="px-2.5 py-0.5 rounded-full text-[10px] font-mono bg-[#141414] text-[#888888] border border-[#222222]">[IDLE]</span>
+          <span id="chatTurnCount" class="text-[10px] font-mono bg-[#141414] border border-[#222222] px-2 py-0.5 rounded text-[#888888]">0 turns</span>
+          <button id="jumpBottomBtn" class="text-[11px] text-[#888888] hover:text-white underline cursor-pointer">↓</button>
+        </div>
+      </div>
+
+      <!-- Plan Review & Approval Card (Chat View) -->
+      <div id="planReviewCard" class="hidden px-3.5 py-2.5 bg-[#0a0a0a]/95 border-b border-[#2e2e2e] backdrop-blur-md shadow-md space-y-2 shrink-0">
+        <div class="flex items-center justify-between pb-1.5 border-b border-[#222222]">
+          <div class="flex items-center gap-2">
+            <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
+            <span class="text-[11px] font-bold text-white mono uppercase tracking-wider">PLAN REVIEW REQUIRED</span>
+          </div>
+          <button id="viewPlanBtn" type="button" class="text-[10px] font-mono text-zinc-400 hover:text-white underline cursor-pointer">
+            [VIEW PLAN]
+          </button>
+        </div>
+        <div class="flex items-center justify-between text-xs">
+          <span class="font-mono text-zinc-300 text-[11px] truncate">implementation_plan.md</span>
+          <span id="planStatusTag" class="text-[10px] font-mono text-zinc-500">[AWAITING APPROVAL]</span>
+        </div>
+        <div class="grid grid-cols-3 gap-2 pt-0.5">
+          <button type="button" id="approvePlanBtn" class="py-2 px-1 text-center bg-white text-black font-bold text-[10px] font-mono rounded-lg hover:bg-zinc-200 transition active:scale-95 cursor-pointer">
+            [APPROVE & PROCEED]
+          </button>
+          <button type="button" id="requestPlanChangesBtn" class="py-2 px-1 text-center bg-[#141414] hover:bg-[#222222] text-white border border-[#333333] font-bold text-[10px] font-mono rounded-lg transition active:scale-95 cursor-pointer">
+            [REQUEST CHANGES]
+          </button>
+          <button type="button" id="voiceReviewPlanBtn" class="py-2 px-1 text-center bg-[#141414] hover:bg-[#222222] text-white border border-[#333333] font-bold text-[10px] font-mono rounded-lg transition active:scale-95 cursor-pointer">
+            [VOICE REVIEW]
+          </button>
+        </div>
+      </div>
+
+      <!-- Messages & Working Logs Feed -->
+      <div id="turnsContainer" class="flex-1 overflow-y-auto p-3.5 space-y-4">
+        <div class="flex items-center justify-center h-48 text-[#666666] text-xs font-mono">
+          Select a conversation to view the full Antigravity window details.
+        </div>
+      </div>
+
+      <!-- Live Agent Activity Banner -->
+      <div id="liveActivityBanner" class="hidden px-3.5 py-2 bg-[#0c0c0c]/90 backdrop-blur-md border-t border-[#222222] flex items-center justify-between text-xs text-white">
+        <div class="flex items-center gap-2">
+          <span class="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span>
+          <span id="liveActivityText" class="font-mono text-xs text-[#e4e4e7]">Agent running tool...</span>
+        </div>
+        <span class="text-[9px] font-mono bg-white text-black font-bold px-1.5 py-0.2 rounded">LIVE</span>
+      </div>
+
+      <!-- Attached Images List Container (Renders a distinct line for every attached image) -->
+      <div id="attachedImagesContainer" class="hidden px-3 pt-2 pb-1 bg-black/90 backdrop-blur-md border-t border-[#1c1c1e] space-y-1.5 max-h-48 overflow-y-auto">
+        <!-- Injected dynamically by renderAttachedImagesList() -->
+      </div>
+
+      <!-- Hidden Multi-File Upload Inputs -->
+      <input type="file" id="phoneCameraInput" accept="image/*" multiple class="hidden">
+      <input type="file" id="phoneCameraDirectInput" accept="image/*" capture="environment" class="hidden">
+
+      <!-- Bottom Chat Input Bar (Native Messages Layout) -->
+      <div class="p-2 sm:p-2.5 bg-black/95 backdrop-blur-md border-t border-[#1a1a1a] shrink-0 safe-bottom">
+        
+        <!-- Expandable Quick Action Utility Tray (Toggled by (+) button) -->
+        <div id="quickActionsTray" class="hidden mb-2 pt-1 pb-1">
+          <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar font-mono text-[10px]">
+            <button type="button" id="chatMacScreenshotBtn" class="px-3 py-1.5 rounded-full bg-[#18181b] hover:bg-[#27272a] border border-[#2e2e32] text-zinc-200 hover:text-white flex items-center gap-1.5 shrink-0 font-bold transition active:scale-95 cursor-pointer" title="Capture Mac Desktop Screen">
+              <span class="text-xs">🖥️</span>
+              <span>MAC SCREEN</span>
+            </button>
+            <button type="button" id="chatPhoneScreenshotBtn" class="px-3 py-1.5 rounded-full bg-[#18181b] hover:bg-[#27272a] border border-[#2e2e32] text-zinc-200 hover:text-white flex items-center gap-1.5 shrink-0 font-bold transition active:scale-95 cursor-pointer" title="Share Phone Screen / Stream">
+              <span class="text-xs">📱</span>
+              <span>PHONE SCREEN</span>
+            </button>
+            <button type="button" id="chatDirectCameraBtn" class="px-3 py-1.5 rounded-full bg-[#18181b] hover:bg-[#27272a] border border-[#2e2e32] text-zinc-200 hover:text-white flex items-center gap-1.5 shrink-0 font-bold transition active:scale-95 cursor-pointer" title="Take Live Camera Photo">
+              <span class="text-xs">📸</span>
+              <span>CAMERA</span>
+            </button>
+            <button type="button" id="chatCameraBtn" class="px-3 py-1.5 rounded-full bg-[#18181b] hover:bg-[#27272a] border border-[#2e2e32] text-zinc-200 hover:text-white flex items-center gap-1.5 shrink-0 font-bold transition active:scale-95 cursor-pointer" title="Upload Images or Files">
+              <span class="text-xs">📁</span>
+              <span>ALL FILES</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Native Messages Form Row -->
+        <form id="chatForm" class="flex items-center gap-2 w-full">
+          
+          <!-- 1. Left Action Button: (+) Plus button -->
+          <button type="button" id="chatAttachToggleBtn" class="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-[#1c1c1e] hover:bg-[#2c2c2e] active:scale-95 border border-[#2c2c2e] text-zinc-300 hover:text-white flex items-center justify-center shrink-0 transition-all cursor-pointer shadow-sm" title="Add attachments or shortcuts">
+            <svg id="chatAttachPlusIcon" class="w-5 h-5 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+          </button>
+
+          <!-- 2. Center Pill Input Capsule -->
+          <div class="flex-1 min-w-0 h-10 sm:h-11 bg-[#1c1c1e] focus-within:bg-[#242426] border border-[#2c2c2e] focus-within:border-zinc-500 rounded-full px-3.5 flex items-center gap-2 transition-all shadow-inner">
+            <!-- Text Input -->
+            <input id="chatInput" type="text" autocomplete="off" placeholder="Text message" class="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-white placeholder-zinc-400 font-sans focus:outline-none">
+
+            <!-- Inside Right Actions: Quick Prompt & Instant Multi-Select Gallery -->
+            <div class="flex items-center gap-1 shrink-0">
+              <!-- Quick Emoji / Prompt Shortcuts -->
+              <button type="button" id="chatEmojiBtn" class="p-1 text-zinc-400 hover:text-zinc-200 active:scale-95 transition cursor-pointer" title="Quick prompt shortcuts">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M15.182 15.182a4.5 4.5 0 01-6.364 0M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9.75 9.75c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75zm6 0c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75z" />
+                </svg>
+              </button>
+
+              <!-- Direct Multi-Select Gallery Photo Picker Button -->
+              <button type="button" id="chatGalleryBtn" class="p-1 text-zinc-400 hover:text-white active:scale-95 transition cursor-pointer" title="Multi-select photos from gallery">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- 3. Right Action Button: Dynamic Voice Mic / Send Arrow -->
+          <button type="button" id="chatMainActionBtn" class="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-[#2a3826] hover:bg-[#384c33] text-[#a4d87e] active:scale-95 flex items-center justify-center shrink-0 transition-all cursor-pointer shadow-md" title="Record voice command or send message">
+            <!-- Mic Icon (Default when input is empty) -->
+            <svg id="chatActionMicIcon" class="w-5 h-5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15a3 3 0 003-3V6a3 3 0 00-3-3 3 3 0 00-3 3v6a3 3 0 003 3z" />
+            </svg>
+            <!-- Send Icon (Active when typing or attachments present) -->
+            <svg id="chatActionSendIcon" class="w-5 h-5 hidden transition-transform" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
+            </svg>
+          </button>
+        </form>
+      </div>
+
+    </section>
+
+    <!-- VIEW 3: Artifacts Browser -->
+    <section id="viewArtifacts" class="hidden flex-1 flex flex-col h-full overflow-hidden max-w-4xl mx-auto w-full p-4 bg-transparent">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="font-bold text-xs text-white uppercase tracking-wider">Generated Project Artifacts</h2>
+        <span id="artifactsCountTag" class="text-xs text-[#888888] font-mono">0 documents</span>
+      </div>
+      
+      <!-- Artifacts List Grid -->
+      <div id="artifactsGrid" class="flex-1 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-2.5 content-start">
+        <div class="col-span-full py-12 text-center text-[#666666] text-xs font-mono">
+          No artifacts generated yet for this conversation.
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Footer Controls (Shown on Voice View) -->
+  <footer id="mainFooter" class="px-4 py-3 border-t border-[#1c1c1c] flex items-center justify-between text-xs text-[#888888] bg-black/80 backdrop-blur-md shrink-0 gap-2 overflow-x-auto safe-bottom">
+    <label class="flex items-center gap-1.5 cursor-pointer shrink-0">
+      <input id="autoListenToggle" type="checkbox" checked class="w-3.5 h-3.5 rounded bg-black border-[#333333] text-white focus:ring-0 focus:ring-offset-0 transition">
+      <span class="font-medium text-[#cccccc] text-[10px] mono">Hands-Free Loop</span>
+    </label>
+
+    <div class="flex items-center gap-1 shrink-0">
+      <span class="text-[10px] text-[#666666] font-mono">Audio:</span>
+      <select id="audioRoutingSelect" class="px-2 py-0.5 rounded-lg bg-[#111111] border border-[#222222] text-[10px] text-white font-mono focus:outline-none focus:border-white transition">
+        <option value="smart">Smart Auto</option>
+        <option value="origin_only">Origin Only</option>
+        <option value="phone_only">Phone Only</option>
+        <option value="mac_only">Mac Only</option>
+        <option value="both">Both (Echo)</option>
+      </select>
+    </div>
+
+    <button id="wakeLockBtn" class="flex items-center gap-1.5 text-[#888888] hover:text-white transition shrink-0">
+      <span id="wakeLockDot" class="w-1.5 h-1.5 rounded-full bg-white"></span>
+      <span id="wakeLockText" class="text-[10px] mono">Awake</span>
+    </button>
+  </footer>
+
+  <!-- QR Code Mobile Pairing Modal -->
+  <div id="qrPairModal" class="fixed inset-0 bg-black/90 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-[#0c0c0c] border border-[#27272a] rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-4 text-center">
+      <div class="flex items-center justify-between border-b border-[#222222] pb-3 text-left">
+        <div class="flex items-center gap-2">
+          <span class="text-white text-xs font-mono font-bold">📱 PAIR MOBILE COMPANION</span>
+        </div>
+        <button id="closeQrPairModal" class="p-1 text-[#888888] hover:text-white rounded-lg transition text-xs font-bold cursor-pointer">
+          ✕
+        </button>
+      </div>
+
+      <p class="text-xs text-zinc-300 leading-relaxed text-left">
+        Scan this QR code with your iPhone or Android camera to open VoiceFi on your phone:
+      </p>
+
+      <div class="flex justify-center p-2 bg-white rounded-xl shadow-inner max-w-[200px] mx-auto">
+        <img id="qrModalImg" src="" alt="Pairing QR Code" class="w-44 h-44 object-contain">
+      </div>
+
+      <div class="bg-[#141414] border border-[#27272a] rounded-xl p-2.5 flex items-center justify-between gap-2">
+        <span id="qrModalUrl" class="font-mono text-xs text-zinc-200 truncate select-all">Loading...</span>
+        <button id="copyQrUrlBtn" class="px-2.5 py-1 bg-white hover:bg-zinc-200 text-black text-[10px] font-bold rounded-lg mono shrink-0 transition active:scale-95 cursor-pointer">
+          COPY
+        </button>
+      </div>
+
+      <p class="text-[10px] text-zinc-400 text-left">
+        💡 <strong>Tip:</strong> After opening on your phone, tap <em>Share &rarr; Add to Home Screen</em> to run as a full-screen standalone app.
+      </p>
+    </div>
+  </div>
+
+  <!-- Antigravity Remote Bridge Modal -->
+  <div id="agRemoteModal" class="fixed inset-0 bg-black/90 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-[#0c0c0c] border border-[#27272a] rounded-2xl max-w-md w-full p-5 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between border-b border-[#222222] pb-3">
+        <div class="flex items-center gap-2">
+          <span class="text-white text-xs font-mono font-bold">[AG REMOTE BRIDGE]</span>
+        </div>
+        <button id="closeAgRemoteModal" class="p-1 text-[#888888] hover:text-white rounded-lg transition text-xs font-bold cursor-pointer">
+          ✕
+        </button>
+      </div>
+
+      <p class="text-xs text-zinc-300 leading-relaxed font-sans">
+        Connect your mobile companion to Google Antigravity Remote (<span class="font-mono text-white text-[11px]">https://antigravity.google.com/r/...</span>) for visual session inspection and artifact diffing alongside VoiceFi audio.
+      </p>
+
+      <div class="space-y-1.5">
+        <label class="text-[10px] font-mono text-zinc-400 uppercase tracking-wider">Antigravity Remote URL / Token:</label>
+        <input id="agRemoteUrlInput" type="text" placeholder="https://antigravity.google.com/r/..." class="w-full bg-[#050505] border border-[#333333] rounded-xl px-3 py-2 text-xs text-white font-mono placeholder-zinc-600 focus:outline-none focus:border-white transition">
+      </div>
+
+      <div class="flex items-center gap-2 pt-2">
+        <button id="saveAgRemoteBtn" type="button" class="flex-1 py-2 bg-[#18181b] hover:bg-[#27272a] border border-[#333333] rounded-xl text-xs font-mono text-white font-bold transition cursor-pointer">
+          [SAVE LINK]
+        </button>
+        <button id="openAgRemoteBtn" type="button" class="flex-1 py-2 bg-white hover:bg-zinc-200 text-black rounded-xl text-xs font-mono font-bold transition cursor-pointer">
+          [LAUNCH REMOTE]
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Artifact Full Document Modal Drawer -->
+  <div id="artifactModal" class="fixed inset-0 bg-black/90 backdrop-blur-md z-50 hidden flex flex-col">
+    <div class="p-3.5 bg-black border-b border-[#222222] flex items-center justify-between">
+      <div class="flex items-center gap-2 truncate">
+        <span class="text-white text-xs font-mono">[DOC]</span>
+        <h3 id="artifactModalTitle" class="font-bold text-xs text-white truncate">Artifact Document</h3>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="copyArtifactBtn" class="px-2.5 py-1 bg-[#141414] hover:bg-[#222222] text-white text-xs rounded-lg transition font-medium border border-[#222222] mono">
+          Copy
+        </button>
+        <button id="closeArtifactModal" class="p-1 text-[#888888] hover:text-white rounded-lg transition text-xs font-bold">
+          ✕
+        </button>
+      </div>
+    </div>
+    <div class="flex-1 overflow-y-auto p-4 max-w-4xl mx-auto w-full">
+      <div id="artifactModalBody" class="prose-dark"></div>
+    </div>
+  </div>
+
+  <!-- Audio element for remote speech playback -->
+  <audio id="ttsAudio" class="hidden" playsinline></audio>
+
+  <script>
+    // State
+    let ws = null;
+    let isListening = false;
+    let isSpeaking = false;
+    let isSpeakerMuted = localStorage.getItem("voicefi_speaker_muted") === "true";
+    let audioRoutingMode = localStorage.getItem("voicefi_audio_routing") || "smart";
+    let activeConvId = "";
+    let activeConversationData = null;
+    let autoListen = true;
+    let wakeLock = null;
+    let recognition = null;
+    let audioCtx = null;
+    let currentView = 'voice'; // 'voice' | 'chat' | 'artifacts'
+    let userExpandedAccordions = new Set(); // Preserves user-toggled Level 1 and Level 2 accordions across poll cycles
+
+    // DOM Elements
+    const connStatus = document.getElementById("connStatus");
+    const connDot = document.getElementById("connDot");
+    const connText = document.getElementById("connText");
+    const convSelect = document.getElementById("convSelect");
+    const refreshBtn = document.getElementById("refreshBtn");
+    const speakerMuteBtn = document.getElementById("speakerMuteBtn");
+    const speakerMuteIcon = document.getElementById("speakerMuteIcon");
+    const audioRoutingSelect = document.getElementById("audioRoutingSelect");
+    const agentRoleBadge = document.getElementById("agentRoleBadge");
+    const sessionStatusTag = document.getElementById("sessionStatusTag");
+    
+    // View Tabs
+    const tabVoice = document.getElementById("tabVoice");
+    const tabChat = document.getElementById("tabChat");
+    const tabArtifacts = document.getElementById("tabArtifacts");
+    const viewVoice = document.getElementById("viewVoice");
+    const viewChat = document.getElementById("viewChat");
+    const viewArtifacts = document.getElementById("viewArtifacts");
+    const mainFooter = document.getElementById("mainFooter");
+    const artifactBadge = document.getElementById("artifactBadge");
+
+    // Voice View Elements
+    const voiceCenterStage = document.getElementById("voiceCenterStage");
+    const orbBtn = document.getElementById("orbBtn");
+    const orbIcon = document.getElementById("orbIcon");
+    const orbStatusDot = document.getElementById("orbStatusDot");
+    const orbStatusText = document.getElementById("orbStatusText");
+    const orbWave = document.getElementById("orbWave");
+    const stateTitle = document.getElementById("stateTitle");
+    const stateSubtitle = document.getElementById("stateSubtitle");
+    const latestText = document.getElementById("latestText");
+    const logType = document.getElementById("logType");
+    const textForm = document.getElementById("textForm");
+    const textInput = document.getElementById("textInput");
+    const autoListenToggle = document.getElementById("autoListenToggle");
+    const wakeLockBtn = document.getElementById("wakeLockBtn");
+    const wakeLockDot = document.getElementById("wakeLockDot");
+    const wakeLockText = document.getElementById("wakeLockText");
+    const ttsAudio = document.getElementById("ttsAudio");
+
+    // Chat View Elements
+    const turnsContainer = document.getElementById("turnsContainer");
+    const chatSessionTitle = document.getElementById("chatSessionTitle");
+    const chatSessionDot = document.getElementById("chatSessionDot");
+    const chatTurnCount = document.getElementById("chatTurnCount");
+    const jumpBottomBtn = document.getElementById("jumpBottomBtn");
+    const liveActivityBanner = document.getElementById("liveActivityBanner");
+    const liveActivityText = document.getElementById("liveActivityText");
+    const chatForm = document.getElementById("chatForm");
+    const chatInput = document.getElementById("chatInput");
+    const chatMicBtn = document.getElementById("chatMicBtn");
+
+    // Artifacts View Elements
+    const artifactsGrid = document.getElementById("artifactsGrid");
+    const artifactsCountTag = document.getElementById("artifactsCountTag");
+    const artifactModal = document.getElementById("artifactModal");
+    const artifactModalTitle = document.getElementById("artifactModalTitle");
+    const artifactModalBody = document.getElementById("artifactModalBody");
+    const closeArtifactModal = document.getElementById("closeArtifactModal");
+    const copyArtifactBtn = document.getElementById("copyArtifactBtn");
+
+    // Setup marked & highlight.js
+    if (typeof marked !== 'undefined') {
+      marked.setOptions({
+        gfm: true,
+        breaks: true,
+        highlight: function(code, lang) {
+          if (typeof hljs !== 'undefined' && lang && hljs.getLanguage(lang)) {
+            try {
+              return hljs.highlight(code, { language: lang }).value;
+            } catch (err) {}
+          }
+          return code;
+        }
+      });
+    }
+
+    function renderMarkdown(rawText) {
+      if (!rawText) return "";
+      if (typeof marked === 'undefined') {
+        return rawText.replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>");
+      }
+
+      // Convert GitHub alert syntax > [!NOTE] etc.
+      let text = rawText.replace(/>\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*\n((?:>.*(?:\n|$))*)/gi, (match, alertType, content) => {
+        const type = alertType.toLowerCase();
+        const cleanContent = content.replace(/^>\s?/gm, '');
+        return `<div class="alert-box alert-${type}"><strong>${alertType.toUpperCase()}:</strong><br>${cleanContent}</div>\n`;
+      });
+
+      try {
+        return marked.parse(text);
+      } catch (e) {
+        return rawText.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      }
+    }
+
+    // Dynamically synchronize Antigravity Zero-G Particle Center with Voice Stage Center
+    function updateVoiceCenterCoordinates() {
+      if (!window.bgField) return;
+      if (currentView !== 'voice') {
+        window.bgField.setPullCenter(undefined, undefined);
+        return;
+      }
+      const stage = document.getElementById("voiceCenterStage") || document.getElementById("orbBtn");
+      if (stage) {
+        const rect = stage.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+          const cx = rect.left + rect.width / 2;
+          const cy = rect.top + rect.height / 2;
+          window.bgField.setPullCenter(cx, cy);
+        }
+      }
+    }
+    window.addEventListener("resize", updateVoiceCenterCoordinates);
+
+    // Tab Navigation (Monochrome)
+    function switchView(tab) {
+      currentView = tab;
+      viewVoice.classList.add("hidden");
+      viewChat.classList.add("hidden");
+      viewArtifacts.classList.add("hidden");
+
+      const inactiveTab = "flex-1 py-1 rounded-lg text-center transition flex items-center justify-center gap-1 text-[#888888] hover:text-white cursor-pointer";
+      const activeTab = "flex-1 py-1 rounded-lg text-center transition flex items-center justify-center gap-1 bg-white text-black shadow-sm cursor-pointer font-bold";
+
+      tabVoice.className = inactiveTab;
+      tabChat.className = inactiveTab;
+      tabArtifacts.className = inactiveTab;
+
+      if (tab === 'voice') {
+        viewVoice.classList.remove("hidden");
+        tabVoice.className = activeTab;
+        mainFooter.classList.remove("hidden");
+        setTimeout(updateVoiceCenterCoordinates, 50);
+      } else if (tab === 'chat') {
+        viewChat.classList.remove("hidden");
+        tabChat.className = activeTab;
+        mainFooter.classList.add("hidden");
+        scrollToChatBottom();
+        if (window.bgField) window.bgField.setPullCenter(undefined, undefined);
+      } else if (tab === 'artifacts') {
+        viewArtifacts.classList.remove("hidden");
+        tabArtifacts.className = activeTab;
+        mainFooter.classList.add("hidden");
+        if (window.bgField) window.bgField.setPullCenter(undefined, undefined);
+      }
+    }
+
+    tabVoice.addEventListener("click", () => switchView('voice'));
+    tabChat.addEventListener("click", () => switchView('chat'));
+    tabArtifacts.addEventListener("click", () => switchView('artifacts'));
+
+    function scrollToChatBottom() {
+      setTimeout(() => {
+        turnsContainer.scrollTop = turnsContainer.scrollHeight;
+      }, 50);
+    }
+    jumpBottomBtn.addEventListener("click", scrollToChatBottom);
+
+    // Initialize Web Audio Context for Chimes
+    function initAudioContext() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+    }
+
+    function playTone(freq, type = 'sine', duration = 0.12, gainVal = 0.15) {
+      try {
+        initAudioContext();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(gainVal, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+      } catch (e) {}
+    }
+
+    function playChimeStart() {
+      playTone(587.33, 'sine', 0.08, 0.12);
+      setTimeout(() => playTone(880.00, 'sine', 0.14, 0.15), 70);
+    }
+
+    function playChimeSent() {
+      playTone(523.25, 'triangle', 0.08, 0.15);
+      setTimeout(() => playTone(659.25, 'triangle', 0.08, 0.15), 60);
+      setTimeout(() => playTone(783.99, 'triangle', 0.16, 0.18), 120);
+    }
+
+    function isConversationWorking(data) {
+      if (!data) return false;
+      if (data.status === "agent_working") return true;
+      if (data.turns && data.turns.length > 0) {
+        const lastTurn = data.turns[data.turns.length - 1];
+        if (lastTurn.status === "working" && !lastTurn.completed) return true;
+      }
+      return false;
+    }
+
+    function getActiveWorkingActionTitle(data) {
+      if (data && data.turns && data.turns.length > 0) {
+        const lastTurn = data.turns[data.turns.length - 1];
+        if (lastTurn.agent_steps && lastTurn.agent_steps.length > 0) {
+          const lastStep = lastTurn.agent_steps[lastTurn.agent_steps.length - 1];
+          const label = lastStep.summary || lastStep.action || lastStep.tool_name || lastStep.title;
+          if (label && label !== "tool_call") {
+            return `Running: ${label}`;
+          }
+        }
+      }
+      return "Agent Thinking...";
+    }
+
+    // Set Visual State & Antigravity Particle Field Reaction
+    function setOrbState(state, titleOverride = null, subtitleOverride = null) {
+      // Guard: If requested state is idle but agent is actively working, maintain thinking state
+      if (state === 'idle' && isConversationWorking(activeConversationData) && !isListening && !isSpeaking) {
+        state = 'thinking';
+        if (!titleOverride) {
+          titleOverride = getActiveWorkingActionTitle(activeConversationData);
+        }
+        if (!subtitleOverride) {
+          subtitleOverride = "Executing steps & tools...";
+        }
+      }
+
+      if (window.bgField) {
+        if (state === 'listening') {
+          window.bgField.setState('listening');
+        } else if (state === 'speaking') {
+          window.bgField.setState('speaking');
+        } else if (state === 'thinking') {
+          window.bgField.setState('thinking');
+        } else if (state === 'transcribing') {
+          window.bgField.setState('thinking');
+          window.bgField.pulse(1.2);
+        } else {
+          window.bgField.setState('idle');
+        }
+      }
+
+      const orbStatusDot = document.getElementById("orbStatusDot");
+      const orbStatusText = document.getElementById("orbStatusText");
+      const chatMicDot = document.getElementById("chatMicDot");
+      const chatMicText = document.getElementById("chatMicText");
+
+      if (state === 'listening') {
+        if (orbIcon) {
+          orbIcon.className = "inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-950/60 border border-red-500/60 text-[11px] font-mono font-bold text-red-300 tracking-wider mb-2 shadow-lg animate-pulse";
+        }
+        if (orbStatusDot) orbStatusDot.className = "w-1.5 h-1.5 rounded-full bg-red-500 animate-ping";
+        if (orbStatusText) orbStatusText.innerText = "[REC]";
+        if (orbWave) orbWave.classList.remove("hidden");
+        if (stateTitle) stateTitle.innerText = titleOverride || "Listening...";
+        if (stateSubtitle) stateSubtitle.innerText = subtitleOverride || "Speak your response...";
+        if (chatMicBtn) {
+          chatMicBtn.className = "h-10 px-3 rounded-xl bg-white text-black font-bold flex items-center justify-center gap-1.5 shrink-0 mono text-xs shadow-md transition active:scale-95 cursor-pointer";
+          if (chatMicDot) chatMicDot.className = "w-2 h-2 rounded-full bg-red-600 animate-ping";
+          if (chatMicText) chatMicText.innerText = "REC";
+        }
+      } else if (state === 'speaking') {
+        if (orbIcon) {
+          orbIcon.className = "inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-950/60 border border-emerald-500/60 text-[11px] font-mono font-bold text-emerald-300 tracking-wider mb-2 shadow-lg animate-pulse";
+        }
+        if (orbStatusDot) orbStatusDot.className = "w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse";
+        if (orbStatusText) orbStatusText.innerText = "[AUDIO]";
+        if (orbWave) orbWave.classList.remove("hidden");
+        if (stateTitle) stateTitle.innerText = titleOverride || "Agent Speaking";
+        if (stateSubtitle) stateSubtitle.innerText = subtitleOverride || "Streaming response...";
+        if (chatMicBtn) {
+          chatMicBtn.className = "h-10 px-3 rounded-xl bg-[#141414] border border-[#27272a] text-white flex items-center justify-center gap-1.5 shrink-0 mono text-xs";
+          if (chatMicDot) chatMicDot.className = "w-2 h-2 rounded-full bg-emerald-500 animate-pulse";
+          if (chatMicText) chatMicText.innerText = "AUDIO";
+        }
+      } else if (state === 'thinking') {
+        if (orbIcon) {
+          orbIcon.className = "inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-950/60 border border-blue-500/60 text-[11px] font-mono font-bold text-blue-300 tracking-wider mb-2 shadow-lg animate-pulse";
+        }
+        if (orbStatusDot) orbStatusDot.className = "w-1.5 h-1.5 rounded-full bg-blue-400 animate-ping";
+        if (orbStatusText) orbStatusText.innerText = "[THINK]";
+        if (orbWave) orbWave.classList.add("hidden");
+        if (stateTitle) stateTitle.innerText = titleOverride || "Agent Thinking...";
+        if (stateSubtitle) stateSubtitle.innerText = subtitleOverride || "Executing steps & tools...";
+        if (chatMicBtn) {
+          chatMicBtn.className = "h-10 px-3 rounded-xl bg-[#141414] border border-white text-white flex items-center justify-center gap-1.5 shrink-0 mono text-xs shadow-sm";
+          if (chatMicDot) chatMicDot.className = "w-1.5 h-1.5 rounded-full bg-white animate-ping";
+          if (chatMicText) chatMicText.innerText = "THINK";
+        }
+      } else if (state === 'transcribing') {
+        if (orbIcon) {
+          orbIcon.className = "inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-950/60 border border-amber-500/60 text-[11px] font-mono font-bold text-amber-300 tracking-wider mb-2 shadow-lg animate-pulse";
+        }
+        if (orbStatusDot) orbStatusDot.className = "w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse";
+        if (orbStatusText) orbStatusText.innerText = "[SEND]";
+        if (orbWave) orbWave.classList.add("hidden");
+        if (stateTitle) stateTitle.innerText = titleOverride || "Delivering Prompt...";
+        if (stateSubtitle) stateSubtitle.innerText = subtitleOverride || "Injecting to Antigravity...";
+        if (chatMicBtn) {
+          chatMicBtn.className = "h-10 px-3 rounded-xl bg-[#18181b] border border-[#27272a] text-zinc-400 flex items-center justify-center gap-1.5 shrink-0 mono text-xs";
+          if (chatMicDot) chatMicDot.className = "w-2 h-2 rounded-full bg-amber-400 animate-pulse";
+          if (chatMicText) chatMicText.innerText = "SEND";
+        }
+      } else {
+        if (orbIcon) {
+          orbIcon.className = "inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#111111]/80 backdrop-blur-md border border-[#27272a] text-[11px] font-mono font-bold text-zinc-300 tracking-wider mb-2 shadow-sm";
+        }
+        if (orbStatusDot) orbStatusDot.className = micSource === "mac" ? "w-1.5 h-1.5 rounded-full bg-blue-400" : "w-1.5 h-1.5 rounded-full bg-emerald-400";
+        if (orbStatusText) orbStatusText.innerText = micSource === "mac" ? "[MAC MIC]" : "[PHONE MIC]";
+        if (orbWave) orbWave.classList.add("hidden");
+        if (stateTitle) stateTitle.innerText = titleOverride || (micSource === "mac" ? "Tap to Talk on Mac" : "Tap to Speak on Phone");
+        if (stateSubtitle) stateSubtitle.innerText = subtitleOverride || (micSource === "mac" ? "Using Mac Studio Mic" : (autoListen ? "Phone mic auto-listens on turn end" : "Tap to speak into phone"));
+        if (chatMicBtn) {
+          chatMicBtn.className = "h-10 px-3 rounded-xl bg-[#141414] hover:bg-[#222222] border border-[#27272a] text-white flex items-center justify-center gap-1.5 shrink-0 transition active:scale-95 cursor-pointer font-bold mono text-xs";
+          if (chatMicDot) chatMicDot.className = micSource === "mac" ? "w-1.5 h-1.5 rounded-full bg-blue-400" : "w-1.5 h-1.5 rounded-full bg-emerald-400";
+          if (chatMicText) chatMicText.innerText = micSource === "mac" ? "MAC" : "MIC";
+        }
+      }
+
+      updateVoiceCenterCoordinates();
+    }
+
+    // Audio & Speech Synthesis
+    function speakTextAloud(text, onComplete) {
+      if (!text || isSpeakerMuted) {
+        if (onComplete) onComplete();
+        return;
+      }
+      isSpeaking = true;
+      setOrbState('speaking');
+
+      fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: text })
+      })
+      .then(res => {
+        if (res.ok) return res.blob();
+        throw new Error("Server TTS fallback");
+      })
+      .then(blob => {
+        if (isSpeakerMuted) {
+          isSpeaking = false;
+          setOrbState('idle');
+          if (onComplete) onComplete();
+          return;
+        }
+        const audioUrl = URL.createObjectURL(blob);
+        ttsAudio.src = audioUrl;
+        ttsAudio.onended = () => {
+          recordAgentSpokenText(text);
+          isSpeaking = false;
+          setOrbState('idle');
+          setTimeout(() => {
+            if (onComplete) onComplete();
+          }, 800);
+        };
+        ttsAudio.play().catch(() => fallbackSpeechSynthesis(text, onComplete));
+      })
+      .catch(() => {
+        fallbackSpeechSynthesis(text, onComplete);
+      });
+    }
+
+    function fallbackSpeechSynthesis(text, onComplete) {
+      if (isSpeakerMuted) {
+        isSpeaking = false;
+        setOrbState('idle');
+        if (onComplete) onComplete();
+        return;
+      }
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.rate = 1.05;
+        utter.onend = () => {
+          recordAgentSpokenText(text);
+          isSpeaking = false;
+          setOrbState('idle');
+          setTimeout(() => {
+            if (onComplete) onComplete();
+          }, 800);
+        };
+        utter.onerror = () => {
+          isSpeaking = false;
+          setOrbState('idle');
+          if (onComplete) onComplete();
+        };
+        window.speechSynthesis.speak(utter);
+      } else {
+        isSpeaking = false;
+        setOrbState('idle');
+        if (onComplete) onComplete();
+      }
+    }
+
+    // Audio Recording Engine (Multi-Tiered for Mobile & Desktop)
+    let mediaRecorder = null;
+    let audioChunks = [];
+    let vadInterval = null;
+    let micStream = null;
+
+    async function startListening() {
+      initAudioContext();
+      if (isSpeaking) {
+        if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+        ttsAudio.pause();
+        isSpeaking = false;
+      }
+
+      if (isListening) {
+        stopListening();
+        return;
+      }
+
+      // If user manually forced Mac Microphone
+      if (micSource === "mac") {
+        return startMacRecording();
+      }
+
+      // If user is on insecure HTTP on mobile (where browsers block phone mic), auto-redirect to HTTPS
+      if (!window.isSecureContext && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1' && micSource === 'phone') {
+        const httpsPort = location.port ? (parseInt(location.port) === 8765 ? 8766 : parseInt(location.port) + 1) : 8766;
+        showToast("Opening Secure Mode (HTTPS) for Phone Mic...", 2500);
+        setTimeout(() => {
+          window.location.href = `https://${location.hostname}:${httpsPort}/`;
+        }, 300);
+        return;
+      }
+
+      // Tier 1: Web Speech API (Native on Chrome Android / Safari iOS / Edge / Desktop)
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (SpeechRecognition && micSource !== "mac") {
+        try {
+          if (recognition) {
+            try { recognition.abort(); } catch (e) {}
+          }
+          recognition = new SpeechRecognition();
+          recognition.continuous = false;
+          recognition.interimResults = true;
+          recognition.maxAlternatives = 1;
+          recognition.lang = 'en-US';
+
+          let finalTranscript = "";
+          let interimTranscript = "";
+
+          recognition.onstart = () => {
+            isListening = true;
+            setOrbState('listening', 'Listening...', 'Speak your response...');
+            playChimeStart();
+            if (window.bgField) window.bgField.setAudioLevel(0.4);
+          };
+
+          recognition.onresult = (event) => {
+            interimTranscript = "";
+            for (let i = event.resultIndex; i < event.results.length; ++i) {
+              const res = event.results[i];
+              if (res.isFinal) {
+                finalTranscript += res[0].transcript;
+              } else {
+                interimTranscript += res[0].transcript;
+              }
+            }
+            const activeText = (finalTranscript + " " + interimTranscript).trim();
+            if (activeText) {
+              setOrbState('listening', `"${activeText}"`, 'Listening...');
+              if (window.bgField) window.bgField.setAudioLevel(0.85);
+            }
+          };
+
+          recognition.onerror = (event) => {
+            console.warn("SpeechRecognition error:", event.error);
+            isListening = false;
+            if (window.bgField) window.bgField.setAudioLevel(0);
+            if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+              showToast("Phone mic requires HTTPS (Port 8766). Tap 'Switch to HTTPS' above.", 4500);
+              const banner = document.getElementById("httpsPromptBanner");
+              if (banner) banner.classList.remove("hidden");
+              setOrbState('idle');
+            } else if (event.error !== 'no-speech' && event.error !== 'aborted') {
+              // Try Tier 2 (MediaRecorder with local Whisper)
+              startMediaRecorderListening();
+            } else {
+              setOrbState('idle');
+            }
+          };
+
+          recognition.onend = () => {
+            isListening = false;
+            if (window.bgField) window.bgField.setAudioLevel(0);
+            const captured = (finalTranscript || interimTranscript).trim();
+            if (captured) {
+              sendVoiceCommand(captured);
+            } else {
+              setOrbState('idle');
+              // If auto-listen is active and we are in voice mode, keep mic ready for speech
+              if (autoListen && currentView === 'voice' && !isSpeaking) {
+                setTimeout(() => {
+                  if (autoListen && currentView === 'voice' && !isListening && !isSpeaking) {
+                    startListening();
+                  }
+                }, 400);
+              }
+            }
+          };
+
+          recognition.start();
+          return;
+        } catch (e) {
+          console.warn("SpeechRecognition initialization failed, trying MediaRecorder:", e);
+        }
+      }
+
+      // Tier 2: MediaRecorder with local Whisper backend
+      startMediaRecorderListening();
+    }
+
+    async function startMediaRecorderListening() {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        try {
+          micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+          let mimeType = '';
+          if (typeof MediaRecorder !== 'undefined') {
+            if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+              mimeType = 'audio/webm;codecs=opus';
+            } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+              mimeType = 'audio/webm';
+            } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+              mimeType = 'audio/mp4';
+            } else if (MediaRecorder.isTypeSupported('audio/aac')) {
+              mimeType = 'audio/aac';
+            }
+          }
+
+          mediaRecorder = mimeType ? new MediaRecorder(micStream, { mimeType: mimeType }) : new MediaRecorder(micStream);
+          audioChunks = [];
+
+          mediaRecorder.ondataavailable = (e) => {
+            if (e.data && e.data.size > 0) {
+              audioChunks.push(e.data);
+            }
+          };
+
+          mediaRecorder.onstop = async () => {
+            isListening = false;
+            if (vadInterval) clearInterval(vadInterval);
+            if (micStream) {
+              micStream.getTracks().forEach(t => t.stop());
+              micStream = null;
+            }
+
+            if (audioChunks.length === 0) {
+              setOrbState('idle');
+              return;
+            }
+
+            setOrbState('transcribing');
+            const blobType = mediaRecorder.mimeType || 'audio/webm';
+            const audioBlob = new Blob(audioChunks, { type: blobType });
+
+            try {
+              const res = await fetch('/api/stt', {
+                method: 'POST',
+                headers: { 'Content-Type': blobType },
+                body: audioBlob
+              });
+              const data = await res.json();
+              if (data.transcript && data.transcript.trim()) {
+                sendVoiceCommand(data.transcript.trim());
+              } else {
+                setOrbState('idle');
+                if (autoListen && currentView === 'voice' && !isSpeaking) {
+                  setTimeout(() => {
+                    if (autoListen && currentView === 'voice' && !isListening && !isSpeaking) {
+                      startListening();
+                    }
+                  }, 400);
+                }
+              }
+            } catch (err) {
+              console.error("STT Error:", err);
+              setOrbState('idle');
+            }
+          };
+
+          mediaRecorder.start(100);
+          isListening = true;
+          setOrbState('listening', 'Listening...', 'Speak your response...');
+          playChimeStart();
+
+          // Audio energy tracking for VAD & Particle Field
+          try {
+            const source = audioCtx.createMediaStreamSource(micStream);
+            const analyser = audioCtx.createAnalyser();
+            analyser.fftSize = 256;
+            source.connect(analyser);
+            const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+            let speechDetected = false;
+            let silenceTicks = 0;
+
+            vadInterval = setInterval(() => {
+              if (!isListening) {
+                clearInterval(vadInterval);
+                if (window.bgField) window.bgField.setAudioLevel(0);
+                return;
+              }
+              analyser.getByteFrequencyData(dataArray);
+              let sum = 0;
+              for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+              let avg = sum / dataArray.length;
+
+              if (window.bgField) {
+                window.bgField.setAudioLevel(Math.min(1.0, avg / 60));
+              }
+
+              if (avg > 14) {
+                speechDetected = true;
+                silenceTicks = 0;
+              } else if (speechDetected) {
+                silenceTicks++;
+                if (silenceTicks >= 14) {
+                  stopListening();
+                }
+              }
+            }, 100);
+          } catch (e) {}
+
+          return;
+        } catch (err) {
+          console.warn("Phone mic / getUserMedia error:", err);
+          showToast("Phone mic requires HTTPS (Port 8766). Tap 'Switch to HTTPS' above.", 4500);
+          const banner = document.getElementById("httpsPromptBanner");
+          if (banner) banner.classList.remove("hidden");
+          setOrbState('idle');
+          return;
+        }
+      }
+
+      // If no getUserMedia available on this origin (e.g. plain HTTP on LAN)
+      showToast("Phone mic requires HTTPS (Port 8766). Tap 'Switch to HTTPS' above.", 4500);
+      const banner = document.getElementById("httpsPromptBanner");
+      if (banner) banner.classList.remove("hidden");
+      setOrbState('idle');
+    }
+
+    function stopListening() {
+      if (recognition) {
+        try { recognition.stop(); } catch (e) {}
+      }
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        try { mediaRecorder.stop(); } catch (e) {}
+      }
+      if (micStream) {
+        micStream.getTracks().forEach(t => t.stop());
+        micStream = null;
+      }
+      if (vadInterval) {
+        clearInterval(vadInterval);
+        vadInterval = null;
+      }
+      // If Mac recording is active, tell server to stop immediately
+      fetch('/api/stop_mac_recording', { method: 'POST' }).catch(() => {});
+
+      if (window.bgField) window.bgField.setAudioLevel(0);
+      isListening = false;
+    }
+
+    // Multi-Image & Screenshot Attachment State
+    let currentAttachedImages = []; // Array of { id, filename, path, url, isUploading }
+    let lastSpokenAgentText = "";
+    let lastSpokenTime = 0;
+    let recentSpokenHistory = []; // Array of { text: string, timestamp: number }
+
+    function recordAgentSpokenText(text) {
+      if (!text || !text.trim()) return;
+      const now = Date.now();
+      lastSpokenAgentText = text.trim();
+      lastSpokenTime = now;
+      recentSpokenHistory.push({ text: text.trim(), timestamp: now });
+      while (recentSpokenHistory.length > 10 || (recentSpokenHistory.length > 0 && now - recentSpokenHistory[0].timestamp > 60000)) {
+        recentSpokenHistory.shift();
+      }
+    }
+
+    function isAcousticEcho(userInput) {
+      if (!userInput || !userInput.trim()) return false;
+      const now = Date.now();
+
+      // If phone is currently playing TTS or finished less than 1.2s ago, it's acoustic bleed
+      if (isSpeaking || (now - lastSpokenTime < 1200)) {
+        return true;
+      }
+
+      const cleanUser = userInput.toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+      if (cleanUser.length < 3) return false;
+
+      const userWords = cleanUser.split(" ").filter(w => w.length > 2);
+      if (userWords.length === 0) return false;
+
+      // Check all recent agent summaries within the last 45 seconds
+      const candidates = recentSpokenHistory
+        .filter(entry => (now - entry.timestamp) <= 45000)
+        .map(entry => entry.text);
+      if (lastSpokenAgentText && !candidates.includes(lastSpokenAgentText)) {
+        candidates.push(lastSpokenAgentText);
+      }
+
+      for (const ref of candidates) {
+        if (!ref) continue;
+        const cleanRef = ref.toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+        if (!cleanRef) continue;
+
+        // 1. Exact match
+        if (cleanUser === cleanRef) return true;
+
+        // 2. Substring containment
+        if (cleanRef.includes(cleanUser) || (cleanUser.length >= 8 && cleanUser.includes(cleanRef))) {
+          return true;
+        }
+
+        // 3. Prefix matching: if user input starts with the first few words of the ref
+        const refWords = cleanRef.split(" ").filter(w => w.length > 2);
+        if (refWords.length >= 2 && userWords.length >= 2) {
+          const minLen = Math.min(refWords.length, userWords.length);
+          let prefixMatchCount = 0;
+          for (let i = 0; i < minLen; i++) {
+            if (refWords[i] === userWords[i]) prefixMatchCount++;
+            else break;
+          }
+          if (prefixMatchCount >= 2 && (prefixMatchCount === userWords.length || prefixMatchCount >= 3)) {
+            return true;
+          }
+        }
+
+        // 4. Token overlap ratio
+        const refWordSet = new Set(refWords);
+        let matchCount = 0;
+        userWords.forEach(w => { if (refWordSet.has(w)) matchCount++; });
+        const overlapRatio = matchCount / userWords.length;
+        if (overlapRatio >= 0.40) {
+          return true;
+        }
+      }
+
+      return false;
+    }
+
+    function renderAttachedImagesList() {
+      // 1. Chat View Attached Images Line Container
+      const container = document.getElementById("attachedImagesContainer");
+      if (container) {
+        if (currentAttachedImages.length === 0) {
+          container.innerHTML = "";
+          container.classList.add("hidden");
+        } else {
+          container.classList.remove("hidden");
+          const itemsHtml = currentAttachedImages.map((img) => `
+            <div class="flex items-center justify-between p-2 bg-[#141416] hover:bg-[#1c1c1f] border border-[#27272a] rounded-xl transition group shadow-sm">
+              <div class="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer" onclick="viewArtifactContent('${escapeHtml(img.filename)}')">
+                ${img.url ? `<img src="${img.url}" class="w-9 h-9 object-cover rounded-lg border border-zinc-700 bg-black shrink-0" alt="Attachment thumbnail">` : `<div class="w-9 h-9 rounded-lg border border-zinc-700 bg-[#222] flex items-center justify-center text-xs shrink-0 text-zinc-400">🖼️</div>`}
+                <div class="min-w-0 flex-1 text-left">
+                  <div class="text-[11px] font-bold text-white truncate flex items-center gap-1">
+                    <span class="text-[9px] font-mono text-zinc-400 font-normal">[IMG]</span>
+                    <span class="truncate">${escapeHtml(img.filename || "image.jpg")}</span>
+                  </div>
+                  <p class="text-[9px] text-zinc-400 font-mono">
+                    ${img.isUploading ? '<span class="text-amber-400 animate-pulse">Uploading to workspace...</span>' : '<span class="text-emerald-400">Attached to next prompt</span>'}
+                  </p>
+                </div>
+              </div>
+              <button type="button" class="p-1.5 text-zinc-400 hover:text-red-400 text-xs font-bold transition active:scale-90 cursor-pointer shrink-0" onclick="removeAttachedImage('${img.id}')" title="Remove this attachment">✕</button>
+            </div>
+          `).join('');
+
+          const headerHtml = `
+            <div class="flex items-center justify-between px-1 text-[10px] font-mono text-zinc-400 font-semibold">
+              <span>ATTACHED IMAGES (${currentAttachedImages.length})</span>
+              <button type="button" onclick="clearAllAttachedImages()" class="text-zinc-400 hover:text-white transition cursor-pointer text-[9px] underline">Clear all</button>
+            </div>
+          `;
+          container.innerHTML = headerHtml + itemsHtml;
+        }
+      }
+
+      // 2. Voice View Preview Chip
+      const voicePreview = document.getElementById("voiceAttachedImagePreview");
+      const voiceThumb = document.getElementById("voiceAttachedThumbnail");
+      const voiceFname = document.getElementById("voiceAttachedFilename");
+      if (voicePreview && voiceThumb && voiceFname) {
+        if (currentAttachedImages.length === 0) {
+          voicePreview.classList.add("hidden");
+        } else {
+          const firstImg = currentAttachedImages[0];
+          if (firstImg.url) voiceThumb.src = firstImg.url;
+          voiceFname.innerText = currentAttachedImages.length === 1 ? (firstImg.filename || "image.jpg") : `${currentAttachedImages.length} images attached`;
+          voicePreview.classList.remove("hidden");
+        }
+      }
+
+      updateChatActionState();
+    }
+
+    function removeAttachedImage(id) {
+      currentAttachedImages = currentAttachedImages.filter(img => img.id !== id);
+      renderAttachedImagesList();
+    }
+
+    function clearAllAttachedImages() {
+      currentAttachedImages = [];
+      renderAttachedImagesList();
+    }
+
+    function updateChatActionState() {
+      const chatInput = document.getElementById("chatInput");
+      const actionBtn = document.getElementById("chatMainActionBtn");
+      const micIcon = document.getElementById("chatActionMicIcon");
+      const sendIcon = document.getElementById("chatActionSendIcon");
+      if (!actionBtn || !micIcon || !sendIcon) return;
+
+      const hasText = chatInput && chatInput.value.trim().length > 0;
+      const hasAttachments = currentAttachedImages.length > 0;
+
+      if (hasText || hasAttachments) {
+        // Native Messages Send Button (Solid White Circle with Dark Icon)
+        actionBtn.className = "w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-white hover:bg-zinc-200 text-black active:scale-95 flex items-center justify-center shrink-0 transition-all cursor-pointer shadow-md";
+        micIcon.classList.add("hidden");
+        sendIcon.classList.remove("hidden");
+        actionBtn.title = "Send message";
+      } else {
+        // Native Messages Mic Button (Olive/Accent Circle with Mic Icon)
+        actionBtn.className = "w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-[#2a3826] hover:bg-[#384c33] text-[#a4d87e] active:scale-95 flex items-center justify-center shrink-0 transition-all cursor-pointer shadow-md";
+        micIcon.classList.remove("hidden");
+        sendIcon.classList.add("hidden");
+        actionBtn.title = micSource === "mac" ? "Record on Mac Studio Mic" : "Record voice command on phone";
+      }
+    }
+
+    function sendVoiceCommand(text) {
+      if (!text || !text.trim()) return;
+
+      // Acoustic echo suppression: prevent speaker audio from echoing back into microphone
+      if (isAcousticEcho(text.trim())) {
+        console.warn("[VoiceFi] Acoustic echo suppressed:", text);
+        showToast("Acoustic self-echo filtered", 2000);
+        setOrbState('idle');
+        return;
+      }
+
+      setOrbState('transcribing');
+      playChimeSent();
+
+      let fullText = text.trim();
+      let displayMsg = fullText;
+
+      // Attach each image on its own distinct line
+      const validImages = currentAttachedImages.filter(img => img.path && !img.isUploading);
+      if (validImages.length > 0) {
+        const attachLines = validImages.map(img => `[Attached Screenshot: file://${img.path}]`).join('\n');
+        fullText = `${attachLines}\n\n${fullText}`;
+        const filenames = validImages.map(img => img.filename).join(', ');
+        displayMsg = `[ATTACHED (${validImages.length}): ${filenames}]\n${text.trim()}`;
+        clearAllAttachedImages();
+      }
+
+      latestText.innerText = `"${text}"`;
+      logType.innerText = "YOU";
+
+      showToast("Command received — Antigravity processing...", 3500);
+      appendOptimisticUserMessage(displayMsg);
+      startActiveTurnPolling(activeConvId);
+
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: "user_voice_command",
+          conv_id: activeConvId,
+          text: fullText
+        }));
+      } else {
+        fetch('/api/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ conv_id: activeConvId, text: fullText })
+        });
+      }
+
+      setTimeout(() => {
+        if (!isListening && !isSpeaking) {
+          setOrbState('thinking', 'Agent Thinking...', 'Processing your request...');
+        }
+      }, 700);
+    }
+
+    // Microphone Routing & Source State (Defaults directly to 'phone')
+    let micSource = localStorage.getItem("voicefi_mic_source") || "phone"; // 'phone' | 'mac'
+
+    function updateMicSourceUI() {
+      const activeBadge = document.getElementById("activeMicBadge");
+      const toggleIcon = document.getElementById("micSourceToggleIcon");
+      const toggleTitle = document.getElementById("micSourceToggleTitle");
+
+      if (micSource === "mac") {
+        if (activeBadge) {
+          activeBadge.innerText = "[MIC: MAC]";
+          activeBadge.className = "text-blue-400 font-bold";
+        }
+        if (toggleIcon) toggleIcon.innerText = "💻";
+        if (toggleTitle) toggleTitle.innerText = "Mac";
+      } else {
+        if (activeBadge) {
+          activeBadge.innerText = "[MIC: PHONE]";
+          activeBadge.className = "text-emerald-400 font-bold";
+        }
+        if (toggleIcon) toggleIcon.innerText = "📱";
+        if (toggleTitle) toggleTitle.innerText = "Phone";
+      }
+      updateChatActionState();
+    }
+
+    function toggleMicSource() {
+      micSource = micSource === "phone" ? "mac" : "phone";
+      localStorage.setItem("voicefi_mic_source", micSource);
+      updateMicSourceUI();
+      showToast(`Default Microphone: ${micSource === 'phone' ? '📱 PHONE' : '💻 MAC'}`, 2500);
+      if (!isListening && !isSpeaking) {
+        setOrbState('idle');
+      }
+    }
+
+    async function startMacRecording() {
+      showToast("Listening on Mac Studio Mic...", 3000);
+      setOrbState('listening', 'Mac Mic Active', 'Speak clearly near your Mac...');
+      isListening = true;
+      playChimeStart();
+
+      try {
+        const res = await fetch('/api/record_mac', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ conv_id: activeConvId })
+        });
+        const data = await res.json();
+        if (data.success && data.transcript) {
+          // Server already injected into Antigravity
+          latestText.innerText = `"${data.transcript}"`;
+          logType.innerText = "YOU (MAC MIC)";
+          showToast("Command received — Antigravity processing...", 3500);
+          appendOptimisticUserMessage(data.transcript);
+          playChimeSent();
+          startActiveTurnPolling(activeConvId);
+          setOrbState('thinking', 'Agent Thinking...', 'Processing your request...');
+        } else {
+          showToast(data.error ? `Mac Mic: ${data.error}` : "No speech detected on Mac", 3000);
+          setOrbState('idle');
+        }
+      } catch (err) {
+        console.error("Mac record error:", err);
+        showToast("Error recording on Mac", 3000);
+        setOrbState('idle');
+      } finally {
+        isListening = false;
+      }
+    }
+
+    async function captureMacScreenshot() {
+      showToast("Capturing Mac screen...", 2500);
+      const macBtn = document.getElementById("macScreenshotBtn");
+      const chatMacBtn = document.getElementById("chatMacScreenshotBtn");
+      if (macBtn) macBtn.disabled = true;
+      if (chatMacBtn) chatMacBtn.disabled = true;
+
+      const itemId = 'att_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+      const item = {
+        id: itemId,
+        filename: "mac_screenshot.jpg",
+        url: '',
+        path: '',
+        isUploading: true,
+      };
+      currentAttachedImages.push(item);
+      renderAttachedImagesList();
+
+      try {
+        const res = await fetch('/api/screenshot', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ conv_id: activeConvId })
+        });
+        const data = await res.json();
+        if (data.success && data.path) {
+          item.filename = data.filename;
+          item.path = data.path;
+          item.url = data.url;
+          item.isUploading = false;
+          renderAttachedImagesList();
+          showToast("Mac screen captured — ready for prompt", 3500);
+          if (activeConvId) fetchConversationDetails(activeConvId);
+        } else {
+          showToast("Notice: " + (data.error || "Could not capture"), 3000);
+          removeAttachedImage(itemId);
+        }
+      } catch (err) {
+        console.error("Mac screenshot error:", err);
+        showToast("Error capturing Mac screen", 3000);
+        removeAttachedImage(itemId);
+      } finally {
+        if (macBtn) macBtn.disabled = false;
+        if (chatMacBtn) chatMacBtn.disabled = false;
+      }
+    }
+
+    async function capturePhoneScreenshot() {
+      // 1. Try getDisplayMedia (Phone screen share)
+      if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
+        try {
+          showToast("Select screen / app to share...", 2500);
+          const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+          const track = stream.getVideoTracks()[0];
+          const imageCapture = ('ImageCapture' in window) ? new ImageCapture(track) : null;
+
+          if (imageCapture) {
+            const bitmap = await imageCapture.grabFrame();
+            const canvas = document.createElement('canvas');
+            canvas.width = bitmap.width;
+            canvas.height = bitmap.height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(bitmap, 0, 0);
+            track.stop();
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+            await uploadPhoneImageDirect(dataUrl, "phone_screen.jpg");
+            return;
+          } else {
+            const video = document.createElement('video');
+            video.srcObject = stream;
+            await video.play();
+            setTimeout(async () => {
+              const canvas = document.createElement('canvas');
+              canvas.width = video.videoWidth || 1080;
+              canvas.height = video.videoHeight || 1920;
+              const ctx = canvas.getContext('2d');
+              ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+              track.stop();
+              const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+              await uploadPhoneImageDirect(dataUrl, "phone_screen.jpg");
+            }, 300);
+            return;
+          }
+        } catch (err) {
+          console.log("getDisplayMedia fallback to photo/camera:", err);
+        }
+      }
+
+      // 2. Fallback: Trigger Multi-File Gallery
+      document.getElementById("phoneCameraInput")?.click();
+    }
+
+    async function uploadPhoneImageFile(file) {
+      if (!file) return;
+      const itemId = 'att_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+      const cleanName = file.name || "phone_capture.jpg";
+      const item = {
+        id: itemId,
+        filename: cleanName,
+        url: '',
+        path: '',
+        isUploading: true,
+      };
+      currentAttachedImages.push(item);
+      renderAttachedImagesList();
+
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const b64 = reader.result;
+        item.url = b64;
+        renderAttachedImagesList();
+        try {
+          const res = await fetch('/api/upload_image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              conv_id: activeConvId,
+              image_base64: b64,
+              filename: cleanName
+            })
+          });
+          const data = await res.json();
+          if (data.success && data.path) {
+            item.filename = data.filename;
+            item.path = data.path;
+            item.url = data.url || b64;
+            item.isUploading = false;
+            renderAttachedImagesList();
+            showToast(`Attached: ${data.filename}`, 2500);
+            if (activeConvId) fetchConversationDetails(activeConvId);
+          } else {
+            showToast("Upload error: " + (data.error || "Failed"), 3000);
+            removeAttachedImage(itemId);
+          }
+        } catch (err) {
+          console.error("Upload error:", err);
+          showToast("Error uploading " + cleanName, 3000);
+          removeAttachedImage(itemId);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+
+    async function uploadPhoneImageDirect(dataUrl, filename = "phone_photo.jpg") {
+      const itemId = 'att_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+      const item = {
+        id: itemId,
+        filename: filename,
+        url: dataUrl,
+        path: '',
+        isUploading: true,
+      };
+      currentAttachedImages.push(item);
+      renderAttachedImagesList();
+
+      try {
+        const res = await fetch('/api/upload_image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            conv_id: activeConvId,
+            image_base64: dataUrl,
+            filename: filename
+          })
+        });
+        const data = await res.json();
+        if (data.success && data.path) {
+          item.filename = data.filename;
+          item.path = data.path;
+          item.url = data.url || dataUrl;
+          item.isUploading = false;
+          renderAttachedImagesList();
+          showToast(`Attached: ${data.filename}`, 3500);
+          if (activeConvId) fetchConversationDetails(activeConvId);
+        } else {
+          showToast("Upload notice: " + (data.error || "Failed"), 3000);
+          removeAttachedImage(itemId);
+        }
+      } catch (err) {
+        console.error("Phone image upload error:", err);
+        showToast("Error uploading phone image", 3000);
+        removeAttachedImage(itemId);
+      }
+    }
+
+    async function handleMultiFileSelection(files) {
+      const fileList = Array.from(files || []);
+      if (fileList.length === 0) return;
+      showToast(`Attaching ${fileList.length} image${fileList.length > 1 ? 's' : ''}...`, 2500);
+      for (const f of fileList) {
+        uploadPhoneImageFile(f);
+      }
+    }
+
+    function appendOptimisticUserMessage(text) {
+      if (!activeConversationData) {
+        activeConversationData = {
+          id: activeConvId || "active",
+          title: "Current Session",
+          status: "agent_working",
+          turns: [],
+          artifacts: []
+        };
+      }
+      if (!activeConversationData.turns) activeConversationData.turns = [];
+      const newTurn = {
+        turn_id: activeConversationData.turns.length + 1,
+        user_message: text,
+        agent_steps: [],
+        agent_response: "",
+        status: "working",
+        completed: false,
+      };
+      activeConversationData.turns.push(newTurn);
+      renderConversationDetails(activeConversationData);
+      scrollToChatBottom();
+    }
+
+    // Toast Notification Banner
+    function showToast(text, duration = 3000) {
+      const toast = document.getElementById("toastBanner");
+      const toastText = document.getElementById("toastText");
+      if (!toast || !toastText) return;
+      toastText.innerText = text;
+      toast.classList.remove("-translate-y-16", "opacity-0", "pointer-events-none");
+      toast.classList.add("translate-y-0", "opacity-100");
+      setTimeout(() => {
+        toast.classList.remove("translate-y-0", "opacity-100");
+        toast.classList.add("-translate-y-16", "opacity-0", "pointer-events-none");
+      }, duration);
+    }
+
+    // Active Turn Polling
+    let activePollingTimer = null;
+    function startActiveTurnPolling(convId) {
+      if (!convId) return;
+      if (activePollingTimer) clearInterval(activePollingTimer);
+      activePollingTimer = setInterval(() => {
+        if (activeConvId === convId) {
+          fetchConversationDetails(convId);
+        }
+      }, 1200);
+    }
+
+    function stopActiveTurnPolling() {
+      if (activePollingTimer) {
+        clearInterval(activePollingTimer);
+        activePollingTimer = null;
+      }
+    }
+
+    // Wake Lock
+    async function requestWakeLock() {
+      try {
+        if ('wakeLock' in navigator) {
+          wakeLock = await navigator.wakeLock.request('screen');
+          wakeLockDot.className = "w-2 h-2 rounded-full bg-emerald-400";
+          wakeLockText.innerText = "Screen Awake";
+          wakeLock.addEventListener('release', () => {
+            wakeLockDot.className = "w-2 h-2 rounded-full bg-slate-600";
+            wakeLockText.innerText = "Screen Auto";
+          });
+        }
+      } catch (e) {}
+    }
+
+    // Helper: Tool Name Icon Map (Clean Monospace Marker)
+    function getToolIcon(toolName) {
+      return "›";
+    }
+
+    // Render Full Conversation Window
+    async function fetchConversationDetails(convId) {
+      if (!convId) return;
+      try {
+        const res = await fetch(`/api/conversation/${encodeURIComponent(convId)}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        activeConversationData = data;
+        renderConversationDetails(data);
+      } catch (err) {
+        console.error("Fetch conversation detail error:", err);
+      }
+    }
+
+    function renderConversationDetails(data) {
+      if (!data) return;
+
+      // Update Session Bar & Running Status
+      chatSessionTitle.innerText = data.title || `Conversation ${data.id.slice(0, 8)}`;
+      const voiceSessionTitle = document.getElementById("voiceSessionTitle");
+      const voiceSessionDot = document.getElementById("voiceSessionDot");
+      const voiceStatusTag = document.getElementById("voiceStatusTag");
+      const chatStatusTag = document.getElementById("chatStatusTag");
+
+      if (voiceSessionTitle) voiceSessionTitle.innerText = data.title || "Antigravity";
+
+      // Detect active in-progress state and active tool name
+      const isWorking = data.status === "agent_working" || (data.turns && data.turns.length > 0 && data.turns[data.turns.length - 1].status === "working" && !data.turns[data.turns.length - 1].completed);
+      let activeAction = "RUNNING...";
+      if (data.turns && data.turns.length > 0) {
+        const lastTurn = data.turns[data.turns.length - 1];
+        if (lastTurn.agent_steps && lastTurn.agent_steps.length > 0) {
+          const lastStep = lastTurn.agent_steps[lastTurn.agent_steps.length - 1];
+          const label = lastStep.summary || lastStep.action || lastStep.tool_name || lastStep.title;
+          if (label && label !== "tool_call") {
+            activeAction = `RUNNING: ${label.length > 30 ? label.slice(0, 28) + '...' : label.toUpperCase()}`;
+          } else if (lastStep.type) {
+            activeAction = `RUNNING: ${lastStep.type.toUpperCase()}`;
+          }
+        }
+      }
+
+      if (isWorking) {
+        chatSessionDot.className = "w-1.5 h-1.5 rounded-full bg-white animate-pulse";
+        if (voiceSessionDot) voiceSessionDot.className = "w-1.5 h-1.5 rounded-full bg-white animate-pulse";
+
+        if (voiceStatusTag) {
+          voiceStatusTag.innerText = `[${activeAction}]`;
+          voiceStatusTag.className = "px-2.5 py-0.5 rounded-full text-[10px] font-mono bg-white text-black font-bold animate-pulse shadow-sm";
+        }
+        if (chatStatusTag) {
+          chatStatusTag.innerText = `[${activeAction}]`;
+          chatStatusTag.className = "px-2.5 py-0.5 rounded-full text-[10px] font-mono bg-white text-black font-bold animate-pulse shadow-sm";
+        }
+        if (!isListening && !isSpeaking) {
+          const cleanAction = activeAction.replace(/^RUNNING:\s*/i, "");
+          const actionTitle = (cleanAction === "RUNNING..." || cleanAction === "TOOL_CALL") ? "Agent Thinking..." : `Running: ${cleanAction}`;
+          setOrbState('thinking', actionTitle, "Executing steps & tools...");
+        }
+      } else {
+        chatSessionDot.className = "w-1.5 h-1.5 rounded-full bg-[#555555]";
+        if (voiceSessionDot) voiceSessionDot.className = "w-1.5 h-1.5 rounded-full bg-[#555555]";
+
+        const statusLabel = data.status === "waiting_for_user" ? "[WAITING FOR YOU]" : (data.status === "done" ? "[COMPLETED]" : "[IDLE]");
+        if (voiceStatusTag) {
+          voiceStatusTag.innerText = statusLabel;
+          voiceStatusTag.className = "px-2.5 py-0.5 rounded-full text-[10px] font-mono bg-[#141414] text-[#888888] border border-[#222222]";
+        }
+        if (chatStatusTag) {
+          chatStatusTag.innerText = statusLabel;
+          chatStatusTag.className = "px-2.5 py-0.5 rounded-full text-[10px] font-mono bg-[#141414] text-[#888888] border border-[#222222]";
+        }
+        if (!isListening && !isSpeaking) {
+          setOrbState('idle');
+        }
+      }
+
+      chatTurnCount.innerText = `${data.turns ? data.turns.length : 0} turns`;
+
+      // Sync Voice view's soundbite card with latest turn
+      if (data.turns && data.turns.length > 0) {
+        const lastTurn = data.turns[data.turns.length - 1];
+        if (lastTurn.agent_response) {
+          logType.innerText = `LATEST RESPONSE (${(lastTurn.agent_role || 'antigravity').toUpperCase()})`;
+          latestText.innerText = lastTurn.agent_response.length > 250 ? lastTurn.agent_response.slice(0, 247) + "..." : lastTurn.agent_response;
+        } else if (lastTurn.user_message) {
+          logType.innerText = "YOU";
+          latestText.innerText = `"${lastTurn.user_message}"`;
+        }
+      }
+
+      // Update Artifact Badge
+      if (data.artifacts && data.artifacts.length > 0) {
+        artifactBadge.innerText = data.artifacts.length;
+        artifactBadge.classList.remove("hidden");
+        renderArtifactsGrid(data.artifacts);
+      } else {
+        artifactBadge.classList.add("hidden");
+        artifactsGrid.innerHTML = `
+          <div class="col-span-full py-12 text-center text-[#666666] text-xs font-mono">
+            No artifacts generated yet for this conversation.
+          </div>
+        `;
+      }
+
+      // Update Plan Review Action Cards
+      const hasPlan = (data.plan_info && data.plan_info.exists) || (data.artifacts && data.artifacts.some(a => a.name === "implementation_plan.md"));
+      const planReviewCard = document.getElementById("planReviewCard");
+      const voicePlanReviewCard = document.getElementById("voicePlanReviewCard");
+      if (hasPlan) {
+        if (planReviewCard) planReviewCard.classList.remove("hidden");
+        if (voicePlanReviewCard) voicePlanReviewCard.classList.remove("hidden");
+      } else {
+        if (planReviewCard) planReviewCard.classList.add("hidden");
+        if (voicePlanReviewCard) voicePlanReviewCard.classList.add("hidden");
+      }
+
+      // Render Turns
+      if (!data.turns || data.turns.length === 0) {
+        turnsContainer.innerHTML = `
+          <div class="flex flex-col items-center justify-center py-16 text-[#666666] text-xs font-mono">
+            <p>No messages yet in this session.</p>
+          </div>
+        `;
+        return;
+      }
+
+      let html = "";
+      data.turns.forEach((turn, tIdx) => {
+        const turnId = turn.turn_id || (tIdx + 1);
+        const userMsg = turn.user_message || "";
+        const agentResp = turn.agent_response || "";
+        const steps = turn.agent_steps || [];
+        const isLatestTurn = (tIdx === data.turns.length - 1);
+        const isWorking = turn.status === "working" && !turn.completed;
+
+        // User Message Bubble with Distinct Left Margin
+        if (userMsg) {
+          let cleanDisplayMsg = userMsg;
+          let attachedImgHtml = "";
+          
+          const shotMatch = userMsg.match(/\[Attached Screenshot:\s*file:\/\/(.*?)\]/i) || userMsg.match(/\[SCREENSHOT:\s*(.*?)\]/i);
+          if (shotMatch) {
+            cleanDisplayMsg = userMsg.replace(/\[Attached Screenshot:\s*file:\/\/.*?\]\n*/gi, "").replace(/\[SCREENSHOT:\s*.*?\]\n*/gi, "").trim();
+            const filePath = shotMatch[1].trim();
+            const filename = filePath.split("/").pop();
+            const imgUrl = `/api/conversation/${encodeURIComponent(data.id)}/artifact/${encodeURIComponent(filename)}`;
+            attachedImgHtml = `
+              <div class="my-2 p-2 bg-[#09090b] border border-[#27272a] hover:border-white rounded-xl flex items-center gap-2.5 cursor-pointer transition" onclick="viewArtifactContent('${escapeHtml(filename)}')">
+                <img src="${escapeHtml(imgUrl)}" class="w-12 h-12 object-cover rounded-lg border border-zinc-800 bg-black shrink-0" onerror="this.style.display='none'">
+                <div class="truncate text-left font-mono">
+                  <span class="text-[11px] font-bold text-white flex items-center gap-1"><span class="text-[9px] text-[#888888]">[IMG]</span> ${escapeHtml(filename)}</span>
+                  <span class="text-[9px] text-zinc-400">Tap to inspect full screenshot</span>
+                </div>
+              </div>
+            `;
+          }
+
+          html += `
+            <div class="flex gap-2 items-start ml-10 sm:ml-20 max-w-2xl ml-auto">
+              <div class="flex-1 bg-[#121212] border border-[#242424] rounded-2xl rounded-tr-xs p-3 shadow-sm">
+                <div class="flex items-center justify-between text-[10px] font-medium text-[#888888] mb-1">
+                  <span class="font-bold text-white mono">YOU</span>
+                  <span class="mono text-[9px] text-[#666666]">TURN ${turnId}</span>
+                </div>
+                ${attachedImgHtml}
+                <div class="text-xs text-white whitespace-pre-wrap leading-relaxed">${escapeHtml(cleanDisplayMsg)}</div>
+              </div>
+            </div>
+          `;
+        }
+
+        // Agent Turn Card
+        if (steps.length > 0 || agentResp || isWorking) {
+          const isExpandedLevel1 = userExpandedAccordions.has(`turn-${turnId}`);
+
+          html += `
+            <div class="flex gap-2 items-start max-w-3xl mr-auto w-full">
+              <div class="w-full bg-[#0a0a0a] border border-[#1e1e1e] rounded-2xl rounded-tl-xs p-3.5 shadow-sm space-y-2.5">
+                
+                <!-- Agent Turn Header -->
+                <div class="flex items-center justify-between border-b border-[#1c1c1c] pb-2">
+                  <div class="flex items-center gap-2">
+                    <span class="w-5 h-5 rounded-md bg-[#18181b] border border-[#27272a] flex items-center justify-center text-[9px] font-bold text-white mono">AG</span>
+                    <span class="font-bold text-xs text-white uppercase tracking-wider">${escapeHtml(turn.agent_role || 'Antigravity')}</span>
+                    ${isWorking 
+                      ? `<span class="text-[9px] font-mono px-1.5 py-0.2 rounded-full bg-white text-black font-bold animate-pulse">working...</span>` 
+                      : `<span class="text-[9px] font-mono px-1.5 py-0.2 rounded-full bg-[#18181b] text-white border border-[#27272a]">done</span>`}
+                  </div>
+
+                  ${agentResp ? `
+                    <button class="speak-turn-btn text-[10px] mono flex items-center gap-1 text-[#888888] hover:text-white transition px-2 py-0.5 rounded bg-[#141414] border border-[#222222] cursor-pointer" data-text="${escapeHtml(agentResp.slice(0, 1000))}">
+                      PLAY
+                    </button>
+                  ` : ''}
+                </div>
+
+                <!-- Active In-Progress Initial Card (When 0 steps yet) -->
+                ${isWorking && steps.length === 0 ? `
+                  <div class="border border-white/40 rounded-xl p-3 bg-[#0c0c0c] space-y-1 animate-pulse">
+                    <div class="flex items-center gap-2 text-xs font-semibold text-white">
+                      <span class="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span>
+                      <span>Antigravity is processing...</span>
+                    </div>
+                    <p class="text-[10px] text-[#888888] font-mono">Analyzing codebase and preparing execution tools</p>
+                  </div>
+                ` : ''}
+
+                <!-- Working Logs Accordion (Level 1: Condensed by default) -->
+                ${steps.length > 0 ? `
+                  <div class="border ${isWorking ? 'border-white/30' : 'border-[#1e1e1e]'} rounded-xl overflow-hidden bg-[#050505] transition">
+                    <button class="w-full px-3 py-2 flex items-center justify-between text-left text-xs text-[#888888] hover:text-white transition log-accordion-btn cursor-pointer" data-target="log-turn-${turnId}">
+                      <div class="flex items-center gap-2 truncate">
+                        <span class="text-white font-mono text-[10px]">[STEPS]</span>
+                        <span class="font-semibold text-[11px] text-white">${isWorking ? 'Active Activity Stream' : 'Working Activity'} (${steps.length} ${steps.length === 1 ? 'step' : 'steps'})</span>
+                        ${isWorking ? `<span class="text-[9px] px-1.5 rounded-full bg-white text-black font-bold mono">live</span>` : ''}
+                        <div class="hidden sm:flex items-center gap-1 overflow-hidden truncate max-w-xs">
+                          ${steps.slice(0, 3).map(s => `<span class="text-[10px] bg-[#141414] border border-[#222222] px-1.5 rounded text-[#888888] truncate mono">${escapeHtml(s.summary || s.tool_name)}</span>`).join('')}
+                          ${steps.length > 3 ? `<span class="text-[10px] text-[#666666] mono">+${steps.length - 3}</span>` : ''}
+                        </div>
+                      </div>
+                      <span class="text-[#888888] text-xs font-mono chevron-icon select-none transition">${isExpandedLevel1 ? '▼' : '▶'}</span>
+                    </button>
+                    
+                    <!-- Level 1 Expanded Steps Timeline -->
+                    <div id="log-turn-${turnId}" class="${isExpandedLevel1 ? '' : 'hidden'} p-2.5 space-y-2 border-t border-[#1e1e1e] text-xs font-mono">
+                      ${steps.map((st, sIdx) => {
+                        const icon = getToolIcon(st.tool_name);
+                        const summary = st.summary || st.tool_name;
+                        const action = st.action || "";
+                        const output = st.output;
+                        const stepKey = `step-${turnId}-${sIdx}`;
+                        const isExpandedLevel2 = userExpandedAccordions.has(stepKey);
+
+                        return `
+                          <!-- Level 2 Step Card (Condensed by default) -->
+                          <div class="border border-[#222222] hover:border-[#333333] rounded-lg bg-[#0a0a0a] overflow-hidden transition">
+                            <button class="w-full px-2.5 py-2 flex items-center justify-between text-left hover:bg-[#121212] transition step-accordion-btn cursor-pointer" data-target="step-detail-${turnId}-${sIdx}">
+                              <div class="flex items-center gap-2 truncate text-[11px] font-semibold text-white">
+                                <span class="text-[#888888] font-bold">${icon}</span>
+                                <span class="font-mono text-white">${escapeHtml(st.tool_name)}</span>
+                                ${summary !== st.tool_name ? `<span class="text-[#888888] text-[10px] font-normal font-sans truncate">(${escapeHtml(summary)})</span>` : ''}
+                              </div>
+                              <div class="flex items-center gap-2 shrink-0">
+                                <span class="text-[9px] px-1.5 py-0.5 rounded font-mono ${st.status === 'DONE' ? 'bg-[#18181b] text-zinc-300 border border-[#27272a]' : 'bg-white text-black font-bold'}">${st.status}</span>
+                                <span class="text-[#888888] text-[10px] font-mono step-chevron select-none">${isExpandedLevel2 ? '▼' : '▶'}</span>
+                              </div>
+                            </button>
+
+                            <!-- Level 2 Step Expanded Details (Args & Output) -->
+                            <div id="step-detail-${turnId}-${sIdx}" class="${isExpandedLevel2 ? '' : 'hidden'} p-2.5 space-y-2 border-t border-[#1a1a1a] bg-[#050505]">
+                              ${action ? `<div class="text-[10px] text-[#a1a1aa] font-sans">${escapeHtml(action)}</div>` : ''}
+
+                              ${st.args && Object.keys(st.args).length > 0 ? `
+                                <div class="text-[10px] text-[#888888] bg-[#0c0c0c] p-2 rounded-lg border border-[#1e1e1e] max-h-36 overflow-y-auto">
+                                  <span class="text-[#666666] uppercase text-[9px] font-bold">Arguments:</span>
+                                  <pre class="whitespace-pre-wrap font-mono mt-0.5 text-[#d4d4d8] text-[10px]">${escapeHtml(JSON.stringify(st.args, null, 2))}</pre>
+                                </div>
+                              ` : ''}
+
+                              ${output ? `
+                                <div class="text-[10px] text-[#888888] bg-[#0c0c0c] p-2 rounded-lg border border-[#1e1e1e]">
+                                  <div class="flex items-center justify-between text-[#666666] uppercase text-[9px] font-bold mb-1">
+                                    <span>Tool Output</span>
+                                    <span>${output.length} chars</span>
+                                  </div>
+                                  <div class="bg-black border border-[#1c1c1c] p-2 rounded-md max-h-48 overflow-y-auto text-[10px] text-[#d4d4d8] font-mono whitespace-pre-wrap">
+                                    ${escapeHtml(output)}
+                                  </div>
+                                </div>
+                              ` : ''}
+                            </div>
+                          </div>
+                        `;
+                      }).join('')}
+
+                      ${isWorking ? `
+                        <div class="border border-[#222222] rounded-lg p-2 bg-[#0c0c0c] flex items-center justify-between animate-pulse">
+                          <div class="flex items-center gap-2 text-[11px] font-semibold text-white">
+                            <span class="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span>
+                            <span>Executing active step...</span>
+                          </div>
+                          <span class="text-[9px] px-1.5 rounded bg-white text-black font-bold mono">live</span>
+                        </div>
+                      ` : ''}
+                    </div>
+                  </div>
+                ` : ''}
+
+                <!-- Full Markdown Response -->
+                ${agentResp ? `
+                  <div class="prose-dark pt-1">
+                    ${renderMarkdown(agentResp)}
+                  </div>
+                ` : (isWorking ? `
+                  <div class="py-1 flex items-center gap-2 text-[#888888] text-xs animate-pulse font-medium">
+                    <span class="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span>
+                    <span>Antigravity is formulating response...</span>
+                  </div>
+                ` : '')}
+
+              </div>
+            </div>
+          `;
+        }
+      });
+
+      turnsContainer.innerHTML = html;
+
+      // Attach Level 1 Accordion Toggle Handlers
+      document.querySelectorAll(".log-accordion-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const targetId = btn.getAttribute("data-target");
+          const target = document.getElementById(targetId);
+          const chevron = btn.querySelector(".chevron-icon");
+          if (target) {
+            const isNowHidden = !target.classList.contains("hidden");
+            target.classList.toggle("hidden", isNowHidden);
+            const turnKey = targetId.replace("log-", "");
+            if (isNowHidden) {
+              userExpandedAccordions.delete(turnKey);
+              if (chevron) chevron.innerText = "▶";
+            } else {
+              userExpandedAccordions.add(turnKey);
+              if (chevron) chevron.innerText = "▼";
+            }
+          }
+        });
+      });
+
+      // Attach Level 2 Step Accordion Toggle Handlers
+      document.querySelectorAll(".step-accordion-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const targetId = btn.getAttribute("data-target");
+          const target = document.getElementById(targetId);
+          const chevron = btn.querySelector(".step-chevron");
+          if (target) {
+            const isNowHidden = !target.classList.contains("hidden");
+            target.classList.toggle("hidden", isNowHidden);
+            const stepKey = targetId.replace("step-detail-", "step-");
+            if (isNowHidden) {
+              userExpandedAccordions.delete(stepKey);
+              if (chevron) chevron.innerText = "▶";
+            } else {
+              userExpandedAccordions.add(stepKey);
+              if (chevron) chevron.innerText = "▼";
+            }
+          }
+        });
+      });
+
+      // Attach Speak Turn Handlers
+      document.querySelectorAll(".speak-turn-btn").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const text = btn.getAttribute("data-text");
+          if (text) {
+            speakTextAloud(text);
+          }
+        });
+      });
+
+      // Attach Copy Code Block Buttons
+      document.querySelectorAll(".prose-dark pre").forEach(pre => {
+        if (!pre.querySelector(".copy-code-btn")) {
+          const copyBtn = document.createElement("button");
+          copyBtn.className = "copy-code-btn absolute top-2 right-2 px-2 py-0.5 text-[10px] font-mono bg-slate-800/90 hover:bg-slate-700 text-slate-300 rounded border border-slate-700 transition";
+          copyBtn.innerText = "Copy";
+          copyBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const code = pre.querySelector("code") ? pre.querySelector("code").innerText : pre.innerText;
+            navigator.clipboard.writeText(code).then(() => {
+              copyBtn.innerText = "Copied!";
+              setTimeout(() => { copyBtn.innerText = "Copy"; }, 1500);
+            });
+          });
+          pre.appendChild(copyBtn);
+        }
+      });
+    }
+
+    function renderArtifactsGrid(artifacts) {
+      artifactsCountTag.innerText = `${artifacts.length} ${artifacts.length === 1 ? 'document' : 'documents'}`;
+      let html = "";
+      artifacts.forEach(art => {
+        const icon = art.is_markdown ? "[MD]" : (art.extension === "pdf" ? "[PDF]" : "[IMG]");
+        const sizeKb = (art.size / 1024).toFixed(1);
+        html += `
+          <div class="p-3 bg-[#0c0c0c] border border-[#222222] rounded-xl hover:border-white transition cursor-pointer flex flex-col justify-between shadow-xs artifact-card" data-filename="${escapeHtml(art.name)}">
+            <div class="flex items-start gap-2.5">
+              <span class="text-xs font-mono text-[#888888] font-bold">${icon}</span>
+              <div class="truncate flex-1">
+                <h4 class="font-bold text-xs text-white truncate">${escapeHtml(art.name)}</h4>
+                <p class="text-[10px] text-[#888888] font-mono mt-0.5">${sizeKb} KB • ${escapeHtml(art.extension || 'file')}</p>
+              </div>
+            </div>
+            <button class="w-full py-1 bg-[#141414] hover:bg-white hover:text-black text-[#e4e4e7] rounded-lg text-xs font-semibold transition text-center mt-2 border border-[#222222]">
+              View
+            </button>
+          </div>
+        `;
+      });
+      artifactsGrid.innerHTML = html;
+
+      // Attach Card Clicks
+      document.querySelectorAll(".artifact-card").forEach(card => {
+        card.addEventListener("click", () => {
+          const fname = card.getAttribute("data-filename");
+          if (fname) viewArtifactContent(fname);
+        });
+      });
+    }
+
+    async function viewArtifactContent(filename) {
+      if (!activeConvId || !filename) return;
+      try {
+        const res = await fetch(`/api/conversation/${encodeURIComponent(activeConvId)}/artifact/${encodeURIComponent(filename)}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        
+        artifactModalTitle.innerText = data.name || filename;
+        if (data.is_image) {
+          artifactModalBody.innerHTML = `<div class="flex justify-center p-4"><img src="${data.content}" alt="${escapeHtml(filename)}" class="max-w-full rounded-xl shadow-lg"></div>`;
+        } else {
+          artifactModalBody.innerHTML = renderMarkdown(data.content);
+        }
+
+        // Copy button
+        copyArtifactBtn.onclick = () => {
+          navigator.clipboard.writeText(data.content).then(() => {
+            copyArtifactBtn.innerText = "COPIED";
+            setTimeout(() => { copyArtifactBtn.innerText = "Copy"; }, 1500);
+          });
+        };
+
+        artifactModal.classList.remove("hidden");
+      } catch (err) {
+        console.error("View artifact error:", err);
+      }
+    }
+
+    closeArtifactModal.addEventListener("click", () => {
+      artifactModal.classList.add("hidden");
+    });
+
+
+
+    function escapeHtml(str) {
+      if (!str) return "";
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    // WebSocket Connection
+    let heartbeatTimer = null;
+    let reconnectDelay = 1000;
+
+    function connectWebSocket() {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${window.location.host}/ws`;
+      ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        reconnectDelay = 1000;
+        connDot.className = "w-2 h-2 rounded-full bg-emerald-400";
+        connText.innerText = "Connected";
+        requestWakeLock();
+        fetchConversations();
+
+        if (heartbeatTimer) clearInterval(heartbeatTimer);
+        heartbeatTimer = setInterval(() => {
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: "ping" }));
+          }
+        }, 10000);
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === "pong") return;
+          handleServerEvent(data);
+        } catch (e) {
+          console.error("WS Parse error", e);
+        }
+      };
+
+      ws.onclose = () => {
+        if (heartbeatTimer) clearInterval(heartbeatTimer);
+        connDot.className = "w-2 h-2 rounded-full bg-amber-400 animate-pulse";
+        connText.innerText = "Reconnecting...";
+        setTimeout(connectWebSocket, reconnectDelay);
+        reconnectDelay = Math.min(reconnectDelay * 1.5, 8000);
+      };
+
+      ws.onerror = () => { ws.close(); };
+    }
+
+    function handleServerEvent(data) {
+      if (data.type === "user_command_injected") {
+        showToast("Command received by Antigravity", 3000);
+        if (data.conv_id && data.conv_id !== "active") {
+          activeConvId = data.conv_id;
+        }
+        if (!isListening && !isSpeaking) {
+          setOrbState('thinking', 'Agent Thinking...', 'Processing request...');
+        }
+        startActiveTurnPolling(activeConvId);
+        fetchConversationDetails(activeConvId);
+      } else if (data.type === "agent_turn_completed") {
+        stopActiveTurnPolling();
+        showToast("Antigravity completed turn", 2500);
+        if (liveActivityBanner) liveActivityBanner.classList.add("hidden");
+        if (logType) logType.innerText = `AGENT FINISHED (${(data.agent_role || 'antigravity').toUpperCase()})`;
+        if (latestText) latestText.innerText = data.summary || "";
+        if (data.conv_id) activeConvId = data.conv_id;
+
+        // Refresh conversation details for full view
+        fetchConversationDetails(activeConvId);
+
+        if (data.summary) {
+          recordAgentSpokenText(data.summary);
+        }
+
+        // Smart Audio Routing & Speaker Mute Check
+        const origin = data.origin || "desktop";
+        let shouldSpeakOnPhone = true;
+        if (isSpeakerMuted) {
+          shouldSpeakOnPhone = false;
+        } else if (audioRoutingMode === "mac_only") {
+          shouldSpeakOnPhone = false;
+        } else if (audioRoutingMode === "origin_only" && origin !== "mobile") {
+          shouldSpeakOnPhone = false;
+        } else if (audioRoutingMode === "smart" && origin !== "mobile") {
+          // In smart auto mode, prompt sent from Mac is spoken by Mac; phone stays visual
+          shouldSpeakOnPhone = false;
+        }
+
+        if (shouldSpeakOnPhone) {
+          speakTextAloud(data.summary, () => {
+            if (autoListen && !isListening && currentView === 'voice') {
+              setTimeout(startListening, 600);
+            }
+          });
+        } else {
+          if (!isListening && !isSpeaking) {
+            setOrbState('idle');
+          }
+          // If spoken by Mac speaker, wait until Mac speech is finished before opening phone mic!
+          if (autoListen && !isListening && currentView === 'voice') {
+            const wordCount = (data.summary || '').split(/\s+/).filter(Boolean).length;
+            const macEstimatedDurationMs = Math.max(2500, Math.min(14000, (wordCount / 2.5) * 1000 + 1500));
+            setTimeout(() => {
+              if (autoListen && !isListening && !isSpeaking && currentView === 'voice') {
+                startListening();
+              }
+            }, macEstimatedDurationMs);
+          }
+        }
+      } else if (data.type === "config_updated") {
+        if (data.audio_routing) {
+          audioRoutingMode = data.audio_routing;
+          if (audioRoutingSelect) audioRoutingSelect.value = audioRoutingMode;
+          localStorage.setItem("voicefi_audio_routing", audioRoutingMode);
+        }
+      } else if (data.type === "agent_working_step") {
+        if (liveActivityBanner) liveActivityBanner.classList.remove("hidden");
+        const stepSummary = data.summary || data.action || data.tool_name || '';
+        if (liveActivityText) liveActivityText.innerText = `Running ${data.tool_name}: ${stepSummary}`;
+        
+        if (!isListening && !isSpeaking) {
+          const label = stepSummary ? (`Running: ${stepSummary.length > 28 ? stepSummary.slice(0, 26) + '...' : stepSummary}`) : (`Running ${data.tool_name}`);
+          setOrbState('thinking', label, 'Executing tool call...');
+        }
+
+        // If current conversation matches, refresh details or append step
+        if (data.conv_id === activeConvId) {
+          fetchConversationDetails(activeConvId);
+        }
+      } else if (data.type === "conversation_updated") {
+        if (data.conv_id === activeConvId) {
+          fetchConversationDetails(activeConvId);
+        }
+      } else if (data.type === "conversation_created") {
+        showToast("Created new conversation", 2500);
+        fetchConversations();
+        if (data.conv_id) {
+          activeConvId = data.conv_id;
+          fetchConversationDetails(activeConvId);
+        }
+      } else if (data.type === "status_update") {
+        if (data.audio_routing && !localStorage.getItem("voicefi_audio_routing")) {
+          audioRoutingMode = data.audio_routing;
+          if (audioRoutingSelect) audioRoutingSelect.value = audioRoutingMode;
+        }
+        if (data.active_conversation) {
+          activeConvId = data.active_conversation.id;
+          if (agentRoleBadge) agentRoleBadge.innerText = data.active_conversation.status;
+          fetchConversationDetails(activeConvId);
+        }
+      }
+    }
+
+    async function fetchConversations() {
+      try {
+        const res = await fetch('/api/conversations');
+        const data = await res.json();
+        convSelect.innerHTML = "";
+        data.conversations.forEach((c) => {
+          const opt = document.createElement("option");
+          opt.value = c.id;
+          const statusTag = c.status === "agent_working" ? "thinking" : c.status;
+          opt.innerText = `${c.title} (${statusTag})`;
+          if (c.id === data.active_id) {
+            opt.selected = true;
+            activeConvId = c.id;
+          }
+          convSelect.appendChild(opt);
+        });
+
+        if (activeConvId) {
+          fetchConversationDetails(activeConvId);
+        }
+      } catch (e) {
+        console.log("Fetch conversations error:", e);
+      }
+    }
+
+    // Event Listeners
+    orbBtn.addEventListener("click", () => {
+      initAudioContext();
+      if (window.bgField) window.bgField.pulse(0.9);
+      if (isListening) {
+        stopListening();
+      } else {
+        startListening();
+      }
+    });
+
+    if (chatMicBtn) {
+      chatMicBtn.addEventListener("click", () => {
+        initAudioContext();
+        if (isListening) {
+          stopListening();
+        } else {
+          startListening();
+        }
+      });
+    }
+    refreshBtn.addEventListener("click", () => {
+      fetchConversations();
+      if (activeConvId) fetchConversationDetails(activeConvId);
+    });
+
+    // Plan Review Action Logic
+    async function handlePlanAction(action, customText = "") {
+      if (!activeConvId) {
+        showToast("No active conversation selected", 2500);
+        return;
+      }
+      try {
+        showToast(`Dispatching plan action: [${action.toUpperCase()}]...`, 2000);
+        const res = await fetch('/api/plan/action', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            conv_id: activeConvId,
+            action: action,
+            text: customText
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast(`Plan action [${action.toUpperCase()}] sent`, 2500);
+          appendOptimisticUserMessage(data.prompt);
+          startActiveTurnPolling(activeConvId);
+        }
+      } catch (err) {
+        console.error("Plan action error:", err);
+        showToast("Error dispatching plan action", 3000);
+      }
+    }
+
+    // Plan Review Buttons (Chat View)
+    document.getElementById("approvePlanBtn")?.addEventListener("click", () => handlePlanAction('approve'));
+    document.getElementById("requestPlanChangesBtn")?.addEventListener("click", () => {
+      switchView('chat');
+      chatInput.value = "Please revise the implementation plan: ";
+      chatInput.focus();
+    });
+    document.getElementById("voiceReviewPlanBtn")?.addEventListener("click", () => {
+      switchView('voice');
+      showToast("Dictate your plan review...", 2500);
+      setTimeout(startListening, 300);
+    });
+    document.getElementById("viewPlanBtn")?.addEventListener("click", () => {
+      viewArtifactContent("implementation_plan.md");
+    });
+
+    // Plan Review Buttons (Voice View)
+    document.getElementById("voiceApprovePlanBtn")?.addEventListener("click", () => handlePlanAction('approve'));
+    document.getElementById("voiceRequestPlanChangesBtn")?.addEventListener("click", () => {
+      switchView('chat');
+      chatInput.value = "Please revise the implementation plan: ";
+      chatInput.focus();
+    });
+    document.getElementById("voiceTriggerVoiceReviewBtn")?.addEventListener("click", () => {
+      showToast("Dictate your plan review...", 2500);
+      setTimeout(startListening, 300);
+    });
+    document.getElementById("voiceViewPlanBtn")?.addEventListener("click", () => {
+      viewArtifactContent("implementation_plan.md");
+    });
+
+    // QR Code Mobile Pairing Modal Handlers
+    const qrPairBtn = document.getElementById("qrPairBtn");
+    const qrPairModal = document.getElementById("qrPairModal");
+    const closeQrPairModal = document.getElementById("closeQrPairModal");
+    const qrModalImg = document.getElementById("qrModalImg");
+    const qrModalUrl = document.getElementById("qrModalUrl");
+    const copyQrUrlBtn = document.getElementById("copyQrUrlBtn");
+
+    async function loadAndShowQrModal() {
+      try {
+        const res = await fetch('/api/qr');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.qr_data_uri && qrModalImg) {
+            qrModalImg.src = data.qr_data_uri;
+          }
+          const targetUrl = data.urls?.ip_url || `http://${window.location.hostname}:8765`;
+          if (qrModalUrl) {
+            qrModalUrl.innerText = targetUrl;
+          }
+        }
+      } catch (e) {
+        if (qrModalUrl) qrModalUrl.innerText = `http://${window.location.hostname}:8765`;
+      }
+      qrPairModal?.classList.remove("hidden");
+    }
+
+    if (qrPairBtn && qrPairModal) {
+      qrPairBtn.addEventListener("click", loadAndShowQrModal);
+    }
+
+    if (closeQrPairModal && qrPairModal) {
+      closeQrPairModal.addEventListener("click", () => {
+        qrPairModal.classList.add("hidden");
+      });
+    }
+
+    if (copyQrUrlBtn && qrModalUrl) {
+      copyQrUrlBtn.addEventListener("click", () => {
+        const urlToCopy = qrModalUrl.innerText;
+        navigator.clipboard?.writeText(urlToCopy).then(() => {
+          showToast("Pairing URL copied to clipboard!", 2000);
+        }).catch(() => {
+          showToast("Copied: " + urlToCopy, 2000);
+        });
+      });
+    }
+
+    if (window.location.search.includes('pair') || window.location.search.includes('qr')) {
+      setTimeout(loadAndShowQrModal, 400);
+    }
+
+    // Antigravity Remote Modal & Bridge Handlers
+    const agRemoteBtn = document.getElementById("agRemoteBtn");
+    const agRemoteModal = document.getElementById("agRemoteModal");
+    const closeAgRemoteModal = document.getElementById("closeAgRemoteModal");
+    const agRemoteUrlInput = document.getElementById("agRemoteUrlInput");
+    const saveAgRemoteBtn = document.getElementById("saveAgRemoteBtn");
+    const openAgRemoteBtn = document.getElementById("openAgRemoteBtn");
+
+    if (agRemoteBtn && agRemoteModal) {
+      agRemoteBtn.addEventListener("click", async () => {
+        try {
+          const res = await fetch('/api/config/ag_remote');
+          if (res.ok) {
+            const data = await res.json();
+            if (data.url) agRemoteUrlInput.value = data.url;
+          }
+        } catch (e) {}
+        agRemoteModal.classList.remove("hidden");
+      });
+    }
+
+    if (closeAgRemoteModal && agRemoteModal) {
+      closeAgRemoteModal.addEventListener("click", () => {
+        agRemoteModal.classList.add("hidden");
+      });
+    }
+
+    if (saveAgRemoteBtn && agRemoteUrlInput) {
+      saveAgRemoteBtn.addEventListener("click", async () => {
+        const val = agRemoteUrlInput.value.trim();
+        try {
+          await fetch('/api/config/ag_remote', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: val })
+          });
+          showToast("Antigravity Remote link saved", 2000);
+          agRemoteModal.classList.add("hidden");
+        } catch (e) {
+          showToast("Error saving link", 2000);
+        }
+      });
+    }
+
+    if (openAgRemoteBtn && agRemoteUrlInput) {
+      openAgRemoteBtn.addEventListener("click", () => {
+        const val = agRemoteUrlInput.value.trim() || "https://antigravity.google.com";
+        window.open(val, '_blank');
+        agRemoteModal.classList.add("hidden");
+      });
+    }
+
+    const openChatBtn = document.getElementById("openChatFromVoiceBtn");
+    if (openChatBtn) {
+      openChatBtn.addEventListener("click", () => switchView('chat'));
+    }
+
+    const newConvBtn = document.getElementById("newConvBtn");
+    if (newConvBtn) {
+      newConvBtn.addEventListener("click", async () => {
+        const originalHtml = newConvBtn.innerHTML;
+        newConvBtn.disabled = true;
+        newConvBtn.innerHTML = `<span class="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>`;
+
+        try {
+          const res = await fetch('/api/conversation/new', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt: "Hello" })
+          });
+          const data = await res.json();
+          if (data.conv_id) {
+            activeConvId = data.conv_id;
+            switchView('chat');
+            await fetchConversations();
+            await fetchConversationDetails(activeConvId);
+            chatInput.focus();
+          }
+        } catch (err) {
+          console.error("Create new conversation error:", err);
+        } finally {
+          newConvBtn.disabled = false;
+          newConvBtn.innerHTML = originalHtml;
+        }
+      });
+    }
+
+    convSelect.addEventListener("change", async (e) => {
+      activeConvId = e.target.value;
+      if (!activeConvId) return;
+
+      // Immediately switch to the full conversation history view
+      switchView('chat');
+
+      // Show immediate loading indicator in chat stream
+      turnsContainer.innerHTML = `
+        <div class="flex flex-col items-center justify-center py-20 text-indigo-400 text-xs">
+          <div class="w-8 h-8 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin mb-3"></div>
+          <p class="font-semibold text-slate-200">Loading conversation history...</p>
+          <span class="text-[11px] text-slate-400 mt-1 font-mono">Fetching turns & working logs</span>
+        </div>
+      `;
+
+      try {
+        await fetch('/api/switch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ conv_id: activeConvId })
+        });
+      } catch (err) {
+        console.warn("Switch notification notice:", err);
+      }
+
+      await fetchConversationDetails(activeConvId);
+      scrollToChatBottom();
+    });
+
+    autoListenToggle.addEventListener("change", (e) => {
+      autoListen = e.target.checked;
+      document.getElementById("autoListenTag").innerText = autoListen ? "auto-listen on" : "auto-listen off";
+      document.getElementById("autoListenTag").className = autoListen ? "text-emerald-400 font-mono lowercase" : "text-slate-500 font-mono lowercase";
+      setOrbState('idle');
+    });
+
+    textForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const val = textInput.value.trim();
+      if (val) {
+        sendVoiceCommand(val);
+        textInput.value = "";
+      }
+    });
+
+    chatForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const val = chatInput.value.trim();
+      if (val || currentAttachedImages.length > 0) {
+        sendVoiceCommand(val || "Process attached images");
+        chatInput.value = "";
+        updateChatActionState();
+      }
+    });
+
+    chatInput.addEventListener("input", () => {
+      updateChatActionState();
+    });
+
+    // Speaker Mute UI and Toggles
+    function updateSpeakerUI() {
+      if (isSpeakerMuted) {
+        if (speakerMuteIcon) speakerMuteIcon.innerText = "MUTED";
+        if (speakerMuteBtn) {
+          speakerMuteBtn.classList.add("text-[#888888]", "border-[#333333]");
+          speakerMuteBtn.title = "Unmute Phone Voice Output";
+        }
+      } else {
+        if (speakerMuteIcon) speakerMuteIcon.innerText = "AUDIO";
+        if (speakerMuteBtn) {
+          speakerMuteBtn.classList.remove("text-[#888888]", "border-[#333333]");
+          speakerMuteBtn.title = "Mute Phone Voice Output";
+        }
+      }
+    }
+
+    if (speakerMuteBtn) {
+      speakerMuteBtn.addEventListener("click", () => {
+        isSpeakerMuted = !isSpeakerMuted;
+        localStorage.setItem("voicefi_speaker_muted", isSpeakerMuted);
+        updateSpeakerUI();
+        if (isSpeakerMuted && isSpeaking) {
+          if (ttsAudio) ttsAudio.pause();
+          if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+          isSpeaking = false;
+          setOrbState('idle');
+        }
+        showToast(isSpeakerMuted ? "Phone voice muted" : "Phone voice active", 2000);
+      });
+    }
+
+    if (audioRoutingSelect) {
+      audioRoutingSelect.value = audioRoutingMode;
+      audioRoutingSelect.addEventListener("change", async (e) => {
+        audioRoutingMode = e.target.value;
+        localStorage.setItem("voicefi_audio_routing", audioRoutingMode);
+        try {
+          await fetch('/api/config/audio_routing', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ audio_routing: audioRoutingMode })
+          });
+          showToast(`Audio Routing: ${e.target.options[e.target.selectedIndex].text}`, 2000);
+        } catch (err) {
+          console.warn("Error saving audio routing mode:", err);
+        }
+      });
+    }
+
+    wakeLockBtn.addEventListener("click", () => {
+      if (wakeLock) {
+        wakeLock.release();
+        wakeLock = null;
+      } else {
+        requestWakeLock();
+      }
+    });
+
+    // PWA Service Worker Registration
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW Registration notice:', err));
+    }
+
+    // Antigravity Zero-G Theme Management
+    let currentAgTheme = localStorage.getItem("voicefi_ag_theme") || "google";
+    const agThemes = ["google", "monochrome", "broadcast"];
+
+    function updateAgThemeUI() {
+      const dot = document.getElementById("agThemeDot");
+      const text = document.getElementById("agThemeText");
+      if (!dot || !text) return;
+      if (currentAgTheme === "google") {
+        dot.className = "w-1.5 h-1.5 rounded-full bg-blue-500";
+        text.innerText = "AG";
+      } else if (currentAgTheme === "monochrome") {
+        dot.className = "w-1.5 h-1.5 rounded-full bg-white";
+        text.innerText = "MONO";
+      } else if (currentAgTheme === "broadcast") {
+        dot.className = "w-1.5 h-1.5 rounded-full bg-red-500";
+        text.innerText = "AIR";
+      }
+      if (window.bgField) {
+        window.bgField.setTheme(currentAgTheme);
+      }
+    }
+
+    const agThemeBtn = document.getElementById("agThemeBtn");
+    if (agThemeBtn) {
+      agThemeBtn.addEventListener("click", () => {
+        const nextIndex = (agThemes.indexOf(currentAgTheme) + 1) % agThemes.length;
+        currentAgTheme = agThemes[nextIndex];
+        localStorage.setItem("voicefi_ag_theme", currentAgTheme);
+        updateAgThemeUI();
+        if (window.bgField) window.bgField.pulse(1.2);
+        showToast(`Theme: ${currentAgTheme.toUpperCase()}`, 1500);
+      });
+    }
+
+    // Initialize - Default to Chat & History view for instant visibility
+    async function initApp() {
+      // Mount Antigravity Zero-G Particle Field
+      try {
+        const canvas = document.getElementById('bgAntigravityCanvas');
+        if (canvas && typeof AntigravityField !== 'undefined') {
+          window.bgField = new AntigravityField(canvas, {
+            theme: currentAgTheme,
+            particleCount: 60,
+            dustCount: 75,
+            connectionDistance: 120,
+            repulsionRadius: 140,
+            repulsionStrength: 1.4,
+            buoyancy: -0.012,
+            glowEnabled: true,
+            connectConstellations: true,
+          });
+        }
+      } catch (err) {
+        console.warn("Antigravity background initialization:", err);
+      }
+
+      updateAgThemeUI();
+      updateSpeakerUI();
+      updateMicSourceUI();
+      switchView('chat');
+      connectWebSocket();
+
+      // 1. Attach Screen & Media Quick Action Buttons
+      document.getElementById("macScreenshotBtn")?.addEventListener("click", captureMacScreenshot);
+      document.getElementById("chatMacScreenshotBtn")?.addEventListener("click", captureMacScreenshot);
+      document.getElementById("phoneScreenshotBtn")?.addEventListener("click", capturePhoneScreenshot);
+      document.getElementById("chatPhoneScreenshotBtn")?.addEventListener("click", capturePhoneScreenshot);
+
+      // 2. Direct Camera & Gallery Inputs
+      document.getElementById("chatDirectCameraBtn")?.addEventListener("click", () => {
+        document.getElementById("phoneCameraDirectInput")?.click();
+      });
+      document.getElementById("chatCameraBtn")?.addEventListener("click", () => {
+        document.getElementById("phoneCameraInput")?.click();
+      });
+      document.getElementById("chatGalleryBtn")?.addEventListener("click", () => {
+        document.getElementById("phoneCameraInput")?.click();
+      });
+
+      // 3. Multi-File Selection Listeners
+      const phoneCameraInput = document.getElementById("phoneCameraInput");
+      if (phoneCameraInput) {
+        phoneCameraInput.addEventListener("change", (e) => {
+          handleMultiFileSelection(e.target.files);
+          phoneCameraInput.value = "";
+        });
+      }
+      const phoneCameraDirectInput = document.getElementById("phoneCameraDirectInput");
+      if (phoneCameraDirectInput) {
+        phoneCameraDirectInput.addEventListener("change", (e) => {
+          handleMultiFileSelection(e.target.files);
+          phoneCameraDirectInput.value = "";
+        });
+      }
+
+      // 4. Quick Actions Tray Toggle (+)
+      const attachToggleBtn = document.getElementById("chatAttachToggleBtn");
+      const quickTray = document.getElementById("quickActionsTray");
+      const attachPlusIcon = document.getElementById("chatAttachPlusIcon");
+      if (attachToggleBtn && quickTray) {
+        attachToggleBtn.addEventListener("click", () => {
+          const isHidden = quickTray.classList.contains("hidden");
+          quickTray.classList.toggle("hidden", !isHidden);
+          if (attachPlusIcon) {
+            attachPlusIcon.classList.toggle("rotate-45", isHidden);
+          }
+        });
+      }
+
+      // 5. Emoji / Quick Prompts Shortcut
+      document.getElementById("chatEmojiBtn")?.addEventListener("click", () => {
+        const quickPrompts = [
+          "Review these changes and verify",
+          "Run pytest unit tests",
+          "Explain what this code is doing",
+          "Proceed with the next step in the plan"
+        ];
+        const randomPrompt = quickPrompts[Math.floor(Math.random() * quickPrompts.length)];
+        const input = document.getElementById("chatInput");
+        if (input) {
+          input.value = input.value ? `${input.value} ${randomPrompt}` : randomPrompt;
+          input.focus();
+          updateChatActionState();
+        }
+      });
+
+      // 6. Dynamic Main Action Button (Mic / Send)
+      document.getElementById("chatMainActionBtn")?.addEventListener("click", () => {
+        const input = document.getElementById("chatInput");
+        const hasText = input && input.value.trim().length > 0;
+        const hasAttachments = currentAttachedImages.length > 0;
+
+        if (hasText || hasAttachments) {
+          chatForm.dispatchEvent(new Event('submit', { cancelable: true }));
+        } else {
+          initAudioContext();
+          if (isListening) {
+            stopListening();
+          } else {
+            if (micSource === 'mac') {
+              startMacRecording();
+            } else {
+              startListening();
+            }
+          }
+        }
+      });
+
+      document.getElementById("macMicBtn")?.addEventListener("click", () => {
+        initAudioContext();
+        if (isListening) {
+          stopListening();
+        } else {
+          startMacRecording();
+        }
+      });
+
+      document.getElementById("voiceRemoveAttachedBtn")?.addEventListener("click", clearAllAttachedImages);
+      document.getElementById("micSourceToggleBtn")?.addEventListener("click", toggleMicSource);
+
+      // Wire HTTPS redirect button
+      const httpsBtn = document.getElementById("httpsRedirectBtn");
+      if (httpsBtn) {
+        httpsBtn.addEventListener("click", (e) => {
+          e.preventDefault();
+          const httpsPort = location.port ? (parseInt(location.port) === 8765 ? 8766 : parseInt(location.port) + 1) : 8766;
+          window.location.href = `https://${location.hostname}:${httpsPort}/`;
+        });
+      }
+      if (!window.isSecureContext && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+        const banner = document.getElementById("httpsPromptBanner");
+        if (banner) banner.classList.remove("hidden");
+      }
+
+      // Sync backend audio routing config if available
+      try {
+        const res = await fetch('/api/config/audio_routing');
+        if (res.ok) {
+          const cfg = await res.json();
+          if (cfg.audio_routing) {
+            const savedLocal = localStorage.getItem("voicefi_audio_routing");
+            if (!savedLocal) {
+              audioRoutingMode = cfg.audio_routing;
+              if (audioRoutingSelect) audioRoutingSelect.value = audioRoutingMode;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("Initial audio routing fetch notice:", err);
+      }
+      // Dynamic Visual Viewport & Keyboard Resizing for Mobile
+      if (window.visualViewport) {
+        const handleVisualViewportResize = () => {
+          const vvHeight = window.visualViewport.height;
+          document.documentElement.style.setProperty('--app-height', `${vvHeight}px`);
+          document.body.style.height = `${vvHeight}px`;
+          
+          if (document.activeElement === chatInput) {
+            setTimeout(() => {
+              chatInput.scrollIntoView({ block: 'nearest' });
+              const container = document.getElementById("turnsContainer");
+              if (container) container.scrollTop = container.scrollHeight;
+            }, 50);
+          }
+        };
+        window.visualViewport.addEventListener('resize', handleVisualViewportResize);
+        window.visualViewport.addEventListener('scroll', handleVisualViewportResize);
+        handleVisualViewportResize();
+      }
+
+      // Input Focus Auto-Scroll to guarantee input is completely visible above keyboard
+      if (chatInput) {
+        chatInput.addEventListener('focus', () => {
+          setTimeout(() => {
+            if (window.visualViewport) {
+              const vvHeight = window.visualViewport.height;
+              document.documentElement.style.setProperty('--app-height', `${vvHeight}px`);
+              document.body.style.height = `${vvHeight}px`;
+            }
+            chatInput.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            const container = document.getElementById("turnsContainer");
+            if (container) container.scrollTop = container.scrollHeight;
+          }, 100);
+        });
+      }
+    }
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", initApp);
+    } else {
+      initApp();
+    }
+  </script>
+</body>
+</html>

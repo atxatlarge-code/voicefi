@@ -4,8 +4,8 @@ Unit tests for voice catalog, agent persona resolution, and CLI voice management
 
 from unittest.mock import patch, MagicMock
 import pytest
-from voicegency.config import VoicegencyConfig, AgentVoiceProfile
-from voicegency.tts import (
+from voicefi.config import VoiceFiConfig, AgentVoiceProfile
+from voicefi.tts import (
     get_tts_engine,
     find_persona,
     get_curated_personas,
@@ -13,7 +13,7 @@ from voicegency.tts import (
     MacSayTTS,
     EdgeTTS,
 )
-from voicegency.cli import cmd_voice
+from voicefi.cli import cmd_voice
 
 
 def test_persona_lookup():
@@ -32,8 +32,8 @@ def test_persona_lookup():
 
 
 def test_agent_voice_resolution():
-    """Test resolve_voice logic in VoicegencyConfig."""
-    cfg = VoicegencyConfig()
+    """Test resolve_voice logic in VoiceFiConfig."""
+    cfg = VoiceFiConfig()
     cfg.tts.voice = "Samantha"
     cfg.tts.provider = "mac_say"
 
@@ -70,7 +70,7 @@ def test_agent_voice_resolution():
 
 def test_get_tts_engine_with_agent_name():
     """Test get_tts_engine instantiation with agent mapping."""
-    cfg = VoicegencyConfig()
+    cfg = VoiceFiConfig()
     cfg.subagents["debugger"] = AgentVoiceProfile(
         voice="en-US-AriaNeural",
         provider="edge_tts",
@@ -107,7 +107,7 @@ def test_cmd_voice_cli_get(capsys):
 
 def test_unfocused_agent_voice_resolution():
     """Test resolve_voice when is_focused=False."""
-    cfg = VoicegencyConfig()
+    cfg = VoiceFiConfig()
     cfg.tts.provider = "mac_say"
     cfg.tts.voice = "Samantha"
 
@@ -131,7 +131,7 @@ def test_unfocused_agent_voice_resolution():
 
 def test_rate_normalization():
     """Test rate normalization across EdgeTTS and MacSayTTS."""
-    from voicegency.tts import normalize_edge_rate, normalize_mac_rate
+    from voicefi.tts import normalize_edge_rate, normalize_mac_rate
 
     # 75% speed
     assert normalize_edge_rate("75%") == "-25%"
@@ -164,7 +164,7 @@ def test_cmd_voice_cli_speed(capsys):
     args.agent = None
     args.config = None
 
-    with patch("voicegency.cli.save_config") as mock_save:
+    with patch("voicefi.cli.save_config") as mock_save:
         cmd_voice(args)
         captured = capsys.readouterr()
         assert "75% (150 WPM)" in captured.out

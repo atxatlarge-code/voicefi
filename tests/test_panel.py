@@ -7,18 +7,18 @@ import urllib.request
 from unittest.mock import patch, MagicMock
 import pytest
 
-from voicegency.config import VoicegencyConfig, AgentVoiceProfile
-from voicegency.ui.panel import (
+from voicefi.config import VoiceFiConfig, AgentVoiceProfile
+from voicefi.ui.panel import (
     parse_voice_command,
     get_current_system_state,
     start_panel_server,
 )
-from voicegency.cli import cmd_panel, cmd_voice
+from voicefi.cli import cmd_panel, cmd_voice
 
 
 def test_parse_voice_command_audition():
     """Test voice command parsing for audition intents."""
-    cfg = VoicegencyConfig()
+    cfg = VoiceFiConfig()
 
     res1 = parse_voice_command("Audition Christopher", cfg)
     assert res1["action"] == "audition"
@@ -37,7 +37,7 @@ def test_parse_voice_command_audition():
 
 def test_parse_voice_command_assignment():
     """Test voice command parsing for agent and subagent assignment."""
-    cfg = VoicegencyConfig()
+    cfg = VoiceFiConfig()
 
     # Antigravity (main agent)
     res1 = parse_voice_command("Set voice to Christopher", cfg)
@@ -63,7 +63,7 @@ def test_parse_voice_command_assignment():
 
 def test_parse_voice_command_speed_and_stop():
     """Test rate adjustments and stop commands."""
-    cfg = VoicegencyConfig()
+    cfg = VoiceFiConfig()
     cfg.tts.rate = 200
 
     # Speed up
@@ -91,7 +91,7 @@ def test_parse_voice_command_speed_and_stop():
     assert cfg.tts.rate == 180
 
     # Stop
-    with patch("voicegency.ui.panel.stop_all_speech") as mock_stop:
+    with patch("voicefi.ui.panel.stop_all_speech") as mock_stop:
         res_stop = parse_voice_command("Stop talking", cfg)
         assert res_stop["action"] == "stop"
         mock_stop.assert_called_once()
@@ -99,14 +99,14 @@ def test_parse_voice_command_speed_and_stop():
 
 def test_parse_voice_command_showcase():
     """Test team showcase voice command."""
-    cfg = VoicegencyConfig()
+    cfg = VoiceFiConfig()
     res = parse_voice_command("Play team showcase", cfg)
     assert res["action"] == "showcase"
 
 
 def test_get_current_system_state():
     """Test compiling system state for frontend UI."""
-    cfg = VoicegencyConfig()
+    cfg = VoiceFiConfig()
     cfg.agents["antigravity"] = AgentVoiceProfile(
         voice="en-US-ChristopherNeural",
         provider="edge_tts",
@@ -125,7 +125,7 @@ def test_get_current_system_state():
 
 def test_panel_rest_api():
     """Test running local HTTP server and querying endpoints."""
-    cfg = VoicegencyConfig()
+    cfg = VoiceFiConfig()
     srv, port = start_panel_server(port=9876, config=cfg)
     base_url = f"http://127.0.0.1:{port}"
 
@@ -133,8 +133,8 @@ def test_panel_rest_api():
     with urllib.request.urlopen(f"{base_url}/") as response:
         assert response.status == 200
         html = response.read().decode("utf-8")
-        assert "Voicegency Control Panel" in html
-        assert "Curated Acoustic Personas" in html
+        assert "VoiceFi Control Panel" in html
+        assert "Curated Personas" in html
 
     # 2. GET /api/state
     with urllib.request.urlopen(f"{base_url}/api/state") as response:
@@ -183,7 +183,7 @@ def test_panel_rest_api():
 
 def test_cli_panel_argument():
     """Test CLI argument parsing and execution for panel."""
-    with patch("voicegency.ui.panel.open_control_panel") as mock_open:
+    with patch("voicefi.ui.panel.open_control_panel") as mock_open:
         mock_open.return_value = "http://localhost:8765"
         with patch("time.sleep", side_effect=KeyboardInterrupt):
             args = MagicMock()
@@ -204,7 +204,7 @@ def test_cli_voice_command():
     args.command_text = ["audition", "Christopher"]
     args.config = None
 
-    with patch("voicegency.cli.get_tts_engine") as mock_get_engine:
+    with patch("voicefi.cli.get_tts_engine") as mock_get_engine:
         mock_engine = MagicMock()
         mock_get_engine.return_value = mock_engine
         cmd_voice(args)
@@ -218,8 +218,8 @@ def test_cli_voice_command_assignment_feedback():
     args.command_text = ["set", "voice", "to", "Christopher"]
     args.config = None
 
-    with patch("voicegency.cli.get_tts_engine") as mock_get_engine, \
-         patch("voicegency.ui.panel.save_config"):
+    with patch("voicefi.cli.get_tts_engine") as mock_get_engine, \
+         patch("voicefi.ui.panel.save_config"):
         mock_engine = MagicMock()
         mock_get_engine.return_value = mock_engine
         cmd_voice(args)
@@ -231,8 +231,8 @@ def test_cli_voice_command_assignment_feedback():
 
 def test_cli_speak_agent_resolution():
     """Test 'vg speak' command resolves agent voice properly."""
-    from voicegency.cli import cmd_speak
-    from voicegency.config import VoicegencyConfig, AgentVoiceProfile
+    from voicefi.cli import cmd_speak
+    from voicefi.config import VoiceFiConfig, AgentVoiceProfile
 
     args = MagicMock()
     args.text = ["Hello", "world"]
@@ -241,11 +241,11 @@ def test_cli_speak_agent_resolution():
     args.provider = None
     args.config = None
 
-    mock_cfg = VoicegencyConfig()
+    mock_cfg = VoiceFiConfig()
     mock_cfg.agents["antigravity"] = AgentVoiceProfile(voice="en-US-ChristopherNeural", provider="edge_tts")
 
-    with patch("voicegency.cli.load_config", return_value=mock_cfg), \
-         patch("voicegency.cli.get_tts_engine") as mock_get_engine:
+    with patch("voicefi.cli.load_config", return_value=mock_cfg), \
+         patch("voicefi.cli.get_tts_engine") as mock_get_engine:
         mock_engine = MagicMock()
         mock_engine.voice = "en-US-ChristopherNeural"
         mock_get_engine.return_value = mock_engine

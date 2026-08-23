@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <!-- Pure Stark White Canvas -->
+  <rect width="512" height="512" fill="#FFFFFF"/>
+
+  <!-- Technical Border Frame -->
+  <rect x="36" y="36" width="440" height="440" fill="none" stroke="#EAEAEA" stroke-width="1.5"/>
+  <path d="M 256 20 V 36 M 256 476 V 492 M 20 256 H 36 M 476 256 H 492" stroke="#CCCCCC" stroke-width="1.5"/>
+
+  <!-- Technical Header -->
+  <text x="52" y="58" fill="#000000" font-family="'JetBrains Mono', monospace" font-size="11" font-weight="900" letter-spacing="1.5">RE20-A // YOKE &amp; VARIABLE-D</text>
+  <rect x="254" y="48" width="76" height="14" fill="#FF2A2A"/>
+  <text x="292" y="59" fill="#FFFFFF" font-family="'JetBrains Mono', monospace" font-size="8.5" font-weight="900" text-anchor="middle" letter-spacing="1">● ON AIR</text>
+  <text x="460" y="58" fill="#888888" font-family="'JetBrains Mono', monospace" font-size="10" font-weight="700" text-anchor="end">BROADCAST</text>
+
+  <!-- THE RE20 BROADCAST MIC V/A MARK -->
+  <g id="re20MarkA" transform="translate(0, 10)">
+    
+    <!-- OUTER BROADCAST YOKE FRAME (The 'V' Structure) -->
+    <!-- Left Yoke Arm -->
+    <path d="M 108 140 L 140 140 L 224 370 L 192 370 Z" fill="#000000"/>
+    <!-- Right Yoke Arm -->
+    <path d="M 404 140 L 372 140 L 288 370 L 320 370 Z" fill="#000000"/>
+    
+    <!-- Yoke Pivot Knobs (Left & Right Side Studs) -->
+    <rect x="96" y="196" width="16" height="28" rx="2" fill="#000000"/>
+    <rect x="400" y="196" width="16" height="28" rx="2" fill="#000000"/>
+
+    <!-- INNER BROADCAST CAPSULE (The 'A' Structure Rising Up) -->
+    <!-- Top Grille Dome (Pill Cap) -->
+    <path d="M 188 100 C 188 56, 324 56, 324 100 Z" fill="#000000"/>
+    <rect x="208" y="74" width="96" height="8" fill="#FF2A2A"/>
+
+    <!-- Central Cylindrical Body -->
+    <rect x="188" y="104" width="136" height="180" fill="#000000"/>
+
+    <!-- RE20 Variable-D Horizontal Acoustic Ventilation Louvers (Negative White Cuts) -->
+    <g fill="#FFFFFF">
+      <rect x="204" y="116" width="104" height="8" rx="2"/>
+      <rect x="204" y="132" width="104" height="8" rx="2"/>
+      <rect x="204" y="148" width="104" height="8" rx="2"/>
+      <rect x="204" y="164" width="104" height="8" rx="2"/>
+      <rect x="204" y="180" width="104" height="8" rx="2"/>
+      <rect x="204" y="196" width="104" height="8" rx="2"/>
+    </g>
+
+    <!-- THE HORIZONTAL 'A' CROSSBAR / RE20 SHOCKMOUNT CLAMP (Studio Red) -->
+    <rect x="140" y="210" width="232" height="20" fill="#000000"/>
+    <rect x="148" y="214" width="216" height="12" fill="#FF2A2A"/>
+
+    <!-- Central Dynamic Diaphragm Core (Live Red Capsule with Gold Center) -->
+    <circle cx="256" cy="254" r="22" fill="#FFFFFF" stroke="#000000" stroke-width="4"/>
+    <circle cx="256" cy="254" r="14" fill="#FF2A2A" stroke="#000000" stroke-width="2"/>
+    <circle cx="256" cy="254" r="5" fill="#FFD166"/>
+
+    <!-- Lower Body Taper & XLR Ground Mount -->
+    <polygon points="204,284 308,284 284,350 228,350" fill="#000000"/>
+    <circle cx="256" cy="392" r="12" fill="#000000"/>
+    <rect x="238" y="416" width="36" height="14" fill="#000000"/>
+    <rect x="248" y="430" width="16" height="6" fill="#FF2A2A"/>
+  </g>
+
+  <!-- Technical Footer -->
+  <text x="52" y="462" fill="#888888" font-family="'JetBrains Mono', monospace" font-size="10" font-weight="700">RE20 YOKE SUSPENSION</text>
+  <text x="460" y="462" fill="#000000" font-family="'JetBrains Mono', monospace" font-size="10" font-weight="900" text-anchor="end">[YOKE = V // BODY = A]</text>
+</svg>

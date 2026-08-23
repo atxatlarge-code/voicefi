@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-black text-white">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VoiceFi • Pair Mobile Companion</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+  </style>
+</head>
+<body class="h-full flex flex-col items-center justify-center p-6 bg-black text-white relative overflow-auto">
+  
+  <div class="max-w-md w-full bg-[#0d0d0d] border border-[#222222] rounded-3xl p-8 shadow-2xl space-y-6 text-center">
+    
+    <!-- Logo & Header -->
+    <div class="flex items-center justify-center gap-3">
+      <div class="w-10 h-10 flex items-center justify-center">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="68 68 376 388" class="w-full h-full object-contain">
+          <defs>
+            <linearGradient id="vfPairLogoRed" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#FF3B30" />
+              <stop offset="50%" stop-color="#FF2A2A" />
+              <stop offset="100%" stop-color="#E0002A" />
+            </linearGradient>
+          </defs>
+          <g transform="translate(0, 5)">
+            <g stroke="url(#vfPairLogoRed)" stroke-linecap="round" fill="none">
+              <path d="M 152 145 A 120 120 0 0 1 360 145" stroke-width="26" />
+              <path d="M 184 180 A 80 80 0 0 1 328 180" stroke-width="24" />
+              <path d="M 216 215 A 42 42 0 0 1 296 215" stroke-width="22" />
+            </g>
+            <g stroke="#FFFFFF" stroke-width="14" stroke-linecap="round">
+              <line x1="202" y1="262" x2="234" y2="262" />
+              <line x1="278" y1="262" x2="310" y2="262" />
+            </g>
+            <rect x="236" y="276" width="40" height="18" rx="9" fill="#000000" stroke="#FF2A2A" stroke-width="4" />
+            <line x1="246" y1="285" x2="266" y2="285" stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round" />
+            <path d="M 228 322 Q 256 348 284 322" fill="none" stroke="#FF2A2A" stroke-width="8" stroke-linecap="round" />
+            <path d="M 124 220 C 124 350, 175 385, 256 385 C 337 385, 388 350, 388 220" fill="none" stroke="#FFFFFF" stroke-width="20" stroke-linecap="round" />
+            <g>
+              <rect x="108" y="202" width="32" height="34" rx="7" fill="#000000" stroke="#FFFFFF" stroke-width="4.5" />
+              <circle cx="124" cy="219" r="5.5" fill="#FF2A2A" />
+              <rect x="372" y="202" width="32" height="34" rx="7" fill="#000000" stroke="#FFFFFF" stroke-width="4.5" />
+              <circle cx="388" cy="219" r="5.5" fill="#FF2A2A" />
+            </g>
+            <line x1="256" y1="385" x2="256" y2="435" stroke="#FFFFFF" stroke-width="22" stroke-linecap="round" />
+            <line x1="185" y1="435" x2="327" y2="435" stroke="#FFFFFF" stroke-width="22" stroke-linecap="round" />
+          </g>
+        </svg>
+      </div>
+      <h1 class="text-xl font-extrabold tracking-tight font-sans">
+        Voice<span class="text-[#FF2A2A]">Fi</span> Mobile Companion
+      </h1>
+    </div>
+
+    <p class="text-xs text-zinc-400">
+      Point your iPhone or Android camera at the QR code below to connect to your Mac:
+    </p>
+
+    <!-- QR Code Container -->
+    <div class="flex justify-center p-3 bg-white rounded-2xl shadow-xl max-w-[240px] mx-auto border-4 border-[#1c1c1c]">
+      <img id="qrCodeImg" src="" alt="Pairing QR Code" class="w-52 h-52 object-contain">
+    </div>
+
+    <!-- Direct URL Box with Copy Button -->
+    <div class="space-y-2 text-left">
+      <label class="text-[10px] font-mono text-zinc-400 uppercase tracking-wider block text-center">Direct Wi-Fi Link</label>
+      <div class="bg-[#141414] border border-[#27272a] rounded-xl p-3 flex items-center justify-between gap-2 shadow-inner">
+        <span id="directUrlText" class="font-mono text-sm font-bold text-white truncate select-all">Loading...</span>
+        <button id="copyBtn" class="px-3 py-1.5 bg-white hover:bg-zinc-200 text-black text-xs font-bold rounded-lg mono transition active:scale-95 cursor-pointer shrink-0">
+          COPY
+        </button>
+      </div>
+    </div>
+
+    <!-- Live Connection Status Pill -->
+    <div id="connStatusBox" class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#141414] border border-[#27272a] text-xs font-mono text-zinc-400">
+      <span id="connDot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+      <span id="connLabel">Waiting for mobile device...</span>
+    </div>
+
+    <!-- Action Shortcuts -->
+    <div class="grid grid-cols-2 gap-2 pt-2 border-t border-[#1c1c1c]">
+      <a href="/" class="py-2.5 px-3 bg-[#18181b] hover:bg-[#222222] border border-[#27272a] rounded-xl text-xs font-bold text-zinc-200 transition text-center flex items-center justify-center gap-1.5">
+        <span>🖥️</span> <span>Open on Mac</span>
+      </a>
+      <a href="/studio" class="py-2.5 px-3 bg-[#18181b] hover:bg-[#222222] border border-[#27272a] rounded-xl text-xs font-bold text-zinc-200 transition text-center flex items-center justify-center gap-1.5">
+        <span>🎙️</span> <span>Ambient Studio</span>
+      </a>
+    </div>
+
+    <!-- PWA Install Tip -->
+    <div class="text-[11px] text-zinc-400 text-left bg-[#121214] p-3 rounded-xl border border-[#202024] space-y-1">
+      <p class="font-semibold text-zinc-300">💡 Mobile Tip:</p>
+      <p>• <strong>iOS Safari:</strong> Tap the <em>Share</em> button &rarr; <em>Add to Home Screen</em>.</p>
+      <p>• <strong>Android Chrome:</strong> Tap the <em>Three Dots</em> &rarr; <em>Install App</em>.</p>
+    </div>
+
+  </div>
+
+  <script>
+    const qrCodeImg = document.getElementById('qrCodeImg');
+    const directUrlText = document.getElementById('directUrlText');
+    const copyBtn = document.getElementById('copyBtn');
+    const connDot = document.getElementById('connDot');
+    const connLabel = document.getElementById('connLabel');
+
+    async function loadQrInfo() {
+      try {
+        const res = await fetch('/api/qr');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.qr_data_uri) {
+            qrCodeImg.src = data.qr_data_uri;
+          }
+          const url = data.urls?.ip_url || `http://${window.location.hostname}:8765`;
+          directUrlText.innerText = url;
+        }
+      } catch (e) {
+        directUrlText.innerText = `http://${window.location.hostname}:8765`;
+      }
+    }
+
+    copyBtn.addEventListener('click', () => {
+      const text = directUrlText.innerText;
+      navigator.clipboard?.writeText(text).then(() => {
+        copyBtn.innerText = 'COPIED!';
+        setTimeout(() => copyBtn.innerText = 'COPY', 2000);
+      });
+    });
+
+    // Check status periodically for phone connection
+    async function checkStatus() {
+      try {
+        const res = await fetch('/api/status');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.connected_clients > 0) {
+            connDot.className = 'w-2 h-2 rounded-full bg-emerald-400';
+            connLabel.innerText = `📱 ${data.connected_clients} Client(s) Connected!`;
+            connLabel.className = 'text-emerald-300 font-bold';
+          } else {
+            connDot.className = 'w-2 h-2 rounded-full bg-amber-400 animate-pulse';
+            connLabel.innerText = 'Waiting for mobile device...';
+            connLabel.className = 'text-zinc-400';
+          }
+        }
+      } catch (e) {}
+    }
+
+    loadQrInfo();
+    checkStatus();
+    setInterval(checkStatus, 2000);
+  </script>
+</body>
+</html>

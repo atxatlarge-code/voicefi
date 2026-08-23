@@ -11,8 +11,8 @@ import numpy as np
 import pytest
 import soundfile as sf
 
-from voicegency.config import VoicegencyConfig
-from voicegency.tts import (
+from voicefi.config import VoiceFiConfig
+from voicefi.tts import (
     ElevenLabsTTS,
     VoiceCloneManager,
     analyze_audio_acoustics,
@@ -22,7 +22,7 @@ from voicegency.tts import (
     get_tts_engine,
     list_all_available_voices,
 )
-from voicegency.cli import cmd_clone
+from voicefi.cli import cmd_clone
 
 
 @pytest.fixture
@@ -118,7 +118,7 @@ def test_voice_clone_manager_train_elevenlabs(temp_clones_dir, synthetic_wav_sam
     """Test ElevenLabs IVC training flow with mocked API response."""
     manager = VoiceCloneManager(root_dir=temp_clones_dir)
 
-    with patch("voicegency.tts.elevenlabs.ElevenLabsTTS.add_voice") as mock_add:
+    with patch("voicefi.tts.elevenlabs.ElevenLabsTTS.add_voice") as mock_add:
         mock_add.return_value = {"voice_id": "eleven_custom_voice_123"}
 
         profile = manager.train_voice(
@@ -142,7 +142,7 @@ def test_assign_cloned_voice_to_agent(temp_clones_dir, synthetic_wav_samples):
         sample_paths=synthetic_wav_samples,
     )
 
-    config = VoicegencyConfig()
+    config = VoiceFiConfig()
     tgt, vid = manager.assign_to_agent("JakeAssign", "antigravity", config)
     assert tgt == "antigravity"
     assert config.agents["antigravity"].voice == profile.calibrated_voice
@@ -159,7 +159,7 @@ def test_assign_cloned_voice_to_agent(temp_clones_dir, synthetic_wav_samples):
 
 def test_catalog_find_and_list_cloned(temp_clones_dir, synthetic_wav_samples):
     """Test that cloned voices appear in find_persona and list_all_available_voices."""
-    with patch("voicegency.tts.cloning.get_clones_dir", return_value=temp_clones_dir):
+    with patch("voicefi.tts.cloning.get_clones_dir", return_value=temp_clones_dir):
         manager = VoiceCloneManager(root_dir=temp_clones_dir)
         manager.train_voice("JakeCatalog", synthetic_wav_samples)
 
@@ -176,11 +176,11 @@ def test_catalog_find_and_list_cloned(temp_clones_dir, synthetic_wav_samples):
 
 def test_get_tts_engine_with_cloned_voice(temp_clones_dir, synthetic_wav_samples):
     """Test get_tts_engine resolution when configured with a cloned voice."""
-    with patch("voicegency.tts.cloning.get_clones_dir", return_value=temp_clones_dir):
+    with patch("voicefi.tts.cloning.get_clones_dir", return_value=temp_clones_dir):
         manager = VoiceCloneManager(root_dir=temp_clones_dir)
         profile = manager.train_voice("JakeEngine", synthetic_wav_samples)
 
-        config = VoicegencyConfig()
+        config = VoiceFiConfig()
         manager.assign_to_agent("JakeEngine", "antigravity", config)
 
         engine = get_tts_engine(config, agent_name="antigravity")
@@ -189,7 +189,7 @@ def test_get_tts_engine_with_cloned_voice(temp_clones_dir, synthetic_wav_samples
 
 def test_cli_cmd_clone_list(temp_clones_dir, synthetic_wav_samples, capsys):
     """Test CLI 'vg clone list' output."""
-    with patch("voicegency.tts.cloning.get_clones_dir", return_value=temp_clones_dir):
+    with patch("voicefi.tts.cloning.get_clones_dir", return_value=temp_clones_dir):
         manager = VoiceCloneManager(root_dir=temp_clones_dir)
         manager.train_voice("JakeCLI", synthetic_wav_samples)
 
@@ -205,7 +205,7 @@ def test_cli_cmd_clone_list(temp_clones_dir, synthetic_wav_samples, capsys):
 
 def test_cli_cmd_clone_delete(temp_clones_dir, synthetic_wav_samples, capsys):
     """Test CLI 'vg clone delete' command."""
-    with patch("voicegency.tts.cloning.get_clones_dir", return_value=temp_clones_dir):
+    with patch("voicefi.tts.cloning.get_clones_dir", return_value=temp_clones_dir):
         manager = VoiceCloneManager(root_dir=temp_clones_dir)
         manager.train_voice("JakeDelete", synthetic_wav_samples)
         assert manager.get_cloned_voice("JakeDelete") is not None

@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <!-- Refinement B: 5-Rib Acoustic Diaphragm Core -->
+  <defs>
+    <linearGradient id="refBBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#070C18" />
+      <stop offset="50%" stop-color="#0E172A" />
+      <stop offset="100%" stop-color="#03060C" />
+    </linearGradient>
+    <linearGradient id="refBWifi" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38BDF8" />
+      <stop offset="50%" stop-color="#818CF8" />
+      <stop offset="100%" stop-color="#C084FC" />
+    </linearGradient>
+    <linearGradient id="refBWave" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#6366F1" />
+      <stop offset="50%" stop-color="#38BDF8" />
+      <stop offset="100%" stop-color="#FFFFFF" />
+    </linearGradient>
+    <filter id="refBGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <rect width="512" height="512" rx="112" fill="url(#refBBg)" />
+  <rect width="510" height="510" x="1" y="1" rx="111" fill="none" stroke="#334155" stroke-width="2" stroke-opacity="0.4" />
+
+  <g transform="translate(0, 15)">
+    <!-- Wi-Fi Arcs -->
+    <path d="M 148 165 A 130 130 0 0 1 364 165" fill="none" stroke="url(#refBWifi)" stroke-width="18" stroke-linecap="round" filter="url(#refBGlow)" />
+    <path d="M 184 208 A 88 88 0 0 1 328 208" fill="none" stroke="url(#refBWifi)" stroke-width="16" stroke-linecap="round" />
+    <path d="M 218 250 A 46 46 0 0 1 294 250" fill="none" stroke="url(#refBWifi)" stroke-width="15" stroke-linecap="round" />
+
+    <!-- 5-Rib Acoustic Diaphragm Core -->
+    <g stroke-linecap="round" filter="url(#refBGlow)">
+      <line x1="208" y1="265" x2="208" y2="295" stroke="#38BDF8" stroke-width="9" />
+      <line x1="232" y1="235" x2="232" y2="315" stroke="url(#refBWave)" stroke-width="11" />
+      <line x1="256" y1="195" x2="256" y2="330" stroke="#FFFFFF" stroke-width="15" />
+      <line x1="280" y1="235" x2="280" y2="315" stroke="url(#refBWave)" stroke-width="11" />
+      <line x1="304" y1="265" x2="304" y2="295" stroke="#818CF8" stroke-width="9" />
+    </g>
+    <circle cx="256" cy="340" r="8" fill="#38BDF8" filter="url(#refBGlow)" />
+
+    <!-- Studio Mic Cradle with Shadow Inset -->
+    <path d="M 120 195 C 120 330, 175 372, 256 372 C 337 372, 392 330, 392 195" 
+          fill="none" 
+          stroke="#475569" 
+          stroke-width="13" 
+          stroke-linecap="round" />
+
+    <!-- Pivot Knobs with Cyan Center Core -->
+    <circle cx="120" cy="195" r="9" fill="#0E172A" stroke="#64748B" stroke-width="3" />
+    <circle cx="120" cy="195" r="4" fill="#38BDF8" />
+    <circle cx="392" cy="195" r="9" fill="#0E172A" stroke="#64748B" stroke-width="3" />
+    <circle cx="392" cy="195" r="4" fill="#38BDF8" />
+
+    <!-- Stem & Pedestal -->
+    <line x1="256" y1="372" x2="256" y2="420" stroke="#475569" stroke-width="14" stroke-linecap="round" />
+    <line x1="188" y1="420" x2="324" y2="420" stroke="#64748B" stroke-width="14" stroke-linecap="round" />
+    <circle cx="256" cy="420" r="4" fill="#38BDF8" filter="url(#refBGlow)" />
+  </g>
+</svg>

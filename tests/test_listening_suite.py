@@ -1,13 +1,13 @@
 """
-Unit and integration tests for Voicegency Listening Skills, STT Biasing, and Proactive Triage.
+Unit and integration tests for VoiceFi Listening Skills, STT Biasing, and Proactive Triage.
 """
 
 from pathlib import Path
 import pytest
 
-from voicegency.config import VoicegencyConfig, AmbientConfig, STTBiasingConfig, load_config
-from voicegency.stt.biasing import ProjectContextExtractor, PhoneticNormalizer
-from voicegency.integrations.proactive import (
+from voicefi.config import VoiceFiConfig, AmbientConfig, STTBiasingConfig, load_config
+from voicefi.stt.biasing import ProjectContextExtractor, PhoneticNormalizer
+from voicefi.integrations.proactive import (
     ProactiveTriageEngine,
     ProactiveDispatcher,
     ProactiveTask,
@@ -133,7 +133,7 @@ class TestConfigAndSkillFiles:
     """Verify configuration schemas and skill documentation."""
 
     def test_ambient_config_defaults(self):
-        config = VoicegencyConfig()
+        config = VoiceFiConfig()
         assert config.ambient.enabled is False
         assert config.ambient.auto_triage is True
         assert config.stt_biasing.enabled is True

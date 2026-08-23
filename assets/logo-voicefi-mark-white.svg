@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <!-- VoiceFi Master Mark: Studio White & Electric Red (Clean Stand - No Base Dot) -->
+  <defs>
+    <linearGradient id="vfWhiteBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="100%" stop-color="#F8FAFC" />
+    </linearGradient>
+
+    <linearGradient id="redSignalLight" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF3B30" />
+      <stop offset="50%" stop-color="#FF2A2A" />
+      <stop offset="100%" stop-color="#E0002A" />
+    </linearGradient>
+  </defs>
+
+  <!-- Container Squircle / App Icon Badge -->
+  <rect width="512" height="512" rx="112" fill="url(#vfWhiteBg)" />
+  <rect width="510" height="510" x="1" y="1" rx="111" fill="none" stroke="#E2E8F0" stroke-width="2" />
+
+  <!-- Technical Grid -->
+  <g opacity="0.04" stroke="#000000" stroke-width="1">
+    <line x1="64" y1="256" x2="448" y2="256" />
+    <line x1="256" y1="64" x2="256" y2="448" />
+    <circle cx="256" cy="256" r="160" fill="none" />
+  </g>
+
+  <g transform="translate(0, 15)">
+    <!-- 1. ELECTRIC RED WI-FI BROADCAST HAT -->
+    <g>
+      <!-- Topmost Crown Arc -->
+      <path d="M 152 145 A 120 120 0 0 1 360 145" fill="none" stroke="url(#redSignalLight)" stroke-width="18" stroke-linecap="round" />
+      <!-- Mid Visor Arc -->
+      <path d="M 184 180 A 80 80 0 0 1 328 180" fill="none" stroke="url(#redSignalLight)" stroke-width="17" stroke-linecap="round" />
+      <!-- Cap Brim / Forehead Arc -->
+      <path d="M 216 215 A 42 42 0 0 1 296 215" fill="none" stroke="url(#redSignalLight)" stroke-width="16" stroke-linecap="round" />
+    </g>
+
+    <!-- 2. MINIMALIST CYBER FACE -->
+    <!-- Two Crisp Black Cyber Slit Eyes -->
+    <g>
+      <line x1="202" y1="262" x2="234" y2="262" stroke="#000000" stroke-width="8" stroke-linecap="round" />
+      <line x1="278" y1="262" x2="310" y2="262" stroke="#000000" stroke-width="8" stroke-linecap="round" />
+    </g>
+
+    <!-- 3. USB-C PORT NOSE (Electric Red Frame + Black Contact Pin) -->
+    <g>
+      <!-- Outer USB-C Pill Frame -->
+      <rect x="238" y="278" width="36" height="15" rx="7.5" fill="#FFFFFF" stroke="#FF2A2A" stroke-width="2.5" />
+      <!-- Inner USB-C Center Contact Tongue Pin -->
+      <line x1="246" y1="285.5" x2="266" y2="285.5" stroke="#000000" stroke-width="2.5" stroke-linecap="round" />
+    </g>
+
+    <!-- Friendly Electric Red Waveform Smile -->
+    <path d="M 230 320 Q 256 342 282 320" fill="none" stroke="#FF2A2A" stroke-width="5" stroke-linecap="round" />
+
+    <!-- 4. DEEP BLACK STUDIO CRADLE & PLUG BASE (Clean - No Base Dot) -->
+    <path d="M 124 220 C 124 350, 175 385, 256 385 C 337 385, 388 350, 388 220" 
+          fill="none" 
+          stroke="#000000" 
+          stroke-width="12" 
+          stroke-linecap="round" />
+
+    <!-- Plug Prongs with Red Knurled Accents -->
+    <g>
+      <rect x="110" y="205" width="28" height="30" rx="6" fill="#FFFFFF" stroke="#000000" stroke-width="3" />
+      <circle cx="124" cy="220" r="3.5" fill="#FF2A2A" />
+
+      <rect x="374" y="205" width="28" height="30" rx="6" fill="#FFFFFF" stroke="#000000" stroke-width="3" />
+      <circle cx="388" cy="220" r="3.5" fill="#FF2A2A" />
+    </g>
+
+    <!-- Stem & Heavy Ground Base in Solid Black -->
+    <line x1="256" y1="385" x2="256" y2="430" stroke="#000000" stroke-width="13" stroke-linecap="round" />
+    <line x1="190" y1="430" x2="322" y2="430" stroke="#000000" stroke-width="13" stroke-linecap="round" />
+  </g>
+</svg>

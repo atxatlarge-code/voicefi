@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VoiceFi Companion - UX Consistency Options</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background-color: #050505; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    .mockup-phone { width: 320px; height: 650px; background-color: #0c0c0c; border: 8px solid #222; border-radius: 40px; overflow: hidden; position: relative; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); display: flex; flex-direction: column; }
+    .safe-area-top { height: 24px; background: #0c0c0c; width: 100%; display: flex; justify-content: center; }
+    .notch { width: 120px; height: 18px; background: #222; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; }
+    .safe-area-bottom { height: 24px; background: #0c0c0c; width: 100%; display: flex; justify-content: center; align-items: flex-end; padding-bottom: 8px; }
+    .home-indicator { width: 100px; height: 4px; background: #444; border-radius: 2px; }
+    
+    /* Scrollbar hidden for mocks */
+    ::-webkit-scrollbar { display: none; }
+    
+    .wave-bar { width: 4px; background: #fff; border-radius: 2px; animation: pulse 1s infinite ease-in-out; }
+    @keyframes pulse { 0%, 100% { height: 8px; } 50% { height: 24px; } }
+  </style>
+</head>
+<body class="p-8">
+
+  <div class="max-w-7xl mx-auto">
+    <div class="mb-10 text-center">
+      <h1 class="text-3xl font-extrabold mb-2 tracking-tight">Voice<span class="text-[#FF2A2A]">Fi</span> Companion - Consistency Options</h1>
+      <p class="text-zinc-400">Review the three structural directions for standardizing the mobile UI.</p>
+    </div>
+
+    <div class="flex flex-wrap justify-center gap-10">
+
+      <!-- OPTION 1: Universal Bottom Bar -->
+      <div class="flex flex-col items-center">
+        <h2 class="text-lg font-bold mb-1 text-white">Option 1: Universal Input</h2>
+        <p class="text-xs text-zinc-400 mb-6 text-center w-[320px]">Unified iMessage bar across all tabs.<br>Header utilities moved to a Settings menu.</p>
+        
+        <div class="mockup-phone">
+          <div class="safe-area-top"><div class="notch"></div></div>
+          
+          <!-- Compact Header -->
+          <header class="px-4 py-2 border-b border-[#222]">
+            <div class="flex items-center justify-between mb-2">
+              <h1 class="font-extrabold text-sm tracking-tight text-white">Voice<span class="text-[#FF2A2A]">Fi</span></h1>
+              <div class="flex items-center gap-2">
+                <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                <button class="text-xs text-zinc-400 font-mono bg-[#141414] px-2 py-1 rounded">⚙️ Menu</button>
+              </div>
+            </div>
+            <!-- Tabs -->
+            <div class="flex items-center bg-[#111] p-0.5 rounded-lg text-[10px] font-semibold">
+              <div class="flex-1 py-1 text-center text-zinc-500">Voice</div>
+              <div class="flex-1 py-1 text-center bg-white text-black rounded shadow">Chat</div>
+              <div class="flex-1 py-1 text-center text-zinc-500">Artifacts</div>
+            </div>
+          </header>
+
+          <!-- Chat Feed -->
+          <div class="flex-1 bg-[#0a0a0a] p-3 overflow-hidden flex flex-col gap-3 relative">
+            <div class="text-center text-[9px] font-mono text-zinc-600 mb-2">Today 5:18 PM</div>
+            <!-- Agent Bubble -->
+            <div class="self-start bg-[#141414] border border-[#222] rounded-2xl rounded-tl-sm p-3 max-w-[85%]">
+              <div class="text-[10px] font-bold text-zinc-400 mb-1">ANTIGRAVITY</div>
+              <p class="text-[11px] text-zinc-200">I've generated the three options for your review.</p>
+            </div>
+            <!-- User Bubble -->
+            <div class="self-end bg-[#2a3826] text-[#a4d87e] rounded-2xl rounded-tr-sm p-3 max-w-[85%]">
+              <p class="text-[11px]">I want more consistency on these pages of what is available.</p>
+            </div>
+          </div>
+
+          <!-- Universal Bottom Bar -->
+          <div class="p-2 bg-black/90 border-t border-[#1a1a1a]">
+            <div class="flex items-center gap-2">
+              <button class="w-8 h-8 rounded-full bg-[#1c1c1e] text-zinc-300 flex items-center justify-center shrink-0">+</button>
+              <div class="flex-1 h-9 bg-[#1c1c1e] rounded-full px-3 flex items-center gap-2">
+                <span class="text-[11px] text-zinc-500">Message...</span>
+              </div>
+              <button class="w-9 h-9 rounded-full bg-[#2a3826] text-[#a4d87e] flex items-center justify-center shrink-0">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15a3 3 0 003-3V6a3 3 0 00-3-3 3 3 0 00-3 3v6a3 3 0 003 3z"></path></svg>
+              </button>
+            </div>
+          </div>
+          
+          <div class="safe-area-bottom"><div class="home-indicator"></div></div>
+        </div>
+      </div>
+
+      <!-- OPTION 2: Pure Mode Separation -->
+      <div class="flex flex-col items-center">
+        <h2 class="text-lg font-bold mb-1 text-white">Option 2: Mode Separation</h2>
+        <p class="text-xs text-zinc-400 mb-6 text-center w-[320px]">Voice is pure hands-free (no input bar).<br>Footer controls only appear where relevant.</p>
+
+        <div class="mockup-phone">
+          <div class="safe-area-top"><div class="notch"></div></div>
+          
+          <!-- Standard Header -->
+          <header class="px-4 py-2 border-b border-[#222]">
+            <div class="flex items-center justify-between mb-2">
+              <h1 class="font-extrabold text-sm tracking-tight text-white">Voice<span class="text-[#FF2A2A]">Fi</span></h1>
+              <div class="flex gap-1">
+                <span class="bg-[#111] px-1.5 py-0.5 rounded text-[8px] font-mono border border-[#222] text-zinc-400">AUDIO</span>
+                <span class="bg-[#111] px-1.5 py-0.5 rounded text-[8px] font-mono border border-[#222] text-zinc-400">SYNC</span>
+              </div>
+            </div>
+            <!-- Tabs -->
+            <div class="flex items-center bg-[#111] p-0.5 rounded-lg text-[10px] font-semibold">
+              <div class="flex-1 py-1 text-center bg-white text-black rounded shadow">Voice</div>
+              <div class="flex-1 py-1 text-center text-zinc-500">Chat</div>
+              <div class="flex-1 py-1 text-center text-zinc-500">Artifacts</div>
+            </div>
+          </header>
+
+          <!-- Voice Feed (No Input Bar) -->
+          <div class="flex-1 bg-[#0a0a0a] flex flex-col justify-center items-center relative p-6">
+            <!-- Center Orb -->
+            <div class="w-32 h-32 rounded-full border-4 border-[#222] flex flex-col items-center justify-center bg-[#0c0c0c] mb-6 shadow-[0_0_40px_rgba(255,255,255,0.05)]">
+              <div class="flex gap-1 h-6 items-center">
+                <div class="wave-bar" style="animation-delay: 0s"></div>
+                <div class="wave-bar" style="animation-delay: 0.2s"></div>
+                <div class="wave-bar" style="animation-delay: 0.4s"></div>
+                <div class="wave-bar" style="animation-delay: 0.1s"></div>
+              </div>
+            </div>
+            
+            <h2 class="text-xl font-bold mb-2">Listening...</h2>
+            
+            <div class="w-full bg-[#141414] border border-[#222] rounded-xl p-3 text-center">
+              <p class="text-[11px] text-zinc-400 italic">"I want more consistency on these pages..."</p>
+            </div>
+          </div>
+
+          <!-- Bottom Footer Settings (Always present in Voice tab) -->
+          <div class="px-3 py-2 bg-black/80 border-t border-[#222] flex items-center justify-between">
+            <label class="flex items-center gap-1">
+              <input type="checkbox" checked class="rounded bg-[#222]">
+              <span class="text-[9px] text-zinc-400">Auto Loop</span>
+            </label>
+            <div class="text-[9px] text-zinc-400">Audio: Smart</div>
+          </div>
+          
+          <div class="safe-area-bottom"><div class="home-indicator"></div></div>
+        </div>
+      </div>
+
+      <!-- OPTION 3: Floating Voice Overlay -->
+      <div class="flex flex-col items-center">
+        <h2 class="text-lg font-bold mb-1 text-white">Option 3: Floating Overlay</h2>
+        <p class="text-xs text-zinc-400 mb-6 text-center w-[320px]">Tabs simplified to just Chat & Docs.<br>Voice is a persistent floating pill (Siri style).</p>
+
+        <div class="mockup-phone">
+          <div class="safe-area-top"><div class="notch"></div></div>
+          
+          <!-- Compact Header -->
+          <header class="px-4 py-2 border-b border-[#222]">
+            <div class="flex items-center justify-between mb-2">
+              <h1 class="font-extrabold text-sm tracking-tight text-white">Voice<span class="text-[#FF2A2A]">Fi</span></h1>
+              <div class="flex items-center gap-2">
+                <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+              </div>
+            </div>
+            <!-- Just 2 Tabs -->
+            <div class="flex items-center bg-[#111] p-0.5 rounded-lg text-[10px] font-semibold">
+              <div class="flex-1 py-1 text-center bg-white text-black rounded shadow">Chat Feed</div>
+              <div class="flex-1 py-1 text-center text-zinc-500">Artifacts</div>
+            </div>
+          </header>
+
+          <!-- Chat Feed -->
+          <div class="flex-1 bg-[#0a0a0a] p-3 overflow-hidden flex flex-col gap-3">
+             <div class="self-start bg-[#141414] border border-[#222] rounded-2xl rounded-tl-sm p-3 max-w-[85%]">
+              <div class="text-[10px] font-bold text-zinc-400 mb-1">ANTIGRAVITY</div>
+              <p class="text-[11px] text-zinc-200">I can implement this dynamically while you review.</p>
+            </div>
+          </div>
+
+          <!-- Bottom Voice Pill (Floating Overlay) -->
+          <div class="absolute bottom-[30px] left-0 right-0 px-4 flex flex-col items-center pb-2 z-10">
+            <!-- Floating Live Status -->
+            <div class="bg-black/80 backdrop-blur-md border border-[#333] rounded-3xl p-3 shadow-2xl w-full max-w-[280px] flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center animate-pulse">
+                  <div class="w-2 h-2 rounded-full bg-white"></div>
+                </div>
+                <div>
+                  <div class="text-[10px] font-bold">Listening</div>
+                  <div class="text-[9px] text-zinc-400">Speak now...</div>
+                </div>
+              </div>
+              <button class="w-8 h-8 rounded-full bg-red-500/20 text-red-500 flex items-center justify-center">
+                ✕
+              </button>
+            </div>
+          </div>
+          
+          <div class="safe-area-bottom z-0"><div class="home-indicator"></div></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Voicegency™ — Electro-Voice RE20 Broadcast Exploration</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #FFFFFF;
+      --card-bg: #FAFAFA;
+      --border: #E5E5E5;
+      --border-dark: #000000;
+      --text: #000000;
+      --muted: #666666;
+      --rec-red: #FF2A2A;
+      --gold: #FFD166;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, "Helvetica Neue", "Neue Haas Grotesk", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 48px 24px 120px;
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 1240px;
+      margin: 0 auto;
+    }
+
+    /* Top Nav */
+    .top-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 2px solid var(--border-dark);
+      padding-bottom: 16px;
+      margin-bottom: 40px;
+    }
+
+    .live-tally-badge {
+      background: var(--rec-red);
+      color: #FFFFFF;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      font-weight: 900;
+      padding: 4px 12px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .top-title {
+      font-weight: 900;
+      font-size: 1.15rem;
+      letter-spacing: -0.03em;
+    }
+
+    /* Header */
+    header {
+      margin-bottom: 40px;
+    }
+
+    h1 {
+      font-size: clamp(2.2rem, 5vw, 4rem);
+      font-weight: 900;
+      letter-spacing: -0.04em;
+      line-height: 1;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+
+    h1 span.red {
+      color: var(--rec-red);
+    }
+
+    .subtitle-bar {
+      background: #000000;
+      color: #FFFFFF;
+      padding: 18px 24px;
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin-bottom: 28px;
+    }
+
+    .subtitle-bar span.red {
+      color: var(--rec-red);
+    }
+
+    /* Hardware Spotlight Row */
+    .hardware-spotlight {
+      border: 2px solid var(--border-dark);
+      background: var(--card-bg);
+      padding: 32px;
+      margin-bottom: 48px;
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      gap: 36px;
+      align-items: center;
+    }
+
+    @media (max-width: 860px) {
+      .hardware-spotlight { grid-template-columns: 1fr; padding: 20px; }
+    }
+
+    .photo-frame {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      border: 1px solid var(--border-dark);
+      background: #FFFFFF;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .photo-frame img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .spotlight-text h3 {
+      font-size: 1.5rem;
+      font-weight: 900;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    .spotlight-text p {
+      color: var(--muted);
+      font-size: 0.95rem;
+      line-height: 1.6;
+      margin-bottom: 20px;
+    }
+
+    .anatomy-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+    }
+
+    .anatomy-box {
+      background: #FFFFFF;
+      border: 1px solid var(--border-dark);
+      padding: 14px;
+    }
+
+    .anatomy-box strong {
+      display: block;
+      color: #000000;
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      border-left: 3px solid var(--rec-red);
+      padding-left: 6px;
+    }
+
+    /* Section Title */
+    .section-title {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.9rem;
+      font-weight: 900;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #000000;
+      margin: 60px 0 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .section-title::after {
+      content: "";
+      flex-grow: 1;
+      height: 2px;
+      background: var(--border-dark);
+    }
+
+    /* 3 Marks Grid */
+    .marks-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 28px;
+      margin-bottom: 60px;
+    }
+
+    .mark-card {
+      border: 2px solid var(--border-dark);
+      background: #FFFFFF;
+      padding: 30px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .mark-card:hover {
+      border-color: var(--rec-red);
+    }
+
+    .spec-header {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      font-weight: 900;
+      margin-bottom: 22px;
+    }
+
+    .badge-red {
+      background: var(--rec-red);
+      color: #FFFFFF;
+      padding: 3px 8px;
+    }
+
+    .badge-black {
+      background: #000000;
+      color: var(--acid);
+      padding: 3px 8px;
+    }
+
+    .preview-box {
+      width: 250px;
+      height: 250px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--border);
+      background: #FFFFFF;
+    }
+
+    .preview-box img {
+      width: 100%;
+      height: 100%;
+    }
+
+    .mark-name {
+      font-size: 1.25rem;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: -0.02em;
+      margin-bottom: 8px;
+      text-align: center;
+    }
+
+    .mark-desc {
+      font-size: 0.85rem;
+      color: var(--muted);
+      text-align: center;
+      line-height: 1.5;
+      margin-bottom: 20px;
+      flex-grow: 1;
+    }
+
+    .path-pill {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      background: #FAFAFA;
+      border: 1px solid var(--border-dark);
+      color: #000000;
+      padding: 6px 12px;
+      font-weight: 700;
+    }
+
+    /* Scaling Bench */
+    .scale-bench {
+      border: 2px solid var(--border-dark);
+      background: var(--card-bg);
+      padding: 30px;
+    }
+
+    .scale-header {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      font-weight: 900;
+      color: #000000;
+      margin-bottom: 24px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .scale-row {
+      display: flex;
+      align-items: center;
+      gap: 36px;
+      flex-wrap: wrap;
+    }
+
+    .scale-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .scale-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+
+    <!-- Top Nav -->
+    <nav class="top-nav">
+      <div class="top-title">
+        <span class="live-tally-badge">● ON AIR</span>
+        VOICEGENCY™ // ELECTRO-VOICE RE20 BROADCAST SPEC
+      </div>
+      <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; font-weight: 700; color: #666;">
+        HARDWARE RE20 → V/A MONOGRAM
+      </div>
+    </nav>
+
+    <!-- Header -->
+    <header>
+      <h1>ELECTRO-VOICE RE20 <span class="red">EXPLORATION</span></h1>
+      <div class="subtitle-bar">
+        HOW THE ICONIC RE20 BROADCAST MIC <span class="red">BECOMES THE DEFINITIVE V AND A.</span>
+      </div>
+    </header>
+
+    <!-- HARDWARE SPOTLIGHT -->
+    <div class="hardware-spotlight">
+      <div class="photo-frame">
+        <img src="ref-broadcast-mic.jpg" alt="Electro-Voice RE20 Studio Broadcast Mic">
+      </div>
+      <div class="spotlight-text">
+        <h3>The Electro-Voice RE20 Anatomy</h3>
+        <p>
+          The RE20 is the undisputed gold standard of studio broadcast audio. Its design contains the exact geometric ingredients for the **A and V**:
+        </p>
+        <div class="anatomy-grid">
+          <div class="anatomy-box">
+            <strong>01. Outer Yoke Bracket (V)</strong>
+            The U/V-shaped metal suspension bracket that branches up to cradle the mic body.
+          </div>
+          <div class="anatomy-box">
+            <strong>02. Variable-D Louvers (A)</strong>
+            The horizontal acoustic vents tapering upwards to form the ladder of the 'A'.
+          </div>
+          <div class="anatomy-box">
+            <strong>03. Crossmount Band</strong>
+            The horizontal pivot ring that connects yoke to body, acting as the 'A' crossbar.
+          </div>
+          <div class="anatomy-box">
+            <strong>04. Live Tally Accent</strong>
+            Studio Recording Red (`#FF2A2A`) highlighting active broadcast capture.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECTION: 3 RE20 VARIATIONS -->
+    <div class="section-title">THE 3 RE20 BROADCAST V/A VARIATIONS</div>
+    <div class="marks-grid">
+      
+      <!-- Option A: Yoke & Variable-D -->
+      <div class="mark-card">
+        <div class="spec-header">
+          <span class="badge-red">SPEC RE20-A</span>
+          <span>YOKE &amp; VARIABLE-D</span>
+        </div>
+        <div class="preview-box">
+          <img src="logo-re20-concept-a.svg" alt="RE20 Concept A">
+        </div>
+        <div class="mark-name">A. The Yoke &amp; Variable-D</div>
+        <p class="mark-desc">
+          Distinct outer yoke suspension arms forming the 'V' with side pivot knobs, central RE20 cylindrical body with Variable-D acoustic louvers (A), and red tally clamp.
+        </p>
+        <span class="path-pill">assets/logo-re20-concept-a.svg</span>
+      </div>
+
+      <!-- Option B: Louver Ambigram -->
+      <div class="mark-card">
+        <div class="spec-header">
+          <span class="badge-red">SPEC RE20-B</span>
+          <span>LOUVER AMBIGRAM</span>
+        </div>
+        <div class="preview-box">
+          <img src="logo-re20-concept-b.svg" alt="RE20 Concept B">
+        </div>
+        <div class="mark-name">B. The Louver Ambigram</div>
+        <p class="mark-desc">
+          Heavy monolithic V body with a stepped internal acoustic ladder that draws the eye upward into the 'A' apex, locked by a red shockmount crossbar.
+        </p>
+        <span class="path-pill">assets/logo-re20-concept-b.svg</span>
+      </div>
+
+      <!-- Option C: Broadcast Stencil -->
+      <div class="mark-card">
+        <div class="spec-header">
+          <span class="badge-red">SPEC RE20-C</span>
+          <span>BROADCAST STENCIL</span>
+        </div>
+        <div class="preview-box">
+          <img src="logo-re20-concept-c.svg" alt="RE20 Concept C">
+        </div>
+        <div class="mark-name">C. The Broadcast Stencil</div>
+        <p class="mark-desc">
+          Ultra-clean Swiss industrial lines. Precision side yoke blades with circular pivot rings, horizontal acoustic slats, and dynamic red core.
+        </p>
+        <span class="path-pill">assets/logo-re20-concept-c.svg</span>
+      </div>
+
+    </div>
+
+    <!-- SCALE BENCH -->
+    <div class="scale-bench">
+      <div class="scale-header">RE20 Optical Scaling on White (16px to 128px)</div>
+      <div class="scale-row">
+        
+        <div class="scale-item">
+          <div style="width: 128px; height: 128px; border: 1px solid var(--border); background: #FFFFFF;">
+            <img src="logo-re20-concept-a.svg" style="width: 100%; height: 100%;">
+          </div>
+          <span class="scale-label">128px</span>
+        </div>
+
+        <div class="scale-item">
+          <div style="width: 64px; height: 64px; border: 1px solid var(--border); background: #FFFFFF;">
+            <img src="logo-re20-concept-a.svg" style="width: 100%; height: 100%;">
+          </div>
+          <span class="scale-label">64px</span>
+        </div>
+
+        <div class="scale-item">
+          <div style="width: 32px; height: 32px; border: 1px solid var(--border); background: #FFFFFF;">
+            <img src="logo-re20-concept-a.svg" style="width: 100%; height: 100%;">
+          </div>
+          <span class="scale-label">32px (Dock)</span>
+        </div>
+
+        <div class="scale-item">
+          <div style="width: 16px; height: 16px; border: 1px solid var(--border); background: #FFFFFF;">
+            <img src="logo-re20-concept-a.svg" style="width: 100%; height: 100%;">
+          </div>
+          <span class="scale-label">16px (Menu Bar)</span>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+</body>
+</html>

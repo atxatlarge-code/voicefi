@@ -2,14 +2,14 @@
 
 import pytest
 from pathlib import Path
-from voicegency.config import VoicegencyConfig, load_config, save_config
+from voicefi.config import VoiceFiConfig, load_config, save_config
 
 
 def test_default_config_values():
-    config = VoicegencyConfig()
+    config = VoiceFiConfig()
     assert config.version == 1
     assert config.tier == "community"
-    assert config.tts.provider == "mac_say"
+    assert config.tts.provider == "edge_tts"
     assert config.stt.provider == "whisper_local"
     assert config.antigravity.auto_listen is True
     assert config.antigravity.read_summary_aloud is True
@@ -21,7 +21,7 @@ def test_default_config_values():
 
 def test_custom_config_save_load(tmp_path: Path):
     custom_yaml = tmp_path / "config.yaml"
-    cfg = VoicegencyConfig(
+    cfg = VoiceFiConfig(
         tier="pro",
         license_key="PRO-1234-5678",
     )

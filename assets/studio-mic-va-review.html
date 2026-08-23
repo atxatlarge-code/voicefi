@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Voicegency™ — Studio Mic + V/A Hybrid Review</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #FFFFFF;
+      --card-bg: #FAFAFA;
+      --border: #E5E5E5;
+      --border-dark: #000000;
+      --text: #000000;
+      --muted: #666666;
+      --acid: #D4FF00;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, "Helvetica Neue", "Neue Haas Grotesk", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 48px 24px 120px;
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    /* Top Nav */
+    .top-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 2px solid var(--border-dark);
+      padding-bottom: 16px;
+      margin-bottom: 40px;
+    }
+
+    .brand-badge {
+      background: #000000;
+      color: var(--acid);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      font-weight: 900;
+      padding: 4px 10px;
+      letter-spacing: 0.1em;
+      margin-right: 10px;
+    }
+
+    .top-title {
+      font-weight: 900;
+      font-size: 1.15rem;
+      letter-spacing: -0.03em;
+    }
+
+    /* Header */
+    header {
+      margin-bottom: 40px;
+    }
+
+    h1 {
+      font-size: clamp(2.2rem, 5vw, 4rem);
+      font-weight: 900;
+      letter-spacing: -0.04em;
+      line-height: 1;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+
+    .subtitle-box {
+      background: #000000;
+      color: #FFFFFF;
+      padding: 18px 24px;
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin-bottom: 24px;
+    }
+
+    .subtitle-box span.acid {
+      color: var(--acid);
+    }
+
+    .concept-explainer {
+      border: 2px solid var(--border-dark);
+      background: var(--card-bg);
+      padding: 24px 28px;
+      margin-bottom: 40px;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 24px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+    }
+
+    @media (max-width: 768px) {
+      .concept-explainer { grid-template-columns: 1fr; }
+    }
+
+    .concept-explainer h4 {
+      font-weight: 900;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+      color: #000000;
+      border-bottom: 2px solid var(--acid);
+      padding-bottom: 4px;
+      display: inline-block;
+    }
+
+    .concept-explainer p {
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
+
+    /* Marks 3-Grid */
+    .marks-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 28px;
+      margin-bottom: 60px;
+    }
+
+    .mark-card {
+      border: 2px solid var(--border-dark);
+      background: #FFFFFF;
+      padding: 30px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .spec-header {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      font-weight: 900;
+      margin-bottom: 22px;
+    }
+
+    .badge-black {
+      background: #000000;
+      color: var(--acid);
+      padding: 3px 8px;
+    }
+
+    .preview-box {
+      width: 250px;
+      height: 250px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--border);
+      background: #FFFFFF;
+    }
+
+    .preview-box img {
+      width: 100%;
+      height: 100%;
+    }
+
+    .mark-name {
+      font-size: 1.25rem;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: -0.02em;
+      margin-bottom: 8px;
+      text-align: center;
+    }
+
+    .mark-desc {
+      font-size: 0.85rem;
+      color: var(--muted);
+      text-align: center;
+      line-height: 1.5;
+      margin-bottom: 20px;
+      flex-grow: 1;
+    }
+
+    .path-pill {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      background: #FAFAFA;
+      border: 1px solid var(--border-dark);
+      color: #000000;
+      padding: 6px 12px;
+      font-weight: 700;
+    }
+
+    /* Scaling Bench */
+    .scale-bench {
+      border: 2px solid var(--border-dark);
+      background: var(--card-bg);
+      padding: 30px;
+    }
+
+    .scale-header {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      font-weight: 900;
+      color: #000000;
+      margin-bottom: 24px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .scale-row {
+      display: flex;
+      align-items: center;
+      gap: 36px;
+      flex-wrap: wrap;
+    }
+
+    .scale-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .scale-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+
+    <!-- Top Nav -->
+    <nav class="top-nav">
+      <div class="top-title">
+        <span class="brand-badge">HYBRID DESIGN</span>
+        VOICEGENCY™ // STUDIO MIC + V/A UNIFIED
+      </div>
+      <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; font-weight: 700; color: #666;">
+        WHITE CANVAS SPEC
+      </div>
+    </nav>
+
+    <!-- Header -->
+    <header>
+      <h1>THE STUDIO MIC + V/A AMBIGRAM</h1>
+      <div class="subtitle-box">
+        THE LARGE 'V' (VOICE) <span class="acid">IS THE STUDIO MICROPHONE &amp; THE INVERTED 'A' (AGENCY).</span>
+      </div>
+    </header>
+
+    <!-- Concept Explainer -->
+    <div class="concept-explainer">
+      <div class="col">
+        <h4>01. Studio Mic Shape</h4>
+        <p>The entire outer silhouette is an unmistakable classic studio condenser microphone tapering from top capsule to base.</p>
+      </div>
+      <div class="col">
+        <h4>02. The 'V' &amp; 'A' Ambigram</h4>
+        <p>The tapering chassis forms the large **V**. The horizontal diaphragm clamp bar cuts across the midsection, making it simultaneously an inverted **A**.</p>
+      </div>
+      <div class="col">
+        <h4>03. Acoustic Core</h4>
+        <p>Upper acoustic capsule chamber housing the central Acid Volt condenser diaphragm node.</p>
+      </div>
+    </div>
+
+    <!-- 3 MARKS GRID -->
+    <div class="marks-grid">
+      
+      <!-- Option 1: Classic Studio Condenser -->
+      <div class="mark-card">
+        <div class="spec-header">
+          <span class="badge-black">HYBRID 01</span>
+          <span>CONDENSER</span>
+        </div>
+        <div class="preview-box">
+          <img src="logo-studio-mic-va-1.svg" alt="Classic Studio Condenser V/A">
+        </div>
+        <div class="mark-name">1. The Studio Condenser</div>
+        <p class="mark-desc">
+          Classic studio dome top, side negative-space acoustic slits, bold 'A' crossbar band, and central circular condenser diaphragm.
+        </p>
+        <span class="path-pill">assets/logo-studio-mic-va-1.svg</span>
+      </div>
+
+      <!-- Option 2: Broadcast Aperture -->
+      <div class="mark-card">
+        <div class="spec-header">
+          <span class="badge-black">HYBRID 02</span>
+          <span>BROADCAST</span>
+        </div>
+        <div class="preview-box">
+          <img src="logo-studio-mic-va-2.svg" alt="Broadcast Aperture V/A">
+        </div>
+        <div class="mark-name">2. The Broadcast Aperture</div>
+        <p class="mark-desc">
+          Inspired by broadcast studio mics. Horizontal acoustic slats across the upper chamber, solid shockmount clamp crossbar, and lower XLR ground.
+        </p>
+        <span class="path-pill">assets/logo-studio-mic-va-2.svg</span>
+      </div>
+
+      <!-- Option 3: Architectural Purist -->
+      <div class="mark-card">
+        <div class="spec-header">
+          <span class="badge-black">HYBRID 03</span>
+          <span>PURIST RECOMMENDED</span>
+        </div>
+        <div class="preview-box">
+          <img src="logo-studio-mic-va-3.svg" alt="Architectural Purist V/A">
+        </div>
+        <div class="mark-name">3. The Architectural Purist</div>
+        <p class="mark-desc">
+          Extreme minimalist purity. Pure solid black V/A body, stepped top cap, horizontal crossbar, and iconic centered condenser diaphragm.
+        </p>
+        <span class="path-pill">assets/logo-studio-mic-va-3.svg</span>
+      </div>
+
+    </div>
+
+    <!-- SCALE BENCH -->
+    <div class="scale-bench">
+      <div class="scale-header">Optical Scaling on White (16px to 128px)</div>
+      <div class="scale-row">
+        
+        <div class="scale-item">
+          <div style="width: 128px; height: 128px; border: 1px solid var(--border); background: #FFFFFF;">
+            <img src="logo-studio-mic-va-3.svg" style="width: 100%; height: 100%;">
+          </div>
+          <span class="scale-label">128px</span>
+        </div>
+
+        <div class="scale-item">
+          <div style="width: 64px; height: 64px; border: 1px solid var(--border); background: #FFFFFF;">
+            <img src="logo-studio-mic-va-3.svg" style="width: 100%; height: 100%;">
+          </div>
+          <span class="scale-label">64px</span>
+        </div>
+
+        <div class="scale-item">
+          <div style="width: 32px; height: 32px; border: 1px solid var(--border); background: #FFFFFF;">
+            <img src="logo-studio-mic-va-3.svg" style="width: 100%; height: 100%;">
+          </div>
+          <span class="scale-label">32px (Dock)</span>
+        </div>
+
+        <div class="scale-item">
+          <div style="width: 16px; height: 16px; border: 1px solid var(--border); background: #FFFFFF;">
+            <img src="logo-studio-mic-va-3.svg" style="width: 100%; height: 100%;">
+          </div>
+          <span class="scale-label">16px (Menu Bar)</span>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+</body>
+</html>

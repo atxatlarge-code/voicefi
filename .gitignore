@@ -3,8 +3,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# C extensions
+# C & Swift compiled binaries
 *.so
+src/voicefi/stt/apple_speech_stream
 
 # Distribution / packaging / installers
 .Python
@@ -69,9 +70,22 @@ htmlcov/
 # Website directory (maintained in standalone repo: voicefi.org)
 website/
 
+# Node / Obsidian dependencies
+node_modules/
+obsidian-plugin/node_modules/
+
+# Local migration & scratch scripts
+refactor_*.py
+update_*.py
+scratch/
+
+# PyInstaller specifications with local paths
+*.spec
+
 # IDE & macOS system metadata
 .DS_Store
 .idea/
 .vscode/
 *.swp
 *.swo
+

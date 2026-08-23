@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-black text-white">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>VoiceFi Unified Dynamic Island HUD - Interactive Mocks</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      background-color: #050508;
+      color: #ffffff;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    
+    /* Smooth Apple-style spring/ease physics for HUD morphing */
+    .hud-capsule {
+      transition: all 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+      will-change: width, height, background-color, border-color, box-shadow, transform;
+    }
+
+    /* Waveform Animation */
+    .wave-bar {
+      display: inline-block;
+      width: 3.5px;
+      border-radius: 2px;
+      animation: wavePulse 0.75s ease-in-out infinite alternate;
+    }
+    @keyframes wavePulse {
+      0% { height: 4px; opacity: 0.4; }
+      100% { height: 22px; opacity: 1; }
+    }
+
+    /* Thinking Aura Glow */
+    @keyframes thinkingBreathing {
+      0%, 100% { box-shadow: 0 0 15px -3px rgba(139, 92, 246, 0.3), inset 0 0 12px rgba(139, 92, 246, 0.15); border-color: rgba(139, 92, 246, 0.4); }
+      50% { box-shadow: 0 0 28px 2px rgba(139, 92, 246, 0.65), inset 0 0 20px rgba(139, 92, 246, 0.3); border-color: rgba(167, 139, 250, 0.8); }
+    }
+    .glow-thinking { animation: thinkingBreathing 2.4s infinite ease-in-out; }
+
+    /* Speaking Cyan Aura */
+    .glow-speaking {
+      box-shadow: 0 0 26px -2px rgba(6, 182, 212, 0.5), inset 0 0 16px rgba(6, 182, 212, 0.2);
+      border-color: rgba(34, 211, 238, 0.6);
+    }
+
+    /* Listening Emerald Aura */
+    @keyframes listeningPulse {
+      0%, 100% { box-shadow: 0 0 20px -2px rgba(16, 185, 129, 0.45), inset 0 0 14px rgba(16, 185, 129, 0.2); border-color: rgba(52, 211, 153, 0.55); }
+      50% { box-shadow: 0 0 32px 4px rgba(16, 185, 129, 0.75), inset 0 0 22px rgba(16, 185, 129, 0.35); border-color: rgba(110, 231, 183, 0.85); }
+    }
+    .glow-listening { animation: listeningPulse 1.8s infinite ease-in-out; }
+
+    /* Working Blue Aura */
+    .glow-working {
+      box-shadow: 0 0 22px -2px rgba(59, 130, 246, 0.45), inset 0 0 14px rgba(59, 130, 246, 0.2);
+      border-color: rgba(96, 165, 250, 0.6);
+    }
+
+    /* Glassmorphism Backdrop */
+    .glass-hud {
+      background: rgba(12, 14, 20, 0.88);
+      backdrop-filter: blur(28px) saturate(190%);
+      -webkit-backdrop-filter: blur(28px) saturate(190%);
+    }
+  </style>
+</head>
+<body class="h-full flex flex-col overflow-hidden select-none bg-[#07090e]">
+
+  <!-- Top Navigation & Mode Switcher Bar -->
+  <header class="bg-[#0f121a] border-b border-[#1f2433] px-4 py-2.5 shrink-0 z-40 flex items-center justify-between shadow-lg">
+    <div class="flex items-center gap-2.5">
+      <div class="w-7 h-7 rounded-xl bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center text-sm shadow-[0_0_12px_rgba(6,182,212,0.4)]">
+        🎙️
+      </div>
+      <div>
+        <h1 class="text-xs font-bold font-mono tracking-tight text-white flex items-center gap-2">
+          VOICEFI DYNAMIC ISLAND HUD
+          <span class="text-[9px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-semibold uppercase tracking-wider">Interactive Mockup</span>
+        </h1>
+        <p class="text-[10px] text-zinc-400">Native macOS 5-Phase Fluid Morphing Architecture</p>
+      </div>
+    </div>
+    
+    <div class="flex items-center gap-2">
+      <button id="autoPlayBtn" onclick="toggleAutoCycle()" class="px-3 py-1 rounded-lg text-xs font-semibold bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white shadow-md flex items-center gap-1.5 transition active:scale-95">
+        <span id="playIcon">▶️</span>
+        <span id="playText">Auto-Morph Demo</span>
+      </button>
+      <a href="/" class="text-xs font-mono bg-[#1b202e] hover:bg-[#252c3f] px-2.5 py-1 rounded-lg text-zinc-300 border border-[#2e374d] transition">← Companion App</a>
+    </div>
+  </header>
+
+  <!-- Interactive State Selection Tab Bar -->
+  <nav class="bg-[#0b0e14] border-b border-[#181d2a] px-4 py-2 shrink-0 z-30">
+    <div class="max-w-4xl mx-auto flex items-center justify-between gap-3">
+      <div class="flex items-center gap-1 bg-[#131722] p-1 rounded-xl border border-[#22293a] text-xs font-medium">
+        <button id="btn-idle" onclick="setHUDState('idle')" class="px-3 py-1.5 rounded-lg text-zinc-400 hover:text-white transition flex items-center gap-1.5">
+          <span>💤</span> Idle
+        </button>
+        <button id="btn-thinking" onclick="setHUDState('thinking')" class="px-3 py-1.5 rounded-lg text-zinc-400 hover:text-white transition flex items-center gap-1.5">
+          <span>🧠</span> Thinking
+        </button>
+        <button id="btn-working" onclick="setHUDState('working')" class="px-3 py-1.5 rounded-lg text-zinc-400 hover:text-white transition flex items-center gap-1.5">
+          <span>⚡</span> Working
+        </button>
+        <button id="btn-speaking" onclick="setHUDState('speaking')" class="px-3 py-1.5 rounded-lg bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/40 shadow-sm transition flex items-center gap-1.5">
+          <span>🔊</span> Speaking
+        </button>
+        <button id="btn-listening" onclick="setHUDState('listening')" class="px-3 py-1.5 rounded-lg text-zinc-400 hover:text-white transition flex items-center gap-1.5">
+          <span>👂</span> Listening
+        </button>
+      </div>
+
+      <!-- Active Persona Switcher -->
+      <div class="flex items-center gap-2 text-xs">
+        <span class="text-zinc-400 text-[11px] font-mono">Agent Voice:</span>
+        <select id="personaSelect" onchange="changePersona(this.value)" class="bg-[#131722] border border-[#262f44] text-white rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-cyan-500">
+          <option value="Christopher">🧔 Christopher (Antigravity)</option>
+          <option value="Aria">⚡ Aria (Debugger / QA)</option>
+          <option value="Guy">🎭 Guy (Claude Code)</option>
+          <option value="Sonia">🔬 Sonia (Researcher)</option>
+          <option value="William">📐 William (Architect)</option>
+        </select>
+      </div>
+    </div>
+  </nav>
+
+  <!-- SIMULATED MACOS DESKTOP DISPLAY CANVAS -->
+  <main class="flex-1 relative overflow-hidden bg-cover bg-center flex flex-col items-center justify-start pt-3" style="background-image: radial-gradient(circle at 50% 20%, #151a2d 0%, #080a11 60%, #030407 100%);">
+    
+    <!-- MacBook Screen Top Notch -->
+    <div class="w-44 h-7 bg-black rounded-b-2xl border-b border-x border-[#1c1c1c] shadow-2xl flex items-center justify-center gap-2 mb-2 z-20">
+      <div class="w-2.5 h-2.5 rounded-full bg-[#111111] border border-[#222222] flex items-center justify-center">
+        <div class="w-1 h-1 rounded-full bg-blue-900/60"></div>
+      </div>
+      <div class="w-1.5 h-1.5 rounded-full bg-emerald-500/80 animate-pulse"></div>
+    </div>
+
+    <!-- ======================================================== -->
+    <!-- DYNAMIC ISLAND HUD CAPSULE (MORPHS GEOMETRY & STYLES)   -->
+    <!-- ======================================================== -->
+    <div id="dynamicHud" class="hud-capsule glass-hud rounded-3xl border border-cyan-500/40 glow-speaking flex flex-col justify-center px-4 py-2.5 shadow-2xl relative z-30 cursor-pointer select-none" style="width: 480px; min-height: 84px;" onclick="handleCapsuleClick()">
+      
+      <!-- Top Row: Avatar Badge + Agent Title + Persona Tag + State Visualizer -->
+      <div class="flex items-center justify-between w-full">
+        <div class="flex items-center gap-2.5">
+          <!-- Avatar Icon Badge -->
+          <div id="hudAvatarBg" class="w-8 h-8 rounded-full bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center text-sm shadow-[0_0_10px_rgba(6,182,212,0.3)] transition-all">
+            <span id="hudAvatarIcon">🧔</span>
+          </div>
+
+          <!-- Header Titles -->
+          <div class="flex flex-col">
+            <div class="flex items-center gap-2">
+              <span id="hudAgentName" class="text-xs font-bold text-white tracking-tight">Antigravity</span>
+              <span id="hudPersonaTag" class="text-[10px] text-cyan-300 font-medium opacity-90">• Christopher</span>
+            </div>
+            <span id="hudStatusBadge" class="text-[10px] font-mono text-zinc-400">🔊 Speaking Response</span>
+          </div>
+        </div>
+
+        <!-- Right Side Acoustic / Live Visualizer -->
+        <div id="hudVisualizerContainer" class="flex items-center gap-1">
+          <!-- Waveform Bars (Speaking State) -->
+          <div id="hudWaveBars" class="flex items-center gap-1 h-6 px-2 bg-black/40 rounded-lg border border-cyan-500/20">
+            <span class="wave-bar bg-cyan-400" style="animation-delay: 0.1s; height: 14px;"></span>
+            <span class="wave-bar bg-cyan-300" style="animation-delay: 0.3s; height: 20px;"></span>
+            <span class="wave-bar bg-cyan-400" style="animation-delay: 0.15s; height: 10px;"></span>
+            <span class="wave-bar bg-cyan-200" style="animation-delay: 0.4s; height: 18px;"></span>
+            <span class="wave-bar bg-cyan-400" style="animation-delay: 0.25s; height: 12px;"></span>
+          </div>
+
+          <!-- Thinking Spinner / Pulse Indicator -->
+          <div id="hudThinkingIndicator" class="hidden items-center gap-1.5 px-2.5 py-1 bg-purple-950/40 border border-purple-500/30 rounded-lg">
+            <div class="w-2 h-2 rounded-full bg-purple-400 animate-ping"></div>
+            <span class="text-[10px] font-mono text-purple-300 font-bold">REASONING</span>
+          </div>
+
+          <!-- Working Tool Indicator -->
+          <div id="hudWorkingIndicator" class="hidden items-center gap-1.5 px-2.5 py-1 bg-blue-950/40 border border-blue-500/30 rounded-lg">
+            <span class="text-xs animate-spin">⚡</span>
+            <span class="text-[10px] font-mono text-blue-300 font-bold">EXECUTING</span>
+          </div>
+
+          <!-- Listening Mic Pulse Indicator -->
+          <div id="hudListeningIndicator" class="hidden items-center gap-1.5 px-2.5 py-1 bg-emerald-950/40 border border-emerald-500/30 rounded-lg">
+            <div class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
+            <span class="text-[10px] font-mono text-emerald-300 font-bold">LIVE MIC</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Spoken Subtitle / Thought / Prompt Text Container -->
+      <div id="hudContentRow" class="mt-2 text-xs leading-relaxed text-zinc-200 font-sans tracking-wide pr-1">
+        <p id="hudTextBody" class="truncate-2-lines text-zinc-100">
+          "Hey Jake! I've finished refactoring the auth controller and ran all 150 pytest test cases. Everything passed with zero regressions."
+        </p>
+      </div>
+
+    </div>
+
+    <!-- Background Code Editor Window Simulation in Soft Focus -->
+    <div class="mt-12 w-11/12 max-w-4xl bg-[#0d111a]/70 backdrop-blur-md rounded-2xl border border-[#20273b] shadow-2xl p-5 font-mono text-xs text-zinc-400 select-none pointer-events-none opacity-40">
+      <div class="flex items-center gap-2 mb-4">
+        <div class="w-3 h-3 rounded-full bg-red-500/60"></div>
+        <div class="w-3 h-3 rounded-full bg-yellow-500/60"></div>
+        <div class="w-3 h-3 rounded-full bg-green-500/60"></div>
+        <span class="text-[11px] text-zinc-500 ml-2">src/voicefi/ui/unified_hud.py</span>
+      </div>
+      <p><span class="text-purple-400">class</span> <span class="text-yellow-300">UnifiedDynamicIslandHUD</span>(NSPanel):</p>
+      <p class="pl-4 text-zinc-500">"""Smoothly morphs across Idle, Thinking, Working, Speaking, and Hearing."""</p>
+      <p class="pl-4"><span class="text-purple-400">def</span> <span class="text-blue-400">set_state</span>(self, state: <span class="text-cyan-300">str</span>):</p>
+      <p class="pl-8 text-emerald-400"># Morph window dimensions and frosted aura colors</p>
+      <p class="pl-8">self.animate_frame(target_geometry, duration=0.35)</p>
+    </div>
+
+  </main>
+
+  <!-- Bottom Specification & Quick-Test Footer -->
+  <footer class="bg-[#0b0e14] border-t border-[#181d2a] px-4 py-3 shrink-0 z-30">
+    <div class="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-3 text-[11px]">
+      <div class="bg-[#121622] p-2.5 rounded-xl border border-[#202738]">
+        <span class="font-bold text-white block mb-1">📐 Dynamic Geometry</span>
+        <span class="text-zinc-400">Idle: 140×32px | Think: 320×44px | Speak: 480×88px</span>
+      </div>
+      <div class="bg-[#121622] p-2.5 rounded-xl border border-[#202738]">
+        <span class="font-bold text-white block mb-1">🎨 Sensory Palette</span>
+        <span class="text-zinc-400">Violet (Reasoning) • Blue (Tools) • Cyan (Voice) • Green (Mic)</span>
+      </div>
+      <div class="bg-[#121622] p-2.5 rounded-xl border border-[#202738]">
+        <span class="font-bold text-white block mb-1">⚡ Instant Handoff</span>
+        <span class="text-zinc-400">Auto-listen VAD opens mic right after speech ends with active barge-in</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- State Switching Script Logic -->
+  <script>
+    let currentState = 'speaking';
+    let autoTimer = null;
+    const states = ['idle', 'thinking', 'working', 'speaking', 'listening'];
+    let stateIdx = 3;
+
+    const personas = {
+      Christopher: { icon: '🧔', agent: 'Antigravity', tag: '• Christopher', text: '"Hey Jake! I\'ve finished refactoring the auth controller and ran all 150 pytest test cases."' },
+      Aria: { icon: '⚡', agent: 'QA Tester', tag: '• Aria', text: '"Found 0 test failures. Acoustic room check match is at 100%."' },
+      Guy: { icon: '🎭', agent: 'Claude Code', tag: '• Guy', text: '"I reviewed the architecture. We can proceed with the unified Dynamic Island implementation."' },
+      Sonia: { icon: '🔬', agent: 'Researcher', tag: '• Sonia', text: '"Benchmarked all 8 neural voices — average TTFB latency is under 1.2 milliseconds."' },
+      William: { icon: '📐', agent: 'Architect', tag: '• William', text: '"The NSAnimationContext spring physics will give silky 60fps transitions."' }
+    };
+    let activePersona = personas.Christopher;
+
+    function setHUDState(state) {
+      currentState = state;
+      const hud = document.getElementById('dynamicHud');
+      const avatarBg = document.getElementById('hudAvatarBg');
+      const avatarIcon = document.getElementById('hudAvatarIcon');
+      const agentName = document.getElementById('hudAgentName');
+      const personaTag = document.getElementById('hudPersonaTag');
+      const statusBadge = document.getElementById('hudStatusBadge');
+      const textBody = document.getElementById('hudTextBody');
+      const contentRow = document.getElementById('hudContentRow');
+
+      // Visualizers
+      const waveBars = document.getElementById('hudWaveBars');
+      const thinkingInd = document.getElementById('hudThinkingIndicator');
+      const workingInd = document.getElementById('hudWorkingIndicator');
+      const listeningInd = document.getElementById('hudListeningIndicator');
+
+      // Reset All Indicator Visibilities
+      waveBars.classList.add('hidden');
+      thinkingInd.classList.add('hidden');
+      workingInd.classList.add('hidden');
+      listeningInd.classList.add('hidden');
+
+      // Reset Glow Classes
+      hud.className = hud.className.replace(/glow-\w+/g, '').trim();
+
+      // Reset Tab Styles
+      states.forEach(s => {
+        const b = document.getElementById('btn-' + s);
+        if (b) {
+          b.className = 'px-3 py-1.5 rounded-lg text-zinc-400 hover:text-white transition flex items-center gap-1.5';
+        }
+      });
+      const activeBtn = document.getElementById('btn-' + state);
+
+      if (state === 'idle') {
+        hud.style.width = '160px';
+        hud.style.minHeight = '36px';
+        hud.style.borderColor = 'rgba(71, 85, 105, 0.4)';
+        hud.style.boxShadow = '0 0 10px rgba(0,0,0,0.5)';
+        contentRow.classList.add('hidden');
+        personaTag.classList.add('hidden');
+        statusBadge.classList.add('hidden');
+        agentName.innerText = 'VoiceFi';
+        avatarBg.className = 'w-5 h-5 rounded-full bg-slate-800 flex items-center justify-center text-xs';
+        avatarIcon.innerText = '🎙️';
+        if (activeBtn) activeBtn.className = 'px-3 py-1.5 rounded-lg bg-slate-700 text-white font-bold transition flex items-center gap-1.5';
+      }
+      else if (state === 'thinking') {
+        hud.style.width = '360px';
+        hud.style.minHeight = '48px';
+        hud.classList.add('glow-thinking');
+        contentRow.classList.remove('hidden');
+        personaTag.classList.remove('hidden');
+        statusBadge.classList.remove('hidden');
+        thinkingInd.classList.remove('hidden');
+        thinkingInd.classList.add('flex');
+
+        agentName.innerText = activePersona.agent;
+        personaTag.innerText = activePersona.tag;
+        statusBadge.innerText = '🧠 Evaluating Plan & Code';
+        statusBadge.className = 'text-[10px] font-mono text-purple-300';
+        avatarBg.className = 'w-7 h-7 rounded-full bg-purple-500/20 border border-purple-400/40 flex items-center justify-center text-sm shadow-[0_0_10px_rgba(139,92,246,0.4)]';
+        avatarIcon.innerText = '🧠';
+        textBody.innerText = 'Analyzing dependency graph and synthesizing implementation steps...';
+        if (activeBtn) activeBtn.className = 'px-3 py-1.5 rounded-lg bg-purple-500/20 text-purple-300 font-bold border border-purple-500/40 shadow-sm transition flex items-center gap-1.5';
+      }
+      else if (state === 'working') {
+        hud.style.width = '380px';
+        hud.style.minHeight = '48px';
+        hud.classList.add('glow-working');
+        contentRow.classList.remove('hidden');
+        personaTag.classList.remove('hidden');
+        statusBadge.classList.remove('hidden');
+        workingInd.classList.remove('hidden');
+        workingInd.classList.add('flex');
+
+        agentName.innerText = activePersona.agent;
+        personaTag.innerText = activePersona.tag;
+        statusBadge.innerText = '⚡ Running Bash Tool';
+        statusBadge.className = 'text-[10px] font-mono text-blue-300';
+        avatarBg.className = 'w-7 h-7 rounded-full bg-blue-500/20 border border-blue-400/40 flex items-center justify-center text-sm shadow-[0_0_10px_rgba(59,130,246,0.4)]';
+        avatarIcon.innerText = '⚡';
+        textBody.innerText = 'Executing: pytest tests/ -v (Passed 150/150 test suites)';
+        if (activeBtn) activeBtn.className = 'px-3 py-1.5 rounded-lg bg-blue-500/20 text-blue-300 font-bold border border-blue-500/40 shadow-sm transition flex items-center gap-1.5';
+      }
+      else if (state === 'speaking') {
+        hud.style.width = '490px';
+        hud.style.minHeight = '84px';
+        hud.classList.add('glow-speaking');
+        contentRow.classList.remove('hidden');
+        personaTag.classList.remove('hidden');
+        statusBadge.classList.remove('hidden');
+        waveBars.classList.remove('hidden');
+        waveBars.classList.add('flex');
+
+        agentName.innerText = activePersona.agent;
+        personaTag.innerText = activePersona.tag;
+        statusBadge.innerText = '🔊 Speaking Response';
+        statusBadge.className = 'text-[10px] font-mono text-cyan-300';
+        avatarBg.className = 'w-8 h-8 rounded-full bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center text-sm shadow-[0_0_12px_rgba(6,182,212,0.4)]';
+        avatarIcon.innerText = activePersona.icon;
+        textBody.innerText = activePersona.text;
+        if (activeBtn) activeBtn.className = 'px-3 py-1.5 rounded-lg bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/40 shadow-sm transition flex items-center gap-1.5';
+      }
+      else if (state === 'listening') {
+        hud.style.width = '420px';
+        hud.style.minHeight = '64px';
+        hud.classList.add('glow-listening');
+        contentRow.classList.remove('hidden');
+        personaTag.classList.remove('hidden');
+        statusBadge.classList.remove('hidden');
+        listeningInd.classList.remove('hidden');
+        listeningInd.classList.add('flex');
+
+        agentName.innerText = 'Listening to Jake';
+        personaTag.innerText = '• Voice Activity Detection';
+        statusBadge.innerText = '🎙️ Capturing Developer Speech...';
+        statusBadge.className = 'text-[10px] font-mono text-emerald-300';
+        avatarBg.className = 'w-8 h-8 rounded-full bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-sm shadow-[0_0_14px_rgba(16,185,129,0.5)]';
+        avatarIcon.innerText = '🎙️';
+        textBody.innerText = '"Yeah, proceed with the unified Dynamic Island implementation..."';
+        if (activeBtn) activeBtn.className = 'px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/40 shadow-sm transition flex items-center gap-1.5';
+      }
+    }
+
+    function changePersona(name) {
+      if (personas[name]) {
+        activePersona = personas[name];
+        setHUDState(currentState);
+      }
+    }
+
+    function handleCapsuleClick() {
+      // Advance to next state on click
+      stateIdx = (stateIdx + 1) % states.length;
+      setHUDState(states[stateIdx]);
+    }
+
+    function toggleAutoCycle() {
+      const btn = document.getElementById('autoPlayBtn');
+      const pIcon = document.getElementById('playIcon');
+      const pText = document.getElementById('playText');
+      if (autoTimer) {
+        clearInterval(autoTimer);
+        autoTimer = null;
+        pIcon.innerText = '▶️';
+        pText.innerText = 'Auto-Morph Demo';
+        btn.className = 'px-3 py-1 rounded-lg text-xs font-semibold bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white shadow-md flex items-center gap-1.5 transition active:scale-95';
+      } else {
+        pIcon.innerText = '⏸️';
+        pText.innerText = 'Pause Demo';
+        btn.className = 'px-3 py-1 rounded-lg text-xs font-semibold bg-amber-500 hover:bg-amber-400 text-black shadow-md flex items-center gap-1.5 transition active:scale-95';
+        autoTimer = setInterval(() => {
+          stateIdx = (stateIdx + 1) % states.length;
+          setHUDState(states[stateIdx]);
+        }, 2200);
+      }
+    }
+
+    // Initialize in speaking state
+    setHUDState('speaking');
+  </script>
+</body>
+</html>

@@ -9,87 +9,37 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from voicegency.config import VoicegencyConfig
-from voicegency.memo.models import (
+from voicefi.config import VoiceFiConfig
+from voicefi.memo.models import (
     MemoChunk,
     MemoRecording,
-    ImplementationPlan,
-    ImplementationStep,
-    ProposedFileChange,
-    ArchitecturalDiagram,
-    PRChecklist,
+    CleanedMemo,
     SynthesizedMemo,
     MemoStore,
 )
-from voicegency.memo.recorder import MemoBufferRecorder
-from voicegency.memo.synthesizer import MemoSynthesizer
-from voicegency.cli import cmd_memo
+from voicefi.memo.cleaner import MemoCleaner
+from voicefi.memo.recorder import MemoBufferRecorder
+from voicefi.memo.synthesizer import MemoSynthesizer
+from voicefi.cli import cmd_memo
 
 
 def test_memo_models_and_markdown():
     """Test data models serialization and markdown rendering."""
-    plan = ImplementationPlan(
-        goal_summary="Build background video worker",
-        problem_context="Processing video thumbnails asynchronously",
-        architectural_decisions=["Use SQLite queue instead of Redis", "Retry 3 times on failure"],
-        proposed_files=[
-            ProposedFileChange(action="NEW", path="src/worker.py", description="Worker daemon"),
-            ProposedFileChange(action="MODIFY", path="src/models.py", description="State models"),
-        ],
-        steps=[
-            ImplementationStep(
-                step_number=1,
-                title="Define Job Schemas",
-                details="Add job status enum and table",
-                target_files=["src/models.py"],
-            ),
-            ImplementationStep(
-                step_number=2,
-                title="Worker Queue",
-                details="Consume tasks and process frames",
-                target_files=["src/worker.py"],
-            ),
-        ],
-    )
-
-    diagram = ArchitecturalDiagram(
-        diagram_type="graph TD",
-        mermaid_code="graph TD\n    User --> API\n    API --> Worker",
-        description="Architecture flow",
-    )
-
-    checklist = PRChecklist(
-        core_tasks=["Implement worker loop", "Add POST /jobs endpoint"],
-        testing_and_verification=["Add unit test for retry logic", "Verify 100% pass rate"],
-        edge_cases_and_security=["Handle SIGINT cleanly", "Cleanup temp files"],
-        documentation_and_ops=["Update README", "Add CLI command"],
-    )
-
-    synth = SynthesizedMemo(
+    memo = CleanedMemo(
         memo_id="test1234",
         title="Background Video Worker",
-        executive_summary="Build an async video worker for thumbnails.",
-        raw_transcript="So I am thinking we need a video worker. Actually wait, let's use SQLite queue.",
-        key_requirements=["Need worker for video", "Extract frames with ffmpeg"],
-        course_corrections=["Course correction: let's use SQLite queue"],
-        implementation_plan=plan,
-        architectural_diagram=diagram,
-        pr_checklist=checklist,
+        duration_seconds=120.0,
+        raw_transcript="Um so I am thinking we need a video worker. Let's use SQLite queue.",
+        cleaned_transcript="So I am thinking we need a video worker. Let's use SQLite queue.",
+        word_count=13,
     )
 
-    md = synth.to_markdown()
+    md = memo.to_markdown()
 
-    assert "# 🧠 Voice Memo: Background Video Worker" in md
+    assert "# 🎙️ Voice Memo: Background Video Worker" in md
     assert "ID: `test1234`" in md
-    assert "## 📋 Executive Summary" in md
-    assert "Course correction: let's use SQLite queue" in md
-    assert "```mermaid" in md
-    assert "graph TD" in md
-    assert "## 🚀 Implementation Plan" in md
-    assert "**[NEW]** `src/worker.py`" in md
-    assert "## ✅ PR Checklist & Acceptance Criteria" in md
-    assert "- [ ] Implement worker loop" in md
-    assert "- [ ] Add unit test for retry logic" in md
+    assert "## 📝 Cleaned Transcript" in md
+    assert "So I am thinking we need a video worker" in md
     assert "## 🎙️ Raw Voice Transcript" in md
 
 
@@ -106,21 +56,22 @@ def test_memo_store_crud(tmp_path):
         word_count=9,
     )
 
-    synth = MemoSynthesizer().synthesize(rec.raw_transcript, memo_id="memo001", custom_title=rec.title)
+    cleaner = MemoCleaner()
+    memo = cleaner.process(rec.raw_transcript, memo_id="memo001", custom_title=rec.title)
 
-    memo_dir = store.save_memo(rec, synth)
+    memo_dir = store.save_memo(rec, memo)
     assert memo_dir.is_dir()
     assert (memo_dir / "recording.json").is_file()
-    assert (memo_dir / "synthesis.json").is_file()
-    assert (memo_dir / "plan.md").is_file()
+    assert (memo_dir / "memo.json").is_file()
+    assert (memo_dir / "memo.md").is_file()
 
     # Load by ID
-    loaded_rec, loaded_synth = store.get_memo("memo001")
+    loaded_rec, loaded_memo = store.get_memo("memo001")
     assert loaded_rec is not None
     assert loaded_rec.id == "memo001"
     assert loaded_rec.title == "Payment Gateway Integration"
-    assert loaded_synth is not None
-    assert loaded_synth.memo_id == "memo001"
+    assert loaded_memo is not None
+    assert loaded_memo.memo_id == "memo001"
 
     # Load by prefix
     prefix_rec, _ = store.get_memo("memo0")
@@ -131,6 +82,7 @@ def test_memo_store_crud(tmp_path):
     memos_list = store.list_memos()
     assert len(memos_list) == 1
     assert memos_list[0]["id"] == "memo001"
+    assert memos_list[0]["has_cleaned_memo"] is True
     assert memos_list[0]["has_synthesis"] is True
 
     # Delete memo
@@ -139,39 +91,33 @@ def test_memo_store_crud(tmp_path):
     assert len(store.list_memos()) == 0
 
 
-def test_synthesizer_cleaning_and_entities():
-    """Test thought synthesizer NLP parsing and entity detection."""
-    synth = MemoSynthesizer()
+def test_cleaner_disfluencies_and_fidelity():
+    """Test non-destructive cleaner removes true disfluencies while preserving developer meaning."""
+    cleaner = MemoCleaner()
 
-    raw_text = "Um, so basically, uh, I think we should, like, add an API endpoint GET /metrics and store counters in sqlite. Actually wait, let's also cache in redis. We need pytest tests in test_metrics.py."
+    raw_text = "Um, so basically, uh, I think we should, like, add an API endpoint GET /metrics. We we need redis caching."
+    cleaned = cleaner.clean_transcript(raw_text)
 
-    cleaned = synth.clean_raw_rambles(raw_text)
+    # Disfluencies stripped
     assert "um" not in cleaned.lower()
-    assert "basically" not in cleaned.lower()
-
-    corrections, _ = synth.detect_pivots_and_corrections(cleaned)
-    assert len(corrections) >= 1
-    assert "Course correction" in corrections[0]
-
-    entities = synth.extract_technical_entities(cleaned)
-    assert "sqlite" in entities["databases_and_storage"] or "redis" in entities["databases_and_storage"]
-    assert "GET /metrics" in entities["api_endpoints"]
-    assert "test_metrics.py" in entities["files"]
+    assert "uh" not in cleaned.lower()
+    # Stutter collapsed
+    assert "We need" in cleaned or "we need" in cleaned
+    # Semantic words preserved
+    assert "basically" in cleaned.lower()
+    assert "like" in cleaned.lower()
+    assert "GET /metrics" in cleaned
 
 
-def test_synthesizer_full_generation():
-    """Test full synthesis output generation."""
-    synth = MemoSynthesizer()
-    speech = "So I am thinking we need an async task queue. Tasks should be processed by background workers. We need POST /tasks and GET /tasks/:id. If it fails, retry 3 times. We need models.py and worker.py."
+def test_cleaner_title_inference():
+    """Test title inference from speech."""
+    cleaner = MemoCleaner()
 
-    res = synth.synthesize(speech, custom_title="Task Queue Engine")
+    title1 = cleaner.infer_title("I'm thinking we should build a real-time event pipeline for telemetry.")
+    assert "Real-Time Event" in title1 or "Event" in title1
 
-    assert res.title == "Task Queue Engine"
-    assert res.architectural_diagram is not None
-    assert "graph TD" in res.architectural_diagram.mermaid_code
-    assert len(res.implementation_plan.steps) >= 3
-    assert len(res.pr_checklist.core_tasks) >= 1
-    assert len(res.pr_checklist.testing_and_verification) >= 1
+    title2 = cleaner.infer_title("Random text", custom_title="Custom Feature Plan")
+    assert title2 == "Custom Feature Plan"
 
 
 def test_memo_recorder_timer_formatting():
@@ -204,7 +150,7 @@ def test_memo_recorder_session_mock():
     state_changes = []
 
     with patch("sounddevice.InputStream", return_value=mock_stream):
-        with patch("voicegency.audio.chimes.play_chime"):
+        with patch("voicefi.audio.chimes.play_chime"):
             audio, wav_path, duration = rec.record_memo_session(
                 interactive=False,
                 on_tick=lambda e, r, l: ticks.append((e, r)),
@@ -221,7 +167,7 @@ def test_memo_recorder_session_mock():
 
 def test_cli_memo_synth_and_list(tmp_path, capsys):
     """Test CLI commands: synth, list, show, and delete."""
-    with patch("voicegency.memo.models.get_memos_dir", return_value=tmp_path):
+    with patch("voicefi.memo.models.get_memos_dir", return_value=tmp_path):
         # 1. Synthesize text via CLI
         args_synth = MagicMock()
         args_synth.config = None
@@ -266,7 +212,7 @@ def test_cli_memo_synth_and_list(tmp_path, capsys):
 
         cmd_memo(args_show)
         captured = capsys.readouterr()
-        assert "Executive Summary" in captured.out
+        assert "Cleaned Transcript" in captured.out
 
         # 4. Delete memo
         args_del = MagicMock()

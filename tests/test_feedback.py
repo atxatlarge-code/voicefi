@@ -5,18 +5,18 @@ Unit tests for feedback submission, diagnostics collection, and CLI feedback com
 from unittest.mock import patch, MagicMock
 from pathlib import Path
 import pytest
-from voicegency.feedback import (
+from voicefi.feedback import (
     submit_feedback,
     list_feedback,
     collect_system_diagnostics,
 )
-from voicegency.cli import cmd_feedback
+from voicefi.cli import cmd_feedback
 
 
 def test_collect_system_diagnostics():
     """Test gathering environment diagnostics."""
     diag = collect_system_diagnostics()
-    assert "voicegency_version" in diag
+    assert "voicefi_version" in diag
     assert "os_platform" in diag
     assert "python_version" in diag
     assert "tts_provider" in diag
@@ -24,8 +24,8 @@ def test_collect_system_diagnostics():
 
 def test_submit_and_list_feedback(tmp_path):
     """Test submitting feedback and verifying persistence."""
-    with patch("voicegency.feedback.get_feedback_dir", return_value=tmp_path / "feedback"), \
-         patch("voicegency.feedback.Path.home", return_value=tmp_path):
+    with patch("voicefi.feedback.get_feedback_dir", return_value=tmp_path / "feedback"), \
+         patch("voicefi.feedback.Path.home", return_value=tmp_path):
         
         record = submit_feedback(
             title="Audio sample rate mismatch",
@@ -52,8 +52,8 @@ def test_submit_feedback_validation():
 
 def test_cmd_feedback_cli(capsys, tmp_path):
     """Test CLI feedback submission and listing."""
-    with patch("voicegency.feedback.get_feedback_dir", return_value=tmp_path / "feedback"), \
-         patch("voicegency.feedback.Path.home", return_value=tmp_path):
+    with patch("voicefi.feedback.get_feedback_dir", return_value=tmp_path / "feedback"), \
+         patch("voicefi.feedback.Path.home", return_value=tmp_path):
 
         # Test submit
         args_submit = MagicMock()

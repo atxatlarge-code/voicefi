@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Voicegency™ — Ultra-Simplified Broadcast V/A Marks</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #FFFFFF;
+      --card-bg: #FAFAFA;
+      --border: #E5E5E5;
+      --border-dark: #000000;
+      --text: #000000;
+      --muted: #666666;
+      --rec-red: #FF2A2A;
+      --gold: #FFD166;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, "Helvetica Neue", "Neue Haas Grotesk", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 48px 24px 120px;
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 1240px;
+      margin: 0 auto;
+    }
+
+    /* Top Nav */
+    .top-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 2px solid var(--border-dark);
+      padding-bottom: 16px;
+      margin-bottom: 40px;
+    }
+
+    .live-tally-badge {
+      background: var(--rec-red);
+      color: #FFFFFF;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      font-weight: 900;
+      padding: 4px 12px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .top-title {
+      font-weight: 900;
+      font-size: 1.15rem;
+      letter-spacing: -0.03em;
+    }
+
+    /* Header */
+    header {
+      margin-bottom: 40px;
+    }
+
+    h1 {
+      font-size: clamp(2.2rem, 5vw, 4rem);
+      font-weight: 900;
+      letter-spacing: -0.04em;
+      line-height: 1;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+
+    h1 span.red {
+      color: var(--rec-red);
+    }
+
+    .subtitle-bar {
+      background: #000000;
+      color: #FFFFFF;
+      padding: 18px 24px;
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin-bottom: 28px;
+    }
+
+    .subtitle-bar span.red {
+      color: var(--rec-red);
+    }
+
+    /* Section Title */
+    .section-title {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.9rem;
+      font-weight: 900;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #000000;
+      margin: 40px 0 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .section-title::after {
+      content: "";
+      flex-grow: 1;
+      height: 2px;
+      background: var(--border-dark);
+    }
+
+    /* 4 Grid */
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
+      margin-bottom: 60px;
+    }
+
+    .variant-card {
+      border: 2px solid var(--border-dark);
+      background: #FFFFFF;
+      padding: 26px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      transition: transform 0.15s ease, border-color 0.15s ease;
+    }
+
+    .variant-card:hover {
+      border-color: var(--rec-red);
+      transform: translateY(-4px);
+    }
+
+    .card-header-bar {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      font-weight: 900;
+      margin-bottom: 18px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 8px;
+    }
+
+    .var-badge {
+      background: #000000;
+      color: var(--rec-red);
+      padding: 3px 8px;
+      font-weight: 900;
+    }
+
+    .preview-box {
+      width: 220px;
+      height: 220px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--border);
+      background: #FFFFFF;
+    }
+
+    .preview-box img {
+      width: 100%;
+      height: 100%;
+    }
+
+    .var-title {
+      font-size: 1.15rem;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: -0.02em;
+      margin-bottom: 6px;
+      text-align: center;
+    }
+
+    .var-desc {
+      font-size: 0.82rem;
+      color: var(--muted);
+      text-align: center;
+      line-height: 1.45;
+      margin-bottom: 18px;
+      flex-grow: 1;
+    }
+
+    .file-path {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      background: #FAFAFA;
+      border: 1px solid var(--border-dark);
+      color: #000000;
+      padding: 4px 10px;
+      font-weight: 700;
+    }
+
+    /* Scaling Bench Table */
+    .scale-bench {
+      border: 2px solid var(--border-dark);
+      background: var(--card-bg);
+      padding: 32px;
+    }
+
+    .bench-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 20px;
+      align-items: center;
+    }
+
+    .bench-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      padding: 16px 12px;
+      background: #FFFFFF;
+      border: 1px solid var(--border);
+    }
+
+    .bench-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+
+    <!-- Top Nav -->
+    <nav class="top-nav">
+      <div class="top-title">
+        <span class="live-tally-badge">● ON AIR</span>
+        VOICEGENCY™ // ULTRA-SIMPLIFIED BROADCAST V/A
+      </div>
+      <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; font-weight: 700; color: #666;">
+        WHITE CANVAS • MAXIMUM REDUCTION
+      </div>
+    </nav>
+
+    <!-- Header -->
+    <header>
+      <h1>THE ULTRA-SIMPLIFIED <span class="red">MARKS</span></h1>
+      <div class="subtitle-bar">
+        NO CLUTTER • NO EXTRA SLATS • <span class="red">PURE IRREDUCIBLE V/A GEOMETRY.</span>
+      </div>
+    </header>
+
+    <!-- 4 Grid -->
+    <div class="section-title">THE 4 DISTILLED BROADCAST MARKS</div>
+    <div class="grid-4">
+
+      <!-- Minimal 01 -->
+      <div class="variant-card">
+        <div class="card-header-bar">
+          <span class="var-badge">MINIMAL 01</span>
+          <span>3-STROKE MONOLITH</span>
+        </div>
+        <div class="preview-box">
+          <img src="logo-ultra-simple-1.svg" alt="Minimal 01">
+        </div>
+        <div class="var-title">01. 3-Stroke Monolith</div>
+        <p class="var-desc">
+          Top arch dome, heavy V blades, single solid red tally crossbar (A), and centered diaphragm node. Zero clutter.
+        </p>
+        <span class="file-path">assets/logo-ultra-simple-1.svg</span>
+      </div>
+
+      <!-- Minimal 02 -->
+      <div class="variant-card">
+        <div class="card-header-bar">
+          <span class="var-badge">MINIMAL 02</span>
+          <span>DUAL-PILLAR</span>
+        </div>
+        <div class="preview-box">
+          <img src="logo-ultra-simple-2.svg" alt="Minimal 02">
+        </div>
+        <div class="var-title">02. Dual-Pillar Capsule</div>
+        <p class="var-desc">
+          Flat studio cap, solid black V slabs, 2 bold horizontal acoustic slits, and red tally crossbar.
+        </p>
+        <span class="file-path">assets/logo-ultra-simple-2.svg</span>
+      </div>
+
+      <!-- Minimal 03 -->
+      <div class="variant-card">
+        <div class="card-header-bar">
+          <span class="var-badge">MINIMAL 03</span>
+          <span>STENCIL AMBIGRAM</span>
+        </div>
+        <div class="preview-box">
+          <img src="logo-ultra-simple-3.svg" alt="Minimal 03">
+        </div>
+        <div class="var-title">03. Stencil Ambigram</div>
+        <p class="var-desc">
+          Solid outer V, clean ascending A chevron, red tally crossbar, and lower circular node. Extreme geometric purity.
+        </p>
+        <span class="file-path">assets/logo-ultra-simple-3.svg</span>
+      </div>
+
+      <!-- Minimal 04 -->
+      <div class="variant-card">
+        <div class="card-header-bar">
+          <span class="var-badge">MINIMAL 04</span>
+          <span>ICONIC BROADCAST</span>
+        </div>
+        <div class="preview-box">
+          <img src="logo-ultra-simple-4.svg" alt="Minimal 04">
+        </div>
+        <div class="var-title">04. Iconic Broadcast</div>
+        <p class="var-desc">
+          Classic dome head, exactly 2 bold Variable-D louvers, single solid red tally crossbar (A), and red pickup eye.
+        </p>
+        <span class="file-path">assets/logo-ultra-simple-4.svg</span>
+      </div>
+
+    </div>
+
+    <!-- SCALE BENCH -->
+    <div class="section-title">OPTICAL SCALING BENCH (32px DOCK SIZE)</div>
+    <div class="scale-bench">
+      <div class="bench-grid">
+        <div class="bench-item">
+          <img src="logo-ultra-simple-1.svg" width="32" height="32">
+          <span class="bench-label">MINIMAL 01</span>
+        </div>
+        <div class="bench-item">
+          <img src="logo-ultra-simple-2.svg" width="32" height="32">
+          <span class="bench-label">MINIMAL 02</span>
+        </div>
+        <div class="bench-item">
+          <img src="logo-ultra-simple-3.svg" width="32" height="32">
+          <span class="bench-label">MINIMAL 03</span>
+        </div>
+        <div class="bench-item">
+          <img src="logo-ultra-simple-4.svg" width="32" height="32">
+          <span class="bench-label">MINIMAL 04</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</body>
+</html>

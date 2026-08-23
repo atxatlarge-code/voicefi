@@ -1,5 +1,5 @@
 """
-Unit and integration tests for the Voicegency Mobile Companion, PWA, and WebSocket Hub.
+Unit and integration tests for the VoiceFi Mobile Companion, PWA, and WebSocket Hub.
 """
 
 import asyncio
@@ -9,16 +9,16 @@ from unittest.mock import patch, MagicMock
 from aiohttp import web
 from aiohttp.test_utils import AioHTTPTestCase, unittest_run_loop
 
-from voicegency.config import VoicegencyConfig
-from voicegency.companion.qr import (
+from voicefi.config import VoiceFiConfig
+from voicefi.companion.qr import (
     get_local_ip,
     get_mdns_hostname,
     get_companion_urls,
     generate_qr_ascii,
     generate_qr_base64_png,
 )
-from voicegency.companion.server import CompanionServer
-from voicegency.cli import cmd_companion
+from voicefi.companion.server import CompanionServer
+from voicefi.cli import cmd_companion
 
 
 def test_qr_network_utilities():
@@ -54,7 +54,7 @@ class CompanionServerTestCase(AioHTTPTestCase):
     """Integration test suite for CompanionServer async HTTP & WebSocket endpoints."""
 
     async def get_application(self):
-        self.cfg = VoicegencyConfig()
+        self.cfg = VoiceFiConfig()
         self.companion_server = CompanionServer(config=self.cfg, port=8765)
         self.companion_server.loop = asyncio.get_event_loop()
         return self.companion_server.app
@@ -64,7 +64,7 @@ class CompanionServerTestCase(AioHTTPTestCase):
         resp = await self.client.get("/")
         assert resp.status == 200
         text = await resp.text()
-        assert "Voicegency Mobile Companion" in text
+        assert "VoiceFi Companion" in text
         assert "Hands-Free Loop" in text
         assert "convSelect" in text
 
@@ -73,7 +73,7 @@ class CompanionServerTestCase(AioHTTPTestCase):
         resp = await self.client.get("/manifest.json")
         assert resp.status == 200
         data = await resp.json()
-        assert data.get("name") == "Voicegency Companion"
+        assert data.get("name") == "VoiceFi Companion"
         assert data.get("display") == "standalone"
 
     async def test_get_sw(self):
@@ -108,7 +108,7 @@ class CompanionServerTestCase(AioHTTPTestCase):
         assert data_switch.get("active_id") == "test-conv-123"
 
         # 2. Send prompt with mocked Antigravity IPC
-        with patch("voicegency.companion.server.send_message_to_antigravity", return_value=True) as mock_send:
+        with patch("voicefi.companion.server.send_message_to_antigravity", return_value=True) as mock_send:
             resp_send = await self.client.post("/api/send", json={"conv_id": "test-conv-123", "text": "Run unit tests"})
             assert resp_send.status == 200
             data_send = await resp_send.json()
@@ -139,7 +139,7 @@ class CompanionServerTestCase(AioHTTPTestCase):
         assert msg_pong.get("type") == "pong"
 
         # 3. Test sending voice command over WebSocket
-        with patch("voicegency.companion.server.send_message_to_antigravity", return_value=True) as mock_send:
+        with patch("voicefi.companion.server.send_message_to_antigravity", return_value=True) as mock_send:
             await ws.send_json({
                 "type": "user_voice_command",
                 "conv_id": "test-conv-456",
@@ -174,7 +174,7 @@ def test_cli_companion_invocation():
     args.open = False
     args.config = None
 
-    with patch("voicegency.companion.server.run_companion_server") as mock_run:
+    with patch("voicefi.companion.server.run_companion_server") as mock_run:
         cmd_companion(args)
         mock_run.assert_called_once()
         kwargs = mock_run.call_args.kwargs

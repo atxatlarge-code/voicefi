@@ -7,18 +7,18 @@ from unittest.mock import patch, MagicMock
 import numpy as np
 import pytest
 
-from voicegency.config import VoicegencyConfig, VADConfig, TTSConfig, STTConfig
-from voicegency.audio.recorder import AudioRecorder
-from voicegency.audio.player import StreamingAudioPlayer
-from voicegency.stt.base import BaseSTT, BaseStreamingSTT
-from voicegency.stt.streaming_local import StreamingLocalSTT
-from voicegency.stt import get_stt_engine
-from voicegency.tts import get_tts_engine
-from voicegency.tts.edge_tts import EdgeTTS
+from voicefi.config import VoiceFiConfig, VADConfig, TTSConfig, STTConfig
+from voicefi.audio.recorder import AudioRecorder
+from voicefi.audio.player import StreamingAudioPlayer
+from voicefi.stt.base import BaseSTT, BaseStreamingSTT
+from voicefi.stt.streaming_local import StreamingLocalSTT
+from voicefi.stt import get_stt_engine
+from voicefi.tts import get_tts_engine
+from voicefi.tts.edge_tts import EdgeTTS
 
 
 def test_config_ptt_and_streaming_defaults():
-    config = VoicegencyConfig()
+    config = VoiceFiConfig()
     assert config.vad.mode == "hybrid"
     assert config.vad.ptt_release_delay_ms == 150
     assert config.tts.streaming is True
@@ -26,7 +26,7 @@ def test_config_ptt_and_streaming_defaults():
 
 
 def test_stt_factory_streaming_selection():
-    cfg_stream = VoicegencyConfig()
+    cfg_stream = VoiceFiConfig()
     cfg_stream.stt.streaming = True
     stt_stream = get_stt_engine(cfg_stream)
     assert isinstance(stt_stream, StreamingLocalSTT)

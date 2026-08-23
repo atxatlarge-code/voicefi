@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Voicegency™ — 9 RE20 Broadcast V/A Variants</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #FFFFFF;
+      --card-bg: #FAFAFA;
+      --border: #E5E5E5;
+      --border-dark: #000000;
+      --text: #000000;
+      --muted: #666666;
+      --rec-red: #FF2A2A;
+      --gold: #FFD166;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, "Helvetica Neue", "Neue Haas Grotesk", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 48px 24px 120px;
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 1280px;
+      margin: 0 auto;
+    }
+
+    /* Top Nav */
+    .top-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 2px solid var(--border-dark);
+      padding-bottom: 16px;
+      margin-bottom: 40px;
+    }
+
+    .live-tally-badge {
+      background: var(--rec-red);
+      color: #FFFFFF;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      font-weight: 900;
+      padding: 4px 12px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .top-title {
+      font-weight: 900;
+      font-size: 1.15rem;
+      letter-spacing: -0.03em;
+    }
+
+    /* Header */
+    header {
+      margin-bottom: 40px;
+    }
+
+    h1 {
+      font-size: clamp(2.2rem, 5vw, 4.2rem);
+      font-weight: 900;
+      letter-spacing: -0.04em;
+      line-height: 1;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+
+    h1 span.red {
+      color: var(--rec-red);
+    }
+
+    .subtitle-bar {
+      background: #000000;
+      color: #FFFFFF;
+      padding: 18px 24px;
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin-bottom: 28px;
+    }
+
+    .subtitle-bar span.red {
+      color: var(--rec-red);
+    }
+
+    /* Hardware Spotlight Top */
+    .hardware-banner {
+      border: 2px solid var(--border-dark);
+      background: var(--card-bg);
+      padding: 24px 32px;
+      margin-bottom: 48px;
+      display: flex;
+      align-items: center;
+      gap: 32px;
+    }
+
+    @media (max-width: 768px) {
+      .hardware-banner { flex-direction: column; text-align: center; }
+    }
+
+    .photo-thumb {
+      width: 140px;
+      height: 140px;
+      border: 1px solid var(--border-dark);
+      background: #FFFFFF;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .photo-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .hardware-info h3 {
+      font-size: 1.3rem;
+      font-weight: 900;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+
+    .hardware-info p {
+      font-size: 0.9rem;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    /* 3x3 Grid */
+    .section-title {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.9rem;
+      font-weight: 900;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #000000;
+      margin: 40px 0 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .section-title::after {
+      content: "";
+      flex-grow: 1;
+      height: 2px;
+      background: var(--border-dark);
+    }
+
+    .grid-3x3 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+      gap: 28px;
+      margin-bottom: 60px;
+    }
+
+    .variant-card {
+      border: 2px solid var(--border-dark);
+      background: #FFFFFF;
+      padding: 26px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      transition: transform 0.15s ease, border-color 0.15s ease;
+    }
+
+    .variant-card:hover {
+      border-color: var(--rec-red);
+      transform: translateY(-4px);
+    }
+
+    .card-header-bar {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      font-weight: 900;
+      margin-bottom: 18px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 8px;
+    }
+
+    .var-badge {
+      background: #000000;
+      color: var(--rec-red);
+      padding: 3px 8px;
+      font-weight: 900;
+    }
+
+    .preview-box {
+      width: 240px;
+      height: 240px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--border);
+      background: #FFFFFF;
+    }
+
+    .preview-box img {
+      width: 100%;
+      height: 100%;
+    }
+
+    .var-title {
+      font-size: 1.15rem;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: -0.02em;
+      margin-bottom: 6px;
+      text-align: center;
+    }
+
+    .var-desc {
+      font-size: 0.82rem;
+      color: var(--muted);
+      text-align: center;
+      line-height: 1.45;
+      margin-bottom: 18px;
+      flex-grow: 1;
+    }
+
+    .file-path {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      background: #FAFAFA;
+      border: 1px solid var(--border-dark);
+      color: #000000;
+      padding: 4px 10px;
+      font-weight: 700;
+    }
+
+    /* Scaling Bench Table */
+    .scale-bench {
+      border: 2px solid var(--border-dark);
+      background: var(--card-bg);
+      padding: 32px;
+    }
+
+    .bench-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+      gap: 20px;
+      align-items: center;
+    }
+
+    .bench-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      padding: 12px;
+      background: #FFFFFF;
+      border: 1px solid var(--border);
+    }
+
+    .bench-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+
+    <!-- Top Nav -->
+    <nav class="top-nav">
+      <div class="top-title">
+        <span class="live-tally-badge">● ON AIR</span>
+        VOICEGENCY™ // 9 RE20 BROADCAST V/A VARIANTS
+      </div>
+      <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; font-weight: 700; color: #666;">
+        WHITE CANVAS • PURE VECTOR SPEC
+      </div>
+    </nav>
+
+    <!-- Header -->
+    <header>
+      <h1>THE 9 RE20 BROADCAST <span class="red">VARIANTS</span></h1>
+      <div class="subtitle-bar">
+        YOKE SUSPENSION (V) <span class="red">+ VARIABLE-D ACOUSTIC CAPSULE (A).</span>
+      </div>
+    </header>
+
+    <!-- Hardware Inspiration Banner -->
+    <div class="hardware-banner">
+      <div class="photo-thumb">
+        <img src="ref-broadcast-mic.jpg" alt="Electro-Voice RE20">
+      </div>
+      <div class="hardware-info">
+        <h3>Hardware Benchmark: Electro-Voice RE20</h3>
+        <p>
+          The 9 vector variants below explore different geometric interpretations of the RE20’s iconic outer mounting yoke (the **'V'**), the ascending horizontal Variable-D louvers (the **'A'**), and the red tally shockmount clamp.
+        </p>
+      </div>
+    </div>
+
+    <!-- 3x3 GRID OF 9 VARIANTS -->
+    <div class="section-title">THE 9 BROADCAST V/A VARIANTS</div>
+    <div class="grid-3x3">
+
+      <!-- Variant 01 -->
+      <div class="variant-card">
+        <div class="card-header-bar">
+          <span class="var-badge">VAR.01</span>
+          <span>HEAVY MONOLITH</span>
+        </div>
+        <div class="preview-box">
+          <img src="logo-re20-var-01.svg" alt="RE20 Variant 01">
+        </div>
+        <div class="var-title">01. Heavy Monolith</div>
+        <p class="var-desc">
+          Extra-thick solid black yoke blades (V), 4 heavyweight acoustic louvers, and a solid red tally shockmount clamp with a central gold core.
+        </p>
+        <span class="file-path">assets/logo-re20-var-01.svg</span>
+      </div>
+
+      <!-- Variant 02 -->
+      <div class="variant-card">
+        <div class="card-header-bar">
+          <span class="var-badge">VAR.02</span>
+          <span>STEPPED PYRAMID</span>
+        </div>
+        <div class="preview-box">
+          <img src="logo-re20-var-02.svg" alt="RE20 Variant 02">
+        </div>
+        <div class="var-title">02. Stepped Pyramid</div>
+        <p class="var-desc">
+          The internal acoustic louvers step inward in width, forming an ascending triangular pyramid chevron (A) inside the cylindrical body.
+        </p>
+        <span class="file-path">assets/logo-re20-var-02.svg</span>
+      </div>
+
+      <!-- Variant 03 -->
+      <div class="variant-card">
+        <div class="card-header-bar">
+          <span class="var-badge">VAR.03</span>
+          <span>ANGULAR STUDIO</span>
+        </div>
+        <div class="preview-box">
+          <img src="logo-re20-var-03.svg" alt="RE20 Variant 03">
+        </div>
+        <div class="var-title">03. Angular Studio</div>
+        <p class="var-desc">
+          Razor-sharp 45° chamfered yoke arms, vertical mesh slits in the upper pop-filter dome, and horizontal lower louvers.
+        </p>
+        <span class="file-path">assets/logo-re20-var-03.svg</span>
+      </div>
+
+      <!-- Variant 04 -->
+      <div class="variant-card">
+        <div class="card-header-bar">
+          <span class="var-badge">VAR.04</span>
+          <span>MONOLINE STENCIL</span>
+        </div>
+        <div class="preview-box">
+          <img src="logo-re20-var-04.svg" alt="RE20 Variant 04">
+        </div>
+        <div class="var-title">04. Monoline Stencil</div>
+        <p class="var-desc">
+          Uniform heavy Swiss monoline strokes, circular pivot ring eyelets on the yoke, open airy negative space, and a bold red tally line.
+        </p>
+        <span class="file-path">assets/logo-re20-var-04.svg</span>
+      </div>
+
+      <!-- Variant 05 -->
+      <div class="variant-card">
+        <div class="card-header-bar">
+          <span class="var-badge">VAR.05</span>
+          <span>NEGATIVE CUT</span>
+        </div>
+        <div class="preview-box">
+          <img src="logo-re20-var-05.svg" alt="RE20 Variant 05">
+        </div>
+        <div class="var-title">05. Negative Space Cut</div>
+        <p class="var-desc">
+          Solid monolithic silhouette where the yoke channels, acoustic louvers, and A crossbar are carved out using pure white negative space.
+        </p>
+        <span class="file-path">assets/logo-re20-var-05.svg</span>
+      </div>
+
+      <!-- Variant 06 -->
+      <div class="variant-card">
+        <div class="card-header-bar">
+          <span class="var-badge">VAR.06</span>
+          <span>WAVE DISPERSION</span>
+        </div>
+        <div class="preview-box">
+          <img src="logo-re20-var-06.svg" alt="RE20 Variant 06">
+        </div>
+        <div class="var-title">06. Wave Dispersion</div>
+        <p class="var-desc">
+          Acoustic soundwave radiation ribs radiating along the outer edge of the yoke arms, emphasizing active vocal projection.
+        </p>
+        <span class="file-path">assets/logo-re20-var-06.svg</span>
+      </div>
+
+      <!-- Variant 07 -->
+      <div class="variant-card">
+        <div class="card-header-bar">
+          <span class="var-badge">VAR.07</span>
+          <span>COMPACT BROADCAST</span>
+        </div>
+        <div class="preview-box">
+          <img src="logo-re20-var-07.svg" alt="RE20 Variant 07">
+        </div>
+        <div class="var-title">07. Compact Broadcast</div>
+        <p class="var-desc">
+          High-density squat proportions optimized for 16px/32px micro-sizes. Heavyweight 3-slat Variable-D grill and thick yoke.
+        </p>
+        <span class="file-path">assets/logo-re20-var-07.svg</span>
+      </div>
+
+      <!-- Variant 08 -->
+      <div class="variant-card">
+        <div class="card-header-bar">
+          <span class="var-badge">VAR.08</span>
+          <span>DUAL CHAMBER</span>
+        </div>
+        <div class="preview-box">
+          <img src="logo-re20-var-08.svg" alt="RE20 Variant 08">
+        </div>
+        <div class="var-title">08. Dual Chamber</div>
+        <p class="var-desc">
+          Clear visual separation between the upper foam pop-filter dome and the lower Variable-D acoustic chamber, joined by the red clamp.
+        </p>
+        <span class="file-path">assets/logo-re20-var-08.svg</span>
+      </div>
+
+      <!-- Variant 09 -->
+      <div class="variant-card">
+        <div class="card-header-bar">
+          <span class="var-badge">VAR.09</span>
+          <span>ARCHITECTURAL PURIST</span>
+        </div>
+        <div class="preview-box">
+          <img src="logo-re20-var-09.svg" alt="RE20 Variant 09">
+        </div>
+        <div class="var-title">09. Architectural Purist</div>
+        <p class="var-desc">
+          Minimalist Dieter Rams geometry. Pure rectangular slats, flat studio cap, stark monolithic yoke blades, and centered red tally eye.
+        </p>
+        <span class="file-path">assets/logo-re20-var-09.svg</span>
+      </div>
+
+    </div>
+
+    <!-- OPTICAL SCALING BENCH (32px Dock Preview) -->
+    <div class="section-title">OPTICAL SCALING BENCH (32px DOCK SIZE COMPARISON)</div>
+    <div class="scale-bench">
+      <div class="bench-grid">
+        <div class="bench-item">
+          <img src="logo-re20-var-01.svg" width="32" height="32">
+          <span class="bench-label">VAR 01</span>
+        </div>
+        <div class="bench-item">
+          <img src="logo-re20-var-02.svg" width="32" height="32">
+          <span class="bench-label">VAR 02</span>
+        </div>
+        <div class="bench-item">
+          <img src="logo-re20-var-03.svg" width="32" height="32">
+          <span class="bench-label">VAR 03</span>
+        </div>
+        <div class="bench-item">
+          <img src="logo-re20-var-04.svg" width="32" height="32">
+          <span class="bench-label">VAR 04</span>
+        </div>
+        <div class="bench-item">
+          <img src="logo-re20-var-05.svg" width="32" height="32">
+          <span class="bench-label">VAR 05</span>
+        </div>
+        <div class="bench-item">
+          <img src="logo-re20-var-06.svg" width="32" height="32">
+          <span class="bench-label">VAR 06</span>
+        </div>
+        <div class="bench-item">
+          <img src="logo-re20-var-07.svg" width="32" height="32">
+          <span class="bench-label">VAR 07</span>
+        </div>
+        <div class="bench-item">
+          <img src="logo-re20-var-08.svg" width="32" height="32">
+          <span class="bench-label">VAR 08</span>
+        </div>
+        <div class="bench-item">
+          <img src="logo-re20-var-09.svg" width="32" height="32">
+          <span class="bench-label">VAR 09</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</body>
+</html>
