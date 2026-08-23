@@ -326,7 +326,10 @@ def handle_antigravity_stop_hook(payload: Dict[str, Any], config: Optional[Voice
                 return {}
 
             if cfg.antigravity.inject_to_active_window:
-                inject_text_to_active_app(clean_t, submit_enter=True, target_antigravity=True)
+                if inject_text_to_active_app(clean_t, submit_enter=True, target_antigravity=True):
+                    print("Sent to active conversation.")
+                else:
+                    print("⚠️ Injection failed — text left on clipboard.")
 
             if cfg.audio_cues.enabled:
                 play_chime(cfg.audio_cues.sent_chime, block=False)

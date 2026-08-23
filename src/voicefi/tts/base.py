@@ -26,36 +26,49 @@ def set_agent_speaking(speaking: bool, text: Optional[str] = None) -> None:
             pass
     try:
         if speaking:
-            AGENT_SPEAKING_STATUS_FILE.write_text(str(time.time()))
+            AGENT_SPEAKING_STATUS_FILE.write_text(f"{os.getpid()}:{time.time()}")
         else:
             AGENT_SPEAKING_STATUS_FILE.unlink(missing_ok=True)
     except Exception:
         pass
 
 
+def is_pid_alive(pid: int) -> bool:
+    """Check if process with given PID is currently active."""
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
 
 def is_agent_speaking() -> bool:
     """
     Check if any AI agent or subagent is currently speaking aloud via TTS.
-    Checks in-process state, active macOS audio playback processes (afplay, say),
-    and cross-process speaking status markers.
+    Checks in-process state and verified active cross-process speaking status markers.
     """
     global _IN_PROCESS_SPEAKING
     if _IN_PROCESS_SPEAKING:
-        return True
-
-    if is_system_audio_playing():
         return True
 
     try:
         if AGENT_SPEAKING_STATUS_FILE.is_file():
             content = AGENT_SPEAKING_STATUS_FILE.read_text().strip()
             if content:
-                ts = float(content)
-                if (time.time() - ts) < 20.0:
-                    return True
+                parts = content.split(":")
+                if len(parts) == 2:
+                    pid = int(parts[0])
+                    ts = float(parts[1])
+                    if is_pid_alive(pid) and (time.time() - ts) < 25.0:
+                        return True
+                    else:
+                        AGENT_SPEAKING_STATUS_FILE.unlink(missing_ok=True)
                 else:
-                    AGENT_SPEAKING_STATUS_FILE.unlink(missing_ok=True)
+                    ts = float(parts[0])
+                    if (time.time() - ts) < 20.0:
+                        return True
+                    else:
+                        AGENT_SPEAKING_STATUS_FILE.unlink(missing_ok=True)
     except Exception:
         pass
 

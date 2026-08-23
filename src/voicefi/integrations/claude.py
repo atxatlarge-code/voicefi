@@ -205,11 +205,11 @@ def handle_claude_stop_hook(
             set_clipboard_text(transcription)
             return {"status": "clipboard_only", "text": transcription, "frontmost_app": front_app}
 
-        inject_text_to_active_app(transcription, submit_enter=cfg.claude.auto_submit)
-        if cfg.claude.auto_submit:
-            print("🚀 Injected and submitted response into Claude Code.")
+        success = inject_text_to_active_app(transcription, submit_enter=cfg.claude.auto_submit)
+        if success:
+            print("Sent to active conversation.")
         else:
-            print("📋 Injected prompt into Claude Code (press Enter to run).")
+            print("⚠️ Injection failed — text left on clipboard.")
 
     # 8. Play sent chime
     if cfg.audio_cues.enabled:

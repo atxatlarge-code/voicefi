@@ -85,6 +85,7 @@ def cmd_listen(args):
         energy_threshold=config.vad.energy_threshold,
         silence_duration=config.vad.silence_duration,
         max_record_seconds=config.vad.max_record_seconds,
+        barge_in=False,
     )
 
     def _on_pause(paused: bool):
@@ -109,8 +110,10 @@ def cmd_listen(args):
         print(f"\n📝 Transcribed: {text}\n")
 
         if args.inject:
-            inject_text_to_active_app(text, submit_enter=args.enter)
-            print("🚀 Injected into active window.")
+            if inject_text_to_active_app(text, submit_enter=args.enter):
+                print("Sent to active conversation.")
+            else:
+                print("⚠️ Injection failed — text left on clipboard.")
 
         if config.audio_cues.enabled and not args.quiet:
             play_chime(config.audio_cues.sent_chime, block=False)

@@ -196,3 +196,12 @@ def test_tray_status_map_includes_paused():
         app._current_status = "paused"
         app._update_status_ui(None)
         assert "⏸️" in app.title
+
+
+def test_is_agent_speaking_stale_pid_cleanup():
+    """Verify is_agent_speaking cleans up stale PID markers if process died."""
+    set_agent_speaking(False)
+    # Write a status file with a non-existent PID (e.g. 999999)
+    AGENT_SPEAKING_STATUS_FILE.write_text(f"999999:{time.time()}")
+    assert not is_agent_speaking()
+    assert not AGENT_SPEAKING_STATUS_FILE.is_file()

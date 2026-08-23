@@ -58,3 +58,12 @@ def test_inject_text_to_active_app_cancelled_macro():
         success = inject_text_to_active_app("scratch that", submit_enter=False)
         assert success is False
         mock_run.assert_not_called()
+
+
+def test_inject_text_to_active_app_failure():
+    """Test injector returns False and leaves text on clipboard when osascript fails."""
+    with patch("subprocess.run") as mock_run, \
+         patch("voicefi.integrations.injector.set_clipboard_text", return_value=True):
+        mock_run.return_value = MagicMock(returncode=1, stderr="System Events got an error (1002)")
+        success = inject_text_to_active_app("hello world", submit_enter=False)
+        assert success is False
