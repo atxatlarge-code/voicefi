@@ -49,11 +49,12 @@ def get_frontmost_app_name() -> str:
         return ""
 
 
-def is_frontmost_app_a_terminal(allowed_apps: tuple = DEFAULT_TERMINAL_APPS) -> bool:
+def is_frontmost_app_a_terminal(allowed_apps: tuple = DEFAULT_TERMINAL_APPS, fallback: bool = False) -> bool:
     """Check if the currently active application is a supported terminal or coding editor."""
     app_name = get_frontmost_app_name()
     if not app_name:
-        return True  # Fallback to allow if unable to query
+        print("[Injector] ⚠️ Unable to query frontmost application (Accessibility permissions may need granting). Defaulting to safe clipboard copy.")
+        return fallback
     app_lower = app_name.lower()
     for allowed in allowed_apps:
         if allowed.lower() in app_lower:

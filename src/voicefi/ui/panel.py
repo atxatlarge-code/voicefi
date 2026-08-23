@@ -2363,7 +2363,28 @@ class VoicePanelRequestHandler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _is_authorized(self) -> bool:
+        """Check if request is authorized when companion auth_token is configured."""
+        token = getattr(self.server.config.companion, "auth_token", None)
+        if not token:
+            return True
+        # Check Authorization header: Bearer <token>
+        auth_header = self.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            if auth_header[7:].strip() == token:
+                return True
+        # Check query parameter ?token=<token>
+        parsed = urllib.parse.urlparse(self.path)
+        params = urllib.parse.parse_qs(parsed.query)
+        if "token" in params and params["token"][0] == token:
+            return True
+        return False
+
     def do_GET(self):
+        if not self._is_authorized():
+            self._send_json({"error": "Unauthorized. Valid auth token required."}, status=401)
+            return
+
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
 
@@ -2404,6 +2425,10 @@ class VoicePanelRequestHandler(http.server.BaseHTTPRequestHandler):
         self.send_error(404, "Not Found")
 
     def do_POST(self):
+        if not self._is_authorized():
+            self._send_json({"error": "Unauthorized. Valid auth token required."}, status=401)
+            return
+
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
         length = int(self.headers.get("Content-Length", 0))

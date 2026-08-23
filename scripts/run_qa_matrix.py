@@ -146,12 +146,12 @@ def test_scenario_5_developer_biasing():
 
 
 def test_scenario_6_full_pytest_suite():
-    print_header("6. Complete Unit & Integration Pytest Suite (150 Tests)")
+    print_header("6. Complete Unit & Integration Pytest Suite")
     res = subprocess.run([sys.executable, "-m", "pytest", "tests", "-q"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     summary_line = res.stdout.strip().splitlines()[-1] if res.stdout else "Finished"
     print(f"  • Result: {summary_line}")
     assert res.returncode == 0, f"Pytest suite failed:\n{res.stdout}"
-    print("  ✅ Scenario 6 Passed: 100% of 150 automated test cases passed.\n")
+    print(f"  ✅ Scenario 6 Passed: {summary_line}.\n")
 
 
 def main():
