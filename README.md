@@ -1,20 +1,20 @@
-# 🎙️ Voicegency™
+# 🎙️ VoiceFi™
 
 <div align="center">
 
-<img src="assets/voicegency-hero-banner.svg" alt="Voicegency Banner" width="100%">
+<img src="assets/voicefi-hero-banner.svg" alt="VoiceFi Banner" width="100%">
 
 <br><br>
 
 ### **Give a voice to your agents, and agency to your voice.**  
 *The Universal Ambient Voice Layer for AI Agents & macOS Desktop Computing.*
 
-[![Status: Patent Pending](https://img.shields.io/badge/Status-Patent%20Pending%20(64%2F137%2C300)-blue.svg)](https://voicegency.com)
+[![Status: Patent Pending](https://img.shields.io/badge/Status-Patent%20Pending%20(64%2F137%2C300)-blue.svg)](https://voicefi.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 [![Python: 3.10+](https://img.shields.io/badge/Python-3.10+-3776AB.svg?logo=python&logoColor=white)](https://python.org)
 [![Platform: macOS](https://img.shields.io/badge/Platform-macOS-lightgrey.svg?logo=apple&logoColor=white)](https://apple.com)
 [![Engine: Multi-Agent Ready](https://img.shields.io/badge/Engine-Antigravity%20%7C%20Claude%20%7C%20Cursor-purple.svg)]()
-[![Website: voicegency.com](https://img.shields.io/badge/Website-voicegency.com-indigo.svg)](https://voicegency.com)
+[![Website: voicefi.com](https://img.shields.io/badge/Website-voicefi.com-indigo.svg)](https://voicefi.com)
 
 *U.S. Patent Application No. 64/137,300 — LienLogic Data LLC*
 
@@ -23,7 +23,7 @@
 > *"A magnum opus may be flowing through me in this moment,*  
 > *Expialidocious may be growing new trees like they golden.*  
 > *Computer usage and voice translation proving they be a nuisance,*  
-> *Download Voicegency and be free to speak your movement."*
+> *Download VoiceFi and be free to speak your movement."*
 
 </div>
 
@@ -31,9 +31,9 @@
 
 ## ⚡ The Vision
 
-Whether you are orchestrating a fleet of autonomous AI agents (**Antigravity, Claude Code, Cursor, Aider**) or navigating your everyday desktop workflow, **Voicegency** eliminates the friction of chasing terminal tabs, babysitting split-panes, and clicking buttons.
+Whether you are orchestrating a fleet of autonomous AI agents (**Antigravity, Claude Code, Cursor, Aider**) or navigating your everyday desktop workflow, **VoiceFi** eliminates the friction of chasing terminal tabs, babysitting split-panes, and clicking buttons.
 
-1. **For AI Agents**: When your agent finishes writing code, running migrations, or executing tests in the background, Voicegency speaks a brief soundbite, chimes, and auto-listens for your next instruction — completely hands-free.
+1. **For AI Agents**: When your agent finishes writing code, running migrations, or executing tests in the background, VoiceFi speaks a brief soundbite, chimes, and auto-listens for your next instruction — completely hands-free.
 2. **For Your Desktop**: Hit `Control + T` to dictate with local Whisper neural accuracy into Slack, Chrome, Notes, Terminal, or any text box on macOS. Hit `` ` `` (Backtick) to jump straight to your agent.
 
 ```
@@ -43,7 +43,7 @@ Whether you are orchestrating a fleet of autonomous AI agents (**Antigravity, Cl
                                        │ (Stop Hook)
                                        ▼
                   ┌─────────────────────────────────────────┐
-                  │   Voicegency Summarizes & Speaks Aloud  │
+                  │   VoiceFi Summarizes & Speaks Aloud     │
                   │   "Tests passed! Ready to deploy?"      │
                   └────────────────────┬────────────────────┘
                                        │
@@ -75,7 +75,7 @@ Whether you are orchestrating a fleet of autonomous AI agents (**Antigravity, Cl
   - **`faster-whisper`** (Runs 100% locally and offline on Apple Silicon / CPU).
   - **Groq Cloud Whisper** (~150ms instant cloud transcription).
   - **Apple Speech Framework** (macOS native speech recognition).
-- 🖥️ **macOS Menu Bar Companion (`voicegency tray`)**: Lightweight menu bar item displaying live listening/speaking status and instant controls.
+- 🖥️ **macOS Menu Bar Companion (`voicefi tray`)**: Lightweight menu bar item displaying live listening/speaking status and instant controls.
 - ⌨️ **Global Desktop Voice Hotkey**: Press `<ctrl>+t` anywhere on macOS to dictate directly into any application.
 
 ---
@@ -128,17 +128,17 @@ vg setup
 voicefi setup
 ```
 
-Now, whenever Antigravity completes a task or asks a question, **Voicegency** will speak the update, listen for your voice response, and paste it right back to the agent!
+Now, whenever Antigravity completes a task or asks a question, **VoiceFi** will speak the update, listen for your voice response, and paste it right back to the agent!
 
 ---
 
 ## 💻 CLI Usage
 
-Both `voicegency` and the `vg` shorthand alias are available:
+Both `voicefi` and the `vg` shorthand alias are available:
 
 | Command | Description |
 | :--- | :--- |
-| `vg setup` / `voicegency setup` | Auto-registers Voicegency lifecycle hook with Antigravity |
+| `vg setup` / `voicefi setup` | Auto-registers VoiceFi lifecycle hook with Antigravity |
 | `vg voice list` | Lists curated agent personas and neural voice catalog |
 | `vg voice audition` | Plays live multi-voice showcase over speakers |
 | `vg voice test <voice>` | Auditions a specific voice with sample text |
@@ -146,24 +146,24 @@ Both `voicegency` and the `vg` shorthand alias are available:
 | `vg voice get` | Displays active voice assignments |
 | `vg feedback submit <title>` | Submits bug reports, diagnostics, or voice tuning requests |
 | `vg feedback list` | Lists recent feedback submissions |
-| `vg hook` / `voicegency hook` | Executes Antigravity hook handler (called by `hooks.json`) |
-| `vg listen` / `voicegency listen` | One-shot voice dictation (records, transcribes, pastes to active app) |
+| `vg hook` / `voicefi hook` | Executes Antigravity hook handler (called by `hooks.json`) |
+| `vg listen` / `voicefi listen` | One-shot voice dictation (records, transcribes, pastes to active app) |
 | `vg speak "Hello world"` | Speaks text aloud using configured TTS provider |
-| `vg loop` / `voicegency loop` | Starts continuous hands-free voice loop in the terminal |
+| `vg loop` / `voicefi loop` | Starts continuous hands-free voice loop in the terminal |
 | `vg companion` / `vg remote` | Launches Web & Mobile Voice Companion with QR code pairing & PWA |
-| `vg tray` / `voicegency tray` | Launches the macOS Menu Bar companion app |
+| `vg tray` / `voicefi tray` | Launches the macOS Menu Bar companion app |
 | `vg memo record [-d 3m]` | Captures 2-5 min developer voice ramble with elegant countdown timer |
 | `vg memo synth --text "..."` | Synthesizes stream-of-consciousness thoughts into Plan, Mermaid diagram & PR checklist |
 | `vg memo list` | Lists recorded brain dumps and synthesized software plans |
 | `vg memo show <id>` | Displays full synthesized implementation plan or Mermaid diagram |
 | `vg memo export <id>` | Exports plan to markdown artifact or macOS clipboard |
-| `vg info` / `voicegency info` | Displays active tier, audio devices, and voice models |
+| `vg info` / `voicefi info` | Displays active tier, audio devices, and voice models |
 
 ---
 
 ## ⚙️ Configuration
 
-Configuration is stored at `~/.voicegency/config.yaml`. Customize your voices, models, and sensitivities:
+Configuration is stored at `~/.voicefi/config.yaml`. Customize your voices, models, and sensitivities:
 
 ```yaml
 version: 1
@@ -235,4 +235,4 @@ uv run python scripts/test_loop.py
 
 - **Software License**: Licensed under the [MIT License](LICENSE).
 - **Patent Notice**: *U.S. Patent Application No. 64/137,300* — LienLogic Data LLC.
-- **Website**: [https://voicegency.com](https://voicegency.com)
+- **Website**: [https://voicefi.com](https://voicefi.com)
