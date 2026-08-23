@@ -26,8 +26,9 @@ from voicefi.memo import (
 
 
 def cmd_hook(args):
-    """Handle Antigravity lifecycle hook from stdin."""
+    """Handle AI agent lifecycle hook from stdin."""
     config = load_config(args.config)
+    target_agent = getattr(args, "agent", "antigravity").lower().strip()
 
     # Read hook payload from stdin
     try:
@@ -36,8 +37,16 @@ def cmd_hook(args):
     except Exception:
         payload = {}
 
-    result = handle_antigravity_stop_hook(payload, config)
-    # Output empty JSON object as required by hook contract
+    if payload.get("agent"):
+        target_agent = str(payload["agent"]).lower().strip()
+
+    if target_agent in ("claude", "claude_code"):
+        from voicefi.integrations.claude import handle_claude_stop_hook
+        result = handle_claude_stop_hook(payload, config)
+    else:
+        result = handle_antigravity_stop_hook(payload, config)
+
+    # Output JSON object as required by hook contract
     print(json.dumps(result))
 
 
@@ -135,47 +144,69 @@ def cmd_dev(args):
 
 
 def cmd_setup(args):
-    """Automatically register VoiceFi hook with Antigravity."""
+    """Automatically register VoiceFi lifecycle hooks with AI agents (Antigravity, Claude Code)."""
     import shutil
-    global_hooks_path = Path.home() / ".gemini" / "config" / "hooks.json"
-    global_hooks_path.parent.mkdir(parents=True, exist_ok=True)
+    from voicefi.integrations.claude import install_claude_hook
+    from voicefi.integrations.discovery import AgentToolDetector
 
-    hooks_data = {}
-    if global_hooks_path.is_file():
-        try:
-            with open(global_hooks_path, "r", encoding="utf-8") as f:
-                hooks_data = json.load(f) or {}
-        except Exception:
-            hooks_data = {}
+    setup_all = getattr(args, "all", False)
+    setup_claude = getattr(args, "claude", False) or setup_all
+    setup_antigravity = getattr(args, "antigravity", False) or setup_all
+
+    # If no explicit agent flags are specified, auto-detect active systems
+    if not getattr(args, "claude", False) and not getattr(args, "antigravity", False) and not setup_all:
+        setup_antigravity = True
+        if AgentToolDetector.detect_claude_code():
+            setup_claude = True
 
     # Prefer current venv executable path for reliable invocation
     venv_bin = Path(sys.executable).parent / "voicefi"
     if venv_bin.exists():
         bin_path = str(venv_bin)
     else:
-        bin_path = shutil.which("voicefi") or "voicefi"
+        bin_path = shutil.which("voicefi") or shutil.which("vifi") or "voicefi"
 
-    hook_command = f"{bin_path} hook"
-    hooks_data["voicefi-voice-layer"] = {
-        "enabled": True,
-        "Stop": [
-            {
-                "type": "command",
-                "command": hook_command,
-                "timeout": 60,
-            }
-        ],
-    }
+    if setup_antigravity:
+        global_hooks_path = Path.home() / ".gemini" / "config" / "hooks.json"
+        global_hooks_path.parent.mkdir(parents=True, exist_ok=True)
 
-    with open(global_hooks_path, "w", encoding="utf-8") as f:
-        json.dump(hooks_data, f, indent=2)
+        hooks_data = {}
+        if global_hooks_path.is_file():
+            try:
+                with open(global_hooks_path, "r", encoding="utf-8") as f:
+                    hooks_data = json.load(f) or {}
+            except Exception:
+                hooks_data = {}
+
+        hook_command = f"{bin_path} hook"
+        hooks_data["voicefi-voice-layer"] = {
+            "enabled": True,
+            "Stop": [
+                {
+                    "type": "command",
+                    "command": hook_command,
+                    "timeout": 60,
+                }
+            ],
+        }
+
+        with open(global_hooks_path, "w", encoding="utf-8") as f:
+            json.dump(hooks_data, f, indent=2)
+
+        print(f"✅ Antigravity hook installed: {global_hooks_path}")
+
+    if setup_claude:
+        try:
+            claude_settings = install_claude_hook(bin_path=bin_path)
+            print(f"✅ Claude Code hook installed: {claude_settings}")
+        except Exception as e:
+            print(f"⚠️ Could not install Claude Code hook: {e}")
 
     # Also save default config if missing
     config_path = get_default_config_path()
     if not config_path.is_file():
         save_config(load_config())
 
-    print(f"✅ VoiceFi hook successfully installed into: {global_hooks_path}")
     print(f"⚙️ Configuration saved at: {config_path}")
 
 
@@ -1499,12 +1530,13 @@ def main():
     subparsers = parser.add_subparsers(dest="command", help="Available subcommands")
 
     # hook
-    subparsers.add_parser("hook", help="Run as Antigravity lifecycle hook")
+    hook_p = subparsers.add_parser("hook", help="Run as AI agent lifecycle hook (Antigravity, Claude Code)")
+    hook_p.add_argument("-a", "--agent", type=str, default="antigravity", help="Target agent name (antigravity, claude)")
 
     # speak
     speak_p = subparsers.add_parser("speak", help="Speak text aloud")
     speak_p.add_argument("text", nargs="+", help="Text to speak")
-    speak_p.add_argument("-a", "--agent", type=str, default=None, help="Agent profile to speak as (e.g. antigravity, researcher, debugger)")
+    speak_p.add_argument("-a", "--agent", type=str, default=None, help="Agent profile to speak as (e.g. antigravity, claude, researcher, debugger)")
     speak_p.add_argument("-v", "--voice", type=str, default=None, help="Voice name or ID override")
     speak_p.add_argument("-p", "--provider", type=str, default=None, help="TTS provider override (mac_say, edge_tts, elevenlabs)")
     speak_p.add_argument("-r", "--rate", type=str, default=None, help="Speech rate / speed override (e.g. 75%, 150, -25%)")
@@ -1526,7 +1558,10 @@ def main():
     subparsers.add_parser("dev", help="Launch in foreground dev mode with live console logs")
 
     # setup
-    subparsers.add_parser("setup", help="Auto-configure Antigravity lifecycle hooks")
+    setup_p = subparsers.add_parser("setup", help="Auto-configure agent lifecycle hooks (Antigravity, Claude Code)")
+    setup_p.add_argument("--antigravity", action="store_true", help="Configure Antigravity hooks")
+    setup_p.add_argument("--claude", action="store_true", help="Configure Claude Code hooks")
+    setup_p.add_argument("--all", action="store_true", help="Configure all detected AI agent hooks")
 
     # autostart
     subparsers.add_parser("autostart", help="Register macOS LaunchAgent to keep menu bar icon persistent")

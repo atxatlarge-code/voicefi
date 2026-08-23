@@ -180,6 +180,26 @@ class StudioConfig(BaseModel):
     particle_theme: str = "google"
 
 
+def default_agents_catalog() -> dict[str, AgentVoiceProfile]:
+    return {
+        "antigravity": AgentVoiceProfile(
+            voice="en-US-ChristopherNeural",
+            provider="edge_tts",
+            description="Antigravity Primary Agent",
+        ),
+        "claude": AgentVoiceProfile(
+            voice="en-US-GuyNeural",
+            provider="edge_tts",
+            description="Claude Code Pair Programmer",
+        ),
+        "cursor": AgentVoiceProfile(
+            voice="en-US-JennyNeural",
+            provider="edge_tts",
+            description="Cursor Composer Assistant",
+        ),
+    }
+
+
 class VoiceFiConfig(BaseModel):
     version: int = 1
     tier: str = "community"
@@ -197,7 +217,7 @@ class VoiceFiConfig(BaseModel):
     integrations: IntegrationsConfig = Field(default_factory=IntegrationsConfig)
     global_hotkey: GlobalHotkeyConfig = Field(default_factory=GlobalHotkeyConfig)
     memo: MemoConfig = Field(default_factory=MemoConfig)
-    agents: dict[str, AgentVoiceProfile] = Field(default_factory=dict)
+    agents: dict[str, AgentVoiceProfile] = Field(default_factory=default_agents_catalog)
     subagents: dict[str, AgentVoiceProfile] = Field(default_factory=dict)
 
     def resolve_voice(
@@ -218,23 +238,6 @@ class VoiceFiConfig(BaseModel):
         if not is_focused:
             if self.antigravity.unfocused_agent_voice:
                 return default_provider, self.antigravity.unfocused_agent_voice, default_rate
-
-            if agent_or_role:
-                key = agent_or_role.lower().strip()
-                if key in self.subagents and self.subagents[key].voice:
-                    prof = self.subagents[key]
-                    return (
-                        prof.provider or default_provider,
-                        prof.voice,
-                        prof.rate if prof.rate is not None else default_rate,
-                    )
-                if key in self.agents and self.agents[key].voice:
-                    prof = self.agents[key]
-                    return (
-                        prof.provider or default_provider,
-                        prof.voice,
-                        prof.rate if prof.rate is not None else default_rate,
-                    )
 
             # Dynamic contrasting acoustic persona for background agents
             if default_provider == "edge_tts":
@@ -276,6 +279,18 @@ class VoiceFiConfig(BaseModel):
                 profile.voice or default_voice,
                 profile.rate if profile.rate is not None else default_rate,
             )
+
+        # Built-in agent persona fallbacks
+        if key == "claude" or key == "claude_code":
+            return "edge_tts", "en-US-GuyNeural", default_rate
+        elif key == "antigravity":
+            return "edge_tts", "en-US-ChristopherNeural", default_rate
+        elif key == "cursor":
+            return "edge_tts", "en-US-JennyNeural", default_rate
+        elif key in ("researcher", "architect"):
+            return "edge_tts", "en-GB-SoniaNeural", default_rate
+        elif key in ("debugger", "tester"):
+            return "edge_tts", "en-US-AriaNeural", default_rate
 
         return default_provider, default_voice, default_rate
 
