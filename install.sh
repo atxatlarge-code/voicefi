@@ -91,14 +91,15 @@ chmod +x "$BIN_DIR/vifi"
 ln -sf "$BIN_DIR/vifi" "$BIN_DIR/voicefi"
 ln -sf "$BIN_DIR/vifi" "$BIN_DIR/vg"
 
-# 5. Connect Antigravity lifecycle hook & user settings
-#    - Registers a user-space 'Stop' hook in ~/.gemini/config/hooks.json
-#      so VoiceFi speaks turn completions and auto-listens hands-free.
+# 5. Connect AI Agent lifecycle hooks & user settings
+#    - Registers user-space 'Stop' hooks in:
+#      • ~/.gemini/config/hooks.json (Antigravity)
+#      • ~/.claude/settings.json (Claude Code - when installed)
+#      so VoiceFi speaks turn completions in custom agent personas and listens hands-free.
 #    - Writes user preferences (voice selection, sensitivity) to ~/.voicefi/config.yaml.
-#    - For Claude Code, Cursor & Windsurf: VoiceFi uses system-wide audio dictation (Ctrl+T)
-#      and terminal loop mode without modifying any of their files or configs.
-#    - Modifies zero system/root binaries and adds no daemon/telemetry services.
-echo -e "${CYAN}⚡ Configuring Antigravity hook (~/.gemini/config/hooks.json)...${NC}"
+#    - For Cursor & Windsurf: VoiceFi uses system-wide audio dictation (Ctrl+T).
+#    - Modifies zero system/root binaries and adds no telemetry services.
+echo -e "${CYAN}⚡ Configuring Agent lifecycle hooks (Antigravity & Claude Code)...${NC}"
 "$INSTALL_DIR/venv/bin/voicefi" setup >/dev/null 2>&1 || true
 
 # 6. Check for Obsidian and prompt user interactively
@@ -132,9 +133,8 @@ fi
 echo ""
 echo -e "${GREEN}${BOLD}🎉 VoiceFi Installation Complete!${NC}"
 echo "------------------------------------------------------------------"
-echo -e "🗣️  ${BOLD}Claude Code & Terminal:${NC} Press ${CYAN}${BOLD}<Ctrl>+T${NC} to dictate prompts, or run ${CYAN}${BOLD}vifi loop${NC}"
-echo -e "🤖 ${BOLD}Antigravity Hook:${NC}        Turn soundbite active in ~/.gemini/config/hooks.json"
-echo -e "💻 ${BOLD}Cursor & macOS:${NC}          Universal ${CYAN}${BOLD}<Ctrl>+T${NC} dictation into any text box"
+echo -e "🗣️  ${BOLD}Claude Code & Antigravity:${NC} Hands-free conversational voice turns active"
+echo -e "💻  ${BOLD}Cursor & macOS:${NC}            Universal ${CYAN}${BOLD}<Ctrl>+T${NC} dictation into any text box"
 echo -e "📓 ${BOLD}Obsidian:${NC}                Auto-configured across local vaults"
 echo -e "🔊 ${BOLD}Test Voice:${NC}              Run ${CYAN}${BOLD}vifi voice test${NC} (or ${CYAN}${BOLD}vg voice test${NC})"
 echo -e "👂 ${BOLD}Hearing Test:${NC}            Run ${CYAN}${BOLD}vifi hearing-test${NC}"
