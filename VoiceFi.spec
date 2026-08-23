@@ -22,12 +22,12 @@ tmp_ret = collect_all('aiohttp')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 tmp_ret = collect_all('qrcode')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
-tmp_ret = collect_all('voicegency')
+tmp_ret = collect_all('voicefi')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
 
 a = Analysis(
-    [os.path.join(ROOT_DIR, 'src', 'voicegency', 'cli.py')],
+    [os.path.join(ROOT_DIR, 'src', 'voicefi', 'cli.py')],
     pathex=[os.path.join(ROOT_DIR, 'src')],
     binaries=binaries,
     datas=datas,
@@ -46,7 +46,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='Voicegency',
+    name='VoiceFi',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -66,11 +66,11 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name='Voicegency',
+    name='VoiceFi',
 )
 app = BUNDLE(
     coll,
-    name='Voicegency.app',
+    name='VoiceFi.app',
     icon=ICON_PATH if os.path.exists(ICON_PATH) else None,
-    bundle_identifier='com.lienlogicdata.voicegency',
+    bundle_identifier='com.lienlogicdata.voicefi',
 )
