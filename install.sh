@@ -91,8 +91,12 @@ chmod +x "$BIN_DIR/vifi"
 ln -sf "$BIN_DIR/vifi" "$BIN_DIR/voicefi"
 ln -sf "$BIN_DIR/vifi" "$BIN_DIR/vg"
 
-# 5. Automatically install Antigravity & Agent lifecycle hooks
-echo -e "${CYAN}⚡ Connecting VoiceFi agent hooks...${NC}"
+# 5. Connect Antigravity lifecycle hook & user settings
+#    - Registers a user-space 'Stop' hook in ~/.gemini/config/hooks.json
+#      so VoiceFi speaks turn completions and auto-listens hands-free.
+#    - Writes user preferences (voice selection, sensitivity) to ~/.voicefi/config.yaml.
+#    - Modifies zero system/root binaries and adds no daemon/telemetry services.
+echo -e "${CYAN}⚡ Configuring user hook (~/.gemini/config/hooks.json)...${NC}"
 "$INSTALL_DIR/venv/bin/voicefi" setup >/dev/null 2>&1 || true
 
 # 6. Check for Obsidian and prompt user interactively
