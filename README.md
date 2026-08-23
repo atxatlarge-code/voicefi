@@ -1,4 +1,4 @@
-# 🎙️ VoiceFi™
+# VoiceFi™
 
 <div align="center">
 
