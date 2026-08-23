@@ -13,8 +13,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 [![Python: 3.10+](https://img.shields.io/badge/Python-3.10+-3776AB.svg?logo=python&logoColor=white)](https://python.org)
 [![Platform: macOS](https://img.shields.io/badge/Platform-macOS-lightgrey.svg?logo=apple&logoColor=white)](https://apple.com)
-[![Engine: Multi-Agent Ready](https://img.shields.io/badge/Engine-Antigravity%20%7C%20Claude%20%7C%20Cursor-purple.svg)]()
-[![Website: voicefi.com](https://img.shields.io/badge/Website-voicefi.com-indigo.svg)](https://voicefi.com)
+![Engine: Multi-Agent Ready](https://img.shields.io/badge/Engine-Antigravity%20%7C%20Claude%20%7C%20Cursor-purple.svg)
+[![Website: voicefi.org](https://img.shields.io/badge/Website-voicefi.org-indigo.svg)](https://voicefi.org)
 
 *U.S. Patent Application No. 63/137,300 — LienLogic Data LLC*
 
@@ -235,4 +235,4 @@ uv run python scripts/test_loop.py
 
 - **Software License**: Licensed under the [MIT License](LICENSE).
 - **Patent Notice**: *U.S. Patent Application No. 63/137,300* — LienLogic Data LLC.
-- **Website**: [https://voicefi.com](https://voicefi.com)
+- **Website**: [https://voicefi.org](https://voicefi.org)
