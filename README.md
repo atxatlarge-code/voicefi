@@ -9,14 +9,14 @@
 ### **Give a voice to your agents, and agency to your voice.**  
 *The Universal Ambient Voice Layer for AI Agents & macOS Desktop Computing.*
 
-![Status: Patent Pending](https://img.shields.io/badge/Status-Patent%20Pending%20(64%2F137%2C300)-blue.svg)
+![Status: Patent Pending](https://img.shields.io/badge/Status-Patent%20Pending%20(63%2F137%2C300)-blue.svg)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 [![Python: 3.10+](https://img.shields.io/badge/Python-3.10+-3776AB.svg?logo=python&logoColor=white)](https://python.org)
 [![Platform: macOS](https://img.shields.io/badge/Platform-macOS-lightgrey.svg?logo=apple&logoColor=white)](https://apple.com)
 [![Engine: Multi-Agent Ready](https://img.shields.io/badge/Engine-Antigravity%20%7C%20Claude%20%7C%20Cursor-purple.svg)]()
 [![Website: voicefi.com](https://img.shields.io/badge/Website-voicefi.com-indigo.svg)](https://voicefi.com)
 
-*U.S. Patent Application No. 64/137,300 — LienLogic Data LLC*
+*U.S. Patent Application No. 63/137,300 — LienLogic Data LLC*
 
 <br>
 
@@ -234,5 +234,5 @@ uv run python scripts/test_loop.py
 ## 📄 License & Patent Notice
 
 - **Software License**: Licensed under the [MIT License](LICENSE).
-- **Patent Notice**: *U.S. Patent Application No. 64/137,300* — LienLogic Data LLC.
+- **Patent Notice**: *U.S. Patent Application No. 63/137,300* — LienLogic Data LLC.
 - **Website**: [https://voicefi.com](https://voicefi.com)
