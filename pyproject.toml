@@ -3,16 +3,16 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "voicegency"
+name = "voicefi"
 version = "0.1.0"
-description = "Giving your agents a voice, and your voice agency. Hands-free voice layer for AI coding agents and macOS desktop use"
+description = "Giving your agents a voice, and your voice agency. Universal ambient voice layer for AI coding agents and macOS desktop"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [
     { name = "Jake Trigg" }
 ]
-keywords = ["voice", "agency", "voicegency", "ai", "antigravity", "agent", "whisper", "tts", "stt", "speech-to-text", "hands-free"]
+keywords = ["voice", "voicefi", "vifi", "agency", "voicegency", "ai", "antigravity", "claude", "agent", "whisper", "tts", "stt", "speech-to-text", "hands-free"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: MacOS X",
@@ -49,11 +49,13 @@ dev = [
 ]
 
 [project.scripts]
-voicegency = "voicegency.cli:main"
-vg = "voicegency.cli:main"
+voicefi = "voicefi.cli:main"
+vifi = "voicefi.cli:main"
+vg = "voicefi.cli:main"
+voicegency = "voicefi.cli:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/voicegency"]
+packages = ["src/voicefi"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

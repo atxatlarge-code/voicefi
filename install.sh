@@ -98,10 +98,10 @@ echo -e "${CYAN}⚡ Connecting VoiceFi agent hooks...${NC}"
 # 6. Check for Obsidian and prompt user interactively
 if [ -d "$HOME/Library/Application Support/obsidian" ] || [ -d "$HOME/Documents/Obsidian Vault" ]; then
     INSTALL_OBSIDIAN="y"
-    if [ -e /dev/tty ]; then
+    if [ -t 0 ] && [ -r /dev/tty ]; then
         echo ""
         echo -e "${PURPLE}📓 Detected Obsidian on your Mac.${NC}"
-        read -r -p "👉 Install VoiceFi Obsidian voice bridge plugin? [Y/n]: " user_obsidian_choice < /dev/tty || user_obsidian_choice="y"
+        read -r -p "👉 Install VoiceFi Obsidian voice bridge plugin? [Y/n]: " user_obsidian_choice 2>/dev/null < /dev/tty || user_obsidian_choice="y"
         if [[ "$user_obsidian_choice" =~ ^[Nn] ]]; then
             INSTALL_OBSIDIAN="n"
         fi
