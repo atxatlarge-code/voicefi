@@ -68,10 +68,10 @@ def claim_turn(conv_id: Optional[str], signature: str, origin: Optional[str] = N
                     except Exception:
                         entries = []
 
-                # Clean entries older than 60 seconds
+                # Clean entries older than 10 seconds (enough to prevent dual hook/watcher race)
                 valid_entries = [
                     e for e in entries
-                    if (now - float(e.get("timestamp", 0))) < 60.0
+                    if (now - float(e.get("timestamp", 0))) < 10.0
                 ]
 
                 # Check if this exact signature OR normalized text was already claimed
