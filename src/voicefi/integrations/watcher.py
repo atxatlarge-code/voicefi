@@ -265,7 +265,10 @@ class TranscriptWatcher:
             target_agent = agent_role or "antigravity"
             should_speak = bool(cfg.antigravity.read_summary_aloud and spoken_text and not self._interrupted)
             should_listen = bool(is_active and cfg.antigravity.auto_listen and not self._interrupted)
-            barge_in_active = bool(should_speak and should_listen and getattr(cfg.vad, "barge_in", True))
+            
+            from voicefi.audio.recorder import resolve_barge_in_mode
+            is_barge_in_on, _ = resolve_barge_in_mode(getattr(cfg.vad, "barge_in", "auto"))
+            barge_in_active = bool(should_speak and should_listen and is_barge_in_on)
 
             # Trigger Native Floating Speech HUD if enabled
             if cfg.antigravity.show_speech_popup and spoken_text and not self._interrupted:
