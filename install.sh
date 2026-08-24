@@ -38,6 +38,17 @@ fi
 ARCH="$(uname -m)"
 say_msg "${GREEN}✓${NC} Detected macOS ($ARCH)"
 
+# Silent, non-blocking telemetry event: install_started
+if [ -z "$DO_NOT_TRACK" ] && [ "$VOICEFI_TELEMETRY" != "0" ] && [ "$VOICEFI_TELEMETRY" != "false" ]; then
+    (
+        PH_KEY="phc_oFyLfqmnEeFMDehRQ4DzGrN9AGctauZiZhfufRtmW92e"
+        M_ID="$(python3 -c "import uuid; print(f'mach_{uuid.getnode()}')" 2>/dev/null || echo "mach_$(ioreg -rd1 -c IOPlatformExpertDevice | awk '/IOPlatformUUID/ { split($0, a, "\""); print a[4] }' 2>/dev/null || uuidgen 2>/dev/null || echo 'anon')")"
+        S_VER="$(sw_vers -productVersion 2>/dev/null || echo '')"
+        BODY="{\"api_key\":\"$PH_KEY\",\"event\":\"install_started\",\"distinct_id\":\"$M_ID\",\"properties\":{\"os\":\"Darwin\",\"arch\":\"$ARCH\",\"os_version\":\"$S_VER\",\"installer\":\"vifi.sh\"}}"
+        curl -s -m 2 -X POST "https://us.i.posthog.com/capture/" -H "Content-Type: application/json" -d "$BODY" >/dev/null 2>&1 || true
+    ) &
+fi
+
 # 2. Directory Setup
 INSTALL_DIR="$HOME/.voicefi"
 BIN_DIR="$HOME/.local/bin"
@@ -170,6 +181,20 @@ case ":$PATH:" in
         say_msg "  ${BOLD}export PATH=\"\$HOME/.local/bin:\$PATH\"${NC}"
         ;;
 esac
+
+# Capture anonymous installation completion event
+"$INSTALL_DIR/venv/bin/python" -c '
+try:
+    from voicefi.telemetry import capture_event
+    import platform, sys
+    capture_event("install_completed", {
+        "installer_source": "vifi.sh",
+        "python_version": sys.version.split()[0],
+        "os_version": platform.mac_ver()[0] if hasattr(platform, "mac_ver") else "",
+    })
+except Exception:
+    pass
+' >/dev/null 2>&1 || true
 
 say_msg ""
 say_msg "${GREEN}${BOLD}🎉 VoiceFi Installation Complete!${NC}"

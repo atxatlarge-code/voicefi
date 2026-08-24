@@ -157,6 +157,43 @@ class TestTroubleshoot(unittest.TestCase):
         res = self.troubleshooter.apply_fix("unknown_invalid_fix")
         self.assertFalse(res["success"])
 
+    def test_ping_voice_silently_success(self):
+        """Test silent voice ping latency, throughput calculation, and status."""
+        mock_engine = MagicMock()
+        mock_engine.speak_to_file.return_value = True
+        with patch("voicefi.troubleshoot.get_tts_engine", return_value=mock_engine):
+            res = self.troubleshooter.ping_voice_silently(
+                voice_name_or_id="Andrew",
+                text="Silent test text",
+                provider="edge_tts",
+            )
+            self.assertTrue(res.success)
+            self.assertEqual(res.voice, "en-US-AndrewNeural")
+            self.assertEqual(res.provider, "edge_tts")
+            self.assertEqual(res.status, "online")
+            self.assertGreater(res.latency_ms, 0.0)
+            self.assertGreater(res.chars_per_sec, 0.0)
+
+    def test_ping_multiple_silently(self):
+        """Test multi-ping statistics, jitter, and throughput aggregation."""
+        mock_engine = MagicMock()
+        mock_engine.speak_to_file.return_value = True
+        with patch("voicefi.troubleshoot.get_tts_engine", return_value=mock_engine):
+            stats = self.troubleshooter.ping_multiple_silently(
+                voice_name_or_id="Andrew",
+                count=3,
+                text="Multi-ping sample phrase",
+            )
+            self.assertEqual(stats["count"], 3)
+            self.assertEqual(stats["success_count"], 3)
+            self.assertEqual(stats["success_rate_pct"], 100.0)
+            self.assertIn("min_latency_ms", stats)
+            self.assertIn("avg_latency_ms", stats)
+            self.assertIn("max_latency_ms", stats)
+            self.assertIn("jitter_ms", stats)
+            self.assertIn("avg_chars_per_sec", stats)
+            self.assertEqual(len(stats["pings"]), 3)
+
 
 class TestTroubleshootPanelEndpoints(unittest.TestCase):
     def setUp(self):
@@ -177,6 +214,28 @@ class TestTroubleshootPanelEndpoints(unittest.TestCase):
             self.handler._send_json.assert_called_once()
             args, _ = self.handler._send_json.call_args
             self.assertEqual(args[0]["status"], "healthy")
+
+    def test_ping_get(self):
+        """Test GET /api/troubleshoot/ping endpoint."""
+        self.handler.path = "/api/troubleshoot/ping?voice=Andrew"
+        with patch("voicefi.troubleshoot.AudioTroubleshooter.ping_voice_silently") as mock_ping:
+            from voicefi.troubleshoot import VoicePingResult
+            mock_ping.return_value = VoicePingResult(
+                voice="en-US-AndrewNeural",
+                provider="edge_tts",
+                persona_name="Andrew",
+                success=True,
+                latency_ms=180.5,
+                chars_per_sec=240.0,
+                words_per_min=2800.0,
+                audio_bytes=14200,
+                status="online",
+            )
+            self.handler.do_GET()
+            self.handler._send_json.assert_called_once()
+            args, _ = self.handler._send_json.call_args
+            self.assertTrue(args[0]["success"])
+            self.assertEqual(args[0]["persona_name"], "Andrew")
 
     def test_test_chime_post(self):
         """Test POST /api/troubleshoot/test_chime endpoint."""

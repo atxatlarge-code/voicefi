@@ -13,6 +13,8 @@ Universal Voice Layer for Knowledge Vaults, MCP, and Autonomous AI Coding Agents
 | `vifi troubleshoot` | Comprehensive automated diagnostic suite (devices, TTS latency, VAD). |
 | `vifi troubleshoot --json` | Machine-readable hardware and diagnostic profile (great for agent inspection). |
 | `vifi troubleshoot -i` | Interactive mic loopback recording & instant playback. |
+| `vifi ping [voice]` | **Silent Voice Connection & Speed Test**: Measures TTFB latency, throughput (chars/s), payload size, and rate limits silently without audio output. |
+| `vifi ping --all` | **Silent Multi-Voice Benchmark**: Runs silent connection and speed tests across all curated neural and local voices. |
 | `vifi feedback-loop` | **Simultaneous Speak + Listen Test**: Speaks over speakers while monitoring microphone. |
 | `vifi hearing-test` | **Acoustic Verification**: Plays phrase over speakers and tests room microphone STT match %. |
 | `vifi dev` | **Live Real-Time Console Dev Mode**: Streams real-time VAD energy levels and barge-in events. |

@@ -723,10 +723,139 @@ def cmd_loopback(args):
     cmd_feedback_loop(args)
 
 
+def cmd_ping(args):
+    """Silently test voice connection, latency, speed, and health."""
+    args.voice_action = "ping"
+    cmd_voice(args)
+
+
+def run_silent_voice_ping(args, config):
+    """Execute silent voice connection, latency, speed, and health diagnostics."""
+    import json
+    from voicefi.troubleshoot import AudioTroubleshooter, TEST_PHRASES
+    from voicefi.tts import CURATED_PERSONAS, find_persona
+
+    troubleshooter = AudioTroubleshooter(config)
+    as_json = getattr(args, "json", False)
+    all_personas = getattr(args, "all", False)
+    sample_text = getattr(args, "text", None) or "VoiceFi silent neural voice connection and speed test."
+    count = getattr(args, "count", 1) or 1
+    provider = getattr(args, "provider", None)
+    rate = getattr(args, "rate", None)
+
+    if all_personas:
+        if not as_json:
+            print("\n🌐 VoiceFi Neural Voice Connection & Speed Benchmark (Silent)\n")
+            print(f"{'Persona':<14} {'ID / Voice':<28} {'Provider':<10} {'Status':<18} {'Latency':<10} {'Speed':<16} {'Payload'}")
+            print("-" * 108)
+
+        results = []
+        for p in CURATED_PERSONAS:
+            res = troubleshooter.ping_voice_silently(
+                voice_name_or_id=p.id,
+                text=sample_text,
+                provider=p.provider,
+            )
+            results.append(res.to_dict())
+            if not as_json:
+                status_icon = "🟢" if res.success else "🔴"
+                if res.status == "online":
+                    status_desc = "Online (200)"
+                elif res.status == "offline_native":
+                    status_desc = "Offline Native"
+                elif res.status == "rate_limited":
+                    status_desc = "Throttled (429)"
+                else:
+                    status_desc = "Error"
+                status_col = f"{status_icon} {status_desc}"
+                lat_str = f"{res.latency_ms:.1f} ms" if res.success else "Failed"
+                speed_str = f"{res.chars_per_sec:.1f} chars/s" if res.success else "N/A"
+                size_str = f"{res.audio_bytes / 1024.0:.1f} KB" if res.success else "0 KB"
+                print(f"{p.name:<14} {p.id:<28} {p.provider:<10} {status_col:<18} {lat_str:<10} {speed_str:<16} {size_str}")
+
+        if as_json:
+            print(json.dumps({"status": "success", "benchmark": results}, indent=2))
+        else:
+            print("-" * 108)
+            successful_lats = [r["latency_ms"] for r in results if r["success"]]
+            avg_lat = sum(successful_lats) / max(len(successful_lats), 1)
+            print(f"✨ Benchmark complete. Curated voices tested: {len(results)} | Avg Latency: {avg_lat:.1f} ms | Zero audio emitted.\n")
+        return
+
+    # Single voice or target voice
+    target_voice = getattr(args, "voice", None) or config.tts.voice
+    persona = find_persona(target_voice)
+    resolved_voice = persona.id if persona else target_voice
+    resolved_name = persona.name if persona else target_voice
+    resolved_provider = provider or (persona.provider if persona else config.tts.provider)
+
+    if count > 1:
+        stats = troubleshooter.ping_multiple_silently(
+            voice_name_or_id=resolved_voice,
+            count=count,
+            text=sample_text,
+            provider=resolved_provider,
+            rate=rate,
+        )
+        if as_json:
+            print(json.dumps(stats, indent=2))
+            return
+
+        print(f"\n🌐 VoiceFi Silent Connection & Speed Test")
+        print(f"🎙️ Target: {resolved_name} (`{resolved_voice}`) | Provider: {resolved_provider}\n")
+        for idx, p in enumerate(stats["pings"], start=1):
+            s_icon = "🟢" if p["success"] else "🔴"
+            s_desc = "200 OK" if p["status"] == "online" else ("Offline Native" if p["status"] == "offline_native" else ("429 Rate Limit" if p["status"] == "rate_limited" else "Error"))
+            size_kb = p["audio_bytes"] / 1024.0
+            print(f"  • Ping {idx}: {s_icon} {s_desc:<14} — Latency: {p['latency_ms']:>6.1f} ms | Speed: {p['chars_per_sec']:>6.1f} chars/s ({p['words_per_min']:>5.0f} WPM) | Size: {size_kb:.1f} KB")
+
+        print(f"\n📊 Summary Statistics ({count} pings):")
+        print(f"  • Success Rate:    {stats['success_rate_pct']}% ({stats['success_count']}/{count})")
+        if stats['success_count'] > 0:
+            print(f"  • Latency (TTFB):  min = {stats['min_latency_ms']} ms | avg = {stats['avg_latency_ms']} ms | max = {stats['max_latency_ms']} ms (jitter: ±{stats['jitter_ms']} ms)")
+            print(f"  • Avg Throughput:  {stats['avg_chars_per_sec']} chars/s")
+            print(f"  • Connection:      🟢 Operational & responsive (zero speaker sound)\n")
+        else:
+            print(f"  • Errors:          {stats.get('errors')}\n")
+        return
+
+    # Single ping
+    res = troubleshooter.ping_voice_silently(
+        voice_name_or_id=resolved_voice,
+        text=sample_text,
+        provider=resolved_provider,
+        rate=rate,
+    )
+    if as_json:
+        print(json.dumps(res.to_dict(), indent=2))
+        return
+
+    print(f"\n🌐 VoiceFi Silent Connection & Speed Test")
+    print(f"🎙️ Voice: {resolved_name} (`{resolved_voice}`) | Provider: {resolved_provider}")
+    if res.success:
+        status_icon = "🟢"
+        status_label = "200 OK (Online)" if res.status == "online" else "Offline Native (macOS Apple Silicon)"
+        size_kb = res.audio_bytes / 1024.0
+        print(f"  • Status:      {status_icon} {status_label}")
+        print(f"  • Latency:     {res.latency_ms:.1f} ms roundtrip synthesis")
+        print(f"  • Speed:       {res.chars_per_sec:.1f} chars/sec (~{res.words_per_min:.0f} WPM equivalent)")
+        print(f"  • Audio Size:  {size_kb:.1f} KB ({res.audio_bytes} bytes)")
+        print(f"  • Audio Check: ✅ Silent synthesis verified (no speaker playback)\n")
+    else:
+        status_label = "429 Too Many Requests (Rate Limited)" if res.status == "rate_limited" else f"Failed ({res.error})"
+        print(f"  • Status:      🔴 {status_label}")
+        print(f"  • Latency:     {res.latency_ms:.1f} ms")
+        print(f"  • Error:       {res.error}\n")
+
+
 def cmd_voice(args):
     """Handle voice inspection, testing, auditioning, assignment, and voice commands."""
     subaction = getattr(args, "voice_action", None)
     config = load_config(args.config)
+
+    if subaction in ("ping", "check", "speed-test"):
+        run_silent_voice_ping(args, config)
+        return
 
     if subaction == "train":
         args.clone_action = "record"
@@ -799,15 +928,21 @@ def cmd_voice(args):
         import time
         from voicefi.troubleshoot import AudioTroubleshooter, TEST_PHRASES
 
-        # 1. Benchmark only
+        # Silent mode requested on test command
+        if getattr(args, "silent", False):
+            run_silent_voice_ping(args, config)
+            return
+
+        # 1. Benchmark only (silent measurement by default)
         if getattr(args, "benchmark", False):
             troubleshooter = AudioTroubleshooter(config)
-            print("\n⚡ Benchmarking Voice Personas Latency...")
-            benchmarks = troubleshooter.benchmark_all_curated_voices()
+            print("\n⚡ Benchmarking Voice Personas Latency & Speed (Silent)...")
+            benchmarks = troubleshooter.benchmark_all_curated_voices(silent=True)
             for b in benchmarks:
-                status_icon = "🟢" if b["status"] == "online" else "🔴"
-                lat_str = f"{b['latency_ms']} ms" if b["status"] == "online" else "Error"
-                print(f"  • {status_icon} {b['name']:<12} [{b['provider']}]: {lat_str} ({b['recommended_role']})")
+                status_icon = "🟢" if b["status"] in ("online", "offline_native") else "🔴"
+                lat_str = f"{b['latency_ms']} ms" if b["status"] in ("online", "offline_native") else "Error"
+                speed_str = f" | {b['chars_per_sec']:.1f} chars/s" if b.get("chars_per_sec", 0) > 0 else ""
+                print(f"  • {status_icon} {b['name']:<12} [{b['provider']}]: {lat_str}{speed_str} ({b['recommended_role']})")
             print()
             return
 
@@ -1994,6 +2129,7 @@ def main():
     v_test = voice_sub.add_parser("test", help="Audition / test a single voice or run feedback loop")
     v_test.add_argument("voice", nargs="?", default=None, help="Voice name or ID (e.g. Christopher, Aria, en-US-ChristopherNeural)")
     v_test.add_argument("-t", "--text", type=str, default=None, help="Custom text sample to speak")
+    v_test.add_argument("-s", "--silent", action="store_true", help="Silently test connection and speed without playing audio over speakers")
     v_test.add_argument("--phrase", type=str, default=None, choices=["greeting", "code_review", "qa_alert", "punctuation", "architecture"], help="Preset test phrase")
     v_test.add_argument("-p", "--provider", type=str, default=None, help="TTS provider override")
     v_test.add_argument("-r", "--rate", type=str, default=None, help="Speech rate / speed override (e.g. 75%%, 150)")
@@ -2003,6 +2139,26 @@ def main():
     v_test.add_argument("--verify", "--stt-loopback", dest="verify", action="store_true", help="Acoustic STT verification")
     v_test.add_argument("-b", "--benchmark", action="store_true", help="Benchmark latency of all curated voices")
     v_test.add_argument("-a", "--all", action="store_true", help="Audition all curated personas")
+
+    # voice ping (silent connection, speed, and latency test)
+    v_ping = voice_sub.add_parser("ping", aliases=["check", "speed-test"], help="Silently test connection, latency, speed, and health of neural voices")
+    v_ping.add_argument("voice", nargs="?", default=None, help="Voice name or ID to ping (e.g. Andrew, Christopher, Aria). Defaults to active voice.")
+    v_ping.add_argument("-t", "--text", type=str, default=None, help="Custom text sample for speed synthesis test")
+    v_ping.add_argument("-n", "--count", type=int, default=1, help="Number of pings to measure avg latency and jitter")
+    v_ping.add_argument("-a", "--all", action="store_true", help="Ping and benchmark all curated personas")
+    v_ping.add_argument("-p", "--provider", type=str, default=None, help="TTS provider override")
+    v_ping.add_argument("-r", "--rate", type=str, default=None, help="Speech rate / speed override")
+    v_ping.add_argument("--json", action="store_true", help="Output ping results in JSON format")
+
+    # ping top-level
+    ping_p = subparsers.add_parser("ping", aliases=["speed-test", "check-voice"], help="Silently test voice connection, latency, and throughput speed")
+    ping_p.add_argument("voice", nargs="?", default=None, help="Voice name or ID to ping. Defaults to active voice.")
+    ping_p.add_argument("-t", "--text", type=str, default=None, help="Custom text sample for speed synthesis test")
+    ping_p.add_argument("-n", "--count", type=int, default=1, help="Number of pings to measure avg latency and jitter")
+    ping_p.add_argument("-a", "--all", action="store_true", help="Ping and benchmark all curated personas")
+    ping_p.add_argument("-p", "--provider", type=str, default=None, help="TTS provider override")
+    ping_p.add_argument("-r", "--rate", type=str, default=None, help="Speech rate / speed override")
+    ping_p.add_argument("--json", action="store_true", help="Output ping results in JSON format")
 
     # feedback-loop top-level
     fb_p = subparsers.add_parser("feedback-loop", aliases=["feedback_loop", "loopback", "voice-loop"], help="Run Feedback Loop test (Speak -> Listen -> Transcribe -> Send)")
@@ -2270,6 +2426,9 @@ def main():
         "info": cmd_info,
         "obsidian": cmd_obsidian,
         "voice": cmd_voice,
+        "ping": cmd_ping,
+        "speed-test": cmd_ping,
+        "check-voice": cmd_ping,
         "hud": cmd_hud,
         "hearing-test": cmd_hearing_test,
         "hearing": cmd_hearing_test,

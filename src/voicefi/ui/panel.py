@@ -2422,6 +2422,18 @@ class VoicePanelRequestHandler(http.server.BaseHTTPRequestHandler):
             self._send_json(report)
             return
 
+        if path == "/api/troubleshoot/ping":
+            from voicefi.troubleshoot import AudioTroubleshooter
+            params = urllib.parse.parse_qs(parsed.query)
+            voice = params.get("voice", [None])[0]
+            count = int(params.get("count", ["1"])[0])
+            if count > 1:
+                res = AudioTroubleshooter(self.server.config).ping_multiple_silently(voice_name_or_id=voice, count=count)
+            else:
+                res = AudioTroubleshooter(self.server.config).ping_voice_silently(voice_name_or_id=voice).to_dict()
+            self._send_json(res)
+            return
+
         self.send_error(404, "Not Found")
 
     def do_POST(self):
@@ -2437,6 +2449,19 @@ class VoicePanelRequestHandler(http.server.BaseHTTPRequestHandler):
             payload = json.loads(body) if body.strip() else {}
         except Exception:
             payload = {}
+
+        if path == "/api/troubleshoot/ping":
+            from voicefi.troubleshoot import AudioTroubleshooter
+            voice = payload.get("voice")
+            text = payload.get("text")
+            provider = payload.get("provider")
+            count = int(payload.get("count", 1))
+            if count > 1:
+                res = AudioTroubleshooter(self.server.config).ping_multiple_silently(voice_name_or_id=voice, count=count, text=text, provider=provider)
+            else:
+                res = AudioTroubleshooter(self.server.config).ping_voice_silently(voice_name_or_id=voice, text=text, provider=provider).to_dict()
+            self._send_json(res)
+            return
 
         if path == "/api/troubleshoot/test_chime":
             from voicefi.troubleshoot import AudioTroubleshooter

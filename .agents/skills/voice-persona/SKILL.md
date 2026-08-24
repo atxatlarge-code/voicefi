@@ -40,6 +40,26 @@ vg voice test "Sonia" --text "Greetings, I am Sonia, analytical and focused for 
 
 ---
 
+### 2b. Silent Connection, Latency & Speed Testing (Ping)
+To test if a voice endpoint is responsive and calculate TTFB latency and synthesis speed **without emitting any physical sound**:
+
+```bash
+# Ping active or specific voice silently:
+vifi ping "Andrew"
+vifi ping "Christopher"
+
+# Multi-ping to compute avg latency, jitter, and throughput (chars/s):
+vifi ping "Andrew" -n 3
+
+# Benchmark all voices silently:
+vifi ping --all
+
+# Machine-readable JSON output:
+vifi ping "Andrew" --json
+```
+
+---
+
 ### 3. Assigning Voice Personas
 Once a voice is agreed upon, assign it to yourself or your subagents:
 
