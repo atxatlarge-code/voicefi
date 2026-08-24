@@ -30,8 +30,9 @@ Universal Voice Layer for Knowledge Vaults, MCP, and Autonomous AI Coding Agents
 
 ### 1. Active Voice Barge-In & Acoustic Safe Mode
 * **How It Works:** Allows interrupting AI agent speech simply by speaking over it.
-  - **Headphones / AirPods:** Instantaneous full-duplex interruption (~150ms).
-  - **Built-in Laptop Speakers:** Operates with a **1.2s acoustic grace window** to let initial TTS bursts and room reverb settle, paired with **continuous adaptive speaker bleed tracking** so normal playback won't trigger false interruptions while direct human speech into the mic breaks through cleanly.
+  - **Headphones / AirPods / Headsets:** Instantaneous full-duplex interruption (~150ms). Enabled in `auto` mode.
+  - **Speakers (Laptop / Monitor / External):** In `auto` mode (default), barge-in is disabled during agent speech to completely avoid speaker bleed and premature cutoffs; once the agent finishes speaking, the mic automatically opens for your turn. If forced ON (`vad.barge_in: true`), it operates with adaptive acoustic safe mode.
+
 * **Testing Barge-In Aloud:**
   ```bash
   vifi voice test "Christopher" -t "This is a full test of laptop active voice barge-in. I will keep speaking aloud for several seconds so you can hear that I do not cut off automatically. If you want to interrupt me, speak firmly into your microphone."
