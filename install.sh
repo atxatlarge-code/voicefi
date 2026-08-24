@@ -146,9 +146,9 @@ if [ -d "$HOME/Library/Application Support/obsidian" ] || [ -d "$HOME/Documents/
         say_msg ""
         say_msg "${PURPLE}📓 Detected Obsidian on your Mac.${NC}"
         read -r -p "👉 Install VoiceFi Obsidian voice bridge plugin? [Y/n]: " user_obsidian_choice 2>/dev/null < /dev/tty || user_obsidian_choice="y"
-        if [[ "$user_obsidian_choice" =~ ^[Nn] ]]; then
-            INSTALL_OBSIDIAN="n"
-        fi
+        case "$user_obsidian_choice" in
+            [Nn]*) INSTALL_OBSIDIAN="n" ;;
+        esac
     fi
 
     if [ "$INSTALL_OBSIDIAN" = "y" ]; then
@@ -160,12 +160,15 @@ if [ -d "$HOME/Library/Application Support/obsidian" ] || [ -d "$HOME/Documents/
 fi
 
 # 7. Check PATH
-if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
-    say_msg ""
-    say_msg "${PURPLE}⚠️  Notice: $BIN_DIR is not in your current PATH.${NC}"
-    say_msg "Add it to your shell configuration (~/.zshrc or ~/.bashrc):"
-    say_msg "  ${BOLD}export PATH=\"\$HOME/.local/bin:\$PATH\"${NC}"
-fi
+case ":$PATH:" in
+    *":$BIN_DIR:"*) ;;
+    *)
+        say_msg ""
+        say_msg "${PURPLE}⚠️  Notice: $BIN_DIR is not in your current PATH.${NC}"
+        say_msg "Add it to your shell configuration (~/.zshrc or ~/.bashrc):"
+        say_msg "  ${BOLD}export PATH=\"\$HOME/.local/bin:\$PATH\"${NC}"
+        ;;
+esac
 
 say_msg ""
 say_msg "${GREEN}${BOLD}🎉 VoiceFi Installation Complete!${NC}"
@@ -181,6 +184,6 @@ say_msg "📖 ${BOLD}Commands:${NC}                Run ${CYAN}${BOLD}vifi --help
 say_msg "------------------------------------------------------------------"
 say_msg ""
 
-# 7. Play interactive welcome greeting with auto-detected user name
-echo -e "${CYAN}⚡ Launching VoiceFi Onboarding...${NC}"
+# 8. Play interactive welcome greeting with auto-detected user name
+say_msg "${CYAN}⚡ Launching VoiceFi Onboarding...${NC}"
 "$INSTALL_DIR/venv/bin/voicefi" onboarding || true
