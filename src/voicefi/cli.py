@@ -30,10 +30,16 @@ def cmd_hook(args):
     config = load_config(args.config)
     target_agent = getattr(args, "agent", "antigravity").lower().strip()
 
-    # Read hook payload from stdin
+    # Read hook payload from stdin non-blockingly
+    payload = {}
     try:
-        raw_input = sys.stdin.read()
-        payload = json.loads(raw_input) if raw_input.strip() else {}
+        if not sys.stdin.isatty():
+            import select
+            r, _, _ = select.select([sys.stdin], [], [], 0.3)
+            if r:
+                raw_input = sys.stdin.read()
+                if raw_input and raw_input.strip():
+                    payload = json.loads(raw_input)
     except Exception:
         payload = {}
 
