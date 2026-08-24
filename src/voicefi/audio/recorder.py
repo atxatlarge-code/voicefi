@@ -82,6 +82,27 @@ class AudioRecorder:
         """
         self.stop_event.clear()
         trigger_stop = stop_event or self.stop_event
+        cancelled_by_user = False
+
+        kb_listener = None
+        try:
+            from pynput import keyboard
+            def _on_key_press(k):
+                nonlocal cancelled_by_user
+                vk = getattr(k, 'vk', None)
+                if k == keyboard.Key.esc or vk == 53:
+                    cancelled_by_user = True
+                    from voicefi.tts.base import stop_all_speech
+                    stop_all_speech()
+                    self.stop_event.set()
+                elif k in (keyboard.Key.enter, keyboard.Key.space) or vk in (36, 76, 49):
+                    self.stop_event.set()
+
+            kb_listener = keyboard.Listener(on_press=_on_key_press)
+            kb_listener.daemon = True
+            kb_listener.start()
+        except Exception:
+            kb_listener = None
 
         chunk_duration = 0.05  # 50ms chunks for rapid response
         chunk_size = int(self.sample_rate * chunk_duration)
@@ -339,6 +360,15 @@ class AudioRecorder:
                     print("[VAD] No speech detected within 5.0s -> closing mic")
                     break
 
+        if kb_listener is not None:
+            try:
+                kb_listener.stop()
+            except Exception:
+                pass
+
+        if cancelled_by_user:
+            recorded_frames.clear()
+
         if recorded_frames:
             full_audio = np.concatenate(recorded_frames, axis=0)
         else:
@@ -372,6 +402,25 @@ class AudioRecorder:
         """
         self.stop_event.clear()
         trigger_stop = stop_event or self.stop_event
+        cancelled_by_user = False
+
+        kb_listener = None
+        try:
+            from pynput import keyboard
+            def _on_ptt_key(k):
+                nonlocal cancelled_by_user
+                vk = getattr(k, 'vk', None)
+                if k == keyboard.Key.esc or vk == 53:
+                    cancelled_by_user = True
+                    from voicefi.tts.base import stop_all_speech
+                    stop_all_speech()
+                    self.stop_event.set()
+
+            kb_listener = keyboard.Listener(on_press=_on_ptt_key)
+            kb_listener.daemon = True
+            kb_listener.start()
+        except Exception:
+            kb_listener = None
 
         chunk_duration = 0.05  # 50ms chunks
         chunk_size = int(self.sample_rate * chunk_duration)
@@ -452,6 +501,15 @@ class AudioRecorder:
                 # Max duration safety cutoff
                 if (time.time() - start_time) >= self.max_record_seconds:
                     break
+
+        if kb_listener is not None:
+            try:
+                kb_listener.stop()
+            except Exception:
+                pass
+
+        if cancelled_by_user:
+            recorded_frames.clear()
 
         if recorded_frames:
             full_audio = np.concatenate(recorded_frames, axis=0)
