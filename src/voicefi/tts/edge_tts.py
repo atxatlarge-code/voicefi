@@ -84,7 +84,7 @@ class EdgeTTS(BaseTTS):
         await communicate.save(output_path)
 
     def speak(self, text: str, block: bool = True) -> None:
-        """Synthesize and play neural speech audio with cross-process turn queuing."""
+        """Synthesize and play neural speech audio with cross-process turn queuing and sentence pipelining."""
         if not text or not text.strip():
             return
             
@@ -99,27 +99,71 @@ class EdgeTTS(BaseTTS):
                 if self._stop_requested:
                     return
 
-                temp_mp3 = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
-                temp_path = temp_mp3.name
-                temp_mp3.close()
+                import re
+                sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", text) if s.strip()]
+                if not sentences:
+                    sentences = [text]
 
-                try:
-                    asyncio.run(self._generate_audio(text, temp_path))
-                    if not self._stop_requested and Path(temp_path).is_file() and Path(temp_path).stat().st_size > 0:
-                        self._current_process = subprocess.Popen(
-                            ["afplay", temp_path],
-                            stdout=subprocess.DEVNULL,
-                            stderr=subprocess.DEVNULL,
-                        )
-                        self._current_process.wait()
-                except Exception as e:
-                    print(f"[EdgeTTS] Error generating or playing audio: {e}")
-                finally:
-                    self._current_process = None
+                if len(sentences) == 1:
+                    temp_mp3 = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
+                    temp_path = temp_mp3.name
+                    temp_mp3.close()
                     try:
+                        asyncio.run(self._generate_audio(sentences[0], temp_path))
+                        if not self._stop_requested and Path(temp_path).is_file() and Path(temp_path).stat().st_size > 0:
+                            self._current_process = subprocess.Popen(
+                                ["afplay", temp_path],
+                                stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL,
+                            )
+                            self._current_process.wait()
+                    except Exception as e:
+                        print(f"[EdgeTTS] Error generating or playing audio: {e}")
+                    finally:
+                        self._current_process = None
                         Path(temp_path).unlink(missing_ok=True)
+                    return
+
+                # Sentence-pipelined streaming: pre-fetch next sentence while playing current
+                import queue
+                audio_queue: queue.Queue = queue.Queue(maxsize=3)
+
+                def _fetcher():
+                    for s in sentences:
+                        if self._stop_requested:
+                            break
+                        tf = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
+                        tp = tf.name
+                        tf.close()
+                        try:
+                            asyncio.run(self._generate_audio(s, tp))
+                            audio_queue.put(tp)
+                        except Exception:
+                            Path(tp).unlink(missing_ok=True)
+                            audio_queue.put(None)
+                    audio_queue.put(None)
+
+                fetcher_thread = threading.Thread(target=_fetcher, daemon=True)
+                fetcher_thread.start()
+
+                while not self._stop_requested:
+                    try:
+                        chunk_path = audio_queue.get(timeout=10.0)
                     except Exception:
-                        pass
+                        break
+                    if chunk_path is None:
+                        break
+                    try:
+                        if not self._stop_requested and Path(chunk_path).is_file() and Path(chunk_path).stat().st_size > 0:
+                            self._current_process = subprocess.Popen(
+                                ["afplay", chunk_path],
+                                stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL,
+                            )
+                            self._current_process.wait()
+                    finally:
+                        self._current_process = None
+                        Path(chunk_path).unlink(missing_ok=True)
 
         if block:
             _run()
