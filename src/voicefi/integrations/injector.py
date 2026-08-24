@@ -11,6 +11,8 @@ from typing import Optional
 
 
 DEFAULT_TERMINAL_APPS = (
+    "Claude",
+    "Claude Helper",
     "Terminal",
     "iTerm2",
     "iTerm",
@@ -335,12 +337,18 @@ def send_message_to_antigravity(
     clean_text = text.strip()
     agentapi_bin = Path.home() / ".gemini" / "antigravity" / "bin" / "agentapi"
 
-    if not conv_id:
+    # Resolve conv_id if empty or placeholder
+    if not conv_id or conv_id in ("active", "null", "none"):
         try:
-            from voicefi.integrations.conversations import ConversationTracker
-            active = ConversationTracker().get_active_or_latest()
-            if active:
-                conv_id = active.id
+            from voicefi.integrations.conversations import ConversationTracker, load_session_cookie
+            cookie = load_session_cookie()
+            if cookie and cookie.get("conv_id") and not str(cookie.get("conv_id")).startswith("claude_"):
+                conv_id = cookie["conv_id"]
+            else:
+                for c in ConversationTracker().get_all_conversations(limit=5):
+                    if getattr(c, "engine", "") == "antigravity" or not str(c.id).startswith("claude_"):
+                        conv_id = c.id
+                        break
         except Exception:
             pass
 
@@ -348,7 +356,7 @@ def send_message_to_antigravity(
     if not resolved_title and sender_name:
         resolved_title = f"Message from {sender_name}"
 
-    if agentapi_bin.is_file() and os.access(agentapi_bin, os.X_OK) and conv_id:
+    if agentapi_bin.is_file() and os.access(agentapi_bin, os.X_OK) and conv_id and not str(conv_id).startswith("claude_"):
         try:
             cmd = [str(agentapi_bin), "send-message"]
             if resolved_title:
@@ -362,7 +370,7 @@ def send_message_to_antigravity(
                 timeout=5,
             )
             if res.returncode == 0:
-                print(f"[Injector] 🚀 Delivered prompt directly via agentapi IPC to {conv_id[:8]} ({resolved_title or 'direct'})")
+                print(f"[Injector] 🚀 Delivered prompt directly via agentapi IPC to {str(conv_id)[:8]} ({resolved_title or 'direct'})")
                 return True
             else:
                 print(f"[Injector] agentapi notice: {res.stderr.strip()}")
@@ -373,7 +381,7 @@ def send_message_to_antigravity(
         except Exception as e:
             print(f"[Injector] agentapi exception: {e}")
             
-    if not conv_id:
+    if not conv_id or str(conv_id).startswith("claude_"):
         print("[Injector] No active session found. Creating a new conversation...")
         new_id = create_new_antigravity_conversation(prompt=clean_text, title=resolved_title)
         if new_id:
@@ -465,3 +473,134 @@ def create_new_antigravity_conversation(
     except Exception:
         pass
     return None
+
+
+def focus_terminal_app() -> Optional[str]:
+    """Find and focus the running terminal, coding editor, or Claude app."""
+    applescript = '''
+    tell application "System Events"
+        set termApps to {"Claude", "Ghostty", "iTerm2", "iTerm", "Warp", "Terminal", "Cursor", "Code", "Visual Studio Code", "Windsurf", "Alacritty", "kitty", "WezTerm"}
+        repeat with aName in termApps
+            if (exists (process (aName as text))) then
+                return (aName as text)
+            end if
+        end repeat
+        return ""
+    end tell
+    '''
+    try:
+        res = subprocess.run(["osascript", "-e", applescript], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=3)
+        found = res.stdout.strip()
+        if found:
+            subprocess.run(["osascript", "-e", f'tell application "{found}" to activate'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2)
+            time.sleep(0.15)
+            return found
+    except Exception:
+        pass
+    return None
+
+
+def inject_text_to_claude(
+    text: str,
+    submit_enter: bool = True,
+    restore_focus: bool = False,
+    preserve_clipboard: bool = True,
+) -> bool:
+    """
+    Inject transcribed voice prompt or typed message into Claude Code terminal or Claude App.
+    """
+    if not text or not text.strip():
+        return False
+
+    clean_text = text.strip()
+
+    # Step 1: Set clipboard
+    if not set_clipboard_text(clean_text):
+        return False
+
+    time.sleep(0.05)
+    enter_script = '''
+            delay 0.15
+            key code 36
+    ''' if submit_enter else ''
+
+    # Step 2: Bring Claude / Terminal to front and paste
+    applescript = f'''
+    tell application "System Events"
+        set termApps to {{"Claude", "Ghostty", "iTerm2", "iTerm", "Warp", "Terminal", "Cursor", "Code", "Visual Studio Code", "Windsurf"}}
+        set targetApp to ""
+        repeat with aName in termApps
+            if (exists (process (aName as text))) then
+                set targetApp to (aName as text)
+                exit repeat
+            end if
+        end repeat
+    end tell
+
+    if targetApp is not "" then
+        tell application targetApp to activate
+        delay 0.22
+        tell application "System Events"
+            tell process targetApp
+                set frontmost to true
+            end tell
+            try
+                tell process targetApp
+                    click menu item "Paste" of menu "Edit" of menu bar item "Edit" of menu bar 1
+                end tell
+            on error
+                keystroke "v" using command down
+            end try
+            {enter_script}
+        end tell
+        return true
+    end if
+    return false
+    '''
+    try:
+        res = subprocess.run(["osascript", "-e", applescript], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=4)
+        return "true" in res.stdout.lower()
+    except Exception as e:
+        print(f"[Injector] inject_text_to_claude error: {e}")
+        return False
+
+
+def send_message_to_agent(
+    conv_id: Optional[str] = None,
+    text: str = "",
+    sender_name: Optional[str] = None,
+    title: Optional[str] = None,
+    target_engine: Optional[str] = None,
+) -> bool:
+    """
+    Unified dispatcher to send messages to Antigravity or Claude Code.
+    Automatically resolves engine from conversation ID or active session cookie if unstated.
+    """
+    if not text or not text.strip():
+        return False
+
+    engine = target_engine
+    if not engine and conv_id:
+        if conv_id.startswith("claude_") or "claude" in conv_id.lower():
+            engine = "claude"
+        else:
+            engine = "antigravity"
+
+    if not engine:
+        from voicefi.integrations.conversations import load_session_cookie, ConversationTracker
+        cookie = load_session_cookie()
+        if cookie and cookie.get("engine"):
+            engine = cookie["engine"]
+        else:
+            active = ConversationTracker().get_active_or_latest()
+            if active:
+                engine = getattr(active, "engine", "antigravity")
+
+    engine = engine or "antigravity"
+
+    if engine == "claude":
+        print(f"[Injector] 🎭 Injecting prompt into Claude Code terminal: \"{text[:50]}...\"")
+        return inject_text_to_claude(text, submit_enter=True)
+    else:
+        return send_message_to_antigravity(conv_id=conv_id, text=text, sender_name=sender_name, title=title)
+

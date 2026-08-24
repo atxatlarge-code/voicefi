@@ -106,6 +106,8 @@ class EdgeTTS(BaseTTS):
                 try:
                     asyncio.run(self._generate_audio(text, temp_path))
                     if not self._stop_requested and Path(temp_path).is_file() and Path(temp_path).stat().st_size > 0:
+                        from voicefi.tts.base import set_agent_audio_playing
+                        set_agent_audio_playing(True)
                         self._current_process = subprocess.Popen(
                             ["afplay", temp_path],
                             stdout=subprocess.DEVNULL,
@@ -115,6 +117,8 @@ class EdgeTTS(BaseTTS):
                 except Exception as e:
                     print(f"[EdgeTTS] Error generating or playing audio: {e}")
                 finally:
+                    from voicefi.tts.base import set_agent_audio_playing
+                    set_agent_audio_playing(False)
                     self._current_process = None
                     try:
                         Path(temp_path).unlink(missing_ok=True)
@@ -127,6 +131,24 @@ class EdgeTTS(BaseTTS):
             thread = threading.Thread(target=_run, daemon=True)
             thread.start()
 
+    async def synthesize_to_file(self, text: str, output_path: Path) -> bool:
+        """Synthesize text directly to an MP3 file asynchronously."""
+        if not text or not text.strip():
+            return False
+        try:
+            await self._generate_audio(text, str(output_path))
+            return Path(output_path).is_file() and Path(output_path).stat().st_size > 0
+        except Exception as e:
+            print(f"[EdgeTTS] Error synthesizing to file: {e}")
+            return False
+
+    def speak_to_file(self, text: str, output_path: Path) -> bool:
+        """Synthesize speech to an audio file synchronously."""
+        try:
+            return asyncio.run(self.synthesize_to_file(text, output_path))
+        except Exception:
+            return False
+
     def stream_speak(self, text: str, block: bool = True) -> None:
         """Explicit low-latency streaming entrypoint."""
         self.speak(text, block=block)
@@ -137,3 +159,4 @@ class EdgeTTS(BaseTTS):
         if self._current_process and self._current_process.poll() is None:
             self._current_process.terminate()
             self._current_process = None
+

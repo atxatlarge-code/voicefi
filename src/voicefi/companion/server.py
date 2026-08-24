@@ -27,12 +27,18 @@ from voicefi.integrations.conversations import (
     save_session_cookie,
     set_mobile_turn_origin,
     peek_mobile_turn_origin,
+    pop_mobile_turn_origin,
+    get_claimed_turn_origin,
     record_companion_heartbeat,
     has_active_companion_client,
+    find_recent_claude_sessions,
+    parse_claude_session,
 )
 from voicefi.integrations.injector import (
     send_message_to_antigravity,
+    send_message_to_agent,
     create_new_antigravity_conversation,
+    inject_text_to_claude,
 )
 from voicefi.integrations.antigravity import clean_markdown_for_speech
 from voicefi.integrations.watcher import get_recent_transcript_paths
@@ -478,7 +484,7 @@ class CompanionServer:
                 prompt_text = custom_feedback or "Please review and adjust the implementation plan."
 
             set_mobile_turn_origin(conv_id)
-            delivered = send_message_to_antigravity(conv_id=conv_id, text=prompt_text)
+            delivered = send_message_to_agent(conv_id=conv_id, text=prompt_text)
             self.broadcast_event({
                 "type": "plan_action_dispatched",
                 "conv_id": conv_id or "active",
@@ -496,7 +502,7 @@ class CompanionServer:
             return web.json_response({"error": str(e)}, status=500)
 
     async def handle_conversations(self, request: web.Request) -> web.Response:
-        convs = self.tracker.get_all_conversations(limit=10)
+        convs = self.tracker.get_all_conversations(limit=12)
         active = self.tracker.get_active_or_latest()
         active_id = active.id if active else ""
         return web.json_response({
@@ -506,6 +512,8 @@ class CompanionServer:
                     "title": c.title,
                     "status": c.status,
                     "mtime": c.mtime,
+                    "engine": getattr(c, "engine", "antigravity"),
+                    "project_name": getattr(c, "project_name", None),
                 }
                 for c in convs
             ],
@@ -532,7 +540,7 @@ class CompanionServer:
         return web.json_response(art)
 
     async def handle_new_conversation(self, request: web.Request) -> web.Response:
-        """Create and focus a new Antigravity conversation."""
+        """Create and focus a new conversation (Antigravity or Claude Code)."""
         try:
             data = {}
             if request.can_read_body:
@@ -544,12 +552,17 @@ class CompanionServer:
             prompt = data.get("prompt", "Hello")
             title = data.get("title")
             model = data.get("model")
+            engine = data.get("engine", "antigravity")
 
-            new_id = create_new_antigravity_conversation(prompt=prompt, title=title, model=model)
-            await asyncio.sleep(0.5)
-
-            active = self.tracker.get_active_or_latest()
-            active_id = new_id or (active.id if active else "")
+            if engine == "claude":
+                delivered = inject_text_to_claude(prompt, submit_enter=True)
+                active = self.tracker.get_active_or_latest()
+                active_id = active.id if active else "claude_active"
+            else:
+                new_id = create_new_antigravity_conversation(prompt=prompt, title=title, model=model)
+                await asyncio.sleep(0.5)
+                active = self.tracker.get_active_or_latest()
+                active_id = new_id or (active.id if active else "")
 
             if active_id:
                 self.tracker.set_active_focus(active_id)
@@ -557,9 +570,10 @@ class CompanionServer:
                     "type": "conversation_created",
                     "conv_id": active_id,
                     "title": active.title if active else "New Conversation",
+                    "engine": engine,
                 })
 
-            convs = self.tracker.get_all_conversations(limit=10)
+            convs = self.tracker.get_all_conversations(limit=12)
             return web.json_response({
                 "success": True,
                 "conv_id": active_id,
@@ -569,6 +583,8 @@ class CompanionServer:
                         "title": c.title,
                         "status": c.status,
                         "mtime": c.mtime,
+                        "engine": getattr(c, "engine", "antigravity"),
+                        "project_name": getattr(c, "project_name", None),
                     }
                     for c in convs
                 ],
@@ -598,6 +614,7 @@ class CompanionServer:
             conv_id = data.get("conv_id")
             title = data.get("title")
             sender_name = data.get("sender_name")
+            target_engine = data.get("engine")
             if not text:
                 return web.json_response({"error": "Empty text prompt"}, status=400)
 
@@ -607,11 +624,12 @@ class CompanionServer:
                 return web.json_response({"success": True, "suppressed_echo": True, "delivered": False})
 
             set_mobile_turn_origin(conv_id)
-            delivered = send_message_to_antigravity(
+            delivered = send_message_to_agent(
                 conv_id=conv_id,
                 text=text,
                 sender_name=sender_name,
                 title=title,
+                target_engine=target_engine,
             )
             self.broadcast_event({
                 "type": "user_command_injected",
@@ -959,7 +977,7 @@ class CompanionServer:
                     })
 
                 set_mobile_turn_origin(conv_id)
-                delivered = send_message_to_antigravity(conv_id=conv_id, text=clean_t)
+                delivered = send_message_to_agent(conv_id=conv_id, text=clean_t)
                 self.broadcast_event({
                     "type": "user_command_injected",
                     "conv_id": conv_id,
@@ -1041,17 +1059,18 @@ class CompanionServer:
             return web.json_response({"error": str(e)}, status=500)
 
     async def handle_tts(self, request: web.Request) -> web.Response:
-        """Synthesize text to audio stream for phone playback."""
+        """Synthesize text to audio stream for phone playback using agent-specific voice persona."""
         try:
             data = await request.json()
             text = data.get("text", "").strip()
+            agent_role = data.get("agent_role") or data.get("agent") or request.query.get("agent") or "antigravity"
             if not text:
                 return web.Response(text="Empty text", status=400)
 
-            from voicefi.audio.echo_canceller import record_agent_spoken
-            record_agent_spoken(text)
-
-            tts = get_tts_engine(self.config)
+            from voicefi.config import load_config
+            cfg = load_config()
+            self.config = cfg
+            tts = get_tts_engine(cfg, agent_name=agent_role)
 
             # Determine appropriate temp format: mp3 for async neural engines, aiff for macOS say
             if hasattr(tts, "synthesize_to_file"):
@@ -1117,6 +1136,7 @@ class CompanionServer:
                 "id": active.id if active else "",
                 "title": active.title if active else "",
                 "status": active.status if active else "idle",
+                "engine": getattr(active, "engine", "antigravity") if active else "antigravity",
             } if active else None,
             "audio_routing": getattr(getattr(self.config, "companion", None), "audio_routing", "smart"),
         }))
@@ -1136,7 +1156,7 @@ class CompanionServer:
                                     print(f"[CompanionServer] 🛡️ Filtered acoustic self-echo in websocket: \"{text}\"")
                                     continue
                                 set_mobile_turn_origin(cid)
-                                send_message_to_antigravity(conv_id=cid, text=text)
+                                send_message_to_agent(conv_id=cid, text=text)
                                 self.broadcast_event({
                                     "type": "user_command_injected",
                                     "conv_id": cid or "active",
@@ -1166,8 +1186,8 @@ class CompanionServer:
                                     if task:
                                         set_mobile_turn_origin(None)
                                         prompt = f"[{task.category.value}] {task.action_prompt}"
-                                        delivered = send_message_to_antigravity(conv_id=None, text=prompt)
-                                        self._ambient_dispatcher.complete_task(tid, result_summary="Dispatched to Antigravity")
+                                        delivered = send_message_to_agent(conv_id=None, text=prompt)
+                                        self._ambient_dispatcher.complete_task(tid, result_summary="Dispatched to agent")
                                         self.broadcast_event({
                                             "type": "ambient_task_updated",
                                             "task_id": tid,
@@ -1524,12 +1544,16 @@ class CompanionServer:
         self._watcher_running = True
         for p in get_recent_transcript_paths(limit=5):
             self._processed_steps[str(p)] = self._get_highest_step_index(p)
+        for p in find_recent_claude_sessions(limit=5):
+            self._processed_steps[str(p)] = self._get_highest_claude_line_index(p)
 
         def _loop():
             while self._watcher_running:
                 try:
                     for p in get_recent_transcript_paths(limit=3):
                         self._check_transcript_turn(p)
+                    for p in find_recent_claude_sessions(limit=3):
+                        self._check_claude_session_turn(p)
                 except Exception:
                     pass
                 time.sleep(0.5)
@@ -1554,6 +1578,17 @@ class CompanionServer:
         except Exception:
             pass
         return highest
+
+    def _get_highest_claude_line_index(self, path: Path) -> int:
+        count = -1
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                for idx, line in enumerate(f):
+                    if line.strip():
+                        count = idx
+        except Exception:
+            pass
+        return count
 
     def _check_transcript_turn(self, path: Path):
         p_str = str(path)
@@ -1601,8 +1636,12 @@ class CompanionServer:
             ):
                 role = step.get("role") or step.get("agent_role") or "antigravity"
                 summary = clean_markdown_for_speech(content, max_words=self.config.antigravity.max_spoken_words)
-                is_mobile_origin = peek_mobile_turn_origin(cid)
-                origin_tag = "mobile" if is_mobile_origin else "desktop"
+                turn_sig = f"{cid}:{summary[:35]}"
+                claimed_origin = get_claimed_turn_origin(cid, turn_sig)
+                if claimed_origin:
+                    origin_tag = claimed_origin
+                else:
+                    origin_tag = "mobile" if pop_mobile_turn_origin(cid) else "desktop"
                 self.broadcast_turn_completion(
                     summary=summary,
                     conv_id=cid,
@@ -1632,6 +1671,103 @@ class CompanionServer:
                     "conv_id": cid,
                     "step_index": idx,
                     "step_type": stype,
+                    "timestamp": time.time(),
+                })
+
+    def _check_claude_session_turn(self, path: Path):
+        p_str = str(path)
+        last_proc = self._processed_steps.get(p_str, -1)
+        new_lines = []
+        highest_idx = last_proc
+
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                for idx, line in enumerate(f):
+                    line = line.strip()
+                    if not line:
+                        continue
+                    if idx > last_proc:
+                        try:
+                            obj = json.loads(line)
+                            new_lines.append((idx, obj))
+                        except Exception:
+                            pass
+                    if idx > highest_idx:
+                        highest_idx = idx
+        except Exception:
+            return
+
+        if not new_lines or highest_idx <= last_proc:
+            return
+
+        self._processed_steps[p_str] = highest_idx
+        cid = f"claude_{path.stem}"
+
+        for idx, obj in new_lines:
+            t = obj.get("type")
+            if t == "assistant":
+                msg = obj.get("message", {})
+                content = msg.get("content", [])
+                text_parts = []
+                tool_calls = []
+                if isinstance(content, list):
+                    for block in content:
+                        if isinstance(block, dict):
+                            if block.get("type") == "text":
+                                text_parts.append(block.get("text", ""))
+                            elif block.get("type") == "tool_use":
+                                tool_calls.append(block)
+                elif isinstance(content, str):
+                    text_parts.append(content)
+
+                if text_parts and not tool_calls:
+                    full_resp = "\n\n".join(text_parts).strip()
+                    summary = clean_markdown_for_speech(full_resp, max_words=getattr(self.config.claude, "max_spoken_words", 60))
+                    turn_sig = f"{cid}:{summary[:35]}"
+                    claimed_origin = get_claimed_turn_origin(cid, turn_sig) or get_claimed_turn_origin(path.stem, turn_sig)
+                    if claimed_origin:
+                        origin_tag = claimed_origin
+                    else:
+                        origin_tag = "mobile" if (pop_mobile_turn_origin(cid) or pop_mobile_turn_origin(path.stem)) else "desktop"
+                    self.broadcast_turn_completion(
+                        summary=summary,
+                        conv_id=cid,
+                        agent_role="claude",
+                        full_response=full_resp,
+                        origin=origin_tag,
+                    )
+                elif tool_calls:
+                    for tc in tool_calls:
+                        t_name = tc.get("name", "tool")
+                        t_input = tc.get("input", {})
+                        t_summary = f"{t_name} {str(t_input.get('command') or t_input.get('path') or '')[:35]}".strip()
+                        self.broadcast_event({
+                            "type": "agent_working_step",
+                            "conv_id": cid,
+                            "step_index": idx,
+                            "agent_role": "claude",
+                            "tool_name": t_name,
+                            "summary": t_summary or t_name,
+                            "action": t_name,
+                            "status": "running",
+                            "timestamp": time.time(),
+                        })
+            elif t == "attachment":
+                att = obj.get("attachment", {})
+                if att.get("type") == "hook_success":
+                    self.broadcast_event({
+                        "type": "conversation_updated",
+                        "conv_id": cid,
+                        "step_index": idx,
+                        "step_type": "hook_success",
+                        "timestamp": time.time(),
+                    })
+            elif t == "user":
+                self.broadcast_event({
+                    "type": "conversation_updated",
+                    "conv_id": cid,
+                    "step_index": idx,
+                    "step_type": "user",
                     "timestamp": time.time(),
                 })
 

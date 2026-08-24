@@ -68,7 +68,7 @@ def detect_system_user_name(prefer_first_name: bool = True) -> str:
 
 class TTSConfig(BaseModel):
     provider: Literal["mac_say", "edge_tts", "elevenlabs"] = "edge_tts"
-    voice: str = "en-US-GuyNeural"
+    voice: str = "en-US-AndrewNeural"
     rate: Optional[int] = 200
     volume: float = 1.0
     streaming: bool = True
@@ -206,7 +206,7 @@ class StudioConfig(BaseModel):
 def default_agents_catalog() -> dict[str, AgentVoiceProfile]:
     return {
         "antigravity": AgentVoiceProfile(
-            voice="en-US-ChristopherNeural",
+            voice="en-US-AndrewNeural",
             provider="edge_tts",
             description="Antigravity Primary Agent",
         ),
@@ -310,10 +310,10 @@ class VoiceFiConfig(BaseModel):
             )
 
         # Built-in agent persona fallbacks
-        if key == "claude" or key == "claude_code":
+        if key in ("claude", "claude_code"):
             return "edge_tts", "en-US-GuyNeural", default_rate
         elif key == "antigravity":
-            return "edge_tts", "en-US-ChristopherNeural", default_rate
+            return "edge_tts", "en-US-AndrewNeural", default_rate
         elif key == "cursor":
             return "edge_tts", "en-US-JennyNeural", default_rate
         elif key in ("researcher", "architect"):
@@ -342,13 +342,13 @@ def find_config_path(custom_path: Optional[str] = None) -> Optional[Path]:
     if env_path and Path(env_path).is_file():
         return Path(env_path)
 
-    local_path = Path("config.yaml")
-    if local_path.is_file():
-        return local_path
-
     home_path = get_default_config_path()
     if home_path.is_file():
         return home_path
+
+    local_path = Path("config.yaml")
+    if local_path.is_file():
+        return local_path
 
     return None
 

@@ -80,7 +80,7 @@ def test_audio_device_detection_profile():
 
 def test_audio_recorder_barge_in_triggers_and_preserves_audio():
     """
-    Simulate microphone input where agent starts speaking, and user interrupts mid-sentence.
+    Simulate microphone input where agent starts speaking, and user interrupts mid-sentence on headphones.
     Verify:
     1. on_barge_in is triggered.
     2. stop_all_speech is called.
@@ -150,6 +150,8 @@ def test_audio_recorder_barge_in_triggers_and_preserves_audio():
 
     with patch("sounddevice.InputStream", side_effect=MockStream), \
          patch("voicefi.tts.base.stop_all_speech") as mock_stop_speech, \
+         patch("voicefi.audio.recorder.is_using_builtin_speakers", return_value=False), \
+         patch("voicefi.audio.recorder.is_agent_audio_playing", return_value=True), \
          patch("voicefi.audio.recorder.is_agent_speaking", side_effect=mock_is_agent_speaking):
 
         def wrapped_barge_in():
@@ -172,6 +174,200 @@ def test_audio_recorder_barge_in_triggers_and_preserves_audio():
             assert total_duration > 0.4, f"Captured audio should include user speech (got {total_duration}s)"
         finally:
             wav_path.unlink(missing_ok=True)
+
+
+def test_audio_recorder_safe_mode_grace_period_suppresses_speaker_bleed():
+    """Verify that on built-in speakers, acoustic bleed during the 1.2s grace window does not trigger barge-in."""
+    sample_rate = 16000
+    chunk_duration = 0.05
+    chunk_size = int(sample_rate * chunk_duration)
+
+    recorder = AudioRecorder(
+        sample_rate=sample_rate,
+        energy_threshold=0.005,
+        silence_duration=0.6,
+        max_record_seconds=4.0,
+        barge_in=True,
+        barge_in_sensitivity=1.0,
+    )
+
+    barge_in_events = []
+    # Moderate energy speaker bleed chunks (e.g. 0.045 RMS) during initial 12 chunks (<1.2s)
+    speaker_bleed_chunk = np.ones((chunk_size, 1), dtype=np.float32) * 0.045
+    silence_chunk = np.zeros((chunk_size, 1), dtype=np.float32)
+
+    chunks = (
+        [speaker_bleed_chunk] * 12 +
+        [silence_chunk] * 16
+    )
+    current_idx = [0]
+
+    class MockStream:
+        def __init__(self, *args, **kwargs):
+            pass
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            pass
+        def read(self, size):
+            idx = current_idx[0]
+            current_idx[0] += 1
+            if idx < len(chunks):
+                return chunks[idx], False
+            recorder.stop()
+            return silence_chunk, False
+
+    with patch("sounddevice.InputStream", side_effect=MockStream), \
+         patch("voicefi.tts.base.stop_all_speech") as mock_stop_speech, \
+         patch("voicefi.audio.recorder.is_using_builtin_speakers", return_value=True), \
+         patch("voicefi.audio.recorder.is_agent_audio_playing", return_value=True), \
+         patch("voicefi.audio.recorder.is_agent_speaking", return_value=True):
+
+        audio_data, wav_path = recorder.record_speech_auto(
+            on_barge_in=lambda: barge_in_events.append(True),
+        )
+
+        try:
+            assert len(barge_in_events) == 0, "Speaker bleed in grace window must NOT trigger barge-in"
+            assert not mock_stop_speech.called
+        finally:
+            if wav_path:
+                wav_path.unlink(missing_ok=True)
+
+
+def test_audio_recorder_safe_mode_barge_in_after_grace_period():
+    """Verify that after the 1.2s grace window, loud direct user voice triggers barge-in on built-in speakers."""
+    sample_rate = 16000
+    chunk_duration = 0.05
+    chunk_size = int(sample_rate * chunk_duration)
+
+    recorder = AudioRecorder(
+        sample_rate=sample_rate,
+        energy_threshold=0.005,
+        silence_duration=0.6,
+        max_record_seconds=10.0,
+        barge_in=True,
+        barge_in_sensitivity=1.0,
+    )
+
+    barge_in_events = []
+    speaker_bleed_chunk = np.ones((chunk_size, 1), dtype=np.float32) * 0.04
+    # Real loud human voice (0.12 RMS)
+    loud_human_voice = np.ones((chunk_size, 1), dtype=np.float32) * 0.12
+    silence_chunk = np.zeros((chunk_size, 1), dtype=np.float32)
+
+    # 25 chunks of speaker bleed (>1.2s grace window), then 8 chunks of loud human voice, then silence
+    chunks = (
+        [speaker_bleed_chunk] * 25 +
+        [loud_human_voice] * 8 +
+        [silence_chunk] * 16
+    )
+    current_idx = [0]
+
+    class MockStream:
+        def __init__(self, *args, **kwargs):
+            pass
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            pass
+        def read(self, size):
+            idx = current_idx[0]
+            current_idx[0] += 1
+            if idx < len(chunks):
+                return chunks[idx], False
+            recorder.stop()
+            return silence_chunk, False
+
+    def mock_is_agent_speaking():
+        if barge_in_events:
+            return False
+        return True
+
+    with patch("sounddevice.InputStream", side_effect=MockStream), \
+         patch("voicefi.tts.base.stop_all_speech") as mock_stop_speech, \
+         patch("voicefi.audio.recorder.is_using_builtin_speakers", return_value=True), \
+         patch("voicefi.audio.recorder.is_agent_audio_playing", return_value=True), \
+         patch("voicefi.audio.recorder.is_agent_speaking", side_effect=mock_is_agent_speaking):
+
+        def wrapped_barge_in():
+            barge_in_events.append(True)
+            mock_stop_speech()
+
+        audio_data, wav_path = recorder.record_speech_auto(
+            on_barge_in=wrapped_barge_in,
+        )
+
+        try:
+            assert len(barge_in_events) > 0, "Loud human voice after grace window must trigger barge-in"
+            assert mock_stop_speech.called
+        finally:
+            if wav_path:
+                wav_path.unlink(missing_ok=True)
+
+
+def test_audio_recorder_pre_playback_delay_preserves_grace_window():
+    """Verify that network synthesis delay before afplay starts does not consume the 1.2s grace window."""
+    sample_rate = 16000
+    chunk_duration = 0.05
+    chunk_size = int(sample_rate * chunk_duration)
+
+    recorder = AudioRecorder(
+        sample_rate=sample_rate,
+        energy_threshold=0.005,
+        silence_duration=0.6,
+        max_record_seconds=4.0,
+        barge_in=True,
+        barge_in_sensitivity=1.0,
+    )
+
+    barge_in_events = []
+    speaker_bleed_chunk = np.ones((chunk_size, 1), dtype=np.float32) * 0.045
+    silence_chunk = np.zeros((chunk_size, 1), dtype=np.float32)
+
+    # 10 chunks during synthesis (is_agent_audio_playing=False), then 10 chunks of playback (is_agent_audio_playing=True)
+    chunks = (
+        [silence_chunk] * 10 +
+        [speaker_bleed_chunk] * 10 +
+        [silence_chunk] * 16
+    )
+    current_idx = [0]
+
+    class MockStream:
+        def __init__(self, *args, **kwargs):
+            pass
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            pass
+        def read(self, size):
+            idx = current_idx[0]
+            current_idx[0] += 1
+            if idx < len(chunks):
+                return chunks[idx], False
+            recorder.stop()
+            return silence_chunk, False
+
+    def mock_is_audio_playing():
+        # First 10 chunks are network download, then audio actually plays
+        return current_idx[0] > 10
+
+    with patch("sounddevice.InputStream", side_effect=MockStream), \
+         patch("voicefi.tts.base.stop_all_speech") as mock_stop_speech, \
+         patch("voicefi.audio.recorder.is_using_builtin_speakers", return_value=True), \
+         patch("voicefi.audio.recorder.is_agent_audio_playing", side_effect=mock_is_audio_playing), \
+         patch("voicefi.audio.recorder.is_agent_speaking", return_value=True):
+
+        audio_data, wav_path = recorder.record_speech_auto(
+            on_barge_in=lambda: barge_in_events.append(True),
+        )
+
+        try:
+            assert len(barge_in_events) == 0, "Grace window must not expire during synthesis download delay"
+            assert not mock_stop_speech.called
+        finally:
+            if wav_path:
+                wav_path.unlink(missing_ok=True)
 
 
 def test_audio_recorder_barge_in_disabled_maintains_pause():
@@ -326,24 +522,30 @@ def test_antigravity_stop_hook_with_barge_in(tmp_path):
          patch("voicefi.integrations.antigravity.extract_latest_agent_summary", return_value=("Ready to merge?", "antigravity")), \
          patch("voicefi.integrations.antigravity.get_tts_engine", return_value=mock_tts), \
          patch("voicefi.integrations.antigravity.get_stt_engine", return_value=mock_stt), \
-         patch("voicefi.integrations.antigravity.inject_text_to_active_app") as mock_inject, \
+         patch("voicefi.integrations.antigravity.send_message_to_antigravity") as mock_send, \
          patch("voicefi.integrations.antigravity.AudioRecorder.record_speech_auto", return_value=(np.zeros(16000), fake_wav)):
 
         handle_antigravity_stop_hook({"conversationId": "test-conv-123"}, config=cfg)
 
         assert mock_stt.transcribe.called
-        assert mock_inject.called
-        mock_inject.assert_called_with("Approve PR", submit_enter=True, target_antigravity=True)
+        assert mock_send.called
+        mock_send.assert_called_with(conv_id="test-conv-123", text="Approve PR")
+
 
 
 def test_tray_app_barge_in_toggle():
     """Verify VoiceFiTrayApp barge-in menu item toggles configuration and saves."""
     from voicefi.ui.tray import VoiceFiTrayApp
+    from voicefi.config import VoiceFiConfig
+
+    fresh_cfg = VoiceFiConfig()
+    fresh_cfg.vad.barge_in = "auto"
 
     with patch("voicefi.integrations.watcher.TranscriptWatcher"), \
          patch("voicefi.ui.hub.ConversationHubWindow.get_instance"), \
          patch("voicefi.ui.dictation_hud.DictationHUD.get_instance"), \
          patch("voicefi.ui.tray.VoiceFiTrayApp._start_global_hotkey_listener"), \
+         patch("voicefi.ui.tray.load_config", return_value=fresh_cfg), \
          patch("voicefi.ui.tray.save_config") as mock_save, \
          patch("rumps.Timer"):
 
@@ -358,5 +560,5 @@ def test_tray_app_barge_in_toggle():
 
         # Toggle back
         app.toggle_barge_in(app.barge_in_item)
-        assert app.config.vad.barge_in is True
+        assert app.config.vad.barge_in == "auto"
         assert app.barge_in_item.state == 1

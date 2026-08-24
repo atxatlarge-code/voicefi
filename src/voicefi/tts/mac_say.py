@@ -86,6 +86,8 @@ class MacSayTTS(BaseTTS):
         def _run():
             with speech_turn_lock():
                 try:
+                    from voicefi.tts.base import set_agent_audio_playing
+                    set_agent_audio_playing(True)
                     self._current_process = subprocess.Popen(
                         cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
                     )
@@ -97,6 +99,8 @@ class MacSayTTS(BaseTTS):
                 except Exception as e:
                     print(f"[MacSayTTS] Error speaking: {e}")
                 finally:
+                    from voicefi.tts.base import set_agent_audio_playing
+                    set_agent_audio_playing(False)
                     self._current_process = None
 
         if block:

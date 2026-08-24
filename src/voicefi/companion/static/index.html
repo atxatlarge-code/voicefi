@@ -22,6 +22,7 @@
   
   <!-- Markdown & Syntax Highlighting -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 
@@ -1335,7 +1336,7 @@
     }
 
     // Audio & Speech Synthesis
-    function speakTextAloud(text, onComplete) {
+    function speakTextAloud(text, onComplete, agentRole) {
       if (!text) {
         if (onComplete) onComplete();
         return;
@@ -1343,10 +1344,12 @@
       isSpeaking = true;
       setOrbState('speaking');
 
+      const resolvedRole = agentRole || (activeConversationData && (activeConversationData.engine || activeConversationData.agent_role)) || (activeConvId && activeConvId.startsWith("claude_") ? "claude" : "antigravity");
+
       fetch('/api/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: text })
+        body: JSON.stringify({ text: text, agent_role: resolvedRole })
       })
       .then(res => {
         if (res.ok) return res.blob();
@@ -3376,20 +3379,22 @@
 
     function handleServerEvent(data) {
       if (data.type === "user_command_injected") {
-        showToast("Command received by Antigravity", 3000);
+        const isClaude = data.conv_id && (data.conv_id.startsWith("claude_") || data.conv_id.toLowerCase().includes("claude"));
+        showToast(`Command received by ${isClaude ? "Claude Code" : "Antigravity"}`, 3000);
         if (data.conv_id && data.conv_id !== "active") {
           activeConvId = data.conv_id;
         }
         if (!isListening && !isSpeaking) {
-          setOrbState('thinking', 'Agent Thinking...', 'Processing request...');
+          setOrbState('thinking', isClaude ? 'Claude Thinking...' : 'Agent Thinking...', 'Processing request...');
         }
         startActiveTurnPolling(activeConvId);
         fetchConversationDetails(activeConvId);
       } else if (data.type === "agent_turn_completed") {
         stopActiveTurnPolling();
-        showToast("Antigravity completed turn", 2500);
+        const isClaude = data.agent_role === "claude" || (data.conv_id && data.conv_id.startsWith("claude_"));
+        showToast(`${isClaude ? "Claude Code" : "Antigravity"} completed turn`, 2500);
         if (liveActivityBanner) liveActivityBanner.classList.add("hidden");
-        if (logType) logType.innerText = `AGENT FINISHED (${(data.agent_role || 'antigravity').toUpperCase()})`;
+        if (logType) logType.innerText = `AGENT FINISHED (${(data.agent_role || (isClaude ? 'claude' : 'antigravity')).toUpperCase()})`;
         if (latestText) latestText.innerText = data.summary || "";
         if (data.conv_id) activeConvId = data.conv_id;
 
@@ -3400,16 +3405,13 @@
           recordAgentSpokenText(data.summary);
         }
 
-        // Smart Audio Routing Check
+        // Smart Audio Routing Check (Strict Mobile Origin Gate)
         const origin = data.origin || "desktop";
-        let shouldSpeakOnPhone = true;
-        if (audioRoutingMode === "mac_only") {
-          shouldSpeakOnPhone = false;
-        } else if (audioRoutingMode === "origin_only" && origin !== "mobile") {
-          shouldSpeakOnPhone = false;
-        } else if (audioRoutingMode === "smart" && origin !== "mobile") {
-          // In smart auto mode, prompt sent from Mac is spoken by Mac; phone stays visual
-          shouldSpeakOnPhone = false;
+        let shouldSpeakOnPhone = false;
+        if (audioRoutingMode === "phone_only" || audioRoutingMode === "both") {
+          shouldSpeakOnPhone = true;
+        } else if (audioRoutingMode === "smart" || audioRoutingMode === "origin_only") {
+          shouldSpeakOnPhone = (origin === "mobile");
         }
 
         if (shouldSpeakOnPhone) {
@@ -3417,7 +3419,7 @@
             if (autoListen && !isListening && currentView === 'voice') {
               setTimeout(startListening, 600);
             }
-          });
+          }, data.agent_role || (isClaude ? 'claude' : 'antigravity'));
         } else {
           if (!isListening && !isSpeaking) {
             setOrbState('idle');
@@ -3442,11 +3444,12 @@
       } else if (data.type === "agent_working_step") {
         if (liveActivityBanner) liveActivityBanner.classList.remove("hidden");
         const stepSummary = data.summary || data.action || data.tool_name || '';
-        if (liveActivityText) liveActivityText.innerText = `Running ${data.tool_name}: ${stepSummary}`;
+        const toolLabel = data.tool_name || 'tool';
+        if (liveActivityText) liveActivityText.innerText = `Running ${toolLabel}: ${stepSummary}`;
         
         if (!isListening && !isSpeaking) {
-          const label = stepSummary ? (`Running: ${stepSummary.length > 28 ? stepSummary.slice(0, 26) + '...' : stepSummary}`) : (`Running ${data.tool_name}`);
-          setOrbState('thinking', label, 'Executing tool call...');
+          const label = stepSummary ? (`Running: ${stepSummary.length > 28 ? stepSummary.slice(0, 26) + '...' : stepSummary}`) : (`Running ${toolLabel}`);
+          setOrbState('thinking', label, 'Executing step / tool call...');
         }
 
         // If current conversation matches, refresh details or append step
@@ -3486,7 +3489,8 @@
           const opt = document.createElement("option");
           opt.value = c.id;
           const statusTag = c.status === "agent_working" ? "thinking" : c.status;
-          opt.innerText = `${c.title} (${statusTag})`;
+          const enginePrefix = c.engine === "claude" ? "🎭 Claude:" : "🤖 AGY:";
+          opt.innerText = `${enginePrefix} ${c.title} (${statusTag})`;
           if (c.id === data.active_id) {
             opt.selected = true;
             activeConvId = c.id;
@@ -3597,20 +3601,37 @@
     const copyQrUrlBtn = document.getElementById("copyQrUrlBtn");
 
     async function loadAndShowQrModal() {
+      let targetUrl = `http://${window.location.hostname || '127.0.0.1'}:8765`;
+      let dataUri = '';
       try {
         const res = await fetch('/api/qr');
         if (res.ok) {
           const data = await res.json();
-          if (data.qr_data_uri && qrModalImg) {
-            qrModalImg.src = data.qr_data_uri;
-          }
-          const targetUrl = data.urls?.ip_url || `http://${window.location.hostname}:8765`;
-          if (qrModalUrl) {
-            qrModalUrl.innerText = targetUrl;
-          }
+          dataUri = data.qr_data_uri || '';
+          targetUrl = data.urls?.ip_url || data.urls?.mdns_url || targetUrl;
         }
-      } catch (e) {
-        if (qrModalUrl) qrModalUrl.innerText = `http://${window.location.hostname}:8765`;
+      } catch (e) {}
+
+      if (qrModalUrl) qrModalUrl.innerText = targetUrl;
+
+      if (dataUri && dataUri.length > 50 && qrModalImg) {
+        qrModalImg.src = dataUri;
+        qrModalImg.classList.remove('hidden');
+      } else if (window.QRCode && qrModalImg) {
+        const parent = qrModalImg.parentElement;
+        if (parent) {
+          const extras = parent.querySelectorAll('canvas, img:not(#qrModalImg)');
+          extras.forEach(el => el.remove());
+          qrModalImg.classList.add('hidden');
+          new QRCode(parent, {
+            text: targetUrl,
+            width: 192,
+            height: 192,
+            colorDark: '#0f172a',
+            colorLight: '#ffffff',
+            correctLevel: QRCode.CorrectLevel.M
+          });
+        }
       }
       qrPairModal?.classList.remove("hidden");
     }

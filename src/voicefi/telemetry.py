@@ -13,7 +13,10 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-import posthog
+try:
+    import posthog
+except ImportError:
+    posthog = None
 
 from voicefi.config import load_config
 
@@ -102,8 +105,7 @@ def init_telemetry():
     if not api_key:
         api_key = os.getenv("VOICEFI_POSTHOG_KEY", "") or DEFAULT_POSTHOG_API_KEY
 
-    if not api_key:
-        # Telemetry is enabled, but no remote endpoint configured
+    if not posthog:
         return
 
     try:

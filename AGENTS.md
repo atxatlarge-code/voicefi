@@ -19,17 +19,24 @@ Universal Voice Layer for Knowledge Vaults, MCP, and Autonomous AI Coding Agents
 | `vifi feedback submit "<title>"` | Logs sanitized zero-PII diagnostic report and dispatches to telemetry. |
 | `vifi panel` | Launch interactive web control panel (`http://localhost:8765`). |
 | `vifi hud debug` | Interactive terminal Dynamic Island HUD Debug Studio. |
+| `vifi autostart` | Enable background LaunchAgent daemon (`vifi tray`) for persistent Dynamic Island HUD & menu bar companion. |
+| `vifi stop-autostart` | Unload and remove background LaunchAgent daemon. |
 
 ---
 
 ## 🔍 Troubleshooting Guide
 
-### 1. Agent Voice Cuts Off After 1–2 Seconds (Acoustic Bleed)
-* **Symptom:** When Antigravity or Claude finishes a turn, the speaker starts talking, speaks a few words, and abruptly stops.
-* **Root Cause:** The laptop is using **built-in MacBook speakers** without headphones. Sound from the speakers physically leaks into the adjacent microphone, causing VAD barge-in to mistake the speaker's own output for user speech interruption.
-* **Resolution:**
+### 1. Active Voice Barge-In & Acoustic Safe Mode
+* **How It Works:** Allows interrupting AI agent speech simply by speaking over it.
+  - **Headphones / AirPods:** Instantaneous full-duplex interruption (~150ms).
+  - **Built-in Laptop Speakers:** Operates with a **1.2s acoustic grace window** to let initial TTS bursts and room reverb settle, paired with **continuous adaptive speaker bleed tracking** so normal playback won't trigger false interruptions while direct human speech into the mic breaks through cleanly.
+* **Testing Barge-In Aloud:**
+  ```bash
+  vifi voice test "Christopher" -t "This is a full test of laptop active voice barge-in. I will keep speaking aloud for several seconds so you can hear that I do not cut off automatically. If you want to interrupt me, speak firmly into your microphone."
+  ```
+* **Resolution if Premature Cutoffs Occur:**
   1. Check hardware profile: `vifi troubleshoot --json`
-  2. Set `vad.barge_in` to `"auto"` (which safely disables barge-in on built-in speakers and enables it on headphones):
+  2. Set `vad.barge_in` to `"auto"` (which safely adapts thresholding to connected devices):
      ```bash
      vifi troubleshoot --fix auto_barge_in
      ```
@@ -42,6 +49,10 @@ Universal Voice Layer for Knowledge Vaults, MCP, and Autonomous AI Coding Agents
 
 ### 2. Simultaneous Speak & Listen (Acoustic Loopback Debugging)
 To debug how VoiceFi handles simultaneous speech output and microphone capture:
+* **Audition & Test Mid-Speech Interruption:**
+  ```bash
+  vifi voice test "Christopher" -t "<long sample phrase>"
+  ```
 * **Test Full Roundtrip:**
   ```bash
   vifi feedback-loop
@@ -59,7 +70,7 @@ To debug how VoiceFi handles simultaneous speech output and microphone capture:
   Prints real-time logs:
   ```
   [VAD] Agent is speaking aloud -> barge-in monitoring (acoustic safe-mode)...
-  [VAD] ⚡ Barge-In detected (headphones, energy=0.0450, thresh=0.0320) -> stopping agent speech
+  [VAD] ⚡ Barge-In detected (energy=0.0850, thresh=0.0650) -> stopping agent speech
   ```
 
 ---

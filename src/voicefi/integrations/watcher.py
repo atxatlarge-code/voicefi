@@ -24,6 +24,7 @@ from voicefi.integrations.conversations import (
     ConversationInfo,
     claim_turn,
     pop_mobile_turn_origin,
+    get_claimed_turn_origin,
     has_active_companion_client,
     set_pending_question,
     get_pending_question,
@@ -231,6 +232,11 @@ class TranscriptWatcher:
             summary = clean_markdown_for_speech(agent_message, max_words=cfg.antigravity.max_spoken_words)
 
             turn_cid = conv_info.id if conv_info else "unknown"
+            if turn_cid == "unknown":
+                active_conv = self.tracker.get_active_or_latest()
+                if active_conv:
+                    turn_cid = active_conv.id
+
             turn_sig = f"{turn_cid}:{summary[:35]}"
             if not claim_turn(turn_cid, turn_sig):
                 # Already claimed and handled by CLI hook
@@ -242,7 +248,7 @@ class TranscriptWatcher:
 
             routing = getattr(getattr(cfg, "companion", None), "audio_routing", "smart")
             mute_mac_active = getattr(getattr(cfg, "companion", None), "mute_mac_when_companion_active", False)
-            is_mobile = pop_mobile_turn_origin(turn_cid)
+            is_mobile = (get_claimed_turn_origin(turn_cid, turn_sig) == "mobile")
 
             if routing == "phone_only":
                 # Suppress local Mac playback when all speech is routed to phone
@@ -257,8 +263,11 @@ class TranscriptWatcher:
                     return
 
             spoken_text = summary
-            if not is_active and conv_info:
-                if getattr(cfg.antigravity, "unfocused_voice_prefix", True):
+            if not is_active:
+                # Do not speak background/other conversation updates aloud unless explicitly configured
+                if not getattr(cfg.antigravity, "unfocused_agent_voice", None):
+                    return
+                if conv_info and getattr(cfg.antigravity, "unfocused_voice_prefix", True):
                     short_title = conv_info.title[:24] if conv_info.title else "background agent"
                     spoken_text = f"Update from {short_title}: {summary}"
 

@@ -44,6 +44,7 @@ def test_parse_voice_command_assignment():
     assert res1["action"] == "assign"
     assert res1["target"] == "antigravity"
     assert res1["voice"] == "Christopher"
+    assert res1["speech_feedback"] == "This is an automated voice test."
     assert cfg.agents["antigravity"].voice == "en-US-ChristopherNeural"
 
     # Researcher subagent
@@ -223,7 +224,7 @@ def test_cli_voice_command_assignment_feedback():
         mock_engine = MagicMock()
         mock_get_engine.return_value = mock_engine
         cmd_voice(args)
-        mock_engine.speak.assert_called_once()
+        mock_engine.speak.assert_called_once_with("This is an automated voice test.", block=True)
         # Verify get_tts_engine was called with the target agent and voice override
         assert mock_get_engine.call_args.kwargs.get("agent_name") == "antigravity"
         assert mock_get_engine.call_args.kwargs.get("voice_override") == "en-US-ChristopherNeural"

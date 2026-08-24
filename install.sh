@@ -136,7 +136,11 @@ ln -sf "$BIN_DIR/vifi" "$BIN_DIR/vg"
 say_msg "${CYAN}⚡ Configuring Agent lifecycle hooks (Antigravity & Claude Code)...${NC}"
 "$INSTALL_DIR/venv/bin/voicefi" setup >/dev/null 2>&1 || true
 
-# 6. Check for Obsidian and prompt user interactively
+# 6. Enable Persistent Menu Bar Companion & Dynamic Island HUD (autostart daemon)
+say_msg "${CYAN}⚡ Enabling VoiceFi Menu Bar Companion & Persistent Dynamic Island HUD (autostart)...${NC}"
+"$INSTALL_DIR/venv/bin/voicefi" autostart >/dev/null 2>&1 || true
+
+# 7. Check for Obsidian and prompt user interactively
 if [ -d "$HOME/Library/Application Support/obsidian" ] || [ -d "$HOME/Documents/Obsidian Vault" ]; then
     INSTALL_OBSIDIAN="y"
     if [ -t 0 ] && [ -r /dev/tty ]; then
@@ -156,7 +160,7 @@ if [ -d "$HOME/Library/Application Support/obsidian" ] || [ -d "$HOME/Documents/
     fi
 fi
 
-# 7. Check PATH
+# 8. Check PATH
 if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
     say_msg ""
     say_msg "${PURPLE}⚠️  Notice: $BIN_DIR is not in your current PATH.${NC}"
@@ -178,6 +182,6 @@ say_msg "📖 ${BOLD}Commands:${NC}                Run ${CYAN}${BOLD}vifi --help
 say_msg "------------------------------------------------------------------"
 say_msg ""
 
-# 7. Play interactive welcome greeting with auto-detected user name
+# 9. Play interactive welcome greeting with auto-detected user name
 echo -e "${CYAN}⚡ Launching VoiceFi Onboarding...${NC}"
 "$INSTALL_DIR/venv/bin/voicefi" onboarding || true

@@ -79,7 +79,11 @@ def generate_qr_ascii(data: str) -> str:
 
 
 def generate_qr_base64_png(data: str) -> str:
-    """Generate base64-encoded PNG data URI of QR code for web / HUD display."""
+    """
+    Generate base64-encoded PNG or SVG data URI of QR code for web / HUD display.
+    Gracefully falls back from Pillow PNG to zero-dependency SVG output.
+    """
+    # Attempt 1: Pillow PNG export
     try:
         import qrcode
         qr = qrcode.QRCode(
@@ -97,7 +101,30 @@ def generate_qr_base64_png(data: str) -> str:
         b64 = base64.b64encode(buf.getvalue()).decode("ascii")
         return f"data:image/png;base64,{b64}"
     except Exception:
-        return ""
+        pass
+
+    # Attempt 2: Pure SVG export (requires only qrcode without Pillow)
+    try:
+        import qrcode
+        from qrcode.image.svg import SvgPathImage
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_M,
+            box_size=8,
+            border=2,
+            image_factory=SvgPathImage,
+        )
+        qr.add_data(data)
+        qr.make(fit=True)
+        img = qr.make_image()
+        buf = io.BytesIO()
+        img.save(buf)
+        b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+        return f"data:image/svg+xml;base64,{b64}"
+    except Exception:
+        pass
+
+    return ""
 
 
 def print_qr_code(url: str, title: str = "VoiceFi Mobile Companion") -> None:

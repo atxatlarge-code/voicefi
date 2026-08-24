@@ -36,7 +36,8 @@ class VoiceFiTrayApp(rumps.App):
     """macOS Status Bar Menu Application for VoiceFi."""
 
     def __init__(self):
-        super(VoiceFiTrayApp, self).__init__("VoiceFi", icon=None, title=" ")
+        super(VoiceFiTrayApp, self).__init__("VoiceFi", icon=None, title=None)
+        self.title = None
         self.config = load_config()
         self._current_status = "idle"
         self.active_recorder: Optional[AudioRecorder] = None
@@ -115,7 +116,7 @@ class VoiceFiTrayApp(rumps.App):
             "Active Voice Barge-In (Interrupt Agent)",
             callback=self.toggle_barge_in,
         )
-        self.barge_in_item.state = 1 if getattr(self.config.vad, "barge_in", True) else 0
+        self.barge_in_item.state = 1 if self.config.vad.barge_in in (True, "auto") else 0
 
         self.persistent_hud_item = rumps.MenuItem(
             "📌 Persistent Dynamic Island HUD",
@@ -578,38 +579,34 @@ class VoiceFiTrayApp(rumps.App):
         self.troubleshoot_menu.update(items)
 
     def _update_status_ui(self, _):
-        """Called on macOS main runloop every 200ms to redraw menu bar title and icon."""
+        """Called on macOS main runloop every 200ms to redraw menu bar icon."""
         status_map = {
-            "speaking": ("speaker.wave.2.fill", " Speaking"),
-            "listening": ("mic.fill", " Listening"),
-            "hearing": ("waveform.circle.fill", " Hearing you"),
-            "transcribing": ("ellipsis.bubble", " Transcribing"),
-            "thinking": ("sparkles", " Thinking"),
-            "working": ("gearshape.fill", " Working"),
-            "ptt_listening": ("mic.fill", " PTT Active"),
-            "paused_agent_speaking": ("pause.fill", " Agent Speaking"),
-            "paused": ("pause.fill", " Paused"),
+            "speaking": "speaker.wave.2.fill",
+            "listening": "mic.fill",
+            "hearing": "waveform.circle.fill",
+            "transcribing": "ellipsis.bubble",
+            "thinking": "sparkles",
+            "working": "gearshape.fill",
+            "ptt_listening": "mic.fill",
+            "paused_agent_speaking": "pause.fill",
+            "paused": "pause.fill",
         }
         
         symbol_name = "wifi"
-        new_title = ""
 
         if self._current_status in status_map:
-            symbol_name, new_title = status_map[self._current_status]
+            symbol_name = status_map[self._current_status]
         else:
             active_conv = self.watcher.tracker.get_active_or_latest() if getattr(self, 'watcher', None) else None
             if active_conv and active_conv.status == "waiting_for_user":
                 symbol_name = "mic"
-                new_title = ""
             elif active_conv and active_conv.status == "agent_working":
                 symbol_name = "sparkles"
-                new_title = ""
             else:
                 symbol_name = "wifi"
-                new_title = ""
 
-        if self.title != new_title:
-            self.title = new_title
+        if self.title is not None and self.title != "":
+            self.title = None
 
         current_symbol = getattr(self, "_current_symbol", None)
         if current_symbol != symbol_name:
@@ -1158,8 +1155,30 @@ class VoiceFiTrayApp(rumps.App):
             threading.Thread(target=_finish, daemon=True).start()
 
     def toggle_barge_in(self, sender):
-        self.config.vad.barge_in = not self.config.vad.barge_in
-        sender.state = 1 if self.config.vad.barge_in else 0
+        from voicefi.ui.notifications import show_notification
+        if self.config.vad.barge_in in (True, "auto"):
+            self.config.vad.barge_in = False
+            show_notification(
+                "VoiceFi Active Barge-In",
+                "Barge-In Disabled",
+                "AI agents will speak responses completely uninterrupted.",
+            )
+        else:
+            self.config.vad.barge_in = "auto"
+            from voicefi.audio.device import is_headphone_or_headset_active
+            if is_headphone_or_headset_active():
+                show_notification(
+                    "VoiceFi Active Barge-In",
+                    "Barge-In Enabled ⚡",
+                    "Hands-free voice interruption active with headphones.",
+                )
+            else:
+                show_notification(
+                    "VoiceFi Active Barge-In",
+                    "⚠️ Headphones Recommended",
+                    "Barge-in works best with headphones. On laptop speakers, acoustic bleed may cause voice cutoffs.",
+                )
+        sender.state = 1 if self.config.vad.barge_in in (True, "auto") else 0
         save_config(self.config)
 
     def open_config_file(self, _):

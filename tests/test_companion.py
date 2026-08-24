@@ -107,13 +107,14 @@ class CompanionServerTestCase(AioHTTPTestCase):
         data_switch = await resp_switch.json()
         assert data_switch.get("active_id") == "test-conv-123"
 
-        # 2. Send prompt with mocked Antigravity IPC
-        with patch("voicefi.companion.server.send_message_to_antigravity", return_value=True) as mock_send:
+        # 2. Send prompt with mocked agent message dispatcher
+        with patch("voicefi.audio.echo_canceller.is_acoustic_echo", return_value=False), \
+             patch("voicefi.companion.server.send_message_to_agent", return_value=True) as mock_send:
             resp_send = await self.client.post("/api/send", json={"conv_id": "test-conv-123", "text": "Run unit tests"})
             assert resp_send.status == 200
             data_send = await resp_send.json()
             assert data_send.get("success") is True
-            mock_send.assert_called_once_with(conv_id="test-conv-123", text="Run unit tests", sender_name=None, title=None)
+            mock_send.assert_called_once_with(conv_id="test-conv-123", text="Run unit tests", sender_name=None, title=None, target_engine=None)
 
     async def test_api_artifact_review(self):
         """Test POST /api/conversation/{conv_id}/artifact_review with structured review comments."""
@@ -190,7 +191,7 @@ class CompanionServerTestCase(AioHTTPTestCase):
         assert msg_pong.get("type") == "pong"
 
         # 3. Test sending voice command over WebSocket
-        with patch("voicefi.companion.server.send_message_to_antigravity", return_value=True) as mock_send:
+        with patch("voicefi.companion.server.send_message_to_agent", return_value=True) as mock_send:
             await ws.send_json({
                 "type": "user_voice_command",
                 "conv_id": "test-conv-456",

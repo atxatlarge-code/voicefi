@@ -212,7 +212,7 @@ def parse_voice_command(
             "voice_id": p_id,
             "provider": provider,
             "message": f"Successfully set {agent_label} voice to {target_persona_name}",
-            "speech_feedback": f"Voice for {agent_label} is now set to {target_persona_name}.",
+            "speech_feedback": "This is an automated voice test.",
         }
 
     # 7. Audition / Test commands: "audition Christopher", "test Aria", "play Sonia", "hear William"
