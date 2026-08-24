@@ -85,7 +85,15 @@ Whether you are orchestrating a fleet of autonomous AI agents (**Antigravity, Cl
 
 ### 1. Installation
 
-Choose the installation method that fits your workflow:
+#### 🍺 Homebrew (macOS Recommended)
+```bash
+# Add tap and install in one command:
+brew install atxatlarge-code/tap/vifi
+
+# Or tap first and install:
+brew tap atxatlarge-code/tap
+brew install vifi
+```
 
 #### ⚡ Quick Install (Terminal One-Liner)
 ```bash
