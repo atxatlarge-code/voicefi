@@ -181,9 +181,20 @@ def handle_antigravity_stop_hook(payload: Dict[str, Any], config: Optional[Voice
     transcript_path = Path(transcript_path_str) if transcript_path_str else Path("")
     hook_agent_role = payload.get("agent_role") or payload.get("role")
 
-    if not conv_id and transcript_path_str:
+    if not transcript_path_str or not transcript_path.is_file():
+        if conv_id:
+            cand = Path.home() / ".gemini" / "antigravity" / "brain" / conv_id / ".system_generated" / "logs" / "transcript.jsonl"
+            if cand.is_file():
+                transcript_path = cand
+        if not transcript_path or not transcript_path.is_file():
+            from voicefi.integrations.watcher import find_latest_transcript_path
+            cand = find_latest_transcript_path()
+            if cand and cand.is_file():
+                transcript_path = cand
+
+    if not conv_id and transcript_path.is_file():
         try:
-            cand = Path(transcript_path_str).parent.parent.parent.name
+            cand = transcript_path.parent.parent.parent.name
             if len(cand) >= 8:
                 conv_id = cand
         except Exception:
@@ -207,7 +218,7 @@ def handle_antigravity_stop_hook(payload: Dict[str, Any], config: Optional[Voice
     if conv_id:
         save_session_cookie(
             conv_id=conv_id,
-            transcript_path=transcript_path_str,
+            transcript_path=str(transcript_path),
             workspace_path=workspace_path,
         )
 
