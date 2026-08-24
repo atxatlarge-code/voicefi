@@ -138,7 +138,8 @@ class TestTroubleshoot(unittest.TestCase):
                 self.assertTrue(loop_res["sent_to_agent"])
                 mock_send.assert_called_once_with(conv_id=None, text="This is a test", sender_name="Aria")
 
-    def test_apply_fixes(self):
+    @patch("voicefi.troubleshoot.save_config")
+    def test_apply_fixes(self, mock_save):
         """Test applying troubleshooting fixes."""
         # 1. Reset defaults
         self.config.tts.rate = 120
