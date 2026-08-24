@@ -21,7 +21,7 @@ _posthog_initialized = False
 
 # Default public ingestion key for anonymous crash/feedback telemetry
 # Can be overridden via config.posthog_api_key or POSTHOG_API_KEY env var
-DEFAULT_POSTHOG_API_KEY = "phc_voicefi_community_telemetry"
+DEFAULT_POSTHOG_API_KEY = "phc_oFyLfqmnEeFMDehRQ4DzGrN9AGctauZiZhfufRtmW92e"
 
 
 def is_telemetry_enabled() -> bool:
@@ -98,9 +98,9 @@ def init_telemetry():
     if not api_key and config and hasattr(config, "posthog_api_key") and config.posthog_api_key:
         api_key = config.posthog_api_key
 
-    # If no custom key, use default public telemetry endpoint if configured
+    # If no custom key, use default project key
     if not api_key:
-        api_key = os.getenv("VOICEFI_POSTHOG_KEY", "")
+        api_key = os.getenv("VOICEFI_POSTHOG_KEY", "") or DEFAULT_POSTHOG_API_KEY
 
     if not api_key:
         # Telemetry is enabled, but no remote endpoint configured
@@ -159,5 +159,6 @@ def capture_event(event_name: str, properties: Optional[Dict[str, Any]] = None):
         user_id = get_machine_id()
         sanitized_props = sanitize_telemetry_data(properties or {})
         posthog.capture(user_id, event_name, sanitized_props)
+        posthog.flush()
     except Exception:
         pass
