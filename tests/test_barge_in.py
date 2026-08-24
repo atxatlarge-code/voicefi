@@ -41,8 +41,8 @@ def test_resolve_barge_in_mode_auto_and_manual():
     """Verify resolve_barge_in_mode correctly handles 'auto', True, and False."""
     with patch("voicefi.audio.recorder.is_using_builtin_speakers", return_value=True):
         active, safe = resolve_barge_in_mode("auto")
-        assert active is True
-        assert safe is True  # Safe mode engaged on built-in speakers
+        assert active is False  # Barge-in safely disabled on built-in laptop speakers
+        assert safe is True
 
         active, safe = resolve_barge_in_mode(True)
         assert active is True

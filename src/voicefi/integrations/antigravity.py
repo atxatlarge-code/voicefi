@@ -235,7 +235,10 @@ def handle_antigravity_stop_hook(payload: Dict[str, Any], config: Optional[Voice
 
     should_speak = bool(cfg.antigravity.read_summary_aloud and summary)
     should_listen = bool(cfg.antigravity.auto_listen)
-    barge_in_active = bool(should_speak and should_listen and getattr(cfg.vad, "barge_in", True))
+    
+    from voicefi.audio.recorder import resolve_barge_in_mode
+    is_barge_in_on, _ = resolve_barge_in_mode(getattr(cfg.vad, "barge_in", "auto"))
+    barge_in_active = bool(should_speak and should_listen and is_barge_in_on)
 
     if cfg.antigravity.show_speech_popup and summary:
         try:
@@ -293,7 +296,7 @@ def handle_antigravity_stop_hook(payload: Dict[str, Any], config: Optional[Voice
             energy_threshold=cfg.vad.energy_threshold,
             silence_duration=cfg.vad.silence_duration,
             max_record_seconds=cfg.vad.max_record_seconds,
-            barge_in=True,
+            barge_in=cfg.vad.barge_in,
             barge_in_sensitivity=getattr(cfg.vad, "barge_in_sensitivity", 1.0),
         )
 

@@ -22,10 +22,16 @@ def resolve_barge_in_mode(barge_in_setting: Any) -> Tuple[bool, bool]:
     """
     Resolve effective barge-in enabled status and whether acoustic safe mode is active.
     Returns: (is_barge_in_active, is_safe_mode)
+
+    When barge_in is 'auto' (the default):
+      - Built-in laptop speakers: Barge-in is DISABLED so agent speech output is never cut off by mic bleed.
+      - Headphones / AirPods: Barge-in is ENABLED with hands-free responsiveness.
     """
     if isinstance(barge_in_setting, str) and barge_in_setting.lower() == "auto":
         builtin = is_using_builtin_speakers()
-        return True, builtin
+        if builtin:
+            return False, True
+        return True, False
     elif bool(barge_in_setting) is True:
         builtin = is_using_builtin_speakers()
         return True, builtin
