@@ -65,34 +65,28 @@ def clean_markdown_for_speech(text: str, max_words: int = 30) -> str:
     text = re.sub(r"^\s*[-*+]\s+", "", text, flags=re.MULTILINE)  # Unordered lists
     text = re.sub(r"^\s*\d+\.\s+", "", text, flags=re.MULTILINE)  # Numbered lists
 
-    # 6. Normalize whitespace
+    # 6. Strip emojis and decorative Unicode symbols
+    text = re.sub(r"[\U00010000-\U0010ffff\u2600-\u27bf\u2300-\u23ff\ufe00-\ufe0f]", "", text)
+
+    # 7. Normalize whitespace
     text = " ".join(text.split()).strip()
     text = re.sub(r"^[-—–\s]+", "", text).strip()
     if not text:
         return ""
 
-    # 7. Extract sentences & prioritize question/confirmation at the end
+    # 8. Extract sentences & prioritize crisp opening + question pairing
     sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", text) if s.strip()]
     if not sentences:
         return text[: max_words * 6]
 
-    last_s = sentences[-1]
-    
-    # If the last sentence is a question, collect context backwards from the question
-    if last_s.endswith("?"):
-        collected = []
-        current_words = 0
-        for s in reversed(sentences):
-            count = len(s.split())
-            if current_words + count <= max_words:
-                collected.insert(0, s)
-                current_words += count
-            else:
-                break
-        if collected:
-            return " ".join(collected)
-        words = last_s.split()
-        return " ".join(words[:max_words]) + "..."
+    # If the last sentence is a question, pair first sentence with the question if it fits
+    if sentences[-1].endswith("?") and len(sentences) > 1:
+        first_s = sentences[0]
+        last_s = sentences[-1]
+        combo = f"{first_s} {last_s}"
+        if len(combo.split()) <= max_words:
+            return combo
+        return last_s
 
     # Otherwise assemble first 1-2 sentences up to max_words
     result = []
@@ -187,9 +181,20 @@ def handle_antigravity_stop_hook(payload: Dict[str, Any], config: Optional[Voice
     transcript_path = Path(transcript_path_str) if transcript_path_str else Path("")
     hook_agent_role = payload.get("agent_role") or payload.get("role")
 
-    if not conv_id and transcript_path_str:
+    if not transcript_path_str or not transcript_path.is_file():
+        if conv_id:
+            cand = Path.home() / ".gemini" / "antigravity" / "brain" / conv_id / ".system_generated" / "logs" / "transcript.jsonl"
+            if cand.is_file():
+                transcript_path = cand
+        if not transcript_path or not transcript_path.is_file():
+            from voicefi.integrations.watcher import find_latest_transcript_path
+            cand = find_latest_transcript_path()
+            if cand and cand.is_file():
+                transcript_path = cand
+
+    if not conv_id and transcript_path.is_file():
         try:
-            cand = Path(transcript_path_str).parent.parent.parent.name
+            cand = transcript_path.parent.parent.parent.name
             if len(cand) >= 8:
                 conv_id = cand
         except Exception:
@@ -213,7 +218,7 @@ def handle_antigravity_stop_hook(payload: Dict[str, Any], config: Optional[Voice
     if conv_id:
         save_session_cookie(
             conv_id=conv_id,
-            transcript_path=transcript_path_str,
+            transcript_path=str(transcript_path),
             workspace_path=workspace_path,
         )
 

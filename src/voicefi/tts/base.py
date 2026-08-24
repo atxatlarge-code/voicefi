@@ -154,7 +154,21 @@ def speech_turn_lock():
         _LOCK_DEPTH += 1
         SPEECH_LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
         lock_fd = None
+        esc_listener = None
         try:
+            # Active Esc key listener to cancel speech playback on Escape press
+            try:
+                from pynput import keyboard
+                def _on_key(key):
+                    vk = getattr(key, 'vk', None)
+                    if key == keyboard.Key.esc or vk == 53:
+                        stop_all_speech()
+                esc_listener = keyboard.Listener(on_press=_on_key)
+                esc_listener.daemon = True
+                esc_listener.start()
+            except Exception:
+                esc_listener = None
+
             lock_fd = open(SPEECH_LOCK_FILE, "a+")
             fcntl.flock(lock_fd, fcntl.LOCK_EX)
             set_agent_speaking(True)
@@ -169,6 +183,11 @@ def speech_turn_lock():
             time.sleep(0.15)
             yield
         finally:
+            if esc_listener is not None:
+                try:
+                    esc_listener.stop()
+                except Exception:
+                    pass
             # Acoustic decay margin: allow room reverb / speaker decay to dissipate
             time.sleep(0.25)
             set_agent_speaking(False)
@@ -216,7 +235,7 @@ class BaseTTS(ABC):
 def stop_all_speech() -> None:
     """
     Instantly stop any active speech synthesis and audio playback on macOS.
-    Kills any running 'say' or 'afplay' processes.
+    Kills any running 'say' or 'afplay' processes and dismisses HUDs.
     """
     set_agent_speaking(False)
     set_agent_audio_playing(False)
@@ -233,5 +252,19 @@ def stop_all_speech() -> None:
 
     try:
         subprocess.run(["killall", "afplay"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception:
+        pass
+
+    try:
+        from voicefi.ui.speech_hud import AgentSpeechHUD
+        if AgentSpeechHUD._instance:
+            AgentSpeechHUD._instance.hide()
+    except Exception:
+        pass
+
+    try:
+        from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
+        if UnifiedDynamicIslandHUD._instance:
+            UnifiedDynamicIslandHUD._instance.hide()
     except Exception:
         pass

@@ -30,10 +30,16 @@ def cmd_hook(args):
     config = load_config(args.config)
     target_agent = getattr(args, "agent", "antigravity").lower().strip()
 
-    # Read hook payload from stdin
+    # Read hook payload from stdin non-blockingly
+    payload = {}
     try:
-        raw_input = sys.stdin.read()
-        payload = json.loads(raw_input) if raw_input.strip() else {}
+        if not sys.stdin.isatty():
+            import select
+            r, _, _ = select.select([sys.stdin], [], [], 0.3)
+            if r:
+                raw_input = sys.stdin.read()
+                if raw_input and raw_input.strip():
+                    payload = json.loads(raw_input)
     except Exception:
         payload = {}
 
@@ -168,6 +174,28 @@ def cmd_onboarding(args):
     """Run interactive First-Time User Experience onboarding flow."""
     from voicefi.onboarding import run_onboarding
     run_onboarding()
+
+
+def cmd_permissions(args):
+    """Open macOS Accessibility and Input Monitoring security settings."""
+    from voicefi.integrations.injector import open_accessibility_settings
+    try:
+        import ApplicationServices
+        options = {ApplicationServices.kAXTrustedCheckOptionPrompt: True}
+        trusted = ApplicationServices.AXIsProcessTrustedWithOptions(options)
+    except Exception:
+        trusted = False
+
+    print("\n🔐 macOS Accessibility & Hotkey Permissions")
+    print("------------------------------------------------------------------")
+    if trusted:
+        print("✅ Accessibility permissions are granted and active!")
+    else:
+        print("⚠️  Accessibility permission is not yet enabled for this terminal/app.")
+        print("👉 Opening macOS System Settings...")
+        open_accessibility_settings()
+        print("Please toggle Terminal / iTerm / Antigravity to ON in the list.")
+    print("------------------------------------------------------------------\n")
 
 
 def cmd_setup(args):
@@ -1923,6 +1951,7 @@ def main():
     # pause / resume
     subparsers.add_parser("pause", help="Pause VoiceFi audio hooks and active turn-handoffs globally")
     subparsers.add_parser("resume", help="Resume VoiceFi audio hooks and active turn-handoffs globally")
+    subparsers.add_parser("permissions", help="Check and open macOS Accessibility & Input Monitoring settings")
 
     # autostart
     subparsers.add_parser("autostart", help="Register macOS LaunchAgent to keep menu bar icon persistent")
@@ -2228,6 +2257,7 @@ def main():
         "onboarding": cmd_onboarding,
         "pause": cmd_pause,
         "resume": cmd_resume,
+        "permissions": cmd_permissions,
         "autostart": cmd_autostart,
         "stop-autostart": cmd_stop_autostart,
         "companion": cmd_companion,

@@ -39,6 +39,7 @@ dependencies = [
     "rumps>=0.4.0",
     "aiohttp>=3.9.0",
     "qrcode>=7.4.2",
+    "pillow>=10.0.0",
     "posthog>=7.43.0",
 ]
 

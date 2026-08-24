@@ -68,10 +68,10 @@ def claim_turn(conv_id: Optional[str], signature: str, origin: Optional[str] = N
                     except Exception:
                         entries = []
 
-                # Clean entries older than 60 seconds
+                # Clean entries older than 10 seconds (enough to prevent dual hook/watcher race)
                 valid_entries = [
                     e for e in entries
-                    if (now - float(e.get("timestamp", 0))) < 60.0
+                    if (now - float(e.get("timestamp", 0))) < 10.0
                 ]
 
                 # Check if this exact signature OR normalized text was already claimed
@@ -224,8 +224,7 @@ def get_pending_question(
         return None
     try:
         current = json.loads(_PENDING_QUESTIONS_FILE.read_text())
-        cid_key = conv_id or "_latest"
-        data = current.get(cid_key) or current.get("_latest")
+        data = current.get(conv_id) if conv_id else current.get("_latest")
         if not data:
             return None
         ts = float(data.get("timestamp", 0))

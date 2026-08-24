@@ -5,8 +5,28 @@ from voicefi.tts import get_tts_engine
 from voicefi.stt import get_stt_engine
 from voicefi.audio.recorder import AudioRecorder
 
+def check_and_prompt_permissions() -> bool:
+    """Check macOS Accessibility trust, prompt system dialog, and open settings if needed."""
+    try:
+        import ApplicationServices
+        options = {ApplicationServices.kAXTrustedCheckOptionPrompt: True}
+        trusted = ApplicationServices.AXIsProcessTrustedWithOptions(options)
+        if not trusted:
+            print("🔐 [Permissions Notice]")
+            print("   VoiceFi uses macOS Accessibility for the universal <Esc> stop key and <Ctrl>+T dictation.")
+            print("   👉 Opening System Settings... Please toggle your terminal/IDE to ON.\n")
+            from voicefi.integrations.injector import open_accessibility_settings
+            open_accessibility_settings()
+            time.sleep(1.0)
+            return False
+        return True
+    except Exception:
+        return False
+
+
 def run_onboarding():
     config = load_config()
+    check_and_prompt_permissions()
     tts = get_tts_engine(config, voice_override="Christopher")
     stt = get_stt_engine(config)
     
