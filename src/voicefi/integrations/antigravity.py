@@ -63,33 +63,27 @@ def clean_markdown_for_speech(text: str, max_words: int = 30) -> str:
     text = re.sub(r"^\s*[-*+]\s+", "", text, flags=re.MULTILINE)  # Unordered lists
     text = re.sub(r"^\s*\d+\.\s+", "", text, flags=re.MULTILINE)  # Numbered lists
 
-    # 6. Normalize whitespace
+    # 6. Strip emojis and decorative Unicode symbols
+    text = re.sub(r"[\U00010000-\U0010ffff\u2600-\u27bf\u2300-\u23ff\ufe00-\ufe0f]", "", text)
+
+    # 7. Normalize whitespace
     text = " ".join(text.split()).strip()
     if not text:
         return ""
 
-    # 7. Extract sentences & prioritize question/confirmation at the end
+    # 8. Extract sentences & prioritize crisp opening + question pairing
     sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", text) if s.strip()]
     if not sentences:
         return text[: max_words * 6]
 
-    last_s = sentences[-1]
-    
-    # If the last sentence is a question, collect context backwards from the question
-    if last_s.endswith("?"):
-        collected = []
-        current_words = 0
-        for s in reversed(sentences):
-            count = len(s.split())
-            if current_words + count <= max_words:
-                collected.insert(0, s)
-                current_words += count
-            else:
-                break
-        if collected:
-            return " ".join(collected)
-        words = last_s.split()
-        return " ".join(words[:max_words]) + "..."
+    # If the last sentence is a question, pair first sentence with the question if it fits
+    if sentences[-1].endswith("?") and len(sentences) > 1:
+        first_s = sentences[0]
+        last_s = sentences[-1]
+        combo = f"{first_s} {last_s}"
+        if len(combo.split()) <= max_words:
+            return combo
+        return last_s
 
     # Otherwise assemble first 1-2 sentences up to max_words
     result = []

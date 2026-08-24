@@ -339,11 +339,14 @@ def test_antigravity_stop_hook_with_barge_in(tmp_path):
 def test_tray_app_barge_in_toggle():
     """Verify VoiceFiTrayApp barge-in menu item toggles configuration and saves."""
     from voicefi.ui.tray import VoiceFiTrayApp
+    test_cfg = VoiceFiConfig()
+    test_cfg.vad.barge_in = True
 
     with patch("voicefi.integrations.watcher.TranscriptWatcher"), \
          patch("voicefi.ui.hub.ConversationHubWindow.get_instance"), \
          patch("voicefi.ui.dictation_hud.DictationHUD.get_instance"), \
          patch("voicefi.ui.tray.VoiceFiTrayApp._start_global_hotkey_listener"), \
+         patch("voicefi.ui.tray.load_config", return_value=test_cfg), \
          patch("voicefi.ui.tray.save_config") as mock_save, \
          patch("rumps.Timer"):
 
