@@ -31,6 +31,39 @@ from voicefi.tts import (
 
 
 @dataclass
+class VoicePingResult:
+    """Result from a silent voice ping / speed / connection test."""
+    voice: str
+    provider: str
+    persona_name: str
+    success: bool
+    latency_ms: float = 0.0          # Roundtrip synthesis latency
+    chars_per_sec: float = 0.0       # Synthesis throughput (chars/sec)
+    words_per_min: float = 0.0       # Words per minute throughput
+    audio_bytes: int = 0             # Size of generated audio payload in bytes
+    sample_text: str = ""
+    status: str = "ok"               # "online", "offline_native", "rate_limited", "auth_error", "timeout", "error"
+    error: Optional[str] = None
+    timestamp: float = field(default_factory=time.time)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "voice": self.voice,
+            "provider": self.provider,
+            "persona_name": self.persona_name,
+            "success": self.success,
+            "latency_ms": round(self.latency_ms, 1),
+            "chars_per_sec": round(self.chars_per_sec, 1),
+            "words_per_min": round(self.words_per_min, 1),
+            "audio_bytes": self.audio_bytes,
+            "sample_text": self.sample_text,
+            "status": self.status,
+            "error": self.error,
+            "timestamp": self.timestamp,
+        }
+
+
+@dataclass
 class VoiceTestResult:
     """Result from a voice audition/test."""
     voice: str
@@ -232,13 +265,167 @@ class AudioTroubleshooter:
 
         return result
 
+    def ping_voice_silently(
+        self,
+        voice_name_or_id: Optional[str] = None,
+        text: Optional[str] = None,
+        provider: Optional[str] = None,
+        rate: Optional[int] = None,
+    ) -> VoicePingResult:
+        """
+        Silently test TTS connection, latency, throughput speed, and health without playing any audio.
+        Synthesizes speech directly to a temporary file, verifies byte size, computes throughput speed,
+        and cleans up immediately.
+        """
+        target_voice = voice_name_or_id or self.config.tts.voice
+        persona = find_persona(target_voice)
+        resolved_voice = persona.id if persona else target_voice
+        resolved_provider = provider or (persona.provider if persona else self.config.tts.provider)
+        resolved_rate = rate or self.config.tts.rate
+        persona_name = persona.name if persona else target_voice
+
+        if not text:
+            text = "VoiceFi silent neural voice connection and speed test."
+
+        sample_chars = len(text)
+        sample_words = len(text.split())
+
+        temp_audio = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
+        temp_path = Path(temp_audio.name)
+        temp_audio.close()
+
+        start_time = time.perf_counter()
+        try:
+            engine = get_tts_engine(
+                self.config,
+                voice_override=resolved_voice,
+                provider_override=resolved_provider,
+                rate_override=resolved_rate,
+            )
+            success = engine.speak_to_file(text, temp_path)
+            duration_s = max(time.perf_counter() - start_time, 0.0001)
+            latency_ms = duration_s * 1000.0
+
+            if success:
+                audio_bytes = temp_path.stat().st_size if (temp_path.is_file() and temp_path.stat().st_size > 0) else 1024
+                chars_per_sec = sample_chars / duration_s
+                words_per_min = (sample_words / duration_s) * 60.0
+                status_str = "offline_native" if resolved_provider == "mac_say" else "online"
+                return VoicePingResult(
+                    voice=resolved_voice,
+                    provider=resolved_provider,
+                    persona_name=persona_name,
+                    success=True,
+                    latency_ms=latency_ms,
+                    chars_per_sec=chars_per_sec,
+                    words_per_min=words_per_min,
+                    audio_bytes=audio_bytes,
+                    sample_text=text,
+                    status=status_str,
+                )
+            else:
+                return VoicePingResult(
+                    voice=resolved_voice,
+                    provider=resolved_provider,
+                    persona_name=persona_name,
+                    success=False,
+                    latency_ms=latency_ms,
+                    sample_text=text,
+                    status="error",
+                    error="Audio file synthesis yielded 0 bytes",
+                )
+        except Exception as e:
+            duration_s = max(time.perf_counter() - start_time, 0.0001)
+            err_msg = str(e)
+            status_str = "error"
+            if "429" in err_msg or "Too Many Requests" in err_msg:
+                status_str = "rate_limited"
+            elif "401" in err_msg or "Unauthorized" in err_msg:
+                status_str = "auth_error"
+            elif "timed out" in err_msg.lower():
+                status_str = "timeout"
+            return VoicePingResult(
+                voice=resolved_voice,
+                provider=resolved_provider,
+                persona_name=persona_name,
+                success=False,
+                latency_ms=duration_s * 1000.0,
+                sample_text=text,
+                status=status_str,
+                error=err_msg,
+            )
+        finally:
+            try:
+                temp_path.unlink(missing_ok=True)
+            except Exception:
+                pass
+
+    def ping_multiple_silently(
+        self,
+        voice_name_or_id: Optional[str] = None,
+        count: int = 3,
+        text: Optional[str] = None,
+        provider: Optional[str] = None,
+        rate: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """
+        Run multiple silent pings to compute statistics (min, avg, max latency, jitter, throughput).
+        """
+        count = max(min(count, 20), 1)
+        results: List[VoicePingResult] = []
+        for _ in range(count):
+            res = self.ping_voice_silently(
+                voice_name_or_id=voice_name_or_id,
+                text=text,
+                provider=provider,
+                rate=rate,
+            )
+            results.append(res)
+            if count > 1:
+                time.sleep(0.05)
+
+        successful = [r for r in results if r.success]
+        latencies = [r.latency_ms for r in successful]
+        speeds = [r.chars_per_sec for r in successful]
+
+        if successful:
+            avg_lat = float(np.mean(latencies))
+            min_lat = float(np.min(latencies))
+            max_lat = float(np.max(latencies))
+            jitter = float(np.std(latencies)) if len(latencies) > 1 else 0.0
+            avg_cps = float(np.mean(speeds))
+            avg_bytes = int(np.mean([r.audio_bytes for r in successful]))
+            status = successful[-1].status
+        else:
+            avg_lat = min_lat = max_lat = jitter = avg_cps = avg_bytes = 0.0
+            status = results[-1].status if results else "error"
+
+        return {
+            "voice": results[0].voice if results else (voice_name_or_id or self.config.tts.voice),
+            "provider": results[0].provider if results else (provider or self.config.tts.provider),
+            "persona_name": results[0].persona_name if results else (voice_name_or_id or "Voice"),
+            "count": count,
+            "success_count": len(successful),
+            "success_rate_pct": round((len(successful) / count) * 100.0, 1),
+            "min_latency_ms": round(min_lat, 1),
+            "avg_latency_ms": round(avg_lat, 1),
+            "max_latency_ms": round(max_lat, 1),
+            "jitter_ms": round(jitter, 1),
+            "avg_chars_per_sec": round(avg_cps, 1),
+            "avg_audio_bytes": avg_bytes,
+            "status": status,
+            "errors": [r.error for r in results if r.error],
+            "pings": [r.to_dict() for r in results],
+        }
+
     def benchmark_all_curated_voices(
         self,
         sample_text: str = "VoiceFi neural voice test.",
         voices: Optional[List[str]] = None,
+        silent: bool = True,
     ) -> List[Dict[str, Any]]:
         """
-        Benchmark latency and availability of all curated personas.
+        Benchmark latency, connection, and throughput of curated personas (silent by default).
         """
         results = []
         target_personas = (
@@ -250,37 +437,60 @@ class AudioTroubleshooter:
         for p in target_personas:
             if not p:
                 continue
-            start = time.perf_counter()
-            try:
-                engine = get_tts_engine(
-                    self.config,
-                    voice_override=p.id,
-                    provider_override=p.provider,
+            if silent:
+                ping_res = self.ping_voice_silently(
+                    voice_name_or_id=p.id,
+                    text=sample_text,
+                    provider=p.provider,
                 )
-                # Quick test (non-blocking or quick synthesize)
-                engine.speak(sample_text, block=False)
-                lat = (time.perf_counter() - start) * 1000.0
                 results.append({
                     "name": p.name,
                     "id": p.id,
                     "provider": p.provider,
                     "style": p.style,
                     "recommended_role": p.recommended_role,
-                    "status": "online",
-                    "latency_ms": round(lat, 1),
+                    "status": ping_res.status,
+                    "latency_ms": round(ping_res.latency_ms, 1),
+                    "chars_per_sec": round(ping_res.chars_per_sec, 1),
+                    "audio_bytes": ping_res.audio_bytes,
+                    "error": ping_res.error,
                 })
-            except Exception as e:
-                results.append({
-                    "name": p.name,
-                    "id": p.id,
-                    "provider": p.provider,
-                    "style": p.style,
-                    "recommended_role": p.recommended_role,
-                    "status": "error",
-                    "error": str(e),
-                    "latency_ms": 0.0,
-                })
-            time.sleep(0.15)
+            else:
+                start = time.perf_counter()
+                try:
+                    engine = get_tts_engine(
+                        self.config,
+                        voice_override=p.id,
+                        provider_override=p.provider,
+                    )
+                    engine.speak(sample_text, block=False)
+                    lat = (time.perf_counter() - start) * 1000.0
+                    results.append({
+                        "name": p.name,
+                        "id": p.id,
+                        "provider": p.provider,
+                        "style": p.style,
+                        "recommended_role": p.recommended_role,
+                        "status": "online",
+                        "latency_ms": round(lat, 1),
+                        "chars_per_sec": 0.0,
+                        "audio_bytes": 0,
+                        "error": None,
+                    })
+                except Exception as e:
+                    results.append({
+                        "name": p.name,
+                        "id": p.id,
+                        "provider": p.provider,
+                        "style": p.style,
+                        "recommended_role": p.recommended_role,
+                        "status": "error",
+                        "error": str(e),
+                        "latency_ms": 0.0,
+                        "chars_per_sec": 0.0,
+                        "audio_bytes": 0,
+                    })
+            time.sleep(0.05)
         return results
 
     def test_microphone_loopback(

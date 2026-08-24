@@ -151,13 +151,39 @@ def capture_event(event_name: str, properties: Optional[Dict[str, Any]] = None):
     if not _posthog_initialized:
         init_telemetry()
 
-    if not _posthog_initialized:
-        return
+    user_id = get_machine_id()
+    sanitized_props = sanitize_telemetry_data(properties or {})
+    if "os" not in sanitized_props:
+        sanitized_props["os"] = platform.system()
+    if "arch" not in sanitized_props:
+        sanitized_props["arch"] = platform.machine()
 
+    if _posthog_initialized and posthog:
+        try:
+            posthog.capture(event_name, distinct_id=user_id, properties=sanitized_props)
+            posthog.flush()
+            return
+        except Exception:
+            pass
+
+    # Direct HTTPS fallback if PostHog Python package is not loaded
     try:
-        user_id = get_machine_id()
-        sanitized_props = sanitize_telemetry_data(properties or {})
-        posthog.capture(event_name, distinct_id=user_id, properties=sanitized_props)
-        posthog.flush()
+        import json
+        import urllib.request
+        api_key = os.getenv("POSTHOG_API_KEY") or os.getenv("VOICEFI_POSTHOG_KEY") or DEFAULT_POSTHOG_API_KEY
+        payload = json.dumps({
+            "api_key": api_key,
+            "event": event_name,
+            "distinct_id": user_id,
+            "properties": sanitized_props,
+        }).encode("utf-8")
+        req = urllib.request.Request(
+            "https://us.i.posthog.com/capture/",
+            data=payload,
+            headers={"Content-Type": "application/json", "User-Agent": "VoiceFi-Telemetry/1.0"},
+            method="POST",
+        )
+        urllib.request.urlopen(req, timeout=3.0)
     except Exception:
         pass
+

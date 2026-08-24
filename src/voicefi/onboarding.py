@@ -26,6 +26,12 @@ def check_and_prompt_permissions() -> bool:
 
 def run_onboarding():
     config = load_config()
+    try:
+        from voicefi.telemetry import capture_event
+        capture_event("onboarding_started")
+    except Exception:
+        pass
+
     check_and_prompt_permissions()
     tts = get_tts_engine(config, voice_override="Christopher")
     stt = get_stt_engine(config)
@@ -140,3 +146,13 @@ def run_onboarding():
     print("\n" + "="*50)
     print(" 🎉 Onboarding flow complete!")
     print("="*50 + "\n")
+
+    try:
+        from voicefi.telemetry import capture_event
+        capture_event("onboarding_completed", {
+            "target_agent": "antigravity" if "antigravity" in text3_lower else ("claude" if "claude" in text3_lower else ("cursor" if "cursor" in text3_lower else "none")),
+            "preferred_name_customized": bool(extracted_name and extracted_name != user_name),
+        })
+    except Exception:
+        pass
+

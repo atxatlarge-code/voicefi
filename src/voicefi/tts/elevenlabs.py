@@ -86,6 +86,39 @@ class ElevenLabsTTS(BaseTTS):
             self._current_process.terminate()
             self._current_process = None
 
+    def speak_to_file(self, text: str, output_path: Path) -> bool:
+        """Synthesize speech directly to an audio file without playing."""
+        if not text or not text.strip() or not self.api_key:
+            return False
+        url = f"https://api.elevenlabs.io/v1/text-to-speech/{self.voice_id}"
+        headers = {
+            "xi-api-key": self.api_key,
+            "Content-Type": "application/json",
+            "Accept": "audio/mpeg",
+        }
+        payload = {
+            "text": text,
+            "model_id": "eleven_monolingual_v1",
+            "voice_settings": {"stability": 0.5, "similarity_boost": 0.75},
+        }
+        try:
+            res = requests.post(url, json=payload, headers=headers, timeout=15)
+            if res.status_code == 200:
+                p = Path(output_path)
+                p.parent.mkdir(parents=True, exist_ok=True)
+                p.write_bytes(res.content)
+                return p.is_file() and p.stat().st_size > 0
+            else:
+                print(f"[ElevenLabsTTS] API returned status {res.status_code}: {res.text}")
+                return False
+        except Exception as e:
+            print(f"[ElevenLabsTTS] Error saving speech to file: {e}")
+            return False
+
+    async def synthesize_to_file(self, text: str, output_path: Path) -> bool:
+        """Asynchronously synthesize speech directly to an audio file."""
+        return self.speak_to_file(text, output_path)
+
     @classmethod
     def add_voice(
         cls,

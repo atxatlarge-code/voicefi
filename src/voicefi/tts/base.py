@@ -231,6 +231,19 @@ class BaseTTS(ABC):
         """
         self.speak(text, block=block)
 
+    def speak_to_file(self, text: str, output_path: Path) -> bool:
+        """
+        Synthesize speech directly to an audio file without playing through speakers.
+        Must be implemented by subclasses for silent testing and file synthesis.
+        """
+        return False
+
+    async def synthesize_to_file(self, text: str, output_path: Path) -> bool:
+        """
+        Asynchronously synthesize speech directly to an audio file without playing.
+        """
+        return self.speak_to_file(text, output_path)
+
 
 def stop_all_speech() -> None:
     """
