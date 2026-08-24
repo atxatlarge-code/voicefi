@@ -158,7 +158,11 @@ class VoiceFiTrayApp(rumps.App):
         tier_info = FeatureGate.get_tier_summary(self.config)
         self.tier_item = rumps.MenuItem(f"Tier: {tier_info['tier']} (Patent Pending)", callback=None)
 
+        # Self-updater item
+        self.update_item = rumps.MenuItem("✨ Check for Updates...", callback=self.trigger_tray_update)
+
         self.menu = [
+            self.update_item,
             self.stop_speaking_item,
             rumps.separator,
             self.new_conversation_item,
@@ -193,6 +197,38 @@ class VoiceFiTrayApp(rumps.App):
 
         # Start unified global hotkey listener
         self._start_global_hotkey_listener()
+        self._start_update_checker_thread()
+
+    def _start_update_checker_thread(self):
+        """Periodically check for software updates and handle Pro auto-updates in background."""
+        def _check():
+            try:
+                from voicefi.updater import check_for_updates, run_auto_update_if_enabled
+                run_auto_update_if_enabled(self.config)
+                is_avail, new_ver, _ = check_for_updates(force=False)
+                if is_avail:
+                    self.update_item.title = f"✨ Update Available (v{new_ver}) • Click to Update"
+                else:
+                    self.update_item.title = "✨ VoiceFi is Up to Date (v" + FeatureGate.get_tier_summary(self.config).get("tier", "") + ")"
+            except Exception:
+                pass
+        threading.Thread(target=_check, daemon=True).start()
+
+    def trigger_tray_update(self, _=None):
+        """Execute 1-click update from Menu Bar."""
+        def _run():
+            try:
+                rumps.notification("VoiceFi Updater", "Starting Update...", "Downloading latest build from GitHub")
+                from voicefi.updater import perform_update
+                res = perform_update(relink_hooks=True)
+                if res.get("success"):
+                    rumps.notification("VoiceFi Updated 🎉", res.get("message", "Upgraded successfully"), "All features are active.")
+                    self.update_item.title = f"✅ Updated to {res.get('new_version', 'latest')}"
+                else:
+                    rumps.notification("VoiceFi Update Error ⚠️", "Update Failed", str(res.get("error", "Error")))
+            except Exception as e:
+                rumps.notification("VoiceFi Update Error ⚠️", "Update Failed", str(e))
+        threading.Thread(target=_run, daemon=True).start()
 
     def _build_conversations_submenu(self):
         """Populate active and recent Antigravity conversations."""

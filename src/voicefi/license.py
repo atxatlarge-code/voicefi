@@ -18,6 +18,7 @@ class FeatureGate:
         "streaming_stt",
         "realtime_token_stream",
         "cloud_realtime_stt",
+        "auto_update",
     }
 
     @classmethod
@@ -58,5 +59,6 @@ class FeatureGate:
                 "elevenlabs_neural": pro_active,
                 "custom_wake_words": pro_active,
                 "multi_agent_dashboard": pro_active,
+                "auto_update": pro_active,
             },
         }

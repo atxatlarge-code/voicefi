@@ -513,6 +513,35 @@ def cmd_panel(args):
         print("\n👋 Voice Control Panel closed.")
 
 
+def cmd_update(args):
+    """Check for and install VoiceFi software upgrades."""
+    from voicefi.updater import check_for_updates, perform_update, get_local_version
+    current_ver = get_local_version()
+
+    if getattr(args, "check", False):
+        print(f"\n🔍 Checking for VoiceFi updates (current: v{current_ver})...")
+        is_avail, latest_ver, url = check_for_updates(force=True)
+        if is_avail:
+            print(f"✨ Update available: v{current_ver} -> v{latest_ver}")
+            print("👉 Run 'vifi update' to upgrade now.")
+            if url:
+                print(f"🔗 Release: {url}\n")
+        else:
+            print(f"✅ VoiceFi is up to date (v{current_ver})!\n")
+        return
+
+    # Perform update
+    print(f"\n🚀 Updating VoiceFi (current: v{current_ver})...")
+    custom_repo = getattr(args, "repo", None)
+    res = perform_update(repo_url=custom_repo)
+    if res.get("success"):
+        print(f"\n✅ {res['message']}\n")
+    else:
+        print(f"\n❌ {res['message']}\n")
+        if res.get("error"):
+            print(f"Details: {res['error']}\n")
+
+
 def cmd_troubleshoot(args):
     """Run interactive or automated Voice & Audio troubleshooting and test suite."""
     import time
@@ -1879,11 +1908,6 @@ def main():
     subparsers.add_parser("tray", help="Launch macOS menu bar companion")
     subparsers.add_parser("dev", help="Launch in foreground dev mode with live console logs")
 
-    # setup
-    setup_p = subparsers.add_parser("setup", help="Auto-configure agent lifecycle hooks (Antigravity, Claude Code)")
-    setup_p.add_argument("--antigravity", action="store_true", help="Configure Antigravity hooks")
-    setup_p.add_argument("--claude", action="store_true", help="Configure Claude Code hooks")
-    setup_p.add_argument("--all", action="store_true", help="Configure all detected AI agent hooks")
 
     # pause / resume
     subparsers.add_parser("pause", help="Pause VoiceFi audio hooks and active turn-handoffs globally")
@@ -2163,6 +2187,11 @@ def main():
     new_p.add_argument("-t", "--title", type=str, default=None, help="Custom title")
     new_p.add_argument("-m", "--model", type=str, default=None, choices=["flash_lite", "flash", "pro"], help="Model selection")
 
+    # update / upgrade
+    up_p = subparsers.add_parser("update", aliases=["upgrade"], help="Check for and install latest VoiceFi updates")
+    up_p.add_argument("--check", action="store_true", help="Check for updates without installing")
+    up_p.add_argument("--repo", default=None, help="Custom git repository URL to upgrade from")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -2174,6 +2203,8 @@ def main():
         sys.exit(0)
 
     commands = {
+        "update": cmd_update,
+        "upgrade": cmd_update,
         "new": cmd_new,
         "new-conversation": cmd_new,
         "hook": cmd_hook,
@@ -2210,6 +2241,13 @@ def main():
         "ambient": cmd_ambient,
         "bias": cmd_bias,
     }
+
+    # Asynchronously trigger background update check
+    try:
+        from voicefi.updater import trigger_background_update_check
+        trigger_background_update_check()
+    except Exception:
+        pass
 
     handler = commands.get(args.command)
     if handler:

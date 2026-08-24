@@ -227,6 +227,7 @@ class VoiceFiConfig(BaseModel):
     version: int = 1
     enabled: bool = True  # Global pause/resume kill-switch
     telemetry: bool = True  # Anonymous crash & diagnostic error reporting (opt-out with DO_NOT_TRACK=1)
+    auto_update: bool = False  # Silent background auto-updater for Pro tier
     tier: str = "community"
     license_key: str = ""
     posthog_api_key: str = ""
