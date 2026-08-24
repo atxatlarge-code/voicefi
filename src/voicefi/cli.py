@@ -256,6 +256,9 @@ def cmd_resume(args):
 def cmd_autostart(args):
     """Register macOS LaunchAgent so VoiceFi menu bar tray stays on and runs at login."""
     import shutil
+    import subprocess
+    import os
+
     launch_agents_dir = Path.home() / "Library" / "LaunchAgents"
     launch_agents_dir.mkdir(parents=True, exist_ok=True)
     plist_path = launch_agents_dir / "com.voicefi.menubar.plist"
@@ -288,9 +291,14 @@ def cmd_autostart(args):
     with open(plist_path, "w", encoding="utf-8") as f:
         f.write(plist_content)
 
-    import subprocess
-    subprocess.run(["launchctl", "unload", str(plist_path)], stderr=subprocess.DEVNULL)
-    subprocess.run(["launchctl", "load", str(plist_path)])
+    uid = os.getuid()
+    subprocess.run(["launchctl", "bootout", f"gui/{uid}/com.voicefi.menubar"], stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
+    subprocess.run(["launchctl", "unload", str(plist_path)], stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
+    subprocess.run(["launchctl", "enable", f"gui/{uid}/com.voicefi.menubar"], stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
+
+    res = subprocess.run(["launchctl", "bootstrap", f"gui/{uid}", str(plist_path)], stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
+    if res.returncode != 0:
+        subprocess.run(["launchctl", "load", "-w", str(plist_path)], stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
 
     print(f"✅ VoiceFi menu bar companion registered to start automatically at login.")
     print(f"📌 Plist installed at: {plist_path}")
@@ -299,9 +307,12 @@ def cmd_autostart(args):
 def cmd_stop_autostart(args):
     """Unload and remove macOS LaunchAgent."""
     import subprocess
+    import os
     plist_path = Path.home() / "Library" / "LaunchAgents" / "com.voicefi.menubar.plist"
+    uid = os.getuid()
+    subprocess.run(["launchctl", "bootout", f"gui/{uid}/com.voicefi.menubar"], stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
     if plist_path.is_file():
-        subprocess.run(["launchctl", "unload", str(plist_path)], stderr=subprocess.DEVNULL)
+        subprocess.run(["launchctl", "unload", str(plist_path)], stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
         plist_path.unlink(missing_ok=True)
         print("🛑 VoiceFi menu bar companion autostart removed.")
     else:

@@ -5,7 +5,9 @@ Supports Edge Neural TTS, macOS system voices, and multi-agent persona allocatio
 
 from dataclasses import dataclass
 from typing import List, Optional, Dict, Any
+import re
 import subprocess
+
 
 
 @dataclass
@@ -22,6 +24,16 @@ class VoicePersona:
 
 CURATED_PERSONAS: List[VoicePersona] = [
     VoicePersona(
+        id="en-US-AndrewNeural",
+        name="Andrew",
+        provider="edge_tts",
+        gender="Male",
+        locale="en-US",
+        style="Warm, relaxed, confident, authentic American tone",
+        sample_text="Hey! I'm Andrew. Warm, relaxed, and confident tone, great for pair programming and deep focus sessions.",
+        recommended_role="Antigravity / Main Planner",
+    ),
+    VoicePersona(
         id="en-US-ChristopherNeural",
         name="Christopher",
         provider="edge_tts",
@@ -29,7 +41,7 @@ CURATED_PERSONAS: List[VoicePersona] = [
         locale="en-US",
         style="Deep, grounded, authoritative",
         sample_text="Hey! I'm Christopher. My calm, low-latency neural tone is great for deep focus and long coding sessions.",
-        recommended_role="Antigravity / Main Planner",
+        recommended_role="Architect / Main Planner",
     ),
     VoicePersona(
         id="en-US-AriaNeural",
@@ -92,6 +104,26 @@ CURATED_PERSONAS: List[VoicePersona] = [
         recommended_role="Offline Fallback / Native Say",
     ),
     VoicePersona(
+        id="Nathan (Enhanced)",
+        name="Nathan",
+        provider="mac_say",
+        gender="Male",
+        locale="en-US",
+        style="Apple Enhanced offline neural voice, clear, natural, and low latency",
+        sample_text="Hello Jake. I'm Nathan, running completely offline and locally on your Mac.",
+        recommended_role="Antigravity / Main Planner",
+    ),
+    VoicePersona(
+        id="Lee (Premium)",
+        name="Lee",
+        provider="mac_say",
+        gender="Male",
+        locale="en-AU",
+        style="Apple Premium offline neural voice, warm, polished, and crisp",
+        sample_text="G'day Jake. I'm Lee, running in premium offline neural quality on your Mac.",
+        recommended_role="Antigravity / Main Planner",
+    ),
+    VoicePersona(
         id="Alex",
         name="Alex",
         provider="mac_say",
@@ -113,7 +145,7 @@ def get_curated_personas(provider: Optional[str] = None) -> List[VoicePersona]:
 
 
 def find_persona(name_or_id: str) -> Optional[VoicePersona]:
-    """Find a curated or custom cloned persona by name or exact ID (case-insensitive)."""
+    """Find a curated, custom cloned, or installed system voice by name or exact ID (case-insensitive)."""
     target = name_or_id.lower().strip()
     for cp in CURATED_PERSONAS:
         if cp.id.lower() == target or cp.name.lower() == target:
@@ -140,6 +172,41 @@ def find_persona(name_or_id: str) -> Optional[VoicePersona]:
     except Exception:
         pass
 
+    # Check installed macOS system voices
+    try:
+        sys_voices = list_system_mac_voices()
+        for sv in sys_voices:
+            sv_id_lower = sv["id"].lower()
+            sv_name_lower = sv["name"].lower()
+            if sv_id_lower == target or sv_name_lower == target:
+                return VoicePersona(
+                    id=sv["id"],
+                    name=sv["name"],
+                    provider="mac_say",
+                    gender="Unknown",
+                    locale=sv.get("locale", "en_US"),
+                    style=sv.get("description", "macOS System Voice"),
+                    sample_text=f"Hello! This is {sv['name']}, running natively and offline on macOS.",
+                    recommended_role="System Voice / Offline",
+                )
+        # Check partial/prefix match (e.g. "nathan" matches "Nathan (Enhanced)")
+        for sv in sys_voices:
+            sv_id_lower = sv["id"].lower()
+            sv_name_lower = sv["name"].lower()
+            if target in sv_id_lower or target in sv_name_lower:
+                return VoicePersona(
+                    id=sv["id"],
+                    name=sv["name"],
+                    provider="mac_say",
+                    gender="Unknown",
+                    locale=sv.get("locale", "en_US"),
+                    style=sv.get("description", "macOS System Voice"),
+                    sample_text=f"Hello! This is {sv['name']}, running natively and offline on macOS.",
+                    recommended_role="System Voice / Offline",
+                )
+    except Exception:
+        pass
+
     return None
 
 
@@ -151,19 +218,26 @@ def list_system_mac_voices() -> List[Dict[str, str]]:
         for line in output.strip().split("\n"):
             if not line.strip():
                 continue
-            parts = line.split()
-            voice_name = parts[0]
-            lang = parts[1] if len(parts) > 1 else ""
-            desc = " ".join(parts[2:]) if len(parts) > 2 else ""
+            # Match: "<voice_name>   <locale>    # <comment>"
+            m = re.match(r"^(.+?)\s+([a-z]{2}_[A-Za-z0-9]+)\s+#\s*(.*)$", line)
+            if m:
+                v_name = m.group(1).strip()
+                v_locale = m.group(2).strip()
+                v_desc = m.group(3).strip()
+            else:
+                parts = line.split()
+                v_name = parts[0]
+                v_locale = parts[1] if len(parts) > 1 else ""
+                v_desc = " ".join(parts[2:]) if len(parts) > 2 else ""
             voices.append({
-                "id": voice_name,
-                "name": voice_name,
+                "id": v_name,
+                "name": v_name,
                 "provider": "mac_say",
-                "locale": lang,
-                "description": desc,
+                "locale": v_locale,
+                "description": v_desc,
             })
     except Exception:
-        for v in ["Samantha", "Alex", "Victoria", "Daniel", "Fred"]:
+        for v in ["Nathan (Enhanced)", "Samantha", "Alex", "Victoria", "Daniel", "Fred"]:
             voices.append({
                 "id": v,
                 "name": v,

@@ -10,8 +10,10 @@ from typing import Optional
 
 SPEECH_LOCK_FILE = Path("/tmp/voicefi_speech.lock")
 AGENT_SPEAKING_STATUS_FILE = Path("/tmp/voicefi_speaking.status")
+AUDIO_PLAYING_STATUS_FILE = Path("/tmp/voicefi_audio_playing.status")
 _THREAD_LOCK = threading.Lock()
 _IN_PROCESS_SPEAKING = False
+_IN_PROCESS_AUDIO_PLAYING = False
 
 
 def set_agent_speaking(speaking: bool, text: Optional[str] = None) -> None:
@@ -29,8 +31,46 @@ def set_agent_speaking(speaking: bool, text: Optional[str] = None) -> None:
             AGENT_SPEAKING_STATUS_FILE.write_text(f"{os.getpid()}:{time.time()}")
         else:
             AGENT_SPEAKING_STATUS_FILE.unlink(missing_ok=True)
+            set_agent_audio_playing(False)
     except Exception:
         pass
+
+
+def set_agent_audio_playing(playing: bool) -> None:
+    """Set indicator that physical sound is actively streaming out of the speakers."""
+    global _IN_PROCESS_AUDIO_PLAYING
+    _IN_PROCESS_AUDIO_PLAYING = playing
+    try:
+        if playing:
+            AUDIO_PLAYING_STATUS_FILE.write_text(f"{os.getpid()}:{time.time()}")
+        else:
+            AUDIO_PLAYING_STATUS_FILE.unlink(missing_ok=True)
+    except Exception:
+        pass
+
+
+def is_agent_audio_playing() -> bool:
+    """Check if audio playback is physically outputting sound right now."""
+    global _IN_PROCESS_AUDIO_PLAYING
+    if _IN_PROCESS_AUDIO_PLAYING:
+        return True
+
+    try:
+        if AUDIO_PLAYING_STATUS_FILE.is_file():
+            content = AUDIO_PLAYING_STATUS_FILE.read_text().strip()
+            if content:
+                parts = content.split(":")
+                if len(parts) == 2:
+                    pid = int(parts[0])
+                    ts = float(parts[1])
+                    if is_pid_alive(pid) and (time.time() - ts) < 25.0:
+                        return True
+                    else:
+                        AUDIO_PLAYING_STATUS_FILE.unlink(missing_ok=True)
+    except Exception:
+        pass
+
+    return is_system_audio_playing()
 
 
 def is_pid_alive(pid: int) -> bool:
@@ -179,8 +219,10 @@ def stop_all_speech() -> None:
     Kills any running 'say' or 'afplay' processes.
     """
     set_agent_speaking(False)
+    set_agent_audio_playing(False)
     try:
         AGENT_SPEAKING_STATUS_FILE.unlink(missing_ok=True)
+        AUDIO_PLAYING_STATUS_FILE.unlink(missing_ok=True)
     except Exception:
         pass
 

@@ -18,25 +18,31 @@ from typing import Dict, Any, Optional, Tuple
 from voicefi.config import VoiceFiConfig, load_config
 from voicefi.tts import get_tts_engine, stop_all_speech
 from voicefi.stt import get_stt_engine
-from voicefi.audio.recorder import AudioRecorder
+from voicefi.audio.recorder import AudioRecorder, resolve_barge_in_mode
 from voicefi.audio.chimes import play_chime
 from voicefi.integrations.injector import (
     inject_text_to_active_app,
+    inject_text_to_claude,
     is_frontmost_app_a_terminal,
     get_frontmost_app_name,
     set_clipboard_text,
 )
 from voicefi.integrations.antigravity import clean_markdown_for_speech
-from voicefi.integrations.conversations import claim_turn
+from voicefi.integrations.conversations import (
+    claim_turn,
+    save_session_cookie,
+    pop_mobile_turn_origin,
+    has_active_companion_client,
+)
 
 
-def find_latest_claude_session(base_dir: Optional[Path] = None) -> Optional[Path]:
-    """Find the most recently modified Claude Code session JSONL file."""
+def find_recent_claude_sessions(limit: int = 10, base_dir: Optional[Path] = None) -> list[Path]:
+    """Find the most recently modified Claude Code session JSONL files."""
     claude_dir = base_dir or (Path.home() / ".claude")
     projects_dir = claude_dir / "projects"
-    
+
     if not projects_dir.is_dir():
-        return None
+        return []
 
     candidate_files = []
     try:
@@ -45,13 +51,19 @@ def find_latest_claude_session(base_dir: Optional[Path] = None) -> Optional[Path
                 candidate_files.append((p.stat().st_mtime, p))
     except Exception as e:
         print(f"[Claude] Error finding project sessions: {e}", file=sys.stderr)
-        return None
+        return []
 
     if not candidate_files:
-        return None
+        return []
 
     candidate_files.sort(key=lambda x: x[0], reverse=True)
-    return candidate_files[0][1]
+    return [item[1] for item in candidate_files[:limit]]
+
+
+def find_latest_claude_session(base_dir: Optional[Path] = None) -> Optional[Path]:
+    """Find the most recently modified Claude Code session JSONL file."""
+    sessions = find_recent_claude_sessions(limit=1, base_dir=base_dir)
+    return sessions[0] if sessions else None
 
 
 def extract_latest_claude_summary(
@@ -146,10 +158,42 @@ def handle_claude_stop_hook(
 
     # Guard 3: Session turn deduplication
     conv_id = session_file.stem if session_file else "claude_active"
-    if not claim_turn(conv_id, text_to_speak):
+    cid_key = f"claude_{conv_id}" if not conv_id.startswith("claude_") else conv_id
+
+    # Update session cookie so Mobile Companion knows Claude is the active agent
+    save_session_cookie(
+        conv_id=cid_key,
+        transcript_path=str(session_file) if session_file else None,
+        title=f"Claude ({conv_id[:8]})",
+        engine="claude",
+    )
+
+    if not claim_turn(conv_id, text_to_speak) and not claim_turn(cid_key, text_to_speak):
         return {"status": "skipped_duplicate"}
 
     print(f"\n🎭 [Claude Hook] Turn complete: \"{text_to_speak}\"")
+
+    if text_to_speak:
+        try:
+            from voicefi.audio.echo_canceller import record_agent_spoken
+            record_agent_spoken(text_to_speak)
+        except Exception:
+            pass
+
+    # Check Mobile Companion audio routing
+    routing = getattr(getattr(cfg, "companion", None), "audio_routing", "smart")
+    mute_mac_active = getattr(getattr(cfg, "companion", None), "mute_mac_when_companion_active", False)
+    is_mobile = pop_mobile_turn_origin(conv_id) or pop_mobile_turn_origin(cid_key)
+
+    if routing == "phone_only":
+        return {"status": "phone_only", "agent": "claude"}
+    elif routing in ("smart", "origin_only"):
+        if is_mobile:
+            # Turn originated from mobile phone companion -> phone handles speech & mic exclusively.
+            return {"status": "mobile_handled", "agent": "claude"}
+        if routing == "smart" and mute_mac_active and has_active_companion_client():
+            # Mac suppressed because mobile companion is actively connected
+            return {"status": "mac_muted", "agent": "claude"}
 
     # 2. Speak the soundbite aloud using Claude's voice persona (Guy)
     if cfg.claude.read_summary_aloud:
@@ -197,15 +241,9 @@ def handle_claude_stop_hook(
 
     print(f"\n📝 Transcribed: {transcription}\n")
 
-    # 7. Safe Window Injection: Verify frontmost app is a terminal/editor before pasting
+    # 7. Safe Window Injection: Inject directly into Claude terminal/app
     if cfg.claude.inject_to_active_window:
-        if not is_frontmost_app_a_terminal():
-            front_app = get_frontmost_app_name()
-            print(f"⚠️ [Claude Hook] Active app ({front_app}) is not a terminal. Copied speech to clipboard without pasting.")
-            set_clipboard_text(transcription)
-            return {"status": "clipboard_only", "text": transcription, "frontmost_app": front_app}
-
-        success = inject_text_to_active_app(transcription, submit_enter=cfg.claude.auto_submit)
+        success = inject_text_to_claude(transcription, submit_enter=cfg.claude.auto_submit)
         if success:
             print("Sent to active conversation.")
         else:

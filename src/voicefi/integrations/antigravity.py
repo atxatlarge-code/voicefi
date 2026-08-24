@@ -15,11 +15,12 @@ from voicefi.tts import get_tts_engine, stop_all_speech
 from voicefi.stt import get_stt_engine
 from voicefi.audio.recorder import AudioRecorder
 from voicefi.audio.chimes import play_chime
-from voicefi.integrations.injector import inject_text_to_active_app
+from voicefi.integrations.injector import inject_text_to_active_app, send_message_to_antigravity
 from voicefi.integrations.conversations import (
     save_session_cookie,
     claim_turn,
     pop_mobile_turn_origin,
+    get_claimed_turn_origin,
     has_active_companion_client,
     set_pending_question,
     get_pending_question,
@@ -58,6 +59,7 @@ def clean_markdown_for_speech(text: str, max_words: int = 30) -> str:
     text = re.sub(r"`([^`]+)`", r"\1", text)             # Inline code
     text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text) # Links -> text only
     text = re.sub(r"^\s*#{1,6}\s*", "", text, flags=re.MULTILINE) # Headers
+    text = re.sub(r"^\s*[-*_]{3,}\s*$", " ", text, flags=re.MULTILINE) # Horizontal rules
     text = re.sub(r"[*_~]{1,3}", "", text)                # Bold/Italic
     text = re.sub(r"^>\s*", "", text, flags=re.MULTILINE) # Blockquotes
     text = re.sub(r"^\s*[-*+]\s+", "", text, flags=re.MULTILINE)  # Unordered lists
@@ -65,6 +67,7 @@ def clean_markdown_for_speech(text: str, max_words: int = 30) -> str:
 
     # 6. Normalize whitespace
     text = " ".join(text.split()).strip()
+    text = re.sub(r"^[-—–\s]+", "", text).strip()
     if not text:
         return ""
 
@@ -192,6 +195,21 @@ def handle_antigravity_stop_hook(payload: Dict[str, Any], config: Optional[Voice
         except Exception:
             pass
 
+    if not transcript_path or not transcript_path.is_file():
+        from voicefi.integrations.conversations import ConversationTracker
+        tracker = ConversationTracker()
+        recent = tracker.get_recent_transcripts(limit=1)
+        if recent:
+            transcript_path = recent[0]
+            transcript_path_str = str(transcript_path)
+            if not conv_id:
+                try:
+                    cand = transcript_path.parent.parent.parent.name
+                    if len(cand) >= 8:
+                        conv_id = cand
+                except Exception:
+                    pass
+
     if conv_id:
         save_session_cookie(
             conv_id=conv_id,
@@ -221,7 +239,7 @@ def handle_antigravity_stop_hook(payload: Dict[str, Any], config: Optional[Voice
 
     routing = getattr(getattr(cfg, "companion", None), "audio_routing", "smart")
     mute_mac_active = getattr(getattr(cfg, "companion", None), "mute_mac_when_companion_active", False)
-    is_mobile = pop_mobile_turn_origin(conv_id)
+    is_mobile = (get_claimed_turn_origin(conv_id, turn_sig) == "mobile")
 
     if routing == "phone_only":
         return {}
@@ -370,10 +388,11 @@ def handle_antigravity_stop_hook(payload: Dict[str, Any], config: Optional[Voice
                 text_to_send = eval_res.normalized_text
 
             if cfg.antigravity.inject_to_active_window:
-                if inject_text_to_active_app(text_to_send, submit_enter=True, target_antigravity=True):
+                delivered = send_message_to_antigravity(conv_id=conv_id, text=text_to_send)
+                if delivered:
                     print("Sent to active conversation.")
                 else:
-                    print("⚠️ Injection failed — text left on clipboard.")
+                    print("⚠️ Delivery failed — text left on clipboard.")
 
             if cfg.audio_cues.enabled:
                 play_chime(cfg.audio_cues.sent_chime, block=False)

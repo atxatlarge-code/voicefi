@@ -100,12 +100,13 @@ def test_handle_stop_hook_injects_with_target_antigravity(tmp_path: Path, monkey
     mock_stt.transcribe.return_value = "Run the tests next"
     monkeypatch.setattr("voicefi.integrations.antigravity.get_stt_engine", lambda cfg: mock_stt)
 
-    mock_inject = MagicMock()
-    monkeypatch.setattr("voicefi.integrations.antigravity.inject_text_to_active_app", mock_inject)
+    mock_send = MagicMock(return_value=True)
+    monkeypatch.setattr("voicefi.integrations.antigravity.send_message_to_antigravity", mock_send)
     monkeypatch.setattr("voicefi.integrations.antigravity.claim_turn", lambda cid, sig: True)
 
     payload = {"conversationId": "test-123", "transcriptPath": str(tfile)}
     handle_antigravity_stop_hook(payload, config=cfg)
 
-    mock_inject.assert_called_once_with("Run the tests next", submit_enter=True, target_antigravity=True)
+    mock_send.assert_called_once_with(conv_id="test-123", text="Run the tests next")
+
 

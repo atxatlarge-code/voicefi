@@ -419,7 +419,7 @@ class AudioTroubleshooter:
             sd.stop()
             sd.wait()
 
-            flat_data = rec_audio.flatten()
+            flat_data = np.nan_to_num(rec_audio.flatten(), nan=0.0, posinf=0.0, neginf=0.0)
             rms = float(np.sqrt(np.mean(flat_data ** 2)))
 
             # 3. Save temporary WAV for STT transcription
@@ -656,7 +656,11 @@ class AudioTroubleshooter:
         if fix in ("auto_barge_in", "smart_barge_in", "safe_barge_in"):
             self.config.vad.barge_in = "auto"
             save_config(self.config)
-            return {"success": True, "message": "Set barge-in to 'auto' (AirPods/Headphones=On, Built-in Speakers=Safe Mode)."}
+            from voicefi.audio.device import is_headphone_or_headset_active
+            msg = "Set barge-in to 'auto'."
+            if not is_headphone_or_headset_active():
+                msg += " (⚠️ Headphones recommended: on built-in laptop speakers, safe-mode is active to avoid speech cutoffs)."
+            return {"success": True, "message": msg}
 
         if fix in ("disable_barge_in", "turn_off_barge_in", "no_barge_in"):
             self.config.vad.barge_in = False

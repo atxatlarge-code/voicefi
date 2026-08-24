@@ -14,7 +14,7 @@ import sounddevice as sd
 import soundfile as sf
 
 
-from voicefi.tts.base import is_agent_speaking
+from voicefi.tts.base import is_agent_speaking, is_agent_audio_playing
 from voicefi.audio.device import is_using_builtin_speakers, is_headphone_or_headset_active
 
 
@@ -103,6 +103,8 @@ class AudioRecorder:
         is_paused = False
         cooldown_remaining_chunks = 0
         barge_in_candidate_chunks = 0
+        agent_speaking_chunks = 0
+        speaker_bleed_floor = 0.0
         agent_speaking_pre_roll = []  # Ring buffer to preserve onset syllables on barge-in
 
         with sd.InputStream(samplerate=self.sample_rate, channels=1, dtype="float32") as stream:
@@ -124,31 +126,58 @@ class AudioRecorder:
                 if agent_speaking:
                     is_barge_in_on, is_safe_mode = resolve_barge_in_mode(self.barge_in)
                     if is_barge_in_on:
-                        # Active Barge-In: monitor energy during agent playback
+                        audio_playing = is_agent_audio_playing()
+                        if not audio_playing:
+                            # TTS synthesis/download wait phase: sound is not producing out of speakers yet
+                            agent_speaking_chunks = 0
+                            speaker_bleed_floor = 0.0
+                            barge_in_candidate_chunks = 0
+                            recorded_frames.clear()
+                            start_time += chunk_duration
+                            if speech_start_time > 0:
+                                speech_start_time += chunk_duration
+                            continue
+
+                        agent_speaking_chunks += 1
+                        # Active Barge-In: monitor energy during physical agent playback
                         energy = float(np.sqrt(np.mean(audio_chunk ** 2)))
                         smoothed_energy = 0.35 * smoothed_energy + 0.65 * energy
 
-                        # Dynamic acoustic threshold
+                        # Dynamic acoustic threshold & grace window
                         if is_safe_mode:
                             # Built-in laptop speakers: adapt against speaker bleed
+                            grace_chunks = max(10, int(1.2 / chunk_duration))  # 1.2s settling window from audio onset
+                            in_grace_period = agent_speaking_chunks < grace_chunks
+                            if in_grace_period:
+                                # During grace period, calibrate speaker bleed floor to steady speaker output
+                                speaker_bleed_floor = 0.80 * speaker_bleed_floor + 0.20 * energy
+                            else:
+                                # Post-grace: only track baseline for low/moderate levels so human speech doesn't inflate floor
+                                if energy < 0.070:
+                                    speaker_bleed_floor = 0.95 * speaker_bleed_floor + 0.05 * energy
+
                             barge_in_threshold = max(
-                                0.040,
-                                running_noise_floor * 3.0 + 0.025,
+                                0.070,
+                                speaker_bleed_floor * 1.65 + 0.020,
                             ) / self.barge_in_sensitivity
-                            required_chunks = 5
+                            required_chunks = 5  # ~250ms sustained speech
                         else:
                             # Headphones / AirPods: responsive threshold
+                            grace_chunks = 3  # 150ms minimal settling
                             barge_in_threshold = max(
-                                self.energy_threshold * 2.5,
+                                self.energy_threshold * 2.2,
                                 (running_noise_floor * 2.2 + 0.012),
                             ) / self.barge_in_sensitivity
-                            required_chunks = 4
+                            required_chunks = 3
+                            in_grace_period = agent_speaking_chunks < grace_chunks
 
                         agent_speaking_pre_roll.append(audio_chunk)
                         if len(agent_speaking_pre_roll) > 3:
                             agent_speaking_pre_roll.pop(0)
 
-                        if smoothed_energy > barge_in_threshold:
+                        if in_grace_period:
+                            barge_in_candidate_chunks = 0
+                        elif smoothed_energy > barge_in_threshold:
                             barge_in_candidate_chunks += 1
                             if barge_in_candidate_chunks >= required_chunks:
                                 # User spoke over agent speech -> BARGE IN!
@@ -169,6 +198,8 @@ class AudioRecorder:
                                 peak_speech_energy = smoothed_energy
                                 is_paused = False
                                 barge_in_candidate_chunks = 0
+                                agent_speaking_chunks = 0
+                                speaker_bleed_floor = 0.0
                                 if on_speech_start and not speech_start_notified:
                                     on_speech_start()
                                     speech_start_notified = True
@@ -220,6 +251,8 @@ class AudioRecorder:
                     running_noise_floor = 0.006
                     smoothed_energy = 0.0
                     barge_in_candidate_chunks = 0
+                    agent_speaking_chunks = 0
+                    speaker_bleed_floor = 0.0
                     agent_speaking_pre_roll.clear()
                     recorded_frames.clear()
                     print("[VAD] Agent finished speaking -> cooling down & resuming mic capture")

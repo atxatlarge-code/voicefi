@@ -179,23 +179,21 @@ def test_tray_status_map_includes_paused():
         # Test speaking state
         app._current_status = "speaking"
         app._update_status_ui(None)
-        assert "Speaking" in app.title
+        assert app._current_symbol == "speaker.wave.2.fill"
 
         # Test listening state
         app._current_status = "listening"
         app._update_status_ui(None)
-        assert "Listening" in app.title
+        assert app._current_symbol == "mic.fill"
 
         # Test paused agent speaking state
         app._current_status = "paused_agent_speaking"
         app._update_status_ui(None)
-        assert "Agent Speaking" in app.title
         assert app._current_symbol == "pause.fill"
 
         # Test generic paused state
         app._current_status = "paused"
         app._update_status_ui(None)
-        assert "Paused" in app.title
         assert app._current_symbol == "pause.fill"
 
 

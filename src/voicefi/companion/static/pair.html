@@ -5,8 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>VoiceFi • Pair Mobile Companion</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <style>
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    #qrCodeDiv img, #qrCodeDiv canvas { margin: 0 auto; display: block; }
   </style>
 </head>
 <body class="h-full flex flex-col items-center justify-center p-6 bg-black text-white relative overflow-auto">
@@ -54,18 +56,34 @@
       </h1>
     </div>
 
+    <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#18181b] border border-[#27272a] text-[11px] font-mono text-zinc-300">
+      <span>🎭 Claude Code</span>
+      <span class="text-zinc-600">•</span>
+      <span>🤖 Antigravity</span>
+    </div>
+
     <p class="text-xs text-zinc-400">
-      Point your iPhone or Android camera at the QR code below to connect to your Mac:
+      Point your iPhone or Android camera at the QR code below to connect hands-free voice to your Mac:
     </p>
 
     <!-- QR Code Container -->
-    <div class="flex justify-center p-3 bg-white rounded-2xl shadow-xl max-w-[240px] mx-auto border-4 border-[#1c1c1c]">
-      <img id="qrCodeImg" src="" alt="Pairing QR Code" class="w-52 h-52 object-contain">
+    <div class="flex justify-center p-3 bg-white rounded-2xl shadow-xl max-w-[240px] mx-auto border-4 border-[#1c1c1c] min-h-[232px] items-center">
+      <div id="qrCodeDiv" class="w-52 h-52 flex items-center justify-center">
+        <img id="qrCodeImg" src="" alt="Pairing QR Code" class="w-52 h-52 object-contain hidden">
+        <div id="qrSpinner" class="flex flex-col items-center justify-center gap-2 text-zinc-400">
+          <div class="w-8 h-8 border-2 border-zinc-300 border-t-zinc-800 rounded-full animate-spin"></div>
+          <span class="text-[10px] font-mono text-zinc-600">Generating QR...</span>
+        </div>
+      </div>
     </div>
 
     <!-- Direct URL Box with Copy Button -->
     <div class="space-y-2 text-left">
-      <label class="text-[10px] font-mono text-zinc-400 uppercase tracking-wider block text-center">Direct Wi-Fi Link</label>
+      <div class="flex items-center justify-between">
+        <label class="text-[10px] font-mono text-zinc-400 uppercase tracking-wider">Direct Wi-Fi Link</label>
+        <select id="networkSelect" class="text-[10px] font-mono bg-[#18181b] border border-[#27272a] rounded px-1.5 py-0.5 text-zinc-300 focus:outline-none hidden">
+        </select>
+      </div>
       <div class="bg-[#141414] border border-[#27272a] rounded-xl p-3 flex items-center justify-between gap-2 shadow-inner">
         <span id="directUrlText" class="font-mono text-sm font-bold text-white truncate select-all">Loading...</span>
         <button id="copyBtn" class="px-3 py-1.5 bg-white hover:bg-zinc-200 text-black text-xs font-bold rounded-lg mono transition active:scale-95 cursor-pointer shrink-0">
@@ -100,26 +118,92 @@
   </div>
 
   <script>
+    const qrCodeDiv = document.getElementById('qrCodeDiv');
     const qrCodeImg = document.getElementById('qrCodeImg');
+    const qrSpinner = document.getElementById('qrSpinner');
     const directUrlText = document.getElementById('directUrlText');
     const copyBtn = document.getElementById('copyBtn');
     const connDot = document.getElementById('connDot');
     const connLabel = document.getElementById('connLabel');
+    const networkSelect = document.getElementById('networkSelect');
+
+    let allUrls = {};
+
+    function renderQr(url, dataUri) {
+      if (qrSpinner) qrSpinner.classList.add('hidden');
+      directUrlText.innerText = url;
+
+      if (dataUri && dataUri.length > 50) {
+        qrCodeImg.src = dataUri;
+        qrCodeImg.classList.remove('hidden');
+        const extras = qrCodeDiv.querySelectorAll('canvas, img:not(#qrCodeImg)');
+        extras.forEach(el => el.remove());
+        return;
+      }
+
+      if (window.QRCode) {
+        qrCodeImg.classList.add('hidden');
+        const extras = qrCodeDiv.querySelectorAll('canvas, img:not(#qrCodeImg)');
+        extras.forEach(el => el.remove());
+        new QRCode(qrCodeDiv, {
+          text: url,
+          width: 208,
+          height: 208,
+          colorDark: '#0f172a',
+          colorLight: '#ffffff',
+          correctLevel: QRCode.CorrectLevel.M
+        });
+      }
+    }
+
+    function populateNetworkOptions(urls) {
+      if (!urls || Object.keys(urls).length === 0) return;
+      allUrls = urls;
+      networkSelect.innerHTML = '';
+
+      const options = [
+        { label: 'Wi-Fi LAN', key: 'ip_url' },
+        { label: 'mDNS (.local)', key: 'mdns_url' },
+        { label: 'HTTPS Wi-Fi', key: 'https_ip_url' },
+        { label: 'Localhost', key: 'localhost_url' },
+      ];
+
+      options.forEach(opt => {
+        if (urls[opt.key]) {
+          const el = document.createElement('option');
+          el.value = urls[opt.key];
+          el.innerText = `${opt.label} (${urls[opt.key].replace(/^https?:\/\//, '').split('/')[0]})`;
+          networkSelect.appendChild(el);
+        }
+      });
+
+      if (networkSelect.options.length > 1) {
+        networkSelect.classList.remove('hidden');
+      }
+    }
+
+    networkSelect.addEventListener('change', (e) => {
+      const selectedUrl = e.target.value;
+      if (selectedUrl) {
+        renderQr(selectedUrl, null);
+      }
+    });
 
     async function loadQrInfo() {
       try {
         const res = await fetch('/api/qr');
         if (res.ok) {
           const data = await res.json();
-          if (data.qr_data_uri) {
-            qrCodeImg.src = data.qr_data_uri;
-          }
-          const url = data.urls?.ip_url || `http://${window.location.hostname}:8765`;
-          directUrlText.innerText = url;
+          const targetUrl = data.urls?.ip_url || data.urls?.mdns_url || `http://${window.location.hostname}:8765`;
+          populateNetworkOptions(data.urls);
+          renderQr(targetUrl, data.qr_data_uri);
+          return;
         }
-      } catch (e) {
-        directUrlText.innerText = `http://${window.location.hostname}:8765`;
-      }
+      } catch (e) {}
+
+      // Robust fallback
+      const fallbackUrl = `http://${window.location.hostname || '127.0.0.1'}:8765`;
+      renderQr(fallbackUrl, null);
     }
 
     copyBtn.addEventListener('click', () => {
@@ -155,3 +239,4 @@
   </script>
 </body>
 </html>
+

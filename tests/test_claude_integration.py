@@ -112,8 +112,7 @@ def test_handle_claude_stop_hook_auto_submit_false(tmp_path):
     with patch("voicefi.integrations.claude.get_tts_engine", return_value=mock_tts), \
          patch("voicefi.integrations.claude.AudioRecorder", return_value=mock_recorder), \
          patch("voicefi.integrations.claude.get_stt_engine", return_value=mock_stt), \
-         patch("voicefi.integrations.claude.is_frontmost_app_a_terminal", return_value=True), \
-         patch("voicefi.integrations.claude.inject_text_to_active_app") as mock_inject, \
+         patch("voicefi.integrations.claude.inject_text_to_claude") as mock_inject, \
          patch("voicefi.integrations.claude.claim_turn", return_value=True):
 
         payload = {"message": "Claude is ready."}
@@ -125,9 +124,10 @@ def test_handle_claude_stop_hook_auto_submit_false(tmp_path):
         mock_inject.assert_called_once_with("git status and run tests", submit_enter=False)
 
 
-def test_handle_claude_stop_hook_non_terminal_clipboard_only(tmp_path):
+def test_handle_claude_stop_hook_direct_injection(tmp_path):
     cfg = VoiceFiConfig()
     cfg.claude.auto_listen = True
+    cfg.claude.auto_submit = True
     cfg.claude.inject_to_active_window = True
     cfg.audio_cues.enabled = False
 
@@ -143,16 +143,13 @@ def test_handle_claude_stop_hook_non_terminal_clipboard_only(tmp_path):
     with patch("voicefi.integrations.claude.get_tts_engine", return_value=mock_tts), \
          patch("voicefi.integrations.claude.AudioRecorder", return_value=mock_recorder), \
          patch("voicefi.integrations.claude.get_stt_engine", return_value=mock_stt), \
-         patch("voicefi.integrations.claude.is_frontmost_app_a_terminal", return_value=False), \
-         patch("voicefi.integrations.claude.get_frontmost_app_name", return_value="Notes"), \
-         patch("voicefi.integrations.claude.set_clipboard_text") as mock_clipboard, \
-         patch("voicefi.integrations.claude.inject_text_to_active_app") as mock_inject, \
+         patch("voicefi.integrations.claude.inject_text_to_claude") as mock_inject, \
          patch("voicefi.integrations.claude.claim_turn", return_value=True):
 
         payload = {"message": "Claude finished."}
         result = handle_claude_stop_hook(payload, cfg)
 
-        assert result["status"] == "clipboard_only"
-        assert result["frontmost_app"] == "Notes"
-        mock_clipboard.assert_called_once_with("check the database migration")
-        mock_inject.assert_not_called()
+        assert result["status"] == "transcribed"
+        assert result["text"] == "check the database migration"
+        mock_inject.assert_called_once_with("check the database migration", submit_enter=True)
+
