@@ -64,10 +64,10 @@ def claim_turn(conv_id: str, signature: str) -> bool:
                     except Exception:
                         entries = []
 
-                # Clean entries older than 60 seconds
+                # Clean entries older than 10 seconds (enough to prevent dual hook/watcher race)
                 valid_entries = [
                     e for e in entries
-                    if (now - float(e.get("timestamp", 0))) < 60.0
+                    if (now - float(e.get("timestamp", 0))) < 10.0
                 ]
 
                 # Check if this exact signature OR normalized text was already claimed
@@ -78,9 +78,7 @@ def claim_turn(conv_id: str, signature: str) -> bool:
                     if e_sig == signature:
                         return False
                     if norm_sig and e_norm == norm_sig:
-                        # Same text spoken within 60s -> duplicate!
-                        return False
-                    if conv_id and e_cid == conv_id and norm_sig and norm_sig in e_norm:
+                        # Exact same text claimed within 10s -> duplicate!
                         return False
 
                 # Claim this turn
