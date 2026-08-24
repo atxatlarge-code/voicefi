@@ -2232,6 +2232,9 @@ def main():
     up_p.add_argument("--check", action="store_true", help="Check for updates without installing")
     up_p.add_argument("--repo", default=None, help="Custom git repository URL to upgrade from")
 
+    # help
+    subparsers.add_parser("help", help="Display help and command usage")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -2245,6 +2248,7 @@ def main():
     commands = {
         "update": cmd_update,
         "upgrade": cmd_update,
+        "help": lambda a: parser.print_help(),
         "new": cmd_new,
         "new-conversation": cmd_new,
         "hook": cmd_hook,
