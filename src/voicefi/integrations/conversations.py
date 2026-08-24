@@ -224,8 +224,7 @@ def get_pending_question(
         return None
     try:
         current = json.loads(_PENDING_QUESTIONS_FILE.read_text())
-        cid_key = conv_id or "_latest"
-        data = current.get(cid_key) or current.get("_latest")
+        data = current.get(conv_id) if conv_id else current.get("_latest")
         if not data:
             return None
         ts = float(data.get("timestamp", 0))
