@@ -136,6 +136,9 @@ ln -sf "$BIN_DIR/vifi" "$BIN_DIR/vg"
 say_msg "${CYAN}⚡ Configuring Agent lifecycle hooks (Antigravity & Claude Code)...${NC}"
 "$INSTALL_DIR/venv/bin/voicefi" setup >/dev/null 2>&1 || true
 
+say_msg "${CYAN}⚡ Starting VoiceFi menu bar companion (global hotkeys & Esc stop)...${NC}"
+"$INSTALL_DIR/venv/bin/voicefi" autostart >/dev/null 2>&1 || true
+
 # 6. Check for Obsidian and prompt user interactively
 if [ -d "$HOME/Library/Application Support/obsidian" ] || [ -d "$HOME/Documents/Obsidian Vault" ]; then
     INSTALL_OBSIDIAN="y"
