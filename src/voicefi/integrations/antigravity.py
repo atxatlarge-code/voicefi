@@ -21,7 +21,12 @@ from voicefi.integrations.conversations import (
     claim_turn,
     pop_mobile_turn_origin,
     has_active_companion_client,
+    set_pending_question,
+    get_pending_question,
+    resolve_pending_question,
+    clear_pending_question,
 )
+from voicefi.integrations.active_listening import ActiveListeningEngine, SpokenIntentCategory
 
 
 def clean_markdown_for_speech(text: str, max_words: int = 30) -> str:
@@ -172,12 +177,20 @@ def handle_antigravity_stop_hook(payload: Dict[str, Any], config: Optional[Voice
     """
     cfg = config or load_config()
 
-    conv_id = payload.get("conversationId", "")
-    transcript_path_str = payload.get("transcriptPath", "")
-    workspace_paths = payload.get("workspacePaths", [])
+    conv_id = payload.get("conversationId") or payload.get("conversation_id") or payload.get("conv_id") or ""
+    transcript_path_str = payload.get("transcriptPath") or payload.get("transcript_path") or ""
+    workspace_paths = payload.get("workspacePaths") or payload.get("workspace_paths") or []
     workspace_path = workspace_paths[0] if workspace_paths else None
     transcript_path = Path(transcript_path_str) if transcript_path_str else Path("")
     hook_agent_role = payload.get("agent_role") or payload.get("role")
+
+    if not conv_id and transcript_path_str:
+        try:
+            cand = Path(transcript_path_str).parent.parent.parent.name
+            if len(cand) >= 8:
+                conv_id = cand
+        except Exception:
+            pass
 
     if conv_id:
         save_session_cookie(
@@ -193,10 +206,13 @@ def handle_antigravity_stop_hook(payload: Dict[str, Any], config: Optional[Voice
     )
     active_agent = hook_agent_role or detected_role or "antigravity"
 
+    # Track pending clarifying question / options if present
+    if summary and (summary.endswith("?") or " or " in summary.lower()):
+        set_pending_question(conv_id, summary)
+
     if summary:
         from voicefi.audio.echo_canceller import record_agent_spoken
         record_agent_spoken(summary)
-
 
     turn_sig = f"{conv_id}:{summary[:35]}"
     if not claim_turn(conv_id, turn_sig):
@@ -325,8 +341,33 @@ def handle_antigravity_stop_hook(payload: Dict[str, Any], config: Optional[Voice
                 print(f"[Antigravity] 🛡️ Suppressed acoustic self-echo: \"{clean_t}\" (matched agent output)")
                 return {}
 
+            pending_q = get_pending_question(conv_id)
+            eval_res = ActiveListeningEngine.evaluate(clean_t, pending_question=pending_q, is_ambient=False)
+
+            if eval_res.category == SpokenIntentCategory.MIC_CHECK:
+                print(f"[ActiveListening] 🎙️ Mic check detected: '{clean_t}' -> fast reassurance")
+                if eval_res.quick_spoken_reply:
+                    tts = get_tts_engine(cfg, agent_name=active_agent)
+                    tts.stream_speak(eval_res.quick_spoken_reply, block=True)
+                return {}
+
+            if eval_res.category == SpokenIntentCategory.CONVERSATIONAL_FILLER:
+                print(f"[ActiveListening] 💬 Conversational filler detected: '{clean_t}' -> acknowledge")
+                if eval_res.quick_spoken_reply:
+                    tts = get_tts_engine(cfg, agent_name=active_agent)
+                    tts.stream_speak(eval_res.quick_spoken_reply, block=True)
+                return {}
+
+            if eval_res.category == SpokenIntentCategory.PENDING_ANSWER:
+                print(f"[ActiveListening] 🎯 Matched pending choice: '{eval_res.selected_option}' (from '{clean_t}')")
+                resolve_pending_question(conv_id, selected_option=eval_res.selected_option)
+                text_to_send = eval_res.selected_option or eval_res.normalized_text
+            else:
+                clear_pending_question(conv_id)
+                text_to_send = eval_res.normalized_text
+
             if cfg.antigravity.inject_to_active_window:
-                if inject_text_to_active_app(clean_t, submit_enter=True, target_antigravity=True):
+                if inject_text_to_active_app(text_to_send, submit_enter=True, target_antigravity=True):
                     print("Sent to active conversation.")
                 else:
                     print("⚠️ Injection failed — text left on clipboard.")

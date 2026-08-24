@@ -130,3 +130,22 @@ def test_tray_toggle_hub_debouncing():
         app._last_hub_toggle_time = time.time() - 1.0
         app.toggle_hub()
         assert mock_hub_instance.toggle.call_count == 2
+
+
+def test_conversation_hub_new_conversation_action(mock_tracker):
+    """Test clicking the New (Tools) button triggers the on_new_conversation callback."""
+    ConversationHubWindow._instance = None
+    new_conv_called = []
+    hub = ConversationHubWindow.get_instance(
+        mock_tracker,
+        on_new_conversation=lambda: new_conv_called.append(True),
+    )
+    assert hub.on_new_conversation is not None
+
+    hub.show()
+    assert len(hub._targets) >= 4  # New conv, Focus, Sync, Panel
+
+    # First target in list is the new_conv action target
+    hub._targets[0].buttonClicked_(None)
+    assert len(new_conv_called) == 1
+

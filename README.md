@@ -6,8 +6,8 @@
 
 <br><br>
 
-### **Give a voice to your agents, and agency to your voice.**  
-*The Universal Ambient Voice Layer for AI Agents & macOS Desktop Computing.*
+### **Give voice to your agents, and agency for your voice.**  
+*The Universal Voice Layer for AI Agents, MCP, and macOS.*
 
 ![Status: Patent Pending](https://img.shields.io/badge/Status-Patent%20Pending%20(63%2F137%2C300)-blue.svg)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
@@ -64,8 +64,9 @@ Whether you are orchestrating a fleet of autonomous AI agents (**Antigravity, Cl
 
 ## ✨ Features
 
-- 🔄 **Hands-Free Agent Turn-Handoff**: Directly integrates into Antigravity lifecycle hooks (`hooks.json`). Announces agent status and listens for your voice command automatically.
+- 🔄 **Hands-Free Workflow & Feedback Loop**: Directly integrates into lifecycle hooks and workflows for Antigravity, Claude, Cursor, Aider, and other AI IDEs. Announces agent status and listens for your voice command automatically, creating a seamless feedback loop.
 - 🎯 **Smart Conversational Summarizer**: Cleanses raw markdown, code snippets, and logs to deliver brief, audible voice soundbites.
+- 👂 **Active Listening & Intent Verification**: Proactively asks clarifying questions for ambiguous instructions and paraphrases destructive commands before execution.
 - 🎙️ **Voice Activity Detection (VAD)**: Real-time energy detection that knows when you start speaking and stops listening when you pause.
 - 🔊 **Multi-Provider TTS (Text-to-Speech)**:
   - **Native macOS `say`** (Instant, zero latency, offline, supports Siri & system voices).

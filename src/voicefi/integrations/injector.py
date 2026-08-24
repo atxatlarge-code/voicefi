@@ -63,10 +63,16 @@ def is_frontmost_app_a_terminal(allowed_apps: tuple = DEFAULT_TERMINAL_APPS, fal
 
 
 def open_accessibility_settings() -> None:
-    """Open the macOS Accessibility Privacy settings pane directly."""
+    """Open the macOS Accessibility and Input Monitoring Privacy settings panes directly."""
     try:
         subprocess.run(
             ["open", "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        time.sleep(0.5)
+        subprocess.run(
+            ["open", "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
@@ -401,6 +407,8 @@ def create_new_antigravity_conversation(
                     out_data = json.loads(res.stdout)
                     cid = out_data.get("conversation_id") or out_data.get("id") or out_data.get("conversationId")
                     if cid:
+                        from voicefi.integrations.conversations import save_session_cookie
+                        save_session_cookie(conv_id=str(cid), title=title or clean_prompt[:40])
                         return str(cid)
                 except Exception:
                     pass
@@ -439,9 +447,10 @@ def create_new_antigravity_conversation(
 
     time.sleep(0.5)
     try:
-        from voicefi.integrations.conversations import ConversationTracker
+        from voicefi.integrations.conversations import ConversationTracker, save_session_cookie
         active = ConversationTracker().get_active_or_latest()
         if active:
+            save_session_cookie(conv_id=active.id, title=title or clean_prompt[:40])
             return active.id
     except Exception:
         pass

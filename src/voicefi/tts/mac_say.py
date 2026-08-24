@@ -8,6 +8,7 @@ import threading
 from pathlib import Path
 from typing import Optional, List
 from voicefi.tts.base import BaseTTS, speech_turn_lock
+from voicefi.audio.meeting_detection import is_user_on_call
 
 
 def normalize_mac_rate(rate: any) -> int:
@@ -74,6 +75,10 @@ class MacSayTTS(BaseTTS):
     def speak(self, text: str, block: bool = True) -> None:
         """Speak text aloud using macOS say with cross-process turn queuing."""
         if not text or not text.strip():
+            return
+            
+        if is_user_on_call():
+            print("[MacSayTTS] User is on a call. Skipping speech synthesis.")
             return
 
         cmd = ["say", "-v", self.voice, "-r", str(self.rate), "--", text]

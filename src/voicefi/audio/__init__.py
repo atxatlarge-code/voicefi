@@ -7,6 +7,12 @@ from voicefi.audio.echo_canceller import (
     clear_agent_spoken_history,
 )
 
+from voicefi.audio.device import (
+    is_using_builtin_speakers,
+    is_headphone_or_headset_active,
+    get_audio_device_profile,
+)
+
 __all__ = [
     "play_chime",
     "AudioRecorder",
@@ -14,5 +20,8 @@ __all__ = [
     "record_agent_spoken",
     "get_recent_spoken_texts",
     "clear_agent_spoken_history",
+    "is_using_builtin_speakers",
+    "is_headphone_or_headset_active",
+    "get_audio_device_profile",
 ]
 

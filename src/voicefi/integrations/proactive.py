@@ -33,6 +33,9 @@ class ProactiveTask:
     result_summary: Optional[str] = None
 
 
+from voicefi.integrations.active_listening import ActiveListeningEngine, SpokenIntentCategory
+
+
 class ProactiveTriageEngine:
     """Classifies streaming transcript chunks into actionable developer intents."""
 
@@ -71,7 +74,16 @@ class ProactiveTriageEngine:
         if not clean_text or len(clean_text.split()) < 3:
             return None
 
-        # 1. Quick check for ignore / smalltalk
+        # 1. Filter out mic checks and conversational filler using ActiveListeningEngine
+        active_res = ActiveListeningEngine.evaluate(clean_text, is_ambient=True)
+        if not active_res.is_actionable or active_res.category in (
+            SpokenIntentCategory.MIC_CHECK,
+            SpokenIntentCategory.CONVERSATIONAL_FILLER,
+            SpokenIntentCategory.IGNORED,
+        ):
+            return None
+
+        # 2. Quick check for ignore / smalltalk patterns
         for pat in cls.IGNORE_PATTERNS:
             if re.search(pat, clean_text, re.IGNORECASE):
                 return None

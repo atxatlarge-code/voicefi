@@ -1,6 +1,6 @@
 # Claude Code Guide — VoiceFi™
 
-Universal Ambient Voice Layer for AI Agents (Antigravity, Claude Code, Cursor) & macOS Desktop.
+Universal Voice Layer for AI Agents, MCP, and macOS.
 
 ## Build & Installation
 

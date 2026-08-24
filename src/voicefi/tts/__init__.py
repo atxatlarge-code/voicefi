@@ -48,8 +48,10 @@ def get_tts_engine(
     if voice_override:
         voice = voice_override
         persona = find_persona(voice_override)
-        if persona and not provider_override:
-            provider = persona.provider
+        if persona:
+            voice = persona.id
+            if not provider_override:
+                provider = persona.provider
     if rate_override is not None:
         rate = rate_override
 

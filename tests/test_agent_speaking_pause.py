@@ -189,13 +189,14 @@ def test_tray_status_map_includes_paused():
         # Test paused agent speaking state
         app._current_status = "paused_agent_speaking"
         app._update_status_ui(None)
-        assert "⏸️" in app.title
         assert "Agent Speaking" in app.title
+        assert app._current_symbol == "pause.fill"
 
         # Test generic paused state
         app._current_status = "paused"
         app._update_status_ui(None)
-        assert "⏸️" in app.title
+        assert "Paused" in app.title
+        assert app._current_symbol == "pause.fill"
 
 
 def test_is_agent_speaking_stale_pid_cleanup():

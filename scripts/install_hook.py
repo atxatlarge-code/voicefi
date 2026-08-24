@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Setup helper to register the Voicegency hook into ~/.gemini/config/hooks.json.
+Setup helper to register the VoiceFi hook into ~/.gemini/config/hooks.json.
 """
 
 import sys
@@ -10,7 +10,7 @@ from pathlib import Path
 root_dir = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(root_dir / "src"))
 
-from voicegency.cli import cmd_setup
+from voicefi.cli import cmd_setup
 import argparse
 
 if __name__ == "__main__":

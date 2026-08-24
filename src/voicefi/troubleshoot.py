@@ -553,19 +553,26 @@ class AudioTroubleshooter:
         """
         Inspect input & output audio devices, OS audio server status, and permissions.
         """
+        from voicefi.audio.device import get_audio_device_profile
+        audio_prof = get_audio_device_profile()
+
         effective_rate = self.config.tts.rate or 200
         diagnostics: Dict[str, Any] = {
             "os_platform": platform.system(),
             "os_release": platform.release(),
+            "machine_arch": platform.machine(),
             "input_devices": [],
             "output_devices": [],
-            "default_input": None,
-            "default_output": None,
+            "default_input": audio_prof.get("default_input"),
+            "default_output": audio_prof.get("default_output"),
+            "is_builtin_speakers": audio_prof.get("is_builtin_speakers"),
+            "is_headphones_active": audio_prof.get("is_headphones_active"),
             "tts_provider": self.config.tts.provider,
             "tts_voice": self.config.tts.voice,
             "tts_rate": effective_rate,
             "tts_rate_pct": f"{int(round((effective_rate / 200.0) * 100))}%",
             "vad_mode": self.config.vad.mode,
+            "vad_barge_in": self.config.vad.barge_in,
             "vad_threshold": self.config.vad.energy_threshold,
             "audio_cues_enabled": self.config.audio_cues.enabled,
             "configured_agents": list(self.config.agents.keys()),
@@ -575,7 +582,6 @@ class AudioTroubleshooter:
         try:
             import sounddevice as sd
             devices = sd.query_devices()
-            default_in_idx, default_out_idx = sd.default.device
 
             for idx, dev in enumerate(devices):
                 dev_info = {
@@ -590,11 +596,6 @@ class AudioTroubleshooter:
                     diagnostics["input_devices"].append(dev_info)
                 if dev["max_output_channels"] > 0:
                     diagnostics["output_devices"].append(dev_info)
-
-            if default_in_idx is not None and 0 <= default_in_idx < len(devices):
-                diagnostics["default_input"] = devices[default_in_idx]["name"]
-            if default_out_idx is not None and 0 <= default_out_idx < len(devices):
-                diagnostics["default_output"] = devices[default_out_idx]["name"]
 
         except Exception as e:
             diagnostics["device_error"] = str(e)
@@ -622,6 +623,9 @@ class AudioTroubleshooter:
         if not hw.get("default_output"):
             recommendations.append("No default audio output detected. Check macOS Sound settings.")
 
+        if hw.get("is_builtin_speakers") and self.config.vad.barge_in is True:
+            recommendations.append("Built-in laptop speakers in use with forced Barge-In. Recommendation: switch to 'auto' ('vg troubleshoot --fix auto_barge_in') to prevent speaker bleed cutoffs.")
+
         if voice_test.error:
             recommendations.append(f"TTS Error encountered: {voice_test.error}. Consider falling back to offline macOS say: 'vg voice set antigravity Samantha'")
 
@@ -644,9 +648,20 @@ class AudioTroubleshooter:
             self.config.tts.provider = "edge_tts"
             self.config.tts.voice = "en-US-ChristopherNeural"
             self.config.vad.mode = "hybrid"
+            self.config.vad.barge_in = "auto"
             self.config.vad.energy_threshold = 0.004
             save_config(self.config)
             return {"success": True, "message": "Reset audio, TTS voice, speed, and VAD parameters to default."}
+
+        if fix in ("auto_barge_in", "smart_barge_in", "safe_barge_in"):
+            self.config.vad.barge_in = "auto"
+            save_config(self.config)
+            return {"success": True, "message": "Set barge-in to 'auto' (AirPods/Headphones=On, Built-in Speakers=Safe Mode)."}
+
+        if fix in ("disable_barge_in", "turn_off_barge_in", "no_barge_in"):
+            self.config.vad.barge_in = False
+            save_config(self.config)
+            return {"success": True, "message": "Disabled barge-in voice interruption globally."}
 
         if fix in ("set_offline_fallback", "offline_say", "mac_say"):
             self.config.tts.provider = "mac_say"

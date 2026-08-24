@@ -78,6 +78,9 @@ obsidian-plugin/node_modules/
 refactor_*.py
 update_*.py
 scratch/
+/test_*.py
+/patch.py
+*.log
 
 # PyInstaller specifications with local paths
 *.spec
@@ -87,6 +90,5 @@ scratch/
 .idea/
 .vscode/
 *.swp
-*.swo
-
-ROADMAP.md
+pr/
+marketing/

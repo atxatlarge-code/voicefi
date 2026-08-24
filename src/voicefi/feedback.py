@@ -27,6 +27,9 @@ def get_feedback_dir() -> Path:
 def collect_system_diagnostics() -> Dict[str, Any]:
     """Collect non-sensitive environment diagnostics for troubleshooting."""
     config = load_config()
+    from voicefi.audio.device import get_audio_device_profile
+    audio_prof = get_audio_device_profile()
+
     diagnostics: Dict[str, Any] = {
         "voicefi_version": __version__,
         "python_version": sys.version.split()[0],
@@ -34,12 +37,17 @@ def collect_system_diagnostics() -> Dict[str, Any]:
         "os_release": platform.release(),
         "os_version": platform.version(),
         "architecture": platform.machine(),
+        "default_input": audio_prof.get("default_input"),
+        "default_output": audio_prof.get("default_output"),
+        "is_builtin_speakers": audio_prof.get("is_builtin_speakers"),
+        "is_headphones_active": audio_prof.get("is_headphones_active"),
         "tts_provider": config.tts.provider,
         "tts_voice": config.tts.voice,
         "tts_rate": config.tts.rate,
         "stt_provider": config.stt.provider,
         "stt_model": config.stt.model_size,
         "vad_mode": config.vad.mode,
+        "vad_barge_in": config.vad.barge_in,
         "vad_energy_threshold": config.vad.energy_threshold,
         "configured_agents": list(config.agents.keys()),
         "configured_subagents": list(config.subagents.keys()),
@@ -98,6 +106,13 @@ def submit_feedback(
     log_path.parent.mkdir(parents=True, exist_ok=True)
     with open(log_path, "a", encoding="utf-8") as f:
         f.write(json.dumps(record) + "\n")
+
+    # 3. Dispatch sanitized event to remote telemetry if enabled
+    try:
+        from voicefi.telemetry import capture_event
+        capture_event("feedback_submitted", record)
+    except Exception:
+        pass
 
     return record
 

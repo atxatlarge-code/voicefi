@@ -70,7 +70,7 @@
 
     <!-- Bottom App Tagline -->
     <text x="0" y="380" fill="#71717A" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif" font-size="16" font-weight="500">
-      The Universal Voice Layer for AI Agents &amp; macOS Computing
+      The Universal Voice Layer for AI Agents, MCP, and macOS
     </text>
     
     <text x="0" y="412" fill="#52525B" font-family="ui-monospace, monospace" font-size="13">

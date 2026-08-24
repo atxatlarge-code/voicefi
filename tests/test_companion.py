@@ -113,7 +113,58 @@ class CompanionServerTestCase(AioHTTPTestCase):
             assert resp_send.status == 200
             data_send = await resp_send.json()
             assert data_send.get("success") is True
-            mock_send.assert_called_once_with(conv_id="test-conv-123", text="Run unit tests")
+            mock_send.assert_called_once_with(conv_id="test-conv-123", text="Run unit tests", sender_name=None, title=None)
+
+    async def test_api_artifact_review(self):
+        """Test POST /api/conversation/{conv_id}/artifact_review with structured review comments."""
+        with patch("voicefi.companion.server.send_message_to_antigravity", return_value=True) as mock_send:
+            payload = {
+                "filename": "implementation_plan.md",
+                "comments": [
+                    {
+                        "snippet": "Proposed Changes to UI",
+                        "comment": "Move the review bar to the bottom and make it sticky."
+                    },
+                    {
+                        "snippet": "port = 8080",
+                        "comment": "Change default port to 8765."
+                    }
+                ],
+                "general_feedback": "Looks solid overall.",
+                "sender_name": "Mobile Reviewer"
+            }
+            resp = await self.client.post("/api/conversation/test-conv-123/artifact_review", json=payload)
+            assert resp.status == 200
+            data = await resp.json()
+            assert data.get("success") is True
+            assert data.get("comments_count") == 2
+            assert "Review Comments on `implementation_plan.md`" in data.get("message")
+            assert "Move the review bar to the bottom" in data.get("message")
+            mock_send.assert_called_once()
+            called_args = mock_send.call_args.kwargs
+            assert called_args["conv_id"] == "test-conv-123"
+            assert "implementation_plan.md" in called_args["title"]
+
+    async def test_api_image_feedback(self):
+        """Test POST /api/conversation/{conv_id}/image_feedback with annotated image markup."""
+        # 1x1 transparent PNG in base64
+        sample_b64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+        with patch("voicefi.companion.server.send_message_to_antigravity", return_value=True) as mock_send:
+            payload = {
+                "original_filename": "mockup_v1.png",
+                "annotated_image_base64": sample_b64,
+                "feedback_text": "I circled the header: make it bold and add 10px margin.",
+                "sender_name": "Visual QA"
+            }
+            resp = await self.client.post("/api/conversation/test-conv-123/image_feedback", json=payload)
+            assert resp.status == 200
+            data = await resp.json()
+            assert data.get("success") is True
+            assert data.get("original_filename") == "mockup_v1.png"
+            assert data.get("filename").startswith("annotated_mockup_v1_")
+            assert "Visual Markup & Feedback on `mockup_v1.png`" in data.get("message")
+            assert "make it bold" in data.get("message")
+            mock_send.assert_called_once()
 
     async def test_api_qr(self):
         """Test GET /api/qr returns pairing metadata."""

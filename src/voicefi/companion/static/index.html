@@ -8,8 +8,16 @@
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#000000">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <!-- OpenGraph & Twitter Meta Tags -->
+  <meta property="og:title" content="VoiceFi Companion — Mobile Voice Agent Bridge">
+  <meta property="og:description" content="Talk hands-free to Antigravity AI agents from your phone and inspect full working logs & responses.">
+  <meta property="og:url" content="https://voicefi.org">
+  <meta property="og:image" content="https://voicefi.org/assets/og-image.png">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="VoiceFi Companion — Mobile Voice Agent Bridge">
+  <meta name="twitter:description" content="Talk hands-free to Antigravity AI agents from your phone and inspect full working logs & responses.">
+  <meta name="twitter:image" content="https://voicefi.org/assets/og-image.png">
   <script src="https://cdn.tailwindcss.com"></script>
   
   <!-- Markdown & Syntax Highlighting -->
@@ -164,6 +172,67 @@
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: #333333; border-radius: 10px; }
     ::-webkit-scrollbar-thumb:hover { background: #555555; }
+
+    /* Markdown Comment Mode & Annotations */
+    .comment-mode-active .prose-dark > p,
+    .comment-mode-active .prose-dark > h1,
+    .comment-mode-active .prose-dark > h2,
+    .comment-mode-active .prose-dark > h3,
+    .comment-mode-active .prose-dark > h4,
+    .comment-mode-active .prose-dark > ul > li,
+    .comment-mode-active .prose-dark > ol > li,
+    .comment-mode-active .prose-dark > blockquote,
+    .comment-mode-active .prose-dark > pre {
+      position: relative;
+      cursor: pointer;
+      border-radius: 0.375rem;
+      padding-left: 0.35rem;
+      padding-right: 0.35rem;
+      transition: background-color 0.15s ease, outline 0.15s ease;
+    }
+    .comment-mode-active .prose-dark > p:hover,
+    .comment-mode-active .prose-dark > h1:hover,
+    .comment-mode-active .prose-dark > h2:hover,
+    .comment-mode-active .prose-dark > h3:hover,
+    .comment-mode-active .prose-dark > h4:hover,
+    .comment-mode-active .prose-dark > ul > li:hover,
+    .comment-mode-active .prose-dark > ol > li:hover,
+    .comment-mode-active .prose-dark > blockquote:hover,
+    .comment-mode-active .prose-dark > pre:hover {
+      background-color: rgba(251, 191, 36, 0.1);
+      outline: 1px dashed rgba(251, 191, 36, 0.5);
+    }
+    .commented-target {
+      background-color: rgba(251, 191, 36, 0.16) !important;
+      border-left: 3px solid #fbbf24 !important;
+      padding-left: 0.5rem !important;
+      border-radius: 0 0.375rem 0.375rem 0;
+    }
+    .comment-badge-inline {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.65rem;
+      font-family: ui-monospace, monospace;
+      font-weight: 700;
+      background: #fbbf24;
+      color: #000000;
+      border-radius: 9999px;
+      padding: 0.1rem 0.4rem;
+      margin-left: 0.4rem;
+      vertical-align: middle;
+      cursor: pointer;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+    }
+    .dictating-active {
+      animation: dictatingPulse 1.2s infinite ease-in-out;
+      background-color: #ef4444 !important;
+      color: #ffffff !important;
+    }
+    @keyframes dictatingPulse {
+      0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+      50% { transform: scale(1.08); box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+    }
   </style>
 </head>
 <body class="h-full flex flex-col justify-between overflow-hidden bg-black text-white relative">
@@ -245,9 +314,6 @@
         <button id="agThemeBtn" title="Cycle Antigravity Zero-G Theme (Google Glow / Mono / Studio Red)" class="px-2 py-1 text-zinc-400 hover:text-white bg-[#111111] hover:bg-[#1c1c1c] border border-[#222222] rounded-lg text-[10px] mono transition flex items-center gap-1 cursor-pointer">
           <span class="w-1.5 h-1.5 rounded-full bg-blue-500" id="agThemeDot"></span>
           <span id="agThemeText">AG</span>
-        </button>
-        <button id="speakerMuteBtn" title="Toggle Phone Voice Output (Mute / Unmute)" class="px-2 py-1 text-[#888888] hover:text-white bg-[#111111] border border-[#222222] rounded-lg text-[10px] mono transition flex items-center gap-1">
-          <span id="speakerMuteIcon">AUDIO</span>
         </button>
         <button id="refreshBtn" title="Refresh Session Details" class="px-2 py-1 text-[#888888] hover:text-white bg-[#111111] border border-[#222222] rounded-lg text-[10px] mono transition cursor-pointer">
           SYNC
@@ -683,24 +749,205 @@
     </div>
   </div>
 
-  <!-- Artifact Full Document Modal Drawer -->
-  <div id="artifactModal" class="fixed inset-0 bg-black/90 backdrop-blur-md z-50 hidden flex flex-col">
-    <div class="p-3.5 bg-black border-b border-[#222222] flex items-center justify-between">
+  <!-- Artifact Full Document / Image Markup Studio Modal Drawer -->
+  <div id="artifactModal" class="fixed inset-0 bg-black/95 backdrop-blur-md z-50 hidden flex flex-col">
+    <!-- Modal Header -->
+    <div class="p-3.5 bg-black border-b border-[#222222] flex items-center justify-between shrink-0">
       <div class="flex items-center gap-2 truncate">
-        <span class="text-white text-xs font-mono">[DOC]</span>
+        <span id="artifactModalTypeBadge" class="text-white text-xs font-mono px-1.5 py-0.5 bg-[#18181b] border border-[#27272a] rounded">[DOC]</span>
         <h3 id="artifactModalTitle" class="font-bold text-xs text-white truncate">Artifact Document</h3>
       </div>
       <div class="flex items-center gap-2">
+        <!-- Comment Mode Toggle Button (visible for markdown) -->
+        <button id="toggleCommentModeBtn" class="hidden px-2.5 py-1 bg-[#141414] hover:bg-[#222222] text-amber-400 text-xs rounded-lg transition font-medium border border-[#333333] mono flex items-center gap-1.5 cursor-pointer">
+          <span class="text-amber-400">💬</span> <span id="toggleCommentModeText">Comment Mode</span>
+        </button>
+        <!-- Copy Button (for markdown/text) -->
         <button id="copyArtifactBtn" class="px-2.5 py-1 bg-[#141414] hover:bg-[#222222] text-white text-xs rounded-lg transition font-medium border border-[#222222] mono">
           Copy
         </button>
-        <button id="closeArtifactModal" class="p-1 text-[#888888] hover:text-white rounded-lg transition text-xs font-bold">
+        <!-- Close Button -->
+        <button id="closeArtifactModal" class="p-1.5 text-[#888888] hover:text-white rounded-lg transition text-xs font-bold cursor-pointer">
           ✕
         </button>
       </div>
     </div>
-    <div class="flex-1 overflow-y-auto p-4 max-w-4xl mx-auto w-full">
+
+    <!-- Main Scrollable Body Container -->
+    <div id="artifactModalScrollContainer" class="flex-1 overflow-y-auto p-4 max-w-4xl mx-auto w-full relative">
+      <!-- Markdown Document View -->
       <div id="artifactModalBody" class="prose-dark"></div>
+
+      <!-- Image Markup Studio View -->
+      <div id="imageMarkupStudio" class="hidden flex flex-col items-center gap-4 w-full">
+        <!-- Image Markup Toolbar -->
+        <div class="w-full bg-[#0d0d0d] border border-[#222222] rounded-xl p-2.5 flex flex-wrap items-center justify-between gap-2 shadow-lg sticky top-0 z-30 backdrop-blur-md">
+          <!-- Tool: Pen vs Pan -->
+          <div class="flex items-center gap-1 bg-[#161616] p-1 rounded-lg border border-[#27272a]">
+            <button id="markupToolPen" class="px-2.5 py-1 rounded text-xs font-medium bg-white text-black transition flex items-center gap-1 cursor-pointer">
+              <span>✏️</span> <span>Draw</span>
+            </button>
+            <button id="markupToolPan" class="px-2.5 py-1 rounded text-xs font-medium text-zinc-400 hover:text-white transition flex items-center gap-1 cursor-pointer">
+              <span>🖐️</span> <span>Pan</span>
+            </button>
+          </div>
+
+          <!-- Color palette -->
+          <div class="flex items-center gap-1.5 bg-[#161616] p-1.5 rounded-lg border border-[#27272a]">
+            <button class="markup-color-btn w-6 h-6 rounded-full bg-red-500 ring-2 ring-white cursor-pointer transition transform hover:scale-110" data-color="#ef4444" title="Neon Red"></button>
+            <button class="markup-color-btn w-6 h-6 rounded-full bg-amber-400 cursor-pointer transition transform hover:scale-110" data-color="#eab308" title="Cyber Yellow"></button>
+            <button class="markup-color-btn w-6 h-6 rounded-full bg-emerald-500 cursor-pointer transition transform hover:scale-110" data-color="#22c55e" title="Neon Green"></button>
+            <button class="markup-color-btn w-6 h-6 rounded-full bg-cyan-400 cursor-pointer transition transform hover:scale-110" data-color="#06b6d4" title="Electric Cyan"></button>
+            <button class="markup-color-btn w-6 h-6 rounded-full bg-white cursor-pointer transition transform hover:scale-110" data-color="#ffffff" title="Crisp White"></button>
+          </div>
+
+          <!-- Stroke Size -->
+          <div class="flex items-center gap-1 bg-[#161616] p-1 rounded-lg border border-[#27272a] text-xs mono">
+            <button class="markup-size-btn px-2 py-0.5 rounded text-zinc-400 hover:text-white cursor-pointer" data-size="3">Fine</button>
+            <button class="markup-size-btn px-2 py-0.5 rounded bg-white text-black font-bold cursor-pointer" data-size="6">Med</button>
+            <button class="markup-size-btn px-2 py-0.5 rounded text-zinc-400 hover:text-white cursor-pointer" data-size="12">Thick</button>
+          </div>
+
+          <!-- Actions: Undo / Clear -->
+          <div class="flex items-center gap-1.5">
+            <button id="markupUndoBtn" class="px-2.5 py-1 bg-[#161616] hover:bg-[#262626] text-zinc-200 border border-[#27272a] rounded-lg text-xs font-mono transition flex items-center gap-1 cursor-pointer">
+              <span>↩</span> Undo
+            </button>
+            <button id="markupClearBtn" class="px-2.5 py-1 bg-[#161616] hover:bg-red-950/40 text-red-400 border border-[#27272a] rounded-lg text-xs font-mono transition flex items-center gap-1 cursor-pointer">
+              <span>🗑</span> Clear
+            </button>
+          </div>
+        </div>
+
+        <!-- Canvas Viewport -->
+        <div id="canvasViewport" class="relative max-w-full overflow-auto rounded-xl border border-[#27272a] bg-[#050505] flex items-center justify-center p-1 select-none">
+          <div id="canvasWrapper" class="relative inline-block select-none" style="touch-action: none;">
+            <img id="markupTargetImage" src="" alt="Markup Target" class="block max-w-full max-h-[58vh] object-contain rounded-lg pointer-events-none select-none">
+            <canvas id="imageDrawCanvas" class="absolute inset-0 w-full h-full cursor-crosshair" style="touch-action: none;"></canvas>
+          </div>
+        </div>
+
+        <!-- Spoken / Written Feedback Input -->
+        <div class="w-full bg-[#0a0a0a] border border-[#222222] rounded-xl p-3.5 space-y-2.5 shadow-md">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+              <span>🎙️</span> <span>Spoken or Written Feedback</span>
+            </span>
+            <span class="text-[10px] text-zinc-400 font-mono">Talk about circled areas</span>
+          </div>
+
+          <div class="relative flex items-center">
+            <textarea id="imageFeedbackText" rows="2" placeholder="e.g. 'I circled the navbar: make the logo 20% smaller and increase contrast...'" class="w-full bg-[#121212] border border-[#242424] focus:border-white rounded-xl p-3 pr-12 text-xs text-white placeholder:text-zinc-600 focus:outline-none resize-none leading-relaxed"></textarea>
+            <button id="imageFeedbackMicBtn" class="absolute right-2.5 top-2.5 p-2 rounded-lg bg-[#1c1c1c] hover:bg-[#2c2c2c] text-zinc-300 hover:text-white transition cursor-pointer border border-[#333333]" title="Dictate feedback">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
+              </svg>
+            </button>
+          </div>
+
+          <div class="flex items-center justify-between gap-3 pt-1">
+            <button id="imageFeedbackCancelBtn" class="px-3 py-1.5 bg-[#141414] hover:bg-[#202020] text-zinc-400 hover:text-white rounded-xl text-xs font-mono transition border border-[#222222] cursor-pointer">
+              Reset Drawing
+            </button>
+            <button id="sendImageFeedbackBtn" class="flex-1 py-2 bg-white hover:bg-zinc-200 text-black rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-md cursor-pointer">
+              <span>🚀</span> <span>Send Feedback with Markup</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Floating Text Selection Comment Tooltip Button -->
+    <div id="selectionCommentTooltip" class="fixed z-50 hidden transform -translate-x-1/2 -translate-y-full mb-2 pointer-events-auto">
+      <button id="tooltipAddCommentBtn" class="px-3 py-1.5 bg-black/95 text-white hover:bg-zinc-800 rounded-xl text-xs font-medium border border-amber-400/80 shadow-2xl flex items-center gap-1.5 backdrop-blur-md cursor-pointer">
+        <span class="text-amber-400">💬</span> <span>Add Comment</span>
+      </button>
+    </div>
+
+    <!-- Markdown Comment Bottom Sheet / Modal Drawer -->
+    <div id="artifactCommentSheet" class="fixed inset-x-0 bottom-0 z-50 hidden bg-black/95 border-t border-[#27272a] rounded-t-2xl p-4 shadow-2xl backdrop-blur-md max-w-2xl mx-auto w-full">
+      <div class="flex items-center justify-between pb-2 border-b border-[#1f1f23] mb-3">
+        <div class="flex items-center gap-2">
+          <span class="text-amber-400 text-xs">💬</span>
+          <span class="text-xs font-bold text-white">Add Review Comment</span>
+        </div>
+        <button id="closeCommentSheetBtn" class="p-1 text-zinc-400 hover:text-white rounded-lg text-xs font-bold cursor-pointer">✕</button>
+      </div>
+
+      <!-- Quoted snippet excerpt -->
+      <div class="mb-3 p-2.5 bg-[#0f0f11] border-l-2 border-amber-400 border-y border-r border-[#1f1f23] rounded-r-lg max-h-24 overflow-y-auto">
+        <span class="text-[10px] text-amber-400/90 font-mono font-bold block mb-0.5">SELECTED EXCERPT:</span>
+        <p id="commentSheetExcerpt" class="text-xs text-zinc-300 font-mono italic leading-relaxed whitespace-pre-wrap"></p>
+      </div>
+
+      <!-- Quick action suggestions -->
+      <div class="flex flex-wrap gap-1.5 mb-2.5">
+        <button class="comment-chip text-[10px] px-2 py-0.5 rounded-full bg-[#161618] hover:bg-[#252528] text-zinc-300 border border-[#27272a] transition cursor-pointer" data-text="Change copy to: ">Change copy to...</button>
+        <button class="comment-chip text-[10px] px-2 py-0.5 rounded-full bg-[#161618] hover:bg-[#252528] text-zinc-300 border border-[#27272a] transition cursor-pointer" data-text="Rewrite this section more clearly.">Rewrite clearly</button>
+        <button class="comment-chip text-[10px] px-2 py-0.5 rounded-full bg-[#161618] hover:bg-[#252528] text-zinc-300 border border-[#27272a] transition cursor-pointer" data-text="Delete or remove this part.">Remove this part</button>
+        <button class="comment-chip text-[10px] px-2 py-0.5 rounded-full bg-[#161618] hover:bg-[#252528] text-zinc-300 border border-[#27272a] transition cursor-pointer" data-text="Fix typo / phrasing.">Fix typo</button>
+      </div>
+
+      <!-- Comment Text Input with Voice Dictation -->
+      <div class="relative flex items-center mb-3">
+        <textarea id="commentSheetInput" rows="2" placeholder="Type or dictate what to edit or change..." class="w-full bg-[#121214] border border-[#27272a] focus:border-amber-400 rounded-xl p-3 pr-12 text-xs text-white placeholder:text-zinc-600 focus:outline-none resize-none leading-relaxed"></textarea>
+        <button id="commentSheetMicBtn" class="absolute right-2.5 top-2.5 p-2 rounded-lg bg-[#1c1c1f] hover:bg-[#2c2c30] text-zinc-300 hover:text-white transition cursor-pointer border border-[#333333]" title="Dictate comment">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Actions -->
+      <div class="flex items-center gap-2">
+        <button id="stageCommentBtn" class="flex-1 py-2 bg-[#1c1c1f] hover:bg-[#27272a] text-white border border-[#333333] rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer">
+          <span>+</span> <span>Add to Review</span>
+        </button>
+        <button id="sendCommentDirectBtn" class="flex-1 py-2 bg-amber-400 hover:bg-amber-300 text-black font-bold rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow-md cursor-pointer">
+          <span>⚡</span> <span>Send Now</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Staged Comments Inspector Drawer Modal -->
+    <div id="stagedCommentsModal" class="fixed inset-0 bg-black/90 z-60 hidden flex items-center justify-center p-4 backdrop-blur-md">
+      <div class="bg-[#0f0f11] border border-[#27272a] rounded-2xl max-w-lg w-full max-h-[80vh] flex flex-col shadow-2xl">
+        <div class="p-3.5 border-b border-[#1f1f23] flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="text-amber-400 text-xs">💬</span>
+            <h4 class="text-xs font-bold text-white">Staged Review Comments</h4>
+          </div>
+          <button id="closeStagedModalBtn" class="p-1 text-zinc-400 hover:text-white rounded-lg text-xs font-bold cursor-pointer">✕</button>
+        </div>
+        <div id="stagedCommentsList" class="p-3.5 overflow-y-auto flex-1 space-y-2.5"></div>
+        <div class="p-3 border-t border-[#1f1f23] flex items-center justify-between gap-2">
+          <button id="modalClearAllBtn" class="px-3 py-1.5 bg-[#161618] hover:bg-red-950/40 text-red-400 rounded-xl text-xs font-mono transition border border-[#27272a] cursor-pointer">
+            Clear All
+          </button>
+          <button id="modalSubmitReviewBtn" class="px-4 py-1.5 bg-amber-400 hover:bg-amber-300 text-black font-bold rounded-xl text-xs transition flex items-center gap-1.5 shadow-lg cursor-pointer">
+            <span>🚀</span> <span>Send Review</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Staged Review Floating Bottom Action Bar -->
+    <div id="artifactReviewBar" class="hidden p-3 bg-black/95 border-t border-[#27272a] backdrop-blur-md flex items-center justify-between gap-3 shrink-0 z-40">
+      <div class="flex items-center gap-2 cursor-pointer" id="inspectStagedCommentsBtn">
+        <span class="w-6 h-6 rounded-full bg-amber-400/20 border border-amber-400/60 text-amber-400 text-xs font-bold flex items-center justify-center font-mono" id="stagedCountBadge">0</span>
+        <div class="text-left">
+          <span class="text-xs font-bold text-white block leading-tight">Comments Staged</span>
+          <span class="text-[10px] text-zinc-400 underline">Tap to view / edit list</span>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="clearAllStagedBtn" class="px-2.5 py-1.5 bg-[#141414] hover:bg-[#202020] text-zinc-400 hover:text-white rounded-xl text-xs font-mono transition border border-[#222222] cursor-pointer">
+          Clear
+        </button>
+        <button id="submitStagedReviewBtn" class="px-4 py-1.5 bg-amber-400 hover:bg-amber-300 text-black font-bold rounded-xl text-xs transition flex items-center gap-1.5 shadow-lg cursor-pointer">
+          <span>🚀</span> <span>Send Review</span>
+        </button>
+      </div>
     </div>
   </div>
 
@@ -712,7 +959,6 @@
     let ws = null;
     let isListening = false;
     let isSpeaking = false;
-    let isSpeakerMuted = localStorage.getItem("voicefi_speaker_muted") === "true";
     let audioRoutingMode = localStorage.getItem("voicefi_audio_routing") || "smart";
     let activeConvId = "";
     let activeConversationData = null;
@@ -729,8 +975,6 @@
     const connText = document.getElementById("connText");
     const convSelect = document.getElementById("convSelect");
     const refreshBtn = document.getElementById("refreshBtn");
-    const speakerMuteBtn = document.getElementById("speakerMuteBtn");
-    const speakerMuteIcon = document.getElementById("speakerMuteIcon");
     const audioRoutingSelect = document.getElementById("audioRoutingSelect");
     const agentRoleBadge = document.getElementById("agentRoleBadge");
     const sessionStatusTag = document.getElementById("sessionStatusTag");
@@ -776,14 +1020,51 @@
     const chatInput = document.getElementById("chatInput");
     const chatMicBtn = document.getElementById("chatMicBtn");
 
-    // Artifacts View Elements
+    // Artifacts View Elements & Markdown/Image Review Tools
     const artifactsGrid = document.getElementById("artifactsGrid");
     const artifactsCountTag = document.getElementById("artifactsCountTag");
     const artifactModal = document.getElementById("artifactModal");
+    const artifactModalTypeBadge = document.getElementById("artifactModalTypeBadge");
     const artifactModalTitle = document.getElementById("artifactModalTitle");
     const artifactModalBody = document.getElementById("artifactModalBody");
     const closeArtifactModal = document.getElementById("closeArtifactModal");
     const copyArtifactBtn = document.getElementById("copyArtifactBtn");
+    const toggleCommentModeBtn = document.getElementById("toggleCommentModeBtn");
+    const toggleCommentModeText = document.getElementById("toggleCommentModeText");
+
+    // Markdown Comment Sheet & Staged Review Elements
+    const selectionCommentTooltip = document.getElementById("selectionCommentTooltip");
+    const tooltipAddCommentBtn = document.getElementById("tooltipAddCommentBtn");
+    const artifactCommentSheet = document.getElementById("artifactCommentSheet");
+    const closeCommentSheetBtn = document.getElementById("closeCommentSheetBtn");
+    const commentSheetExcerpt = document.getElementById("commentSheetExcerpt");
+    const commentSheetInput = document.getElementById("commentSheetInput");
+    const commentSheetMicBtn = document.getElementById("commentSheetMicBtn");
+    const stageCommentBtn = document.getElementById("stageCommentBtn");
+    const sendCommentDirectBtn = document.getElementById("sendCommentDirectBtn");
+    const stagedCommentsModal = document.getElementById("stagedCommentsModal");
+    const closeStagedModalBtn = document.getElementById("closeStagedModalBtn");
+    const stagedCommentsList = document.getElementById("stagedCommentsList");
+    const modalClearAllBtn = document.getElementById("modalClearAllBtn");
+    const modalSubmitReviewBtn = document.getElementById("modalSubmitReviewBtn");
+    const artifactReviewBar = document.getElementById("artifactReviewBar");
+    const inspectStagedCommentsBtn = document.getElementById("inspectStagedCommentsBtn");
+    const stagedCountBadge = document.getElementById("stagedCountBadge");
+    const clearAllStagedBtn = document.getElementById("clearAllStagedBtn");
+    const submitStagedReviewBtn = document.getElementById("submitStagedReviewBtn");
+
+    // Image Markup Studio Elements
+    const imageMarkupStudio = document.getElementById("imageMarkupStudio");
+    const markupToolPen = document.getElementById("markupToolPen");
+    const markupToolPan = document.getElementById("markupToolPan");
+    const markupUndoBtn = document.getElementById("markupUndoBtn");
+    const markupClearBtn = document.getElementById("markupClearBtn");
+    const markupTargetImage = document.getElementById("markupTargetImage");
+    const imageDrawCanvas = document.getElementById("imageDrawCanvas");
+    const imageFeedbackText = document.getElementById("imageFeedbackText");
+    const imageFeedbackMicBtn = document.getElementById("imageFeedbackMicBtn");
+    const imageFeedbackCancelBtn = document.getElementById("imageFeedbackCancelBtn");
+    const sendImageFeedbackBtn = document.getElementById("sendImageFeedbackBtn");
 
     // Setup marked & highlight.js
     if (typeof marked !== 'undefined') {
@@ -1055,7 +1336,7 @@
 
     // Audio & Speech Synthesis
     function speakTextAloud(text, onComplete) {
-      if (!text || isSpeakerMuted) {
+      if (!text) {
         if (onComplete) onComplete();
         return;
       }
@@ -1072,12 +1353,6 @@
         throw new Error("Server TTS fallback");
       })
       .then(blob => {
-        if (isSpeakerMuted) {
-          isSpeaking = false;
-          setOrbState('idle');
-          if (onComplete) onComplete();
-          return;
-        }
         const audioUrl = URL.createObjectURL(blob);
         ttsAudio.src = audioUrl;
         ttsAudio.onended = () => {
@@ -1096,12 +1371,6 @@
     }
 
     function fallbackSpeechSynthesis(text, onComplete) {
-      if (isSpeakerMuted) {
-        isSpeaking = false;
-        setOrbState('idle');
-        if (onComplete) onComplete();
-        return;
-      }
       if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
         const utter = new SpeechSynthesisUtterance(text);
@@ -1226,14 +1495,6 @@
               sendVoiceCommand(captured);
             } else {
               setOrbState('idle');
-              // If auto-listen is active and we are in voice mode, keep mic ready for speech
-              if (autoListen && currentView === 'voice' && !isSpeaking) {
-                setTimeout(() => {
-                  if (autoListen && currentView === 'voice' && !isListening && !isSpeaking) {
-                    startListening();
-                  }
-                }, 400);
-              }
             }
           };
 
@@ -1303,13 +1564,6 @@
                 sendVoiceCommand(data.transcript.trim());
               } else {
                 setOrbState('idle');
-                if (autoListen && currentView === 'voice' && !isSpeaking) {
-                  setTimeout(() => {
-                    if (autoListen && currentView === 'voice' && !isListening && !isSpeaking) {
-                      startListening();
-                    }
-                  }, 400);
-                }
               }
             } catch (err) {
               console.error("STT Error:", err);
@@ -2380,27 +2634,675 @@
       });
     }
 
+    // Current viewing artifact state
+    let currentArtifact = { name: "", content: "", is_image: false };
+    let isCommentMode = false;
+    let stagedComments = []; // Array of { id, filename, snippet, comment, timestamp }
+    let activeCommentTarget = null; // { snippet, element }
+
+    // Dictation Helper for comment inputs and feedback
+    let dictationRecognition = null;
+    let activeDictationTarget = null;
+    let activeDictationBtn = null;
+
+    function toggleVoiceDictation(targetTextarea, micButton) {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        showToast("Speech recognition not supported in this browser", 3000);
+        return;
+      }
+
+      if (dictationRecognition) {
+        stopDictation();
+        return;
+      }
+
+      try {
+        dictationRecognition = new SpeechRecognition();
+        dictationRecognition.continuous = true;
+        dictationRecognition.interimResults = true;
+        dictationRecognition.lang = 'en-US';
+
+        activeDictationTarget = targetTextarea;
+        activeDictationBtn = micButton;
+        micButton.classList.add("dictating-active");
+
+        const initialVal = targetTextarea.value ? targetTextarea.value.trim() + " " : "";
+
+        dictationRecognition.onresult = (event) => {
+          let transcript = '';
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            transcript += event.results[i][0].transcript;
+          }
+          targetTextarea.value = initialVal + transcript;
+        };
+
+        dictationRecognition.onerror = (event) => {
+          console.warn("Dictation error:", event.error);
+          stopDictation();
+        };
+
+        dictationRecognition.onend = () => {
+          stopDictation();
+        };
+
+        dictationRecognition.start();
+        showToast("Listening... speak now", 2000);
+      } catch (err) {
+        console.error("Dictation start error:", err);
+        stopDictation();
+      }
+    }
+
+    function stopDictation() {
+      if (dictationRecognition) {
+        try { dictationRecognition.stop(); } catch(e) {}
+        dictationRecognition = null;
+      }
+      if (activeDictationBtn) {
+        activeDictationBtn.classList.remove("dictating-active");
+      }
+      activeDictationTarget = null;
+      activeDictationBtn = null;
+    }
+
+    // Markdown Commenting & Review Engine
+    function initMarkdownCommenting() {
+      // Toggle Comment Mode
+      toggleCommentModeBtn?.addEventListener("click", () => {
+        isCommentMode = !isCommentMode;
+        updateCommentModeUI();
+      });
+
+      // Quick action chip buttons in comment sheet
+      document.querySelectorAll(".comment-chip").forEach(chip => {
+        chip.addEventListener("click", () => {
+          const text = chip.getAttribute("data-text");
+          if (text) {
+            if (!commentSheetInput.value) {
+              commentSheetInput.value = text;
+            } else {
+              commentSheetInput.value = commentSheetInput.value.trim() + " " + text;
+            }
+            commentSheetInput.focus();
+          }
+        });
+      });
+
+      // Comment Sheet Mic
+      commentSheetMicBtn?.addEventListener("click", () => {
+        toggleVoiceDictation(commentSheetInput, commentSheetMicBtn);
+      });
+
+      // Stage Comment Button
+      stageCommentBtn?.addEventListener("click", () => {
+        const comment = commentSheetInput.value.trim();
+        if (!comment) {
+          showToast("Please enter or speak a comment", 2000);
+          return;
+        }
+        const snippet = commentSheetExcerpt.innerText.trim();
+        addStagedComment(snippet, comment);
+        closeCommentSheet();
+      });
+
+      // Send Direct Button
+      sendCommentDirectBtn?.addEventListener("click", async () => {
+        const comment = commentSheetInput.value.trim();
+        if (!comment) {
+          showToast("Please enter or speak a comment", 2000);
+          return;
+        }
+        const snippet = commentSheetExcerpt.innerText.trim();
+        await sendReviewDirect([{ snippet, comment }]);
+        closeCommentSheet();
+      });
+
+      closeCommentSheetBtn?.addEventListener("click", closeCommentSheet);
+
+      // Tooltip Add Comment Button
+      tooltipAddCommentBtn?.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const sel = window.getSelection();
+        const text = sel ? sel.toString().trim() : "";
+        if (text) {
+          openCommentSheet(text);
+        }
+        hideSelectionTooltip();
+      });
+
+      // Selection Listener for text highlight
+      document.addEventListener("selectionchange", handleTextSelectionChange);
+
+      // Review Bar Buttons
+      inspectStagedCommentsBtn?.addEventListener("click", showStagedCommentsModal);
+      clearAllStagedBtn?.addEventListener("click", clearAllStagedComments);
+      submitStagedReviewBtn?.addEventListener("click", submitAllStagedReview);
+
+      // Staged Modal Buttons
+      closeStagedModalBtn?.addEventListener("click", () => stagedCommentsModal.classList.add("hidden"));
+      modalClearAllBtn?.addEventListener("click", () => {
+        clearAllStagedComments();
+        stagedCommentsModal.classList.add("hidden");
+      });
+      modalSubmitReviewBtn?.addEventListener("click", async () => {
+        stagedCommentsModal.classList.add("hidden");
+        await submitAllStagedReview();
+      });
+    }
+
+    function updateCommentModeUI() {
+      if (isCommentMode) {
+        artifactModalBody.classList.add("comment-mode-active");
+        toggleCommentModeBtn.classList.remove("text-amber-400");
+        toggleCommentModeBtn.classList.add("bg-amber-400", "text-black", "font-bold");
+        toggleCommentModeText.innerText = "Comment Mode: ON";
+        showToast("Tap any paragraph or select text to comment", 2500);
+      } else {
+        artifactModalBody.classList.remove("comment-mode-active");
+        toggleCommentModeBtn.classList.add("text-amber-400");
+        toggleCommentModeBtn.classList.remove("bg-amber-400", "text-black", "font-bold");
+        toggleCommentModeText.innerText = "Comment Mode";
+      }
+    }
+
+    function attachMarkdownBlockListeners() {
+      const blocks = artifactModalBody.querySelectorAll("p, h1, h2, h3, h4, li, blockquote, pre");
+      blocks.forEach((el, idx) => {
+        el.setAttribute("data-block-idx", idx);
+        el.addEventListener("click", (e) => {
+          if (!isCommentMode) return;
+          const sel = window.getSelection();
+          if (sel && sel.toString().trim().length > 1) return; // User highlighted specific text
+          const snippet = el.innerText.trim();
+          if (snippet) {
+            openCommentSheet(snippet, el);
+          }
+        });
+      });
+    }
+
+    function handleTextSelectionChange() {
+      if (artifactModal.classList.contains("hidden") || !artifactModalBody.contains(document.activeElement || window.getSelection()?.anchorNode)) {
+        hideSelectionTooltip();
+        return;
+      }
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed || !sel.toString().trim()) {
+        hideSelectionTooltip();
+        return;
+      }
+      const text = sel.toString().trim();
+      if (text.length < 2) {
+        hideSelectionTooltip();
+        return;
+      }
+
+      try {
+        const range = sel.getRangeAt(0);
+        if (!artifactModalBody.contains(range.commonAncestorContainer)) {
+          hideSelectionTooltip();
+          return;
+        }
+        const rect = range.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+          selectionCommentTooltip.style.left = `${rect.left + rect.width / 2}px`;
+          selectionCommentTooltip.style.top = `${rect.top - 8}px`;
+          selectionCommentTooltip.classList.remove("hidden");
+        }
+      } catch (err) {
+        hideSelectionTooltip();
+      }
+    }
+
+    function hideSelectionTooltip() {
+      selectionCommentTooltip.classList.add("hidden");
+    }
+
+    function openCommentSheet(snippet, targetElement = null) {
+      activeCommentTarget = { snippet, element: targetElement };
+      commentSheetExcerpt.innerText = snippet;
+      commentSheetInput.value = "";
+      artifactCommentSheet.classList.remove("hidden");
+      setTimeout(() => commentSheetInput.focus(), 150);
+    }
+
+    function closeCommentSheet() {
+      stopDictation();
+      artifactCommentSheet.classList.add("hidden");
+      activeCommentTarget = null;
+    }
+
+    function addStagedComment(snippet, comment) {
+      const item = {
+        id: "cmt_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5),
+        filename: currentArtifact.name,
+        snippet: snippet,
+        comment: comment,
+        timestamp: Date.now()
+      };
+      stagedComments.push(item);
+      renderStagedReviewBar();
+      showToast(`Comment added to review (${stagedComments.length} staged)`, 2500);
+      highlightCommentedSnippet(snippet, stagedComments.length);
+    }
+
+    function highlightCommentedSnippet(snippet, index) {
+      const blocks = artifactModalBody.querySelectorAll("p, h1, h2, h3, h4, li, blockquote, pre");
+      for (let b of blocks) {
+        if (b.innerText.includes(snippet.slice(0, 40))) {
+          b.classList.add("commented-target");
+          if (!b.querySelector(`.comment-badge-inline[data-idx="${index}"]`)) {
+            const badge = document.createElement("span");
+            badge.className = "comment-badge-inline";
+            badge.setAttribute("data-idx", index);
+            badge.innerText = `💬 #${index}`;
+            b.appendChild(badge);
+          }
+          break;
+        }
+      }
+    }
+
+    function renderStagedReviewBar() {
+      const fileComments = stagedComments.filter(c => c.filename === currentArtifact.name);
+      if (fileComments.length > 0) {
+        stagedCountBadge.innerText = fileComments.length;
+        submitStagedReviewBtn.innerHTML = `<span>🚀</span> <span>Send Review (${fileComments.length})</span>`;
+        artifactReviewBar.classList.remove("hidden");
+      } else {
+        artifactReviewBar.classList.add("hidden");
+      }
+    }
+
+    function clearAllStagedComments() {
+      stagedComments = stagedComments.filter(c => c.filename !== currentArtifact.name);
+      renderStagedReviewBar();
+      artifactModalBody.querySelectorAll(".commented-target").forEach(el => el.classList.remove("commented-target"));
+      artifactModalBody.querySelectorAll(".comment-badge-inline").forEach(el => el.remove());
+      showToast("Cleared staged comments", 2000);
+    }
+
+    function showStagedCommentsModal() {
+      const fileComments = stagedComments.filter(c => c.filename === currentArtifact.name);
+      if (fileComments.length === 0) {
+        showToast("No staged comments for this document", 2000);
+        return;
+      }
+      let html = "";
+      fileComments.forEach((c, idx) => {
+        html += `
+          <div class="p-3 bg-[#141416] border border-[#27272a] rounded-xl space-y-2 relative">
+            <div class="flex items-center justify-between text-[10px] text-zinc-400 font-mono">
+              <span class="font-bold text-amber-400">Comment #${idx + 1}</span>
+              <button class="remove-staged-cmt-btn text-red-400 hover:text-red-300 font-bold cursor-pointer" data-id="${c.id}">Remove</button>
+            </div>
+            <div class="p-2 bg-[#09090b] rounded-lg border-l-2 border-amber-400 text-xs text-zinc-300 font-mono italic max-h-16 overflow-y-auto">
+              "${escapeHtml(c.snippet.slice(0, 200))}${c.snippet.length > 200 ? '...' : ''}"
+            </div>
+            <div class="text-xs text-white leading-relaxed">
+              <strong class="text-amber-300">Feedback:</strong> ${escapeHtml(c.comment)}
+            </div>
+          </div>
+        `;
+      });
+      stagedCommentsList.innerHTML = html;
+      stagedCommentsList.querySelectorAll(".remove-staged-cmt-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const id = btn.getAttribute("data-id");
+          stagedComments = stagedComments.filter(c => c.id !== id);
+          renderStagedReviewBar();
+          showStagedCommentsModal();
+        });
+      });
+      modalSubmitReviewBtn.innerHTML = `<span>🚀</span> <span>Send Review (${fileComments.length})</span>`;
+      stagedCommentsModal.classList.remove("hidden");
+    }
+
+    async function sendReviewDirect(comments) {
+      if (!activeConvId || !currentArtifact.name) return;
+      try {
+        const res = await fetch(`/api/conversation/${encodeURIComponent(activeConvId)}/artifact_review`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            conv_id: activeConvId,
+            filename: currentArtifact.name,
+            comments: comments,
+            sender_name: "Mobile Companion"
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast("Review sent to Antigravity!", 3500);
+          clearAllStagedComments();
+          artifactModal.classList.add("hidden");
+          fetchConversationDetails(activeConvId);
+          switchView("chat");
+        } else {
+          showToast("Error: " + (data.error || "Failed to deliver review"), 3500);
+        }
+      } catch (err) {
+        console.error("Submit review error:", err);
+        showToast("Failed to submit review", 3500);
+      }
+    }
+
+    async function submitAllStagedReview() {
+      const fileComments = stagedComments.filter(c => c.filename === currentArtifact.name);
+      if (fileComments.length === 0) return;
+      await sendReviewDirect(fileComments);
+    }
+
+    // Image Markup Studio Engine
+    let drawCtx = null;
+    let isDrawing = false;
+    let strokeHistory = [];
+    let currentStrokePoints = [];
+    let markupCurrentColor = "#ef4444";
+    let markupCurrentWidth = 6;
+    let markupMode = "pen"; // "pen" | "pan"
+
+    function initImageMarkupStudio() {
+      if (imageDrawCanvas) {
+        drawCtx = imageDrawCanvas.getContext("2d");
+      }
+
+      markupToolPen?.addEventListener("click", () => setMarkupTool("pen"));
+      markupToolPan?.addEventListener("click", () => setMarkupTool("pan"));
+
+      document.querySelectorAll(".markup-color-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          document.querySelectorAll(".markup-color-btn").forEach(b => b.classList.remove("ring-2", "ring-white"));
+          btn.classList.add("ring-2", "ring-white");
+          markupCurrentColor = btn.getAttribute("data-color") || "#ef4444";
+        });
+      });
+
+      document.querySelectorAll(".markup-size-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          document.querySelectorAll(".markup-size-btn").forEach(b => {
+            b.className = "markup-size-btn px-2 py-0.5 rounded text-zinc-400 hover:text-white cursor-pointer";
+          });
+          btn.className = "markup-size-btn px-2 py-0.5 rounded bg-white text-black font-bold cursor-pointer";
+          markupCurrentWidth = parseInt(btn.getAttribute("data-size") || "6", 10);
+        });
+      });
+
+      markupUndoBtn?.addEventListener("click", undoLastMarkupStroke);
+      markupClearBtn?.addEventListener("click", clearMarkupCanvas);
+      imageFeedbackCancelBtn?.addEventListener("click", clearMarkupCanvas);
+
+      imageFeedbackMicBtn?.addEventListener("click", () => {
+        toggleVoiceDictation(imageFeedbackText, imageFeedbackMicBtn);
+      });
+
+      sendImageFeedbackBtn?.addEventListener("click", sendImageMarkupFeedback);
+
+      if (imageDrawCanvas) {
+        imageDrawCanvas.addEventListener("pointerdown", handlePointerDown);
+        imageDrawCanvas.addEventListener("pointermove", handlePointerMove);
+        imageDrawCanvas.addEventListener("pointerup", handlePointerUp);
+        imageDrawCanvas.addEventListener("pointercancel", handlePointerUp);
+      }
+    }
+
+    function setMarkupTool(tool) {
+      markupMode = tool;
+      if (tool === "pen") {
+        markupToolPen.className = "px-2.5 py-1 rounded text-xs font-medium bg-white text-black transition flex items-center gap-1 cursor-pointer";
+        markupToolPan.className = "px-2.5 py-1 rounded text-xs font-medium text-zinc-400 hover:text-white transition flex items-center gap-1 cursor-pointer";
+        imageDrawCanvas.style.pointerEvents = "auto";
+        imageDrawCanvas.classList.add("cursor-crosshair");
+      } else {
+        markupToolPan.className = "px-2.5 py-1 rounded text-xs font-medium bg-white text-black transition flex items-center gap-1 cursor-pointer";
+        markupToolPen.className = "px-2.5 py-1 rounded text-xs font-medium text-zinc-400 hover:text-white transition flex items-center gap-1 cursor-pointer";
+        imageDrawCanvas.style.pointerEvents = "none";
+        imageDrawCanvas.classList.remove("cursor-crosshair");
+      }
+    }
+
+    function setupImageCanvas(imgElement) {
+      strokeHistory = [];
+      currentStrokePoints = [];
+      imageFeedbackText.value = "";
+      stopDictation();
+
+      if (!drawCtx && imageDrawCanvas) {
+        drawCtx = imageDrawCanvas.getContext("2d");
+      }
+
+      const rect = imgElement.getBoundingClientRect();
+      const width = imgElement.naturalWidth || rect.width || 800;
+      const height = imgElement.naturalHeight || rect.height || 600;
+
+      imageDrawCanvas.width = width;
+      imageDrawCanvas.height = height;
+      redrawAllStrokes();
+    }
+
+    function getCanvasPointerPos(e) {
+      const rect = imageDrawCanvas.getBoundingClientRect();
+      const scaleX = imageDrawCanvas.width / (rect.width || 1);
+      const scaleY = imageDrawCanvas.height / (rect.height || 1);
+      return {
+        x: (e.clientX - rect.left) * scaleX,
+        y: (e.clientY - rect.top) * scaleY
+      };
+    }
+
+    function handlePointerDown(e) {
+      if (markupMode !== "pen") return;
+      e.preventDefault();
+      isDrawing = true;
+      try { imageDrawCanvas.setPointerCapture(e.pointerId); } catch(err) {}
+
+      const pos = getCanvasPointerPos(e);
+      currentStrokePoints = [pos];
+
+      if (!drawCtx) return;
+      drawCtx.strokeStyle = markupCurrentColor;
+      drawCtx.lineWidth = markupCurrentWidth;
+      drawCtx.lineCap = "round";
+      drawCtx.lineJoin = "round";
+      drawCtx.beginPath();
+      drawCtx.moveTo(pos.x, pos.y);
+      drawCtx.lineTo(pos.x + 0.1, pos.y + 0.1);
+      drawCtx.stroke();
+    }
+
+    function handlePointerMove(e) {
+      if (!isDrawing || markupMode !== "pen" || !drawCtx) return;
+      e.preventDefault();
+
+      const pos = getCanvasPointerPos(e);
+      currentStrokePoints.push(pos);
+
+      if (currentStrokePoints.length > 2) {
+        const p1 = currentStrokePoints[currentStrokePoints.length - 2];
+        const p2 = pos;
+        const midX = (p1.x + p2.x) / 2;
+        const midY = (p1.y + p2.y) / 2;
+
+        drawCtx.strokeStyle = markupCurrentColor;
+        drawCtx.lineWidth = markupCurrentWidth;
+        drawCtx.lineCap = "round";
+        drawCtx.lineJoin = "round";
+        drawCtx.beginPath();
+        drawCtx.moveTo(p1.x, p1.y);
+        drawCtx.quadraticCurveTo(p1.x, p1.y, midX, midY);
+        drawCtx.stroke();
+      } else {
+        const p = currentStrokePoints[0];
+        drawCtx.beginPath();
+        drawCtx.moveTo(p.x, p.y);
+        drawCtx.lineTo(pos.x, pos.y);
+        drawCtx.stroke();
+      }
+    }
+
+    function handlePointerUp(e) {
+      if (!isDrawing) return;
+      isDrawing = false;
+      try { imageDrawCanvas.releasePointerCapture(e.pointerId); } catch(err) {}
+
+      if (currentStrokePoints.length > 0) {
+        strokeHistory.push({
+          color: markupCurrentColor,
+          width: markupCurrentWidth,
+          points: currentStrokePoints
+        });
+      }
+      currentStrokePoints = [];
+      redrawAllStrokes();
+    }
+
+    function redrawAllStrokes() {
+      if (!drawCtx) return;
+      drawCtx.clearRect(0, 0, imageDrawCanvas.width, imageDrawCanvas.height);
+
+      strokeHistory.forEach(stroke => {
+        if (stroke.points.length === 0) return;
+        drawCtx.strokeStyle = stroke.color;
+        drawCtx.lineWidth = stroke.width;
+        drawCtx.lineCap = "round";
+        drawCtx.lineJoin = "round";
+
+        if (stroke.points.length === 1) {
+          const p = stroke.points[0];
+          drawCtx.beginPath();
+          drawCtx.moveTo(p.x, p.y);
+          drawCtx.lineTo(p.x + 0.1, p.y + 0.1);
+          drawCtx.stroke();
+          return;
+        }
+
+        drawCtx.beginPath();
+        drawCtx.moveTo(stroke.points[0].x, stroke.points[0].y);
+        for (let i = 1; i < stroke.points.length; i++) {
+          const p1 = stroke.points[i - 1];
+          const p2 = stroke.points[i];
+          const midX = (p1.x + p2.x) / 2;
+          const midY = (p1.y + p2.y) / 2;
+          drawCtx.quadraticCurveTo(p1.x, p1.y, midX, midY);
+        }
+        drawCtx.stroke();
+      });
+    }
+
+    function undoLastMarkupStroke() {
+      if (strokeHistory.length > 0) {
+        strokeHistory.pop();
+        redrawAllStrokes();
+      }
+    }
+
+    function clearMarkupCanvas() {
+      strokeHistory = [];
+      currentStrokePoints = [];
+      redrawAllStrokes();
+    }
+
+    function generateCompositeImageBase64() {
+      const offscreen = document.createElement("canvas");
+      offscreen.width = markupTargetImage.naturalWidth || imageDrawCanvas.width;
+      offscreen.height = markupTargetImage.naturalHeight || imageDrawCanvas.height;
+      const offCtx = offscreen.getContext("2d");
+
+      offCtx.drawImage(markupTargetImage, 0, 0, offscreen.width, offscreen.height);
+      offCtx.drawImage(imageDrawCanvas, 0, 0, offscreen.width, offscreen.height);
+
+      return offscreen.toDataURL("image/jpeg", 0.92);
+    }
+
+    async function sendImageMarkupFeedback() {
+      if (!activeConvId || !currentArtifact.name) return;
+      const feedback = imageFeedbackText.value.trim();
+      if (strokeHistory.length === 0 && !feedback) {
+        showToast("Please circle something or speak feedback first", 2500);
+        return;
+      }
+
+      sendImageFeedbackBtn.disabled = true;
+      sendImageFeedbackBtn.innerHTML = `<span>⏳</span> <span>Saving & Sending...</span>`;
+
+      try {
+        const compositeB64 = generateCompositeImageBase64();
+        const res = await fetch(`/api/conversation/${encodeURIComponent(activeConvId)}/image_feedback`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            conv_id: activeConvId,
+            original_filename: currentArtifact.name,
+            annotated_image_base64: compositeB64,
+            feedback_text: feedback,
+            sender_name: "Mobile Visual Feedback"
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast("Annotated feedback sent to Antigravity!", 3500);
+          stopDictation();
+          artifactModal.classList.add("hidden");
+          fetchConversationDetails(activeConvId);
+          switchView("chat");
+        } else {
+          showToast("Error: " + (data.error || "Failed to send feedback"), 3500);
+        }
+      } catch (err) {
+        console.error("Send image feedback error:", err);
+        showToast("Failed to send markup feedback", 3500);
+      } finally {
+        sendImageFeedbackBtn.disabled = false;
+        sendImageFeedbackBtn.innerHTML = `<span>🚀</span> <span>Send Feedback with Markup</span>`;
+      }
+    }
+
+    // Unified Artifact Content Viewer
     async function viewArtifactContent(filename) {
       if (!activeConvId || !filename) return;
       try {
         const res = await fetch(`/api/conversation/${encodeURIComponent(activeConvId)}/artifact/${encodeURIComponent(filename)}`);
         if (!res.ok) return;
         const data = await res.json();
-        
-        artifactModalTitle.innerText = data.name || filename;
-        if (data.is_image) {
-          artifactModalBody.innerHTML = `<div class="flex justify-center p-4"><img src="${data.content}" alt="${escapeHtml(filename)}" class="max-w-full rounded-xl shadow-lg"></div>`;
-        } else {
-          artifactModalBody.innerHTML = renderMarkdown(data.content);
-        }
 
-        // Copy button
-        copyArtifactBtn.onclick = () => {
-          navigator.clipboard.writeText(data.content).then(() => {
-            copyArtifactBtn.innerText = "COPIED";
-            setTimeout(() => { copyArtifactBtn.innerText = "Copy"; }, 1500);
-          });
-        };
+        currentArtifact = data;
+        artifactModalTitle.innerText = data.name || filename;
+
+        if (data.is_image) {
+          artifactModalTypeBadge.innerText = "[IMG]";
+          toggleCommentModeBtn.classList.add("hidden");
+          copyArtifactBtn.classList.add("hidden");
+          artifactModalBody.classList.add("hidden");
+          artifactReviewBar.classList.add("hidden");
+          imageMarkupStudio.classList.remove("hidden");
+
+          markupTargetImage.src = data.content;
+          markupTargetImage.onload = () => {
+            setupImageCanvas(markupTargetImage);
+          };
+          if (markupTargetImage.complete) {
+            setupImageCanvas(markupTargetImage);
+          }
+        } else {
+          artifactModalTypeBadge.innerText = "[DOC]";
+          toggleCommentModeBtn.classList.remove("hidden");
+          copyArtifactBtn.classList.remove("hidden");
+          imageMarkupStudio.classList.add("hidden");
+          artifactModalBody.classList.remove("hidden");
+
+          artifactModalBody.innerHTML = renderMarkdown(data.content);
+          attachMarkdownBlockListeners();
+          renderStagedReviewBar();
+
+          // Copy button
+          copyArtifactBtn.onclick = () => {
+            navigator.clipboard.writeText(data.content).then(() => {
+              copyArtifactBtn.innerText = "COPIED";
+              setTimeout(() => { copyArtifactBtn.innerText = "Copy"; }, 1500);
+            });
+          };
+        }
 
         artifactModal.classList.remove("hidden");
       } catch (err) {
@@ -2408,7 +3310,10 @@
       }
     }
 
-    closeArtifactModal.addEventListener("click", () => {
+    closeArtifactModal?.addEventListener("click", () => {
+      stopDictation();
+      hideSelectionTooltip();
+      closeCommentSheet();
       artifactModal.classList.add("hidden");
     });
 
@@ -2495,12 +3400,10 @@
           recordAgentSpokenText(data.summary);
         }
 
-        // Smart Audio Routing & Speaker Mute Check
+        // Smart Audio Routing Check
         const origin = data.origin || "desktop";
         let shouldSpeakOnPhone = true;
-        if (isSpeakerMuted) {
-          shouldSpeakOnPhone = false;
-        } else if (audioRoutingMode === "mac_only") {
+        if (audioRoutingMode === "mac_only") {
           shouldSpeakOnPhone = false;
         } else if (audioRoutingMode === "origin_only" && origin !== "mobile") {
           shouldSpeakOnPhone = false;
@@ -2884,38 +3787,6 @@
       updateChatActionState();
     });
 
-    // Speaker Mute UI and Toggles
-    function updateSpeakerUI() {
-      if (isSpeakerMuted) {
-        if (speakerMuteIcon) speakerMuteIcon.innerText = "MUTED";
-        if (speakerMuteBtn) {
-          speakerMuteBtn.classList.add("text-[#888888]", "border-[#333333]");
-          speakerMuteBtn.title = "Unmute Phone Voice Output";
-        }
-      } else {
-        if (speakerMuteIcon) speakerMuteIcon.innerText = "AUDIO";
-        if (speakerMuteBtn) {
-          speakerMuteBtn.classList.remove("text-[#888888]", "border-[#333333]");
-          speakerMuteBtn.title = "Mute Phone Voice Output";
-        }
-      }
-    }
-
-    if (speakerMuteBtn) {
-      speakerMuteBtn.addEventListener("click", () => {
-        isSpeakerMuted = !isSpeakerMuted;
-        localStorage.setItem("voicefi_speaker_muted", isSpeakerMuted);
-        updateSpeakerUI();
-        if (isSpeakerMuted && isSpeaking) {
-          if (ttsAudio) ttsAudio.pause();
-          if ('speechSynthesis' in window) window.speechSynthesis.cancel();
-          isSpeaking = false;
-          setOrbState('idle');
-        }
-        showToast(isSpeakerMuted ? "Phone voice muted" : "Phone voice active", 2000);
-      });
-    }
-
     if (audioRoutingSelect) {
       audioRoutingSelect.value = audioRoutingMode;
       audioRoutingSelect.addEventListener("change", async (e) => {
@@ -3006,10 +3877,11 @@
       }
 
       updateAgThemeUI();
-      updateSpeakerUI();
       updateMicSourceUI();
       switchView('chat');
       connectWebSocket();
+      initMarkdownCommenting();
+      initImageMarkupStudio();
 
       // 1. Attach Screen & Media Quick Action Buttons
       document.getElementById("macScreenshotBtn")?.addEventListener("click", captureMacScreenshot);

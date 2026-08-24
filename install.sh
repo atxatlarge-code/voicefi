@@ -178,10 +178,6 @@ say_msg "📖 ${BOLD}Commands:${NC}                Run ${CYAN}${BOLD}vifi --help
 say_msg "------------------------------------------------------------------"
 say_msg ""
 
-# 8. Play interactive welcome greeting with auto-detected user name
-DETECTED_USER="$("$INSTALL_DIR/venv/bin/python" -c 'from voicefi.config import load_config; print(load_config().user_name)' 2>/dev/null || echo 'there')"
-WELCOME_TEXT="Hey ${DETECTED_USER}! Wow, I'm not quite used to the sound of my own voice yet. Thank you for installing VoiceFi! I'm curious, what made you want to talk with me?"
-
-say_msg "🎙️  ${CYAN}${BOLD}[Christopher]:${NC} \"$WELCOME_TEXT\""
-say_msg ""
-"$INSTALL_DIR/venv/bin/voicefi" voice test "Christopher" -t "$WELCOME_TEXT" >/dev/null 2>&1 || true
+# 7. Play interactive welcome greeting with auto-detected user name
+echo -e "${CYAN}⚡ Launching VoiceFi Onboarding...${NC}"
+"$INSTALL_DIR/venv/bin/voicefi" onboarding || true

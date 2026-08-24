@@ -150,7 +150,8 @@ class AmbientAudioStream:
                     if not speech_started and energy < self.energy_threshold:
                         self.current_noise_floor = 0.95 * self.current_noise_floor + 0.05 * energy
 
-                    is_speech = energy > max(self.energy_threshold, self.current_noise_floor * 1.5)
+                    active_threshold = max(self.energy_threshold, self.current_noise_floor * 1.6 + 0.002)
+                    is_speech = energy > active_threshold
 
                     # 10Hz throttled energy broadcast (every 2nd 50ms chunk)
                     if self.on_energy and (chunk_count % 2 == 0):
@@ -161,9 +162,17 @@ class AmbientAudioStream:
 
                     if is_speech:
                         if not speech_started:
-                            speech_started = True
-                            consecutive_silence_chunks = 0
-                            self._set_state("speech_detected")
+                            consecutive_speech_chunks = getattr(self, "_consec_speech", 0) + 1
+                            self._consec_speech = consecutive_speech_chunks
+                            # Require at least 2 consecutive chunks (~100ms) to filter clicks/breaths
+                            if consecutive_speech_chunks >= 2:
+                                speech_started = True
+                                self._consec_speech = 0
+                                consecutive_silence_chunks = 0
+                                self._set_state("speech_detected")
+                        else:
+                            self._consec_speech = 0
+
                         recorded_frames.append(audio_chunk)
                         consecutive_silence_chunks = 0
 
@@ -181,6 +190,7 @@ class AmbientAudioStream:
                             except Exception:
                                 pass
                     elif speech_started:
+                        self._consec_speech = 0
                         recorded_frames.append(audio_chunk)
                         consecutive_silence_chunks += 1
 
@@ -218,6 +228,7 @@ class AmbientAudioStream:
                             consecutive_silence_chunks = 0
                             self._set_state("listening")
                     else:
+                        self._consec_speech = 0
                         self._set_state("listening")
                         # Keep a small pre-roll buffer of 2 chunks (~100ms) to avoid clipping start of speech
                         recorded_frames.append(audio_chunk)

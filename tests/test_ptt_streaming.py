@@ -26,7 +26,7 @@ def test_config_ptt_and_streaming_defaults():
 
 
 def test_stt_factory_streaming_selection():
-    cfg_stream = VoiceFiConfig()
+    cfg_stream = VoiceFiConfig(tier="pro", license_key="PRO-123456")
     cfg_stream.stt.streaming = True
     stt_stream = get_stt_engine(cfg_stream)
     assert isinstance(stt_stream, StreamingLocalSTT)

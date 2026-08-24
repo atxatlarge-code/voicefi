@@ -25,7 +25,12 @@ from voicefi.integrations.conversations import (
     claim_turn,
     pop_mobile_turn_origin,
     has_active_companion_client,
+    set_pending_question,
+    get_pending_question,
+    resolve_pending_question,
+    clear_pending_question,
 )
+from voicefi.integrations.active_listening import ActiveListeningEngine, SpokenIntentCategory
 
 
 def get_recent_transcript_paths(limit: int = 5) -> List[Path]:
@@ -231,6 +236,10 @@ class TranscriptWatcher:
                 # Already claimed and handled by CLI hook
                 return
 
+            # Track pending clarifying question / options if present
+            if summary and (summary.endswith("?") or " or " in summary.lower()):
+                set_pending_question(turn_cid, summary)
+
             routing = getattr(getattr(cfg, "companion", None), "audio_routing", "smart")
             mute_mac_active = getattr(getattr(cfg, "companion", None), "mute_mac_when_companion_active", False)
             is_mobile = pop_mobile_turn_origin(turn_cid)
@@ -360,6 +369,13 @@ class TranscriptWatcher:
                     self._notify_state("listening")
                     time.sleep(0.2)
 
+                    def _on_live(txt: str):
+                        try:
+                            from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
+                            UnifiedDynamicIslandHUD.get_instance().update_live_transcription(txt, user_name=cfg.user_name)
+                        except Exception:
+                            pass
+
                     recorder = AudioRecorder(
                         sample_rate=cfg.vad.sample_rate,
                         energy_threshold=cfg.vad.energy_threshold,
@@ -372,6 +388,7 @@ class TranscriptWatcher:
                     audio_data, temp_wav = recorder.record_speech_auto(
                         on_speech_start=lambda: self._notify_state("hearing"),
                         on_pause_change=lambda paused: self._notify_state("paused_agent_speaking" if paused else "listening"),
+                        on_live_transcript=_on_live,
                     )
                     self.active_recorder = None
                 else:
@@ -390,19 +407,65 @@ class TranscriptWatcher:
                 Path(temp_wav).unlink(missing_ok=True)
 
             if text and text.strip() and not self._interrupted:
-                if cfg.antigravity.inject_to_active_window:
-                    conv_id = conv_info.id if conv_info else None
-                    send_message_to_antigravity(conv_id=conv_id, text=text, sender_name=cfg.user_name)
+                clean_t = text.strip()
+                pending_q = get_pending_question(turn_cid)
+                eval_res = ActiveListeningEngine.evaluate(clean_t, pending_question=pending_q, is_ambient=False)
 
-                if cfg.audio_cues.enabled:
-                    play_chime(cfg.audio_cues.sent_chime, block=False)
+                if eval_res.category == SpokenIntentCategory.MIC_CHECK:
+                    print(f"[ActiveListening/Watcher] 🎙️ Mic check detected: '{clean_t}' -> fast reply")
+                    if eval_res.quick_spoken_reply:
+                        tts = get_tts_engine(cfg, agent_name=target_agent, is_focused=is_active)
+                        tts.stream_speak(eval_res.quick_spoken_reply, block=True)
+                    return
 
-                try:
-                    import rumps
-                    title = conv_info.title if conv_info else "Antigravity Agent"
-                    rumps.notification(f"VoiceFi • {title[:30]}", "Transcribed Voice", text[:100])
-                except Exception:
-                    pass
+                if eval_res.category == SpokenIntentCategory.CONVERSATIONAL_FILLER:
+                    print(f"[ActiveListening/Watcher] 💬 Conversational filler: '{clean_t}' -> acknowledge")
+                    if eval_res.quick_spoken_reply:
+                        tts = get_tts_engine(cfg, agent_name=target_agent, is_focused=is_active)
+                        tts.stream_speak(eval_res.quick_spoken_reply, block=True)
+                    return
+
+                if eval_res.category == SpokenIntentCategory.PENDING_ANSWER:
+                    print(f"[ActiveListening/Watcher] 🎯 Matched pending choice: '{eval_res.selected_option}'")
+                    resolve_pending_question(turn_cid, selected_option=eval_res.selected_option)
+                    text_to_send = eval_res.selected_option or eval_res.normalized_text
+                else:
+                    clear_pending_question(turn_cid)
+                    text_to_send = eval_res.normalized_text
+
+                is_auto_send = getattr(getattr(cfg, "hud", None), "auto_send", True) and getattr(cfg.antigravity, "auto_send", True)
+
+                def _send_payload(content: str):
+                    if cfg.antigravity.inject_to_active_window:
+                        conv_id = conv_info.id if conv_info else None
+                        send_message_to_antigravity(conv_id=conv_id, text=content, sender_name=cfg.user_name)
+
+                    if cfg.audio_cues.enabled:
+                        play_chime(cfg.audio_cues.sent_chime, block=False)
+
+                    try:
+                        if not os.environ.get("PYTEST_CURRENT_TEST"):
+                            import rumps
+                            title = conv_info.title if conv_info else "Antigravity Agent"
+                            rumps.notification(f"VoiceFi • {title[:30]}", "Transcribed Voice", content[:100])
+                    except Exception:
+                        pass
+
+                if is_auto_send:
+                    _send_payload(text_to_send)
+                    try:
+                        from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
+                        UnifiedDynamicIslandHUD.get_instance().show_done(preview_text=text_to_send[:20])
+                    except Exception:
+                        pass
+                else:
+                    try:
+                        from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
+                        hud = UnifiedDynamicIslandHUD.get_instance()
+                        target_title = conv_info.title[:20] if (conv_info and conv_info.title) else "Antigravity"
+                        hud.set_editing(text_to_send, on_submit=_send_payload, target_name=target_title)
+                    except Exception:
+                        _send_payload(text_to_send)
         finally:
             self._is_handling_turn = False
             self._notify_state("idle")

@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Optional
 import requests
 from voicefi.tts.base import BaseTTS, speech_turn_lock
+from voicefi.audio.meeting_detection import is_user_on_call
 
 
 class ElevenLabsTTS(BaseTTS):
@@ -26,6 +27,10 @@ class ElevenLabsTTS(BaseTTS):
             return
         if not self.api_key:
             print("[ElevenLabsTTS] Error: API key is not configured.")
+            return
+            
+        if is_user_on_call():
+            print("[ElevenLabsTTS] User is on a call. Skipping speech synthesis.")
             return
 
         def _run():

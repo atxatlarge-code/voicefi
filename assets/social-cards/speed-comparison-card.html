@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>VoiceFi - Speed & Latency Comparison</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      width: 1200px;
+      height: 675px;
+      background: #090d16;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
+      color: #f8fafc;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 36px 48px 30px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Background glows */
+    .bg-glow-1 {
+      position: absolute;
+      top: -100px;
+      right: 15%;
+      width: 500px;
+      height: 350px;
+      background: radial-gradient(circle, rgba(14, 165, 233, 0.22) 0%, rgba(14, 165, 233, 0) 70%);
+      filter: blur(50px);
+      pointer-events: none;
+    }
+    .bg-glow-2 {
+      position: absolute;
+      bottom: -100px;
+      left: 10%;
+      width: 550px;
+      height: 350px;
+      background: radial-gradient(circle, rgba(99, 102, 241, 0.20) 0%, rgba(99, 102, 241, 0) 70%);
+      filter: blur(60px);
+      pointer-events: none;
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: relative;
+      z-index: 2;
+    }
+
+    .brand-group {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .logo-badge {
+      width: 44px;
+      height: 44px;
+      background: linear-gradient(135deg, #0ea5e9 0%, #6366f1 100%);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 20px rgba(14, 165, 233, 0.45);
+    }
+
+    .logo-badge svg {
+      width: 24px;
+      height: 24px;
+      fill: #ffffff;
+    }
+
+    .brand-title {
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      color: #ffffff;
+    }
+    .brand-title span {
+      background: linear-gradient(90deg, #38bdf8, #818cf8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand-tagline {
+      font-size: 13px;
+      color: #94a3b8;
+      font-weight: 500;
+    }
+
+    .header-pills {
+      display: flex;
+      gap: 10px;
+    }
+
+    .pill {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 9999px;
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #cbd5e1;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      backdrop-filter: blur(10px);
+    }
+
+    .pill-cyan {
+      background: rgba(14, 165, 233, 0.12);
+      border-color: rgba(14, 165, 233, 0.3);
+      color: #38bdf8;
+    }
+
+    /* Main Grid */
+    .grid {
+      display: grid;
+      grid-template-columns: 1.45fr 1fr;
+      gap: 20px;
+      position: relative;
+      z-index: 2;
+      margin-top: 14px;
+    }
+
+    .card {
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 20px;
+      padding: 20px 22px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(16px);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .card-title {
+      font-size: 14px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #94a3b8;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .card-title .highlight {
+      color: #38bdf8;
+      text-transform: none;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    /* Benchmark Bars */
+    .benchmark-list {
+      display: flex;
+      flex-direction: column;
+      gap: 13px;
+    }
+
+    .bench-item {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .bench-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .bench-label {
+      color: #e2e8f0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .bench-time {
+      font-family: "SF Mono", "JetBrains Mono", monospace;
+      font-weight: 700;
+      font-size: 13px;
+    }
+
+    .bar-bg {
+      width: 100%;
+      height: 10px;
+      background: rgba(255, 255, 255, 0.07);
+      border-radius: 999px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 999px;
+    }
+
+    .fill-ultra-fast {
+      width: 6%;
+      background: linear-gradient(90deg, #10b981, #34d399);
+      box-shadow: 0 0 10px rgba(52, 211, 153, 0.6);
+    }
+
+    .fill-fast-cloud {
+      width: 12%;
+      background: linear-gradient(90deg, #0ea5e9, #38bdf8);
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.6);
+    }
+
+    .fill-local-whisper {
+      width: 18%;
+      background: linear-gradient(90deg, #6366f1, #818cf8);
+      box-shadow: 0 0 10px rgba(99, 102, 241, 0.6);
+    }
+
+    .fill-cloud-api {
+      width: 75%;
+      background: linear-gradient(90deg, #f59e0b, #fbbf24);
+    }
+
+    .fill-manual {
+      width: 100%;
+      background: linear-gradient(90deg, #ef4444, #f87171);
+    }
+
+    /* Right column stats */
+    .stat-cards {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      height: 100%;
+      justify-content: space-between;
+    }
+
+    .stat-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 14px;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .stat-card-featured {
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(14, 165, 233, 0.15) 100%);
+      border: 1px solid rgba(99, 102, 241, 0.35);
+      box-shadow: 0 8px 24px rgba(99, 102, 241, 0.15);
+    }
+
+    .stat-metric {
+      font-size: 32px;
+      font-weight: 900;
+      letter-spacing: -1px;
+      line-height: 1;
+      font-family: "SF Mono", "JetBrains Mono", sans-serif;
+    }
+
+    .stat-metric.green {
+      color: #34d399;
+      text-shadow: 0 0 16px rgba(52, 211, 153, 0.4);
+    }
+
+    .stat-metric.cyan {
+      color: #38bdf8;
+      text-shadow: 0 0 16px rgba(56, 189, 248, 0.4);
+    }
+
+    .stat-metric.purple {
+      color: #c084fc;
+      text-shadow: 0 0 16px rgba(192, 132, 252, 0.4);
+    }
+
+    .stat-content {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .stat-title {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: #f1f5f9;
+    }
+
+    .stat-desc {
+      font-size: 11.5px;
+      color: #94a3b8;
+      line-height: 1.3;
+    }
+
+    /* Footer */
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: relative;
+      z-index: 2;
+      margin-top: 12px;
+    }
+
+    .command-box {
+      background: rgba(0, 0, 0, 0.55);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 10px;
+      padding: 7px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+      font-size: 12.5px;
+      color: #38bdf8;
+    }
+
+    .command-box .prompt {
+      color: #64748b;
+      user-select: none;
+    }
+
+    .footer-links {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      font-size: 13px;
+      color: #94a3b8;
+      font-weight: 500;
+    }
+
+    .footer-highlight {
+      color: #f8fafc;
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-glow-1"></div>
+  <div class="bg-glow-2"></div>
+
+  <!-- Header -->
+  <div class="header">
+    <div class="brand-group">
+      <div class="logo-badge">
+        <svg viewBox="0 0 24 24">
+          <path d="M13 2.05v3.03c3.39.49 6 3.39 6 6.92 0 .9-.18 1.75-.48 2.54l2.6 1.53c.56-1.24.88-2.62.88-4.07 0-5.18-3.95-9.45-9-9.92zM12 19c-3.87 0-7-3.13-7-7 0-3.53 2.61-6.43 6-6.92V2.05c-5.05.47-9 4.74-9 9.95 0 5.52 4.47 10 9.99 10 3.31 0 6.24-1.61 8.04-4.09l-2.5-1.46C16.2 17.8 14.25 19 12 19z"/>
+          <path d="M12 6c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm1 8.41L9.71 11.1l1.41-1.41 1.88 1.88 3.54-3.54 1.41 1.41L13 14.41z"/>
+        </svg>
+      </div>
+      <div>
+        <div class="brand-title">VoiceFi<span>™</span> &mdash; Speed & Latency Benchmarks</div>
+        <div class="brand-tagline">Real-Time Acoustic Feedback vs. Traditional Cloud & Manual Methods</div>
+      </div>
+    </div>
+    <div class="header-pills">
+      <div class="pill pill-cyan">⚡ 300ms Closed Loop</div>
+      <div class="pill">Zero Telemetry</div>
+    </div>
+  </div>
+
+  <!-- Main Grid -->
+  <div class="grid">
+    <!-- Left: Benchmark Bars -->
+    <div class="card">
+      <div class="card-title">
+        <span>End-to-End Latency Breakdown</span>
+        <span class="highlight">Lower is better ↓</span>
+      </div>
+      <div class="benchmark-list">
+        <div class="bench-item">
+          <div class="bench-header">
+            <span class="bench-label">🔊 Native macOS <code style="color:#34d399;">say</code> TTS</span>
+            <span class="bench-time" style="color:#34d399;">~8 ms</span>
+          </div>
+          <div class="bar-bg"><div class="bar-fill fill-ultra-fast"></div></div>
+        </div>
+
+        <div class="bench-item">
+          <div class="bench-header">
+            <span class="bench-label">⚡ Groq Cloud Whisper LPU (STT)</span>
+            <span class="bench-time" style="color:#38bdf8;">~120 ms</span>
+          </div>
+          <div class="bar-bg"><div class="bar-fill fill-fast-cloud"></div></div>
+        </div>
+
+        <div class="bench-item">
+          <div class="bench-header">
+            <span class="bench-label">🧠 Apple Silicon Local Faster-Whisper</span>
+            <span class="bench-time" style="color:#818cf8;">~185 ms</span>
+          </div>
+          <div class="bar-bg"><div class="bar-fill fill-local-whisper"></div></div>
+        </div>
+
+        <div class="bench-item">
+          <div class="bench-header">
+            <span class="bench-label" style="color:#94a3b8;">☁️ Standard Cloud Speech APIs</span>
+            <span class="bench-time" style="color:#fbbf24;">1,800 – 2,400 ms</span>
+          </div>
+          <div class="bar-bg"><div class="bar-fill fill-cloud-api"></div></div>
+        </div>
+
+        <div class="bench-item">
+          <div class="bench-header">
+            <span class="bench-label" style="color:#94a3b8;">⌨️ Manual Cmd+Tab Window Switching</span>
+            <span class="bench-time" style="color:#f87171;">45,000 – 120,000 ms</span>
+          </div>
+          <div class="bar-bg"><div class="bar-fill fill-manual"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Stats & Velocity -->
+    <div class="stat-cards">
+      <div class="stat-card stat-card-featured">
+        <div class="stat-metric cyan">300<span style="font-size:18px;">ms</span></div>
+        <div class="stat-content">
+          <div class="stat-title">Full 2-Way Voice Loop</div>
+          <div class="stat-desc">Agent speaks soundbite, mic auto-listens, prompt injects hands-free.</div>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-metric green">4.1<span style="font-size:18px;">x</span></div>
+        <div class="stat-content">
+          <div class="stat-title">Input Velocity Multiplier</div>
+          <div class="stat-desc">Natural speech (~160 WPM) vs. average developer typing (~39 WPM).</div>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-metric purple">0<span style="font-size:18px;">ms</span></div>
+        <div class="stat-content">
+          <div class="stat-title">Context Switch Penalty</div>
+          <div class="stat-desc">Auditory dual-coding preserves deep visual flow without tab switching.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <div class="command-box">
+      <span class="prompt">$</span> curl -fsSL https://vifi.sh | bash
+    </div>
+    <div class="footer-links">
+      <div>GitHub: <span class="footer-highlight">atxatlarge-code/voicefi</span></div>
+      <div>Website: <span class="footer-highlight">voicefi.org</span></div>
+    </div>
+  </div>
+</body>
+</html>

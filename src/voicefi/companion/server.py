@@ -124,6 +124,10 @@ class CompanionServer:
         self.app.router.add_post("/api/conversation/new", self.handle_new_conversation)
         self.app.router.add_post("/api/switch", self.handle_switch)
         self.app.router.add_post("/api/send", self.handle_send)
+        self.app.router.add_post("/api/conversation/{conv_id}/artifact_review", self.handle_artifact_review)
+        self.app.router.add_post("/api/artifact_review", self.handle_artifact_review)
+        self.app.router.add_post("/api/conversation/{conv_id}/image_feedback", self.handle_image_feedback)
+        self.app.router.add_post("/api/image_feedback", self.handle_image_feedback)
         self.app.router.add_post("/api/screenshot", self.handle_screenshot)
         self.app.router.add_post("/api/upload_image", self.handle_upload_image)
         self.app.router.add_post("/api/record_mac", self.handle_record_mac)
@@ -592,6 +596,8 @@ class CompanionServer:
             data = await request.json()
             text = data.get("text", "").strip()
             conv_id = data.get("conv_id")
+            title = data.get("title")
+            sender_name = data.get("sender_name")
             if not text:
                 return web.json_response({"error": "Empty text prompt"}, status=400)
 
@@ -601,7 +607,12 @@ class CompanionServer:
                 return web.json_response({"success": True, "suppressed_echo": True, "delivered": False})
 
             set_mobile_turn_origin(conv_id)
-            delivered = send_message_to_antigravity(conv_id=conv_id, text=text)
+            delivered = send_message_to_antigravity(
+                conv_id=conv_id,
+                text=text,
+                sender_name=sender_name,
+                title=title,
+            )
             self.broadcast_event({
                 "type": "user_command_injected",
                 "conv_id": conv_id or "active",
@@ -609,6 +620,140 @@ class CompanionServer:
                 "delivered": delivered,
             })
             return web.json_response({"success": True, "delivered": delivered})
+        except Exception as e:
+            return web.json_response({"error": str(e)}, status=500)
+
+    async def handle_artifact_review(self, request: web.Request) -> web.Response:
+        """Process structured markdown comments/review feedback from mobile companion."""
+        try:
+            data = await request.json()
+            conv_id = request.match_info.get("conv_id") or data.get("conv_id")
+            if not conv_id:
+                active = self.tracker.get_active_or_latest()
+                conv_id = active.id if active else "default"
+
+            filename = data.get("filename", "document.md")
+            comments = data.get("comments", [])
+            general_feedback = data.get("general_feedback", "").strip()
+            sender_name = data.get("sender_name", "Mobile Review")
+
+            if not comments and not general_feedback:
+                return web.json_response({"error": "No comments or feedback provided"}, status=400)
+
+            # Build markdown review body matching Antigravity review format
+            lines = [f"### Review Comments on `{filename}`:\n"]
+            for idx, c in enumerate(comments, 1):
+                snippet = c.get("snippet", "").strip()
+                comment_text = c.get("comment", "").strip()
+                if snippet:
+                    clean_snippet = "\n> ".join(snippet.splitlines())
+                    lines.append(f"{idx}. **Regarding excerpt:**\n> {clean_snippet}")
+                else:
+                    lines.append(f"{idx}. **Comment:**")
+                if comment_text:
+                    lines.append(f"   **Feedback:** {comment_text}\n")
+
+            if general_feedback:
+                lines.append(f"**Overall Notes:**\n{general_feedback}\n")
+
+            lines.append("Please update the artifact document or source files accordingly.")
+            formatted_prompt = "\n".join(lines)
+
+            set_mobile_turn_origin(conv_id)
+            delivered = send_message_to_antigravity(
+                conv_id=conv_id,
+                text=formatted_prompt,
+                sender_name=sender_name,
+                title=f"Review on {filename}",
+            )
+
+            self.broadcast_event({
+                "type": "artifact_reviewed",
+                "conv_id": conv_id,
+                "filename": filename,
+                "comments_count": len(comments),
+                "delivered": delivered,
+            })
+
+            return web.json_response({
+                "success": True,
+                "conv_id": conv_id,
+                "filename": filename,
+                "comments_count": len(comments),
+                "delivered": delivered,
+                "message": formatted_prompt,
+            })
+        except Exception as e:
+            return web.json_response({"error": str(e)}, status=500)
+
+    async def handle_image_feedback(self, request: web.Request) -> web.Response:
+        """Process finger drawing/annotation and spoken/typed visual feedback on an image."""
+        try:
+            data = await request.json()
+            conv_id = request.match_info.get("conv_id") or data.get("conv_id")
+            if not conv_id:
+                active = self.tracker.get_active_or_latest()
+                conv_id = active.id if active else "default"
+
+            original_filename = data.get("original_filename", "image.jpg")
+            annotated_b64 = data.get("annotated_image_base64") or data.get("image_base64", "")
+            feedback_text = data.get("feedback_text", "").strip()
+            sender_name = data.get("sender_name", "Visual Review")
+
+            if not annotated_b64:
+                return web.json_response({"error": "Missing annotated image data"}, status=400)
+
+            if "," in annotated_b64:
+                annotated_b64 = annotated_b64.split(",", 1)[1]
+
+            import base64
+            img_bytes = base64.b64decode(annotated_b64)
+
+            bdir = self.tracker.brain_dir / conv_id
+            bdir.mkdir(parents=True, exist_ok=True)
+
+            orig_stem = Path(original_filename).stem
+            orig_stem_clean = re.sub(r'[^a-zA-Z0-9_\-]', '_', orig_stem)
+            ts_str = time.strftime("%Y%m%d_%H%M%S")
+            unique_id = uuid.uuid4().hex[:6]
+            filename = f"annotated_{orig_stem_clean}_{ts_str}_{unique_id}.jpg"
+            target_path = bdir / filename
+            target_path.write_bytes(img_bytes)
+
+            art = self.tracker.get_artifact(conv_id, filename)
+
+            # Build feedback message
+            lines = [f"### Visual Markup & Feedback on `{original_filename}`:\n"]
+            lines.append(f"I've circled and drawn notes directly on the image: [{filename}](file://{target_path})\n")
+            if feedback_text:
+                lines.append(f"**Notes / Instructions:**\n{feedback_text}\n")
+            lines.append("Please inspect the marked-up image and adjust the code/design accordingly.")
+            formatted_prompt = "\n".join(lines)
+
+            set_mobile_turn_origin(conv_id)
+            delivered = send_message_to_antigravity(
+                conv_id=conv_id,
+                text=formatted_prompt,
+                sender_name=sender_name,
+                title=f"Visual Feedback on {original_filename}",
+            )
+
+            self.broadcast_event({
+                "type": "conversation_updated",
+                "conv_id": conv_id,
+            })
+
+            return web.json_response({
+                "success": True,
+                "conv_id": conv_id,
+                "original_filename": original_filename,
+                "filename": filename,
+                "path": str(target_path),
+                "url": f"/api/conversation/{conv_id}/artifact/{filename}",
+                "delivered": delivered,
+                "message": formatted_prompt,
+                "artifact": art,
+            })
         except Exception as e:
             return web.json_response({"error": str(e)}, status=500)
 
@@ -908,16 +1053,16 @@ class CompanionServer:
 
             tts = get_tts_engine(self.config)
 
-            temp_out = Path(tempfile.gettempdir()) / f"vg_tts_{int(time.time()*1000)}.mp3"
-
-            # Check if engine has synthesis to file
+            # Determine appropriate temp format: mp3 for async neural engines, aiff for macOS say
             if hasattr(tts, "synthesize_to_file"):
+                temp_out = Path(tempfile.gettempdir()) / f"vg_tts_{int(time.time()*1000)}.mp3"
                 await tts.synthesize_to_file(text, temp_out)
             elif hasattr(tts, "speak_to_file"):
+                temp_out = Path(tempfile.gettempdir()) / f"vg_tts_{int(time.time()*1000)}.aiff"
                 tts.speak_to_file(text, temp_out)
             else:
                 # Fallback mac say to wav/aiff with safe argument passing
-                temp_out = temp_out.with_suffix(".aiff")
+                temp_out = Path(tempfile.gettempdir()) / f"vg_tts_{int(time.time()*1000)}.aiff"
                 subprocess.run(["say", "-o", str(temp_out), "--", text], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
             if temp_out.is_file() and temp_out.suffix in (".aiff", ".wav"):

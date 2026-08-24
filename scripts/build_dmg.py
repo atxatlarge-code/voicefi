@@ -13,12 +13,12 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 DIST_DIR = ROOT_DIR / "dist"
 BUILD_DIR = ROOT_DIR / "build"
 ASSETS_DIR = ROOT_DIR / "assets"
-APP_NAME = "Voicegency"
+APP_NAME = "VoiceFi"
 APP_BUNDLE = DIST_DIR / f"{APP_NAME}.app"
-DMG_NAME = "Voicegency_v1.0.0_macOS.dmg"
+DMG_NAME = "VoiceFi_v1.0.0_macOS.dmg"
 DMG_PATH = DIST_DIR / DMG_NAME
 ICON_FILE = ASSETS_DIR / "icon.icns"
-SPEC_FILE = ROOT_DIR / "Voicegency.spec"
+SPEC_FILE = ROOT_DIR / "VoiceFi.spec"
 
 
 def clean():

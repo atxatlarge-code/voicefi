@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "voicefi"
 version = "0.1.0"
-description = "Giving your agents a voice, and your voice agency. Universal ambient voice layer for AI coding agents and macOS desktop"
+description = "Giving your agents a voice, and your voice agency. Universal voice layer for AI coding agents and macOS desktop"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
@@ -39,6 +39,7 @@ dependencies = [
     "rumps>=0.4.0",
     "aiohttp>=3.9.0",
     "qrcode>=7.4.2",
+    "posthog>=7.43.0",
 ]
 
 [project.optional-dependencies]

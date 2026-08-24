@@ -4,7 +4,7 @@ Handles loading, validating, and saving YAML configuration files with defaults.
 """
 
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal, Optional, Union
 import os
 import subprocess
 import getpass
@@ -92,7 +92,7 @@ class VADConfig(BaseModel):
     max_record_seconds: int = 45
     sample_rate: int = 16000
     ptt_release_delay_ms: int = 150
-    barge_in: bool = True
+    barge_in: Union[bool, Literal["auto"]] = "auto"
     barge_in_sensitivity: float = 1.0
 
 
@@ -107,20 +107,32 @@ class AudioCuesConfig(BaseModel):
 class AntigravityConfig(BaseModel):
     auto_listen: bool = True
     read_summary_aloud: bool = True
-    max_spoken_words: int = 25
+    max_spoken_words: int = 60
     inject_to_active_window: bool = True
     unfocused_agent_voice: Optional[str] = None
     unfocused_voice_prefix: bool = True
     show_speech_popup: bool = True
     speech_popup_linger_seconds: float = 3.0
     speech_popup_position: Literal["top_center", "top_right", "bottom_right"] = "top_center"
+    auto_send: bool = True
+    persistent_hud: bool = True
+
+
+class HUDConfig(BaseModel):
+    enabled: bool = True
+    persistent: bool = True
+    auto_send: bool = True
+    show_live_transcript: bool = True
+    fullscreen_overlay: bool = True  # True = float above full-screen games/apps; False = allow full-screen overlap/hide behind
+    position: Literal["top_center", "top_right", "bottom_right"] = "top_center"
+    linger_seconds: float = 2.0
 
 
 class ClaudeConfig(BaseModel):
     auto_listen: bool = True
     read_summary_aloud: bool = True
     auto_submit: bool = False  # False = paste into terminal prompt for manual review; True = auto-press Enter
-    max_spoken_words: int = 25
+    max_spoken_words: int = 60
     inject_to_active_window: bool = True
     show_speech_popup: bool = True
 
@@ -139,6 +151,7 @@ class GlobalHotkeyConfig(BaseModel):
     jump_to_agent_hotkey: str = "<ctrl>+j"
     hub_hotkey: str = "<ctrl>+<shift>+j"
     dictate_hotkey: str = "<ctrl>+t"
+    new_conversation_hotkey: str = "<cmd>+<shift>+n"
     show_dictation_hud: bool = True
     preserve_clipboard: bool = True
 
@@ -213,8 +226,10 @@ def default_agents_catalog() -> dict[str, AgentVoiceProfile]:
 class VoiceFiConfig(BaseModel):
     version: int = 1
     enabled: bool = True  # Global pause/resume kill-switch
+    telemetry: bool = True  # Anonymous crash & diagnostic error reporting (opt-out with DO_NOT_TRACK=1)
     tier: str = "community"
     license_key: str = ""
+    posthog_api_key: str = ""
     user_name: str = Field(default_factory=detect_system_user_name)
     tts: TTSConfig = Field(default_factory=TTSConfig)
     stt: STTConfig = Field(default_factory=STTConfig)
@@ -228,6 +243,7 @@ class VoiceFiConfig(BaseModel):
     studio: StudioConfig = Field(default_factory=StudioConfig)
     integrations: IntegrationsConfig = Field(default_factory=IntegrationsConfig)
     global_hotkey: GlobalHotkeyConfig = Field(default_factory=GlobalHotkeyConfig)
+    hud: HUDConfig = Field(default_factory=HUDConfig)
     memo: MemoConfig = Field(default_factory=MemoConfig)
     agents: dict[str, AgentVoiceProfile] = Field(default_factory=default_agents_catalog)
     subagents: dict[str, AgentVoiceProfile] = Field(default_factory=dict)

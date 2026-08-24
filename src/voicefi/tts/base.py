@@ -90,14 +90,28 @@ def is_system_audio_playing() -> bool:
         return False
 
 
+_LOCK_DEPTH = 0
+
+
 @contextmanager
 def speech_turn_lock():
     """
     Cross-process and cross-thread lock.
     Ensures that separate processes (IDE hooks, background subagents, CLI scripts)
     wait politely for the active speaker to finish instead of talking over each other.
+    Supports re-entrant execution within the same thread/process.
     """
+    global _LOCK_DEPTH
     with _THREAD_LOCK:
+        if _LOCK_DEPTH > 0:
+            _LOCK_DEPTH += 1
+            try:
+                yield
+            finally:
+                _LOCK_DEPTH -= 1
+            return
+
+        _LOCK_DEPTH += 1
         SPEECH_LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
         lock_fd = None
         try:
@@ -124,6 +138,7 @@ def speech_turn_lock():
                     lock_fd.close()
                 except Exception:
                     pass
+            _LOCK_DEPTH -= 1
 
 
 

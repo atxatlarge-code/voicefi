@@ -22,11 +22,60 @@ from voicefi.integrations.watcher import TranscriptWatcher
 from voicefi.integrations.antigravity import handle_antigravity_stop_hook
 
 
+from voicefi.audio.device import (
+    is_using_builtin_speakers,
+    is_headphone_or_headset_active,
+    get_audio_device_profile,
+)
+from voicefi.audio.recorder import resolve_barge_in_mode
+
+
 def test_vad_config_barge_in_defaults():
-    """Verify VADConfig has barge_in enabled by default with 1.0 sensitivity."""
+    """Verify VADConfig has barge_in set to 'auto' by default with 1.0 sensitivity."""
     cfg = VoiceFiConfig()
-    assert cfg.vad.barge_in is True
+    assert cfg.vad.barge_in == "auto"
     assert cfg.vad.barge_in_sensitivity == 1.0
+
+
+def test_resolve_barge_in_mode_auto_and_manual():
+    """Verify resolve_barge_in_mode correctly handles 'auto', True, and False."""
+    with patch("voicefi.audio.recorder.is_using_builtin_speakers", return_value=True):
+        active, safe = resolve_barge_in_mode("auto")
+        assert active is True
+        assert safe is True  # Safe mode engaged on built-in speakers
+
+        active, safe = resolve_barge_in_mode(True)
+        assert active is True
+        assert safe is True
+
+        active, safe = resolve_barge_in_mode(False)
+        assert active is False
+        assert safe is False
+
+    with patch("voicefi.audio.recorder.is_using_builtin_speakers", return_value=False):
+        active, safe = resolve_barge_in_mode("auto")
+        assert active is True
+        assert safe is False  # Full mode active on headphones
+
+
+def test_audio_device_detection_profile():
+    """Verify audio device detection helpers accurately classify speakers and headphones."""
+    mock_builtin = ({"name": "MacBook Pro Microphone"}, {"name": "MacBook Pro Speakers"})
+    mock_headphones = ({"name": "MacBook Pro Microphone"}, {"name": "AirPods Pro"})
+
+    with patch("voicefi.audio.device.get_default_audio_devices", return_value=mock_builtin):
+        assert is_using_builtin_speakers() is True
+        assert is_headphone_or_headset_active() is False
+        prof = get_audio_device_profile()
+        assert prof["is_builtin_speakers"] is True
+        assert prof["acoustic_safe_mode_recommended"] is True
+
+    with patch("voicefi.audio.device.get_default_audio_devices", return_value=mock_headphones):
+        assert is_using_builtin_speakers() is False
+        assert is_headphone_or_headset_active() is True
+        prof = get_audio_device_profile()
+        assert prof["is_headphones_active"] is True
+        assert prof["acoustic_safe_mode_recommended"] is False
 
 
 def test_audio_recorder_barge_in_triggers_and_preserves_audio():

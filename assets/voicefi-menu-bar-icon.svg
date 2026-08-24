@@ -1,24 +1,46 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 22 22" width="22" height="22">
-  <!-- Minimal Monochrome macOS Menu Bar Template: Concept B Face in Mic with Wi-Fi Visor -->
-  <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-    <!-- Clean Wi-Fi Hat -->
-    <path d="M 5 4.5 A 8.5 8.5 0 0 1 17 4.5" stroke-width="1.3" />
-    <path d="M 7.5 7 A 5 5 0 0 1 14.5 7" stroke-width="1.3" />
-    <path d="M 9.5 9.5 A 2 2 0 0 1 12.5 9.5" stroke-width="1.3" />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <!-- VoiceFi Master Mark: Monochrome macOS Template Icon -->
+  <g transform="translate(0, 15)">
+    <!-- 1. WI-FI BROADCAST HAT -->
+    <g fill="none" stroke="#000000" stroke-linecap="round">
+      <path d="M 152 145 A 120 120 0 0 1 360 145" stroke-width="26" />
+      <path d="M 184 180 A 80 80 0 0 1 328 180" stroke-width="26" />
+      <path d="M 216 215 A 42 42 0 0 1 296 215" stroke-width="26" />
+    </g>
 
-    <!-- Cyber Slit Eyes -->
-    <line x1="8" y1="12" x2="9.5" y2="12" stroke-width="1.3" />
-    <line x1="12.5" y1="12" x2="14" y2="12" stroke-width="1.3" />
+    <!-- 2. CYBER FACE EYES -->
+    <g stroke="#000000" stroke-linecap="round">
+      <line x1="198" y1="262" x2="238" y2="262" stroke-width="16" />
+      <line x1="274" y1="262" x2="314" y2="262" stroke-width="16" />
+    </g>
 
-    <!-- USB-C Pill Nose -->
-    <rect x="10" y="13" width="2" height="1.2" rx="0.6" stroke-width="1" />
+    <!-- 3. USB-C PORT NOSE -->
+    <g>
+      <rect x="230" y="274" width="52" height="24" rx="12" fill="none" stroke="#000000" stroke-width="8" />
+      <line x1="242" y1="286" x2="270" y2="286" stroke="#000000" stroke-width="8" stroke-linecap="round" />
+    </g>
 
-    <!-- Smile Arc -->
-    <path d="M 9.5 15 Q 11 16 12.5 15" stroke-width="1" />
+    <!-- Smile -->
+    <path d="M 220 325 Q 256 355 292 325" fill="none" stroke="#000000" stroke-width="12" stroke-linecap="round" />
 
-    <!-- Studio Cradle / Collar & Stand -->
-    <path d="M 4.5 9.5 C 4.5 16, 7 17.5, 11 17.5 C 15 17.5, 17.5 16, 17.5 9.5" stroke-width="1.3" />
-    <line x1="11" y1="17.5" x2="11" y2="20" stroke-width="1.4" />
-    <line x1="8.5" y1="20" x2="13.5" y2="20" stroke-width="1.4" />
+    <!-- 4. CRADLE & PLUG BASE -->
+    <path d="M 114 220 C 114 360, 175 395, 256 395 C 337 395, 398 360, 398 220" 
+          fill="none" 
+          stroke="#000000" 
+          stroke-width="24" 
+          stroke-linecap="round" />
+
+    <!-- Plug Prongs -->
+    <g>
+      <rect x="94" y="200" width="40" height="40" rx="10" fill="none" stroke="#000000" stroke-width="12" />
+      <circle cx="114" cy="220" r="6" fill="#000000" />
+
+      <rect x="378" y="200" width="40" height="40" rx="10" fill="none" stroke="#000000" stroke-width="12" />
+      <circle cx="398" cy="220" r="6" fill="#000000" />
+    </g>
+
+    <!-- Stem & Base -->
+    <line x1="256" y1="395" x2="256" y2="450" stroke="#000000" stroke-width="24" stroke-linecap="round" />
+    <line x1="170" y1="450" x2="342" y2="450" stroke="#000000" stroke-width="24" stroke-linecap="round" />
   </g>
 </svg>

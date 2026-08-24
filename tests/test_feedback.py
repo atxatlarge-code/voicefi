@@ -77,3 +77,37 @@ def test_cmd_feedback_cli(capsys, tmp_path):
         captured_list = capsys.readouterr()
         assert "Recent Feedback Items" in captured_list.out
         assert "Microphone energy too sensitive" in captured_list.out
+
+
+def test_telemetry_sanitization():
+    """Verify telemetry path and token sanitization eliminates PII."""
+    from voicefi.telemetry import sanitize_telemetry_data
+
+    sample = {
+        "path": "/Users/angelica/Projects/myapp/main.py",
+        "error": "Failed at /Users/angelica/.voicefi/config.yaml with sk-1234567890abcdef123456",
+        "nested": [
+            "/Users/angelica/Library/Application Support/voicefi",
+            {"secret_key": "super_secret", "normal_metric": 42}
+        ]
+    }
+
+    sanitized = sanitize_telemetry_data(sample)
+    assert "/Users/angelica" not in sanitized["path"]
+    assert "~" in sanitized["path"]
+    assert "sk-1234567890abcdef123456" not in sanitized["error"]
+    assert "[REDACTED_API_KEY]" in sanitized["error"]
+    assert "secret_key" not in sanitized["nested"][1]
+    assert sanitized["nested"][1]["normal_metric"] == 42
+
+
+def test_telemetry_opt_out():
+    """Verify DO_NOT_TRACK and VOICEFI_TELEMETRY environment flags disable telemetry."""
+    from voicefi.telemetry import is_telemetry_enabled
+    import os
+
+    with patch.dict(os.environ, {"DO_NOT_TRACK": "1"}):
+        assert is_telemetry_enabled() is False
+
+    with patch.dict(os.environ, {"VOICEFI_TELEMETRY": "0", "DO_NOT_TRACK": ""}):
+        assert is_telemetry_enabled() is False

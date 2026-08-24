@@ -10,6 +10,7 @@ import threading
 from pathlib import Path
 from typing import Optional
 from voicefi.tts.base import BaseTTS, speech_turn_lock
+from voicefi.audio.meeting_detection import is_user_on_call
 
 
 def normalize_edge_rate(rate: any) -> str:
@@ -85,6 +86,10 @@ class EdgeTTS(BaseTTS):
     def speak(self, text: str, block: bool = True) -> None:
         """Synthesize and play neural speech audio with cross-process turn queuing."""
         if not text or not text.strip():
+            return
+            
+        if is_user_on_call():
+            print("[EdgeTTS] User is on a call. Skipping speech synthesis.")
             return
 
         self._stop_requested = False

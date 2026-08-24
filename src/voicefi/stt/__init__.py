@@ -13,6 +13,8 @@ from voicefi.stt.biasing import ProjectContextExtractor, PhoneticNormalizer
 
 def get_stt_engine(config: VoiceFiConfig) -> BaseSTT:
     """Instantiate the configured STT engine."""
+    from voicefi.license import FeatureGate
+
     provider = config.stt.provider.lower()
 
     if provider == "groq" and config.stt.groq_api_key:
@@ -24,12 +26,13 @@ def get_stt_engine(config: VoiceFiConfig) -> BaseSTT:
     elif provider == "apple_speech":
         return AppleSpeechSTT(language=config.stt.language)
     else:
-        # Local faster-whisper (streaming or batch)
-        if getattr(config.stt, "streaming", False):
+        # Local faster-whisper (streaming gated behind Pro/Org tier)
+        if getattr(config.stt, "streaming", False) and FeatureGate.can_use_feature("streaming_stt", config):
             return StreamingLocalSTT(
                 model_size=config.stt.model_size,
                 language=config.stt.language,
             )
+        # Default community (.org) tier: Clean, instant on-device Faster-Whisper batch
         return WhisperLocalSTT(
             model_size=config.stt.model_size,
             language=config.stt.language,

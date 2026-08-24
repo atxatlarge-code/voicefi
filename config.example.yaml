@@ -6,6 +6,7 @@ version: 1
 # Tier: "community" (free open-source) or "pro"
 tier: "community"
 license_key: "" # Leave empty for community tier
+posthog_api_key: "" # PostHog API Key for telemetry and error tracking
 
 # Text-to-Speech (TTS) Settings
 tts:
@@ -43,7 +44,7 @@ vad:
   max_record_seconds: 45   # Maximum single recording duration
   sample_rate: 16000       # Sample rate for STT (16kHz standard)
   ptt_release_delay_ms: 150 # Trailing buffer on key release to prevent clipped speech
-  barge_in: true           # Enable active voice interruption (cuts agent speech on user voice)
+  barge_in: "auto"         # "auto" (AirPods/Headphones=On, Built-in Speakers=Safe) | true | false
   barge_in_sensitivity: 1.0 # Sensitivity multiplier for barge-in voice detection
 
 # Audio Feedback Cues
@@ -61,11 +62,24 @@ antigravity:
   max_spoken_words: 60         # Summarize agent turn to brief soundbite
   inject_to_active_window: true # Type/submit transcribed text to the active application
 
+# Unified Dynamic Island HUD
+hud:
+  enabled: true                # Enable Dynamic Island floating HUD
+  persistent: true             # Keep resting pill visible ("🎙️ VoiceFi • Ready")
+  auto_send: true              # Instant prompt submission (false = review & edit mode)
+  show_live_transcript: true   # Stream live transcription tokens
+  fullscreen_overlay: true     # true = always on top of full-screen games/apps; false = allow full-screen overlap
+  position: "top_center"       # "top_center" | "top_right" | "bottom_right"
+  linger_seconds: 2.0          # Seconds to linger after done/speaking
+
 # Global Desktop Dictation Hotkeys
 global_hotkey:
   enabled: true
-  focus_and_talk_hotkey: "<ctrl>+r" # Control + R for Respond (jump to Antigravity & talk)
-  dictate_hotkey: "<ctrl>+t"     # Control + T for Talk (dictate anywhere)
+  focus_and_talk_hotkey: "<ctrl>+r"       # Control + R to Respond to active agent
+  jump_to_agent_hotkey: "<ctrl>+j"        # Control + J to Jump/Focus Antigravity
+  hub_hotkey: "<ctrl>+<shift>+j"          # Control + Shift + J to toggle Activity Hub
+  new_conversation_hotkey: "<cmd>+<shift>+n" # Command + Shift + N to start New Conversation with Connected Tools
+  dictate_hotkey: "<ctrl>+t"             # Control + T for Talk (dictate anywhere)
 
 # Per-Agent Voice Personas (Agent-First Customization)
 agents:

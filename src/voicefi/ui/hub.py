@@ -62,9 +62,22 @@ class ConversationHubWindow:
     _instance: Optional["ConversationHubWindow"] = None
 
     @classmethod
-    def get_instance(cls, tracker: ConversationTracker, on_switch: Optional[Callable] = None, on_talk: Optional[Callable] = None) -> "ConversationHubWindow":
+    def get_instance(
+        cls,
+        tracker: ConversationTracker,
+        on_switch: Optional[Callable] = None,
+        on_talk: Optional[Callable] = None,
+        on_new_conversation: Optional[Callable] = None,
+    ) -> "ConversationHubWindow":
         if cls._instance is None:
-            cls._instance = cls(tracker, on_switch, on_talk)
+            cls._instance = cls(tracker, on_switch, on_talk, on_new_conversation)
+        else:
+            if on_new_conversation is not None:
+                cls._instance.on_new_conversation = on_new_conversation
+            if on_switch is not None:
+                cls._instance.on_switch = on_switch
+            if on_talk is not None:
+                cls._instance.on_talk = on_talk
         return cls._instance
 
     def __init__(
@@ -72,10 +85,12 @@ class ConversationHubWindow:
         tracker: ConversationTracker,
         on_switch: Optional[Callable[[str, Optional[Path], Optional[str]], None]] = None,
         on_talk: Optional[Callable[[str], None]] = None,
+        on_new_conversation: Optional[Callable[[], None]] = None,
     ):
         self.tracker = tracker
         self.on_switch = on_switch
         self.on_talk = on_talk
+        self.on_new_conversation = on_new_conversation
         self._targets: List[HubActionTarget] = []
         self._panel: Optional[NSPanel] = None
         self._timer: Optional[threading.Timer] = None
@@ -239,15 +254,34 @@ class ConversationHubWindow:
         root_view.setWantsLayer_(True)
 
         # Header Title
-        header = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(20, bounds.size.height - 40), NSSize(165, 26)))
-        header.setStringValue_("Agent Status (HUD)")
-        header.setFont_(NSFont.boldSystemFontOfSize_(14))
+        header = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(16, bounds.size.height - 40), NSSize(125, 26)))
+        header.setStringValue_("Agent HUD")
+        header.setFont_(NSFont.boldSystemFontOfSize_(13.5))
         header.setBezeled_(False)
         header.setDrawsBackground_(False)
         header.setEditable_(False)
         header.setSelectable_(False)
         header.setWantsLayer_(True)
         root_view.addSubview_(header)
+
+        # New Conversation with Connected Tools Button
+        def _new_conv():
+            if self.on_new_conversation:
+                self.on_new_conversation()
+            else:
+                from voicefi.integrations.injector import create_new_antigravity_conversation
+                create_new_antigravity_conversation(prompt="Hello")
+
+        new_conv_target = HubActionTarget.alloc().initWithCallback_(_new_conv)
+        self._targets.append(new_conv_target)
+
+        new_conv_btn = NSButton.alloc().initWithFrame_(NSRect(NSPoint(145, bounds.size.height - 42), NSSize(100, 26)))
+        new_conv_btn.setTitle_("✨ + New")
+        new_conv_btn.setBezelStyle_(NSBezelStyleRounded)
+        new_conv_btn.setTarget_(new_conv_target)
+        new_conv_btn.setAction_(objc.selector(new_conv_target.buttonClicked_, signature=b"v@:@"))
+        new_conv_btn.setWantsLayer_(True)
+        root_view.addSubview_(new_conv_btn)
 
         # Jump to Antigravity Button
         def _jump_ag():
@@ -256,8 +290,8 @@ class ConversationHubWindow:
         jump_ag_target = HubActionTarget.alloc().initWithCallback_(_jump_ag)
         self._targets.append(jump_ag_target)
 
-        jump_ag_btn = NSButton.alloc().initWithFrame_(NSRect(NSPoint(190, bounds.size.height - 42), NSSize(125, 26)))
-        jump_ag_btn.setTitle_("💬 Antigravity")
+        jump_ag_btn = NSButton.alloc().initWithFrame_(NSRect(NSPoint(248, bounds.size.height - 42), NSSize(88, 26)))
+        jump_ag_btn.setTitle_("💬 Focus")
         jump_ag_btn.setBezelStyle_(NSBezelStyleRounded)
         jump_ag_btn.setTarget_(jump_ag_target)
         jump_ag_btn.setAction_(objc.selector(jump_ag_target.buttonClicked_, signature=b"v@:@"))
@@ -268,8 +302,8 @@ class ConversationHubWindow:
         refresh_target = HubActionTarget.alloc().initWithCallback_(self.refresh)
         self._targets.append(refresh_target)
 
-        refresh_btn = NSButton.alloc().initWithFrame_(NSRect(NSPoint(320, bounds.size.height - 42), NSSize(85, 26)))
-        refresh_btn.setTitle_("🔄 Refresh")
+        refresh_btn = NSButton.alloc().initWithFrame_(NSRect(NSPoint(339, bounds.size.height - 42), NSSize(84, 26)))
+        refresh_btn.setTitle_("🔄 Sync")
         refresh_btn.setBezelStyle_(NSBezelStyleRounded)
         refresh_btn.setTarget_(refresh_target)
         refresh_btn.setAction_(objc.selector(refresh_target.buttonClicked_, signature=b"v@:@"))
@@ -284,7 +318,7 @@ class ConversationHubWindow:
         panel_target = HubActionTarget.alloc().initWithCallback_(_open_panel)
         self._targets.append(panel_target)
 
-        panel_btn = NSButton.alloc().initWithFrame_(NSRect(NSPoint(410, bounds.size.height - 42), NSSize(90, 26)))
+        panel_btn = NSButton.alloc().initWithFrame_(NSRect(NSPoint(426, bounds.size.height - 42), NSSize(80, 26)))
         panel_btn.setTitle_("🎛️ Panel")
         panel_btn.setBezelStyle_(NSBezelStyleRounded)
         panel_btn.setTarget_(panel_target)
@@ -293,8 +327,8 @@ class ConversationHubWindow:
         root_view.addSubview_(panel_btn)
 
         # Instructions / Shortcut note
-        hint = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(20, bounds.size.height - 66), NSSize(475, 18)))
-        hint.setStringValue_("Ctrl + R to respond • Ctrl + J to switch window • Persistent Activity HUD")
+        hint = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(18, bounds.size.height - 66), NSSize(485, 18)))
+        hint.setStringValue_("⌘⇧N New Conversation (Tools) • ⌃R Respond • ⌃J Focus • ⌃⇧J Hub")
         hint.setFont_(NSFont.systemFontOfSize_(11))
         hint.setTextColor_(NSColor.secondaryLabelColor())
         hint.setBezeled_(False)

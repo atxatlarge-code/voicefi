@@ -132,6 +132,24 @@ def cmd_loop(args):
         print("\n👋 VoiceFi loop stopped.")
 
 
+def cmd_new(args):
+    """Start a brand new Antigravity conversation with connected tools."""
+    from voicefi.integrations.injector import create_new_antigravity_conversation
+    config = load_config(args.config)
+    prompt = " ".join(args.prompt) if getattr(args, "prompt", None) else "Hello"
+    title = getattr(args, "title", None)
+    model = getattr(args, "model", None)
+
+    print(f"✨ Initializing new Antigravity conversation with connected tools...")
+    cid = create_new_antigravity_conversation(prompt=prompt, title=title, model=model)
+    if cid:
+        print(f"✅ New conversation created and focused: {cid}")
+        if config.audio_cues.enabled:
+            play_chime("start", block=False)
+    else:
+        print("🚀 New conversation command dispatched to Antigravity.")
+
+
 def cmd_tray(args):
     """Launch macOS menu bar tray companion."""
     from voicefi.ui.tray import run_tray
@@ -144,6 +162,12 @@ def cmd_dev(args):
     from voicefi.ui.tray import run_tray
     print("🚀 Launching VoiceFi in DEV mode (live logs active, Ctrl+C to exit)...")
     run_tray()
+
+
+def cmd_onboarding(args):
+    """Run interactive First-Time User Experience onboarding flow."""
+    from voicefi.onboarding import run_onboarding
+    run_onboarding()
 
 
 def cmd_setup(args):
@@ -1467,7 +1491,7 @@ def cmd_info(args):
     tier_info = FeatureGate.get_tier_summary(config)
 
     print(f"\n================ VoiceFi v{__version__} ================")
-    print("  'Give a voice to your agents, and agency to your voice.'")
+    print("  'Give voice to your agents, and agency for your voice.'")
     print(f"Tier:          {tier_info['tier']}")
     print(f"TTS Provider:  {config.tts.provider} (Default Voice: {config.tts.voice})")
     print(f"STT Provider:  {config.stt.provider} (Model: {config.stt.model_size})")
@@ -1485,12 +1509,14 @@ def cmd_info(args):
 
 
 def cmd_hud(args):
-    """Control and preview Unified Dynamic Island HUD on macOS."""
+    """Control, configure, and debug Unified Dynamic Island HUD on macOS."""
     action = getattr(args, "hud_action", "test")
     import time
     from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
+    from voicefi.config import load_config, save_config, HUDConfig
     from AppKit import NSRunLoop, NSDate
 
+    cfg = load_config()
     hud = UnifiedDynamicIslandHUD.get_instance()
 
     def _pump(duration: float):
@@ -1498,50 +1524,318 @@ def cmd_hud(args):
         while time.time() - start < duration:
             NSRunLoop.currentRunLoop().runUntilDate_(NSDate.dateWithTimeIntervalSinceNow_(0.04))
 
-    if action == "test":
+    if action in ("on", "enable"):
+        if not hasattr(cfg, "hud") or cfg.hud is None:
+            cfg.hud = HUDConfig()
+        cfg.hud.enabled = True
+        save_config(cfg)
+        hud.set_persistent(True)
+        hud.set_idle()
+        _pump(0.5)
+        print("🟢 VoiceFi Dynamic Island HUD enabled and visible.")
+    elif action in ("off", "disable"):
+        if not hasattr(cfg, "hud") or cfg.hud is None:
+            cfg.hud = HUDConfig()
+        cfg.hud.enabled = False
+        save_config(cfg)
+        hud.force_hide()
+        _pump(0.3)
+        print("⚪ VoiceFi Dynamic Island HUD disabled and hidden.")
+    elif action == "status":
+        hud_cfg = getattr(cfg, "hud", None) or HUDConfig()
+        print("\n📊 VoiceFi Dynamic Island HUD Status:")
+        print(f"  • HUD Layer:          {'🟢 Active' if hud_cfg.enabled else '⚪ Disabled'}")
+        print(f"  • Current State:      {hud._current_state.upper()}")
+        print(f"  • Persistent:         {'Always Visible (Resting Pill)' if hud.persistent else 'Auto-Hide'}")
+        print(f"  • Full-Screen Overlay:{'🎮 Always on Top of Full Screen Apps' if getattr(hud_cfg, 'fullscreen_overlay', True) else '⚪ Allow Full-Screen Overlap / Hide Behind'}")
+        print(f"  • Prompt Mode:        {'⚡ Instant Auto-Send' if hud.auto_send else '✏️ Interactive Review & Edit'}")
+        print(f"  • Live Typing:        {'🟢 Enabled' if hud_cfg.show_live_transcript else '⚪ Disabled'}")
+        print(f"  • Position:           📍 {hud_cfg.position}")
+        print(f"  • Linger Time:        ⏱️ {hud_cfg.linger_seconds}s\n")
+    elif action == "fullscreen":
+        hud_cfg = getattr(cfg, "hud", None) or HUDConfig()
+        target = getattr(args, "fullscreen_state", "toggle")
+        if target == "on":
+            hud_cfg.fullscreen_overlay = True
+        elif target == "off":
+            hud_cfg.fullscreen_overlay = False
+        elif target == "status":
+            pass
+        else:  # toggle
+            hud_cfg.fullscreen_overlay = not getattr(hud_cfg, "fullscreen_overlay", True)
+        
+        if target != "status":
+            cfg.hud = hud_cfg
+            save_config(cfg)
+            hud.set_fullscreen_overlay(hud_cfg.fullscreen_overlay)
+            print(f"🎮 Full-Screen Overlay: {'ON (Always on Top of Full-Screen Games & Apps)' if hud_cfg.fullscreen_overlay else 'OFF (Allow Full Screen to Overlap / Hide Behind)'}")
+        else:
+            print(f"🎮 Full-Screen Overlay Status: {'ON (Always on Top)' if getattr(hud_cfg, 'fullscreen_overlay', True) else 'OFF (Allow Full Screen Overlap)'}")
+    elif action == "config":
+        hud_cfg = getattr(cfg, "hud", None) or HUDConfig()
+        modified = False
+        if getattr(args, "persistent", None) is not None:
+            hud_cfg.persistent = args.persistent.lower() in ("true", "1", "yes", "on")
+            cfg.antigravity.persistent_hud = hud_cfg.persistent
+            hud.set_persistent(hud_cfg.persistent)
+            modified = True
+        if getattr(args, "fullscreen_overlay", None) is not None:
+            hud_cfg.fullscreen_overlay = args.fullscreen_overlay.lower() in ("true", "1", "yes", "on")
+            hud.set_fullscreen_overlay(hud_cfg.fullscreen_overlay)
+            modified = True
+        if getattr(args, "auto_send", None) is not None:
+            hud_cfg.auto_send = args.auto_send.lower() in ("true", "1", "yes", "on")
+            cfg.antigravity.auto_send = hud_cfg.auto_send
+            hud.set_auto_send(hud_cfg.auto_send)
+            modified = True
+        if getattr(args, "live_transcript", None) is not None:
+            hud_cfg.show_live_transcript = args.live_transcript.lower() in ("true", "1", "yes", "on")
+            modified = True
+        if getattr(args, "position", None) is not None:
+            hud_cfg.position = args.position
+            modified = True
+        if getattr(args, "linger", None) is not None:
+            hud_cfg.linger_seconds = float(args.linger)
+            modified = True
+        if getattr(args, "enabled", None) is not None:
+            hud_cfg.enabled = args.enabled.lower() in ("true", "1", "yes", "on")
+            modified = True
+
+        if modified:
+            cfg.hud = hud_cfg
+            save_config(cfg)
+            print("✅ VoiceFi HUD configuration updated successfully!\n")
+
+        print("🎛️  VoiceFi HUD Configuration:")
+        print(f"  • Enabled:                {'✅ True' if hud_cfg.enabled else '❌ False'}")
+        print(f"  • Persistent Pill:        {'✅ True (Always Visible)' if hud_cfg.persistent else '❌ False (Auto-Hide)'}")
+        print(f"  • Full-Screen Overlay:    {'🎮 True (Always on Top of Games/Apps)' if getattr(hud_cfg, 'fullscreen_overlay', True) else '❌ False (Allow Full Screen Overlap)'}")
+        print(f"  • Auto-Send Prompts:      {'⚡ True (Instant Send)' if hud_cfg.auto_send else '✏️ False (Review & Edit Mode)'}")
+        print(f"  • Live Transcript Typing: {'✅ True' if hud_cfg.show_live_transcript else '❌ False'}")
+        print(f"  • Position:               📍 {hud_cfg.position}")
+        print(f"  • Linger Time:            ⏱️ {hud_cfg.linger_seconds}s\n")
+    elif action == "debug":
+        import sys, select, tty, termios
+        print("\n🎛️  VoiceFi Dynamic Island HUD • Interactive Debug Studio")
+        print("────────────────────────────────────────────────────────────")
+        print("  [1] State: Idle (Persistent Resting Pill)")
+        print("  [2] State: Thinking (Antigravity Reasoning)")
+        print("  [3] State: Working (Running pytest suite)")
+        print("  [4] State: Speaking (Christopher Subtitles)")
+        print("  [5] State: Listening (Live Typing Stream Simulation)")
+        print("  [6] State: Editing (Interactive Review Capsule)")
+        print("  [P] Toggle Persistent Mode (Current: %s)" % ("ON" if hud.persistent else "OFF"))
+        print("  [A] Toggle Auto-Send Mode  (Current: %s)" % ("ON" if hud.auto_send else "OFF"))
+        print("  [C] Clear / Force Hide HUD")
+        print("  [Q] Exit Debug Studio")
+        print("────────────────────────────────────────────────────────────")
+        print("👉 Press any key [1-6, P, A, C, Q] to trigger live HUD states:\n")
+
+        fd = sys.stdin.fileno()
+        old_settings = termios.tcgetattr(fd)
+        try:
+            tty.setcbreak(fd)
+            hud.set_idle()
+            running = True
+            while running:
+                NSRunLoop.currentRunLoop().runUntilDate_(NSDate.dateWithTimeIntervalSinceNow_(0.04))
+                rlist, _, _ = select.select([sys.stdin], [], [], 0)
+                if rlist:
+                    ch = sys.stdin.read(1)
+                    if ch in ('q', 'Q', '\x03'):
+                        running = False
+                    elif ch == '1':
+                        print("👉 [Debug] State: IDLE")
+                        hud.set_idle()
+                    elif ch == '2':
+                        print("👉 [Debug] State: THINKING")
+                        hud.set_thinking("Antigravity", "Analyzing codebase & dependencies...")
+                    elif ch == '3':
+                        print("👉 [Debug] State: WORKING")
+                        hud.set_working("Antigravity", "Executing pytest tests/ (164 passed)")
+                    elif ch == '4':
+                        print("👉 [Debug] State: SPEAKING")
+                        hud.set_speaking("VoiceFi Dynamic Island HUD is running natively on macOS.", persona_name="Christopher")
+                    elif ch == '5':
+                        print("👉 [Debug] State: LISTENING (Simulating real-time typing stream)...")
+                        hud.set_listening(user_name=getattr(hud.config, "user_name", "Jake"))
+                        for phrase in ["Add", "Add live typing", "Add live typing to", "Add live typing to the listening phase of HUD"]:
+                            hud.update_live_transcription(phrase, user_name=getattr(hud.config, "user_name", "Jake"))
+                            _pump(0.35)
+                        _pump(0.6)
+
+                        if hud.auto_send:
+                            print("👉 [Debug] Auto-Send is ENABLED: Automatically submitting prompt...")
+                            hud.show_done(preview_text="Prompt Sent")
+                            _pump(1.2)
+                            if hud.persistent:
+                                hud.set_idle()
+                            else:
+                                hud.force_hide()
+                        else:
+                            print("👉 [Debug] Auto-Send is DISABLED (Review Mode): Opening interactive edit capsule...")
+                            hud.set_editing(
+                                "Add live typing to the listening phase of HUD",
+                                on_submit=lambda val: print(f"\n[Debug] ✅ Submitted prompt: '{val}'\n"),
+                                on_cancel=lambda: print("\n[Debug] ✕ Cancelled edit\n"),
+                                target_name="Antigravity",
+                            )
+                    elif ch == '6':
+                        print("👉 [Debug] State: REVIEW & EDIT")
+                        hud.set_editing(
+                            "Add live typing to the listening phase of HUD",
+                            on_submit=lambda val: print(f"\n[Debug] ✅ Submitted prompt: '{val}'\n"),
+                            on_cancel=lambda: print("\n[Debug] ✕ Cancelled edit\n"),
+                            target_name="Antigravity",
+                        )
+                    elif ch in ('p', 'P'):
+                        new_p = not hud.persistent
+                        hud.set_persistent(new_p)
+                        if not hasattr(cfg, "hud") or cfg.hud is None:
+                            cfg.hud = HUDConfig()
+                        cfg.hud.persistent = new_p
+                        save_config(cfg)
+                        if new_p:
+                            hud.set_idle()
+                            print("👉 [Debug] Persistent Mode: ENABLED -> Resting pill ('🎙️ VoiceFi • Ready') visible")
+                        else:
+                            hud.force_hide()
+                            print("👉 [Debug] Persistent Mode: DISABLED -> HUD auto-hidden when idle")
+                    elif ch in ('a', 'A'):
+                        new_a = not hud.auto_send
+                        hud.set_auto_send(new_a)
+                        if not hasattr(cfg, "hud") or cfg.hud is None:
+                            cfg.hud = HUDConfig()
+                        cfg.hud.auto_send = new_a
+                        save_config(cfg)
+                        if new_a:
+                            hud.show_done(preview_text="Instant Send")
+                            _pump(1.0)
+                            if hud.persistent:
+                                hud.set_idle()
+                            else:
+                                hud.force_hide()
+                            print("👉 [Debug] Auto-Send Mode: ENABLED (Instant Send) -> Prompts dispatch directly upon silence")
+                        else:
+                            hud.set_editing(
+                                "Add live typing to the listening phase of HUD",
+                                on_submit=lambda val: print(f"\n[Debug] ✅ Submitted prompt: '{val}'\n"),
+                                on_cancel=lambda: print("\n[Debug] ✕ Cancelled edit\n"),
+                                target_name="Antigravity",
+                            )
+                            print("👉 [Debug] Auto-Send Mode: DISABLED (Review & Edit) -> Opened review capsule with text field")
+                    elif ch in ('c', 'C'):
+                        print("👉 [Debug] Hiding HUD")
+                        hud.force_hide()
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+            hud.force_hide()
+            print("\n👋 Exited HUD Debug Studio.\n")
+    elif action == "test":
         print("\n🍏 Running Unified Dynamic Island HUD Showcase (Pure Native macOS)...")
-        print("  1/5 💤 State: Idle (Compact Pill)")
+        print("  1/6 💤 State: Idle (Compact Persistent Pill)")
         hud.set_idle()
         _pump(1.8)
 
-        print("  2/5 🧠 State: Thinking (Antigravity)")
+        print("  2/6 🧠 State: Thinking (Antigravity)")
         hud.set_thinking("Antigravity", "Analyzing architecture & dependencies...")
-        _pump(2.2)
+        _pump(2.0)
 
-        print("  3/5 ⚡ State: Working (Tool Action)")
-        hud.set_working("Antigravity", "Executing pytest tests/ -v (150 passed)")
-        _pump(2.2)
+        print("  3/6 ⚡ State: Working (Tool Action)")
+        hud.set_working("Antigravity", "Executing pytest tests/ -v (164 passed)")
+        _pump(2.0)
 
-        print("  4/5 🔊 State: Speaking (Live Subtitles)")
-        hud.set_speaking("Hey Jake! All 150 test suites passed cleanly with zero regressions.", persona_name="Christopher")
-        _pump(3.0)
+        print("  4/6 🔊 State: Speaking (Live Subtitles)")
+        hud.set_speaking("Hey Jake! All 164 test suites passed cleanly with zero regressions.", persona_name="Christopher")
+        _pump(2.8)
 
-        print("  5/5 🎙️ State: Listening (Active VAD Mic)")
+        print("  5/6 🎙️ State: Listening (Real-Time Live Typing Stream)")
         hud.set_listening(user_name=getattr(hud.config, "user_name", "Jake"))
-        _pump(2.5)
+        _pump(1.0)
+        phrases = [
+            "Add",
+            "Add live typing",
+            "Add live typing to the listening",
+            "Add live typing to the listening phase of HUD",
+        ]
+        for phrase in phrases:
+            hud.update_live_transcription(phrase, user_name=getattr(hud.config, "user_name", "Jake"))
+            _pump(0.6)
+        _pump(1.2)
 
-        hud.hide()
+        print("  6/6 ✏️ State: Review & Edit (Interactive Capsule)")
+        def _dummy_submit(val):
+            print(f"[CLI] Submitted prompt from HUD: '{val}'")
+        def _dummy_cancel():
+            print("[CLI] Cancelled edit in HUD")
+        hud.set_editing("Add live typing to the listening phase of HUD", on_submit=_dummy_submit, on_cancel=_dummy_cancel, target_name="Antigravity")
+        _pump(3.2)
+
+        hud.show_done(preview_text="Prompt Confirmed")
+        _pump(1.5)
+        hud.force_hide()
         print("✅ Unified Dynamic Island HUD showcase completed successfully!\n")
+    elif action == "persistent":
+        sub = getattr(args, "persistent_state", "toggle")
+        current = getattr(getattr(cfg, "hud", None), "persistent", True)
+        if sub == "on":
+            new_val = True
+        elif sub == "off":
+            new_val = False
+        else:
+            new_val = not current
+        if not hasattr(cfg, "hud") or cfg.hud is None:
+            cfg.hud = HUDConfig()
+        cfg.hud.persistent = new_val
+        cfg.antigravity.persistent_hud = new_val
+        save_config(cfg)
+        hud.set_persistent(new_val)
+        print(f"📌 HUD Persistent Mode: {'ENABLED (Always Visible)' if new_val else 'DISABLED (Auto-Hide)'}")
+    elif action == "auto-send":
+        sub = getattr(args, "auto_send_state", "toggle")
+        current = getattr(getattr(cfg, "hud", None), "auto_send", True)
+        if sub == "on":
+            new_val = True
+        elif sub == "off":
+            new_val = False
+        else:
+            new_val = not current
+        if not hasattr(cfg, "hud") or cfg.hud is None:
+            cfg.hud = HUDConfig()
+        cfg.hud.auto_send = new_val
+        cfg.antigravity.auto_send = new_val
+        save_config(cfg)
+        hud.set_auto_send(new_val)
+        print(f"⚡ HUD Auto-Send Mode: {'ENABLED (Instant Send)' if new_val else 'DISABLED (Interactive Review Mode)'}")
     elif action == "show":
         state = getattr(args, "state", "idle")
+        custom_text = getattr(args, "text", "")
         if state == "idle":
             hud.set_idle()
         elif state == "thinking":
-            hud.set_thinking(agent_name="Antigravity", detail="Thinking...")
+            hud.set_thinking(agent_name="Antigravity", detail=custom_text or "Thinking...")
         elif state == "working":
-            hud.set_working(agent_name="Antigravity", tool_action="Running tools...")
+            hud.set_working(agent_name="Antigravity", tool_action=custom_text or "Running tools...")
         elif state == "speaking":
-            hud.set_speaking("Speech subtitle active.", persona_name="Christopher")
+            hud.set_speaking(custom_text or "Speech subtitle active.", persona_name="Christopher")
         elif state == "listening":
-            hud.set_listening(user_name=getattr(hud.config, "user_name", "Jake"))
+            hud.set_listening(prompt_preview=custom_text, user_name=getattr(hud.config, "user_name", "Jake"), live_stream=bool(custom_text))
+        elif state == "editing":
+            hud.set_editing(custom_text or "Sample prompt to review and edit", on_submit=lambda x: print(f"Submitted: {x}"), target_name="Antigravity")
         _pump(float(getattr(args, "duration", 4.0)))
-        hud.hide()
+        hud.force_hide()
 
 
 def main():
+    try:
+        from voicefi.telemetry import init_telemetry
+        init_telemetry()
+    except Exception:
+        pass
+
     parser = argparse.ArgumentParser(
         prog="voicefi",
-        description="VoiceFi: Give a voice to your agents, and agency to your voice. The Universal Ambient Voice Layer for AI Agents & macOS.",
+        description="VoiceFi: Give voice to your agents, and agency for your voice. The Universal Voice Layer for AI Agents, MCP, and macOS.",
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument("--config", type=str, default=None, help="Path to custom config.yaml")
@@ -1558,7 +1852,16 @@ def main():
     speak_p.add_argument("-a", "--agent", type=str, default=None, help="Agent profile to speak as (e.g. antigravity, claude, researcher, debugger)")
     speak_p.add_argument("-v", "--voice", type=str, default=None, help="Voice name or ID override")
     speak_p.add_argument("-p", "--provider", type=str, default=None, help="TTS provider override (mac_say, edge_tts, elevenlabs)")
-    speak_p.add_argument("-r", "--rate", type=str, default=None, help="Speech rate / speed override (e.g. 75%, 150, -25%)")
+    speak_p.add_argument("-r", "--rate", type=str, default=None, help="Speech rate / speed override (e.g. 75%%, 150, -25%%)")
+
+    # setup
+    setup_p = subparsers.add_parser("setup", help="Auto-configure agent lifecycle hooks (Antigravity, Claude Code)")
+    setup_p.add_argument("--all", action="store_true", help="Setup all agents globally")
+    setup_p.add_argument("--claude", action="store_true", help="Setup Claude Code")
+    setup_p.add_argument("--antigravity", action="store_true", help="Setup Antigravity")
+    
+    ob_p = subparsers.add_parser("onboarding", help="Run interactive First-Time User Experience onboarding flow")
+    ob_p.set_defaults(func=lambda args: __import__('voicefi.onboarding', fromlist=['']).run_onboarding())
 
     # listen
     listen_p = subparsers.add_parser("listen", help="Listen from microphone and transcribe")
@@ -1675,12 +1978,12 @@ def main():
     voice_sub.add_parser("audition", help="Play live multi-agent voice showcase across speakers")
 
     # voice rate / speed
-    v_rate = voice_sub.add_parser("rate", help="Get or set speech rate / speed (e.g. 75%, 150, faster, slower)")
-    v_rate.add_argument("value", nargs="?", default=None, help="Speed value (e.g. '75%', '150', 'faster', 'slower', 'reset')")
+    v_rate = voice_sub.add_parser("rate", help="Get or set speech rate / speed (e.g. 75%%, 150, faster, slower)")
+    v_rate.add_argument("value", nargs="?", default=None, help="Speed value (e.g. '75%%', '150', 'faster', 'slower', 'reset')")
     v_rate.add_argument("-a", "--agent", type=str, default=None, help="Target specific agent or subagent")
 
     v_speed = voice_sub.add_parser("speed", help="Alias for 'vg voice rate'")
-    v_speed.add_argument("value", nargs="?", default=None, help="Speed value (e.g. '75%', '150', 'faster', 'slower', 'reset')")
+    v_speed.add_argument("value", nargs="?", default=None, help="Speed value (e.g. '75%%', '150', 'faster', 'slower', 'reset')")
     v_speed.add_argument("-a", "--agent", type=str, default=None, help="Target specific agent or subagent")
 
     # voice train
@@ -1694,7 +1997,7 @@ def main():
     v_set.add_argument("agent", type=str, help="Agent or subagent name (e.g. antigravity, claude, researcher, debugger)")
     v_set.add_argument("voice", type=str, help="Voice name or ID")
     v_set.add_argument("-p", "--provider", type=str, default=None)
-    v_set.add_argument("-r", "--rate", type=str, default=None, help="Speech rate / speed (e.g. 75%, 150, -25%)")
+    v_set.add_argument("-r", "--rate", type=str, default=None, help="Speech rate / speed (e.g. 75%%, 150, -25%%)")
 
     # voice get
     voice_sub.add_parser("get", help="Show active voice mappings")
@@ -1821,12 +2124,44 @@ def main():
     obs_sub.add_parser("list", help="List registered Obsidian vaults on this machine")
 
     # hud
-    hud_p = subparsers.add_parser("hud", help="Control and preview Unified Dynamic Island HUD")
-    hud_sub = hud_p.add_subparsers(dest="hud_action", help="HUD action (test, show)")
-    hud_sub.add_parser("test", help="Run interactive 5-state HUD showcase")
+    hud_p = subparsers.add_parser("hud", help="Control, configure, and debug Unified Dynamic Island HUD")
+    hud_sub = hud_p.add_subparsers(dest="hud_action", help="HUD action (debug, config, test, show, on, off, status, persistent, auto-send)")
+    hud_sub.add_parser("debug", help="Launch interactive terminal HUD Debug Studio with real-time keystroke controls")
+    hud_sub.add_parser("test", help="Run automated 6-state HUD showcase")
+    hud_sub.add_parser("status", help="Display current HUD status and active settings")
+    hud_sub.add_parser("on", help="Enable and show persistent HUD")
+    hud_sub.add_parser("enable", help="Enable and show persistent HUD")
+    hud_sub.add_parser("off", help="Disable and hide HUD")
+    hud_sub.add_parser("disable", help="Disable and hide HUD")
+
+    cfg_p = hud_sub.add_parser("config", help="View or update HUD configuration")
+    cfg_p.add_argument("--enabled", type=str, default=None, choices=["true", "false", "on", "off"], help="Enable/disable HUD")
+    cfg_p.add_argument("--persistent", type=str, default=None, choices=["true", "false", "on", "off"], help="Enable/disable persistent resting pill")
+    cfg_p.add_argument("--fullscreen-overlay", dest="fullscreen_overlay", type=str, default=None, choices=["true", "false", "on", "off"], help="Always stay on top of full-screen games/apps")
+    cfg_p.add_argument("--auto-send", dest="auto_send", type=str, default=None, choices=["true", "false", "on", "off"], help="Enable instant auto-send or review mode")
+    cfg_p.add_argument("--live-transcript", dest="live_transcript", type=str, default=None, choices=["true", "false", "on", "off"], help="Stream live transcription typing")
+    cfg_p.add_argument("--position", type=str, default=None, choices=["top_center", "top_right", "top_left", "bottom_center"], help="HUD screen position")
+    cfg_p.add_argument("--linger", type=float, default=None, help="Linger seconds after done/speaking")
+
     show_p = hud_sub.add_parser("show", help="Display specific HUD state")
-    show_p.add_argument("--state", type=str, default="idle", choices=["idle", "thinking", "working", "speaking", "listening"], help="Target state")
+    show_p.add_argument("--state", type=str, default="idle", choices=["idle", "thinking", "working", "speaking", "listening", "editing"], help="Target state")
+    show_p.add_argument("--text", type=str, default="", help="Custom subtitle / transcription text")
     show_p.add_argument("--duration", type=float, default=4.0, help="Display duration in seconds")
+
+    pers_p = hud_sub.add_parser("persistent", help="Toggle or set persistent HUD mode")
+    pers_p.add_argument("persistent_state", nargs="?", default="toggle", choices=["on", "off", "toggle", "status"], help="Enable/disable persistent HUD")
+
+    fs_p = hud_sub.add_parser("fullscreen", help="Toggle or set full-screen overlay mode (always on top of full screen apps/games)")
+    fs_p.add_argument("fullscreen_state", nargs="?", default="toggle", choices=["on", "off", "toggle", "status"], help="Enable/disable full screen overlay")
+
+    as_p = hud_sub.add_parser("auto-send", help="Toggle or set auto-send prompt mode")
+    as_p.add_argument("auto_send_state", nargs="?", default="toggle", choices=["on", "off", "toggle", "status"], help="Enable/disable auto-send mode")
+
+    # new conversation
+    new_p = subparsers.add_parser("new", aliases=["new-conversation"], help="Start a new AI conversation with connected tools")
+    new_p.add_argument("prompt", nargs="*", default=["Hello"], help="Initial prompt message")
+    new_p.add_argument("-t", "--title", type=str, default=None, help="Custom title")
+    new_p.add_argument("-m", "--model", type=str, default=None, choices=["flash_lite", "flash", "pro"], help="Model selection")
 
     args = parser.parse_args()
 
@@ -1839,6 +2174,8 @@ def main():
         sys.exit(0)
 
     commands = {
+        "new": cmd_new,
+        "new-conversation": cmd_new,
         "hook": cmd_hook,
         "speak": cmd_speak,
         "listen": cmd_listen,
@@ -1846,6 +2183,7 @@ def main():
         "tray": cmd_tray,
         "dev": cmd_dev,
         "setup": cmd_setup,
+        "onboarding": cmd_onboarding,
         "pause": cmd_pause,
         "resume": cmd_resume,
         "autostart": cmd_autostart,
@@ -1875,6 +2213,11 @@ def main():
 
     handler = commands.get(args.command)
     if handler:
+        try:
+            from voicefi.telemetry import capture_event
+            capture_event("cli_command", {"command": args.command})
+        except Exception:
+            pass
         handler(args)
 
 

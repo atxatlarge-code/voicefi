@@ -12,8 +12,9 @@
     </linearGradient>
   </defs>
 
-  <!-- Background (Borderless) -->
+  <!-- Background -->
   <rect width="1200" height="630" fill="url(#whiteHeroBg)" />
+  <rect x="16" y="16" width="1168" height="598" rx="28" fill="none" stroke="#E2E8F0" stroke-width="2" />
 
   <!-- Subtle Studio Technical Grid -->
   <g opacity="0.04" stroke="#000000" stroke-width="1">
@@ -29,40 +30,29 @@
     <line x1="1000" y1="0" x2="1000" y2="630" />
   </g>
 
-  <!-- Top Pill Badge (ON AIR Studio Badge) -->
-  <g transform="translate(90, 75)">
-    <rect width="100" height="34" rx="6" fill="#FF2A2A" />
-    <text x="50" y="22" font-family="'JetBrains Mono', monospace" font-size="12" font-weight="900" fill="#FFFFFF" text-anchor="middle" letter-spacing="2">
-      ● ON AIR
-    </text>
-    <rect x="110" y="0" width="270" height="34" rx="6" fill="#F1F5F9" stroke="#E2E8F0" stroke-width="1" />
-    <text x="122" y="22" font-family="'JetBrains Mono', monospace" font-size="12" font-weight="700" fill="#475569" letter-spacing="1">
-      VOICEFI.ORG · OPEN VOICE PROTOCOL
-    </text>
-  </g>
-
   <!-- Main Headline -->
-  <text x="90" y="195" font-family="-apple-system, BlinkMacSystemFont, 'Plus Jakarta Sans', sans-serif" font-weight="900" font-size="76" fill="#000000" letter-spacing="-3">
-    Voice<tspan fill="#FF2A2A">Fi</tspan><tspan font-size="28" font-weight="600" fill="#94A3B8" dy="-32">™</tspan>
+  <text x="90" y="160" font-family="-apple-system, BlinkMacSystemFont, 'Plus Jakarta Sans', sans-serif" font-weight="900" font-size="78" fill="#0A0A0C" letter-spacing="-3">
+    <tspan fill="#FF2A2A">V</tspan>o<tspan fill="#FF2A2A">i</tspan>ce<tspan fill="#FF2A2A">Fi</tspan><tspan font-size="28" font-weight="600" fill="#94A3B8" dy="-32">™</tspan>
   </text>
 
   <!-- Subheadline -->
-  <text x="90" y="260" font-family="-apple-system, BlinkMacSystemFont, 'Plus Jakarta Sans', sans-serif" font-weight="600" font-size="28" fill="#334155" letter-spacing="-0.5">
-    The Open Source Voice Protocol for AI Agents &amp; macOS
+  <text x="90" y="215" font-family="-apple-system, BlinkMacSystemFont, 'Plus Jakarta Sans', sans-serif" font-weight="700" font-size="27" fill="#1E293B" letter-spacing="-0.5">
+    The Universal Voice Layer for AI Agents, MCP, and macOS
   </text>
 
   <!-- Feature bullets -->
-  <g transform="translate(90, 310)" font-family="-apple-system, BlinkMacSystemFont, 'Plus Jakarta Sans', sans-serif" font-size="18" fill="#64748B">
-    <text x="0" y="0">✦ <tspan fill="#000000" font-weight="700">Zero-Friction Dictation:</tspan> Fast local Whisper transcription in any Mac app</text>
-    <text x="0" y="36">✦ <tspan fill="#000000" font-weight="700">Agentic Auto-Listen Loop:</tspan> Speaks turn results aloud &amp; opens hands-free mic</text>
-    <text x="0" y="72">✦ <tspan fill="#000000" font-weight="700">Developer First:</tspan> Integrated with Antigravity, Claude Code, &amp; Cursor</text>
+  <g transform="translate(90, 262)" font-family="-apple-system, BlinkMacSystemFont, 'Plus Jakarta Sans', sans-serif" font-size="15.5" fill="#475569">
+    <text x="0" y="0"><tspan fill="#FF2A2A" font-weight="900">✦ </tspan><tspan fill="#0F172A" font-weight="700">Spoken Agent Feedback:</tspan> Gives agents &amp; dev tools a voice to speak turn completions aloud</text>
+    <text x="0" y="32"><tspan fill="#FF2A2A" font-weight="900">✦ </tspan><tspan fill="#FF2A2A" font-weight="700">Pro</tspan><tspan fill="#0F172A" font-weight="700">Active Listening:</tspan> Hands-free auto-mic capture with acoustic safety &amp; VAD</text>
+    <text x="0" y="64"><tspan fill="#FF2A2A" font-weight="900">✦ </tspan><tspan fill="#0F172A" font-weight="700">On-Device Whisper:</tspan> 10x faster than cloud dictation (~80ms Apple Silicon inference)</text>
+    <text x="0" y="96"><tspan fill="#FF2A2A" font-weight="900">✦ </tspan><tspan fill="#0F172A" font-weight="700">Developer Native:</tspan> Zero cloud dependencies · Claude, Antigravity &amp; Cursor</text>
   </g>
 
   <!-- Terminal Install Command Card -->
-  <g transform="translate(90, 460)">
-    <rect width="480" height="74" rx="14" fill="#0F172A" stroke="#1E293B" stroke-width="1.5" />
-    <circle cx="28" cy="37" r="5" fill="#FF2A2A" />
-    <text x="50" y="44" font-family="'JetBrains Mono', monospace" font-size="20" font-weight="700" fill="#FF2A2A">
+  <g transform="translate(90, 435)">
+    <rect width="420" height="66" rx="12" fill="#0F172A" stroke="#1E293B" stroke-width="1.5" />
+    <circle cx="26" cy="33" r="4.5" fill="#FF2A2A" />
+    <text x="46" y="39" font-family="'JetBrains Mono', monospace" font-size="18" font-weight="700" fill="#FF2A2A">
       $&gt; <tspan fill="#FFFFFF">curl -fsSL </tspan><tspan fill="#FF2A2A">vifi.sh</tspan><tspan fill="#FFFFFF"> | sh</tspan>
     </text>
   </g>

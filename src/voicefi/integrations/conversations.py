@@ -20,24 +20,228 @@ def get_session_cookie_path() -> Path:
     return cookie_dir / "active_session.json"
 
 
+import fcntl
+
+
+def _normalize_turn_signature(signature: str) -> str:
+    """Extract clean text content from signature for resilient deduplication."""
+    if not signature:
+        return ""
+    # Strip conversation ID prefix if present: "conv_id:text" -> "text"
+    if ":" in signature:
+        _, text_part = signature.split(":", 1)
+    else:
+        text_part = signature
+    clean = re.sub(r"[^a-z0-9]", "", text_part.lower()).strip()
+    return clean[:30]
+
+
 def claim_turn(conv_id: str, signature: str) -> bool:
     """
-    Atomically claims a turn so only one worker (Hook or Watcher) handles it.
+    Atomically claims a turn using cross-process file locks so only one worker
+    (CLI Hook or Background Watcher) handles speech and mic capture.
     Returns True if this caller claimed the turn, False if already claimed recently.
     """
-    turn_file = Path("/tmp/voicefi_active_turn.json")
+    turn_file = Path("/tmp/voicefi_active_turns.json")
+    lock_file = Path("/tmp/voicefi_active_turns.lock")
     now = time.time()
+    norm_sig = _normalize_turn_signature(signature)
+
     try:
-        if turn_file.is_file():
-            with open(turn_file, "r") as f:
-                data = json.load(f)
-                if data.get("signature") == signature and (now - data.get("timestamp", 0)) < 12.0:
-                    return False
-        with open(turn_file, "w") as f:
-            json.dump({"conv_id": conv_id, "signature": signature, "timestamp": now}, f)
-        return True
+        lock_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(lock_file, "a+") as lock_fp:
+            fcntl.flock(lock_fp, fcntl.LOCK_EX)
+            try:
+                entries: List[Dict[str, Any]] = []
+                if turn_file.is_file():
+                    try:
+                        with open(turn_file, "r") as f:
+                            data = json.load(f)
+                            if isinstance(data, list):
+                                entries = data
+                            elif isinstance(data, dict):
+                                entries = [data]
+                    except Exception:
+                        entries = []
+
+                # Clean entries older than 60 seconds
+                valid_entries = [
+                    e for e in entries
+                    if (now - float(e.get("timestamp", 0))) < 60.0
+                ]
+
+                # Check if this exact signature OR normalized text was already claimed
+                for e in valid_entries:
+                    e_sig = e.get("signature", "")
+                    e_norm = e.get("norm_sig") or _normalize_turn_signature(e_sig)
+                    e_cid = e.get("conv_id", "")
+                    if e_sig == signature:
+                        return False
+                    if norm_sig and e_norm == norm_sig:
+                        # Same text spoken within 60s -> duplicate!
+                        return False
+                    if conv_id and e_cid == conv_id and norm_sig and norm_sig in e_norm:
+                        return False
+
+                # Claim this turn
+                valid_entries.append({
+                    "conv_id": conv_id,
+                    "signature": signature,
+                    "norm_sig": norm_sig,
+                    "timestamp": now,
+                })
+                # Keep up to 20 entries
+                if len(valid_entries) > 20:
+                    valid_entries = valid_entries[-20:]
+
+                with open(turn_file, "w") as f:
+                    json.dump(valid_entries, f)
+
+                return True
+            finally:
+                fcntl.flock(lock_fp, fcntl.LOCK_UN)
     except Exception:
+        # Fallback to permissive execution if locking fails
         return True
+
+
+@dataclass
+class PendingQuestion:
+    conv_id: str
+    question_text: str
+    options: List[str]
+    timestamp: float
+    status: str = "pending"  # "pending", "answered", "dismissed"
+
+
+def extract_choice_options(question_text: str) -> List[str]:
+    """
+    Extract candidate options from questions like:
+    - 'Stage on Railway or ship straightaway?' -> ['stage on railway', 'ship straightaway']
+    - '"Option A" or "Option B"' -> ['option a', 'option b']
+    """
+    if not question_text or not question_text.strip():
+        return []
+
+    text = question_text.strip().rstrip("?.!")
+    
+    # 1. Quoted choices: "foo" or "bar"
+    quotes = re.findall(r'["\']([^"\']+)["\']', text)
+    if len(quotes) >= 2:
+        return [q.strip().lower() for q in quotes if q.strip()]
+
+    # 2. Simple 'A or B' split
+    if " or " in text.lower():
+        # Match 'X or Y' where X might have a prefix like 'Would you like to'
+        parts = re.split(r"\s+or\s+", text, flags=re.IGNORECASE)
+        if len(parts) == 2:
+            left, right = parts[0].strip(), parts[1].strip()
+            # Clean common question leading phrasing from left
+            left = re.sub(
+                r"^(?:do you want to|would you like to|should we|shall we|can we|do we|please choose:?)\s*",
+                "",
+                left,
+                flags=re.IGNORECASE,
+            ).strip()
+            if left and right:
+                return [left.lower(), right.lower()]
+
+    return []
+
+
+_PENDING_QUESTIONS_FILE = Path("/tmp/voicefi_pending_questions.json")
+
+
+def set_pending_question(
+    conv_id: str,
+    question_text: str,
+    options: Optional[List[str]] = None,
+) -> None:
+    """Record an active clarifying question or choice waiting for user answer."""
+    if not question_text:
+        return
+    
+    opts = options if options is not None else extract_choice_options(question_text)
+    data = {
+        "conv_id": conv_id or "active",
+        "question_text": question_text.strip(),
+        "options": opts,
+        "timestamp": time.time(),
+        "status": "pending",
+    }
+
+    try:
+        current: Dict[str, Any] = {}
+        if _PENDING_QUESTIONS_FILE.is_file():
+            try:
+                current = json.loads(_PENDING_QUESTIONS_FILE.read_text())
+            except Exception:
+                current = {}
+        cid_key = conv_id or "active"
+        current[cid_key] = data
+        current["_latest"] = data
+        _PENDING_QUESTIONS_FILE.write_text(json.dumps(current, indent=2))
+    except Exception:
+        pass
+
+
+def get_pending_question(
+    conv_id: Optional[str] = None,
+    max_age_seconds: float = 300.0,
+) -> Optional[Dict[str, Any]]:
+    """Retrieve active pending question for conversation if within age limit."""
+    if not _PENDING_QUESTIONS_FILE.is_file():
+        return None
+    try:
+        current = json.loads(_PENDING_QUESTIONS_FILE.read_text())
+        cid_key = conv_id or "_latest"
+        data = current.get(cid_key) or current.get("_latest")
+        if not data:
+            return None
+        ts = float(data.get("timestamp", 0))
+        if (time.time() - ts) <= max_age_seconds and data.get("status") == "pending":
+            return data
+    except Exception:
+        pass
+    return None
+
+
+def resolve_pending_question(
+    conv_id: Optional[str] = None,
+    selected_option: Optional[str] = None,
+) -> None:
+    """Mark a pending question as resolved / answered."""
+    if not _PENDING_QUESTIONS_FILE.is_file():
+        return
+    try:
+        current = json.loads(_PENDING_QUESTIONS_FILE.read_text())
+        cid_key = conv_id or "_latest"
+        if cid_key in current:
+            current[cid_key]["status"] = "answered"
+            current[cid_key]["resolved_option"] = selected_option
+        if "_latest" in current:
+            current["_latest"]["status"] = "answered"
+            current["_latest"]["resolved_option"] = selected_option
+        _PENDING_QUESTIONS_FILE.write_text(json.dumps(current, indent=2))
+    except Exception:
+        pass
+
+
+def clear_pending_question(conv_id: Optional[str] = None) -> None:
+    """Clear pending question markers."""
+    if not _PENDING_QUESTIONS_FILE.is_file():
+        return
+    try:
+        if not conv_id:
+            _PENDING_QUESTIONS_FILE.unlink(missing_ok=True)
+        else:
+            current = json.loads(_PENDING_QUESTIONS_FILE.read_text())
+            current.pop(conv_id, None)
+            if current.get("_latest", {}).get("conv_id") == conv_id:
+                current.pop("_latest", None)
+            _PENDING_QUESTIONS_FILE.write_text(json.dumps(current, indent=2))
+    except Exception:
+        pass
 
 
 def set_mobile_turn_origin(conv_id: Optional[str] = None) -> None:
