@@ -141,22 +141,48 @@ def perform_update(
     target_repo = repo_url or DEFAULT_REPO_URL
     old_version = get_local_version()
 
-    # Determine Python/pip binary
+    # Determine Python/pip binary and uv tool
     venv_python = Path.home() / ".voicefi" / "venv" / "bin" / "python"
     python_bin = str(venv_python) if venv_python.is_file() else sys.executable
+
+    uv_path = Path.home() / ".local" / "bin" / "uv"
+    uv_bin = str(uv_path) if uv_path.is_file() else None
+    if not uv_bin:
+        import shutil
+        uv_bin = shutil.which("uv")
 
     print(f"\n⚡ Upgrading VoiceFi from {target_repo}...")
     print(f"📦 Active Environment: {python_bin}")
 
-    cmd = [
-        python_bin,
-        "-m",
-        "pip",
-        "install",
-        "--upgrade",
-        "--no-cache-dir",
-        target_repo,
-    ]
+    if uv_bin:
+        cmd = [
+            uv_bin,
+            "pip",
+            "install",
+            "--python",
+            python_bin,
+            "--upgrade",
+            "--no-cache",
+            target_repo,
+        ]
+    else:
+        # Verify pip exists or bootstrap with ensurepip
+        try:
+            chk = subprocess.run([python_bin, "-m", "pip", "--version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            if chk.returncode != 0:
+                subprocess.run([python_bin, "-m", "ensurepip", "--upgrade"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception:
+            pass
+
+        cmd = [
+            python_bin,
+            "-m",
+            "pip",
+            "install",
+            "--upgrade",
+            "--no-cache-dir",
+            target_repo,
+        ]
 
     try:
         start_t = time.perf_counter()

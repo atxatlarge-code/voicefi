@@ -86,9 +86,9 @@ say_msg "${CYAN}⚡ Setting up VoiceFi virtual environment in $INSTALL_DIR...${N
 
 if [ -n "$UV_BIN" ]; then
     # uv automatically manages standalone Python 3.12 if system Python is outdated or missing
-    "$UV_BIN" venv "$INSTALL_DIR/venv" --python 3.12 --allow-existing >/dev/null 2>&1 || \
-    "$UV_BIN" venv "$INSTALL_DIR/venv" --python 3.12 >/dev/null 2>&1 || \
-    "$UV_BIN" venv "$INSTALL_DIR/venv" --allow-existing >/dev/null 2>&1
+    "$UV_BIN" venv "$INSTALL_DIR/venv" --python 3.12 --seed --allow-existing >/dev/null 2>&1 || \
+    "$UV_BIN" venv "$INSTALL_DIR/venv" --python 3.12 --seed >/dev/null 2>&1 || \
+    "$UV_BIN" venv "$INSTALL_DIR/venv" --seed --allow-existing >/dev/null 2>&1
     PIP_EXEC="$UV_BIN pip install --python $INSTALL_DIR/venv/bin/python"
 else
     if [ "$HAS_GOOD_PYTHON" -eq 0 ]; then

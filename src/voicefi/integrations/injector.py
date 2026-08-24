@@ -366,8 +366,18 @@ def send_message_to_antigravity(
                 return True
             else:
                 print(f"[Injector] agentapi notice: {res.stderr.strip()}")
+                print(f"[Injector] Active session may have expired. Attempting to create new conversation...")
+                new_id = create_new_antigravity_conversation(prompt=clean_text, title=resolved_title)
+                if new_id:
+                    return True
         except Exception as e:
             print(f"[Injector] agentapi exception: {e}")
+            
+    if not conv_id:
+        print("[Injector] No active session found. Creating a new conversation...")
+        new_id = create_new_antigravity_conversation(prompt=clean_text, title=resolved_title)
+        if new_id:
+            return True
 
     # Fallback to AppleScript paste with focus restoration
     return inject_text_to_active_app(clean_text, submit_enter=True, target_antigravity=True, restore_focus=True)
