@@ -36,7 +36,7 @@ class VoiceFiTrayApp(rumps.App):
     """macOS Status Bar Menu Application for VoiceFi."""
 
     def __init__(self):
-        super(VoiceFiTrayApp, self).__init__("VoiceFi", icon=None, title="🎙️")
+        super(VoiceFiTrayApp, self).__init__("VoiceFi", icon=None, title=" ")
         self.config = load_config()
         self._current_status = "idle"
         self.active_recorder: Optional[AudioRecorder] = None
@@ -54,16 +54,27 @@ class VoiceFiTrayApp(rumps.App):
         )
         self.watcher.start()
 
-        # Companion Hub Window & Dictation Floating HUD & Speech HUD Pop-up
+        # Companion Hub Window & Dictation Floating HUD & Speech HUD Pop-up & Unified Dynamic Island HUD
         self.hub = ConversationHubWindow.get_instance(
             self.watcher.tracker,
             on_switch=self.focus_specific_conversation,
+            on_new_conversation=self.trigger_new_conversation,
         )
         self.dictation_hud = DictationHUD.get_instance()
         self.speech_hud = AgentSpeechHUD.get_instance()
+        self.hud = UnifiedDynamicIslandHUD.get_instance()
+        hud_cfg = getattr(self.config, "hud", None)
+        if hud_cfg:
+            self.hud.set_fullscreen_overlay(getattr(hud_cfg, "fullscreen_overlay", True))
+        if getattr(hud_cfg, "persistent", True) and getattr(hud_cfg, "enabled", True):
+            self.hud.set_idle()
 
         # Build Menu Items with explicit keyboard shortcut hints
         self.stop_speaking_item = rumps.MenuItem("🛑 Stop Talking (Esc)", callback=self.stop_speaking_now)
+        self.new_conversation_item = rumps.MenuItem(
+            "✨ New Conversation with Tools (⌘ + Shift + N)",
+            callback=self.trigger_new_conversation,
+        )
         self.talk_to_agent_item = rumps.MenuItem(
             "🎙️ Respond to Active Agent (Ctrl + R)",
             callback=self.trigger_talk_to_antigravity,
@@ -106,6 +117,24 @@ class VoiceFiTrayApp(rumps.App):
         )
         self.barge_in_item.state = 1 if getattr(self.config.vad, "barge_in", True) else 0
 
+        self.persistent_hud_item = rumps.MenuItem(
+            "📌 Persistent Dynamic Island HUD",
+            callback=self.toggle_persistent_hud,
+        )
+        self.persistent_hud_item.state = 1 if getattr(getattr(self.config, "hud", None), "persistent", True) else 0
+
+        self.fullscreen_overlay_item = rumps.MenuItem(
+            "🎮 Always on Top of Full-Screen Apps",
+            callback=self.toggle_fullscreen_overlay,
+        )
+        self.fullscreen_overlay_item.state = 1 if getattr(getattr(self.config, "hud", None), "fullscreen_overlay", True) else 0
+
+        self.auto_send_item = rumps.MenuItem(
+            "⚡ Auto-Send Prompts (Instant)",
+            callback=self.toggle_auto_send,
+        )
+        self.auto_send_item.state = 1 if getattr(getattr(self.config, "hud", None), "auto_send", True) else 0
+
         # Voice Control Panel & Mobile Companion
         self.panel_item = rumps.MenuItem("🎛️ Voice Control Panel...", callback=self.open_control_panel_ui)
         self.companion_item = rumps.MenuItem("📱 Mobile Companion (QR Code)...", callback=self.open_mobile_companion)
@@ -132,6 +161,7 @@ class VoiceFiTrayApp(rumps.App):
         self.menu = [
             self.stop_speaking_item,
             rumps.separator,
+            self.new_conversation_item,
             self.talk_to_agent_item,
             self.focus_agent_item,
             self.hub_item,
@@ -146,6 +176,9 @@ class VoiceFiTrayApp(rumps.App):
             self.integrations_menu,
             self.voice_mode_menu,
             rumps.separator,
+            self.persistent_hud_item,
+            self.fullscreen_overlay_item,
+            self.auto_send_item,
             self.auto_listen_item,
             self.read_summary_item,
             self.speech_popup_item,
@@ -509,31 +542,83 @@ class VoiceFiTrayApp(rumps.App):
         self.troubleshoot_menu.update(items)
 
     def _update_status_ui(self, _):
-        """Called on macOS main runloop every 200ms to redraw menu bar title."""
+        """Called on macOS main runloop every 200ms to redraw menu bar title and icon."""
         status_map = {
-            "speaking": "🔊 Speaking",
-            "listening": "🟢 Listening",
-            "hearing": "🗣️ Hearing you",
-            "transcribing": "⏳ Transcribing",
-            "thinking": "🧠 Thinking",
-            "working": "⚡ Working",
-            "ptt_listening": "🔴 PTT Active",
-            "paused_agent_speaking": "⏸️ 🔊 Agent Speaking",
-            "paused": "⏸️ Paused",
+            "speaking": ("speaker.wave.2.fill", " Speaking"),
+            "listening": ("mic.fill", " Listening"),
+            "hearing": ("waveform.circle.fill", " Hearing you"),
+            "transcribing": ("ellipsis.bubble", " Transcribing"),
+            "thinking": ("sparkles", " Thinking"),
+            "working": ("gearshape.fill", " Working"),
+            "ptt_listening": ("mic.fill", " PTT Active"),
+            "paused_agent_speaking": ("pause.fill", " Agent Speaking"),
+            "paused": ("pause.fill", " Paused"),
         }
+        
+        symbol_name = "wifi"
+        new_title = ""
+
         if self._current_status in status_map:
-            new_title = status_map[self._current_status]
+            symbol_name, new_title = status_map[self._current_status]
         else:
-            active_conv = self.watcher.tracker.get_active_or_latest() if self.watcher else None
+            active_conv = self.watcher.tracker.get_active_or_latest() if getattr(self, 'watcher', None) else None
             if active_conv and active_conv.status == "waiting_for_user":
-                new_title = "🟢 🎙️"
+                symbol_name = "mic"
+                new_title = ""
             elif active_conv and active_conv.status == "agent_working":
-                new_title = "⚡ 🎙️"
+                symbol_name = "sparkles"
+                new_title = ""
             else:
-                new_title = "🎙️"
+                symbol_name = "wifi"
+                new_title = ""
 
         if self.title != new_title:
             self.title = new_title
+
+        current_symbol = getattr(self, "_current_symbol", None)
+        if current_symbol != symbol_name:
+            self._current_symbol = symbol_name
+            try:
+                import AppKit
+                from pathlib import Path
+                
+                image = None
+                if symbol_name == "wifi":
+                    # Load the main .org logo for the default/idle state
+                    assets_dir = Path(__file__).resolve().parent.parent.parent.parent / "assets"
+                    logo_path = assets_dir / "voicefi-menu-bar-icon.svg"
+                    
+                    if logo_path.exists():
+                        image = AppKit.NSImage.alloc().initWithContentsOfFile_(str(logo_path))
+                        if image:
+                            image.setTemplate_(True)
+                            
+                            # Only scale down if necessary
+                            thickness = AppKit.NSStatusBar.systemStatusBar().thickness()
+                            # 22 is standard, but some modern Macs with notch might be slightly different.
+                            # We leave a small margin (e.g. 4 points) so it fits nicely like a standard icon
+                            target_height = thickness - 4
+                            if target_height <= 0:
+                                target_height = 18.0
+                                
+                            if image.size().height > target_height:
+                                ratio = target_height / image.size().height
+                                new_size = AppKit.NSMakeSize(image.size().width * ratio, target_height)
+                                image.setSize_(new_size)
+                
+                if image is None:
+                    # Fallback to system symbol
+                    image = AppKit.NSImage.imageWithSystemSymbolName_accessibilityDescription_(symbol_name, None)
+                    if image:
+                        image.setTemplate_(True)
+                
+                if image:
+                    self._icon_nsimage = image
+                    if hasattr(self, '_nsapp'):
+                        self._nsapp.setStatusBarIcon()
+            except Exception as e:
+                print(f"[VoiceFi] Error updating menu bar icon: {e}")
+                pass
 
     def handle_state_change(self, state: str):
         """Thread-safe state change handler."""
@@ -626,6 +711,9 @@ class VoiceFiTrayApp(rumps.App):
         if self.watcher:
             self.watcher.interrupt()
 
+        hud = UnifiedDynamicIslandHUD.get_instance()
+        hud.set_listening(user_name=getattr(self.config, "user_name", "Jake"))
+
         self._ptt_stop_event = threading.Event()
 
         def _worker():
@@ -646,39 +734,188 @@ class VoiceFiTrayApp(rumps.App):
                 def _on_pause(is_paused: bool):
                     if is_paused:
                         self._current_status = "paused_agent_speaking"
+                        hud.show_paused("⏸️ Agent Speaking (Paused)...")
                     else:
                         self._current_status = "ptt_listening" if ptt_mode else "listening"
+                        hud.set_listening(user_name=getattr(self.config, "user_name", "Jake"))
+
+                def _on_live(txt: str):
+                    hud.update_live_transcription(txt, user_name=getattr(self.config, "user_name", "Jake"))
 
                 if ptt_mode:
                     audio_data, temp_wav = recorder.record_push_to_talk(
                         stop_event=self._ptt_stop_event,
                         on_pause_change=_on_pause,
+                        on_live_transcript=_on_live,
                         ptt_release_delay_ms=self.config.vad.ptt_release_delay_ms,
                     )
                 else:
                     audio_data, temp_wav = recorder.record_speech_auto(
                         on_speech_start=lambda: setattr(self, "_current_status", "hearing"),
                         on_pause_change=_on_pause,
+                        on_live_transcript=_on_live,
                         stop_event=self._ptt_stop_event,
                     )
 
                 self.active_recorder = None
                 self._current_status = "transcribing"
+                hud.show_transcribing()
 
                 stt = get_stt_engine(self.config)
                 text = stt.transcribe(temp_wav)
                 if text and text.strip():
                     conv_id = active_conv.id if active_conv else None
-                    send_message_to_antigravity(conv_id=conv_id, text=text, sender_name=self.config.user_name)
-                    if self.config.audio_cues.enabled:
-                        play_chime(self.config.audio_cues.sent_chime, block=False)
-                    try:
-                        title = active_conv.title if active_conv else "Active Agent"
-                        rumps.notification(f"VoiceFi • {title[:30]}", "Prompt Sent", text[:80])
-                    except Exception:
-                        pass
+                    is_auto_send = getattr(getattr(self.config, "hud", None), "auto_send", True) and getattr(self.config.antigravity, "auto_send", True)
+
+                    def _send_action(payload_text: str):
+                        send_message_to_antigravity(conv_id=conv_id, text=payload_text, sender_name=self.config.user_name)
+                        if self.config.audio_cues.enabled:
+                            play_chime(self.config.audio_cues.sent_chime, block=False)
+                        try:
+                            title = active_conv.title if active_conv else "Active Agent"
+                            rumps.notification(f"VoiceFi • {title[:30]}", "Prompt Sent", payload_text[:80])
+                        except Exception:
+                            pass
+
+                    if is_auto_send:
+                        _send_action(text)
+                        hud.show_done(preview_text=text[:20])
+                    else:
+                        target_name = active_conv.title[:20] if (active_conv and active_conv.title) else "Antigravity"
+                        hud.set_editing(text, on_submit=_send_action, target_name=target_name)
+                else:
+                    if hud.persistent:
+                        hud.set_idle()
+                    else:
+                        hud.hide()
             except Exception as e:
                 print(f"[VoiceFi] Error during agent voice capture: {e}")
+                if hud.persistent:
+                    hud.set_idle()
+                else:
+                    hud.hide()
+            finally:
+                if temp_wav and isinstance(temp_wav, Path):
+                    temp_wav.unlink(missing_ok=True)
+                self.active_recorder = None
+                self._current_status = "idle"
+                self._key_down_times.clear()
+                self._build_conversations_submenu()
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def trigger_new_conversation(self, ptt_mode: bool = False, prompt_text: Optional[str] = None):
+        """Start a brand new Antigravity agent conversation equipped with connected tools."""
+        with self._listen_lock:
+            if self._current_status in ("listening", "hearing", "transcribing", "ptt_listening", "paused_agent_speaking", "new_conversation"):
+                return
+            self._current_status = "new_conversation"
+
+        print("[VoiceFi] ✨ Triggered Start New Conversation with Connected Tools (⌘⇧N)")
+        stop_all_speech()
+        if self.watcher:
+            self.watcher.interrupt()
+
+        hud = UnifiedDynamicIslandHUD.get_instance()
+        hud.set_new_conversation(user_name=getattr(self.config, "user_name", "Jake"))
+
+        if prompt_text and prompt_text.strip():
+            def _direct_action(text: str):
+                from voicefi.integrations.injector import create_new_antigravity_conversation
+                new_id = create_new_antigravity_conversation(prompt=text)
+                if new_id and self.watcher:
+                    self.watcher.tracker.set_active_focus(new_id)
+                hud.show_done(preview_text=text[:20])
+                if self.config.audio_cues.enabled:
+                    play_chime(self.config.audio_cues.sent_chime, block=False)
+                try:
+                    rumps.notification("VoiceFi", "New Conversation Started", text[:80])
+                except Exception:
+                    pass
+                self._current_status = "idle"
+                self._build_conversations_submenu()
+            _direct_action(prompt_text.strip())
+            return
+
+        self._ptt_stop_event = threading.Event()
+
+        def _worker():
+            temp_wav = None
+            try:
+                if self.config.audio_cues.enabled:
+                    play_chime("start", block=False)
+                time.sleep(0.25)
+
+                recorder = AudioRecorder(
+                    sample_rate=self.config.vad.sample_rate,
+                    energy_threshold=self.config.vad.energy_threshold,
+                    silence_duration=self.config.vad.silence_duration,
+                )
+                self.active_recorder = recorder
+
+                def _on_pause(is_paused: bool):
+                    if is_paused:
+                        self._current_status = "paused_agent_speaking"
+                        hud.show_paused("⏸️ Agent Speaking (Paused)...")
+                    else:
+                        self._current_status = "new_conversation"
+                        hud.set_new_conversation(user_name=getattr(self.config, "user_name", "Jake"))
+
+                def _on_live(txt: str):
+                    hud.update_live_transcription(txt, user_name=getattr(self.config, "user_name", "Jake"), is_new_conversation=True)
+
+                if ptt_mode:
+                    audio_data, temp_wav = recorder.record_push_to_talk(
+                        stop_event=self._ptt_stop_event,
+                        on_pause_change=_on_pause,
+                        on_live_transcript=_on_live,
+                        ptt_release_delay_ms=self.config.vad.ptt_release_delay_ms,
+                    )
+                else:
+                    audio_data, temp_wav = recorder.record_speech_auto(
+                        on_speech_start=lambda: setattr(self, "_current_status", "hearing"),
+                        on_pause_change=_on_pause,
+                        on_live_transcript=_on_live,
+                        stop_event=self._ptt_stop_event,
+                    )
+
+                self.active_recorder = None
+                self._current_status = "transcribing"
+                hud.show_transcribing()
+
+                stt = get_stt_engine(self.config)
+                text = stt.transcribe(temp_wav)
+                if text and text.strip():
+                    is_auto_send = getattr(getattr(self.config, "hud", None), "auto_send", True) and getattr(self.config.antigravity, "auto_send", True)
+
+                    def _create_action(payload_text: str):
+                        from voicefi.integrations.injector import create_new_antigravity_conversation
+                        new_id = create_new_antigravity_conversation(prompt=payload_text)
+                        if new_id and self.watcher:
+                            self.watcher.tracker.set_active_focus(new_id)
+                        hud.show_done(preview_text=payload_text[:20])
+                        if self.config.audio_cues.enabled:
+                            play_chime(self.config.audio_cues.sent_chime, block=False)
+                        try:
+                            rumps.notification("VoiceFi • New Session", "Conversation Initialized", payload_text[:80])
+                        except Exception:
+                            pass
+
+                    if is_auto_send:
+                        _create_action(text)
+                    else:
+                        hud.start_new_conversation_dialog(on_submit=_create_action, initial_text=text)
+                else:
+                    if hud.persistent:
+                        hud.set_idle()
+                    else:
+                        hud.hide()
+            except Exception as e:
+                print(f"[VoiceFi] Error starting new conversation: {e}")
+                if hud.persistent:
+                    hud.set_idle()
+                else:
+                    hud.hide()
             finally:
                 if temp_wav and isinstance(temp_wav, Path):
                     temp_wav.unlink(missing_ok=True)
@@ -695,6 +932,14 @@ class VoiceFiTrayApp(rumps.App):
 
     def _start_global_hotkey_listener(self):
         """Unified global hotkey listener using pynput with macOS virtual key codes and ASCII control support."""
+        try:
+            import ApplicationServices
+            options = {ApplicationServices.kAXTrustedCheckOptionPrompt: True}
+            if not ApplicationServices.AXIsProcessTrustedWithOptions(options):
+                print("[VoiceFi] ⚠️ Missing Accessibility permissions. Please grant them in the macOS popup.")
+        except Exception:
+            pass
+
         def _run_pynput():
             try:
                 from pynput import keyboard
@@ -732,7 +977,7 @@ class VoiceFiTrayApp(rumps.App):
 
                         # 1. Enter or Space while recording -> finish immediately
                         is_rec = (
-                            self._current_status in ("listening", "hearing", "ptt_listening")
+                            self._current_status in ("listening", "hearing", "ptt_listening", "new_conversation")
                             or self.active_recorder is not None
                             or (self.watcher and self.watcher.active_recorder is not None)
                         )
@@ -745,26 +990,33 @@ class VoiceFiTrayApp(rumps.App):
                             self.stop_speaking_now()
                             return
 
-                        # 3. Companion Activity Hub (Ctrl+Shift+J or Cmd+Shift+J)
+                        # 3. New Conversation with Connected Tools (Cmd+Shift+N or Ctrl+Shift+N)
+                        if mod and shift and (vk == 45 or char in ('n', 'N', '\x0e')):
+                            if self.config.global_hotkey.enabled and _debounce('new_conv'):
+                                is_ptt = (self.config.vad.mode in ("ptt", "hybrid"))
+                                self.trigger_new_conversation(ptt_mode=is_ptt)
+                            return
+
+                        # 4. Companion Activity Hub (Ctrl+Shift+J or Cmd+Shift+J)
                         if mod and shift and (vk == 38 or char in ('j', 'J', '\n')):
                             if _debounce('hub'):
                                 self.toggle_hub()
                             return
 
-                        # 4. Jump to Antigravity (Ctrl+J or Cmd+J)
+                        # 5. Jump to Antigravity (Ctrl+J or Cmd+J)
                         if mod and not shift and (vk == 38 or char in ('j', '\n')):
                             if _debounce('jump'):
                                 self.trigger_focus_antigravity()
                             return
 
-                        # 5. Universal Dictation (Ctrl+T)
+                        # 6. Universal Dictation (Ctrl+T)
                         if ctrl and (vk == 17 or char in ('t', '\x14')):
                             if _debounce('dictate'):
                                 is_ptt = (self.config.vad.mode in ("ptt", "hybrid"))
                                 self.trigger_manual_listen(ptt_mode=is_ptt)
                             return
 
-                        # 6. Respond to Agent (Ctrl+R)
+                        # 7. Respond to Agent (Ctrl+R)
                         if ctrl and (vk == 15 or char in ('r', '\x12')):
                             if self.config.global_hotkey.enabled and _debounce('respond'):
                                 is_ptt = (self.config.vad.mode in ("ptt", "hybrid"))
@@ -785,7 +1037,7 @@ class VoiceFiTrayApp(rumps.App):
                             modifiers.discard('alt')
 
                         vk = getattr(key, 'vk', None)
-                        if self.config.vad.mode == "ptt" and vk in (15, 17):
+                        if self.config.vad.mode == "ptt" and vk in (15, 17, 45):
                             self.finish_active_recording()
                     except Exception as e:
                         print(f"[Tray] Hotkey release notice: {e}")
@@ -793,11 +1045,46 @@ class VoiceFiTrayApp(rumps.App):
                 listener = keyboard.Listener(on_press=on_press, on_release=on_release)
                 listener.daemon = True
                 listener.start()
-                print("[VoiceFi] ⌨️ Unified global hotkeys active: Ctrl+R (Respond), Ctrl+J / Cmd+J (Jump), Ctrl+T (Dictate), Ctrl+Shift+J (Hub)")
+                print("[VoiceFi] ⌨️ Unified global hotkeys active: Cmd+Shift+N (New Conv), Ctrl+R (Respond), Ctrl+J / Cmd+J (Jump), Ctrl+T (Dictate), Ctrl+Shift+J (Hub)")
             except Exception as e:
                 print(f"[Tray] Hotkey listener notice: {e}")
 
         threading.Thread(target=_run_pynput, daemon=True).start()
+
+    def toggle_persistent_hud(self, sender):
+        hud = UnifiedDynamicIslandHUD.get_instance()
+        new_val = not getattr(getattr(self.config, "hud", None), "persistent", True)
+        if not hasattr(self.config, "hud") or self.config.hud is None:
+            from voicefi.config import HUDConfig
+            self.config.hud = HUDConfig()
+        self.config.hud.persistent = new_val
+        self.config.antigravity.persistent_hud = new_val
+        sender.state = 1 if new_val else 0
+        hud.set_persistent(new_val)
+        save_config(self.config)
+
+    def toggle_fullscreen_overlay(self, sender):
+        hud = UnifiedDynamicIslandHUD.get_instance()
+        new_val = not getattr(getattr(self.config, "hud", None), "fullscreen_overlay", True)
+        if not hasattr(self.config, "hud") or self.config.hud is None:
+            from voicefi.config import HUDConfig
+            self.config.hud = HUDConfig()
+        self.config.hud.fullscreen_overlay = new_val
+        sender.state = 1 if new_val else 0
+        hud.set_fullscreen_overlay(new_val)
+        save_config(self.config)
+
+    def toggle_auto_send(self, sender):
+        new_val = not getattr(getattr(self.config, "hud", None), "auto_send", True)
+        if not hasattr(self.config, "hud") or self.config.hud is None:
+            from voicefi.config import HUDConfig
+            self.config.hud = HUDConfig()
+        self.config.hud.auto_send = new_val
+        self.config.antigravity.auto_send = new_val
+        sender.state = 1 if new_val else 0
+        hud = UnifiedDynamicIslandHUD.get_instance()
+        hud.set_auto_send(new_val)
+        save_config(self.config)
 
     def toggle_auto_listen(self, sender):
         self.config.antigravity.auto_listen = not self.config.antigravity.auto_listen
@@ -851,8 +1138,9 @@ class VoiceFiTrayApp(rumps.App):
                 return
             self._current_status = "ptt_listening" if ptt_mode else "listening"
 
-        if self.config.global_hotkey.show_dictation_hud and hasattr(self, "dictation_hud") and self.dictation_hud:
-            self.dictation_hud.show_listening()
+        hud = UnifiedDynamicIslandHUD.get_instance()
+        if self.config.global_hotkey.show_dictation_hud:
+            hud.set_listening(user_name=getattr(self.config, "user_name", "Jake"))
 
         stop_all_speech()
         if self.watcher:
@@ -877,58 +1165,68 @@ class VoiceFiTrayApp(rumps.App):
                 def _on_pause(is_paused: bool):
                     if is_paused:
                         self._current_status = "paused_agent_speaking"
-                        if self.config.global_hotkey.show_dictation_hud and hasattr(self, "dictation_hud") and self.dictation_hud:
-                            self.dictation_hud.show_paused("⏸️ Agent Speaking (Paused)...")
+                        hud.show_paused("⏸️ Agent Speaking (Paused)...")
                     else:
                         self._current_status = "ptt_listening" if ptt_mode else "listening"
-                        if self.config.global_hotkey.show_dictation_hud and hasattr(self, "dictation_hud") and self.dictation_hud:
-                            self.dictation_hud.show_listening()
+                        hud.set_listening(user_name=getattr(self.config, "user_name", "Jake"))
+
+                def _on_live(txt: str):
+                    hud.update_live_transcription(txt, user_name=getattr(self.config, "user_name", "Jake"))
 
                 if ptt_mode:
                     audio_data, temp_wav = recorder.record_push_to_talk(
                         stop_event=self._ptt_stop_event,
                         on_pause_change=_on_pause,
+                        on_live_transcript=_on_live,
                         ptt_release_delay_ms=self.config.vad.ptt_release_delay_ms,
                     )
                 else:
                     audio_data, temp_wav = recorder.record_speech_auto(
                         on_speech_start=lambda: setattr(self, "_current_status", "hearing"),
                         on_pause_change=_on_pause,
+                        on_live_transcript=_on_live,
                         stop_event=self._ptt_stop_event,
                     )
 
                 self.active_recorder = None
                 self._current_status = "transcribing"
-                if self.config.global_hotkey.show_dictation_hud and hasattr(self, "dictation_hud") and self.dictation_hud:
-                    self.dictation_hud.show_transcribing()
+                hud.show_transcribing()
 
                 stt = get_stt_engine(self.config)
                 text = stt.transcribe(temp_wav)
                 if text and text.strip():
-                    injected = inject_text_to_active_app(
-                        text,
-                        submit_enter=False,
-                        preserve_clipboard=self.config.global_hotkey.preserve_clipboard,
-                    )
-                    if injected:
-                        if self.config.global_hotkey.show_dictation_hud and hasattr(self, "dictation_hud") and self.dictation_hud:
-                            self.dictation_hud.show_done(preview_text=text)
-                        if self.config.audio_cues.enabled:
-                            play_chime(self.config.audio_cues.sent_chime, block=False)
-                        try:
-                            rumps.notification("VoiceFi", "Transcribed", text[:80])
-                        except Exception:
-                            pass
+                    is_auto_send = getattr(getattr(self.config, "hud", None), "auto_send", True)
+
+                    def _inject_action(payload_text: str):
+                        injected = inject_text_to_active_app(
+                            payload_text,
+                            submit_enter=False,
+                            preserve_clipboard=self.config.global_hotkey.preserve_clipboard,
+                        )
+                        if injected:
+                            hud.show_done(preview_text=payload_text[:20])
+                            if self.config.audio_cues.enabled:
+                                play_chime(self.config.audio_cues.sent_chime, block=False)
+                            try:
+                                rumps.notification("VoiceFi", "Transcribed", payload_text[:80])
+                            except Exception:
+                                pass
+
+                    if is_auto_send:
+                        _inject_action(text)
                     else:
-                        if self.config.global_hotkey.show_dictation_hud and hasattr(self, "dictation_hud") and self.dictation_hud:
-                            self.dictation_hud.hide()
+                        hud.set_editing(text, on_submit=_inject_action, target_name="Universal Dictation")
                 else:
-                    if self.config.global_hotkey.show_dictation_hud and hasattr(self, "dictation_hud") and self.dictation_hud:
-                        self.dictation_hud.hide()
+                    if hud.persistent:
+                        hud.set_idle()
+                    else:
+                        hud.hide()
             except Exception as e:
                 print(f"[VoiceFi] Error in manual listen: {e}")
-                if hasattr(self, "dictation_hud") and self.dictation_hud:
-                    self.dictation_hud.hide()
+                if hud.persistent:
+                    hud.set_idle()
+                else:
+                    hud.hide()
             finally:
                 if temp_wav and isinstance(temp_wav, Path):
                     temp_wav.unlink(missing_ok=True)
