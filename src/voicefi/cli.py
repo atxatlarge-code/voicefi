@@ -170,6 +170,28 @@ def cmd_onboarding(args):
     run_onboarding()
 
 
+def cmd_permissions(args):
+    """Open macOS Accessibility and Input Monitoring security settings."""
+    from voicefi.integrations.injector import open_accessibility_settings
+    try:
+        import ApplicationServices
+        options = {ApplicationServices.kAXTrustedCheckOptionPrompt: True}
+        trusted = ApplicationServices.AXIsProcessTrustedWithOptions(options)
+    except Exception:
+        trusted = False
+
+    print("\n🔐 macOS Accessibility & Hotkey Permissions")
+    print("------------------------------------------------------------------")
+    if trusted:
+        print("✅ Accessibility permissions are granted and active!")
+    else:
+        print("⚠️  Accessibility permission is not yet enabled for this terminal/app.")
+        print("👉 Opening macOS System Settings...")
+        open_accessibility_settings()
+        print("Please toggle Terminal / iTerm / Antigravity to ON in the list.")
+    print("------------------------------------------------------------------\n")
+
+
 def cmd_setup(args):
     """Automatically register VoiceFi lifecycle hooks with AI agents (Antigravity, Claude Code)."""
     import shutil
@@ -1912,6 +1934,7 @@ def main():
     # pause / resume
     subparsers.add_parser("pause", help="Pause VoiceFi audio hooks and active turn-handoffs globally")
     subparsers.add_parser("resume", help="Resume VoiceFi audio hooks and active turn-handoffs globally")
+    subparsers.add_parser("permissions", help="Check and open macOS Accessibility & Input Monitoring settings")
 
     # autostart
     subparsers.add_parser("autostart", help="Register macOS LaunchAgent to keep menu bar icon persistent")
@@ -2217,6 +2240,7 @@ def main():
         "onboarding": cmd_onboarding,
         "pause": cmd_pause,
         "resume": cmd_resume,
+        "permissions": cmd_permissions,
         "autostart": cmd_autostart,
         "stop-autostart": cmd_stop_autostart,
         "companion": cmd_companion,
