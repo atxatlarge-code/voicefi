@@ -22,6 +22,16 @@ class VoicePersona:
 
 CURATED_PERSONAS: List[VoicePersona] = [
     VoicePersona(
+        id="en-US-AndrewNeural",
+        name="Andrew",
+        provider="edge_tts",
+        gender="Male",
+        locale="en-US",
+        style="Warm, articulate, natural conversational",
+        sample_text="Hey! I'm Andrew. My natural, articulate tone is great for pair programming and code reviews.",
+        recommended_role="Antigravity / Primary Agent",
+    ),
+    VoicePersona(
         id="en-US-ChristopherNeural",
         name="Christopher",
         provider="edge_tts",
