@@ -35,9 +35,11 @@ CLI entry points: `vifi`, `vg`, `voicefi`
 - `vifi info` — Show detected agents, active tier, and audio status
 - `vifi listen` — One-shot voice dictation with Whisper STT & macOS clipboard injection
 - `vifi loop` — Continuous hands-free voice loop in the terminal
-- `vifi tray` — Launch macOS menu bar companion
-- `vifi voice list` — List curated voice personas (Edge TTS, Apple Say, ElevenLabs)
-- `vifi voice test <name>` — Audition a specific voice
+- `vifi update` — Self-updater: pulls latest build, upgrades venv, and reloads hooks
+- `vifi troubleshoot` — Comprehensive audio & voice diagnostic suite
+- `vifi feedback-loop` — Simultaneous speak + listen loopback verification
+- `vifi hearing-test` — Acoustic reception & STT verification check
+- `vifi dev` — Foreground real-time console dev mode with live VAD logging
 - `vifi panel` — Launch the local web control panel (http://localhost:8765)
 - `vifi memo record` — Capture 2-5 min developer voice ramble and synthesize to code plan
 
