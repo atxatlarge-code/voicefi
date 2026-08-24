@@ -109,17 +109,10 @@ def init_telemetry():
     try:
         posthog.project_api_key = api_key
         posthog.host = "https://us.i.posthog.com"
+        posthog.sync_mode = True
         _posthog_initialized = True
 
         user_id = get_machine_id()
-        user_properties = {
-            "os": platform.system(),
-            "os_release": platform.release(),
-            "python_version": platform.python_version(),
-            "arch": platform.machine(),
-        }
-
-        posthog.identify(user_id, user_properties)
 
         # Capture unhandled exceptions
         original_excepthook = sys.excepthook
@@ -129,11 +122,15 @@ def init_telemetry():
                 try:
                     error_msg = "".join(traceback.format_exception(exc_type, exc_value, exc_traceback))
                     sanitized_msg = sanitize_telemetry_data(error_msg)
-                    posthog.capture(user_id, "app_crash", {
-                        "error_type": exc_type.__name__,
-                        "error_message": sanitize_telemetry_data(str(exc_value)),
-                        "traceback": sanitized_msg,
-                    })
+                    posthog.capture(
+                        "app_crash",
+                        distinct_id=user_id,
+                        properties={
+                            "error_type": exc_type.__name__,
+                            "error_message": sanitize_telemetry_data(str(exc_value)),
+                            "traceback": sanitized_msg,
+                        },
+                    )
                     posthog.flush()
                 except Exception:
                     pass
@@ -158,7 +155,7 @@ def capture_event(event_name: str, properties: Optional[Dict[str, Any]] = None):
     try:
         user_id = get_machine_id()
         sanitized_props = sanitize_telemetry_data(properties or {})
-        posthog.capture(user_id, event_name, sanitized_props)
+        posthog.capture(event_name, distinct_id=user_id, properties=sanitized_props)
         posthog.flush()
     except Exception:
         pass
