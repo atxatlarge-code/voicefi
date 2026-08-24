@@ -71,6 +71,14 @@ class MacSayTTS(BaseTTS):
         self.voice = voice
         self.rate = normalize_mac_rate(rate)
         self._current_process: Optional[subprocess.Popen] = None
+        self._stop_requested = False
+
+    def stop(self) -> None:
+        """Interrupt any ongoing speech playback."""
+        self._stop_requested = True
+        if self._current_process and self._current_process.poll() is None:
+            self._current_process.terminate()
+            self._current_process = None
 
     def speak(self, text: str, block: bool = True) -> None:
         """Speak text aloud using macOS say with cross-process turn queuing."""
@@ -81,16 +89,19 @@ class MacSayTTS(BaseTTS):
             print("[MacSayTTS] User is on a call. Skipping speech synthesis.")
             return
 
+        self._stop_requested = False
         cmd = ["say", "-v", self.voice, "-r", str(self.rate), "--", text]
 
         def _run():
             with speech_turn_lock():
+                if self._stop_requested:
+                    return
                 try:
                     self._current_process = subprocess.Popen(
                         cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
                     )
                     self._current_process.wait()
-                    if self._current_process.returncode != 0:
+                    if not self._stop_requested and self._current_process.returncode != 0:
                         # Fallback to default system voice
                         fallback = subprocess.Popen(["say", "--", text], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                         fallback.wait()
