@@ -18,7 +18,20 @@ class Vifi < Formula
   end
 
   def post_install
-    system bin/"vifi", "setup"
+    system bin/"vifi", "setup" rescue nil
+    system bin/"vifi", "autostart" rescue nil
+  end
+
+  def caveats
+    <<~EOS
+      VoiceFi (vifi) has been installed and configured!
+
+      Dynamic Island HUD and Agent Voice Hooks are active.
+      To launch the interactive onboarding tour or audio test anytime:
+        vifi onboarding
+        vifi voice test
+        vifi panel
+    EOS
   end
 
   test do
