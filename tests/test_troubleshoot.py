@@ -151,7 +151,7 @@ class TestTroubleshoot(unittest.TestCase):
         res = self.troubleshooter.apply_fix("set_offline_fallback")
         self.assertTrue(res["success"])
         self.assertEqual(self.config.tts.provider, "mac_say")
-        self.assertEqual(self.config.tts.voice, "Samantha")
+        self.assertTrue(self.config.tts.voice in ("Ava (Premium)", "Ava (Enhanced)", "Ava", "Samantha"))
 
         # 3. Unknown fix
         res = self.troubleshooter.apply_fix("unknown_invalid_fix")

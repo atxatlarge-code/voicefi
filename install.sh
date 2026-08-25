@@ -151,7 +151,28 @@ say_msg "${CYAN}⚡ Configuring Agent lifecycle hooks (Antigravity & Claude Code
 say_msg "${CYAN}⚡ Enabling VoiceFi Menu Bar Companion & Persistent Dynamic Island HUD (autostart)...${NC}"
 "$INSTALL_DIR/venv/bin/voicefi" autostart >/dev/null 2>&1 || true
 
-# 7. Check for Obsidian and prompt user interactively
+# 7. Check for Apple Neural Voices (Ava Premium 0ms instant offline speech)
+if "$INSTALL_DIR/venv/bin/python" -c "import sys; from voicefi.tts.offline import is_voice_installed; sys_ok, _ = is_voice_installed('Ava'); sys.exit(0 if sys_ok else 1)" 2>/dev/null; then
+    AVA_NAME="$("$INSTALL_DIR/venv/bin/python" -c "from voicefi.tts.offline import is_voice_installed; _, name = is_voice_installed('Ava'); print(name or 'Ava (Premium)')" 2>/dev/null || echo "Ava (Premium)")"
+    say_msg "${GREEN}✓${NC} Apple Neural Voice detected: ${BOLD}$AVA_NAME${NC} (0ms instant offline speech ready)"
+else
+    if [ -t 0 ] && [ -r /dev/tty ]; then
+        say_msg ""
+        say_msg "${PURPLE}🎙️  Instant 0ms Offline Speech Setup${NC}"
+        say_msg "Apple includes \033[1mAva (Premium)\033[0m for zero-latency, 100% private offline speech."
+        read -r -p "👉 Open macOS settings to download Ava (Premium)? [Y/n]: " user_ava_choice 2>/dev/null < /dev/tty || user_ava_choice="y"
+        case "$user_ava_choice" in
+            [Nn]*)
+                say_msg "💡 Skipped. You can download Ava anytime with: ${CYAN}vifi voice download-ava${NC}"
+                ;;
+            *)
+                "$INSTALL_DIR/venv/bin/voicefi" voice download-ava || true
+                ;;
+        esac
+    fi
+fi
+
+# 8. Check for Obsidian and prompt user interactively
 if [ -d "$HOME/Library/Application Support/obsidian" ] || [ -d "$HOME/Documents/Obsidian Vault" ]; then
     INSTALL_OBSIDIAN="y"
     if [ -t 0 ] && [ -r /dev/tty ]; then
@@ -171,7 +192,7 @@ if [ -d "$HOME/Library/Application Support/obsidian" ] || [ -d "$HOME/Documents/
     fi
 fi
 
-# 8. Check PATH
+# 9. Check PATH
 case ":$PATH:" in
     *":$BIN_DIR:"*) ;;
     *)
@@ -210,6 +231,6 @@ say_msg "📖 ${BOLD}Commands:${NC}                Run ${CYAN}${BOLD}vifi --help
 say_msg "------------------------------------------------------------------"
 say_msg ""
 
-# 9. Play interactive welcome greeting with auto-detected user name
+# 10. Play interactive welcome greeting with auto-detected user name
 say_msg "${CYAN}⚡ Launching VoiceFi Onboarding...${NC}"
 "$INSTALL_DIR/venv/bin/voicefi" onboarding || true

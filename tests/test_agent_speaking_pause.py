@@ -73,6 +73,7 @@ def test_audio_recorder_pauses_during_agent_speech_and_discards_audio():
         energy_threshold=0.01,
         silence_duration=0.6,
         max_record_seconds=10.0,
+        barge_in=False,
     )
 
     pause_events = []
@@ -158,10 +159,12 @@ def test_dictation_hud_show_paused():
     """Verify DictationHUD.show_paused updates UI label and text."""
     hud = DictationHUD.get_instance()
     hud.show_paused("⏸️ Agent Speaking (Paused)...")
-    assert hud._label.stringValue() == "⏸️ Agent Speaking (Paused)..."
+    content = (hud._body_lbl.stringValue() if hud._body_lbl else "") or (hud._label.stringValue() if hud._label else "")
+    assert "Agent Speaking" in content
 
     hud.show_listening()
-    assert "Listening" in hud._label.stringValue()
+    content = (hud._title_lbl.stringValue() if hud._title_lbl else "") or (hud._label.stringValue() if hud._label else "")
+    assert "Listening" in content
     hud.hide()
 
 

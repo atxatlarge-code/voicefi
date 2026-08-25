@@ -93,7 +93,11 @@ class MacSayTTS(BaseTTS):
         cmd = ["say", "-v", self.voice, "-r", str(self.rate), "--", text]
 
         def _run():
-            with speech_turn_lock():
+            with speech_turn_lock(
+                text=text,
+                agent_name=getattr(self, "agent_name", "VoiceFi"),
+                persona_name=getattr(self, "persona_name", getattr(self, "voice", "Samantha")),
+            ):
                 if self._stop_requested:
                     return
                 try:

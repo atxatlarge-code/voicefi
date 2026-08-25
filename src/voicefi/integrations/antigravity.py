@@ -120,39 +120,58 @@ def extract_latest_agent_summary(
 ):
     """
     Extract the latest assistant response or question from transcript.jsonl.
+    Scans the transcript backwards to locate the latest turn's model response.
     If return_role is True, returns (summary_text, agent_role), else returns summary_text.
     """
     if not transcript_path.is_file():
         default_msg = "I have finished the task. What would you like to do next?"
         return (default_msg, None) if return_role else default_msg
 
-    last_model_content = ""
-    detected_role: Optional[str] = None
+    lines = []
     try:
         with open(transcript_path, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    step = json.loads(line)
-                    step_type = step.get("type", "")
-                    step_source = step.get("source", "")
-                    content = step.get("content", "")
-                    role = step.get("role") or step.get("agent_role")
-
-                    if step_type == "PLANNER_RESPONSE" and content and not step.get("tool_calls"):
-                        last_model_content = content
-                        if role:
-                            detected_role = str(role).lower()
-                    elif (step_type == "PLANNER_RESPONSE" or step_source == "MODEL") and content and not last_model_content:
-                        last_model_content = content
-                        if role:
-                            detected_role = str(role).lower()
-                except json.JSONDecodeError:
-                    continue
+            lines = [l.strip() for l in f if l.strip()]
     except Exception as e:
         print(f"[Antigravity] Error reading transcript: {e}", file=sys.stderr)
+        default_msg = "The process is complete and ready for your input."
+        return (default_msg, None) if return_role else default_msg
+
+    last_model_content = ""
+    detected_role: Optional[str] = None
+
+    # Traverse backwards to find the latest turn's model message
+    for line in reversed(lines):
+        try:
+            step = json.loads(line)
+            step_type = step.get("type", "")
+            step_source = step.get("source", "")
+            content = step.get("content", "")
+            role = step.get("role") or step.get("agent_role")
+
+            if step_type == "PLANNER_RESPONSE" and content and not step.get("tool_calls"):
+                last_model_content = content
+                if role:
+                    detected_role = str(role).lower()
+                break
+            elif step_type == "USER_INPUT" or step_source == "USER_EXPLICIT":
+                # Reached turn boundary without model text
+                break
+        except json.JSONDecodeError:
+            continue
+
+    if not last_model_content:
+        # Fallback: scan backwards across all lines for the most recent PLANNER_RESPONSE
+        for line in reversed(lines):
+            try:
+                step = json.loads(line)
+                if step.get("type") == "PLANNER_RESPONSE" and step.get("content") and not step.get("tool_calls"):
+                    last_model_content = step.get("content")
+                    role = step.get("role") or step.get("agent_role")
+                    if role:
+                        detected_role = str(role).lower()
+                    break
+            except Exception:
+                continue
 
     if not last_model_content:
         fallback_msg = "The process is complete and ready for your input."
@@ -220,6 +239,7 @@ def handle_antigravity_stop_hook(payload: Dict[str, Any], config: Optional[Voice
             conv_id=conv_id,
             transcript_path=str(transcript_path),
             workspace_path=workspace_path,
+            engine="antigravity",
         )
 
     summary, detected_role = extract_latest_agent_summary(
@@ -285,7 +305,10 @@ def handle_antigravity_stop_hook(payload: Dict[str, Any], config: Optional[Voice
     temp_wav: Optional[Path] = None
 
     if barge_in_active:
-        # Active Barge-In: start TTS in background thread and listen on mic for interruption
+        # Active Barge-In: set speaking state immediately, start TTS in background thread, and listen on mic
+        from voicefi.tts.base import set_agent_speaking
+        set_agent_speaking(True, text=summary, agent_name=active_agent)
+
         tts = get_tts_engine(cfg, agent_name=active_agent)
         def _speak_and_finish():
             try:

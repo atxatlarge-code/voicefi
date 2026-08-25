@@ -71,9 +71,20 @@ def normalize_edge_rate(rate: any) -> str:
 class EdgeTTS(BaseTTS):
     """TTS engine using Edge TTS neural voices with reliable playback and turn queuing."""
 
-    def __init__(self, voice: str = "en-US-ChristopherNeural", rate: any = 0, streaming: bool = True):
+    def __init__(
+        self,
+        voice: str = "en-US-AvaNeural",
+        rate: any = 0,
+        volume: any = 1.0,
+        streaming: bool = True,
+    ):
         self.voice = voice
         self.rate_str = normalize_edge_rate(rate)
+        try:
+            self.volume = float(volume) if volume is not None else 1.0
+        except (ValueError, TypeError):
+            self.volume = 1.0
+        self.afplay_vol = str(max(self.volume * 1.6, 1.5))
         self.streaming = streaming
         self._current_process: Optional[subprocess.Popen] = None
         self._stop_requested = False
@@ -95,7 +106,11 @@ class EdgeTTS(BaseTTS):
         self._stop_requested = False
 
         def _run():
-            with speech_turn_lock():
+            with speech_turn_lock(
+                text=text,
+                agent_name=getattr(self, "agent_name", "VoiceFi"),
+                persona_name=getattr(self, "persona_name", getattr(self, "voice", "Christopher")),
+            ):
                 if self._stop_requested:
                     return
 
@@ -115,7 +130,7 @@ class EdgeTTS(BaseTTS):
                         if not self._stop_requested and Path(temp_path).is_file() and Path(temp_path).stat().st_size > 0:
                             set_agent_audio_playing(True)
                             self._current_process = subprocess.Popen(
-                                ["afplay", temp_path],
+                                ["afplay", "-v", self.afplay_vol, temp_path],
                                 stdout=subprocess.DEVNULL,
                                 stderr=subprocess.DEVNULL,
                             )
@@ -161,7 +176,7 @@ class EdgeTTS(BaseTTS):
                         if not self._stop_requested and Path(chunk_path).is_file() and Path(chunk_path).stat().st_size > 0:
                             set_agent_audio_playing(True)
                             self._current_process = subprocess.Popen(
-                                ["afplay", chunk_path],
+                                ["afplay", "-v", self.afplay_vol, chunk_path],
                                 stdout=subprocess.DEVNULL,
                                 stderr=subprocess.DEVNULL,
                             )

@@ -192,7 +192,7 @@ def set_clipboard_text(text: str) -> bool:
         return False
 
 
-def restore_clipboard_delayed(prev_text: Optional[str], delay: float = 0.2):
+def restore_clipboard_delayed(prev_text: Optional[str], delay: float = 0.4):
     """Restore the previous clipboard text in the background after pasting."""
     if prev_text is None:
         return
@@ -307,7 +307,7 @@ def inject_text_to_active_app(
         )
         if result.returncode == 0:
             if preserve_clipboard and prev_clipboard is not None:
-                restore_clipboard_delayed(prev_clipboard, delay=0.18)
+                restore_clipboard_delayed(prev_clipboard, delay=0.4)
             return True
         else:
             print(f"[Injector] osascript notice (text is in clipboard): {result.stderr.strip()}")
@@ -342,13 +342,18 @@ def send_message_to_antigravity(
         try:
             from voicefi.integrations.conversations import ConversationTracker, load_session_cookie
             cookie = load_session_cookie()
-            if cookie and cookie.get("conv_id") and not str(cookie.get("conv_id")).startswith("claude_"):
-                conv_id = cookie["conv_id"]
+            cookie_cid = (cookie.get("conversationId") or cookie.get("conv_id")) if cookie else None
+            if cookie_cid and not str(cookie_cid).startswith("claude_"):
+                conv_id = cookie_cid
             else:
-                for c in ConversationTracker().get_all_conversations(limit=5):
-                    if getattr(c, "engine", "") == "antigravity" or not str(c.id).startswith("claude_"):
-                        conv_id = c.id
-                        break
+                active = ConversationTracker().get_active_or_latest()
+                if active and (getattr(active, "engine", "") == "antigravity" or not str(active.id).startswith("claude_")):
+                    conv_id = active.id
+                else:
+                    for c in ConversationTracker().get_all_conversations(limit=5):
+                        if getattr(c, "engine", "") == "antigravity" or not str(c.id).startswith("claude_"):
+                            conv_id = c.id
+                            break
         except Exception:
             pass
 

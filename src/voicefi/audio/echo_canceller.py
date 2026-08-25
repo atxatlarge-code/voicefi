@@ -10,7 +10,7 @@ import json
 import time
 import difflib
 from pathlib import Path
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 
 LAST_SPOKEN_FILE = Path("/tmp/voicefi_last_spoken.json")
 _RECENT_SPOKEN_ENTRIES: List[Dict[str, float]] = []
@@ -143,8 +143,29 @@ def is_acoustic_echo(
                 return True
 
         # 4. Fuzzy sequence similarity
-        ratio = difflib.SequenceMatcher(None, clean_trans, clean_ref).ratio()
-        if ratio >= similarity_threshold:
-            return True
-
     return False
+
+
+def is_hardware_aec_active() -> bool:
+    """Return whether native Apple VoiceProcessingIO hardware echo cancellation is available."""
+    try:
+        from voicefi.audio.native_vpio import is_vpio_supported
+        return is_vpio_supported()
+    except Exception:
+        return False
+
+
+def get_echo_cancellation_info() -> Dict[str, Any]:
+    """Retrieve diagnostic and configuration profile for hardware/software echo cancellation."""
+    from voicefi.audio.device import is_using_builtin_speakers, is_headphone_or_headset_active
+    hardware_aec = is_hardware_aec_active()
+    headphones = is_headphone_or_headset_active()
+    builtin = is_using_builtin_speakers()
+    
+    return {
+        "hardware_aec_supported": hardware_aec,
+        "hardware_aec_backend": "Apple AUVoiceProcessing (VoiceProcessingIO)" if hardware_aec else "None",
+        "headphones_connected": headphones,
+        "using_builtin_speakers": builtin,
+        "active_isolation_mode": "Hardware VoiceProcessingIO DSP" if hardware_aec else ("Physical Headphone Isolation" if headphones else "Acoustic Safe Mode"),
+    }

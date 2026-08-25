@@ -14,7 +14,7 @@ tts:
   provider: "mac_say"
   
   # For mac_say: "Samantha", "Alex", "Daniel", "Karen", "Victoria", or any macOS voice
-  # For edge_tts: "en-US-ChristopherNeural", "en-US-EricNeural", "en-US-GuyNeural", "en-US-JennyNeural"
+  # For edge_tts: "en-US-AvaNeural", "en-US-ChristopherNeural", "en-US-GuyNeural", "en-US-JennyNeural"
   voice: "Samantha"
   rate: 200        # Words per minute (mac_say) or speed percentage (edge_tts)
   volume: 1.0
@@ -85,7 +85,7 @@ global_hotkey:
 agents:
   antigravity:
     provider: "edge_tts"
-    voice: "en-US-ChristopherNeural"
+    voice: "en-US-AvaNeural"
   claude_code:
     provider: "edge_tts"
     voice: "en-US-GuyNeural"

@@ -116,23 +116,29 @@ vg feedback submit "Speech cutoff on long markdown lists" \
 To train an AI agent to talk in the user's authentic voice and conversational style:
 
 ```bash
-# 1. Interactive microphone recording wizard:
+# 1. Interactive microphone recording wizard (supports Open-Source F5-TTS or ElevenLabs):
+vg clone record "Ava" --assign default --provider f5_tts
 vg clone record "Jake" --assign antigravity
 
 # 2. Or train from existing audio sample files (.wav, .mp3):
-vg clone import "Jake" path/to/sample1.wav path/to/sample2.wav --assign antigravity
+vg clone import "Ava" path/to/sample1.wav path/to/sample2.wav --assign default --provider f5_tts
 
-# 3. List all custom trained voice clones:
+# 3. Launch Local Open-Source Voice Cloning Web Studio:
+vg clone studio
+
+# 4. List all custom trained voice clones:
 vg clone list
 
-# 4. Audition the cloned voice over speakers:
-vg clone test "Jake" --text "Hey! I am pair-programming with you using my custom cloned voice."
+# 5. Audition the cloned voice over speakers:
+vg clone test "Ava" --text "Hey Jake! I am pair-programming with you using my custom open source cloned voice."
 
-# 5. Assign cloned voice to any agent or subagent:
-vg clone assign "Jake" antigravity
-vg clone assign "Jake" researcher
+# 6. Assign cloned voice to any agent or subagent:
+vg clone assign "Ava" default
+vg clone assign "Ava" antigravity
+vg clone assign "Ava" researcher
 
-# 6. View generated persona prompt (style, tone, cadence):
-vg clone prompt "Jake"
+# 7. View generated persona prompt (style, tone, cadence):
+vg clone prompt "Ava"
 ```
+
 

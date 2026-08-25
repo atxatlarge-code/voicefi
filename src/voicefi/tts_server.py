@@ -12,6 +12,9 @@ from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 import edge_tts
 
 VOICE_MAP = {
+    "viv": "en-US-AvaNeural",
+    "ava": "en-US-AvaNeural",
+    "emily": "en-IE-EmilyNeural",
     "christopher": "en-US-ChristopherNeural",
     "aria": "en-US-AriaNeural",
     "sonia": "en-GB-SoniaNeural",
@@ -43,8 +46,8 @@ class VoiceFiHTTPHandler(SimpleHTTPRequestHandler):
         # Route: /api/tts
         if parsed.path == "/api/tts":
             query = urllib.parse.parse_qs(parsed.query)
-            voice_key = query.get("voice", ["christopher"])[0].lower()
-            voice = VOICE_MAP.get(voice_key, "en-US-ChristopherNeural")
+            voice_key = query.get("voice", ["viv"])[0].lower()
+            voice = VOICE_MAP.get(voice_key, "en-US-AvaNeural")
             text = query.get("text", ["VoiceFi ambient voice protocol ready."])[0]
 
             if not text.strip():

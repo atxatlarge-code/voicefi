@@ -142,6 +142,9 @@ def parse_voice_command(
         "victoria": "Victoria",
         "daniel": "Daniel",
         "fred": "Fred",
+        "viv": "Viv",
+        "avaneural": "Viv",
+        "ava neural": "Viv",
         "jenny": "Jenny",
         "william": "William",
         "guy": "Guy",
@@ -190,6 +193,11 @@ def parse_voice_command(
         if target_agent == "default":
             config.tts.voice = p_id
             config.tts.provider = provider
+            config.agents["antigravity"] = AgentVoiceProfile(
+                voice=p_id,
+                provider=provider,
+                description="Assigned to antigravity (default)",
+            )
         elif target_agent in ("researcher", "debugger", "architect"):
             config.subagents[target_agent] = AgentVoiceProfile(
                 voice=p_id,
@@ -204,7 +212,12 @@ def parse_voice_command(
             )
 
         save_config(config)
-        agent_label = "your main agent" if target_agent == "antigravity" else f"subagent {target_agent}"
+        if target_agent == "default":
+            agent_label = "default & primary agent (antigravity)"
+        elif target_agent == "antigravity":
+            agent_label = "your main agent"
+        else:
+            agent_label = f"subagent {target_agent}"
         return {
             "action": "assign",
             "target": target_agent,
@@ -1267,6 +1280,7 @@ HTML_CONTROL_PANEL = """<!DOCTYPE html>
       </div>
     </div>
     <div class="header-actions">
+      <a href="/claude" class="btn-stop-audio" style="text-decoration: none; color: #f97316; border-color: rgba(249,115,22,0.4); background: rgba(249,115,22,0.1);">🎭 Claude Contenders</a>
       <button id="micBtn" class="mic-button" onclick="toggleVoiceCommand()">
         <span id="micIcon">🎤</span> <span id="micLabel">Voice Control</span>
       </button>
@@ -1296,6 +1310,9 @@ HTML_CONTROL_PANEL = """<!DOCTYPE html>
   <div class="target-tabs" id="targetTabs">
     <button class="tab-btn active" id="tab-antigravity" onclick="setTarget('antigravity', this)">
       🤖 Antigravity (Main Agent) <span class="tab-badge" id="badge-antigravity">Christopher</span>
+    </button>
+    <button class="tab-btn" id="tab-claude" onclick="setTarget('claude', this)">
+      🎭 Claude Code <span class="tab-badge" id="badge-claude">Guy</span>
     </button>
     <button class="tab-btn" id="tab-researcher" onclick="setTarget('researcher', this)">
       🔍 Researcher <span class="tab-badge" id="badge-researcher">Sonia</span>
@@ -2346,12 +2363,22 @@ class VoicePanelRequestHandler(http.server.BaseHTTPRequestHandler):
         # Suppress noisy standard request logs
         return
 
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
+        self.send_header("Access-Control-Max-Age", "86400")
+        self.end_headers()
+
     def _send_json(self, data: Any, status: int = 200):
         body = json.dumps(data).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
         self.end_headers()
         self.wfile.write(body)
 
@@ -2433,6 +2460,75 @@ class VoicePanelRequestHandler(http.server.BaseHTTPRequestHandler):
                 res = AudioTroubleshooter(self.server.config).ping_voice_silently(voice_name_or_id=voice).to_dict()
             self._send_json(res)
             return
+        if path in ("/claude", "/claude/", "/claude.html"):
+            from voicefi.ui.claude_panel import HTML_CLAUDE_DEMO
+            self._send_html(HTML_CLAUDE_DEMO)
+            return
+
+        if path == "/api/claude/contenders":
+            from voicefi.tts.catalog import get_claude_contenders, find_persona
+            prov, voice, rate = self.server.config.resolve_voice("claude")
+            persona = find_persona(voice)
+            contenders = get_claude_contenders(active_voice_id=voice)
+            self._send_json({
+                "status": "success",
+                "active_voice": voice,
+                "active_provider": prov,
+                "active_rate": rate,
+                "active_voice_details": {
+                    "id": voice,
+                    "name": persona.name if persona else voice,
+                    "provider": prov,
+                    "vibe": persona.style if persona else f"Assigned to Claude ({prov})",
+                    "locale": persona.locale if persona else "en-US",
+                } if persona else None,
+                "contenders": contenders,
+            })
+            return
+
+        if path == "/api/offline/status":
+            from voicefi.tts.offline import is_voice_installed, list_installed_neural_voices
+            installed, exact = is_voice_installed("Ava")
+            neural_list = list_installed_neural_voices()
+            self._send_json({
+                "ava_installed": installed,
+                "ava_voice": exact,
+                "installed_neural_voices": neural_list,
+            })
+        if path == "/api/synthesize":
+            params = urllib.parse.parse_qs(parsed.query)
+            voice = params.get("voice", ["en-GB-RyanNeural"])[0]
+            text = params.get("text", ["Hello world"])[0]
+            provider = params.get("provider", [None])[0]
+            rate = params.get("rate", [None])[0]
+
+            persona = find_persona(voice)
+            prov = provider or (persona.provider if persona else "edge_tts")
+            target_voice = persona.id if persona else voice
+
+            try:
+                if prov == "edge_tts":
+                    import asyncio, edge_tts
+                    from voicefi.tts.edge_tts import normalize_edge_rate
+                    norm_rate = normalize_edge_rate(rate)
+                    async def _synth():
+                        communicate = edge_tts.Communicate(text, target_voice, rate=norm_rate)
+                        audio_data = b""
+                        async for chunk in communicate.stream():
+                            if chunk["type"] == "audio":
+                                audio_data += chunk["data"]
+                        return audio_data
+                    data = asyncio.run(_synth())
+                    self.send_response(200)
+                    self.send_header("Content-Type", "audio/mpeg")
+                    self.send_header("Content-Length", str(len(data)))
+                    self.send_header("Access-Control-Allow-Origin", "*")
+                    self.end_headers()
+                    self.wfile.write(data)
+                    return
+            except Exception as e:
+                self._send_json({"error": str(e)}, status=500)
+                return
 
         self.send_error(404, "Not Found")
 
@@ -2508,6 +2604,20 @@ class VoicePanelRequestHandler(http.server.BaseHTTPRequestHandler):
             self._send_json(res)
             return
 
+        if path == "/api/offline/open_settings":
+            from voicefi.tts.offline import open_spoken_content_settings
+            success = open_spoken_content_settings()
+            self._send_json({"success": success, "message": "Opened macOS Spoken Content settings."})
+            return
+
+        if path == "/api/offline/configure_ava":
+            from voicefi.tts.offline import configure_offline_voice, is_voice_installed
+            installed, exact = is_voice_installed("Ava")
+            target_v = exact or "Ava (Premium)"
+            res = configure_offline_voice(target_v, config=self.server.config)
+            self._send_json(res)
+            return
+
         if path == "/api/hud/preview":
             text = payload.get("text", "I'm your active AI pairing agent. All tests passed and changes are ready to ship.")
             agent = payload.get("agent", "Antigravity")
@@ -2527,7 +2637,7 @@ class VoicePanelRequestHandler(http.server.BaseHTTPRequestHandler):
             return
 
         if path == "/api/audition":
-            voice = payload.get("voice", "en-US-ChristopherNeural")
+            voice = payload.get("voice", "en-US-AvaNeural")
             provider = payload.get("provider")
             text = payload.get("text")
             rate = payload.get("rate")
@@ -2717,9 +2827,36 @@ class VoicePanelRequestHandler(http.server.BaseHTTPRequestHandler):
                 self._send_json({"error": str(e)}, status=400)
             return
 
+        if path == "/api/claude/assign":
+            voice = payload.get("voice", "en-GB-RyanNeural")
+            provider = payload.get("provider")
+            rate = payload.get("rate")
+
+            persona = find_persona(voice)
+            resolved_voice = persona.id if persona else voice
+            resolved_provider = provider or (persona.provider if persona else "edge_tts")
+
+            profile = AgentVoiceProfile(
+                voice=resolved_voice,
+                provider=resolved_provider,
+                rate=rate,
+                description="Assigned to Claude Code",
+            )
+            self.server.config.agents["claude"] = profile
+            save_config(self.server.config)
+
+            self._send_json({
+                "status": "success",
+                "target": "claude",
+                "voice": resolved_voice,
+                "provider": resolved_provider,
+                "name": persona.name if persona else resolved_voice,
+            })
+            return
+
         if path == "/api/assign":
             target = payload.get("target", "antigravity").lower().strip()
-            voice_id = payload.get("voice", "en-US-ChristopherNeural")
+            voice_id = payload.get("voice", "en-US-AvaNeural")
             provider = payload.get("provider", "edge_tts")
             rate = payload.get("rate")
 

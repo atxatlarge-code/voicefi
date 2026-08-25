@@ -170,3 +170,116 @@ def test_cmd_voice_cli_speed(capsys):
         assert "75% (150 WPM)" in captured.out
         mock_save.assert_called_once()
 
+
+def test_cmd_voice_set_plays_acoustic_confirmation(capsys):
+    """Test 'vifi voice set antigravity Viv' plays personalized acoustic confirmation phrase."""
+    args = MagicMock()
+    args.voice_action = "set"
+    args.agent = "antigravity"
+    args.voice = "Viv"
+    args.provider = None
+    args.rate = None
+    args.text = None
+    args.quiet = False
+    args.silent = False
+    args.config = None
+
+    mock_tts = MagicMock()
+    with patch("voicefi.cli.save_config"), \
+         patch("voicefi.cli.get_tts_engine", return_value=mock_tts):
+        cmd_voice(args)
+        captured = capsys.readouterr()
+        assert "Successfully assigned agent 'antigravity' to voice: 'en-US-AvaNeural'" in captured.out
+        assert "Playing confirmation:" in captured.out
+        mock_tts.speak.assert_called_once()
+        spoken_phrase = mock_tts.speak.call_args[0][0]
+        assert "Viv" in spoken_phrase
+        assert "Antigravity" in spoken_phrase
+
+
+def test_cmd_voice_set_quiet_flag(capsys):
+    """Test 'vifi voice set antigravity Viv --quiet' skips audio playback."""
+    args = MagicMock()
+    args.voice_action = "set"
+    args.agent = "antigravity"
+    args.voice = "Viv"
+    args.provider = None
+    args.rate = None
+    args.text = None
+    args.quiet = True
+    args.silent = False
+    args.config = None
+
+    mock_tts = MagicMock()
+    with patch("voicefi.cli.save_config"), \
+         patch("voicefi.cli.get_tts_engine", return_value=mock_tts):
+        cmd_voice(args)
+        captured = capsys.readouterr()
+        assert "Successfully assigned agent 'antigravity' to voice: 'en-US-AvaNeural'" in captured.out
+        mock_tts.speak.assert_not_called()
+
+
+def test_cmd_voice_set_single_arg_viv(capsys):
+    """Test 'vifi voice set viv' assigns global default and primary agent."""
+    args = MagicMock()
+    args.voice_action = "set"
+    args.agent = "viv"
+    args.voice = None
+    args.provider = None
+    args.rate = None
+    args.text = None
+    args.quiet = False
+    args.silent = False
+    args.config = None
+
+    mock_tts = MagicMock()
+    with patch("voicefi.cli.save_config") as mock_save, \
+         patch("voicefi.cli.get_tts_engine", return_value=mock_tts):
+        cmd_voice(args)
+        captured = capsys.readouterr()
+        assert "Successfully assigned global default & primary agent (antigravity) to voice: 'en-US-AvaNeural'" in captured.out
+        mock_save.assert_called_once()
+        mock_tts.speak.assert_called_once()
+        spoken_phrase = mock_tts.speak.call_args[0][0]
+        assert "default voice" in spoken_phrase
+
+
+def test_cmd_voice_set_avaneural_alias(capsys):
+    """Test 'vifi voice set avaneural' resolves to en-US-AvaNeural."""
+    args = MagicMock()
+    args.voice_action = "set"
+    args.agent = "avaneural"
+    args.voice = None
+    args.provider = None
+    args.rate = None
+    args.text = None
+    args.quiet = True
+    args.silent = False
+    args.config = None
+
+    with patch("voicefi.cli.save_config"):
+        cmd_voice(args)
+        captured = capsys.readouterr()
+        assert "Successfully assigned global default & primary agent (antigravity) to voice: 'en-US-AvaNeural'" in captured.out
+
+
+def test_cmd_voice_set_reversed_args(capsys):
+    """Test 'vifi voice set viv claude' handles reversed voice/agent ordering gracefully."""
+    args = MagicMock()
+    args.voice_action = "set"
+    args.agent = "viv"
+    args.voice = "claude"
+    args.provider = None
+    args.rate = None
+    args.text = None
+    args.quiet = True
+    args.silent = False
+    args.config = None
+
+    with patch("voicefi.cli.save_config"):
+        cmd_voice(args)
+        captured = capsys.readouterr()
+        assert "Successfully assigned agent 'claude' to voice: 'en-US-AvaNeural'" in captured.out
+
+
+

@@ -34,7 +34,11 @@ class ElevenLabsTTS(BaseTTS):
             return
 
         def _run():
-            with speech_turn_lock():
+            with speech_turn_lock(
+                text=text,
+                agent_name=getattr(self, "agent_name", "VoiceFi"),
+                persona_name=getattr(self, "persona_name", getattr(self, "voice_id", "ElevenLabs")),
+            ):
                 url = f"https://api.elevenlabs.io/v1/text-to-speech/{self.voice_id}"
                 headers = {
                     "xi-api-key": self.api_key,

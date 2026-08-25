@@ -39,23 +39,24 @@ def test_vad_config_barge_in_defaults():
 
 def test_resolve_barge_in_mode_auto_and_manual():
     """Verify resolve_barge_in_mode correctly handles 'auto', True, and False."""
-    with patch("voicefi.audio.recorder.is_using_builtin_speakers", return_value=True):
-        active, safe = resolve_barge_in_mode("auto")
-        assert active is False  # Barge-in safely disabled on built-in laptop speakers
-        assert safe is True
+    with patch("voicefi.audio.native_vpio.is_vpio_supported", return_value=False):
+        with patch("voicefi.audio.recorder.is_using_builtin_speakers", return_value=True):
+            active, safe = resolve_barge_in_mode("auto")
+            assert active is False  # Barge-in safely disabled on built-in laptop speakers
+            assert safe is True
 
-        active, safe = resolve_barge_in_mode(True)
-        assert active is True
-        assert safe is True
+            active, safe = resolve_barge_in_mode(True)
+            assert active is True
+            assert safe is True
 
-        active, safe = resolve_barge_in_mode(False)
-        assert active is False
-        assert safe is False
+            active, safe = resolve_barge_in_mode(False)
+            assert active is False
+            assert safe is False
 
-    with patch("voicefi.audio.recorder.is_using_builtin_speakers", return_value=False):
-        active, safe = resolve_barge_in_mode("auto")
-        assert active is True
-        assert safe is False  # Full mode active on headphones
+        with patch("voicefi.audio.recorder.is_using_builtin_speakers", return_value=False):
+            active, safe = resolve_barge_in_mode("auto")
+            assert active is True
+            assert safe is False  # Full mode active on headphones
 
 
 def test_audio_device_detection_profile():
@@ -63,19 +64,20 @@ def test_audio_device_detection_profile():
     mock_builtin = ({"name": "MacBook Pro Microphone"}, {"name": "MacBook Pro Speakers"})
     mock_headphones = ({"name": "MacBook Pro Microphone"}, {"name": "AirPods Pro"})
 
-    with patch("voicefi.audio.device.get_default_audio_devices", return_value=mock_builtin):
-        assert is_using_builtin_speakers() is True
-        assert is_headphone_or_headset_active() is False
-        prof = get_audio_device_profile()
-        assert prof["is_builtin_speakers"] is True
-        assert prof["acoustic_safe_mode_recommended"] is True
+    with patch("voicefi.audio.native_vpio.is_vpio_supported", return_value=False):
+        with patch("voicefi.audio.device.get_default_audio_devices", return_value=mock_builtin):
+            assert is_using_builtin_speakers() is True
+            assert is_headphone_or_headset_active() is False
+            prof = get_audio_device_profile()
+            assert prof["is_builtin_speakers"] is True
+            assert prof["acoustic_safe_mode_recommended"] is True
 
-    with patch("voicefi.audio.device.get_default_audio_devices", return_value=mock_headphones):
-        assert is_using_builtin_speakers() is False
-        assert is_headphone_or_headset_active() is True
-        prof = get_audio_device_profile()
-        assert prof["is_headphones_active"] is True
-        assert prof["acoustic_safe_mode_recommended"] is False
+        with patch("voicefi.audio.device.get_default_audio_devices", return_value=mock_headphones):
+            assert is_using_builtin_speakers() is False
+            assert is_headphone_or_headset_active() is True
+            prof = get_audio_device_profile()
+            assert prof["is_headphones_active"] is True
+            assert prof["acoustic_safe_mode_recommended"] is False
 
 
 def test_audio_recorder_barge_in_triggers_and_preserves_audio():
@@ -148,7 +150,8 @@ def test_audio_recorder_barge_in_triggers_and_preserves_audio():
         idx = min(current_idx[0], len(speaking_states) - 1)
         return speaking_states[idx]
 
-    with patch("sounddevice.InputStream", side_effect=MockStream), \
+    with patch("pynput.keyboard.Listener"), \
+         patch("sounddevice.InputStream", side_effect=MockStream), \
          patch("voicefi.tts.base.stop_all_speech") as mock_stop_speech, \
          patch("voicefi.audio.recorder.is_using_builtin_speakers", return_value=False), \
          patch("voicefi.audio.recorder.is_agent_audio_playing", return_value=True), \
@@ -217,7 +220,9 @@ def test_audio_recorder_safe_mode_grace_period_suppresses_speaker_bleed():
             recorder.stop()
             return silence_chunk, False
 
-    with patch("sounddevice.InputStream", side_effect=MockStream), \
+    with patch("voicefi.audio.native_vpio.is_vpio_supported", return_value=False), \
+         patch("pynput.keyboard.Listener"), \
+         patch("sounddevice.InputStream", side_effect=MockStream), \
          patch("voicefi.tts.base.stop_all_speech") as mock_stop_speech, \
          patch("voicefi.audio.recorder.is_using_builtin_speakers", return_value=True), \
          patch("voicefi.audio.recorder.is_agent_audio_playing", return_value=True), \
@@ -284,7 +289,9 @@ def test_audio_recorder_safe_mode_barge_in_after_grace_period():
             return False
         return True
 
-    with patch("sounddevice.InputStream", side_effect=MockStream), \
+    with patch("voicefi.audio.native_vpio.is_vpio_supported", return_value=False), \
+         patch("pynput.keyboard.Listener"), \
+         patch("sounddevice.InputStream", side_effect=MockStream), \
          patch("voicefi.tts.base.stop_all_speech") as mock_stop_speech, \
          patch("voicefi.audio.recorder.is_using_builtin_speakers", return_value=True), \
          patch("voicefi.audio.recorder.is_agent_audio_playing", return_value=True), \
@@ -352,7 +359,9 @@ def test_audio_recorder_pre_playback_delay_preserves_grace_window():
         # First 10 chunks are network download, then audio actually plays
         return current_idx[0] > 10
 
-    with patch("sounddevice.InputStream", side_effect=MockStream), \
+    with patch("voicefi.audio.native_vpio.is_vpio_supported", return_value=False), \
+         patch("pynput.keyboard.Listener"), \
+         patch("sounddevice.InputStream", side_effect=MockStream), \
          patch("voicefi.tts.base.stop_all_speech") as mock_stop_speech, \
          patch("voicefi.audio.recorder.is_using_builtin_speakers", return_value=True), \
          patch("voicefi.audio.recorder.is_agent_audio_playing", side_effect=mock_is_audio_playing), \
@@ -409,7 +418,8 @@ def test_audio_recorder_barge_in_disabled_maintains_pause():
                 return chunks[idx], False
             return silence_chunk, False
 
-    with patch("sounddevice.InputStream", side_effect=MockStream), \
+    with patch("pynput.keyboard.Listener"), \
+         patch("sounddevice.InputStream", side_effect=MockStream), \
          patch("voicefi.tts.base.stop_all_speech") as mock_stop_speech, \
          patch("voicefi.audio.recorder.is_agent_speaking", return_value=True):
 
@@ -545,6 +555,7 @@ def test_tray_app_barge_in_toggle():
          patch("voicefi.ui.hub.ConversationHubWindow.get_instance"), \
          patch("voicefi.ui.dictation_hud.DictationHUD.get_instance"), \
          patch("voicefi.ui.tray.VoiceFiTrayApp._start_global_hotkey_listener"), \
+         patch("voicefi.audio.device.is_headphone_or_headset_active", return_value=True), \
          patch("voicefi.ui.tray.load_config", return_value=fresh_cfg), \
          patch("voicefi.ui.tray.save_config") as mock_save, \
          patch("rumps.Timer"):

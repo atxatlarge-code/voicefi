@@ -10,6 +10,7 @@ Universal Voice Layer for Knowledge Vaults, MCP, and Autonomous AI Coding Agents
 | :--- | :--- |
 | `vifi update` | Self-updater: pulls latest GitHub release, upgrades `~/.voicefi/venv`, and reloads hooks. |
 | `vifi update --check` | Check if a newer version is available without installing. |
+| `vifi voice download-ava` | **Instant 0ms Offline Speech Setup**: Guides downloading Apple's **Ava (Premium)** neural voice and auto-configures 0ms offline synthesis. |
 | `vifi troubleshoot` | Comprehensive automated diagnostic suite (devices, TTS latency, VAD). |
 | `vifi troubleshoot --json` | Machine-readable hardware and diagnostic profile (great for agent inspection). |
 | `vifi troubleshoot -i` | Interactive mic loopback recording & instant playback. |
@@ -89,16 +90,22 @@ To debug how VoiceFi handles simultaneous speech output and microphone capture:
 ---
 
 ### 4. Audio Playback or TTS Latency Issues
-* **Fastest Offline Fallback (Zero Latency):**
+* **Fastest 0ms Offline Neural Voice (Instant Apple Silicon Synthesis):**
+  ```bash
+  vifi voice download-ava
+  # or
+  vifi voice set antigravity "Ava (Premium)"
+  ```
+  Uses Apple's native local neural engine for zero-latency, 100% private offline speech.
+* **Classic Offline Fallback:**
   ```bash
   vifi voice set antigravity Samantha
   # or
   vifi troubleshoot --fix offline_say
   ```
-  Switches to macOS native offline speech synthesis (`mac_say`), removing cloud roundtrip latencies.
 * **Audition Persona:**
   ```bash
-  vifi voice test "Christopher" -t "Hello! Checking audio output latency."
+  vifi voice test "Ava (Premium)" -t "Hello! Checking instant offline latency."
   ```
 
 ---

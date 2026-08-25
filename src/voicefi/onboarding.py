@@ -33,7 +33,7 @@ def run_onboarding():
         pass
 
     check_and_prompt_permissions()
-    tts = get_tts_engine(config, voice_override="Christopher")
+    tts = get_tts_engine(config, voice_override="Viv")
     stt = get_stt_engine(config)
     
     user_name = getpass.getuser().capitalize()
@@ -44,7 +44,7 @@ def run_onboarding():
     
     # --- Question 1 ---
     prompt1 = f"Hey.... {user_name}? Can I call you {user_name}?"
-    print(f"🎙️  [Christopher]: \"{prompt1}\"")
+    print(f"🎙️  [Viv]: \"{prompt1}\"")
     tts.speak(prompt1)
     
     # Listen 1
@@ -76,7 +76,7 @@ def run_onboarding():
     
     # --- Question 2 ---
     prompt2 = f"Awesome, {extracted_name}! I'm not quite used to the sound of my own voice yet. Um, well, thank you for installing VoiceFi! I'm curious, what made you want to talk with me?"
-    print(f"🎙️  [Christopher]: \"{prompt2}\"")
+    print(f"🎙️  [Viv]: \"{prompt2}\"")
     tts.speak(prompt2)
     
     # Listen 2
@@ -93,7 +93,7 @@ def run_onboarding():
     
     # --- Question 3 ---
     prompt3 = "Aha, copy that. So this confirms the offline feedback loop. Next up, would you like to send this to an agent or tool? Below is a list of the active connections. Would you like to let any of them know?"
-    print(f"🎙️  [Christopher]: \"{prompt3}\"")
+    print(f"🎙️  [Viv]: \"{prompt3}\"")
     tts.speak(prompt3)
     
     # Mock opening the HUD

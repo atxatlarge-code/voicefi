@@ -180,6 +180,41 @@ def test_panel_rest_api():
         clones = json.loads(response.read().decode("utf-8"))
         assert isinstance(clones, list)
 
+    # Test GET /claude
+    req_claude_html = urllib.request.Request(f"http://127.0.0.1:{port}/claude")
+    with urllib.request.urlopen(req_claude_html) as response:
+        assert response.status == 200
+        html_content = response.read().decode("utf-8")
+        assert "Claude Voice Contenders" in html_content
+        assert "Oliver (Premium)" in html_content
+
+    # Test GET /api/claude/contenders
+    req_claude_api = urllib.request.Request(f"http://127.0.0.1:{port}/api/claude/contenders")
+    with urllib.request.urlopen(req_claude_api) as response:
+        assert response.status == 200
+        cdata = json.loads(response.read().decode("utf-8"))
+        assert cdata["status"] == "success"
+        assert len(cdata["contenders"]) > 0
+        names = [c["name"] for c in cdata["contenders"]]
+        assert "Ryan" in names
+        assert "Thomas" in names
+
+    # Test POST /api/claude/assign
+    assign_payload = json.dumps({"voice": "en-GB-RyanNeural", "provider": "edge_tts"}).encode("utf-8")
+    req_assign = urllib.request.Request(
+        f"http://127.0.0.1:{port}/api/claude/assign",
+        data=assign_payload,
+        headers={"Content-Type": "application/json"},
+    )
+    with patch("voicefi.ui.panel.save_config"):
+        with urllib.request.urlopen(req_assign) as response:
+            assert response.status == 200
+            ares = json.loads(response.read().decode("utf-8"))
+            assert ares["status"] == "success"
+            assert ares["target"] == "claude"
+            assert ares["voice"] == "en-GB-RyanNeural"
+            assert cfg.agents["claude"].voice == "en-GB-RyanNeural"
+
 
 
 def test_cli_panel_argument():

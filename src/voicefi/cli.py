@@ -5,6 +5,7 @@ Supports Antigravity hook integration, one-shot voice dictation, daemon loop, an
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -30,14 +31,35 @@ def cmd_hook(args):
     config = load_config(args.config)
     target_agent = getattr(args, "agent", "antigravity").lower().strip()
 
-    # Read hook payload from stdin non-blockingly
+    # Read hook payload from stdin non-blockingly without hanging on unclosed pipes
     payload = {}
     try:
         if not sys.stdin.isatty():
-            import select
-            r, _, _ = select.select([sys.stdin], [], [], 0.3)
-            if r:
-                raw_input = sys.stdin.read()
+            has_fileno = False
+            try:
+                fd = sys.stdin.fileno()
+                has_fileno = True
+            except Exception:
+                has_fileno = False
+
+            if has_fileno:
+                import select
+                r, _, _ = select.select([fd], [], [], 0.3)
+                if r:
+                    raw_bytes = b""
+                    while True:
+                        chunk = os.read(fd, 65536)
+                        if not chunk:
+                            break
+                        raw_bytes += chunk
+                        r2, _, _ = select.select([fd], [], [], 0.02)
+                        if not r2:
+                            break
+                    text = raw_bytes.decode("utf-8").strip()
+                    if text:
+                        payload = json.loads(text)
+            else:
+                raw_input = sys.stdin.readline()
                 if raw_input and raw_input.strip():
                     payload = json.loads(raw_input)
     except Exception:
@@ -45,7 +67,18 @@ def cmd_hook(args):
 
     if payload.get("agent"):
         target_agent = str(payload["agent"]).lower().strip()
+    else:
+        payload["agent"] = target_agent
 
+    # Fast IPC Forwarding: if VoiceFi background daemon is running,
+    # forward hook event directly for instant (< 10ms) return to the agent
+    from voicefi.integrations.daemon_client import forward_hook_to_daemon
+    daemon_resp = forward_hook_to_daemon(payload, config)
+    if daemon_resp and daemon_resp.get("status") == "handled":
+        print(json.dumps({"decision": "allow", "forwarded": True}))
+        return
+
+    # Standalone fallback: execute in-process if background daemon is offline
     if target_agent in ("claude", "claude_code"):
         from voicefi.integrations.claude import handle_claude_stop_hook
         result = handle_claude_stop_hook(payload, config)
@@ -395,6 +428,10 @@ def cmd_clone(args):
             time.sleep(0.3)
 
         api_key = getattr(args, "api_key", None) or config.tts.elevenlabs_api_key
+        prov_pref = getattr(args, "provider", None)
+        if prov_pref == "auto":
+            prov_pref = None
+
         print("🧠 Processing acoustic features and training voice profile...")
         try:
             profile = manager.train_voice(
@@ -402,6 +439,7 @@ def cmd_clone(args):
                 sample_paths=recorded_files,
                 api_key=api_key,
                 description=getattr(args, "description", "") or f"Voice clone of {name}",
+                provider_preference=prov_pref,
             )
             print(f"\n✨ Voice Training Complete!")
             print(f"  • Voice Name:    {profile.name}")
@@ -434,12 +472,17 @@ def cmd_clone(args):
             return
 
         api_key = getattr(args, "api_key", None) or config.tts.elevenlabs_api_key
+        prov_pref = getattr(args, "provider", None)
+        if prov_pref == "auto":
+            prov_pref = None
+
         print(f"\n📥 Importing {len(valid_files)} audio samples for voice: '{name}'...")
         profile = manager.train_voice(
             name=name,
             sample_paths=valid_files,
             api_key=api_key,
             description=getattr(args, "description", "") or f"Imported voice of {name}",
+            provider_preference=prov_pref,
         )
         print(f"✅ Successfully trained cloned voice: '{profile.name}' ({profile.provider})")
         print(f"  • ID:          {profile.id}")
@@ -448,6 +491,7 @@ def cmd_clone(args):
         if target_agent:
             manager.assign_to_agent(profile.name, target_agent, config)
             print(f"  • Assigned to: {target_agent}")
+
         print()
 
     elif subaction == "list":
@@ -512,8 +556,19 @@ def cmd_clone(args):
         print(f"\n--- AI Persona Style Prompt for '{profile.name}' ---")
         print(profile.persona_prompt)
         print("----------------------------------------------------\n")
+
+    elif subaction == "studio":
+        print("\n🎛️ Launching Open-Source Voice Cloning Web Studio (F5-TTS)...")
+        try:
+            from f5_tts.infer.infer_gradio import app
+            app.launch(share=False)
+        except Exception as e:
+            print(f"[Studio] Notice: {e}. Opening VoiceFi Web Panel...")
+            from voicefi.ui.panel import run_panel_server
+            run_panel_server()
     else:
-        print("Use: vg clone [record|import|list|test|assign|delete|prompt] --help")
+        print("Use: vg clone [record|import|list|test|assign|delete|prompt|studio] --help")
+
 
 
 def cmd_companion(args):
@@ -536,14 +591,26 @@ def cmd_companion(args):
 def cmd_panel(args):
     """Launch interactive Voice Control Panel web dashboard."""
     import time
+    import webbrowser
     from voicefi.ui.panel import open_control_panel
     port = getattr(args, "port", 8765)
     no_browser = getattr(args, "no_browser", False)
+    is_claude = getattr(args, "claude", False) is True
     config = load_config(args.config)
     print(f"\n🎙️ Launching Voice Control Panel on port {port}...")
-    url = open_control_panel(port=port, open_browser=not no_browser, config=config)
-    print(f"🌐 Control Panel running at: {url}")
-    print("💡 Control via web UI or speak commands ('Audition Christopher', 'Switch to Aria').")
+    url = open_control_panel(port=port, open_browser=not no_browser and not is_claude, config=config)
+    actual_port = url.split(":")[-1]
+    if is_claude and not no_browser:
+        claude_url = f"http://localhost:{actual_port}/claude"
+        try:
+            webbrowser.open(claude_url)
+        except Exception:
+            pass
+        print(f"🌐 Claude Contenders Studio running at: {claude_url}")
+    else:
+        print(f"🌐 Control Panel running at: {url}")
+        print(f"🎭 Claude Contenders Studio available at: http://localhost:{actual_port}/claude")
+    print("💡 Control via web UI or speak commands ('Audition Ryan', 'Switch to Thomas').")
     print("Press Ctrl+C to stop.\n")
     try:
         while True:
@@ -848,10 +915,32 @@ def run_silent_voice_ping(args, config):
         print(f"  • Error:       {res.error}\n")
 
 
+def cmd_download_ava(args):
+    """Guide user through downloading & configuring Apple's Ava (Premium) for 0ms offline speech."""
+    from voicefi.tts.offline import run_download_ava_workflow
+    auto_poll = not (getattr(args, "no_wait", False) or getattr(args, "no_poll", False))
+    timeout = getattr(args, "timeout", 300)
+    silent = getattr(args, "silent", False) or getattr(args, "quiet", False)
+    check_only = getattr(args, "check", False)
+
+    result = run_download_ava_workflow(
+        auto_poll=auto_poll,
+        timeout_seconds=timeout,
+        silent=silent,
+        check_only=check_only,
+    )
+    if check_only:
+        print(result.get("message", ""))
+
+
 def cmd_voice(args):
     """Handle voice inspection, testing, auditioning, assignment, and voice commands."""
     subaction = getattr(args, "voice_action", None)
     config = load_config(args.config)
+
+    if subaction in ("download-ava", "install-ava", "setup-ava", "get-ava", "download_ava", "setup-offline", "offline"):
+        cmd_download_ava(args)
+        return
 
     if subaction in ("ping", "check", "speed-test"):
         run_silent_voice_ping(args, config)
@@ -1100,9 +1189,44 @@ def cmd_voice(args):
         print("\n✨ Audition showcase complete! Assign a voice using: 'vg voice set <agent> <voice_name>'\n")
 
     elif subaction == "set":
-        target = args.agent.lower().strip()
-        voice_id = args.voice
-        persona = find_persona(voice_id)
+        agent_raw = args.agent.strip() if args.agent else ""
+        voice_raw = args.voice.strip() if getattr(args, "voice", None) else None
+
+        known_agent_names = {
+            "antigravity", "claude", "cursor", "windsurf",
+            "researcher", "debugger", "architect", "tester", "writer", "analyst",
+            "default", "global", "all"
+        }
+
+        # Case A: Only 1 positional argument passed (e.g. 'vifi voice set viv' or 'vifi voice set en-US-AvaNeural')
+        if not voice_raw:
+            p = find_persona(agent_raw)
+            if p:
+                target = "default"
+                voice_id = p.id
+                persona = p
+            elif agent_raw.lower() in ("default", "global", "all"):
+                print("⚠️ Please specify a voice to assign. Example: 'vg voice set default viv'")
+                return
+            elif agent_raw.lower() in known_agent_names or agent_raw.lower().startswith("subagent"):
+                print(f"⚠️ Please specify a voice to assign to '{agent_raw}'. Example: 'vg voice set {agent_raw} viv'")
+                return
+            else:
+                target = "default"
+                voice_id = agent_raw
+                persona = find_persona(voice_id)
+        else:
+            # Case B: 2 positional arguments passed (e.g. 'vifi voice set antigravity viv' or reversed 'vifi voice set viv antigravity')
+            p_first = find_persona(agent_raw)
+            if p_first and voice_raw.lower() in known_agent_names:
+                target = voice_raw.lower().strip()
+                voice_id = agent_raw
+                persona = p_first
+            else:
+                target = agent_raw.lower().strip()
+                voice_id = voice_raw
+                persona = find_persona(voice_id)
+
         resolved_voice = persona.id if persona else voice_id
         resolved_provider = args.provider or (persona.provider if persona else "edge_tts")
         rate_arg = getattr(args, "rate", None)
@@ -1135,6 +1259,18 @@ def cmd_voice(args):
             clean_role = target.replace("subagent.", "").replace("subagent_", "")
             config.subagents[clean_role] = profile
             target_desc = f"subagent '{clean_role}'"
+        elif target in ("default", "global", "all"):
+            config.tts.voice = resolved_voice
+            config.tts.provider = resolved_provider
+            if resolved_rate:
+                config.tts.rate = resolved_rate
+            config.agents["antigravity"] = AgentVoiceProfile(
+                voice=resolved_voice,
+                provider=resolved_provider,
+                rate=resolved_rate,
+                description="Assigned to antigravity (default)",
+            )
+            target_desc = "global default & primary agent (antigravity)"
         else:
             config.agents[target] = profile
             target_desc = f"agent '{target}'"
@@ -1142,6 +1278,43 @@ def cmd_voice(args):
         save_config(config)
         rate_info = f" at {resolved_rate} WPM" if resolved_rate else ""
         print(f"✅ Successfully assigned {target_desc} to voice: '{resolved_voice}' ({resolved_provider}){rate_info}")
+
+        # Speak confirmation greeting aloud in the assigned voice
+        if not getattr(args, "quiet", False) and not getattr(args, "silent", False):
+            display_name = persona.name if persona else resolved_voice
+            if "-" in display_name and "Neural" in display_name:
+                display_name = display_name.split("-")[-1].replace("Neural", "")
+            elif "(" in display_name:
+                display_name = display_name.split("(")[0].strip()
+
+            user_name = getattr(config, "user_name", "")
+            agent_display = target.replace("_", " ").title()
+            custom_phrase = getattr(args, "text", None)
+
+            if custom_phrase:
+                phrase = custom_phrase
+            elif target in ("default", "global", "all"):
+                if user_name:
+                    phrase = f"Hi {user_name}! I'm {display_name}, and I'm ready as your default voice."
+                else:
+                    phrase = f"Hi! I'm {display_name}, and I'm ready as your default voice."
+            elif user_name:
+                phrase = f"Hi {user_name}! I'm {display_name}, and I'm ready to speak for {agent_display}."
+            else:
+                phrase = f"Hi! I'm {display_name}, and I'm ready to speak for {agent_display}."
+
+            print(f"🔊 Playing confirmation: \"{phrase}\"")
+            try:
+                eng = get_tts_engine(
+                    config,
+                    agent_name="antigravity" if target in ("default", "global", "all") else target,
+                    voice_override=resolved_voice,
+                    provider_override=resolved_provider,
+                    rate_override=resolved_rate,
+                )
+                eng.speak(phrase, block=True)
+            except Exception as e:
+                print(f"⚠️ Could not play spoken confirmation: {e}")
 
     elif subaction in ("rate", "speed"):
         raw_val = getattr(args, "value", None)
@@ -1727,16 +1900,29 @@ def cmd_hud(args):
         while time.time() - start < duration:
             NSRunLoop.currentRunLoop().runUntilDate_(NSDate.dateWithTimeIntervalSinceNow_(0.04))
 
-    if action in ("on", "enable"):
+    if action in ("on", "enable", "open", "start", "launch"):
         if not hasattr(cfg, "hud") or cfg.hud is None:
             cfg.hud = HUDConfig()
         cfg.hud.enabled = True
+        cfg.hud.persistent = True
         save_config(cfg)
+
+        # Check if background LaunchAgent daemon is running
+        import subprocess, shutil, os
+        res = subprocess.run(["launchctl", "list", "com.voicefi.menubar"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        is_daemon_running = (res.returncode == 0)
+        
+        if not is_daemon_running:
+            print("🚀 Launching VoiceFi background companion daemon (autostart)...")
+            cmd_autostart(args)
+        
         hud.set_persistent(True)
         hud.set_idle()
         _pump(0.5)
-        print("🟢 VoiceFi Dynamic Island HUD enabled and visible.")
-    elif action in ("off", "disable"):
+        print("🟢 VoiceFi Dynamic Island HUD opened and visible.")
+        print("📌 Resting pill is anchored at the top-right below Chrome's tab bar.")
+        print("💡 Use 'vifi hud status' to inspect, 'vifi hud debug' to test all states, or 'vifi hud off' / 'vifi hud close' to disable.\n")
+    elif action in ("off", "disable", "close", "stop", "hide"):
         if not hasattr(cfg, "hud") or cfg.hud is None:
             cfg.hud = HUDConfig()
         cfg.hud.enabled = False
@@ -1744,6 +1930,12 @@ def cmd_hud(args):
         hud.force_hide()
         _pump(0.3)
         print("⚪ VoiceFi Dynamic Island HUD disabled and hidden.")
+        print("💡 Use 'vifi hud open' or 'vifi hud on' to re-enable persistent Dynamic Island HUD.\n")
+    elif action in ("reset", "reset-position"):
+        hud.reset_position()
+        hud.set_idle()
+        _pump(0.5)
+        print("🎯 VoiceFi Dynamic Island HUD position reset to default top-right anchor below Chrome tab bar.\n")
     elif action == "status":
         hud_cfg = getattr(cfg, "hud", None) or HUDConfig()
         print("\n📊 VoiceFi Dynamic Island HUD Status:")
@@ -1819,119 +2011,166 @@ def cmd_hud(args):
         print(f"  • Linger Time:            ⏱️ {hud_cfg.linger_seconds}s\n")
     elif action == "debug":
         import sys, select, tty, termios
-        print("\n🎛️  VoiceFi Dynamic Island HUD • Interactive Debug Studio")
-        print("────────────────────────────────────────────────────────────")
-        print("  [1] State: Idle (Persistent Resting Pill)")
-        print("  [2] State: Thinking (Antigravity Reasoning)")
-        print("  [3] State: Working (Running pytest suite)")
-        print("  [4] State: Speaking (Christopher Subtitles)")
-        print("  [5] State: Listening (Live Typing Stream Simulation)")
-        print("  [6] State: Editing (Interactive Review Capsule)")
-        print("  [P] Toggle Persistent Mode (Current: %s)" % ("ON" if hud.persistent else "OFF"))
-        print("  [A] Toggle Auto-Send Mode  (Current: %s)" % ("ON" if hud.auto_send else "OFF"))
-        print("  [C] Clear / Force Hide HUD")
-        print("  [Q] Exit Debug Studio")
-        print("────────────────────────────────────────────────────────────")
-        print("👉 Press any key [1-6, P, A, C, Q] to trigger live HUD states:\n")
+        active_state = 1
+        auto_cycle = False
+        last_cycle_time = time.time()
 
-        fd = sys.stdin.fileno()
-        old_settings = termios.tcgetattr(fd)
-        try:
+        def _render_menu():
+            print("\033[H\033[J", end="")  # Clear terminal
+            print("🎛️  VoiceFi Dynamic Island HUD • Interactive Debug Studio")
+            print("────────────────────────────────────────────────────────────")
+            states_info = [
+                (1, "Idle (Persistent Resting Pill)"),
+                (2, "Thinking (Antigravity Reasoning)"),
+                (3, "Working (Running pytest suite)"),
+                (4, "Speaking (Christopher Subtitles)"),
+                (5, "Listening (Live Mic + Real-Time Typing)"),
+                (6, "Editing (Interactive Review Capsule)"),
+                (7, "New Session (Connected Tools)"),
+            ]
+            for idx, name in states_info:
+                active_tag = "  \033[1;32m[ACTIVE 🟢]\033[0m" if idx == active_state else ""
+                print(f"  [{idx}] State: {name:<42}{active_tag}")
+            
+            print("────────────────────────────────────────────────────────────")
+            demo_tag = "\033[1;36m[RUNNING ▶️]\033[0m" if auto_cycle else "\033[90m[OFF]\033[0m"
+            print(f"  [SPACE] Auto-Cycle Demo Mode              {demo_tag}")
+            print("  [T]     Simulate Real-Time Speech Typing Stream")
+            print(f"  [P]     Toggle Persistent Mode            (Current: {'ON' if hud.persistent else 'OFF'})")
+            print(f"  [A]     Toggle Auto-Send Mode             (Current: {'ON' if hud.auto_send else 'OFF'})")
+            print(f"  [F]     Toggle Fullscreen Overlay (Games) (Current: {'ON' if getattr(hud, 'fullscreen_overlay', True) else 'OFF'})")
+            print("  [R]     Reset Position to Top-Right (20px Margin)")
+            print("  [C]     Clear / Force Hide HUD")
+            print("  [Q]     Exit Debug Studio")
+            print("────────────────────────────────────────────────────────────")
+            print("👉 Press any key [1-7, SPACE, T, P, A, F, R, C, Q] to trigger live state:\n")
+
+        def _apply_debug_state(state_idx: int):
+            nonlocal active_state
+            active_state = state_idx
+            if state_idx == 1:
+                hud.set_idle(linger=None)
+            elif state_idx == 2:
+                hud.set_thinking("Antigravity", "Analyzing codebase & dependencies...")
+            elif state_idx == 3:
+                hud.set_working("Antigravity", "Executing pytest tests/ (208 passed)")
+            elif state_idx == 4:
+                hud.set_speaking("VoiceFi Dynamic Island HUD is running natively on macOS.", persona_name="Christopher", linger=None)
+            elif state_idx == 5:
+                hud.set_listening(prompt_preview="Add live typing to HUD", user_name=getattr(hud.config, "user_name", "Jake"), live_stream=True)
+            elif state_idx == 6:
+                hud.set_editing(
+                    "Add live typing to the listening phase of HUD",
+                    on_submit=lambda val: print(f"\n[Debug] ✅ Submitted prompt: '{val}'\n"),
+                    on_cancel=lambda: print("\n[Debug] ✕ Cancelled edit\n"),
+                    target_name="Antigravity",
+                )
+            elif state_idx == 7:
+                hud.set_new_conversation(prompt_preview="Build dynamic island HUD for Claude", user_name=getattr(hud.config, "user_name", "Jake"), live_stream=True)
+            _render_menu()
+
+        def _simulate_live_typing():
+            phrases = [
+                "Add",
+                "Add live typing",
+                "Add live typing to the",
+                "Add live typing to the listening phase of HUD",
+            ]
+            hud.set_listening(user_name=getattr(hud.config, "user_name", "Jake"), live_stream=True)
+            for phrase in phrases:
+                hud.update_live_transcription(phrase, user_name=getattr(hud.config, "user_name", "Jake"))
+                _pump(0.35)
+            _pump(0.5)
+            if hud.auto_send:
+                hud.show_done(preview_text="Prompt Sent")
+                _pump(1.2)
+                if hud.persistent:
+                    hud.set_idle(linger=None)
+                else:
+                    hud.force_hide()
+            else:
+                hud.set_editing(
+                    "Add live typing to the listening phase of HUD",
+                    on_submit=lambda val: print(f"\n[Debug] ✅ Submitted prompt: '{val}'\n"),
+                    on_cancel=lambda: print("\n[Debug] ✕ Cancelled edit\n"),
+                    target_name="Antigravity",
+                )
+            _render_menu()
+
+        is_tty = sys.stdin.isatty()
+        old_settings = None
+        if is_tty:
+            fd = sys.stdin.fileno()
+            old_settings = termios.tcgetattr(fd)
             tty.setcbreak(fd)
-            hud.set_idle()
+
+        try:
+            _apply_debug_state(1)
             running = True
             while running:
                 NSRunLoop.currentRunLoop().runUntilDate_(NSDate.dateWithTimeIntervalSinceNow_(0.04))
-                rlist, _, _ = select.select([sys.stdin], [], [], 0)
-                if rlist:
-                    ch = sys.stdin.read(1)
-                    if ch in ('q', 'Q', '\x03'):
-                        running = False
-                    elif ch == '1':
-                        print("👉 [Debug] State: IDLE")
-                        hud.set_idle()
-                    elif ch == '2':
-                        print("👉 [Debug] State: THINKING")
-                        hud.set_thinking("Antigravity", "Analyzing codebase & dependencies...")
-                    elif ch == '3':
-                        print("👉 [Debug] State: WORKING")
-                        hud.set_working("Antigravity", "Executing pytest tests/ (164 passed)")
-                    elif ch == '4':
-                        print("👉 [Debug] State: SPEAKING")
-                        hud.set_speaking("VoiceFi Dynamic Island HUD is running natively on macOS.", persona_name="Christopher")
-                    elif ch == '5':
-                        print("👉 [Debug] State: LISTENING (Simulating real-time typing stream)...")
-                        hud.set_listening(user_name=getattr(hud.config, "user_name", "Jake"))
-                        for phrase in ["Add", "Add live typing", "Add live typing to", "Add live typing to the listening phase of HUD"]:
-                            hud.update_live_transcription(phrase, user_name=getattr(hud.config, "user_name", "Jake"))
-                            _pump(0.35)
-                        _pump(0.6)
+                if auto_cycle and time.time() - last_cycle_time > 2.2:
+                    next_s = (active_state % 7) + 1
+                    _apply_debug_state(next_s)
+                    last_cycle_time = time.time()
 
-                        if hud.auto_send:
-                            print("👉 [Debug] Auto-Send is ENABLED: Automatically submitting prompt...")
-                            hud.show_done(preview_text="Prompt Sent")
-                            _pump(1.2)
-                            if hud.persistent:
-                                hud.set_idle()
+                if is_tty:
+                    rlist, _, _ = select.select([sys.stdin], [], [], 0)
+                    if rlist:
+                        ch = sys.stdin.read(1)
+                        if ch in ('q', 'Q', '\x03'):
+                            running = False
+                        elif ch == ' ':
+                            auto_cycle = not auto_cycle
+                            last_cycle_time = time.time()
+                            _render_menu()
+                        elif ch in ('1', '2', '3', '4', '5', '6', '7'):
+                            auto_cycle = False
+                            _apply_debug_state(int(ch))
+                        elif ch in ('t', 'T'):
+                            auto_cycle = False
+                            _simulate_live_typing()
+                        elif ch in ('p', 'P'):
+                            new_p = not hud.persistent
+                            hud.set_persistent(new_p)
+                            if not hasattr(cfg, "hud") or cfg.hud is None:
+                                cfg.hud = HUDConfig()
+                            cfg.hud.persistent = new_p
+                            save_config(cfg)
+                            if new_p:
+                                _apply_debug_state(1)
                             else:
                                 hud.force_hide()
-                        else:
-                            print("👉 [Debug] Auto-Send is DISABLED (Review Mode): Opening interactive edit capsule...")
-                            hud.set_editing(
-                                "Add live typing to the listening phase of HUD",
-                                on_submit=lambda val: print(f"\n[Debug] ✅ Submitted prompt: '{val}'\n"),
-                                on_cancel=lambda: print("\n[Debug] ✕ Cancelled edit\n"),
-                                target_name="Antigravity",
-                            )
-                    elif ch == '6':
-                        print("👉 [Debug] State: REVIEW & EDIT")
-                        hud.set_editing(
-                            "Add live typing to the listening phase of HUD",
-                            on_submit=lambda val: print(f"\n[Debug] ✅ Submitted prompt: '{val}'\n"),
-                            on_cancel=lambda: print("\n[Debug] ✕ Cancelled edit\n"),
-                            target_name="Antigravity",
-                        )
-                    elif ch in ('p', 'P'):
-                        new_p = not hud.persistent
-                        hud.set_persistent(new_p)
-                        if not hasattr(cfg, "hud") or cfg.hud is None:
-                            cfg.hud = HUDConfig()
-                        cfg.hud.persistent = new_p
-                        save_config(cfg)
-                        if new_p:
-                            hud.set_idle()
-                            print("👉 [Debug] Persistent Mode: ENABLED -> Resting pill ('🎙️ VoiceFi • Ready') visible")
-                        else:
+                                _render_menu()
+                        elif ch in ('a', 'A'):
+                            new_a = not hud.auto_send
+                            hud.set_auto_send(new_a)
+                            if not hasattr(cfg, "hud") or cfg.hud is None:
+                                cfg.hud = HUDConfig()
+                            cfg.hud.auto_send = new_a
+                            save_config(cfg)
+                            _render_menu()
+                        elif ch in ('f', 'F'):
+                            new_f = not getattr(hud, "fullscreen_overlay", True)
+                            hud.set_fullscreen_overlay(new_f)
+                            if not hasattr(cfg, "hud") or cfg.hud is None:
+                                cfg.hud = HUDConfig()
+                            cfg.hud.fullscreen_overlay = new_f
+                            save_config(cfg)
+                            _render_menu()
+                        elif ch in ('r', 'R'):
+                            hud.reset_position()
+                            _apply_debug_state(active_state)
+                        elif ch in ('c', 'C'):
+                            auto_cycle = False
                             hud.force_hide()
-                            print("👉 [Debug] Persistent Mode: DISABLED -> HUD auto-hidden when idle")
-                    elif ch in ('a', 'A'):
-                        new_a = not hud.auto_send
-                        hud.set_auto_send(new_a)
-                        if not hasattr(cfg, "hud") or cfg.hud is None:
-                            cfg.hud = HUDConfig()
-                        cfg.hud.auto_send = new_a
-                        save_config(cfg)
-                        if new_a:
-                            hud.show_done(preview_text="Instant Send")
-                            _pump(1.0)
-                            if hud.persistent:
-                                hud.set_idle()
-                            else:
-                                hud.force_hide()
-                            print("👉 [Debug] Auto-Send Mode: ENABLED (Instant Send) -> Prompts dispatch directly upon silence")
-                        else:
-                            hud.set_editing(
-                                "Add live typing to the listening phase of HUD",
-                                on_submit=lambda val: print(f"\n[Debug] ✅ Submitted prompt: '{val}'\n"),
-                                on_cancel=lambda: print("\n[Debug] ✕ Cancelled edit\n"),
-                                target_name="Antigravity",
-                            )
-                            print("👉 [Debug] Auto-Send Mode: DISABLED (Review & Edit) -> Opened review capsule with text field")
-                    elif ch in ('c', 'C'):
-                        print("👉 [Debug] Hiding HUD")
-                        hud.force_hide()
+                            active_state = 0
+                            _render_menu()
+                else:
+                    running = False
         finally:
-            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+            if is_tty and old_settings:
+                termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
             hud.force_hide()
             print("\n👋 Exited HUD Debug Studio.\n")
     elif action == "test":
@@ -2103,6 +2342,7 @@ def main():
     panel_p = subparsers.add_parser("panel", help="Launch interactive Voice Control Panel")
     panel_p.add_argument("--port", type=int, default=8765, help="Port to run web control panel (default: 8765)")
     panel_p.add_argument("--no-browser", action="store_true", help="Do not open browser automatically")
+    panel_p.add_argument("--claude", action="store_true", help="Directly open Claude Voice Contenders Studio")
 
     # info
     subparsers.add_parser("info", help="Show system status and voices")
@@ -2111,10 +2351,22 @@ def main():
     voice_p = subparsers.add_parser("voice", help="Manage and audition agent voices")
     voice_sub = voice_p.add_subparsers(dest="voice_action", help="Voice action")
     
+    # voice download-ava (Apple Ava Premium 0ms offline speech)
+    v_ava = voice_sub.add_parser(
+        "download-ava",
+        aliases=["install-ava", "setup-ava", "get-ava", "download_ava", "setup-offline", "offline"],
+        help="Download and configure Apple's Ava (Premium) neural voice for 0ms offline speech",
+    )
+    v_ava.add_argument("--check", action="store_true", help="Check if Ava is installed without opening settings")
+    v_ava.add_argument("--no-wait", "--no-poll", dest="no_wait", action="store_true", help="Open System Settings without waiting loop")
+    v_ava.add_argument("--timeout", type=int, default=300, help="Polling timeout in seconds (default: 300)")
+    v_ava.add_argument("-s", "--silent", "-q", "--quiet", dest="silent", action="store_true", help="Silent mode")
+
     # voice panel
     vp_panel = voice_sub.add_parser("panel", help="Launch interactive Voice Control Panel")
     vp_panel.add_argument("--port", type=int, default=8765)
     vp_panel.add_argument("--no-browser", action="store_true")
+    vp_panel.add_argument("--claude", action="store_true", help="Directly open Claude Voice Contenders Studio")
 
     # voice command
     vp_cmd = voice_sub.add_parser("command", help="Execute a natural voice command")
@@ -2213,9 +2465,11 @@ def main():
     v_train.add_argument("--assign", type=str, default=None, help="Automatically assign to agent (e.g. antigravity)")
 
     # voice set
-    v_set = voice_sub.add_parser("set", help="Assign a voice to an agent or subagent")
-    v_set.add_argument("agent", type=str, help="Agent or subagent name (e.g. antigravity, claude, researcher, debugger)")
-    v_set.add_argument("voice", type=str, help="Voice name or ID")
+    v_set = voice_sub.add_parser("set", help="Assign a voice to an agent or subagent and play acoustic confirmation")
+    v_set.add_argument("agent", type=str, help="Agent or voice name (e.g. viv, antigravity, claude, default)")
+    v_set.add_argument("voice", type=str, nargs="?", default=None, help="Voice name or ID (e.g. Viv, Christopher, Aria, Nathan) if agent was specified first")
+    v_set.add_argument("-t", "--text", type=str, default=None, help="Custom confirmation phrase to speak")
+    v_set.add_argument("-q", "--quiet", "--silent", dest="quiet", action="store_true", help="Silently assign voice without playing confirmation speech")
     v_set.add_argument("-p", "--provider", type=str, default=None)
     v_set.add_argument("-r", "--rate", type=str, default=None, help="Speech rate / speed (e.g. 75%%, 150, -25%%)")
 
@@ -2229,6 +2483,7 @@ def main():
     # clone record
     c_rec = clone_sub.add_parser("record", help="Record voice samples via mic wizard")
     c_rec.add_argument("name", type=str, help="Name for the custom cloned voice")
+    c_rec.add_argument("--provider", type=str, default="auto", choices=["auto", "f5_tts", "elevenlabs", "edge_tts"], help="TTS engine provider for voice cloning")
     c_rec.add_argument("--api-key", type=str, default=None, help="ElevenLabs API key (optional)")
     c_rec.add_argument("--description", type=str, default="", help="Voice description")
     c_rec.add_argument("--assign", type=str, default=None, help="Assign directly to agent upon completion")
@@ -2237,12 +2492,17 @@ def main():
     c_imp = clone_sub.add_parser("import", help="Train voice from existing audio files")
     c_imp.add_argument("name", type=str, help="Name for the custom cloned voice")
     c_imp.add_argument("files", nargs="+", help="Audio files (.wav, .mp3, .m4a)")
+    c_imp.add_argument("--provider", type=str, default="auto", choices=["auto", "f5_tts", "elevenlabs", "edge_tts"], help="TTS engine provider for voice cloning")
     c_imp.add_argument("--api-key", type=str, default=None, help="ElevenLabs API key (optional)")
     c_imp.add_argument("--description", type=str, default="", help="Voice description")
     c_imp.add_argument("--assign", type=str, default=None, help="Assign directly to agent upon completion")
 
+    # clone studio
+    clone_sub.add_parser("studio", help="Launch local open-source voice cloning web studio (F5-TTS)")
+
     # clone list
     clone_sub.add_parser("list", help="List all custom trained voices")
+
 
     # clone test
     c_test = clone_sub.add_parser("test", help="Audition / test a custom cloned voice")
@@ -2345,14 +2605,15 @@ def main():
 
     # hud
     hud_p = subparsers.add_parser("hud", help="Control, configure, and debug Unified Dynamic Island HUD")
-    hud_sub = hud_p.add_subparsers(dest="hud_action", help="HUD action (debug, config, test, show, on, off, status, persistent, auto-send)")
+    hud_sub = hud_p.add_subparsers(dest="hud_action", help="HUD action (open, close, reset, debug, config, test, show, on, off, status, persistent, auto-send)")
+    hud_sub.add_parser("open", aliases=["start", "launch"], help="Open and show persistent Dynamic Island HUD")
+    hud_sub.add_parser("close", aliases=["stop", "hide"], help="Close and hide Dynamic Island HUD")
+    hud_sub.add_parser("on", aliases=["enable"], help="Enable and show persistent HUD")
+    hud_sub.add_parser("off", aliases=["disable"], help="Disable and hide HUD")
+    hud_sub.add_parser("reset", aliases=["reset-position"], help="Reset HUD position to default top-right anchor below Chrome tab bar")
     hud_sub.add_parser("debug", help="Launch interactive terminal HUD Debug Studio with real-time keystroke controls")
     hud_sub.add_parser("test", help="Run automated 6-state HUD showcase")
     hud_sub.add_parser("status", help="Display current HUD status and active settings")
-    hud_sub.add_parser("on", help="Enable and show persistent HUD")
-    hud_sub.add_parser("enable", help="Enable and show persistent HUD")
-    hud_sub.add_parser("off", help="Disable and hide HUD")
-    hud_sub.add_parser("disable", help="Disable and hide HUD")
 
     cfg_p = hud_sub.add_parser("config", help="View or update HUD configuration")
     cfg_p.add_argument("--enabled", type=str, default=None, choices=["true", "false", "on", "off"], help="Enable/disable HUD")
@@ -2388,6 +2649,17 @@ def main():
     up_p.add_argument("--check", action="store_true", help="Check for updates without installing")
     up_p.add_argument("--repo", default=None, help="Custom git repository URL to upgrade from")
 
+    # download-ava top-level (Apple Ava Premium 0ms offline speech)
+    ava_top = subparsers.add_parser(
+        "download-ava",
+        aliases=["install-ava", "setup-ava", "get-ava", "setup-offline", "offline-ava"],
+        help="Download and configure Apple's Ava (Premium) neural voice for 0ms offline speech",
+    )
+    ava_top.add_argument("--check", action="store_true", help="Check if Ava is installed without opening settings")
+    ava_top.add_argument("--no-wait", "--no-poll", dest="no_wait", action="store_true", help="Open System Settings without waiting loop")
+    ava_top.add_argument("--timeout", type=int, default=300, help="Polling timeout in seconds (default: 300)")
+    ava_top.add_argument("-s", "--silent", "-q", "--quiet", dest="silent", action="store_true", help="Silent mode")
+
     # help
     subparsers.add_parser("help", help="Display help and command usage")
 
@@ -2404,6 +2676,12 @@ def main():
     commands = {
         "update": cmd_update,
         "upgrade": cmd_update,
+        "download-ava": cmd_download_ava,
+        "install-ava": cmd_download_ava,
+        "setup-ava": cmd_download_ava,
+        "get-ava": cmd_download_ava,
+        "setup-offline": cmd_download_ava,
+        "offline-ava": cmd_download_ava,
         "help": lambda a: parser.print_help(),
         "new": cmd_new,
         "new-conversation": cmd_new,

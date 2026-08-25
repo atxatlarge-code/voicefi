@@ -23,6 +23,7 @@ from voicefi.integrations.injector import (
     focus_antigravity,
     open_accessibility_settings,
     send_message_to_antigravity,
+    send_message_to_agent,
 )
 from voicefi.integrations.watcher import TranscriptWatcher
 from voicefi.integrations.discovery import AgentToolDetector
@@ -31,13 +32,108 @@ from voicefi.ui.dictation_hud import DictationHUD
 from voicefi.ui.speech_hud import AgentSpeechHUD
 from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
 
+VOICEFI_MENU_BAR_ICON_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="90 20 332 440" width="100%" height="100%">
+  <!-- VoiceFi Master Mark: macOS Menu Bar Template Icon -->
+  <g transform="translate(0, 15)">
+    <!-- 1. ELECTRIC WI-FI BROADCAST HAT -->
+    <g fill="none" stroke="#000000" stroke-linecap="round">
+      <path d="M 152 145 A 120 120 0 0 1 360 145" stroke-width="22" />
+      <path d="M 184 180 A 80 80 0 0 1 328 180" stroke-width="20" />
+      <path d="M 216 215 A 42 42 0 0 1 296 215" stroke-width="18" />
+    </g>
+
+    <!-- 2. MINIMALIST CYBER FACE -->
+    <g stroke="#000000" stroke-linecap="round">
+      <line x1="202" y1="262" x2="234" y2="262" stroke-width="12" />
+      <line x1="278" y1="262" x2="310" y2="262" stroke-width="12" />
+    </g>
+
+    <!-- 3. USB-C PORT NOSE -->
+    <g>
+      <rect x="238" y="278" width="36" height="15" rx="7.5" fill="none" stroke="#000000" stroke-width="5" />
+      <line x1="246" y1="285.5" x2="266" y2="285.5" stroke="#000000" stroke-width="4.5" stroke-linecap="round" />
+    </g>
+
+    <!-- WAVEFORM SMILE -->
+    <path d="M 230 320 Q 256 342 282 320" fill="none" stroke="#000000" stroke-width="8" stroke-linecap="round" />
+
+    <!-- 4. CRADLE & PLUG BASE -->
+    <path d="M 124 220 C 124 350, 175 385, 256 385 C 337 385, 388 350, 388 220" 
+          fill="none" 
+          stroke="#000000" 
+          stroke-width="18" 
+          stroke-linecap="round" />
+
+    <!-- PLUG PRONGS -->
+    <g>
+      <rect x="110" y="205" width="28" height="30" rx="6" fill="none" stroke="#000000" stroke-width="5" />
+      <circle cx="124" cy="220" r="4.5" fill="#000000" />
+
+      <rect x="374" y="205" width="28" height="30" rx="6" fill="none" stroke="#000000" stroke-width="5" />
+      <circle cx="388" cy="220" r="4.5" fill="#000000" />
+    </g>
+
+    <!-- STEM & FOOT BASE -->
+    <line x1="256" y1="385" x2="256" y2="430" stroke="#000000" stroke-width="18" stroke-linecap="round" />
+    <line x1="190" y1="430" x2="322" y2="430" stroke="#000000" stroke-width="18" stroke-linecap="round" />
+  </g>
+</svg>"""
+
+
+def get_voicefi_tray_image():
+    """Load and return an NSImage of the VoiceFi master mark sized for the macOS menu bar."""
+    try:
+        import AppKit
+        from pathlib import Path
+
+        search_paths = [
+            Path(__file__).resolve().parent.parent.parent.parent / "assets" / "voicefi-menu-bar-icon.svg",
+            Path(__file__).resolve().parent.parent / "assets" / "voicefi-menu-bar-icon.svg",
+            Path.home() / ".voicefi" / "assets" / "voicefi-menu-bar-icon.svg",
+        ]
+
+        image = None
+        for p in search_paths:
+            if p.is_file():
+                try:
+                    image = AppKit.NSImage.alloc().initWithContentsOfFile_(str(p))
+                    if image and image.isValid():
+                        break
+                except Exception:
+                    pass
+
+        if image is None or not image.isValid():
+            svg_bytes = VOICEFI_MENU_BAR_ICON_SVG.encode("utf-8")
+            data = AppKit.NSData.dataWithBytes_length_(svg_bytes, len(svg_bytes))
+            image = AppKit.NSImage.alloc().initWithData_(data)
+
+        if image:
+            image.setTemplate_(True)
+            thickness = AppKit.NSStatusBar.systemStatusBar().thickness()
+            target_height = thickness - 4
+            if target_height <= 0:
+                target_height = 18.0
+            if image.size().height > target_height:
+                ratio = target_height / image.size().height
+                new_size = AppKit.NSMakeSize(image.size().width * ratio, target_height)
+                image.setSize_(new_size)
+
+        return image
+    except Exception as e:
+        print(f"[VoiceFi] Error creating menu bar image: {e}")
+        return None
+
 
 class VoiceFiTrayApp(rumps.App):
     """macOS Status Bar Menu Application for VoiceFi."""
 
     def __init__(self):
-        super(VoiceFiTrayApp, self).__init__("VoiceFi", icon=None, title=None)
-        self.title = None
+        super(VoiceFiTrayApp, self).__init__("VoiceFi", icon=None, title="")
+        self.title = ""
+        default_img = get_voicefi_tray_image()
+        if default_img:
+            self._icon_nsimage = default_img
+            self._current_symbol = "wifi"
         self.config = load_config()
         self._current_status = "idle"
         self.active_recorder: Optional[AudioRecorder] = None
@@ -54,6 +150,11 @@ class VoiceFiTrayApp(rumps.App):
             on_state_change=self.handle_state_change,
         )
         self.watcher.start()
+
+        # Start companion server if enabled
+        companion_cfg = getattr(self.config, "companion", None)
+        if getattr(companion_cfg, "enabled", True):
+            self._ensure_companion_server_running()
 
         # Companion Hub Window & Dictation Floating HUD & Speech HUD Pop-up & Unified Dynamic Island HUD
         self.hub = ConversationHubWindow.get_instance(
@@ -117,6 +218,7 @@ class VoiceFiTrayApp(rumps.App):
             callback=self.toggle_barge_in,
         )
         self.barge_in_item.state = 1 if self.config.vad.barge_in in (True, "auto") else 0
+        self._update_barge_in_menu_item()
 
         self.persistent_hud_item = rumps.MenuItem(
             "📌 Persistent Dynamic Island HUD",
@@ -184,6 +286,7 @@ class VoiceFiTrayApp(rumps.App):
             self.persistent_hud_item,
             self.fullscreen_overlay_item,
             self.auto_send_item,
+            rumps.MenuItem("🎯 Reset HUD Position", callback=self.reset_hud_position),
             self.auto_listen_item,
             self.read_summary_item,
             self.speech_popup_item,
@@ -195,6 +298,8 @@ class VoiceFiTrayApp(rumps.App):
             self.tier_item,
             rumps.separator,
         ]
+
+        self._update_barge_in_menu_item()
 
         # Start unified global hotkey listener
         self._start_global_hotkey_listener()
@@ -431,16 +536,22 @@ class VoiceFiTrayApp(rumps.App):
             from voicefi.companion.server import CompanionServer
             from aiohttp import web
             import asyncio
-            server = CompanionServer(config=self.config, port=8765, host="0.0.0.0")
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            server.loop = loop
-            server._start_watcher_thread()
-            app_runner = web.AppRunner(server.app)
-            loop.run_until_complete(app_runner.setup())
-            site = web.TCPSite(app_runner, "0.0.0.0", 8765)
-            loop.run_until_complete(site.start())
-            loop.run_forever()
+            try:
+                server = CompanionServer(config=self.config, port=8765, host="0.0.0.0")
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                server.loop = loop
+                server._start_watcher_thread()
+                app_runner = web.AppRunner(server.app)
+                loop.run_until_complete(app_runner.setup())
+                site = web.TCPSite(app_runner, "0.0.0.0", 8765)
+                loop.run_until_complete(site.start())
+                loop.run_forever()
+            except OSError as e:
+                # Port already bound by background LaunchAgent daemon or companion instance
+                pass
+            except Exception as e:
+                print(f"[TrayApp] Companion server notice: {e}")
 
         threading.Thread(target=_run_server, daemon=True).start()
 
@@ -477,8 +588,22 @@ class VoiceFiTrayApp(rumps.App):
             items.append(item)
 
         items.append(rumps.separator)
+        items.append(rumps.MenuItem("⚡ Download Ava (0ms Offline Speech)...", callback=self.trigger_download_ava))
         items.append(rumps.MenuItem("🎛️ Open Full Control Panel...", callback=self.open_control_panel_ui))
         self.voice_personas_menu.update(items)
+
+    def trigger_download_ava(self, _):
+        """Open macOS Spoken Content settings to download Apple's Ava (Premium) neural voice."""
+        from voicefi.tts.offline import open_spoken_content_settings
+        open_spoken_content_settings()
+        try:
+            rumps.notification(
+                "VoiceFi",
+                "Download Ava (0ms Offline)",
+                "Opened System Settings > Spoken Content. Click 'Manage Voices...' and download Ava (Premium).",
+            )
+        except Exception:
+            pass
 
     def _build_troubleshoot_submenu(self):
         """Populate voice testing and audio troubleshooting actions."""
@@ -579,65 +704,73 @@ class VoiceFiTrayApp(rumps.App):
         self.troubleshoot_menu.update(items)
 
     def _update_status_ui(self, _):
-        """Called on macOS main runloop every 200ms to redraw menu bar icon."""
+        """Called on macOS main runloop every 200ms to redraw menu bar icon and sync HUD state."""
+        from voicefi.tts.base import get_agent_speaking_info
+        speaking_info = get_agent_speaking_info()
+        is_speaking = bool(speaking_info)
+        was_speaking = getattr(self, "_cross_process_speaking", False)
+
+        if is_speaking:
+            self._current_status = "speaking"
+            current_pid = speaking_info.get("pid")
+            last_pid = getattr(self, "_last_spoken_pid", None)
+            if not was_speaking or last_pid != current_pid:
+                self._cross_process_speaking = True
+                self._last_spoken_pid = current_pid
+                hud_cfg = getattr(self.config, "hud", None)
+                show_speaking = getattr(self.config.antigravity, "show_speech_popup", True) or getattr(hud_cfg, "enabled", True)
+                if show_speaking:
+                    self.hud.set_speaking(
+                        text=speaking_info.get("text", "") or "Speaking aloud...",
+                        agent_name=speaking_info.get("agent_name", "VoiceFi"),
+                        persona_name=speaking_info.get("persona_name", "Christopher"),
+                        linger=None,
+                    )
+        elif was_speaking and not is_speaking:
+            self._cross_process_speaking = False
+            self._last_spoken_pid = None
+            if self._current_status == "speaking":
+                self._current_status = "idle"
+            hud_cfg = getattr(self.config, "hud", None)
+            show_speaking = getattr(self.config.antigravity, "show_speech_popup", True) or getattr(hud_cfg, "enabled", True)
+            if show_speaking:
+                linger = getattr(self.config.antigravity, "speech_popup_linger_seconds", 1.5)
+                self.hud.finish_speech(linger_seconds=linger)
+
         status_map = {
             "speaking": "speaker.wave.2.fill",
             "listening": "mic.fill",
             "hearing": "waveform.circle.fill",
             "transcribing": "ellipsis.bubble",
-            "thinking": "sparkles",
-            "working": "gearshape.fill",
             "ptt_listening": "mic.fill",
             "paused_agent_speaking": "pause.fill",
             "paused": "pause.fill",
         }
         
-        symbol_name = "wifi"
+        symbol_name = "voicefi"
 
         if self._current_status in status_map:
             symbol_name = status_map[self._current_status]
         else:
-            active_conv = self.watcher.tracker.get_active_or_latest() if getattr(self, 'watcher', None) else None
-            if active_conv and active_conv.status == "waiting_for_user":
-                symbol_name = "mic"
-            elif active_conv and active_conv.status == "agent_working":
-                symbol_name = "sparkles"
-            else:
-                symbol_name = "wifi"
+            symbol_name = "voicefi"
 
-        if self.title is not None and self.title != "":
-            self.title = None
+        # Ensure no text title appears next to the menu bar icon
+        if hasattr(self, '_nsapp') and hasattr(self._nsapp, 'nsstatusitem'):
+            try:
+                if self._nsapp.nsstatusitem.title():
+                    self._nsapp.nsstatusitem.setTitle_("")
+            except Exception:
+                pass
 
         current_symbol = getattr(self, "_current_symbol", None)
         if current_symbol != symbol_name:
             self._current_symbol = symbol_name
             try:
                 import AppKit
-                from pathlib import Path
                 
                 image = None
-                if symbol_name == "wifi":
-                    # Load the main .org logo for the default/idle state
-                    assets_dir = Path(__file__).resolve().parent.parent.parent.parent / "assets"
-                    logo_path = assets_dir / "voicefi-menu-bar-icon.svg"
-                    
-                    if logo_path.exists():
-                        image = AppKit.NSImage.alloc().initWithContentsOfFile_(str(logo_path))
-                        if image:
-                            image.setTemplate_(True)
-                            
-                            # Only scale down if necessary
-                            thickness = AppKit.NSStatusBar.systemStatusBar().thickness()
-                            # 22 is standard, but some modern Macs with notch might be slightly different.
-                            # We leave a small margin (e.g. 4 points) so it fits nicely like a standard icon
-                            target_height = thickness - 4
-                            if target_height <= 0:
-                                target_height = 18.0
-                                
-                            if image.size().height > target_height:
-                                ratio = target_height / image.size().height
-                                new_size = AppKit.NSMakeSize(image.size().width * ratio, target_height)
-                                image.setSize_(new_size)
+                if symbol_name in ("wifi", "voicefi"):
+                    image = get_voicefi_tray_image()
                 
                 if image is None:
                     # Fallback to system symbol
@@ -649,9 +782,86 @@ class VoiceFiTrayApp(rumps.App):
                     self._icon_nsimage = image
                     if hasattr(self, '_nsapp'):
                         self._nsapp.setStatusBarIcon()
+                        if hasattr(self._nsapp, 'nsstatusitem'):
+                            self._nsapp.nsstatusitem.setTitle_("")
             except Exception as e:
                 print(f"[VoiceFi] Error updating menu bar icon: {e}")
                 pass
+
+        # Periodically reload config if changed externally
+        self._check_config_reload()
+
+    def _check_config_reload(self):
+        """Periodically check config file mtime and reload configuration dynamically."""
+        try:
+            cfg_path = get_default_config_path()
+            if not cfg_path.is_file():
+                return
+            mtime = cfg_path.stat().st_mtime
+            last_mtime = getattr(self, "_last_config_mtime", None)
+            if last_mtime is None:
+                self._last_config_mtime = mtime
+                return
+            if mtime > last_mtime:
+                self._last_config_mtime = mtime
+                self.config = load_config()
+                hud_cfg = getattr(self.config, "hud", None)
+                if hud_cfg:
+                    self.hud.set_fullscreen_overlay(getattr(hud_cfg, "fullscreen_overlay", True))
+                    self.hud.set_auto_send(getattr(hud_cfg, "auto_send", True))
+                    is_enabled = getattr(hud_cfg, "enabled", True)
+                    is_persistent = getattr(hud_cfg, "persistent", True)
+                    self.hud.persistent = is_persistent
+                    if is_enabled and is_persistent:
+                        if self.hud._current_state == "idle" or not self.hud._is_visible:
+                            self.hud.set_idle()
+                    elif not is_enabled:
+                        self.hud.force_hide()
+                    elif not is_persistent and self.hud._current_state == "idle":
+                        self.hud.force_hide()
+
+                if hasattr(self, "persistent_hud_item") and hud_cfg:
+                    self.persistent_hud_item.state = 1 if getattr(hud_cfg, "persistent", True) else 0
+                if hasattr(self, "fullscreen_overlay_item") and hud_cfg:
+                    self.fullscreen_overlay_item.state = 1 if getattr(hud_cfg, "fullscreen_overlay", True) else 0
+                if hasattr(self, "auto_send_item") and hud_cfg:
+                    self.auto_send_item.state = 1 if getattr(hud_cfg, "auto_send", True) else 0
+                if hasattr(self, "auto_listen_item"):
+                    self.auto_listen_item.state = 1 if self.config.antigravity.auto_listen else 0
+                if hasattr(self, "read_summary_item"):
+                    self.read_summary_item.state = 1 if self.config.antigravity.read_summary_aloud else 0
+                if hasattr(self, "speech_popup_item"):
+                    self.speech_popup_item.state = 1 if self.config.antigravity.show_speech_popup else 0
+                self._update_barge_in_menu_item()
+        except Exception:
+            pass
+
+    def _update_barge_in_menu_item(self):
+        """Update barge-in menu item label with live device-aware status."""
+        try:
+            from voicefi.audio.device import is_headphone_or_headset_active
+            from voicefi.audio.recorder import resolve_barge_in_mode
+            barge_setting = getattr(self.config.vad, "barge_in", "auto")
+            is_active, is_safe = resolve_barge_in_mode(barge_setting)
+
+            if not hasattr(self, "barge_in_item") or not self.barge_in_item:
+                return
+
+            if barge_setting == "auto":
+                if is_headphone_or_headset_active():
+                    self.barge_in_item.title = "🎧 Voice Barge-In (Auto • Active on Headphones)"
+                    self.barge_in_item.state = 1
+                else:
+                    self.barge_in_item.title = "🔇 Voice Barge-In (Auto • Paused on Laptop Speakers)"
+                    self.barge_in_item.state = 0
+            elif barge_setting is True:
+                self.barge_in_item.title = "⚡ Voice Barge-In (Forced ON • Active)"
+                self.barge_in_item.state = 1
+            else:
+                self.barge_in_item.title = "⚪ Voice Barge-In (Disabled)"
+                self.barge_in_item.state = 0
+        except Exception:
+            pass
 
     def handle_state_change(self, state: str):
         """Thread-safe state change handler."""
@@ -801,7 +1011,7 @@ class VoiceFiTrayApp(rumps.App):
                     is_auto_send = getattr(getattr(self.config, "hud", None), "auto_send", True) and getattr(self.config.antigravity, "auto_send", True)
 
                     def _send_action(payload_text: str):
-                        send_message_to_antigravity(conv_id=conv_id, text=payload_text, sender_name=self.config.user_name)
+                        send_message_to_agent(conv_id=conv_id, text=payload_text, sender_name=self.config.user_name)
                         if self.config.audio_cues.enabled:
                             play_chime(self.config.audio_cues.sent_chime, block=False)
                         try:
@@ -1008,17 +1218,7 @@ class VoiceFiTrayApp(rumps.App):
                         shift = 'shift' in modifiers
                         mod = ctrl or cmd
 
-                        # 1. Enter or Space while recording -> finish immediately
-                        is_rec = (
-                            self._current_status in ("listening", "hearing", "ptt_listening", "new_conversation")
-                            or self.active_recorder is not None
-                            or (self.watcher and self.watcher.active_recorder is not None)
-                        )
-                        if is_rec and (key in (Key.enter, Key.space) or vk in (36, 76, 49)):
-                            self.finish_active_recording()
-                            return
-
-                        # 2. Escape: stop speech or cancel recording
+                        # 1. Escape: stop speech or cancel recording
                         if key == Key.esc or vk == 53:
                             self.stop_speaking_now()
                             return
@@ -1119,6 +1319,11 @@ class VoiceFiTrayApp(rumps.App):
         hud.set_auto_send(new_val)
         save_config(self.config)
 
+    def reset_hud_position(self, sender=None):
+        """Reset HUD position back to default anchor below Chrome top bar."""
+        hud = UnifiedDynamicIslandHUD.get_instance()
+        hud.reset_position()
+
     def toggle_auto_listen(self, sender):
         self.config.antigravity.auto_listen = not self.config.antigravity.auto_listen
         sender.state = 1 if self.config.antigravity.auto_listen else 0
@@ -1180,6 +1385,7 @@ class VoiceFiTrayApp(rumps.App):
                 )
         sender.state = 1 if self.config.vad.barge_in in (True, "auto") else 0
         save_config(self.config)
+        self._update_barge_in_menu_item()
 
     def open_config_file(self, _):
         path = get_default_config_path()
