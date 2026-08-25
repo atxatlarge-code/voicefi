@@ -48,7 +48,7 @@ class WhisperLocalSTT(BaseSTT):
             audio_input,
             language=self.language if self.language else None,
             initial_prompt=prompt if prompt else None,
-            beam_size=5,
+            beam_size=1,
             vad_filter=True,
         )
 

@@ -33,25 +33,35 @@ def run_onboarding():
         pass
 
     check_and_prompt_permissions()
-    tts = get_tts_engine(config, voice_override="Christopher")
+    
+    # Pre-warm STT model in background while greeting plays
+    import threading
     stt = get_stt_engine(config)
-    
+    threading.Thread(target=lambda: getattr(stt, "_get_model", lambda: None)(), daemon=True).start()
+
+    _, resolved_voice, _ = config.resolve_voice("antigravity")
+    tts = get_tts_engine(config, voice_override=resolved_voice)
+    voice_label = getattr(tts, "voice", "Andrew")
+    if "-" in voice_label:
+        voice_label = voice_label.split("-")[-1].replace("Neural", "")
+
     user_name = getpass.getuser().capitalize()
-    
+
     print("\n" + "="*50)
     print(" 🚀 VoiceFi First-Time User Experience")
     print("="*50 + "\n")
-    
+
     # --- Question 1 ---
     prompt1 = f"Hey.... {user_name}? Can I call you {user_name}?"
-    print(f"🎙️  [Christopher]: \"{prompt1}\"")
+    print(f"🎙️  [{voice_label}]: \"{prompt1}\"")
     tts.speak(prompt1)
-    
+
     # Listen 1
+    silence_cut = getattr(config.vad, "silence_duration", 1.0)
     recorder = AudioRecorder(
         sample_rate=config.vad.sample_rate,
         energy_threshold=config.vad.energy_threshold,
-        silence_duration=3.0, # wait for 3.0s of silence
+        silence_duration=silence_cut,
         max_record_seconds=config.vad.max_record_seconds,
         barge_in=False,
     )
@@ -76,9 +86,9 @@ def run_onboarding():
     
     # --- Question 2 ---
     prompt2 = f"Awesome, {extracted_name}! I'm not quite used to the sound of my own voice yet. Um, well, thank you for installing VoiceFi! I'm curious, what made you want to talk with me?"
-    print(f"🎙️  [Christopher]: \"{prompt2}\"")
+    print(f"🎙️  [{voice_label}]: \"{prompt2}\"")
     tts.speak(prompt2)
-    
+
     # Listen 2
     print("\n🔴 Listening... (speak your answer and pause)")
     audio_data2, temp_wav2 = recorder.record_speech_auto(
@@ -87,13 +97,13 @@ def run_onboarding():
     print("⏳ Transcribing...")
     text2 = stt.transcribe(temp_wav2)
     temp_wav2.unlink(missing_ok=True)
-    
+
     print(f"📝 You said: \"{text2}\"\n")
-    time.sleep(1)
-    
+    time.sleep(0.5)
+
     # --- Question 3 ---
     prompt3 = "Aha, copy that. So this confirms the offline feedback loop. Next up, would you like to send this to an agent or tool? Below is a list of the active connections. Would you like to let any of them know?"
-    print(f"🎙️  [Christopher]: \"{prompt3}\"")
+    print(f"🎙️  [{voice_label}]: \"{prompt3}\"")
     tts.speak(prompt3)
     
     # Mock opening the HUD
