@@ -1,6 +1,6 @@
 ---
 name: voice-persona
-description: Enables AI agents to discover, audition, and configure distinct acoustic voice personas for themselves and their subagents using Voicegency, and submit voice feedback or bug reports.
+description: Enables AI agents to discover, audition, and configure distinct acoustic voice personas for themselves and their subagents using VoiceFi, and submit voice feedback or bug reports.
 ---
 
 # 🎙️ Voice Persona & Multi-Agent Audition Skill
@@ -17,7 +17,8 @@ vg voice list
 ```
 
 Top Recommended Personas:
-- **Christopher** (`en-US-ChristopherNeural`): Deep, calm, low-latency neural tone. Ideal for **Antigravity / Main Planner**.
+- **Viv** (`en-US-AvaNeural`): Expressive, natural, modern conversational neural tone. Ideal for **Antigravity Primary Agent / Main Planner (Default)**.
+- **Christopher** (`en-US-ChristopherNeural`): Deep, calm, low-latency neural tone. Ideal for **Architect / Deep Focus**.
 - **Aria** (`en-US-AriaNeural`): Fast, crisp, energetic. Ideal for **Debugger / QA / Test Alerts**.
 - **Sonia** (`en-GB-SoniaNeural`): Measured, analytical British accent. Ideal for **Researcher / Code Analyst**.
 - **Guy** (`en-US-GuyNeural`): Warm, casual, natural conversationalist. Ideal for **Claude Code / Pair Programming**.
@@ -29,10 +30,11 @@ Top Recommended Personas:
 When the user asks you to pick your voice or audition candidates, speak directly to the user's speakers so they can hear each option in real-time:
 
 ```bash
-# Full 4-persona showcase:
+# Full 5-persona showcase:
 vg voice audition
 
 # Or audition specific candidate voices:
+vg voice test "Viv" --text "Hey! I'm Viv. My expressive, natural conversational tone is great for pair programming."
 vg voice test "Christopher" --text "Hey! I'm Christopher. My calm neural tone is great for long coding sessions."
 vg voice test "Aria" --text "And I'm Aria! Energetic and quick for test results and git actions."
 vg voice test "Sonia" --text "Greetings, I am Sonia, analytical and focused for deep research."
@@ -45,17 +47,18 @@ To test if a voice endpoint is responsive and calculate TTFB latency and synthes
 
 ```bash
 # Ping active or specific voice silently:
+vifi ping "Viv"
 vifi ping "Andrew"
 vifi ping "Christopher"
 
 # Multi-ping to compute avg latency, jitter, and throughput (chars/s):
-vifi ping "Andrew" -n 3
+vifi ping "Viv" -n 3
 
 # Benchmark all voices silently:
 vifi ping --all
 
 # Machine-readable JSON output:
-vifi ping "Andrew" --json
+vifi ping "Viv" --json
 ```
 
 ---
@@ -65,7 +68,9 @@ Once a voice is agreed upon, assign it to yourself or your subagents:
 
 ```bash
 # Assign main agent voice:
-vg voice set antigravity "en-US-ChristopherNeural"
+vg voice set antigravity "en-US-AvaNeural"
+# or:
+vg voice set default Viv
 
 # Assign subagent voices by role:
 vg voice set researcher "en-GB-SoniaNeural"

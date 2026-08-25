@@ -1,6 +1,6 @@
 """
 Standalone macOS .app Bundle & .dmg Disk Image Packaging Script.
-Builds a native drag-and-drop installer: dist/Voicegency_v1.0.0_macOS.dmg.
+Builds a native drag-and-drop installer: dist/VoiceFi_v1.0.0_macOS.dmg.
 """
 
 import os
@@ -17,7 +17,7 @@ APP_NAME = "VoiceFi"
 APP_BUNDLE = DIST_DIR / f"{APP_NAME}.app"
 DMG_NAME = "VoiceFi_v1.0.0_macOS.dmg"
 DMG_PATH = DIST_DIR / DMG_NAME
-ICON_FILE = ASSETS_DIR / "icon.icns"
+ICON_FILE = ASSETS_DIR / "VoiceFi.icns"
 SPEC_FILE = ROOT_DIR / "VoiceFi.spec"
 
 
@@ -29,7 +29,7 @@ def clean():
 
 
 def build_app_bundle():
-    print("📦 Building native Voicegency.app bundle with PyInstaller...")
+    print("📦 Building native VoiceFi.app bundle with PyInstaller...")
 
     cmd = [
         sys.executable,
@@ -45,7 +45,7 @@ def build_app_bundle():
         "--add-data",
         f"{ICON_FILE}:assets",
         "--osx-bundle-identifier",
-        "com.lienlogicdata.voicegency",
+        "com.lienlogicdata.voicefi",
         "--paths",
         "src",
         "--collect-all",
@@ -63,7 +63,7 @@ def build_app_bundle():
         "--collect-all",
         "qrcode",
         "--collect-all",
-        "voicegency",
+        "voicefi",
         "--hidden-import",
         "rumps",
         "--hidden-import",
@@ -88,7 +88,7 @@ def build_app_bundle():
         "requests",
         "--hidden-import",
         "numpy",
-        str(ROOT_DIR / "src" / "voicegency" / "cli.py"),
+        str(ROOT_DIR / "src" / "voicefi" / "cli.py"),
     ]
 
     subprocess.run(cmd, check=True, cwd=ROOT_DIR)
@@ -106,11 +106,11 @@ def build_app_bundle():
 
         set_plist_val("bool", "LSUIElement", "true")
         set_plist_val("bool", "NSHighResolutionCapable", "true")
-        set_plist_val("string", "CFBundleDisplayName", "'Voicegency'")
-        set_plist_val("string", "NSMicrophoneUsageDescription", "'Voicegency requires microphone access to listen to your voice commands for AI agents.'")
-        set_plist_val("string", "NSSpeechRecognitionUsageDescription", "'Voicegency uses speech recognition to convert your voice to text.'")
-        set_plist_val("string", "NSAppleEventsUsageDescription", "'Voicegency needs AppleScript access to focus your AI agent and inject transcribed text.'")
-        set_plist_val("string", "NSAccessibilityUsageDescription", "'Voicegency uses accessibility features to listen for global hotkeys and inject text into active applications.'")
+        set_plist_val("string", "CFBundleDisplayName", "'VoiceFi'")
+        set_plist_val("string", "NSMicrophoneUsageDescription", "'VoiceFi requires microphone access to listen to your voice commands for AI agents.'")
+        set_plist_val("string", "NSSpeechRecognitionUsageDescription", "'VoiceFi uses speech recognition to convert your voice to text.'")
+        set_plist_val("string", "NSAppleEventsUsageDescription", "'VoiceFi needs AppleScript access to focus your AI agent and inject transcribed text.'")
+        set_plist_val("string", "NSAccessibilityUsageDescription", "'VoiceFi uses accessibility features to listen for global hotkeys and inject text into active applications.'")
 
 
 def build_dmg():
@@ -119,7 +119,7 @@ def build_dmg():
     shutil.rmtree(dmg_staging, ignore_errors=True)
     dmg_staging.mkdir(exist_ok=True)
 
-    # 1. Copy Voicegency.app to staging
+    # 1. Copy VoiceFi.app to staging
     shutil.copytree(APP_BUNDLE, dmg_staging / f"{APP_NAME}.app", symlinks=True)
 
     # 2. Create Applications folder shortcut
@@ -128,15 +128,15 @@ def build_dmg():
     # 3. Copy License, Patent Notice & Quickstart guide
     patent_notice = dmg_staging / "PATENT_PENDING_NOTICE.txt"
     patent_notice.write_text(
-        "Voicegency™ — Giving your agents a voice, and your voice agency.\n"
+        "VoiceFi™ — Giving your agents a voice, and your voice agency.\n"
         "Copyright © 2026 LienLogic Data LLC. All Rights Reserved.\n\n"
-        "PATENT PENDING — U.S. Patent Application No. 64/137,300\n\n"
+        "PATENT PENDING — U.S. Patent Application No. 63/137,300\n\n"
         "QUICKSTART:\n"
-        "1. Drag 'Voicegency.app' into the Applications folder.\n"
-        "2. Launch Voicegency from Applications or Spotlight.\n"
+        "1. Drag 'VoiceFi.app' into the Applications folder.\n"
+        "2. Launch VoiceFi from Applications or Spotlight.\n"
         "3. The 🎙️ icon will appear in your macOS menu bar.\n"
         "4. Press Control + T to dictate into any window, or ` (backtick) to jump to your active agent.\n\n"
-        "For documentation & updates, visit: https://voicegency.com\n"
+        "For documentation & updates, visit: https://voicefi.org\n"
     )
 
     # 4. Optional Volume Icon
@@ -207,7 +207,7 @@ def verify_dmg():
         app_symlink = mount_point / "Applications"
         notice = mount_point / "PATENT_PENDING_NOTICE.txt"
 
-        assert app_in_dmg.exists(), "Voicegency.app missing in DMG"
+        assert app_in_dmg.exists(), f"{APP_NAME}.app missing in DMG"
         assert app_symlink.is_symlink(), "Applications symlink missing in DMG"
         assert notice.exists(), "PATENT_PENDING_NOTICE.txt missing in DMG"
         print("✅ Verified DMG contents: App bundle, Applications shortcut, and Quickstart guide present.")

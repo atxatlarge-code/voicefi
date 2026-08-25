@@ -241,7 +241,6 @@ class UnifiedDynamicIslandHUD:
                 candidates = [
                     os.path.join(base_dir, "assets", "VoiceFi.icns"),
                     os.path.join(base_dir, "assets", "VoiceFi.iconset", "icon_32x32@2x.png"),
-                    os.path.join(base_dir, "assets", "Voicegency.iconset", "icon_32x32@2x.png"),
                 ]
                 for p in candidates:
                     if os.path.exists(p):

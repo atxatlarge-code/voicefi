@@ -684,12 +684,13 @@ class CompanionServer:
         # Spawn background turn processor on daemon thread so HTTP response returns instantly (< 5ms)
         def _process_hook_turn():
             try:
+                fresh_config = load_config()
                 if target_agent in ("claude", "claude_code"):
                     from voicefi.integrations.claude import handle_claude_stop_hook
-                    handle_claude_stop_hook(data, self.config)
+                    handle_claude_stop_hook(data, fresh_config)
                 else:
                     from voicefi.integrations.antigravity import handle_antigravity_stop_hook
-                    handle_antigravity_stop_hook(data, self.config)
+                    handle_antigravity_stop_hook(data, fresh_config)
             except Exception as e:
                 print(f"[CompanionServer] Error processing background hook turn: {e}")
 

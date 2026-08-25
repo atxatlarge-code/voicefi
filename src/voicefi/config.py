@@ -165,7 +165,7 @@ class GlobalHotkeyConfig(BaseModel):
 
 class AgentVoiceProfile(BaseModel):
     provider: Optional[Literal["mac_say", "edge_tts", "elevenlabs", "f5_tts", "local_clone"]] = None
-    voice: str = "Samantha"
+    voice: str = "en-US-AvaNeural"
     rate: Optional[int] = None
     pitch: Optional[str] = "+0Hz"
     description: Optional[str] = ""
@@ -230,7 +230,7 @@ def default_agents_catalog() -> dict[str, AgentVoiceProfile]:
             description="Claude Code Pair Programmer",
         ),
         "cursor": AgentVoiceProfile(
-            voice="en-US-ChristopherNeural",
+            voice="en-US-JennyNeural",
             provider="edge_tts",
             description="Cursor Composer Assistant",
         ),

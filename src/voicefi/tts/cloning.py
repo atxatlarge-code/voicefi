@@ -406,7 +406,7 @@ class VoiceCloneManager:
 
         target = target_agent.lower().strip()
         voice_profile = AgentVoiceProfile(
-            voice=profile.id if profile.provider in ("elevenlabs", "f5_tts", "local_clone") else (profile.calibrated_voice or "en-US-ChristopherNeural"),
+            voice=profile.id if profile.provider in ("elevenlabs", "f5_tts", "local_clone") else (profile.calibrated_voice or "en-US-AvaNeural"),
             provider=profile.provider,
             rate=profile.calibrated_rate or 200,
             pitch=profile.calibrated_pitch or "+0Hz",

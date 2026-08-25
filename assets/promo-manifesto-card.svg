@@ -65,7 +65,7 @@
 
     <!-- Payoff Punchline -->
     <text x="0" y="270" fill="url(#goldText)" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif" font-weight="800" font-size="30" letter-spacing="-0.02em">
-      Download Voicegency and be free to speak your movement.”
+      Download VoiceFi and be free to speak your movement.”
     </text>
 
     <!-- Bottom App Tagline -->
@@ -74,7 +74,7 @@
     </text>
     
     <text x="0" y="412" fill="#52525B" font-family="ui-monospace, monospace" font-size="13">
-      U.S. Patent Application No. 64/137,300 • LienLogic Data LLC
+      U.S. Patent Application No. 63/137,300 • LienLogic Data LLC
     </text>
   </g>
 

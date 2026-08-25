@@ -1,5 +1,5 @@
-# Voicegency Configuration
-# Place this file at ~/.voicegency/config.yaml or in your working directory as config.yaml
+# VoiceFi Configuration
+# Place this file at ~/.voicefi/config.yaml or in your working directory as config.yaml
 
 version: 1
 
@@ -10,12 +10,12 @@ posthog_api_key: "" # PostHog API Key for telemetry and error tracking
 
 # Text-to-Speech (TTS) Settings
 tts:
-  # Providers: "mac_say" (fast, built-in macOS), "edge_tts" (neural high quality), "elevenlabs" (pro)
-  provider: "mac_say"
+  # Providers: "edge_tts" (neural high quality), "mac_say" (fast, built-in macOS), "elevenlabs" (pro)
+  provider: "edge_tts"
   
-  # For mac_say: "Samantha", "Alex", "Daniel", "Karen", "Victoria", or any macOS voice
-  # For edge_tts: "en-US-AvaNeural", "en-US-ChristopherNeural", "en-US-GuyNeural", "en-US-JennyNeural"
-  voice: "Samantha"
+  # For edge_tts: "en-US-AvaNeural" (Viv), "en-US-ChristopherNeural", "en-US-GuyNeural", "en-US-JennyNeural"
+  # For mac_say: "Ava (Premium)", "Samantha", "Alex", "Daniel", "Karen", or any macOS voice
+  voice: "en-US-AvaNeural"
   rate: 200        # Words per minute (mac_say) or speed percentage (edge_tts)
   volume: 1.0
   streaming: true  # Stream audio chunks with sub-250ms time-to-first-byte playback

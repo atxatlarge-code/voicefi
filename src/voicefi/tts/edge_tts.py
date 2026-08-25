@@ -77,8 +77,10 @@ class EdgeTTS(BaseTTS):
         rate: any = 0,
         volume: any = 1.0,
         streaming: bool = True,
+        agent_name: str = "VoiceFi",
+        persona_name: Optional[str] = None,
     ):
-        self.voice = voice
+        self.voice = voice or "en-US-AvaNeural"
         self.rate_str = normalize_edge_rate(rate)
         try:
             self.volume = float(volume) if volume is not None else 1.0
@@ -86,6 +88,8 @@ class EdgeTTS(BaseTTS):
             self.volume = 1.0
         self.afplay_vol = str(max(self.volume * 1.6, 1.5))
         self.streaming = streaming
+        self.agent_name = agent_name
+        self.persona_name = persona_name or ("Viv" if ("Ava" in self.voice or "Viv" in self.voice) else self.voice)
         self._current_process: Optional[subprocess.Popen] = None
         self._stop_requested = False
 
@@ -109,7 +113,7 @@ class EdgeTTS(BaseTTS):
             with speech_turn_lock(
                 text=text,
                 agent_name=getattr(self, "agent_name", "VoiceFi"),
-                persona_name=getattr(self, "persona_name", getattr(self, "voice", "Christopher")),
+                persona_name=getattr(self, "persona_name", getattr(self, "voice", "Viv")),
             ):
                 if self._stop_requested:
                     return

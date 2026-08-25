@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 
 from voicefi import __version__
+from voicefi.cli_format import VoiceFiArgumentParser, resolve_prog_name, render_categorized_help
 from voicefi.config import load_config, save_config, get_default_config_path
 from voicefi.license import FeatureGate
 from voicefi.tts import get_tts_engine, MacSayTTS
@@ -290,10 +291,28 @@ def cmd_setup(args):
         except Exception as e:
             print(f"⚠️ Could not install Claude Code hook: {e}")
 
-    # Also save default config if missing
+    # Ensure config file exists and defaults to Viv for overall and antigravity
     config_path = get_default_config_path()
+    config = load_config()
+    changed = False
     if not config_path.is_file():
-        save_config(load_config())
+        save_config(config)
+    else:
+        if not config.tts.voice or config.tts.voice in ("Samantha", "en-US-ChristopherNeural", "Christopher", "christopher"):
+            config.tts.voice = "en-US-AvaNeural"
+            config.tts.provider = "edge_tts"
+            changed = True
+        if "antigravity" not in config.agents or config.agents["antigravity"].voice in ("en-US-ChristopherNeural", "Christopher", "christopher", None, ""):
+            from voicefi.config import AgentVoiceProfile
+            config.agents["antigravity"] = AgentVoiceProfile(
+                voice="en-US-AvaNeural",
+                provider="edge_tts",
+                offline_voice="Ava (Premium)",
+                description="Antigravity Primary Agent",
+            )
+            changed = True
+        if changed:
+            save_config(config)
 
     print(f"⚙️ Configuration saved at: {config_path}")
 
@@ -1169,7 +1188,8 @@ def cmd_voice(args):
     elif subaction == "audition":
         print("\n🎬 Starting VoiceFi Multi-Agent Voice Audition Showcase...\n")
         audition_cast = [
-            ("Christopher", "en-US-ChristopherNeural", "edge_tts", "Main Agent / Planner", "Hey! I'm Christopher. My calm, low-latency neural tone is great for deep focus and long coding sessions."),
+            ("Viv", "en-US-AvaNeural", "edge_tts", "Antigravity Primary Agent", "Hey! I'm Viv. Expressive, natural, and conversational tone, great for pair programming and deep focus."),
+            ("Christopher", "en-US-ChristopherNeural", "edge_tts", "Architect / Deep Focus", "Hey! I'm Christopher. My calm, low-latency neural tone is great for deep focus and long coding sessions."),
             ("Aria", "en-US-AriaNeural", "edge_tts", "Debugger / QA Alerting", "Hello! I'm Aria. I'm quick, energetic, and expressive, perfect for test announcements, git actions, and build alerts."),
             ("Sonia", "en-GB-SoniaNeural", "edge_tts", "Researcher Subagent", "Greetings. I am Sonia. My clear British delivery is well suited for code audits and architecture reviews."),
             ("Guy", "en-US-GuyNeural", "edge_tts", "Conversational Pair", "Hey there! I'm Guy. I've got a casual, conversational delivery that feels like pair programming with a friend."),
@@ -1880,7 +1900,7 @@ def cmd_info(args):
         print(f"Subagents:     {', '.join(config.subagents.keys())}")
     print("====================================================\n")
 
-    print("Curated Personas: Christopher, Aria, Sonia, Guy, William, Samantha, Alex")
+    print("Curated Personas: Viv, Christopher, Aria, Sonia, Guy, William, Samantha, Alex")
     print("Run 'vg voice audition' to test them over your speakers!\n")
 
 
@@ -2023,7 +2043,7 @@ def cmd_hud(args):
                 (1, "Idle (Persistent Resting Pill)"),
                 (2, "Thinking (Antigravity Reasoning)"),
                 (3, "Working (Running pytest suite)"),
-                (4, "Speaking (Christopher Subtitles)"),
+                (4, "Speaking (Viv Subtitles)"),
                 (5, "Listening (Live Mic + Real-Time Typing)"),
                 (6, "Editing (Interactive Review Capsule)"),
                 (7, "New Session (Connected Tools)"),
@@ -2055,7 +2075,7 @@ def cmd_hud(args):
             elif state_idx == 3:
                 hud.set_working("Antigravity", "Executing pytest tests/ (208 passed)")
             elif state_idx == 4:
-                hud.set_speaking("VoiceFi Dynamic Island HUD is running natively on macOS.", persona_name="Christopher", linger=None)
+                hud.set_speaking("VoiceFi Dynamic Island HUD is running natively on macOS.", persona_name="Viv", linger=None)
             elif state_idx == 5:
                 hud.set_listening(prompt_preview="Add live typing to HUD", user_name=getattr(hud.config, "user_name", "Jake"), live_stream=True)
             elif state_idx == 6:
@@ -2188,7 +2208,7 @@ def cmd_hud(args):
         _pump(2.0)
 
         print("  4/6 🔊 State: Speaking (Live Subtitles)")
-        hud.set_speaking("Hey Jake! All 164 test suites passed cleanly with zero regressions.", persona_name="Christopher")
+        hud.set_speaking("Hey Jake! All 164 test suites passed cleanly with zero regressions.", persona_name="Viv")
         _pump(2.8)
 
         print("  5/6 🎙️ State: Listening (Real-Time Live Typing Stream)")
@@ -2259,7 +2279,7 @@ def cmd_hud(args):
         elif state == "working":
             hud.set_working(agent_name="Antigravity", tool_action=custom_text or "Running tools...")
         elif state == "speaking":
-            hud.set_speaking(custom_text or "Speech subtitle active.", persona_name="Christopher")
+            hud.set_speaking(custom_text or "Speech subtitle active.", persona_name="Viv")
         elif state == "listening":
             hud.set_listening(prompt_preview=custom_text, user_name=getattr(hud.config, "user_name", "Jake"), live_stream=bool(custom_text))
         elif state == "editing":
@@ -2275,14 +2295,15 @@ def main():
     except Exception:
         pass
 
-    parser = argparse.ArgumentParser(
-        prog="voicefi",
+    prog_name = resolve_prog_name()
+    parser = VoiceFiArgumentParser(
+        prog=prog_name,
         description="VoiceFi: Give voice to your agents, and agency for your voice. The Universal Voice Layer for AI Agents, MCP, and macOS.",
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument("--config", type=str, default=None, help="Path to custom config.yaml")
 
-    subparsers = parser.add_subparsers(dest="command", help="Available subcommands")
+    subparsers = parser.add_subparsers(dest="command", metavar="<command>", help="Available subcommands")
 
     # hook
     hook_p = subparsers.add_parser("hook", help="Run as AI agent lifecycle hook (Antigravity, Claude Code)")
@@ -2349,7 +2370,7 @@ def main():
 
     # voice
     voice_p = subparsers.add_parser("voice", help="Manage and audition agent voices")
-    voice_sub = voice_p.add_subparsers(dest="voice_action", help="Voice action")
+    voice_sub = voice_p.add_subparsers(dest="voice_action", metavar="<action>", help="Voice action")
     
     # voice download-ava (Apple Ava Premium 0ms offline speech)
     v_ava = voice_sub.add_parser(
@@ -2370,7 +2391,7 @@ def main():
 
     # voice command
     vp_cmd = voice_sub.add_parser("command", help="Execute a natural voice command")
-    vp_cmd.add_argument("command_text", nargs="+", help="Command phrase to execute (e.g. 'audition Christopher', 'switch to Aria')")
+    vp_cmd.add_argument("command_text", nargs="+", help="Command phrase to execute (e.g. 'audition Viv', 'switch to Aria')")
 
     # voice list
     v_list = voice_sub.add_parser("list", help="List curated and system voices")
@@ -2379,7 +2400,7 @@ def main():
 
     # voice test
     v_test = voice_sub.add_parser("test", help="Audition / test a single voice or run feedback loop")
-    v_test.add_argument("voice", nargs="?", default=None, help="Voice name or ID (e.g. Christopher, Aria, en-US-ChristopherNeural)")
+    v_test.add_argument("voice", nargs="?", default=None, help="Voice name or ID (e.g. Viv, Christopher, Aria, en-US-AvaNeural)")
     v_test.add_argument("-t", "--text", type=str, default=None, help="Custom text sample to speak")
     v_test.add_argument("-s", "--silent", action="store_true", help="Silently test connection and speed without playing audio over speakers")
     v_test.add_argument("--phrase", type=str, default=None, choices=["greeting", "code_review", "qa_alert", "punctuation", "architecture"], help="Preset test phrase")
@@ -2394,7 +2415,7 @@ def main():
 
     # voice ping (silent connection, speed, and latency test)
     v_ping = voice_sub.add_parser("ping", aliases=["check", "speed-test"], help="Silently test connection, latency, speed, and health of neural voices")
-    v_ping.add_argument("voice", nargs="?", default=None, help="Voice name or ID to ping (e.g. Andrew, Christopher, Aria). Defaults to active voice.")
+    v_ping.add_argument("voice", nargs="?", default=None, help="Voice name or ID to ping (e.g. Viv, Andrew, Christopher, Aria). Defaults to active voice.")
     v_ping.add_argument("-t", "--text", type=str, default=None, help="Custom text sample for speed synthesis test")
     v_ping.add_argument("-n", "--count", type=int, default=1, help="Number of pings to measure avg latency and jitter")
     v_ping.add_argument("-a", "--all", action="store_true", help="Ping and benchmark all curated personas")
@@ -2478,7 +2499,7 @@ def main():
 
     # clone
     clone_p = subparsers.add_parser("clone", help="Train and manage custom voice clones")
-    clone_sub = clone_p.add_subparsers(dest="clone_action", help="Clone action")
+    clone_sub = clone_p.add_subparsers(dest="clone_action", metavar="<action>", help="Clone action")
 
     # clone record
     c_rec = clone_sub.add_parser("record", help="Record voice samples via mic wizard")
@@ -2525,7 +2546,7 @@ def main():
 
     # feedback
     fb_p = subparsers.add_parser("feedback", help="Submit feedback, bug reports, or requests")
-    fb_sub = fb_p.add_subparsers(dest="feedback_action", help="Feedback action")
+    fb_sub = fb_p.add_subparsers(dest="feedback_action", metavar="<action>", help="Feedback action")
     
     fb_submit = fb_sub.add_parser("submit", help="Submit feedback or bug report")
     fb_submit.add_argument("title", nargs="+", help="Feedback title or summary")
@@ -2539,7 +2560,7 @@ def main():
 
     # memo / buffer
     memo_p = subparsers.add_parser("memo", aliases=["buffer"], help="Voice memo buffer: capture long rambles & synthesize to code")
-    memo_sub = memo_p.add_subparsers(dest="memo_action", help="Voice memo action")
+    memo_sub = memo_p.add_subparsers(dest="memo_action", metavar="<action>", help="Voice memo action")
 
     # memo record
     m_rec = memo_sub.add_parser("record", help="Record a 2-5 min voice memo with elegant countdown timer")
@@ -2586,7 +2607,7 @@ def main():
 
     # ambient listener & proactive co-pilot
     amb_p = subparsers.add_parser("ambient", help="Ambient background listening & proactive triage co-pilot")
-    amb_sub = amb_p.add_subparsers(dest="ambient_action", help="Ambient action")
+    amb_sub = amb_p.add_subparsers(dest="ambient_action", metavar="<action>", help="Ambient action")
     amb_start = amb_sub.add_parser("start", help="Start background ambient listener")
     amb_start.add_argument("--source", choices=["mic", "loopback"], default="mic", help="Audio capture source")
     amb_sub.add_parser("status", help="Show ambient listener status")
@@ -2597,7 +2618,7 @@ def main():
 
     # obsidian
     obs_p = subparsers.add_parser("obsidian", help="Manage and install VoiceFi plugin for Obsidian vaults")
-    obs_sub = obs_p.add_subparsers(dest="obsidian_action")
+    obs_sub = obs_p.add_subparsers(dest="obsidian_action", metavar="<action>")
     inst_p = obs_sub.add_parser("install", help="Install and enable VoiceFi plugin into Obsidian vault(s)")
     inst_p.add_argument("-v", "--vault", type=str, default=None, help="Target specific Obsidian vault directory")
     inst_p.add_argument("-a", "--all", action="store_true", help="Install into all registered vaults")
@@ -2605,7 +2626,7 @@ def main():
 
     # hud
     hud_p = subparsers.add_parser("hud", help="Control, configure, and debug Unified Dynamic Island HUD")
-    hud_sub = hud_p.add_subparsers(dest="hud_action", help="HUD action (open, close, reset, debug, config, test, show, on, off, status, persistent, auto-send)")
+    hud_sub = hud_p.add_subparsers(dest="hud_action", metavar="<action>", help="HUD action (open, close, reset, debug, config, test, show, on, off, status, persistent, auto-send)")
     hud_sub.add_parser("open", aliases=["start", "launch"], help="Open and show persistent Dynamic Island HUD")
     hud_sub.add_parser("close", aliases=["stop", "hide"], help="Close and hide Dynamic Island HUD")
     hud_sub.add_parser("on", aliases=["enable"], help="Enable and show persistent HUD")
