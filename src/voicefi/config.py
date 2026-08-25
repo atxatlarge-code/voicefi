@@ -388,9 +388,9 @@ def load_config(custom_path: Optional[str] = None) -> VoiceFiConfig:
     return VoiceFiConfig()
 
 
-def save_config(config: VoiceFiConfig, target_path: Optional[Path] = None) -> Path:
+def save_config(config: VoiceFiConfig, target_path: Optional[Union[Path, str]] = None) -> Path:
     """Save configuration to the designated YAML file."""
-    dest = target_path or find_config_path() or get_default_config_path()
+    dest = Path(target_path) if target_path else (find_config_path() or get_default_config_path())
     dest.parent.mkdir(parents=True, exist_ok=True)
     with open(dest, "w", encoding="utf-8") as f:
         yaml.safe_dump(config.model_dump(), f, default_flow_style=False, sort_keys=False)

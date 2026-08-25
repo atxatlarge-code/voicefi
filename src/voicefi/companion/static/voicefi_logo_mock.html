@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-black text-white">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VoiceFi Reactive Logo Status Icon • Minimalist Interactive Studio</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      background-color: #06070a;
+      color: #ffffff;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+
+    /* ==========================================================================
+       VOICEFI CLEAN REACTIVE ANATOMICAL AREA ANIMATIONS
+       ========================================================================== */
+
+    /* Base Character Styling (Clean White Default) */
+    .vifi-wifi-crown, .vifi-wifi-visor, .vifi-wifi-brim,
+    .vifi-eyes, .vifi-mouth, .vifi-cradle,
+    .vifi-stem, .vifi-base-stand {
+      stroke: #FFFFFF;
+    }
+    .vifi-ear-frame { stroke: #FFFFFF; fill: #000000; }
+    .vifi-ear-dot   { fill: #FFFFFF; }
+    .vifi-nose-frame { stroke: #FFFFFF; fill: #000000; }
+    .vifi-nose-pin   { stroke: #FFFFFF; }
+
+    /* 1. THINKING: WiFi Broadcast Hat turns Red & Pulses (Everything else White) */
+    @keyframes wifiLaserCrown {
+      0%, 100% {
+        stroke: #ff1a38;
+        stroke-width: 18px;
+        filter: drop-shadow(0 0 3px rgba(255, 0, 51, 0.4));
+        opacity: 0.85;
+      }
+      50% {
+        stroke: #ff0033;
+        stroke-width: 21px;
+        filter: drop-shadow(0 0 6px #ff0033) drop-shadow(0 0 14px rgba(255, 0, 51, 0.65));
+        opacity: 1;
+      }
+    }
+    @keyframes wifiLaserVisor {
+      0%, 100% {
+        stroke: #ff1a38;
+        stroke-width: 17px;
+        filter: drop-shadow(0 0 2px rgba(255, 0, 51, 0.35));
+        opacity: 0.8;
+      }
+      40% {
+        stroke: #ff0033;
+        stroke-width: 20px;
+        filter: drop-shadow(0 0 5px #ff0033) drop-shadow(0 0 12px rgba(255, 0, 51, 0.6));
+        opacity: 1;
+      }
+    }
+    @keyframes wifiLaserBrim {
+      0%, 100% {
+        stroke: #ff1a38;
+        stroke-width: 16px;
+        filter: drop-shadow(0 0 2px rgba(255, 0, 51, 0.3));
+        opacity: 0.75;
+      }
+      30% {
+        stroke: #ff0033;
+        stroke-width: 19px;
+        filter: drop-shadow(0 0 4px #ff0033) drop-shadow(0 0 10px rgba(255, 0, 51, 0.55));
+        opacity: 1;
+      }
+    }
+
+    /* 2. LISTENING: Ears turn Red & Glow (Everything else White) */
+    @keyframes earRedGlowPulse {
+      0%, 100% {
+        filter: drop-shadow(0 0 3px rgba(255, 0, 51, 0.4));
+        transform: scale(1);
+      }
+      50% {
+        filter: drop-shadow(0 0 8px #ff0033) drop-shadow(0 0 16px rgba(255, 0, 51, 0.7));
+        transform: scale(1.06);
+      }
+    }
+
+    /* 3. SPEAKING: Mouth & Jaw turn Red & Articulate (Active Speech) */
+    @keyframes mouthSpeakingMotion {
+      0%, 100% {
+        d: path("M 230 320 Q 256 336 282 320");
+        stroke: #ff1a38;
+        stroke-width: 7px;
+        filter: drop-shadow(0 0 4px rgba(255, 0, 51, 0.5));
+      }
+      25% {
+        d: path("M 226 318 Q 256 358 286 318");
+        stroke: #ff0033;
+        stroke-width: 9.5px;
+        filter: drop-shadow(0 0 8px #ff0033) drop-shadow(0 0 16px rgba(255, 0, 51, 0.8));
+      }
+      50% {
+        d: path("M 228 322 Q 256 342 284 322");
+        stroke: #ff1a38;
+        stroke-width: 8px;
+        filter: drop-shadow(0 0 6px rgba(255, 0, 51, 0.6));
+      }
+      75% {
+        d: path("M 224 316 Q 256 364 288 316");
+        stroke: #ff0033;
+        stroke-width: 10px;
+        filter: drop-shadow(0 0 9px #ff0033) drop-shadow(0 0 18px rgba(255, 0, 51, 0.85));
+      }
+    }
+
+    @keyframes jawSpeakingMotion {
+      0%, 100% {
+        stroke: #ff1a38;
+        stroke-width: 12px;
+        filter: drop-shadow(0 0 3px rgba(255, 0, 51, 0.4));
+      }
+      25% {
+        stroke: #ff0033;
+        stroke-width: 14px;
+        filter: drop-shadow(0 0 6px #ff0033) drop-shadow(0 0 12px rgba(255, 0, 51, 0.7));
+      }
+      50% {
+        stroke: #ff1a38;
+        stroke-width: 12.5px;
+        filter: drop-shadow(0 0 4px rgba(255, 0, 51, 0.5));
+      }
+      75% {
+        stroke: #ff0033;
+        stroke-width: 15px;
+        filter: drop-shadow(0 0 7px #ff0033) drop-shadow(0 0 14px rgba(255, 0, 51, 0.75));
+      }
+    }
+
+    /* 4. WORKING: Eyes turn Red & Scan (Everything else White) */
+    @keyframes cyberEyeRedScan {
+      0%, 100% {
+        stroke: #ff1a38;
+        stroke-width: 8px;
+        filter: drop-shadow(0 0 3px rgba(255, 0, 51, 0.5));
+      }
+      50% {
+        stroke: #ff0033;
+        stroke-width: 10px;
+        filter: drop-shadow(0 0 8px #ff0033) drop-shadow(0 0 16px rgba(255, 0, 51, 0.8));
+      }
+    }
+    @keyframes usbDataPinRedBlink {
+      0%, 100% { stroke: #ff1a38; opacity: 0.6; }
+      20%, 40%, 60%, 80% { stroke: #ffffff; opacity: 1; filter: drop-shadow(0 0 5px #ff0033); }
+    }
+
+    /* 5. IDLE: Standby Breathing (All White) */
+    @keyframes idleStandby {
+      0%, 100% { opacity: 0.9; }
+      50% { opacity: 1; filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.5)); }
+    }
+
+    /* State-applied animation classes */
+    .vifi-active-thinking .vifi-wifi-crown { animation: wifiLaserCrown 1.35s infinite ease-in-out; }
+    .vifi-active-thinking .vifi-wifi-visor { animation: wifiLaserVisor 1.35s infinite ease-in-out 0.14s; }
+    .vifi-active-thinking .vifi-wifi-brim  { animation: wifiLaserBrim 1.35s infinite ease-in-out 0.28s; }
+
+    .vifi-active-listening .vifi-ear-left   { animation: earRedGlowPulse 1.2s infinite ease-in-out; transform-origin: 124px 220px; }
+    .vifi-active-listening .vifi-ear-right  { animation: earRedGlowPulse 1.2s infinite ease-in-out 0.1s; transform-origin: 388px 220px; }
+    .vifi-active-listening .vifi-ear-left .vifi-ear-frame,
+    .vifi-active-listening .vifi-ear-right .vifi-ear-frame { stroke: #ff0033 !important; }
+    .vifi-active-listening .vifi-ear-dot-l,
+    .vifi-active-listening .vifi-ear-dot-r  { fill: #ff0033 !important; filter: drop-shadow(0 0 6px #ff0033); }
+
+    .vifi-active-speaking .vifi-mouth       { animation: mouthSpeakingMotion 0.85s infinite ease-in-out; }
+    .vifi-active-speaking .vifi-cradle      { animation: jawSpeakingMotion 0.85s infinite ease-in-out; }
+
+    .vifi-active-working .vifi-eyes         { animation: cyberEyeRedScan 1.1s infinite ease-in-out; }
+    .vifi-active-working .vifi-nose-pin     { animation: usbDataPinRedBlink 0.6s infinite linear; }
+    .vifi-active-working .vifi-nose-frame   { stroke: #ff0033 !important; filter: drop-shadow(0 0 6px #ff0033); }
+
+    .vifi-active-idle                       { animation: idleStandby 3.5s infinite ease-in-out; }
+
+    /* Glassmorphic Capsule Styles */
+    .glass-panel {
+      background: rgba(13, 16, 24, 0.88);
+      backdrop-filter: blur(28px) saturate(190%);
+      -webkit-backdrop-filter: blur(28px) saturate(190%);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+  </style>
+</head>
+<body class="h-full flex flex-col overflow-y-auto select-none bg-[#07090e]">
+
+  <!-- Top Bar -->
+  <header class="bg-[#0c0e15] border-b border-[#181c28] px-6 py-3 shrink-0 flex items-center justify-between sticky top-0 z-50">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-xl bg-red-500/10 border border-red-500/30 flex items-center justify-center shadow-[0_0_12px_rgba(255,42,42,0.3)]">
+        <span class="text-sm font-bold text-red-500 font-mono">VF</span>
+      </div>
+      <div>
+        <h1 class="text-sm font-bold tracking-tight text-white flex items-center gap-2 font-mono">
+          VOICEFI REACTIVE CHARACTER ICON
+          <span class="text-[9px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-semibold uppercase tracking-wider">Clean Minimalist Spec</span>
+        </h1>
+        <p class="text-[11px] text-zinc-400">Direct active area lighting: WiFi arcs (Thinking), Glowing ears (Listening), Talking smile (Speaking)</p>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-2.5">
+      <button id="globalAutoCycleBtn" onclick="toggleGlobalCycle()" class="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-gradient-to-r from-red-500 via-purple-600 to-cyan-500 hover:opacity-90 text-white shadow-lg flex items-center gap-1.5 transition active:scale-95">
+        <span id="globalPlayIcon">▶️</span>
+        <span id="globalPlayText">Cycle All States</span>
+      </button>
+      <a href="/hud_mocks" class="text-xs font-mono bg-[#141824] hover:bg-[#1f2638] px-3 py-1.5 rounded-xl text-zinc-300 border border-[#242c40] transition">Dynamic Island HUD →</a>
+    </div>
+  </header>
+
+  <!-- Main Showcase Canvas -->
+  <main class="flex-1 max-w-7xl mx-auto w-full p-6 space-y-8">
+
+    <!-- SECTION 1: HERO STATE COMPARISON MATRIX -->
+    <section class="space-y-3">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-base font-bold text-white flex items-center gap-2 font-mono">
+            ACTIVE ANATOMICAL STATE MATRIX
+          </h2>
+          <p class="text-xs text-zinc-400">Clean, vector-aligned active area lighting with zero floating particle clutter.</p>
+        </div>
+        <div class="flex items-center gap-1 bg-[#121622] p-1 rounded-xl border border-[#222938] text-xs font-mono">
+          <button onclick="setAllCardsState('thinking')" class="px-2.5 py-1 rounded-lg text-purple-300 hover:bg-purple-500/20 transition">All Thinking</button>
+          <button onclick="setAllCardsState('listening')" class="px-2.5 py-1 rounded-lg text-emerald-300 hover:bg-emerald-500/20 transition">All Listening</button>
+          <button onclick="setAllCardsState('speaking')" class="px-2.5 py-1 rounded-lg text-cyan-300 hover:bg-cyan-500/20 transition">All Speaking</button>
+          <button onclick="resetMatrixToIndividual()" class="px-2.5 py-1 rounded-lg text-zinc-300 hover:bg-white/10 transition font-bold">Reset Individual</button>
+        </div>
+      </div>
+
+      <!-- 5-Card State Row -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        
+        <!-- CARD 1: THINKING -->
+        <div id="card-thinking" class="glass-panel rounded-2xl p-4 border border-purple-500/30 flex flex-col items-center justify-between text-center relative overflow-hidden group hover:border-purple-400/60 transition shadow-[0_0_20px_rgba(168,85,247,0.15)]">
+          <div class="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-md bg-purple-500/20 border border-purple-500/40 text-[10px] font-mono text-purple-300 font-bold uppercase">
+            1. Thinking
+          </div>
+          <div class="w-36 h-36 my-3 relative flex items-center justify-center" id="svg-host-thinking"></div>
+          <div class="w-full pt-2 border-t border-purple-500/20 space-y-1">
+            <span class="text-xs font-bold text-purple-300 block font-mono">WiFi Hat Pulse</span>
+            <p class="text-[11px] text-zinc-400 leading-tight">Broadcast arcs illuminate in sequential energetic pulses during LLM reasoning.</p>
+          </div>
+        </div>
+
+        <!-- CARD 2: LISTENING -->
+        <div id="card-listening" class="glass-panel rounded-2xl p-4 border border-emerald-500/30 flex flex-col items-center justify-between text-center relative overflow-hidden group hover:border-emerald-400/60 transition shadow-[0_0_20px_rgba(16,185,129,0.15)]">
+          <div class="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-500/40 text-[10px] font-mono text-emerald-300 font-bold uppercase">
+            2. Listening
+          </div>
+          <div class="w-36 h-36 my-3 relative flex items-center justify-center" id="svg-host-listening"></div>
+          <div class="w-full pt-2 border-t border-emerald-500/20 space-y-1">
+            <span class="text-xs font-bold text-emerald-300 block font-mono">Glowing Ears (VAD)</span>
+            <p class="text-[11px] text-zinc-400 leading-tight">Headset cradle jacks and knurled dots illuminate in vivid neon emerald.</p>
+          </div>
+        </div>
+
+        <!-- CARD 3: SPEAKING -->
+        <div id="card-speaking" class="glass-panel rounded-2xl p-4 border border-cyan-500/30 flex flex-col items-center justify-between text-center relative overflow-hidden group hover:border-cyan-400/60 transition shadow-[0_0_20px_rgba(6,182,212,0.15)]">
+          <div class="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-md bg-cyan-500/20 border border-cyan-500/40 text-[10px] font-mono text-cyan-300 font-bold uppercase">
+            3. Speaking
+          </div>
+          <div class="w-36 h-36 my-3 relative flex items-center justify-center" id="svg-host-speaking"></div>
+          <div class="w-full pt-2 border-t border-cyan-500/20 space-y-1">
+            <span class="text-xs font-bold text-cyan-300 block font-mono">Talking Waveform Mouth</span>
+            <p class="text-[11px] text-zinc-400 leading-tight">Electric red smile articulates speech waveforms cleanly with dynamic voice resonance.</p>
+          </div>
+        </div>
+
+        <!-- CARD 4: WORKING -->
+        <div id="card-working" class="glass-panel rounded-2xl p-4 border border-blue-500/30 flex flex-col items-center justify-between text-center relative overflow-hidden group hover:border-blue-400/60 transition shadow-[0_0_20px_rgba(59,130,246,0.15)]">
+          <div class="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-md bg-blue-500/20 border border-blue-500/40 text-[10px] font-mono text-blue-300 font-bold uppercase">
+            4. Working
+          </div>
+          <div class="w-36 h-36 my-3 relative flex items-center justify-center" id="svg-host-working"></div>
+          <div class="w-full pt-2 border-t border-blue-500/20 space-y-1">
+            <span class="text-xs font-bold text-blue-300 block font-mono">Cyber Eyes & Data Pin</span>
+            <p class="text-[11px] text-zinc-400 leading-tight">Laser scan across eyes and high-speed data pin flashes during tool execution.</p>
+          </div>
+        </div>
+
+        <!-- CARD 5: IDLE -->
+        <div id="card-idle" class="glass-panel rounded-2xl p-4 border border-slate-700/50 flex flex-col items-center justify-between text-center relative overflow-hidden group hover:border-slate-500/60 transition shadow-[0_0_15px_rgba(0,0,0,0.5)]">
+          <div class="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-md bg-slate-800 border border-slate-600 text-[10px] font-mono text-slate-300 font-bold uppercase">
+            5. Idle / Ready
+          </div>
+          <div class="w-36 h-36 my-3 relative flex items-center justify-center" id="svg-host-idle"></div>
+          <div class="w-full pt-2 border-t border-slate-800 space-y-1">
+            <span class="text-xs font-bold text-zinc-300 block font-mono">Standby Breathing</span>
+            <p class="text-[11px] text-zinc-500 leading-tight">Subtle resting luminescence awaiting hotkey trigger or voice wake.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- SECTION 2: HUD SCALE & INTERACTIVE DYNAMIC ISLAND PREVIEW -->
+    <section class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+      <!-- LEFT: Dynamic Island HUD Integration (7 Cols) -->
+      <div class="lg:col-span-7 glass-panel rounded-3xl p-6 border border-[#222938] space-y-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-sm font-bold text-white font-mono flex items-center gap-2">
+              <span>🏝️</span> NATIVE DYNAMIC ISLAND HUD PREVIEW
+            </h3>
+            <p class="text-xs text-zinc-400">Live preview of the 480×58 fixed macOS capsule with clean reactive status icon.</p>
+          </div>
+          <div class="flex items-center gap-1 bg-[#0b0e14] p-1 rounded-xl border border-[#1b2230] text-xs font-mono">
+            <button onclick="setHudState('thinking')" id="btn-hud-thinking" class="px-2.5 py-1 rounded-lg text-purple-300 hover:bg-purple-500/20 transition">Thinking</button>
+            <button onclick="setHudState('speaking')" id="btn-hud-speaking" class="px-2.5 py-1 rounded-lg bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/40 shadow-sm transition">Speaking</button>
+            <button onclick="setHudState('listening')" id="btn-hud-listening" class="px-2.5 py-1 rounded-lg text-emerald-300 hover:bg-emerald-500/20 transition">Listening</button>
+            <button onclick="setHudState('working')" id="btn-hud-working" class="px-2.5 py-1 rounded-lg text-blue-300 hover:bg-blue-500/20 transition">Working</button>
+            <button onclick="setHudState('idle')" id="btn-hud-idle" class="px-2.5 py-1 rounded-lg text-zinc-400 hover:bg-slate-700 transition">Idle</button>
+          </div>
+        </div>
+
+        <!-- Simulated macOS Desktop Canvas -->
+        <div class="w-full bg-[#05060a] rounded-2xl p-6 border border-[#161c28] flex flex-col items-center justify-center min-h-[220px] relative overflow-hidden" style="background-image: radial-gradient(circle at 50% 30%, #161b2d 0%, #06080e 70%);">
+          
+          <!-- Screen Notch -->
+          <div class="w-36 h-5 bg-black rounded-b-xl border-b border-x border-[#1c1c1c] shadow-lg flex items-center justify-center gap-1.5 mb-4 opacity-70">
+            <div class="w-1.5 h-1.5 rounded-full bg-blue-900"></div>
+            <div class="w-1 h-1 rounded-full bg-emerald-500 animate-pulse"></div>
+          </div>
+
+          <!-- The Floating HUD Capsule (Fixed 480x58 scale) -->
+          <div id="liveHudCapsule" class="w-full max-w-[480px] bg-[#0c0e16]/90 backdrop-blur-2xl rounded-2xl border border-cyan-500/40 p-3 flex items-center justify-between shadow-2xl transition-all duration-300 hover:scale-[1.01]">
+            
+            <div class="flex items-center gap-3 min-w-0">
+              <div id="hudLogoHost" class="w-9 h-9 shrink-0 flex items-center justify-center rounded-xl bg-black/40 border border-white/10 p-0.5 shadow-inner"></div>
+              <div class="min-w-0">
+                <div class="flex items-center gap-1.5">
+                  <span id="hudAgentTitle" class="text-xs font-bold text-white tracking-tight">Antigravity</span>
+                  <span id="hudPersonaLabel" class="text-[10px] text-cyan-300 font-mono">• Christopher</span>
+                </div>
+                <p id="hudSubtitle" class="text-[11px] text-zinc-300 truncate font-sans">
+                  "Refactored the authentication controller and ran all 150 test suites."
+                </p>
+              </div>
+            </div>
+
+            <div class="shrink-0 pl-3">
+              <span id="hudStateTag" class="px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 flex items-center gap-1">
+                SPEAKING
+              </span>
+            </div>
+
+          </div>
+
+          <span class="text-[10px] font-mono text-zinc-500 mt-4">Native 480×58 Fixed macOS NSPanel Architecture</span>
+        </div>
+
+      </div>
+
+      <!-- RIGHT: Multi-Scale Icon Density Grid (5 Cols) -->
+      <div class="lg:col-span-5 glass-panel rounded-3xl p-6 border border-[#222938] space-y-4">
+        <div>
+          <h3 class="text-sm font-bold text-white font-mono flex items-center gap-2">
+            MULTI-SCALE RESOLUTION DENSITY
+          </h3>
+          <p class="text-xs text-zinc-400">Pure vector legibility from micro HUD badge to high-DPI widget.</p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 font-mono text-xs">
+          
+          <div class="bg-[#0b0e14] p-3 rounded-2xl border border-[#1b2230] flex items-center gap-3">
+            <div class="w-6 h-6 flex items-center justify-center shrink-0 bg-black/60 rounded-lg p-0.5 border border-white/10" id="scale-24"></div>
+            <div>
+              <span class="font-bold text-white text-[11px] block">24px (Menu Bar)</span>
+              <span class="text-[9px] text-zinc-500">Pixel-crisp outline</span>
+            </div>
+          </div>
+
+          <div class="bg-[#0b0e14] p-3 rounded-2xl border border-[#1b2230] flex items-center gap-3">
+            <div class="w-9 h-9 flex items-center justify-center shrink-0 bg-black/60 rounded-lg p-0.5 border border-white/10" id="scale-36"></div>
+            <div>
+              <span class="font-bold text-white text-[11px] block">36px (HUD Status)</span>
+              <span class="text-[9px] text-zinc-500">Standard Dynamic Island</span>
+            </div>
+          </div>
+
+          <div class="bg-[#0b0e14] p-3 rounded-2xl border border-[#1b2230] flex items-center gap-3">
+            <div class="w-12 h-12 flex items-center justify-center shrink-0 bg-black/60 rounded-xl p-1 border border-white/10" id="scale-48"></div>
+            <div>
+              <span class="font-bold text-white text-[11px] block">48px (Control Center)</span>
+              <span class="text-[9px] text-zinc-500">Clean glow bounds</span>
+            </div>
+          </div>
+
+          <div class="bg-[#0b0e14] p-3 rounded-2xl border border-[#1b2230] flex items-center gap-3">
+            <div class="w-16 h-16 flex items-center justify-center shrink-0 bg-black/60 rounded-xl p-1 border border-white/10" id="scale-64"></div>
+            <div>
+              <span class="font-bold text-white text-[11px] block">64px (Voice Stage)</span>
+              <span class="text-[9px] text-zinc-500">High-DPI Mobile PWA</span>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="bg-[#10141f] p-3 rounded-xl border border-[#202738] text-[11px] text-zinc-400 space-y-1">
+          <span class="font-bold text-white block">Architectural Minimalism</span>
+          <p>By confining all lighting directly to the SVG strokes (WiFi arcs, ear jacks, mouth curve), the icon scales down to 24px with zero visual clutter.</p>
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- SECTION 3: SPECIFICATION & DESIGN TOKENS -->
+    <section class="glass-panel rounded-3xl p-6 border border-[#222938] space-y-4">
+      <h3 class="text-sm font-bold text-white font-mono flex items-center gap-2">
+        CLEAN ANATOMICAL LIGHTING SPECIFICATION
+      </h3>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-mono">
+        <div class="bg-[#0b0e14] p-4 rounded-2xl border border-[#1b2230] space-y-2">
+          <div class="flex items-center gap-2 text-purple-300 font-bold">
+            1. Thinking / WiFi Hat
+          </div>
+          <ul class="text-[11px] text-zinc-400 space-y-1 list-disc pl-4">
+            <li><strong class="text-white">Active Area:</strong> 3 Broadcast Arcs (`A 120`, `A 80`, `A 42`)</li>
+            <li><strong class="text-white">Animation:</strong> Sequential upward energetic pulse & neon glow</li>
+            <li><strong class="text-white">Palette:</strong> Electric Red `#FF2A2A` + Neon Violet `#A855F7`</li>
+            <li><strong class="text-white">Trigger:</strong> Agent LLM reasoning & code analysis</li>
+          </ul>
+        </div>
+
+        <div class="bg-[#0b0e14] p-4 rounded-2xl border border-[#1b2230] space-y-2">
+          <div class="flex items-center gap-2 text-emerald-300 font-bold">
+            2. Listening / Headset Ears
+          </div>
+          <ul class="text-[11px] text-zinc-400 space-y-1 list-disc pl-4">
+            <li><strong class="text-white">Active Area:</strong> Left & Right Ear Units (`x=110`, `x=374`) + Center Dots</li>
+            <li><strong class="text-white">Animation:</strong> Vivid emerald neon drop-shadow & cradle audio pulse</li>
+            <li><strong class="text-white">Palette:</strong> Emerald `#10B981` + Bright Mint `#00F5A0`</li>
+            <li><strong class="text-white">Trigger:</strong> Zero-click Energy VAD capturing speech</li>
+          </ul>
+        </div>
+
+        <div class="bg-[#0b0e14] p-4 rounded-2xl border border-[#1b2230] space-y-2">
+          <div class="flex items-center gap-2 text-cyan-300 font-bold">
+            3. Speaking / Waveform Mouth
+          </div>
+          <ul class="text-[11px] text-zinc-400 space-y-1 list-disc pl-4">
+            <li><strong class="text-white">Active Area:</strong> Quadratic Curve Mouth (`M 230 320 Q 256 342 282 320`)</li>
+            <li><strong class="text-white">Animation:</strong> Dynamic talking jaw articulation & voice resonance glow</li>
+            <li><strong class="text-white">Palette:</strong> Electric Red `#FF2A2A` + Coral Cyan `#22D3EE`</li>
+            <li><strong class="text-white">Trigger:</strong> Audio TTS speech synthesis playback</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    function getVoiceFiReactiveSVG(state = 'idle', idPrefix = 'vf') {
+      const stateClass = `vifi-active-${state}`;
+
+      return `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="50 50 412 412" class="w-full h-full object-contain ${stateClass}" style="overflow: visible;">
+          <g transform="translate(0, 15)">
+            <!-- 1. WI-FI BROADCAST HAT (White default; Red on Thinking) -->
+            <g class="vifi-wifi-group" fill="none" stroke-linecap="round">
+              <path class="vifi-wifi-crown" d="M 152 145 A 120 120 0 0 1 360 145" stroke="#FFFFFF" stroke-width="18" />
+              <path class="vifi-wifi-visor" d="M 184 180 A 80 80 0 0 1 328 180" stroke="#FFFFFF" stroke-width="17" />
+              <path class="vifi-wifi-brim" d="M 216 215 A 42 42 0 0 1 296 215" stroke="#FFFFFF" stroke-width="16" />
+            </g>
+
+            <!-- 2. MINIMALIST CYBER FACE & USB-C NOSE (White default; Red on Working) -->
+            <g class="vifi-eyes-group" stroke-linecap="round">
+              <line class="vifi-eyes vifi-eye-left" x1="202" y1="262" x2="234" y2="262" stroke="#FFFFFF" stroke-width="8" />
+              <line class="vifi-eyes vifi-eye-right" x1="278" y1="262" x2="310" y2="262" stroke="#FFFFFF" stroke-width="8" />
+            </g>
+
+            <g class="vifi-nose-group">
+              <rect class="vifi-nose-frame" x="238" y="278" width="36" height="15" rx="7.5" fill="#000000" stroke="#FFFFFF" stroke-width="2.5" />
+              <line class="vifi-nose-pin" x1="246" y1="285.5" x2="266" y2="285.5" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" />
+            </g>
+
+            <!-- 3. ACOUSTIC WAVEFORM SMILE MOUTH (White default; Red on Speaking) -->
+            <path class="vifi-mouth" d="M 230 320 Q 256 342 282 320" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" />
+
+            <!-- 4. HEADSET CRADLE & EARS (White default; Ears Red on Listening) -->
+            <path class="vifi-cradle" d="M 124 220 C 124 350, 175 385, 256 385 C 337 385, 388 350, 388 220" fill="none" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round" />
+
+            <g class="vifi-ear-left">
+              <rect class="vifi-ear-frame" x="110" y="205" width="28" height="30" rx="6" fill="#000000" stroke="#FFFFFF" stroke-width="3.5" />
+              <circle class="vifi-ear-dot vifi-ear-dot-l" cx="124" cy="220" r="4.5" fill="#FFFFFF" />
+            </g>
+
+            <g class="vifi-ear-right">
+              <rect class="vifi-ear-frame" x="374" y="205" width="28" height="30" rx="6" fill="#000000" stroke="#FFFFFF" stroke-width="3.5" />
+              <circle class="vifi-ear-dot vifi-ear-dot-r" cx="388" cy="220" r="4.5" fill="#FFFFFF" />
+            </g>
+
+            <!-- 5. STEM & HEAVY STUDIO BASE -->
+            <line class="vifi-stem" x1="256" y1="385" x2="256" y2="430" stroke="#FFFFFF" stroke-width="13" stroke-linecap="round" />
+            <line class="vifi-base-stand" x1="190" y1="430" x2="322" y2="430" stroke="#FFFFFF" stroke-width="13" stroke-linecap="round" />
+          </g>
+        </svg>
+      `;
+    }
+
+    function initMatrix() {
+      document.getElementById('svg-host-thinking').innerHTML = getVoiceFiReactiveSVG('thinking', 'mat_think');
+      document.getElementById('svg-host-listening').innerHTML = getVoiceFiReactiveSVG('listening', 'mat_listen');
+      document.getElementById('svg-host-speaking').innerHTML = getVoiceFiReactiveSVG('speaking', 'mat_speak');
+      document.getElementById('svg-host-working').innerHTML = getVoiceFiReactiveSVG('working', 'mat_work');
+      document.getElementById('svg-host-idle').innerHTML = getVoiceFiReactiveSVG('idle', 'mat_idle');
+
+      document.getElementById('scale-24').innerHTML = getVoiceFiReactiveSVG('thinking', 's24');
+      document.getElementById('scale-36').innerHTML = getVoiceFiReactiveSVG('speaking', 's36');
+      document.getElementById('scale-48').innerHTML = getVoiceFiReactiveSVG('listening', 's48');
+      document.getElementById('scale-64').innerHTML = getVoiceFiReactiveSVG('working', 's64');
+
+      setHudState('speaking');
+    }
+
+    function setAllCardsState(state) {
+      ['thinking', 'listening', 'speaking', 'working', 'idle'].forEach(s => {
+        document.getElementById(`svg-host-${s}`).innerHTML = getVoiceFiReactiveSVG(state, `card_${s}_${state}`);
+      });
+    }
+
+    function resetMatrixToIndividual() {
+      initMatrix();
+    }
+
+    const hudConfigs = {
+      thinking: {
+        agent: 'Antigravity',
+        persona: '• Christopher',
+        subtitle: '"Evaluating AST dependencies and planning unit test cases..."',
+        badge: 'THINKING',
+        badgeClass: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
+        glow: 'border-purple-500/40 shadow-[0_0_24px_rgba(168,85,247,0.3)]'
+      },
+      speaking: {
+        agent: 'Antigravity',
+        persona: '• Christopher',
+        subtitle: '"Refactored the authentication controller and ran all 150 test suites."',
+        badge: 'SPEAKING',
+        badgeClass: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30',
+        glow: 'border-cyan-500/40 shadow-[0_0_24px_rgba(6,182,212,0.35)]'
+      },
+      listening: {
+        agent: 'Listening to Jake',
+        persona: '• Energy VAD',
+        subtitle: '"Yeah, proceed with the unified Dynamic Island implementation..."',
+        badge: 'LISTENING',
+        badgeClass: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+        glow: 'border-emerald-500/40 shadow-[0_0_24px_rgba(16,185,129,0.35)]'
+      },
+      working: {
+        agent: 'Antigravity',
+        persona: '• Aria (QA)',
+        subtitle: 'Executing: pytest tests/ -v (Passed 210/210 test suites)',
+        badge: 'WORKING',
+        badgeClass: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
+        glow: 'border-blue-500/40 shadow-[0_0_24px_rgba(59,130,246,0.35)]'
+      },
+      idle: {
+        agent: 'VoiceFi',
+        persona: '• Standby',
+        subtitle: 'Ready for voice wake or global hotkey (⇧⌘N)',
+        badge: 'READY',
+        badgeClass: 'bg-slate-800 text-slate-300 border-slate-700',
+        glow: 'border-slate-700 shadow-lg'
+      }
+    };
+
+    function setHudState(state) {
+      const cfg = hudConfigs[state];
+      if (!cfg) return;
+
+      const capsule = document.getElementById('liveHudCapsule');
+      const logoHost = document.getElementById('hudLogoHost');
+      const agentTitle = document.getElementById('hudAgentTitle');
+      const personaLabel = document.getElementById('hudPersonaLabel');
+      const subtitle = document.getElementById('hudSubtitle');
+      const stateTag = document.getElementById('hudStateTag');
+
+      logoHost.innerHTML = getVoiceFiReactiveSVG(state, `hud_${state}`);
+      agentTitle.innerText = cfg.agent;
+      personaLabel.innerText = cfg.persona;
+      subtitle.innerText = cfg.subtitle;
+      stateTag.innerHTML = cfg.badge;
+      stateTag.className = `px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold border flex items-center gap-1 ${cfg.badgeClass}`;
+      capsule.className = `w-full max-w-[480px] bg-[#0c0e16]/90 backdrop-blur-2xl rounded-2xl p-3 flex items-center justify-between transition-all duration-300 ${cfg.glow}`;
+
+      ['thinking', 'speaking', 'listening', 'working', 'idle'].forEach(s => {
+        const btn = document.getElementById(`btn-hud-${s}`);
+        if (btn) {
+          if (s === state) {
+            btn.className = `px-2.5 py-1 rounded-lg font-bold border shadow-sm transition ${cfg.badgeClass}`;
+          } else {
+            btn.className = `px-2.5 py-1 rounded-lg text-zinc-400 hover:bg-white/10 transition`;
+          }
+        }
+      });
+    }
+
+    let globalCycleTimer = null;
+    let globalStates = ['thinking', 'speaking', 'listening', 'working', 'idle'];
+    let globalStateIdx = 0;
+
+    function toggleGlobalCycle() {
+      const btn = document.getElementById('globalAutoCycleBtn');
+      const pIcon = document.getElementById('globalPlayIcon');
+      const pText = document.getElementById('globalPlayText');
+
+      if (globalCycleTimer) {
+        clearInterval(globalCycleTimer);
+        globalCycleTimer = null;
+        pIcon.innerText = '▶️';
+        pText.innerText = 'Cycle All States';
+        btn.className = 'px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-gradient-to-r from-red-500 via-purple-600 to-cyan-500 hover:opacity-90 text-white shadow-lg flex items-center gap-1.5 transition active:scale-95';
+      } else {
+        pIcon.innerText = '⏸️';
+        pText.innerText = 'Pause Cycle';
+        btn.className = 'px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-amber-500 hover:bg-amber-400 text-black shadow-lg flex items-center gap-1.5 transition active:scale-95';
+        
+        globalCycleTimer = setInterval(() => {
+          globalStateIdx = (globalStateIdx + 1) % globalStates.length;
+          const nextState = globalStates[globalStateIdx];
+          setHudState(nextState);
+          setAllCardsState(nextState);
+        }, 2400);
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initMatrix();
+    });
+  </script>
+</body>
+</html>

@@ -570,6 +570,8 @@ class VoiceFiTrayApp(rumps.App):
 
             def _make_set_cb(persona_obj):
                 def _cb(sender):
+                    self.config.tts.voice = persona_obj.id
+                    self.config.tts.provider = persona_obj.provider
                     self.config.agents["antigravity"] = AgentVoiceProfile(
                         voice=persona_obj.id,
                         provider=persona_obj.provider,

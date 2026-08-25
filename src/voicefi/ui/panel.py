@@ -2884,11 +2884,17 @@ class VoicePanelRequestHandler(http.server.BaseHTTPRequestHandler):
                 description=f"Assigned to {target}",
             )
 
-            if target == "default":
+            if target in ("default", "global", "all"):
                 self.server.config.tts.voice = resolved_voice
                 self.server.config.tts.provider = resolved_provider
                 if rate:
                     self.server.config.tts.rate = rate
+                self.server.config.agents["antigravity"] = AgentVoiceProfile(
+                    voice=resolved_voice,
+                    provider=resolved_provider,
+                    rate=rate,
+                    description="Assigned to antigravity (default)",
+                )
             elif target in ("researcher", "debugger", "architect", "tester", "writer"):
                 self.server.config.subagents[target] = profile
             else:
@@ -2910,6 +2916,10 @@ class VoicePanelRequestHandler(http.server.BaseHTTPRequestHandler):
                 self.server.config.tts.provider = payload["provider"]
             if "voice" in payload:
                 self.server.config.tts.voice = payload["voice"]
+                if "antigravity" in self.server.config.agents:
+                    self.server.config.agents["antigravity"].voice = payload["voice"]
+                    if "provider" in payload:
+                        self.server.config.agents["antigravity"].provider = payload["provider"]
             save_config(self.server.config)
             self._send_json({"status": "saved", "config": self.server.config.tts.model_dump()})
             return
