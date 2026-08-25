@@ -723,7 +723,7 @@ class VoiceFiTrayApp(rumps.App):
                     self.hud.set_speaking(
                         text=speaking_info.get("text", "") or "Speaking aloud...",
                         agent_name=speaking_info.get("agent_name", "VoiceFi"),
-                        persona_name=speaking_info.get("persona_name", "Christopher"),
+                        persona_name=speaking_info.get("persona_name") or "Viv",
                         linger=None,
                     )
         elif was_speaking and not is_speaking:

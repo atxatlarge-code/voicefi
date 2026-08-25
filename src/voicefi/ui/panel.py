@@ -2622,7 +2622,7 @@ class VoicePanelRequestHandler(http.server.BaseHTTPRequestHandler):
         if path == "/api/hud/preview":
             text = payload.get("text", "I'm your active AI pairing agent. All tests passed and changes are ready to ship.")
             agent = payload.get("agent", "Antigravity")
-            persona = payload.get("persona", "Christopher")
+            persona = payload.get("persona", "Viv")
             try:
                 from voicefi.ui.speech_hud import AgentSpeechHUD
                 hud = AgentSpeechHUD.get_instance()

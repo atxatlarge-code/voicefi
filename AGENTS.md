@@ -36,7 +36,7 @@ Universal Voice Layer for Knowledge Vaults, MCP, and Autonomous AI Coding Agents
 
 * **Testing Barge-In Aloud:**
   ```bash
-  vifi voice test "Christopher" -t "This is a full test of laptop active voice barge-in. I will keep speaking aloud for several seconds so you can hear that I do not cut off automatically. If you want to interrupt me, speak firmly into your microphone."
+  vifi voice test "Viv" -t "This is a full test of laptop active voice barge-in. I will keep speaking aloud for several seconds so you can hear that I do not cut off automatically. If you want to interrupt me, speak firmly into your microphone."
   ```
 * **Resolution if Premature Cutoffs Occur:**
   1. Check hardware profile: `vifi troubleshoot --json`
@@ -55,7 +55,7 @@ Universal Voice Layer for Knowledge Vaults, MCP, and Autonomous AI Coding Agents
 To debug how VoiceFi handles simultaneous speech output and microphone capture:
 * **Audition & Test Mid-Speech Interruption:**
   ```bash
-  vifi voice test "Christopher" -t "<long sample phrase>"
+  vifi voice test "Viv" -t "<long sample phrase>"
   ```
 * **Test Full Roundtrip:**
   ```bash

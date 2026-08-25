@@ -43,12 +43,12 @@
       <rect x="0" y="-12" width="100" height="20" fill="#FF2A2A"/>
       <text x="50" y="2" fill="#FFFFFF" font-family="'JetBrains Mono', monospace" font-size="10" font-weight="900" letter-spacing="1.5" text-anchor="middle">● ON AIR</text>
       
-      <text x="114" y="2" fill="#666666" font-family="'JetBrains Mono', monospace" font-size="10.5" font-weight="700" letter-spacing="1">U.S. PAT. APP. 64/137,300</text>
+      <text x="114" y="2" fill="#666666" font-family="'JetBrains Mono', monospace" font-size="10.5" font-weight="700" letter-spacing="1">U.S. PAT. APP. 63/137,300</text>
     </g>
 
     <!-- Main Bold Swiss Wordmark -->
     <text x="0" y="86" fill="#000000" font-family="-apple-system, 'Helvetica Neue', 'Neue Haas Grotesk', 'Inter', sans-serif" font-weight="900" font-size="62" letter-spacing="-0.04em">
-      VOICEGENCY<tspan fill="#FF2A2A">.</tspan>
+      VOICEFI<tspan fill="#FF2A2A">.</tspan>
     </text>
 
     <!-- The Master Slogan / Chiasmus in Stark Technical Typography -->

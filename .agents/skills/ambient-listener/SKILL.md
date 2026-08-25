@@ -5,7 +5,7 @@ description: Enables real-time ambient listening for meetings, standups, and dev
 
 # 🎙️ Ambient Listener & Proactive Co-Pilot Skill
 
-Use this skill when Voicegency is running in ambient background mode during meetings (Zoom, Google Meet, Slack Huddles, FaceTime), standup sessions, or while pacing and brainstorming aloud.
+Use this skill when VoiceFi is running in ambient background mode during meetings (Zoom, Google Meet, Slack Huddles, FaceTime), standup sessions, or while pacing and brainstorming aloud.
 
 ---
 

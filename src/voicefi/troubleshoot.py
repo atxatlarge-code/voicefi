@@ -662,7 +662,7 @@ class AudioTroubleshooter:
 
     def test_hearing(
         self,
-        voice_name_or_id: str = "Aria",
+        voice_name_or_id: str = "Viv",
         text: str = "This is a hearing test",
         provider: Optional[str] = None,
         rate: Optional[int] = None,
@@ -680,7 +680,7 @@ class AudioTroubleshooter:
 
     def test_full_voice_loop(
         self,
-        voice_name_or_id: str = "Aria",
+        voice_name_or_id: str = "Viv",
         text: str = "This is a loopback test",
         provider: Optional[str] = None,
         rate: Optional[int] = None,
@@ -689,7 +689,7 @@ class AudioTroubleshooter:
     ) -> Dict[str, Any]:
         """
         Full Voice Loopback Test:
-        1. Speaks phrase aloud using requested voice (e.g. Aria).
+        1. Speaks phrase aloud using requested voice (e.g. Viv).
         2. Captures room audio through microphone.
         3. Transcribes spoken speech via STT.
         4. Sends transcribed text back into the terminal / Antigravity agent chat as if the user spoke it,
@@ -720,7 +720,7 @@ class AudioTroubleshooter:
 
     def test_feedback_loop(
         self,
-        voice_name_or_id: str = "Aria",
+        voice_name_or_id: str = "Viv",
         text: str = "This is a test feedback loop",
         provider: Optional[str] = None,
         rate: Optional[int] = None,

@@ -39,7 +39,7 @@ def set_agent_speaking(
                 "timestamp": time.time(),
                 "text": text or "",
                 "agent_name": agent_name or "VoiceFi",
-                "persona_name": persona_name or "Christopher",
+                "persona_name": persona_name or "Viv",
             }
             AGENT_SPEAKING_STATUS_FILE.write_text(json.dumps(payload))
         else:
@@ -127,7 +127,7 @@ def get_agent_speaking_info() -> Optional[Dict[str, Any]]:
                             "timestamp": ts,
                             "text": "",
                             "agent_name": "VoiceFi",
-                            "persona_name": "Christopher",
+                            "persona_name": "Viv",
                         }
                     else:
                         AGENT_SPEAKING_STATUS_FILE.unlink(missing_ok=True)
@@ -139,7 +139,7 @@ def get_agent_speaking_info() -> Optional[Dict[str, Any]]:
                             "timestamp": ts,
                             "text": "",
                             "agent_name": "VoiceFi",
-                            "persona_name": "Christopher",
+                            "persona_name": "Viv",
                         }
                     else:
                         AGENT_SPEAKING_STATUS_FILE.unlink(missing_ok=True)
@@ -152,7 +152,7 @@ def get_agent_speaking_info() -> Optional[Dict[str, Any]]:
             "timestamp": time.time(),
             "text": "",
             "agent_name": "VoiceFi",
-            "persona_name": "Christopher",
+            "persona_name": "Viv",
         }
 
     return None

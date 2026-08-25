@@ -41,8 +41,10 @@ def run_onboarding():
 
     _, resolved_voice, _ = config.resolve_voice("antigravity")
     tts = get_tts_engine(config, voice_override=resolved_voice)
-    voice_label = getattr(tts, "voice", "Andrew")
-    if "-" in voice_label:
+    voice_label = getattr(tts, "voice", "Viv")
+    if "Ava" in voice_label or "Viv" in voice_label:
+        voice_label = "Viv"
+    elif "-" in voice_label:
         voice_label = voice_label.split("-")[-1].replace("Neural", "")
 
     user_name = getpass.getuser().capitalize()

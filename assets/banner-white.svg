@@ -12,7 +12,7 @@
   <!-- Top Left Stamp -->
   <g transform="translate(60, 60)">
     <rect x="0" y="0" width="130" height="24" fill="#000000"/>
-    <text x="65" y="16" fill="#D4FF00" font-family="'JetBrains Mono', monospace" font-size="11" font-weight="900" letter-spacing="2" text-anchor="middle">VOICEGENCY</text>
+    <text x="65" y="16" fill="#D4FF00" font-family="'JetBrains Mono', monospace" font-size="11" font-weight="900" letter-spacing="2" text-anchor="middle">VOICEFI</text>
     <text x="145" y="16" fill="#666666" font-family="'JetBrains Mono', monospace" font-size="11" font-weight="700">SPEC: WHITE PRINT // VERSION 2.0</text>
   </g>
 
@@ -43,10 +43,10 @@
   <!-- Bottom Left Manifesto Block -->
   <g transform="translate(60, 490)">
     <text x="0" y="22" fill="#000000" font-family="Georgia, serif" font-style="italic" font-size="15" letter-spacing="-0.01em">
-      “Download Voicegency and be free to speak your movement.”
+      “Download VoiceFi and be free to speak your movement.”
     </text>
     <text x="0" y="48" fill="#888888" font-family="'JetBrains Mono', monospace" font-size="11" font-weight="700">
-      U.S. PATENT APP. NO. 64/137,300 • LIENLOGIC DATA LLC • VOICEGENCY.COM
+      U.S. PATENT APP. NO. 63/137,300 • LIENLOGIC DATA LLC • VOICEFI.ORG
     </text>
   </g>
 

@@ -103,13 +103,15 @@ class MacSayTTS(BaseTTS):
                 try:
                     from voicefi.tts.base import set_agent_audio_playing
                     set_agent_audio_playing(True)
-                    self._current_process = subprocess.Popen(
+                    proc = subprocess.Popen(
                         cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
                     )
-                    self._current_process.wait()
-                    if not self._stop_requested and self._current_process.returncode != 0:
+                    self._current_process = proc
+                    proc.wait()
+                    if not self._stop_requested and proc.returncode != 0:
                         # Fallback to default system voice
                         fallback = subprocess.Popen(["say", "--", text], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        self._current_process = fallback
                         fallback.wait()
                 except Exception as e:
                     print(f"[MacSayTTS] Error speaking: {e}")
@@ -142,8 +144,10 @@ class MacSayTTS(BaseTTS):
 
     def stop(self) -> None:
         """Stop current speech synthesis."""
-        if self._current_process and self._current_process.poll() is None:
-            self._current_process.terminate()
+        self._stop_requested = True
+        proc = self._current_process
+        if proc and proc.poll() is None:
+            proc.terminate()
             self._current_process = None
 
     @staticmethod
