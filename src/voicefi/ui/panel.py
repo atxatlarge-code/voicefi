@@ -1298,7 +1298,7 @@ HTML_CONTROL_PANEL = """<!DOCTYPE html>
       </div>
     </div>
     <div class="hud-hints">
-      <span class="hint-chip" onclick="speakHint('Audition Christopher')">🗣️ Audition Christopher</span>
+      <span class="hint-chip" onclick="speakHint('Audition Viv')">🗣️ Audition Viv</span>
       <span class="hint-chip" onclick="speakHint('Switch to Aria')">🗣️ Switch to Aria</span>
       <span class="hint-chip" onclick="speakHint('Assign Sonia to researcher')">🗣️ Make researcher Sonia</span>
       <span class="hint-chip" onclick="speakHint('Faster')">🗣️ Faster</span>
@@ -1309,7 +1309,7 @@ HTML_CONTROL_PANEL = """<!DOCTYPE html>
   <!-- Target Agent Selector Tabs -->
   <div class="target-tabs" id="targetTabs">
     <button class="tab-btn active" id="tab-antigravity" onclick="setTarget('antigravity', this)">
-      🤖 Antigravity (Main Agent) <span class="tab-badge" id="badge-antigravity">Christopher</span>
+      🤖 Antigravity (Main Agent) <span class="tab-badge" id="badge-antigravity">Viv</span>
     </button>
     <button class="tab-btn" id="tab-claude" onclick="setTarget('claude', this)">
       🎭 Claude Code <span class="tab-badge" id="badge-claude">Guy</span>
@@ -1331,10 +1331,10 @@ HTML_CONTROL_PANEL = """<!DOCTYPE html>
   <!-- Active Persona Highlight Banner -->
   <div class="active-banner">
     <div class="active-banner-left">
-      <div class="active-avatar" id="activeAvatar">C</div>
+      <div class="active-avatar" id="activeAvatar">✨</div>
       <div class="active-info">
-        <h3 id="activeTitle">Configuring Antigravity: Christopher</h3>
-        <p id="activeSubtitle">Deep, grounded, authoritative neural voice • Edge TTS</p>
+        <h3 id="activeTitle">Configuring Antigravity: Viv</h3>
+        <p id="activeSubtitle">Expressive, natural, modern conversational neural tone • Edge TTS</p>
       </div>
     </div>
     <div>
@@ -1587,6 +1587,7 @@ HTML_CONTROL_PANEL = """<!DOCTYPE html>
 
   // Personas avatars
   const avatarIcons = {
+    'Viv': '✨',
     'Christopher': '🧔',
     'Aria': '⚡',
     'Sonia': '🔍',
@@ -1608,13 +1609,13 @@ HTML_CONTROL_PANEL = """<!DOCTYPE html>
   }
 
   function getActiveVoiceForTarget(target) {
-    if (!state) return 'Christopher';
+    if (!state) return 'Viv';
     if (target === 'antigravity') {
       if (state.active_antigravity) {
         if (typeof state.active_antigravity === 'string') return state.active_antigravity;
-        return state.active_antigravity.name || state.active_antigravity.voice || 'Christopher';
+        return state.active_antigravity.name || state.active_antigravity.voice || 'Viv';
       }
-      return 'Christopher';
+      return 'Viv';
     }
     if (target === 'default') {
       return state.config?.tts?.voice || 'Samantha';
@@ -1625,7 +1626,7 @@ HTML_CONTROL_PANEL = """<!DOCTYPE html>
     }
     if (state.agents && state.agents[target]) {
       const a = state.agents[target];
-      return typeof a === 'string' ? a : (a.name || a.voice || 'Christopher');
+      return typeof a === 'string' ? a : (a.name || a.voice || 'Viv');
     }
     return state.config?.tts?.voice || 'Samantha';
   }
@@ -1644,7 +1645,7 @@ HTML_CONTROL_PANEL = """<!DOCTYPE html>
   }
 
   function renderActiveBanner() {
-    const activeName = getActiveVoiceForTarget(currentTarget) || 'Christopher';
+    const activeName = getActiveVoiceForTarget(currentTarget) || 'Viv';
     const persona = state?.curated_personas?.find(p => p.name === activeName || p.id === activeName);
     const clone = state?.cloned_voices?.find(c => c.name === activeName || c.id === activeName);
     

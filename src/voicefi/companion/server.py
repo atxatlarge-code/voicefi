@@ -54,6 +54,7 @@ from voicefi.companion.qr import get_local_ip, get_companion_urls, print_qr_code
 
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
+MOCKS_DIR = Path(__file__).resolve().parent.parent.parent.parent / "mocks"
 
 
 class CompanionServer:
@@ -179,7 +180,7 @@ class CompanionServer:
         )
 
     async def handle_mock(self, request: web.Request) -> web.Response:
-        mock_path = STATIC_DIR / "mocks.html" if (STATIC_DIR / "mocks.html").is_file() else STATIC_DIR / "mock.html"
+        mock_path = STATIC_DIR / "mocks.html" if (STATIC_DIR / "mocks.html").is_file() else (STATIC_DIR / "mock.html" if (STATIC_DIR / "mock.html").is_file() else (MOCKS_DIR / "mocks.html" if (MOCKS_DIR / "mocks.html").is_file() else MOCKS_DIR / "mock.html"))
         if not mock_path.is_file():
             return web.Response(text="VoiceFi Mock Studio UI missing.", status=404)
         return web.Response(
@@ -189,7 +190,7 @@ class CompanionServer:
         )
 
     async def handle_mocks(self, request: web.Request) -> web.Response:
-        mock_path = STATIC_DIR / "mocks.html" if (STATIC_DIR / "mocks.html").is_file() else STATIC_DIR / "mock.html"
+        mock_path = STATIC_DIR / "mocks.html" if (STATIC_DIR / "mocks.html").is_file() else (STATIC_DIR / "mock.html" if (STATIC_DIR / "mock.html").is_file() else (MOCKS_DIR / "mocks.html" if (MOCKS_DIR / "mocks.html").is_file() else MOCKS_DIR / "mock.html"))
         if not mock_path.is_file():
             return web.Response(text="VoiceFi Mocks UI missing.", status=404)
         return web.Response(
@@ -199,7 +200,7 @@ class CompanionServer:
         )
 
     async def handle_hud_mocks(self, request: web.Request) -> web.Response:
-        hud_mock_path = STATIC_DIR / "hud_mocks.html"
+        hud_mock_path = STATIC_DIR / "hud_mocks.html" if (STATIC_DIR / "hud_mocks.html").is_file() else MOCKS_DIR / "hud_mocks.html"
         if not hud_mock_path.is_file():
             return web.Response(text="VoiceFi Dynamic Island HUD Mocks missing.", status=404)
         return web.Response(
@@ -209,7 +210,7 @@ class CompanionServer:
         )
 
     async def handle_logo_mock(self, request: web.Request) -> web.Response:
-        mock_path = STATIC_DIR / "voicefi_logo_mock.html"
+        mock_path = STATIC_DIR / "voicefi_logo_mock.html" if (STATIC_DIR / "voicefi_logo_mock.html").is_file() else MOCKS_DIR / "voicefi_logo_mock.html"
         if not mock_path.is_file():
             return web.Response(text="VoiceFi Reactive Logo Mock UI missing.", status=404)
         return web.Response(

@@ -17,10 +17,10 @@ VoiceFi uses an **Apple Dynamic Island-style fluid morphing architecture**:
 You can design, preview, and test the HUD across two environments:
 
 ### 1. Interactive Web Mockup (Browser Canvas)
-Located at [`src/voicefi/companion/static/hud_mocks.html`](file:///Users/jaketrigg/Projects/VoiceFi/src/voicefi/companion/static/hud_mocks.html).
+Located at [`mocks/hud_mocks.html`](file:///Users/jaketrigg/Projects/VoiceFi/mocks/hud_mocks.html).
 ```bash
 # Open directly in your default browser:
-open src/voicefi/companion/static/hud_mocks.html
+open mocks/hud_mocks.html
 
 # Or via the VoiceFi Companion Server:
 # http://localhost:5050/hud_mocks.html
@@ -141,7 +141,7 @@ stateDiagram-v2
 | Purpose | Implementation File |
 | :--- | :--- |
 | **Native macOS HUD Implementation** | [`src/voicefi/ui/unified_hud.py`](file:///Users/jaketrigg/Projects/VoiceFi/src/voicefi/ui/unified_hud.py) |
-| **Interactive HTML/CSS Design Mockup** | [`src/voicefi/companion/static/hud_mocks.html`](file:///Users/jaketrigg/Projects/VoiceFi/src/voicefi/companion/static/hud_mocks.html) |
+| **Interactive HTML/CSS Design Mockup** | [`mocks/hud_mocks.html`](file:///Users/jaketrigg/Projects/VoiceFi/mocks/hud_mocks.html) |
 | **CLI & Debug Studio Commands** | [`src/voicefi/cli.py`](file:///Users/jaketrigg/Projects/VoiceFi/src/voicefi/cli.py) (`cmd_hud`) |
 | **HUD Configuration Schema** | [`src/voicefi/config.py`](file:///Users/jaketrigg/Projects/VoiceFi/src/voicefi/config.py) (`HUDConfig`) |
 | **Menu Bar Tray Integration** | [`src/voicefi/ui/tray.py`](file:///Users/jaketrigg/Projects/VoiceFi/src/voicefi/ui/tray.py) |
@@ -152,7 +152,7 @@ stateDiagram-v2
 ## 🚀 How to Iterate on the HUD Design
 
 1. **Iterate in HTML/CSS first:**
-   Edit [`src/voicefi/companion/static/hud_mocks.html`](file:///Users/jaketrigg/Projects/VoiceFi/src/voicefi/companion/static/hud_mocks.html) with Tailwind CSS classes to experiment with spacing, colors, font sizes, glassmorphism blur, and animations.
+   Edit [`mocks/hud_mocks.html`](file:///Users/jaketrigg/Projects/VoiceFi/mocks/hud_mocks.html) with Tailwind CSS classes to experiment with spacing, colors, font sizes, glassmorphism blur, and animations.
 2. **Translate to Native AppKit:**
    Update layout dimensions, `NSFont`, `NSColor`, and view frames in [`src/voicefi/ui/unified_hud.py`](file:///Users/jaketrigg/Projects/VoiceFi/src/voicefi/ui/unified_hud.py).
 3. **Verify immediately:**

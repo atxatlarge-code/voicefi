@@ -46,6 +46,10 @@ from AppKit import (
     NSFont,
     NSScreen,
     NSView,
+    NSImageView,
+    NSImage,
+    NSImageScaleProportionallyUpOrDown,
+    NSWorkspace,
     NSVisualEffectView,
     NSVisualEffectMaterialHUDWindow,
     NSVisualEffectBlendingModeBehindWindow,
@@ -68,6 +72,14 @@ AVATAR_ICONS: Dict[str, str] = {
     "architect": "📐",
     "devops": "📐",
     "claude": "🎭",
+    "cursor": "⚡",
+    "openai": "✨",
+    "chatgpt": "✳️",
+    "codex": "✳️",
+    "terminal": "💻",
+    "windsurf": "🏄",
+    "obsidian": "💎",
+    "vscode": "💻",
     "christopher": "🧔",
     "aria": "⚡",
     "sonia": "🔬",
@@ -78,6 +90,9 @@ AVATAR_ICONS: Dict[str, str] = {
     "alex": "🍏",
     "daniel": "🎙️",
     "viv": "✨",
+    "emily": "🍀",
+    "steffan": "🎩",
+    "andrew": "🤠",
 }
 
 
@@ -166,6 +181,8 @@ class UnifiedDynamicIslandHUD:
         self._label: Optional[NSTextField] = None
         self._avatar_box: Optional[NSView] = None
         self._avatar_lbl: Optional[NSTextField] = None
+        self._avatar_img: Optional[Any] = None
+        self._icon_cache: Dict[str, Any] = {}
         self._title_lbl: Optional[NSTextField] = None
         self._tag_lbl: Optional[NSTextField] = None
         self._body_lbl: Optional[NSTextField] = None
@@ -201,6 +218,68 @@ class UnifiedDynamicIslandHUD:
             if a_key in AVATAR_ICONS:
                 return AVATAR_ICONS[a_key]
         return "🤖"
+
+    def _resolve_app_icon(self, name: Optional[str]) -> Optional[Any]:
+        """Resolve native macOS application icon or asset bundle image for a given program or agent."""
+        if not name:
+            return None
+        key = name.lower().strip()
+
+        if not hasattr(self, "_icon_cache"):
+            self._icon_cache = {}
+
+        if key in self._icon_cache:
+            return self._icon_cache[key]
+
+        icon = None
+        try:
+            import os
+
+            # 1. Check VoiceFi bundle assets
+            if key in ("voicefi", "voicegency", "vf"):
+                base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+                candidates = [
+                    os.path.join(base_dir, "assets", "VoiceFi.icns"),
+                    os.path.join(base_dir, "assets", "VoiceFi.iconset", "icon_32x32@2x.png"),
+                    os.path.join(base_dir, "assets", "Voicegency.iconset", "icon_32x32@2x.png"),
+                ]
+                for p in candidates:
+                    if os.path.exists(p):
+                        img = NSImage.alloc().initWithContentsOfFile_(p)
+                        if img and hasattr(img, "isValid") and img.isValid():
+                            icon = img
+                            break
+
+            # 2. Check native macOS app bundles
+            if not icon:
+                ws = NSWorkspace.sharedWorkspace()
+                app_map = {
+                    "cursor": "Cursor",
+                    "claude": "Claude",
+                    "claude code": "Claude",
+                    "obsidian": "Obsidian",
+                    "vscode": "Visual Studio Code",
+                    "code": "Visual Studio Code",
+                    "visual studio code": "Visual Studio Code",
+                    "windsurf": "Windsurf",
+                    "terminal": "Terminal",
+                    "iterm": "iTerm",
+                    "ghostty": "Ghostty",
+                    "chatgpt": "ChatGPT",
+                    "openai": "ChatGPT",
+                    "antigravity": "Antigravity",
+                }
+                target_app = app_map.get(key, name)
+                app_path = ws.fullPathForApplication_(target_app)
+                if app_path and os.path.exists(app_path):
+                    img = ws.iconForFile_(app_path)
+                    if img and hasattr(img, "isValid") and img.isValid():
+                        icon = img
+        except Exception:
+            icon = None
+
+        self._icon_cache[key] = icon
+        return icon
 
     def reset_position(self):
         """Reset user-dragged position back to top-right of the screen with standard margin."""
@@ -275,9 +354,19 @@ class UnifiedDynamicIslandHUD:
         self._avatar_box = NSView.alloc().initWithFrame_(NSRect(NSPoint(14, 15), NSSize(28, 28)))
         self._avatar_box.setWantsLayer_(True)
         self._avatar_box.layer().setCornerRadius_(14.0)
+        self._avatar_box.layer().setMasksToBounds_(True)
         self._avatar_box.layer().setBackgroundColor_(
             NSColor.colorWithCalibratedRed_green_blue_alpha_(0.15, 0.20, 0.28, 0.85).CGColor()
         )
+
+        try:
+            self._avatar_img = NSImageView.alloc().initWithFrame_(NSRect(NSPoint(2, 2), NSSize(24, 24)))
+            if hasattr(self._avatar_img, "setImageScaling_"):
+                self._avatar_img.setImageScaling_(NSImageScaleProportionallyUpOrDown)
+            self._avatar_img.setHidden_(True)
+            self._avatar_box.addSubview_(self._avatar_img)
+        except Exception:
+            self._avatar_img = None
 
         self._avatar_lbl = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(0, 1), NSSize(28, 26)))
         self._avatar_lbl.setStringValue_("🎙️")
@@ -421,6 +510,7 @@ class UnifiedDynamicIslandHUD:
         tag_color: NSColor,
         body_text: str,
         border_color: NSColor,
+        avatar_image: Optional[Any] = None,
         width: Optional[float] = None,
         height: Optional[float] = None,
         linger: Optional[float] = None,
@@ -451,11 +541,23 @@ class UnifiedDynamicIslandHUD:
 
             self._root_view.layer().setBorderColor_(border_color.CGColor())
 
-            # Avatar Box
-            if self._avatar_box and self._avatar_lbl:
+            # Avatar Box (App Logo Image or Persona Emoji)
+            if self._avatar_box:
                 self._avatar_box.setHidden_(False)
                 self._avatar_box.layer().setBackgroundColor_(avatar_bg.CGColor())
-                self._avatar_lbl.setStringValue_(avatar_emoji)
+                if avatar_image and self._avatar_img:
+                    try:
+                        self._avatar_img.setImage_(avatar_image)
+                        self._avatar_img.setHidden_(False)
+                    except Exception:
+                        pass
+                    if self._avatar_lbl:
+                        self._avatar_lbl.setHidden_(True)
+                elif self._avatar_lbl:
+                    self._avatar_lbl.setStringValue_(avatar_emoji)
+                    self._avatar_lbl.setHidden_(False)
+                    if self._avatar_img:
+                        self._avatar_img.setHidden_(True)
 
             # Title & Tag (Top row)
             if self._title_lbl:
@@ -489,13 +591,10 @@ class UnifiedDynamicIslandHUD:
         else:
             AppHelper.callAfter(_update)
 
-    def _apply_state(
+    def _apply_simple_state(
         self,
         state: str,
         text: str,
-        width: Optional[float] = None,
-        height: Optional[float] = None,
-        font_size: float = 12.5,
         linger: Optional[float] = None,
     ):
         """Single-line / compatibility presentation maintaining fixed geometry."""
@@ -596,10 +695,12 @@ class UnifiedDynamicIslandHUD:
 
     def set_idle(self, linger: Optional[float] = None):
         """Set to Idle State (Fixed 480x58 persistent capsule)."""
+        app_icon = self._resolve_app_icon("VoiceFi")
         self._apply_rich_state(
             state="idle",
             avatar_emoji="🎙️",
             avatar_bg=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.15, 0.20, 0.28, 0.85),
+            avatar_image=app_icon,
             title="VoiceFi",
             tag_text="• Ready (⇧⌘N)",
             tag_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.3, 0.9, 0.7, 0.95),
@@ -611,10 +712,13 @@ class UnifiedDynamicIslandHUD:
     def set_thinking(self, agent_name: str = "Antigravity", detail: str = "Thinking..."):
         """Set to Thinking State with rich reasoning card (fixed 480x58)."""
         display_detail = detail or "Analyzing codebase & dependencies..."
+        app_icon = self._resolve_app_icon(agent_name)
+        avatar = self._resolve_avatar(agent_name)
         self._apply_rich_state(
             state="thinking",
-            avatar_emoji="🧠",
+            avatar_emoji=avatar or "🧠",
             avatar_bg=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.35, 0.20, 0.55, 0.85),
+            avatar_image=app_icon,
             title=agent_name.capitalize(),
             tag_text="• Thinking...",
             tag_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.8, 0.65, 1.0, 0.95),
@@ -625,10 +729,13 @@ class UnifiedDynamicIslandHUD:
     def set_working(self, agent_name: str = "Antigravity", tool_action: str = "Running tool..."):
         """Set to Working / Tool Execution State with rich tool card (fixed 480x58)."""
         display_tool = tool_action or "Executing background tasks..."
+        app_icon = self._resolve_app_icon(agent_name)
+        avatar = self._resolve_avatar(agent_name)
         self._apply_rich_state(
             state="working",
-            avatar_emoji="⚡",
+            avatar_emoji=avatar or "⚡",
             avatar_bg=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.15, 0.35, 0.65, 0.85),
+            avatar_image=app_icon,
             title=agent_name.capitalize(),
             tag_text="• Running Tool",
             tag_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.5, 0.8, 1.0, 0.95),
@@ -648,10 +755,12 @@ class UnifiedDynamicIslandHUD:
         clean = text.strip() or "Speaking..."
         speaker = persona_name if persona_name else agent_name.capitalize()
         avatar = self._resolve_avatar(agent_name, persona_name)
+        app_icon = None if (persona_name and persona_name.lower() in AVATAR_ICONS) else self._resolve_app_icon(agent_name)
         self._apply_rich_state(
             state="speaking",
             avatar_emoji=avatar,
             avatar_bg=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.1, 0.4, 0.5, 0.85),
+            avatar_image=app_icon,
             title=agent_name.capitalize(),
             tag_text=f"• {speaker} 🔊 [Speaking]",
             tag_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.3, 0.9, 1.0, 0.95),
