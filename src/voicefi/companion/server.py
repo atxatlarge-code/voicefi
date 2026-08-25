@@ -105,6 +105,8 @@ class CompanionServer:
         self.app.router.add_get("/mock", self.handle_mock)
         self.app.router.add_get("/mocks", self.handle_mocks)
         self.app.router.add_get("/hud_mocks", self.handle_hud_mocks)
+        self.app.router.add_get("/logo_mock", self.handle_logo_mock)
+        self.app.router.add_get("/status_icon", self.handle_logo_mock)
         self.app.router.add_get("/manifest.json", self.handle_manifest)
         self.app.router.add_get("/sw.js", self.handle_sw)
         self.app.router.add_get("/antigravity-particles.js", self.handle_antigravity_js)
@@ -141,6 +143,7 @@ class CompanionServer:
         self.app.router.add_post("/api/stt", self.handle_stt)
         self.app.router.add_post("/api/tts", self.handle_tts)
         self.app.router.add_post("/api/vault/query", self.handle_vault_query)
+        self.app.router.add_post("/api/hook/event", self.handle_hook_event)
         self.app.router.add_get("/api/qr", self.handle_qr)
         self.app.router.add_get("/ws", self.handle_ws)
 
@@ -201,6 +204,16 @@ class CompanionServer:
             return web.Response(text="VoiceFi Dynamic Island HUD Mocks missing.", status=404)
         return web.Response(
             text=hud_mock_path.read_text(encoding="utf-8"),
+            content_type="text/html",
+            headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+        )
+
+    async def handle_logo_mock(self, request: web.Request) -> web.Response:
+        mock_path = STATIC_DIR / "voicefi_logo_mock.html"
+        if not mock_path.is_file():
+            return web.Response(text="VoiceFi Reactive Logo Mock UI missing.", status=404)
+        return web.Response(
+            text=mock_path.read_text(encoding="utf-8"),
             content_type="text/html",
             headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
         )
@@ -640,6 +653,54 @@ class CompanionServer:
             return web.json_response({"success": True, "delivered": delivered})
         except Exception as e:
             return web.json_response({"error": str(e)}, status=500)
+
+    async def handle_hook_event(self, request: web.Request) -> web.Response:
+        """
+        Handle lifecycle hook event forwarded from CLI hook.
+        Updates active session cookie, broadcasts WebSocket event, and runs the turn worker
+        in a background thread with warm STT/TTS engines and Floating HUD.
+        """
+        try:
+            data = await request.json() if request.can_read_body else {}
+        except Exception:
+            data = {}
+
+        target_agent = str(data.get("agent") or "antigravity").lower().strip()
+        conv_id = data.get("conversationId") or data.get("conversation_id") or data.get("conv_id") or ""
+        transcript_path_str = data.get("transcriptPath") or data.get("transcript_path") or ""
+        workspace_paths = data.get("workspacePaths") or data.get("workspace_paths") or []
+        workspace_path = workspace_paths[0] if workspace_paths else None
+
+        if conv_id:
+            save_session_cookie(
+                conv_id=conv_id,
+                transcript_path=transcript_path_str,
+                workspace_path=workspace_path,
+                engine="claude" if target_agent in ("claude", "claude_code") else "antigravity",
+            )
+            self.tracker.set_active_focus(conv_id)
+
+        # Spawn background turn processor on daemon thread so HTTP response returns instantly (< 5ms)
+        def _process_hook_turn():
+            try:
+                if target_agent in ("claude", "claude_code"):
+                    from voicefi.integrations.claude import handle_claude_stop_hook
+                    handle_claude_stop_hook(data, self.config)
+                else:
+                    from voicefi.integrations.antigravity import handle_antigravity_stop_hook
+                    handle_antigravity_stop_hook(data, self.config)
+            except Exception as e:
+                print(f"[CompanionServer] Error processing background hook turn: {e}")
+
+        turn_thread = threading.Thread(target=_process_hook_turn, daemon=True)
+        turn_thread.start()
+
+        return web.json_response({
+            "success": True,
+            "status": "handled",
+            "agent": target_agent,
+            "conversationId": conv_id,
+        })
 
     async def handle_artifact_review(self, request: web.Request) -> web.Response:
         """Process structured markdown comments/review feedback from mobile companion."""

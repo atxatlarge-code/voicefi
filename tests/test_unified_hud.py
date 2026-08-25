@@ -174,11 +174,129 @@ def test_unified_hud_draggability_and_reset(mock_appkit):
     hud._user_dragged_center_x = 300.0
     hud._user_dragged_top_y = 600.0
 
-    frame = hud._get_target_frame(152, 32)
-    assert frame.origin.x == 300.0 - (152 / 2.0)
-    assert frame.origin.y == 600.0 - 32
+    frame = hud._get_target_frame(hud.STANDARD_WIDTH, hud.STANDARD_HEIGHT)
+    assert frame.origin.x == 300.0 - (hud.STANDARD_WIDTH / 2.0)
+    assert frame.origin.y == 600.0 - hud.STANDARD_HEIGHT
+    assert frame.size.width == 480.0
+    assert frame.size.height == 58.0
 
     hud.reset_position()
     assert hud._user_dragged_center_x is None
     assert hud._user_dragged_top_y is None
+
+    # Test top-right anchoring with default margins on NSScreen (margin_x=20.0, margin_y=52.0)
+    mock_screen = MagicMock()
+    mock_visible = MagicMock()
+    mock_visible.origin.x = 0.0
+    mock_visible.origin.y = 0.0
+    mock_visible.size.width = 1920.0
+    mock_visible.size.height = 1080.0
+    mock_screen.visibleFrame.return_value = mock_visible
+
+    with patch("voicefi.ui.unified_hud.NSScreen.mainScreen", return_value=mock_screen):
+        frame_tr = hud._get_target_frame(hud.STANDARD_WIDTH, hud.STANDARD_HEIGHT)
+        # Expected: x = 1920 - 480 - 20 = 1420.0; y = 1080 - 58 - 52 = 970.0 (clears Chrome top tab bar)
+        assert frame_tr.origin.x == 1420.0
+        assert frame_tr.origin.y == 970.0
+        assert frame_tr.size.width == 480.0
+        assert frame_tr.size.height == 58.0
+
+        # Test custom configured margins
+        hud.config.hud.margin_x = 30.0
+        hud.config.hud.margin_y = 60.0
+        frame_custom = hud._get_target_frame(hud.STANDARD_WIDTH, hud.STANDARD_HEIGHT)
+        assert frame_custom.origin.x == 1920.0 - 480.0 - 30.0
+        assert frame_custom.origin.y == 1080.0 - 58.0 - 60.0
+        hud.config.hud.margin_x = 20.0
+        hud.config.hud.margin_y = 52.0
+
+
+def test_unified_hud_fixed_dimensions(mock_appkit):
+    hud = UnifiedDynamicIslandHUD.get_instance()
+    assert hud.STANDARD_WIDTH == 480.0
+    assert hud.STANDARD_HEIGHT == 58.0
+
+
+def test_cmd_hud_actions(mock_appkit):
+    from voicefi.cli import cmd_hud
+    import argparse
+    from voicefi.config import load_config
+
+    # Test 'on' action
+    args_on = argparse.Namespace(hud_action="on")
+    with patch("subprocess.run") as mock_run, \
+         patch("voicefi.cli.cmd_autostart") as mock_autostart:
+        mock_run.return_value.returncode = 1 # daemon not running -> starts autostart
+        cmd_hud(args_on)
+        mock_autostart.assert_called_once()
+        cfg = load_config()
+        assert cfg.hud.enabled is True
+        assert cfg.hud.persistent is True
+
+    # Test 'off' action
+    args_off = argparse.Namespace(hud_action="off")
+    cmd_hud(args_off)
+    cfg = load_config()
+    assert cfg.hud.enabled is False
+
+    # Test 'debug' action in non-tty mode (clean exit)
+    args_debug = argparse.Namespace(hud_action="debug")
+    with patch("sys.stdin.isatty", return_value=False):
+        cmd_hud(args_debug)
+
+    # Test 'open' action
+    args_open = argparse.Namespace(hud_action="open")
+    with patch("subprocess.run") as mock_run, \
+         patch("voicefi.cli.cmd_autostart") as mock_autostart:
+        mock_run.return_value.returncode = 0
+        cmd_hud(args_open)
+        cfg = load_config()
+        assert cfg.hud.enabled is True
+        assert cfg.hud.persistent is True
+
+    # Test 'close' action
+    args_close = argparse.Namespace(hud_action="close")
+    cmd_hud(args_close)
+    cfg = load_config()
+    assert cfg.hud.enabled is False
+
+    # Test 'reset' action
+    args_reset = argparse.Namespace(hud_action="reset")
+    cmd_hud(args_reset)
+
+    # Test 'fullscreen' toggle
+    args_fs = argparse.Namespace(hud_action="fullscreen", fullscreen_state="toggle")
+    cmd_hud(args_fs)
+
+    # Test 'status' action
+    args_stat = argparse.Namespace(hud_action="status")
+    cmd_hud(args_stat)
+
+
+def test_tray_dynamic_config_reload(mock_appkit, tmp_path):
+    from voicefi.ui.tray import VoiceFiTrayApp
+    from voicefi.config import VoiceFiConfig
+    with patch("voicefi.ui.tray.get_default_config_path") as mock_cfg_path, \
+         patch("voicefi.ui.tray.load_config") as mock_load_cfg:
+        fake_cfg_file = tmp_path / "config.yaml"
+        fake_cfg_file.write_text("dummy")
+        mock_cfg_path.return_value = fake_cfg_file
+
+        mock_cfg = VoiceFiConfig()
+        mock_cfg.hud.enabled = True
+        mock_cfg.hud.persistent = True
+        mock_cfg.hud.fullscreen_overlay = True
+        mock_cfg.hud.auto_send = True
+        mock_load_cfg.return_value = mock_cfg
+
+        app = VoiceFiTrayApp.__new__(VoiceFiTrayApp)
+        app.config = VoiceFiConfig()
+        app.hud = UnifiedDynamicIslandHUD.get_instance()
+        app._last_config_mtime = 0.0
+
+        # Run reload check
+        app._check_config_reload()
+        assert app.hud.persistent is True
+        assert app.config.hud.enabled is True
+
 

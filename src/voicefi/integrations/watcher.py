@@ -231,6 +231,10 @@ class TranscriptWatcher:
             self.config = cfg
             summary = clean_markdown_for_speech(agent_message, max_words=cfg.antigravity.max_spoken_words)
 
+            if not is_active and not getattr(cfg.antigravity, "unfocused_agent_voice", None):
+                # Unfocused turns should not be claimed or spoken by watcher
+                return
+
             turn_cid = conv_info.id if conv_info else "unknown"
             if turn_cid == "unknown":
                 active_conv = self.tracker.get_active_or_latest()
@@ -264,9 +268,6 @@ class TranscriptWatcher:
 
             spoken_text = summary
             if not is_active:
-                # Do not speak background/other conversation updates aloud unless explicitly configured
-                if not getattr(cfg.antigravity, "unfocused_agent_voice", None):
-                    return
                 if conv_info and getattr(cfg.antigravity, "unfocused_voice_prefix", True):
                     short_title = conv_info.title[:24] if conv_info.title else "background agent"
                     spoken_text = f"Update from {short_title}: {summary}"
@@ -303,6 +304,8 @@ class TranscriptWatcher:
 
             if barge_in_active:
                 # Active Barge-In: Start speech in background and monitor mic for user interruption
+                from voicefi.tts.base import set_agent_speaking
+                set_agent_speaking(True, text=spoken_text, agent_name=target_agent)
                 self._notify_state("speaking")
                 tts = get_tts_engine(cfg, agent_name=target_agent, is_focused=is_active)
                 

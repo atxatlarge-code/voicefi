@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>VoiceFi Unified Dynamic Island HUD - Interactive Mocks</title>
+  <title>VoiceFi Unified Dynamic Island HUD • Interactive Mocks & Reactive Logo Status Studio</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body {
@@ -64,22 +64,173 @@
       backdrop-filter: blur(28px) saturate(190%);
       -webkit-backdrop-filter: blur(28px) saturate(190%);
     }
+
+    /* ==========================================================================
+       VOICEFI REACTIVE CHARACTER LOGO ANIMATIONS (ANATOMICAL ACTIVE LIGHTING)
+       ========================================================================== */
+
+    /* 1. THINKING: WiFi Hat Pulse & Sparks */
+    @keyframes wifiCrownPulse {
+      0%, 100% { stroke-width: 18px; filter: drop-shadow(0 0 4px #ff2a2a); opacity: 0.85; }
+      50% { stroke-width: 24px; filter: drop-shadow(0 0 18px #ff3b30) drop-shadow(0 0 35px #a855f7); opacity: 1; }
+    }
+    @keyframes wifiVisorPulse {
+      0%, 100% { stroke-width: 17px; filter: drop-shadow(0 0 3px #ff2a2a); opacity: 0.8; }
+      40% { stroke-width: 22px; filter: drop-shadow(0 0 14px #ff2a2a) drop-shadow(0 0 25px #c084fc); opacity: 1; }
+    /* Base Character Styling (Clean White Default) */
+    .vifi-wifi-crown, .vifi-wifi-visor, .vifi-wifi-brim,
+    .vifi-eyes, .vifi-mouth, .vifi-cradle,
+    .vifi-stem, .vifi-base-stand {
+      stroke: #FFFFFF;
+    }
+    .vifi-ear-frame { stroke: #FFFFFF; fill: #000000; }
+    .vifi-ear-dot   { fill: #FFFFFF; }
+    .vifi-nose-frame { stroke: #FFFFFF; fill: #000000; }
+    .vifi-nose-pin   { stroke: #FFFFFF; }
+
+    /* 1. THINKING: WiFi Broadcast Hat turns Red & Pulses (Everything else White) */
+    @keyframes wifiLaserCrown {
+      0%, 100% {
+        stroke: #ff1a38;
+        stroke-width: 18px;
+        filter: drop-shadow(0 0 3px rgba(255, 0, 51, 0.4));
+        opacity: 0.85;
+      }
+      50% {
+        stroke: #ff0033;
+        stroke-width: 21px;
+        filter: drop-shadow(0 0 6px #ff0033) drop-shadow(0 0 14px rgba(255, 0, 51, 0.65));
+        opacity: 1;
+      }
+    }
+    @keyframes wifiLaserVisor {
+      0%, 100% {
+        stroke: #ff1a38;
+        stroke-width: 17px;
+        filter: drop-shadow(0 0 2px rgba(255, 0, 51, 0.35));
+        opacity: 0.8;
+      }
+      40% {
+        stroke: #ff0033;
+        stroke-width: 20px;
+        filter: drop-shadow(0 0 5px #ff0033) drop-shadow(0 0 12px rgba(255, 0, 51, 0.6));
+        opacity: 1;
+      }
+    }
+    @keyframes wifiLaserBrim {
+      0%, 100% {
+        stroke: #ff1a38;
+        stroke-width: 16px;
+        filter: drop-shadow(0 0 2px rgba(255, 0, 51, 0.3));
+        opacity: 0.75;
+      }
+      30% {
+        stroke: #ff0033;
+        stroke-width: 19px;
+        filter: drop-shadow(0 0 4px #ff0033) drop-shadow(0 0 10px rgba(255, 0, 51, 0.55));
+        opacity: 1;
+      }
+    }
+
+    /* 2. LISTENING: Ears turn Red & Glow (Everything else White) */
+    @keyframes earRedGlowPulse {
+      0%, 100% {
+        filter: drop-shadow(0 0 3px rgba(255, 0, 51, 0.4));
+        transform: scale(1);
+      }
+      50% {
+        filter: drop-shadow(0 0 8px #ff0033) drop-shadow(0 0 16px rgba(255, 0, 51, 0.7));
+        transform: scale(1.06);
+      }
+    }
+
+    /* 3. SPEAKING: Mouth turns Red & Articulates (Everything else White) */
+    @keyframes mouthSpeakingMotion {
+      0%, 100% {
+        d: path("M 230 320 Q 256 336 282 320");
+        stroke: #ff1a38;
+        stroke-width: 7px;
+        filter: drop-shadow(0 0 4px rgba(255, 0, 51, 0.5));
+      }
+      25% {
+        d: path("M 226 318 Q 256 358 286 318");
+        stroke: #ff0033;
+        stroke-width: 9.5px;
+        filter: drop-shadow(0 0 8px #ff0033) drop-shadow(0 0 16px rgba(255, 0, 51, 0.8));
+      }
+      50% {
+        d: path("M 228 322 Q 256 342 284 322");
+        stroke: #ff1a38;
+        stroke-width: 8px;
+        filter: drop-shadow(0 0 6px rgba(255, 0, 51, 0.6));
+      }
+      75% {
+        d: path("M 224 316 Q 256 364 288 316");
+        stroke: #ff0033;
+        stroke-width: 10px;
+        filter: drop-shadow(0 0 9px #ff0033) drop-shadow(0 0 18px rgba(255, 0, 51, 0.85));
+      }
+    }
+
+    /* 4. WORKING: Eyes turn Red & Scan (Everything else White) */
+    @keyframes cyberEyeRedScan {
+      0%, 100% {
+        stroke: #ff1a38;
+        stroke-width: 8px;
+        filter: drop-shadow(0 0 3px rgba(255, 0, 51, 0.5));
+      }
+      50% {
+        stroke: #ff0033;
+        stroke-width: 10px;
+        filter: drop-shadow(0 0 8px #ff0033) drop-shadow(0 0 16px rgba(255, 0, 51, 0.8));
+      }
+    }
+    @keyframes usbDataPinRedBlink {
+      0%, 100% { stroke: #ff1a38; opacity: 0.6; }
+      20%, 40%, 60%, 80% { stroke: #ffffff; opacity: 1; filter: drop-shadow(0 0 5px #ff0033); }
+    }
+
+    /* 5. IDLE: Standby Breathing (All White) */
+    @keyframes idleStandby {
+      0%, 100% { opacity: 0.9; }
+      50% { opacity: 1; filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.5)); }
+    }
+
+    /* State-applied animation classes */
+    .vifi-active-thinking .vifi-wifi-crown { animation: wifiLaserCrown 1.35s infinite ease-in-out; }
+    .vifi-active-thinking .vifi-wifi-visor { animation: wifiLaserVisor 1.35s infinite ease-in-out 0.14s; }
+    .vifi-active-thinking .vifi-wifi-brim  { animation: wifiLaserBrim 1.35s infinite ease-in-out 0.28s; }
+
+    .vifi-active-listening .vifi-ear-left   { animation: earRedGlowPulse 1.2s infinite ease-in-out; transform-origin: 124px 220px; }
+    .vifi-active-listening .vifi-ear-right  { animation: earRedGlowPulse 1.2s infinite ease-in-out 0.1s; transform-origin: 388px 220px; }
+    .vifi-active-listening .vifi-ear-left .vifi-ear-frame,
+    .vifi-active-listening .vifi-ear-right .vifi-ear-frame { stroke: #ff0033 !important; }
+    .vifi-active-listening .vifi-ear-dot-l,
+    .vifi-active-listening .vifi-ear-dot-r  { fill: #ff0033 !important; filter: drop-shadow(0 0 6px #ff0033); }
+
+    .vifi-active-speaking .vifi-mouth       { animation: mouthSpeakingMotion 0.85s infinite ease-in-out; }
+
+    .vifi-active-working .vifi-eyes         { animation: cyberEyeRedScan 1.1s infinite ease-in-out; }
+    .vifi-active-working .vifi-nose-pin     { animation: usbDataPinRedBlink 0.6s infinite linear; }
+    .vifi-active-working .vifi-nose-frame   { stroke: #ff0033 !important; filter: drop-shadow(0 0 6px #ff0033); }
+
+    .vifi-active-idle                       { animation: idleStandby 3.5s infinite ease-in-out; }
   </style>
 </head>
-<body class="h-full flex flex-col overflow-hidden select-none bg-[#07090e]">
+<body class="h-full flex flex-col overflow-y-auto select-none bg-[#07090e]">
 
   <!-- Top Navigation & Mode Switcher Bar -->
-  <header class="bg-[#0f121a] border-b border-[#1f2433] px-4 py-2.5 shrink-0 z-40 flex items-center justify-between shadow-lg">
+  <header class="bg-[#0f121a] border-b border-[#1f2433] px-4 py-2.5 shrink-0 z-40 flex items-center justify-between shadow-lg sticky top-0">
     <div class="flex items-center gap-2.5">
-      <div class="w-7 h-7 rounded-xl bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center text-sm shadow-[0_0_12px_rgba(6,182,212,0.4)]">
-        🎙️
+      <div class="w-7 h-7 rounded-xl bg-red-500/20 border border-red-500/40 flex items-center justify-center text-xs font-mono font-bold text-red-400 shadow-[0_0_12px_rgba(255,42,42,0.4)]">
+        VF
       </div>
       <div>
         <h1 class="text-xs font-bold font-mono tracking-tight text-white flex items-center gap-2">
           VOICEFI DYNAMIC ISLAND HUD
-          <span class="text-[9px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-semibold uppercase tracking-wider">Interactive Mockup</span>
+          <span class="text-[9px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-semibold uppercase tracking-wider">Reactive Logo Active</span>
         </h1>
-        <p class="text-[10px] text-zinc-400">Native macOS 5-Phase Fluid Morphing Architecture</p>
+        <p class="text-[10px] text-zinc-400">Native macOS 480×58 Fixed Capsule with Anatomical State Lighting</p>
       </div>
     </div>
     
@@ -88,28 +239,29 @@
         <span id="playIcon">▶️</span>
         <span id="playText">Auto-Morph Demo</span>
       </button>
+      <a href="/logo_mock" class="text-xs font-mono bg-[#1b202e] hover:bg-[#252c3f] px-2.5 py-1 rounded-lg text-cyan-300 border border-cyan-500/30 transition">⚡ Icon Studio Matrix</a>
       <a href="/" class="text-xs font-mono bg-[#1b202e] hover:bg-[#252c3f] px-2.5 py-1 rounded-lg text-zinc-300 border border-[#2e374d] transition">← Companion App</a>
     </div>
   </header>
 
   <!-- Interactive State Selection Tab Bar -->
-  <nav class="bg-[#0b0e14] border-b border-[#181d2a] px-4 py-2 shrink-0 z-30">
+  <nav class="bg-[#0b0e14] border-b border-[#181d2a] px-4 py-2 shrink-0 z-30 sticky top-12">
     <div class="max-w-4xl mx-auto flex items-center justify-between gap-3">
       <div class="flex items-center gap-1 bg-[#131722] p-1 rounded-xl border border-[#22293a] text-xs font-medium">
         <button id="btn-idle" onclick="setHUDState('idle')" class="px-3 py-1.5 rounded-lg text-zinc-400 hover:text-white transition flex items-center gap-1.5">
           <span>💤</span> Idle
         </button>
         <button id="btn-thinking" onclick="setHUDState('thinking')" class="px-3 py-1.5 rounded-lg text-zinc-400 hover:text-white transition flex items-center gap-1.5">
-          <span>🧠</span> Thinking
+          <span>🧠</span> Thinking (WiFi Sparks)
         </button>
         <button id="btn-working" onclick="setHUDState('working')" class="px-3 py-1.5 rounded-lg text-zinc-400 hover:text-white transition flex items-center gap-1.5">
-          <span>⚡</span> Working
+          <span>⚡</span> Working (Cyber Scan)
         </button>
         <button id="btn-speaking" onclick="setHUDState('speaking')" class="px-3 py-1.5 rounded-lg bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/40 shadow-sm transition flex items-center gap-1.5">
-          <span>🔊</span> Speaking
+          <span>🔊</span> Speaking (Mouth Talks)
         </button>
         <button id="btn-listening" onclick="setHUDState('listening')" class="px-3 py-1.5 rounded-lg text-zinc-400 hover:text-white transition flex items-center gap-1.5">
-          <span>👂</span> Listening
+          <span>👂</span> Listening (Ears Glow)
         </button>
       </div>
 
@@ -128,10 +280,10 @@
   </nav>
 
   <!-- SIMULATED MACOS DESKTOP DISPLAY CANVAS -->
-  <main class="flex-1 relative overflow-hidden bg-cover bg-center flex flex-col items-center justify-start pt-3" style="background-image: radial-gradient(circle at 50% 20%, #151a2d 0%, #080a11 60%, #030407 100%);">
+  <main class="flex-1 relative overflow-hidden bg-cover bg-center flex flex-col items-center justify-start pt-6 pb-12" style="background-image: radial-gradient(circle at 50% 20%, #151a2d 0%, #080a11 60%, #030407 100%);">
     
     <!-- MacBook Screen Top Notch -->
-    <div class="w-44 h-7 bg-black rounded-b-2xl border-b border-x border-[#1c1c1c] shadow-2xl flex items-center justify-center gap-2 mb-2 z-20">
+    <div class="w-44 h-7 bg-black rounded-b-2xl border-b border-x border-[#1c1c1c] shadow-2xl flex items-center justify-center gap-2 mb-3 z-20">
       <div class="w-2.5 h-2.5 rounded-full bg-[#111111] border border-[#222222] flex items-center justify-center">
         <div class="w-1 h-1 rounded-full bg-blue-900/60"></div>
       </div>
@@ -143,12 +295,14 @@
     <!-- ======================================================== -->
     <div id="dynamicHud" class="hud-capsule glass-hud rounded-3xl border border-cyan-500/40 glow-speaking flex flex-col justify-center px-4 py-2.5 shadow-2xl relative z-30 cursor-pointer select-none" style="width: 480px; min-height: 84px;" onclick="handleCapsuleClick()">
       
-      <!-- Top Row: Avatar Badge + Agent Title + Persona Tag + State Visualizer -->
+      <!-- Top Row: Reactive Character Avatar + Agent Title + Persona Tag + State Visualizer -->
       <div class="flex items-center justify-between w-full">
-        <div class="flex items-center gap-2.5">
-          <!-- Avatar Icon Badge -->
-          <div id="hudAvatarBg" class="w-8 h-8 rounded-full bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center text-sm shadow-[0_0_10px_rgba(6,182,212,0.3)] transition-all">
-            <span id="hudAvatarIcon">🧔</span>
+        <div class="flex items-center gap-3">
+          <!-- VoiceFi Reactive Character Status Icon Badge -->
+          <div id="hudAvatarBg" class="w-9 h-9 rounded-xl bg-black/50 border border-white/10 flex items-center justify-center p-0.5 shadow-inner transition-all shrink-0">
+            <div id="hudReactiveLogoHost" class="w-full h-full flex items-center justify-center">
+              <!-- Dynamically populated via getVoiceFiReactiveSVG -->
+            </div>
           </div>
 
           <!-- Header Titles -->
@@ -201,8 +355,22 @@
 
     </div>
 
+    <!-- ANATOMICAL LIGHTING LIVE EXPLANATION CALLOUT -->
+    <div class="mt-8 max-w-xl w-11/12 bg-[#0c101a]/80 backdrop-blur-md rounded-2xl border border-[#1f273b] p-4 text-xs font-mono shadow-2xl flex items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-12 h-12 shrink-0 bg-black/60 rounded-xl p-1 border border-white/10 flex items-center justify-center" id="hudCalloutLogo">
+          <!-- Injected via JS -->
+        </div>
+        <div>
+          <span class="text-white font-bold block" id="hudCalloutTitle">Speaking State Active</span>
+          <span class="text-zinc-400 text-[11px]" id="hudCalloutDesc">The waveform smile mouth lights up in electric red/cyan and articulates speech pulses.</span>
+        </div>
+      </div>
+      <a href="/logo_mock" class="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-[11px] font-bold shrink-0 transition">Open Matrix →</a>
+    </div>
+
     <!-- Background Code Editor Window Simulation in Soft Focus -->
-    <div class="mt-12 w-11/12 max-w-4xl bg-[#0d111a]/70 backdrop-blur-md rounded-2xl border border-[#20273b] shadow-2xl p-5 font-mono text-xs text-zinc-400 select-none pointer-events-none opacity-40">
+    <div class="mt-8 w-11/12 max-w-4xl bg-[#0d111a]/70 backdrop-blur-md rounded-2xl border border-[#20273b] shadow-2xl p-5 font-mono text-xs text-zinc-400 select-none pointer-events-none opacity-40">
       <div class="flex items-center gap-2 mb-4">
         <div class="w-3 h-3 rounded-full bg-red-500/60"></div>
         <div class="w-3 h-3 rounded-full bg-yellow-500/60"></div>
@@ -212,8 +380,8 @@
       <p><span class="text-purple-400">class</span> <span class="text-yellow-300">UnifiedDynamicIslandHUD</span>(NSPanel):</p>
       <p class="pl-4 text-zinc-500">"""Smoothly morphs across Idle, Thinking, Working, Speaking, and Hearing."""</p>
       <p class="pl-4"><span class="text-purple-400">def</span> <span class="text-blue-400">set_state</span>(self, state: <span class="text-cyan-300">str</span>):</p>
-      <p class="pl-8 text-emerald-400"># Morph window dimensions and frosted aura colors</p>
-      <p class="pl-8">self.animate_frame(target_geometry, duration=0.35)</p>
+      <p class="pl-8 text-emerald-400"># Morph window dimensions, update reactive icon active areas</p>
+      <p class="pl-8">self.status_icon.set_active_anatomical_state(state)</p>
     </div>
 
   </main>
@@ -222,16 +390,16 @@
   <footer class="bg-[#0b0e14] border-t border-[#181d2a] px-4 py-3 shrink-0 z-30">
     <div class="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-3 text-[11px]">
       <div class="bg-[#121622] p-2.5 rounded-xl border border-[#202738]">
-        <span class="font-bold text-white block mb-1">📐 Dynamic Geometry</span>
-        <span class="text-zinc-400">Idle: 140×32px | Think: 320×44px | Speak: 480×88px</span>
+        <span class="font-bold text-white block mb-1">🧠 Thinking Area</span>
+        <span class="text-zinc-400">WiFi Hat arcs pulse with electric sparks (✦) during reasoning.</span>
       </div>
       <div class="bg-[#121622] p-2.5 rounded-xl border border-[#202738]">
-        <span class="font-bold text-white block mb-1">🎨 Sensory Palette</span>
-        <span class="text-zinc-400">Violet (Reasoning) • Blue (Tools) • Cyan (Voice) • Green (Mic)</span>
+        <span class="font-bold text-white block mb-1">👂 Listening Area</span>
+        <span class="text-zinc-400">Headphone ears illuminate emerald with acoustic radar rings.</span>
       </div>
       <div class="bg-[#121622] p-2.5 rounded-xl border border-[#202738]">
-        <span class="font-bold text-white block mb-1">⚡ Instant Handoff</span>
-        <span class="text-zinc-400">Auto-listen VAD opens mic right after speech ends with active barge-in</span>
+        <span class="font-bold text-white block mb-1">🔊 Speaking Area</span>
+        <span class="text-zinc-400">Waveform mouth talks dynamically with voice resonance rings.</span>
       </div>
     </div>
   </footer>
@@ -252,16 +420,68 @@
     };
     let activePersona = personas.Christopher;
 
+    function getVoiceFiReactiveSVG(state = 'idle', idPrefix = 'vf') {
+      const stateClass = `vifi-active-${state}`;
+
+      return `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="50 50 412 412" class="w-full h-full object-contain ${stateClass}" style="overflow: visible;">
+          <g transform="translate(0, 15)">
+            <!-- 1. WI-FI BROADCAST HAT (White default; Red on Thinking) -->
+            <g class="vifi-wifi-group" fill="none" stroke-linecap="round">
+              <path class="vifi-wifi-crown" d="M 152 145 A 120 120 0 0 1 360 145" stroke="#FFFFFF" stroke-width="18" />
+              <path class="vifi-wifi-visor" d="M 184 180 A 80 80 0 0 1 328 180" stroke="#FFFFFF" stroke-width="17" />
+              <path class="vifi-wifi-brim" d="M 216 215 A 42 42 0 0 1 296 215" stroke="#FFFFFF" stroke-width="16" />
+            </g>
+
+            <!-- 2. MINIMALIST CYBER FACE & USB-C NOSE (White default; Red on Working) -->
+            <g class="vifi-eyes-group" stroke-linecap="round">
+              <line class="vifi-eyes vifi-eye-left" x1="202" y1="262" x2="234" y2="262" stroke="#FFFFFF" stroke-width="8" />
+              <line class="vifi-eyes vifi-eye-right" x1="278" y1="262" x2="310" y2="262" stroke="#FFFFFF" stroke-width="8" />
+            </g>
+
+            <g class="vifi-nose-group">
+              <rect class="vifi-nose-frame" x="238" y="278" width="36" height="15" rx="7.5" fill="#000000" stroke="#FFFFFF" stroke-width="2.5" />
+              <line class="vifi-nose-pin" x1="246" y1="285.5" x2="266" y2="285.5" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" />
+            </g>
+
+            <!-- 3. ACOUSTIC WAVEFORM SMILE MOUTH (White default; Red on Speaking) -->
+            <path class="vifi-mouth" d="M 230 320 Q 256 342 282 320" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" />
+
+            <!-- 4. HEADSET CRADLE & EARS (White default; Ears Red on Listening) -->
+            <path class="vifi-cradle" d="M 124 220 C 124 350, 175 385, 256 385 C 337 385, 388 350, 388 220" fill="none" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round" />
+
+            <g class="vifi-ear-left">
+              <rect class="vifi-ear-frame" x="110" y="205" width="28" height="30" rx="6" fill="#000000" stroke="#FFFFFF" stroke-width="3.5" />
+              <circle class="vifi-ear-dot vifi-ear-dot-l" cx="124" cy="220" r="4.5" fill="#FFFFFF" />
+            </g>
+
+            <g class="vifi-ear-right">
+              <rect class="vifi-ear-frame" x="374" y="205" width="28" height="30" rx="6" fill="#000000" stroke="#FFFFFF" stroke-width="3.5" />
+              <circle class="vifi-ear-dot vifi-ear-dot-r" cx="388" cy="220" r="4.5" fill="#FFFFFF" />
+            </g>
+
+            <!-- 5. STEM & HEAVY STUDIO BASE -->
+            <line class="vifi-stem" x1="256" y1="385" x2="256" y2="430" stroke="#FFFFFF" stroke-width="13" stroke-linecap="round" />
+            <line class="vifi-base-stand" x1="190" y1="430" x2="322" y2="430" stroke="#FFFFFF" stroke-width="13" stroke-linecap="round" />
+          </g>
+        </svg>
+      `;
+    }
+
     function setHUDState(state) {
       currentState = state;
       const hud = document.getElementById('dynamicHud');
       const avatarBg = document.getElementById('hudAvatarBg');
-      const avatarIcon = document.getElementById('hudAvatarIcon');
+      const logoHost = document.getElementById('hudReactiveLogoHost');
       const agentName = document.getElementById('hudAgentName');
       const personaTag = document.getElementById('hudPersonaTag');
       const statusBadge = document.getElementById('hudStatusBadge');
       const textBody = document.getElementById('hudTextBody');
       const contentRow = document.getElementById('hudContentRow');
+
+      const calloutLogo = document.getElementById('hudCalloutLogo');
+      const calloutTitle = document.getElementById('hudCalloutTitle');
+      const calloutDesc = document.getElementById('hudCalloutDesc');
 
       // Visualizers
       const waveBars = document.getElementById('hudWaveBars');
@@ -287,22 +507,28 @@
       });
       const activeBtn = document.getElementById('btn-' + state);
 
+      // Render Reactive Character Logo
+      logoHost.innerHTML = getVoiceFiReactiveSVG(state, 'hud_top');
+      if (calloutLogo) calloutLogo.innerHTML = getVoiceFiReactiveSVG(state, 'hud_callout');
+
       if (state === 'idle') {
-        hud.style.width = '160px';
-        hud.style.minHeight = '36px';
+        hud.style.width = '180px';
+        hud.style.minHeight = '42px';
         hud.style.borderColor = 'rgba(71, 85, 105, 0.4)';
         hud.style.boxShadow = '0 0 10px rgba(0,0,0,0.5)';
         contentRow.classList.add('hidden');
         personaTag.classList.add('hidden');
         statusBadge.classList.add('hidden');
         agentName.innerText = 'VoiceFi';
-        avatarBg.className = 'w-5 h-5 rounded-full bg-slate-800 flex items-center justify-center text-xs';
-        avatarIcon.innerText = '🎙️';
+        avatarBg.className = 'w-7 h-7 rounded-lg bg-black/60 border border-slate-700 flex items-center justify-center p-0.5';
+        
+        calloutTitle.innerText = 'Idle / Standby State';
+        calloutDesc.innerText = 'Subtle resting luminescence awaiting hotkey trigger or voice wake.';
         if (activeBtn) activeBtn.className = 'px-3 py-1.5 rounded-lg bg-slate-700 text-white font-bold transition flex items-center gap-1.5';
       }
       else if (state === 'thinking') {
-        hud.style.width = '360px';
-        hud.style.minHeight = '48px';
+        hud.style.width = '480px';
+        hud.style.minHeight = '58px';
         hud.classList.add('glow-thinking');
         contentRow.classList.remove('hidden');
         personaTag.classList.remove('hidden');
@@ -314,14 +540,16 @@
         personaTag.innerText = activePersona.tag;
         statusBadge.innerText = '🧠 Evaluating Plan & Code';
         statusBadge.className = 'text-[10px] font-mono text-purple-300';
-        avatarBg.className = 'w-7 h-7 rounded-full bg-purple-500/20 border border-purple-400/40 flex items-center justify-center text-sm shadow-[0_0_10px_rgba(139,92,246,0.4)]';
-        avatarIcon.innerText = '🧠';
+        avatarBg.className = 'w-9 h-9 rounded-xl bg-purple-950/40 border border-purple-500/50 flex items-center justify-center p-0.5 shadow-[0_0_12px_rgba(139,92,246,0.4)]';
         textBody.innerText = 'Analyzing dependency graph and synthesizing implementation steps...';
+
+        calloutTitle.innerText = '🧠 Thinking: WiFi Hat Sparks & Pulse Active';
+        calloutDesc.innerText = 'The 3 broadcast arcs pulse upward with electric sparks jumping off the crown during LLM reasoning.';
         if (activeBtn) activeBtn.className = 'px-3 py-1.5 rounded-lg bg-purple-500/20 text-purple-300 font-bold border border-purple-500/40 shadow-sm transition flex items-center gap-1.5';
       }
       else if (state === 'working') {
-        hud.style.width = '380px';
-        hud.style.minHeight = '48px';
+        hud.style.width = '480px';
+        hud.style.minHeight = '58px';
         hud.classList.add('glow-working');
         contentRow.classList.remove('hidden');
         personaTag.classList.remove('hidden');
@@ -333,14 +561,16 @@
         personaTag.innerText = activePersona.tag;
         statusBadge.innerText = '⚡ Running Bash Tool';
         statusBadge.className = 'text-[10px] font-mono text-blue-300';
-        avatarBg.className = 'w-7 h-7 rounded-full bg-blue-500/20 border border-blue-400/40 flex items-center justify-center text-sm shadow-[0_0_10px_rgba(59,130,246,0.4)]';
-        avatarIcon.innerText = '⚡';
-        textBody.innerText = 'Executing: pytest tests/ -v (Passed 150/150 test suites)';
+        avatarBg.className = 'w-9 h-9 rounded-xl bg-blue-950/40 border border-blue-500/50 flex items-center justify-center p-0.5 shadow-[0_0_12px_rgba(59,130,246,0.4)]';
+        textBody.innerText = 'Executing: pytest tests/ -v (Passed 210/210 test suites)';
+
+        calloutTitle.innerText = '⚡ Working: Cyber Eyes Scan & USB-C Pin Flash';
+        calloutDesc.innerText = 'Laser scan across cyber slit eyes and high-speed data bus pin flashes during tool execution.';
         if (activeBtn) activeBtn.className = 'px-3 py-1.5 rounded-lg bg-blue-500/20 text-blue-300 font-bold border border-blue-500/40 shadow-sm transition flex items-center gap-1.5';
       }
       else if (state === 'speaking') {
-        hud.style.width = '490px';
-        hud.style.minHeight = '84px';
+        hud.style.width = '480px';
+        hud.style.minHeight = '58px';
         hud.classList.add('glow-speaking');
         contentRow.classList.remove('hidden');
         personaTag.classList.remove('hidden');
@@ -352,14 +582,16 @@
         personaTag.innerText = activePersona.tag;
         statusBadge.innerText = '🔊 Speaking Response';
         statusBadge.className = 'text-[10px] font-mono text-cyan-300';
-        avatarBg.className = 'w-8 h-8 rounded-full bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center text-sm shadow-[0_0_12px_rgba(6,182,212,0.4)]';
-        avatarIcon.innerText = activePersona.icon;
+        avatarBg.className = 'w-9 h-9 rounded-xl bg-cyan-950/40 border border-cyan-500/50 flex items-center justify-center p-0.5 shadow-[0_0_14px_rgba(6,182,212,0.4)]';
         textBody.innerText = activePersona.text;
+
+        calloutTitle.innerText = '🔊 Speaking: Waveform Mouth Talks & Resonates';
+        calloutDesc.innerText = 'The electric red smile articulates dynamically, projecting acoustic voice waves into the room.';
         if (activeBtn) activeBtn.className = 'px-3 py-1.5 rounded-lg bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/40 shadow-sm transition flex items-center gap-1.5';
       }
       else if (state === 'listening') {
-        hud.style.width = '420px';
-        hud.style.minHeight = '64px';
+        hud.style.width = '480px';
+        hud.style.minHeight = '58px';
         hud.classList.add('glow-listening');
         contentRow.classList.remove('hidden');
         personaTag.classList.remove('hidden');
@@ -371,9 +603,11 @@
         personaTag.innerText = '• Voice Activity Detection';
         statusBadge.innerText = '🎙️ Capturing Developer Speech...';
         statusBadge.className = 'text-[10px] font-mono text-emerald-300';
-        avatarBg.className = 'w-8 h-8 rounded-full bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-sm shadow-[0_0_14px_rgba(16,185,129,0.5)]';
-        avatarIcon.innerText = '🎙️';
+        avatarBg.className = 'w-9 h-9 rounded-xl bg-emerald-950/40 border border-emerald-500/50 flex items-center justify-center p-0.5 shadow-[0_0_14px_rgba(16,185,129,0.5)]';
         textBody.innerText = '"Yeah, proceed with the unified Dynamic Island implementation..."';
+
+        calloutTitle.innerText = '👂 Listening: Headset Ears Glow & Capture Audio';
+        calloutDesc.innerText = 'Headset cradle plug units illuminate neon emerald with concentric acoustic radar rings.';
         if (activeBtn) activeBtn.className = 'px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/40 shadow-sm transition flex items-center gap-1.5';
       }
     }
@@ -386,7 +620,6 @@
     }
 
     function handleCapsuleClick() {
-      // Advance to next state on click
       stateIdx = (stateIdx + 1) % states.length;
       setHUDState(states[stateIdx]);
     }
@@ -413,7 +646,9 @@
     }
 
     // Initialize in speaking state
-    setHUDState('speaking');
+    window.addEventListener('DOMContentLoaded', () => {
+      setHUDState('speaking');
+    });
   </script>
 </body>
 </html>

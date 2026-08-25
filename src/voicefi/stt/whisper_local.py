@@ -50,6 +50,11 @@ class WhisperLocalSTT(BaseSTT):
             initial_prompt=prompt if prompt else None,
             beam_size=1,
             vad_filter=True,
+            vad_parameters=dict(min_silence_duration_ms=500),
+            condition_on_previous_text=False,
+            repetition_penalty=1.15,
+            no_repeat_ngram_size=3,
+            temperature=[0.0, 0.2, 0.4],
         )
 
         texts = [segment.text.strip() for segment in segments]

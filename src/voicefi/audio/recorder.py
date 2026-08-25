@@ -24,8 +24,9 @@ def resolve_barge_in_mode(barge_in_setting: Any) -> Tuple[bool, bool]:
     Returns: (is_barge_in_active, is_safe_mode)
 
     When barge_in is 'auto' (the default):
-      - Built-in laptop speakers: Barge-in is DISABLED so agent speech output is never cut off by mic bleed.
-      - Headphones / AirPods: Barge-in is ENABLED with hands-free responsiveness.
+      - Headphones / AirPods / Headsets: Barge-in is ENABLED with instantaneous full-duplex responsiveness.
+      - Built-in laptop speakers: Barge-in is DISABLED during agent speech (acoustic safe mode)
+        to completely eliminate speaker bleed, premature cutoffs, and preserve 100% full loud volume.
     """
     if isinstance(barge_in_setting, str) and barge_in_setting.lower() == "auto":
         builtin = is_using_builtin_speakers()
@@ -63,6 +64,10 @@ class AudioRecorder:
         """Immediately signal recorder to stop and process captured audio."""
         self.stop_event.set()
 
+    def _create_input_stream(self):
+        """Create standard sounddevice InputStream for clean, loud, unattenuated audio capture."""
+        return sd.InputStream(samplerate=self.sample_rate, channels=1, dtype="float32")
+
     def record_speech_auto(
         self,
         on_speech_start: Optional[Callable[[], None]] = None,
@@ -95,8 +100,6 @@ class AudioRecorder:
                     from voicefi.tts.base import stop_all_speech
                     stop_all_speech()
                     self.stop_event.set()
-                elif k in (keyboard.Key.enter, keyboard.Key.space) or vk in (36, 76, 49):
-                    self.stop_event.set()
 
             kb_listener = keyboard.Listener(on_press=_on_key_press)
             kb_listener.daemon = True
@@ -128,7 +131,7 @@ class AudioRecorder:
         speaker_bleed_floor = 0.0
         agent_speaking_pre_roll = []  # Ring buffer to preserve onset syllables on barge-in
 
-        with sd.InputStream(samplerate=self.sample_rate, channels=1, dtype="float32") as stream:
+        with self._create_input_stream() as stream:
             chunk_count = 0
             while True:
                 # Check for manual instant stop (e.g. Enter, Space, Esc, or stop_event)
@@ -183,13 +186,14 @@ class AudioRecorder:
                             ) / self.barge_in_sensitivity
                             required_chunks = 5  # ~250ms sustained speech
                         else:
-                            # Headphones / AirPods: responsive threshold
-                            grace_chunks = 3  # 150ms minimal settling
+                            # Headphones / AirPods: responsive threshold with robust floor against ambient noise
+                            grace_chunks = 6  # 300ms settling window from audio onset
                             barge_in_threshold = max(
-                                self.energy_threshold * 2.2,
-                                (running_noise_floor * 2.2 + 0.012),
+                                0.055,
+                                self.energy_threshold * 3.0,
+                                (running_noise_floor * 2.8 + 0.025),
                             ) / self.barge_in_sensitivity
-                            required_chunks = 3
+                            required_chunks = 4  # 200ms sustained speech
                             in_grace_period = agent_speaking_chunks < grace_chunks
 
                         agent_speaking_pre_roll.append(audio_chunk)
@@ -434,7 +438,7 @@ class AudioRecorder:
         is_paused = False
         cooldown_remaining_chunks = 0
 
-        with sd.InputStream(samplerate=self.sample_rate, channels=1, dtype="float32") as stream:
+        with self._create_input_stream() as stream:
             while True:
                 chunk, overflowed = stream.read(chunk_size)
                 audio_chunk = chunk.flatten()

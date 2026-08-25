@@ -281,13 +281,15 @@ class VoiceCloneManager:
         description: str = "",
         custom_traits: Optional[Dict[str, str]] = None,
         labels: Optional[Dict[str, str]] = None,
+        provider_preference: Optional[str] = None,
+        ref_text: Optional[str] = None,
     ) -> ClonedVoiceProfile:
         """
         Train / Clone a voice from audio samples.
         - Ingests samples to ~/.voicefi/cloned_voices/<name>/samples/
         - Extracts acoustic features & vocal range
         - Calls ElevenLabs Instant Voice Clone API if api_key provided
-        - Calibrates local neural voice profile as fallback / offline model
+        - Configures local open-source F5-TTS or calibrated neural voice profile
         - Generates persona style prompt
         - Persists profile
         """
@@ -307,14 +309,27 @@ class VoiceCloneManager:
         # 2. Extract acoustic features
         acoustics = analyze_audio_acoustics(stored_samples)
 
-        # 3. ElevenLabs Instant Voice Cloning or Local Profile
+        # 3. Provider Resolution: ElevenLabs IVC, F5-TTS Open Source, or Local Calibrated
         voice_id = f"cloned_{slug}"
-        provider = "elevenlabs" if api_key else "edge_tts"
+        if provider_preference in ("f5_tts", "local_clone"):
+            provider = "f5_tts"
+        elif api_key:
+            provider = "elevenlabs"
+        elif provider_preference:
+            provider = provider_preference
+        else:
+            provider = "edge_tts"
+
+
         labels_dict = labels or {}
         labels_dict.setdefault("cloned_by", "voicefi")
         labels_dict.setdefault("vocal_range", acoustics.get("vocal_range", "Unknown"))
+        if ref_text:
+            labels_dict["ref_text"] = ref_text
+        elif "ref_text" not in labels_dict and TRAINING_PROMPTS:
+            labels_dict["ref_text"] = TRAINING_PROMPTS[0]["text"]
 
-        if api_key:
+        if api_key and provider == "elevenlabs":
             try:
                 resp = ElevenLabsTTS.add_voice(
                     api_key=api_key,
@@ -326,8 +341,12 @@ class VoiceCloneManager:
                 voice_id = resp.get("voice_id", voice_id)
                 provider = "elevenlabs"
             except Exception as e:
-                print(f"[VoiceCloneManager] ElevenLabs IVC failed ({e}), falling back to local acoustic calibration.")
-                provider = "edge_tts"
+                print(f"[VoiceCloneManager] ElevenLabs IVC failed ({e}), falling back to open-source F5-TTS/local profile.")
+                try:
+                    import f5_tts
+                    provider = "f5_tts"
+                except ImportError:
+                    provider = "edge_tts"
 
         # 4. Generate persona prompt
         persona_prompt = generate_persona_prompt(clean_name, acoustics, custom_traits)
@@ -387,12 +406,16 @@ class VoiceCloneManager:
 
         target = target_agent.lower().strip()
         voice_profile = AgentVoiceProfile(
-            voice=profile.id if profile.provider == "elevenlabs" else (profile.calibrated_voice or "en-US-ChristopherNeural"),
+            voice=profile.id if profile.provider in ("elevenlabs", "f5_tts", "local_clone") else (profile.calibrated_voice or "en-US-ChristopherNeural"),
             provider=profile.provider,
             rate=profile.calibrated_rate or 200,
             pitch=profile.calibrated_pitch or "+0Hz",
             description=f"Cloned voice of {profile.name}",
         )
+
+        if profile.provider in ("f5_tts", "local_clone") and profile.sample_paths:
+            voice_profile.f5_ref_audio = profile.sample_paths[0]
+            voice_profile.f5_ref_text = profile.labels.get("ref_text")
 
         subagent_roles = {"researcher", "debugger", "architect", "tester", "writer", "analyst"}
 
@@ -401,6 +424,10 @@ class VoiceCloneManager:
             config.tts.provider = voice_profile.provider or config.tts.provider
             if profile.provider == "elevenlabs":
                 config.tts.elevenlabs_voice_id = profile.id
+            elif profile.provider in ("f5_tts", "local_clone"):
+                if profile.sample_paths:
+                    config.tts.f5_ref_audio = profile.sample_paths[0]
+                    config.tts.f5_ref_text = profile.labels.get("ref_text")
         elif target in subagent_roles or target.startswith("subagent"):
             clean_role = target.replace("subagent.", "").replace("subagent_", "")
             config.subagents[clean_role] = voice_profile
@@ -414,3 +441,4 @@ class VoiceCloneManager:
 
         save_config(config)
         return target, profile.id
+

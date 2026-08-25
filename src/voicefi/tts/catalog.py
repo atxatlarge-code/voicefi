@@ -24,6 +24,26 @@ class VoicePersona:
 
 CURATED_PERSONAS: List[VoicePersona] = [
     VoicePersona(
+        id="en-US-AvaNeural",
+        name="Viv",
+        provider="edge_tts",
+        gender="Female",
+        locale="en-US",
+        style="Expressive, natural, modern conversational neural tone",
+        sample_text="Hey! I'm Viv. Expressive, natural, and conversational tone, great for onboarding and pair programming.",
+        recommended_role="Antigravity Primary Agent / Main Planner",
+    ),
+    VoicePersona(
+        id="en-IE-EmilyNeural",
+        name="Emily",
+        provider="edge_tts",
+        gender="Female",
+        locale="en-IE",
+        style="Pleasant, gentle, and melodic Irish cadence",
+        sample_text="Hello! I'm Emily. Pleasant Irish cadence that is gentle, articulate, and very easy to listen to.",
+        recommended_role="Pair Programmer / Focus Companion",
+    ),
+    VoicePersona(
         id="en-US-AndrewNeural",
         name="Andrew",
         provider="edge_tts",
@@ -94,6 +114,26 @@ CURATED_PERSONAS: List[VoicePersona] = [
         recommended_role="Cursor / Composer",
     ),
     VoicePersona(
+        id="Ava (Premium)",
+        name="Ava",
+        provider="mac_say",
+        gender="Female",
+        locale="en-US",
+        style="Apple Premium offline neural voice, breathtaking natural clarity, 0ms instant latency",
+        sample_text="Hello Jake. I'm Ava, running in premium offline neural quality on your Mac.",
+        recommended_role="Antigravity / Main Planner",
+    ),
+    VoicePersona(
+        id="Ava (Enhanced)",
+        name="Ava",
+        provider="mac_say",
+        gender="Female",
+        locale="en-US",
+        style="Apple Enhanced offline neural voice, crisp, natural, and 0ms instant latency",
+        sample_text="Hello Jake. I'm Ava, running locally and offline on your Mac.",
+        recommended_role="Antigravity / Main Planner",
+    ),
+    VoicePersona(
         id="Samantha",
         name="Samantha",
         provider="mac_say",
@@ -124,6 +164,136 @@ CURATED_PERSONAS: List[VoicePersona] = [
         recommended_role="Antigravity / Main Planner",
     ),
     VoicePersona(
+        id="en-GB-RyanNeural",
+        name="Ryan",
+        provider="edge_tts",
+        gender="Male",
+        locale="en-GB",
+        style="Calm, intellectual, modern British neural tone",
+        sample_text="Right, let's take a look at these pull requests and sort out the failing test suite before merging.",
+        recommended_role="Claude Code / Pair Programmer",
+    ),
+    VoicePersona(
+        id="en-GB-ThomasNeural",
+        name="Thomas",
+        provider="edge_tts",
+        gender="Male",
+        locale="en-GB",
+        style="Crisp, polite, articulate, classic British delivery",
+        sample_text="Good day! I'm Claude. I recommend decoupling this service layer into an asynchronous event bus.",
+        recommended_role="Claude Code / Architecture Lead",
+    ),
+    VoicePersona(
+        id="en-GB-LibbyNeural",
+        name="Libby",
+        provider="edge_tts",
+        gender="Female",
+        locale="en-GB",
+        style="Warm, natural, approachable British cadence",
+        sample_text="Hey Jake! I'm Libby. Ready to pair-program on this feature whenever you are.",
+        recommended_role="Pair Programmer / Focus Companion",
+    ),
+    VoicePersona(
+        id="en-IE-ConnorNeural",
+        name="Connor",
+        provider="edge_tts",
+        gender="Male",
+        locale="en-IE",
+        style="Warm, melodic, conversational Irish tone",
+        sample_text="Hello Jake! I'm Connor. Great melodic Irish cadence for long, relaxed coding sessions.",
+        recommended_role="Pair Programmer / Companion",
+    ),
+    VoicePersona(
+        id="Oliver (Premium)",
+        name="Oliver",
+        provider="mac_say",
+        gender="Male",
+        locale="en-GB",
+        style="Apple Premium offline neural voice, breathtaking natural clarity & British warmth",
+        sample_text="Hello Jake. I'm Claude, running completely offline with Apple's premium neural engine.",
+        recommended_role="Claude Code / Main Planner",
+    ),
+    VoicePersona(
+        id="Oliver (Enhanced)",
+        name="Oliver",
+        provider="mac_say",
+        gender="Male",
+        locale="en-GB",
+        style="Apple Enhanced offline neural voice, crisp and natural British diction",
+        sample_text="Hello Jake. I'm Claude, running offline and locally on your Mac.",
+        recommended_role="Claude Code / Main Planner",
+    ),
+    VoicePersona(
+        id="Serena (Premium)",
+        name="Serena",
+        provider="mac_say",
+        gender="Female",
+        locale="en-GB",
+        style="Apple Premium offline British female voice, crystal clear and refined",
+        sample_text="Hello Jake. I'm Claude, running in premium offline neural quality on Apple Silicon.",
+        recommended_role="Researcher / Analyst",
+    ),
+    VoicePersona(
+        id="Daniel (Enhanced)",
+        name="Daniel",
+        provider="mac_say",
+        gender="Male",
+        locale="en-GB",
+        style="Classic refined British diction with enhanced clarity",
+        sample_text="Good day Jake. I'm Claude. Ready to inspect the system logs and trace this exception.",
+        recommended_role="Claude Code / Architect",
+    ),
+    VoicePersona(
+        id="Jamie (Premium)",
+        name="Jamie",
+        provider="mac_say",
+        gender="Male",
+        locale="en-GB",
+        style="Apple Premium offline modern British male, dynamic, natural, and conversational",
+        sample_text="Hello Jake! I'm Claude, running offline with Apple's premium Jamie neural voice.",
+        recommended_role="Claude Code / Pair Programmer",
+    ),
+    VoicePersona(
+        id="Jamie (Enhanced)",
+        name="Jamie",
+        provider="mac_say",
+        gender="Male",
+        locale="en-GB",
+        style="Apple Enhanced offline natural British male voice",
+        sample_text="Hello Jake! I'm Claude, running locally with Apple's enhanced Jamie voice.",
+        recommended_role="Claude Code / Pair Programmer",
+    ),
+    VoicePersona(
+        id="en-US-SteffanNeural",
+        name="Steffan",
+        provider="edge_tts",
+        gender="Male",
+        locale="en-US",
+        style="Precise, thoughtful, and analytical tone with subtle European poise",
+        sample_text="Hello Jake. I'm Claude. Ready to methodically reason through this system design.",
+        recommended_role="Claude Code / Primary Agent",
+    ),
+    VoicePersona(
+        id="en-US-BrianNeural",
+        name="Brian",
+        provider="edge_tts",
+        gender="Male",
+        locale="en-US",
+        style="Crisp, articulate, intellectual delivery with announcer-level clarity",
+        sample_text="Hello Jake. I'm Claude. I bring a crisp, articulate, and intellectual delivery to pair programming.",
+        recommended_role="Claude Code / Architect",
+    ),
+    VoicePersona(
+        id="Evan (Premium)",
+        name="Evan",
+        provider="mac_say",
+        gender="Male",
+        locale="en-US",
+        style="Apple Premium offline conversational American male voice",
+        sample_text="Hey Jake. I'm Evan, running offline with zero latency on Apple Silicon.",
+        recommended_role="Claude Code / Interactive Agent",
+    ),
+    VoicePersona(
         id="Alex",
         name="Alex",
         provider="mac_say",
@@ -147,9 +317,66 @@ def get_curated_personas(provider: Optional[str] = None) -> List[VoicePersona]:
 def find_persona(name_or_id: str) -> Optional[VoicePersona]:
     """Find a curated, custom cloned, or installed system voice by name or exact ID (case-insensitive)."""
     target = name_or_id.lower().strip()
+    
+    # Exact or curated match first
     for cp in CURATED_PERSONAS:
         if cp.id.lower() == target or cp.name.lower() == target:
             return cp
+
+    # Curated persona normalized aliases (e.g. avaneural, ava neural, christopherneural)
+    clean_target = re.sub(r"[^a-z0-9]", "", target)
+    if clean_target:
+        for cp in CURATED_PERSONAS:
+            norm_id = re.sub(r"[^a-z0-9]", "", cp.id.lower())
+            norm_name = re.sub(r"[^a-z0-9]", "", cp.name.lower())
+            short_id = re.sub(r"^[a-z]{4}", "", norm_id)
+            if clean_target in (norm_id, norm_name, short_id):
+                return cp
+
+    if target in ("ava premium", "ava-premium", "ava (premium)"):
+        for cp in CURATED_PERSONAS:
+            if cp.id == "Ava (Premium)":
+                return cp
+    elif target in ("ava enhanced", "ava-enhanced", "ava (enhanced)"):
+        for cp in CURATED_PERSONAS:
+            if cp.id == "Ava (Enhanced)":
+                return cp
+    elif target in ("oliver premium", "oliver-premium", "oliver (premium)"):
+        for cp in CURATED_PERSONAS:
+            if cp.id == "Oliver (Premium)":
+                return cp
+    elif target in ("oliver enhanced", "oliver-enhanced", "oliver (enhanced)"):
+        for cp in CURATED_PERSONAS:
+            if cp.id == "Oliver (Enhanced)":
+                return cp
+    elif target in ("serena premium", "serena-premium", "serena (premium)"):
+        for cp in CURATED_PERSONAS:
+            if cp.id == "Serena (Premium)":
+                return cp
+    elif target in ("daniel enhanced", "daniel-enhanced", "daniel (enhanced)"):
+        for cp in CURATED_PERSONAS:
+            if cp.id == "Daniel (Enhanced)":
+                return cp
+    elif target in ("evan premium", "evan-premium", "evan (premium)"):
+        for cp in CURATED_PERSONAS:
+            if cp.id == "Evan (Premium)":
+                return cp
+    elif target in ("nathan enhanced", "nathan-enhanced", "nathan (enhanced)"):
+        for cp in CURATED_PERSONAS:
+            if cp.id == "Nathan (Enhanced)":
+                return cp
+    elif target in ("jamie premium", "jamie-premium", "jamie (premium)", "jamie"):
+        for cp in CURATED_PERSONAS:
+            if cp.id == "Jamie (Premium)":
+                return cp
+    elif target in ("jamie enhanced", "jamie-enhanced", "jamie (enhanced)"):
+        for cp in CURATED_PERSONAS:
+            if cp.id == "Jamie (Enhanced)":
+                return cp
+    elif target in ("lee premium", "lee-premium", "lee (premium)"):
+        for cp in CURATED_PERSONAS:
+            if cp.id == "Lee (Premium)":
+                return cp
 
     # Check custom cloned voices
     try:
@@ -312,4 +539,458 @@ def list_all_available_voices(provider: Optional[str] = None) -> List[Dict[str, 
                 })
 
     return catalog
+
+
+CLAUDE_CONTENDERS: List[Dict[str, Any]] = [
+    {
+        "id": "en-GB-RyanNeural",
+        "name": "Ryan",
+        "provider": "edge_tts",
+        "gender": "Male",
+        "locale": "en-GB",
+        "accent": "British 🇬🇧",
+        "category": "edge_british",
+        "tag": "Top Pick for Claude",
+        "vibe": "Calm, intellectual, modern British neural tone — thoughtful and analytical for pair programming.",
+        "sample_phrase": "Right, let's take a look at these pull requests and sort out the failing test suite before merging.",
+        "is_premium_offline": False,
+    },
+    {
+        "id": "en-GB-ThomasNeural",
+        "name": "Thomas",
+        "provider": "edge_tts",
+        "gender": "Male",
+        "locale": "en-GB",
+        "accent": "British 🇬🇧",
+        "category": "edge_british",
+        "tag": "Classic Cambridge",
+        "vibe": "Crisp, polite, articulate, classic British delivery with pristine technical diction.",
+        "sample_phrase": "Good day! I'm Claude. I recommend decoupling this service layer into an asynchronous event bus.",
+        "is_premium_offline": False,
+    },
+    {
+        "id": "Oliver (Premium)",
+        "name": "Oliver (Premium)",
+        "provider": "mac_say",
+        "gender": "Male",
+        "locale": "en-GB",
+        "accent": "British 🇬🇧",
+        "category": "apple_premium",
+        "tag": "Apple Premium British Flagship",
+        "vibe": "Apple Premium offline neural voice, breathtaking natural clarity & British warmth (0ms offline).",
+        "sample_phrase": "Hello Jake. I'm Claude, running completely offline with Apple's premium neural engine.",
+        "is_premium_offline": True,
+    },
+    {
+        "id": "Oliver (Enhanced)",
+        "name": "Oliver (Enhanced)",
+        "provider": "mac_say",
+        "gender": "Male",
+        "locale": "en-GB",
+        "accent": "British 🇬🇧",
+        "category": "apple_premium",
+        "tag": "Apple Enhanced Offline",
+        "vibe": "Apple Enhanced offline neural voice, crisp and natural British diction (0ms offline).",
+        "sample_phrase": "Hello Jake. I'm Claude, running offline and locally on your Mac.",
+        "is_premium_offline": True,
+    },
+    {
+        "id": "Serena (Premium)",
+        "name": "Serena (Premium)",
+        "provider": "mac_say",
+        "gender": "Female",
+        "locale": "en-GB",
+        "accent": "British 🇬🇧",
+        "category": "apple_premium",
+        "tag": "Apple Premium UK Female",
+        "vibe": "Apple Premium offline British female voice, crystal clear, elegant, and refined.",
+        "sample_phrase": "Hello Jake. I'm Claude, running in premium offline neural quality on Apple Silicon.",
+        "is_premium_offline": True,
+    },
+    {
+        "id": "Daniel (Enhanced)",
+        "name": "Daniel (Enhanced)",
+        "provider": "mac_say",
+        "gender": "Male",
+        "locale": "en-GB",
+        "accent": "British 🇬🇧",
+        "category": "apple_premium",
+        "tag": "Classic UK Siri Diction",
+        "vibe": "Classic refined British diction with enhanced clarity and intellectual poise.",
+        "sample_phrase": "Good day Jake. I'm Claude. Ready to inspect the system logs and trace this exception.",
+        "is_premium_offline": True,
+    },
+    {
+        "id": "en-GB-SoniaNeural",
+        "name": "Sonia",
+        "provider": "edge_tts",
+        "gender": "Female",
+        "locale": "en-GB",
+        "accent": "British 🇬🇧",
+        "category": "edge_british",
+        "tag": "Analytical & Sharp",
+        "vibe": "Clear, measured British accent, analytical and focused for code audits and research.",
+        "sample_phrase": "Greetings. I am Sonia. I noticed an edge case on line 42 where null values trigger an uncaught error.",
+        "is_premium_offline": False,
+    },
+    {
+        "id": "en-GB-LibbyNeural",
+        "name": "Libby",
+        "provider": "edge_tts",
+        "gender": "Female",
+        "locale": "en-GB",
+        "accent": "British 🇬🇧",
+        "category": "edge_british",
+        "tag": "Warm & Approachable",
+        "vibe": "Warm, natural, approachable British cadence for collaborative focus sessions.",
+        "sample_phrase": "Hey Jake! I'm Libby. Ready to pair-program on this feature whenever you are.",
+        "is_premium_offline": False,
+    },
+    {
+        "id": "en-GB-MaisieNeural",
+        "name": "Maisie",
+        "provider": "edge_tts",
+        "gender": "Female",
+        "locale": "en-GB",
+        "accent": "British 🇬🇧",
+        "category": "edge_british",
+        "tag": "Modern UK",
+        "vibe": "Expressive, clear, modern British cadence with bright intonation.",
+        "sample_phrase": "Hello! I'm Maisie, bringing crisp British clarity to every code explanation.",
+        "is_premium_offline": False,
+    },
+    {
+        "id": "en-IE-ConnorNeural",
+        "name": "Connor",
+        "provider": "edge_tts",
+        "gender": "Male",
+        "locale": "en-IE",
+        "accent": "Irish 🇮🇪",
+        "category": "edge_commonwealth",
+        "tag": "Melodic Irish",
+        "vibe": "Warm, melodic, friendly Irish male cadence — easy to listen to for hours.",
+        "sample_phrase": "Hello Jake! I'm Connor. Great melodic Irish cadence for long, relaxed coding sessions.",
+        "is_premium_offline": False,
+    },
+    {
+        "id": "en-IE-EmilyNeural",
+        "name": "Emily",
+        "provider": "edge_tts",
+        "gender": "Female",
+        "locale": "en-IE",
+        "accent": "Irish 🇮🇪",
+        "category": "edge_commonwealth",
+        "tag": "Gentle Irish Cadence",
+        "vibe": "Pleasant Irish cadence that is gentle, articulate, and very easy to listen to.",
+        "sample_phrase": "Hello! I'm Emily. Pleasant Irish cadence that is gentle, articulate, and very easy to listen to.",
+        "is_premium_offline": False,
+    },
+    {
+        "id": "en-US-BrianNeural",
+        "name": "Brian",
+        "provider": "edge_tts",
+        "gender": "Male",
+        "locale": "en-US",
+        "accent": "Transatlantic / Intellectual 🌐",
+        "category": "edge_intellectual",
+        "tag": "Articulate & Intellectual",
+        "vibe": "Crisp, articulate, intellectual delivery with announcer-level clarity and thoughtful cadence.",
+        "sample_phrase": "Hello Jake. I'm Claude. I bring a crisp, articulate, and intellectual delivery to pair programming.",
+        "is_premium_offline": False,
+    },
+    {
+        "id": "en-US-SteffanNeural",
+        "name": "Steffan",
+        "provider": "edge_tts",
+        "gender": "Male",
+        "locale": "en-US",
+        "accent": "European-Leaning 🇪🇺",
+        "category": "edge_intellectual",
+        "tag": "Thoughtful & Precise",
+        "vibe": "Precise, thoughtful, and analytical tone with subtle European poise.",
+        "sample_phrase": "Hello Jake. I'm Steffan. Ready to methodically reason through this system design.",
+        "is_premium_offline": False,
+    },
+    {
+        "id": "Jamie (Premium)",
+        "name": "Jamie (Premium)",
+        "provider": "mac_say",
+        "gender": "Male",
+        "locale": "en-GB",
+        "accent": "British 🇬🇧",
+        "category": "apple_premium",
+        "tag": "Apple Dynamic British Male",
+        "vibe": "Apple Premium offline modern British male — dynamic, warm, natural, and conversational.",
+        "sample_phrase": "Hello Jake! I'm Jamie. Apple's modern, conversational British neural voice.",
+        "is_premium_offline": True,
+    },
+    {
+        "id": "Arthur (Enhanced)",
+        "name": "Arthur (Enhanced)",
+        "provider": "mac_say",
+        "gender": "Male",
+        "locale": "en-GB",
+        "accent": "British 🇬🇧",
+        "category": "apple_premium",
+        "tag": "Oxford Academic",
+        "vibe": "Distinguished, scholarly Oxford academic British tone with timeless intellectual warmth.",
+        "sample_phrase": "Good day. I am Arthur. Let us methodically analyze this algorithm and refactor cleanly.",
+        "is_premium_offline": True,
+    },
+    {
+        "id": "Malcolm (Enhanced)",
+        "name": "Malcolm (Enhanced)",
+        "provider": "mac_say",
+        "gender": "Male",
+        "locale": "en-GB",
+        "accent": "British 🇬🇧",
+        "category": "apple_premium",
+        "tag": "Gentlemanly British",
+        "vibe": "Gentle, polite, gentlemanly British delivery with thoughtful pacing.",
+        "sample_phrase": "Hello Jake. I'm Malcolm. Ready to assist with your codebase whenever you are.",
+        "is_premium_offline": True,
+    },
+    {
+        "id": "George (Enhanced)",
+        "name": "George (Enhanced)",
+        "provider": "mac_say",
+        "gender": "Male",
+        "locale": "en-GB",
+        "accent": "British 🇬🇧",
+        "category": "apple_premium",
+        "tag": "Classic British",
+        "vibe": "Warm, classic traditional British cadence.",
+        "sample_phrase": "Good day Jake. I'm George. Let's review the architecture and clean up the edge cases.",
+        "is_premium_offline": True,
+    },
+    {
+        "id": "Fiona (Enhanced)",
+        "name": "Fiona (Enhanced)",
+        "provider": "mac_say",
+        "gender": "Female",
+        "locale": "en-GB",
+        "accent": "Scottish 🏴󠁧󠁢󠁳󠁣󠁴󠁿",
+        "category": "apple_premium",
+        "tag": "Scottish Lilt",
+        "vibe": "Rich Scottish lilt, crisp, warm, and articulate.",
+        "sample_phrase": "Hello Jake! I'm Fiona, bringing authentic Scottish clarity to every explanation.",
+        "is_premium_offline": True,
+    },
+    {
+        "id": "en-NZ-MitchellNeural",
+        "name": "Mitchell",
+        "provider": "edge_tts",
+        "gender": "Male",
+        "locale": "en-NZ",
+        "accent": "New Zealand 🇳🇿",
+        "category": "edge_commonwealth",
+        "tag": "Polite Commonwealth",
+        "vibe": "Gentle, polite New Zealand Commonwealth male cadence — soft-spoken and focused.",
+        "sample_phrase": "G'day Jake! I'm Mitchell. Gentle, polite Commonwealth delivery for long coding sessions.",
+        "is_premium_offline": False,
+    },
+    {
+        "id": "en-ZA-LukeNeural",
+        "name": "Luke",
+        "provider": "edge_tts",
+        "gender": "Male",
+        "locale": "en-ZA",
+        "accent": "South African 🇿🇦",
+        "category": "edge_commonwealth",
+        "tag": "Distinguished Commonwealth",
+        "vibe": "Polished, distinguished South African Commonwealth male tone with melodic precision.",
+        "sample_phrase": "Hello Jake. I'm Luke. Polished, distinguished Commonwealth delivery with crisp diction.",
+        "is_premium_offline": False,
+    },
+    {
+        "id": "en-US-RogerNeural",
+        "name": "Roger",
+        "provider": "edge_tts",
+        "gender": "Male",
+        "locale": "en-US",
+        "accent": "American 🇺🇸",
+        "category": "edge_us",
+        "tag": "Seasoned Engineer",
+        "vibe": "Mature, seasoned, reassuring engineer tone for calm, thoughtful code navigation.",
+        "sample_phrase": "Hey Jake. I'm Roger. Calm, seasoned tone for deep debugging and architecture reviews.",
+        "is_premium_offline": False,
+    },
+    {
+        "id": "en-US-EricNeural",
+        "name": "Eric",
+        "provider": "edge_tts",
+        "gender": "Male",
+        "locale": "en-US",
+        "accent": "American 🇺🇸",
+        "category": "edge_us",
+        "tag": "Pragmatic & Direct",
+        "vibe": "Pragmatic, dry, analytical pair programming companion.",
+        "sample_phrase": "Hey. I'm Eric. Straightforward and analytical tone for rapid refactoring.",
+        "is_premium_offline": False,
+    },
+    {
+        "id": "Ava (Premium)",
+        "name": "Ava (Premium)",
+        "provider": "mac_say",
+        "gender": "Female",
+        "locale": "en-US",
+        "accent": "American 🇺🇸",
+        "category": "apple_premium",
+        "tag": "Apple Neural Flagship",
+        "vibe": "Apple Premium offline neural voice, breathtaking natural clarity, 0ms instant latency.",
+        "sample_phrase": "Hello Jake. I'm Ava, running in premium offline neural quality on your Mac.",
+        "is_premium_offline": True,
+    },
+    {
+        "id": "Evan (Premium)",
+        "name": "Evan (Premium)",
+        "provider": "mac_say",
+        "gender": "Male",
+        "locale": "en-US",
+        "accent": "American 🇺🇸",
+        "category": "apple_premium",
+        "tag": "Apple Premium US Male",
+        "vibe": "Apple Premium offline conversational American male voice with natural breathing.",
+        "sample_phrase": "Hey Jake. I'm Evan, running offline with zero latency on Apple Silicon.",
+        "is_premium_offline": True,
+    },
+    {
+        "id": "Nathan (Enhanced)",
+        "name": "Nathan (Enhanced)",
+        "provider": "mac_say",
+        "gender": "Male",
+        "locale": "en-US",
+        "accent": "American 🇺🇸",
+        "category": "apple_premium",
+        "tag": "Installed Offline",
+        "vibe": "Apple Enhanced offline neural voice, clear, natural, and low latency (Installed on your Mac).",
+        "sample_phrase": "Hello Jake. I'm Nathan, running completely offline and locally on your Mac.",
+        "is_premium_offline": True,
+    },
+    {
+        "id": "Lee (Premium)",
+        "name": "Lee (Premium)",
+        "provider": "mac_say",
+        "gender": "Male",
+        "locale": "en-AU",
+        "accent": "Australian 🇦🇺",
+        "category": "apple_premium",
+        "tag": "Installed Offline",
+        "vibe": "Apple Premium offline neural voice, warm, polished, and crisp (Installed on your Mac).",
+        "sample_phrase": "G'day Jake. I'm Lee, running in premium offline neural quality on your Mac.",
+        "is_premium_offline": True,
+    },
+    {
+        "id": "en-US-GuyNeural",
+        "name": "Guy",
+        "provider": "edge_tts",
+        "gender": "Male",
+        "locale": "en-US",
+        "accent": "American 🇺🇸",
+        "category": "edge_us",
+        "tag": "Currently Active",
+        "vibe": "Warm, natural, casual conversational delivery — Claude's current active voice.",
+        "sample_phrase": "Hey there! I'm Guy. I've got a casual, conversational delivery that feels like pair programming with a friend.",
+        "is_premium_offline": False,
+    },
+    {
+        "id": "en-US-ChristopherNeural",
+        "name": "Christopher",
+        "provider": "edge_tts",
+        "gender": "Male",
+        "locale": "en-US",
+        "accent": "American 🇺🇸",
+        "category": "edge_us",
+        "tag": "Deep & Grounded",
+        "vibe": "Deep, grounded, authoritative neural tone for deep focus and planning.",
+        "sample_phrase": "Hey! I'm Christopher. My calm, low-latency neural tone is great for deep focus.",
+        "is_premium_offline": False,
+    },
+    {
+        "id": "en-US-AndrewNeural",
+        "name": "Andrew",
+        "provider": "edge_tts",
+        "gender": "Male",
+        "locale": "en-US",
+        "accent": "American 🇺🇸",
+        "category": "edge_us",
+        "tag": "Warm & Relaxed",
+        "vibe": "Warm, relaxed, confident, authentic American tone for pair programming.",
+        "sample_phrase": "Hey! I'm Andrew. Warm, relaxed, and confident tone, great for pair programming.",
+        "is_premium_offline": False,
+    },
+    {
+        "id": "en-AU-WilliamNeural",
+        "name": "William",
+        "provider": "edge_tts",
+        "gender": "Male",
+        "locale": "en-AU",
+        "accent": "Australian 🇦🇺",
+        "category": "edge_commonwealth",
+        "tag": "Polished Aussie",
+        "vibe": "Distinct Australian accent, polished and crisp for architecture updates.",
+        "sample_phrase": "G'day! I'm William. I bring a distinct, polished voice to keep multi-agent updates clearly distinguishable.",
+        "is_premium_offline": False,
+    },
+    {
+        "id": "en-US-AvaNeural",
+        "name": "Viv",
+        "provider": "edge_tts",
+        "gender": "Female",
+        "locale": "en-US",
+        "accent": "American 🇺🇸",
+        "category": "edge_us",
+        "tag": "Modern Expressive",
+        "vibe": "Expressive, natural, modern conversational neural tone for onboarding and planning.",
+        "sample_phrase": "Hey! I'm Viv. Expressive, natural, and conversational tone, great for onboarding and pair programming.",
+        "is_premium_offline": False,
+    },
+]
+
+
+def get_claude_contenders(active_voice_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    """
+    Return the curated list of voice contenders tailored for Claude Code,
+    annotated with real-time macOS installation status and active selection flag.
+    """
+    try:
+        sys_voices = {v["id"].lower(): v for v in list_system_mac_voices()}
+    except Exception:
+        sys_voices = {}
+
+    target_active = (active_voice_id or "").strip().lower()
+
+    result = []
+    for item in CLAUDE_CONTENDERS:
+        entry = dict(item)
+        v_id = entry["id"]
+        v_prov = entry["provider"]
+
+        # Determine macOS installation status
+        if v_prov == "mac_say":
+            is_inst = v_id.lower() in sys_voices
+            if not is_inst:
+                # Check base name (e.g. 'Oliver' or 'Ava' in system voice name)
+                base_name = re.sub(r"\s*\(.*?\)", "", v_id).strip().lower()
+                for sv_k in sys_voices:
+                    if sv_k.startswith(base_name) or base_name in sv_k:
+                        is_inst = True
+                        break
+            entry["is_installed"] = is_inst
+        else:
+            entry["is_installed"] = True  # Edge TTS voices are instantly available
+
+        # Check if this voice matches Claude's active voice
+        norm_vid = v_id.lower()
+        norm_name = entry["name"].lower()
+        entry["is_active"] = (
+            target_active == norm_vid
+            or target_active == norm_name
+            or (target_active and target_active in norm_vid)
+        )
+
+        result.append(entry)
+
+    return result
+
 

@@ -384,6 +384,7 @@ def save_session_cookie(
     cookie_path = get_session_cookie_path()
     data = {
         "conversationId": conv_id,
+        "conv_id": conv_id,
         "transcriptPath": str(transcript_path) if transcript_path else "",
         "title": title or "",
         "workspacePath": str(workspace_path) if workspace_path else "",
@@ -407,7 +408,10 @@ def load_session_cookie() -> Optional[Dict[str, Any]]:
     try:
         with open(cookie_path, "r", encoding="utf-8") as f:
             data = json.load(f)
-            if data and isinstance(data, dict) and data.get("conversationId"):
+            if data and isinstance(data, dict) and (data.get("conversationId") or data.get("conv_id")):
+                cid = data.get("conversationId") or data.get("conv_id")
+                data["conversationId"] = cid
+                data["conv_id"] = cid
                 return data
     except Exception:
         pass
@@ -616,9 +620,10 @@ class ConversationTracker:
         if cookie and cookie.get("conversationId"):
             cid = cookie["conversationId"]
             cookie_time = float(cookie.get("updatedAt", 0))
+            now = time.time()
             
-            # If cookie is newer than or very close to disk mtime, honor cookie
-            if cookie_time >= (latest_conv.mtime - 3.0):
+            # If cookie was recently updated (within 5m) and not superseded by fresher disk writes:
+            if (now - cookie_time) < 300.0 and cookie_time >= (latest_conv.mtime - 4.0):
                 for c in convs:
                     if c.id == cid or (c.id.startswith("claude_") and c.id.replace("claude_", "") == cid) or (cid.startswith("claude_") and cid.replace("claude_", "") == c.id):
                         self.active_focus_id = c.id
@@ -639,7 +644,7 @@ class ConversationTracker:
                             self.active_focus_id = info.id
                             return info
 
-        # Otherwise the most recently touched conversation is active
+        # Otherwise the most recently touched conversation on disk is active
         self.active_focus_id = latest_conv.id
         return latest_conv
 

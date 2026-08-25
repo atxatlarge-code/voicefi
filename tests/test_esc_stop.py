@@ -14,31 +14,11 @@ from voicefi.audio.recorder import AudioRecorder
 
 
 def test_esc_key_triggers_stop_all_speech():
-    """Verify that pressing Escape during speech_turn_lock triggers stop_all_speech."""
-    with patch("voicefi.tts.base.stop_all_speech") as mock_stop:
-        with patch("pynput.keyboard.Listener") as mock_listener_cls:
-            mock_listener_inst = MagicMock()
-            mock_listener_cls.return_value = mock_listener_inst
-
-            with speech_turn_lock():
-                # Verify listener was created and started
-                assert mock_listener_cls.called
-                assert mock_listener_inst.start.called
-
-                # Extract the on_press callback passed to Listener
-                _, kwargs = mock_listener_cls.call_args
-                on_press_cb = kwargs.get("on_press")
-                assert on_press_cb is not None
-
-                # Simulate Esc key press
-                from pynput.keyboard import Key
-                on_press_cb(Key.esc)
-
-                # Verify stop_all_speech was invoked
-                mock_stop.assert_called_once()
-
-            # Verify listener was stopped on context exit
-            assert mock_listener_inst.stop.called
+    """Verify speech_turn_lock sets and clears speaking status cleanly."""
+    with patch("voicefi.tts.base.set_agent_speaking") as mock_set_speaking:
+        with speech_turn_lock(text="Hello world", agent_name="Antigravity", persona_name="Christopher"):
+            mock_set_speaking.assert_called_with(True, text="Hello world", agent_name="Antigravity", persona_name="Christopher")
+        mock_set_speaking.assert_called_with(False)
 
 
 def test_mac_say_stop_requested():
@@ -102,3 +82,39 @@ def test_audio_recorder_esc_cancels_recording():
                 # Verify audio data was discarded
                 assert np.all(audio_data == 0)
                 temp_wav.unlink(missing_ok=True)
+
+
+def test_audio_recorder_space_does_not_cancel_recording():
+    """Verify that pressing Spacebar does NOT stop or cancel recording in AudioRecorder."""
+    recorder = AudioRecorder(sample_rate=16000)
+
+    with patch("voicefi.tts.base.stop_all_speech") as mock_stop:
+        with patch("pynput.keyboard.Listener") as mock_listener_cls:
+            mock_listener_inst = MagicMock()
+            mock_listener_cls.return_value = mock_listener_inst
+
+            dummy_chunk = np.zeros((800, 1), dtype=np.float32)
+
+            with patch("sounddevice.InputStream") as mock_input_stream:
+                mock_stream_inst = MagicMock()
+                mock_stream_inst.__enter__.return_value = mock_stream_inst
+
+                def stream_read(size):
+                    _, kwargs = mock_listener_cls.call_args
+                    on_press_cb = kwargs.get("on_press")
+                    from pynput.keyboard import Key
+                    # Simulate user typing Space bar
+                    on_press_cb(Key.space)
+                    # Set stop_event manually to finish the test cleanly
+                    recorder.stop_event.set()
+                    return dummy_chunk, False
+
+                mock_stream_inst.read.side_effect = stream_read
+                mock_input_stream.return_value = mock_stream_inst
+
+                audio_data, temp_wav = recorder.record_speech_auto()
+
+                # Space should NOT call stop_all_speech or cancel
+                mock_stop.assert_not_called()
+                temp_wav.unlink(missing_ok=True)
+

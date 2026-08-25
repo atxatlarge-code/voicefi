@@ -78,11 +78,18 @@ def get_audio_device_profile() -> Dict[str, Any]:
     in_dev, out_dev = get_default_audio_devices()
     builtin_spk = is_using_builtin_speakers()
     headphones = is_headphone_or_headset_active()
+    try:
+        from voicefi.audio.native_vpio import is_vpio_supported
+        hardware_aec = is_vpio_supported()
+    except Exception:
+        hardware_aec = False
 
     return {
         "default_input": in_dev.get("name") if in_dev else "None",
         "default_output": out_dev.get("name") if out_dev else "None",
         "is_builtin_speakers": builtin_spk,
         "is_headphones_active": headphones,
-        "acoustic_safe_mode_recommended": builtin_spk and not headphones,
+        "hardware_aec_supported": hardware_aec,
+        "hardware_aec_backend": "Apple AUVoiceProcessing (VoiceProcessingIO)" if hardware_aec else "None",
+        "acoustic_safe_mode_recommended": builtin_spk and not headphones and not hardware_aec,
     }

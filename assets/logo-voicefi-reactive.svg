@@ -1,0 +1,179 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="50 50 412 412" width="100%" height="100%">
+  <!-- VoiceFi Master Mark: White Character with Red Active Anatomical Lighting -->
+  <defs>
+    <style>
+      /* Base Elements (Clean White by default) */
+      .vifi-wifi-crown, .vifi-wifi-visor, .vifi-wifi-brim,
+      .vifi-eyes, .vifi-mouth, .vifi-cradle,
+      .vifi-stem, .vifi-base-stand {
+        stroke: #FFFFFF;
+      }
+      .vifi-ear-frame { stroke: #FFFFFF; fill: #000000; }
+      .vifi-ear-dot   { fill: #FFFFFF; }
+      .vifi-nose-frame { stroke: #FFFFFF; fill: #000000; }
+      .vifi-nose-pin   { stroke: #FFFFFF; }
+
+      /* 1. THINKING: WiFi Hat turns Red & Pulses (Everything else White) */
+      @keyframes wifiLaserCrown {
+        0%, 100% {
+          stroke: #ff1a38;
+          stroke-width: 18px;
+          filter: drop-shadow(0 0 3px rgba(255, 0, 51, 0.4));
+          opacity: 0.85;
+        }
+        50% {
+          stroke: #ff0033;
+          stroke-width: 21px;
+          filter: drop-shadow(0 0 6px #ff0033) drop-shadow(0 0 14px rgba(255, 0, 51, 0.65));
+          opacity: 1;
+        }
+      }
+      @keyframes wifiLaserVisor {
+        0%, 100% {
+          stroke: #ff1a38;
+          stroke-width: 17px;
+          filter: drop-shadow(0 0 2px rgba(255, 0, 51, 0.35));
+          opacity: 0.8;
+        }
+        40% {
+          stroke: #ff0033;
+          stroke-width: 20px;
+          filter: drop-shadow(0 0 5px #ff0033) drop-shadow(0 0 12px rgba(255, 0, 51, 0.6));
+          opacity: 1;
+        }
+      }
+      @keyframes wifiLaserBrim {
+        0%, 100% {
+          stroke: #ff1a38;
+          stroke-width: 16px;
+          filter: drop-shadow(0 0 2px rgba(255, 0, 51, 0.3));
+          opacity: 0.75;
+        }
+        30% {
+          stroke: #ff0033;
+          stroke-width: 19px;
+          filter: drop-shadow(0 0 4px #ff0033) drop-shadow(0 0 10px rgba(255, 0, 51, 0.55));
+          opacity: 1;
+        }
+      }
+      .vifi-active-thinking .vifi-wifi-crown { animation: wifiLaserCrown 1.35s infinite ease-in-out; }
+      .vifi-active-thinking .vifi-wifi-visor { animation: wifiLaserVisor 1.35s infinite ease-in-out 0.14s; }
+      .vifi-active-thinking .vifi-wifi-brim  { animation: wifiLaserBrim 1.35s infinite ease-in-out 0.28s; }
+
+      /* 2. LISTENING: Ears turn Red & Glow (Everything else White) */
+      @keyframes earRedGlowPulse {
+        0%, 100% {
+          filter: drop-shadow(0 0 3px rgba(255, 0, 51, 0.4));
+          transform: scale(1);
+        }
+        50% {
+          filter: drop-shadow(0 0 8px #ff0033) drop-shadow(0 0 16px rgba(255, 0, 51, 0.7));
+          transform: scale(1.06);
+        }
+      }
+      .vifi-active-listening .vifi-ear-left   { animation: earRedGlowPulse 1.2s infinite ease-in-out; transform-origin: 124px 220px; }
+      .vifi-active-listening .vifi-ear-right  { animation: earRedGlowPulse 1.2s infinite ease-in-out 0.1s; transform-origin: 388px 220px; }
+      .vifi-active-listening .vifi-ear-left .vifi-ear-frame,
+      .vifi-active-listening .vifi-ear-right .vifi-ear-frame { stroke: #ff0033 !important; }
+      .vifi-active-listening .vifi-ear-dot-l,
+      .vifi-active-listening .vifi-ear-dot-r  { fill: #ff0033 !important; filter: drop-shadow(0 0 6px #ff0033); }
+
+      /* 3. SPEAKING: Mouth turns Red & Speaks (Everything else White) */
+      @keyframes mouthSpeakingMotion {
+        0%, 100% {
+          d: path("M 230 320 Q 256 336 282 320");
+          stroke: #ff1a38;
+          stroke-width: 7px;
+          filter: drop-shadow(0 0 4px rgba(255, 0, 51, 0.5));
+        }
+        25% {
+          d: path("M 226 318 Q 256 358 286 318");
+          stroke: #ff0033;
+          stroke-width: 9.5px;
+          filter: drop-shadow(0 0 8px #ff0033) drop-shadow(0 0 16px rgba(255, 0, 51, 0.8));
+        }
+        50% {
+          d: path("M 228 322 Q 256 342 284 322");
+          stroke: #ff1a38;
+          stroke-width: 8px;
+          filter: drop-shadow(0 0 6px rgba(255, 0, 51, 0.6));
+        }
+        75% {
+          d: path("M 224 316 Q 256 364 288 316");
+          stroke: #ff0033;
+          stroke-width: 10px;
+          filter: drop-shadow(0 0 9px #ff0033) drop-shadow(0 0 18px rgba(255, 0, 51, 0.85));
+        }
+      }
+      .vifi-active-speaking .vifi-mouth { animation: mouthSpeakingMotion 0.85s infinite ease-in-out; }
+
+      /* 4. WORKING: Eyes turn Red & Scan (Everything else White) */
+      @keyframes cyberEyeRedScan {
+        0%, 100% {
+          stroke: #ff1a38;
+          stroke-width: 8px;
+          filter: drop-shadow(0 0 3px rgba(255, 0, 51, 0.5));
+        }
+        50% {
+          stroke: #ff0033;
+          stroke-width: 10px;
+          filter: drop-shadow(0 0 8px #ff0033) drop-shadow(0 0 16px rgba(255, 0, 51, 0.8));
+        }
+      }
+      @keyframes usbDataPinRedBlink {
+        0%, 100% { stroke: #ff1a38; opacity: 0.6; }
+        20%, 40%, 60%, 80% { stroke: #ffffff; opacity: 1; filter: drop-shadow(0 0 5px #ff0033); }
+      }
+      .vifi-active-working .vifi-eyes { animation: cyberEyeRedScan 1.1s infinite ease-in-out; }
+      .vifi-active-working .vifi-nose-pin { animation: usbDataPinRedBlink 0.6s infinite linear; }
+      .vifi-active-working .vifi-nose-frame { stroke: #ff0033 !important; filter: drop-shadow(0 0 6px #ff0033); }
+
+      /* 5. IDLE: Standby Breathing (Pure White) */
+      @keyframes idleStandby {
+        0%, 100% { opacity: 0.9; }
+        50% { opacity: 1; filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.5)); }
+      }
+      .vifi-active-idle { animation: idleStandby 3.5s infinite ease-in-out; }
+    </style>
+  </defs>
+
+  <g transform="translate(0, 15)">
+    <!-- 1. WI-FI BROADCAST HAT (White by default; Red on Thinking) -->
+    <g class="vifi-wifi-group" fill="none" stroke-linecap="round">
+      <path class="vifi-wifi-crown" d="M 152 145 A 120 120 0 0 1 360 145" stroke-width="18" />
+      <path class="vifi-wifi-visor" d="M 184 180 A 80 80 0 0 1 328 180" stroke-width="17" />
+      <path class="vifi-wifi-brim" d="M 216 215 A 42 42 0 0 1 296 215" stroke-width="16" />
+    </g>
+
+    <!-- 2. MINIMALIST CYBER FACE & USB-C NOSE (White by default; Red on Working) -->
+    <g class="vifi-eyes-group" stroke-linecap="round">
+      <line class="vifi-eyes vifi-eye-left" x1="202" y1="262" x2="234" y2="262" stroke-width="8" />
+      <line class="vifi-eyes vifi-eye-right" x1="278" y1="262" x2="310" y2="262" stroke-width="8" />
+    </g>
+
+    <g class="vifi-nose-group">
+      <rect class="vifi-nose-frame" x="238" y="278" width="36" height="15" rx="7.5" stroke-width="2.5" />
+      <line class="vifi-nose-pin" x1="246" y1="285.5" x2="266" y2="285.5" stroke-width="2.5" stroke-linecap="round" />
+    </g>
+
+    <!-- 3. ACOUSTIC WAVEFORM SMILE MOUTH (White by default; Red on Speaking) -->
+    <path class="vifi-mouth" d="M 230 320 Q 256 342 282 320" fill="none" stroke-width="6" stroke-linecap="round" />
+
+    <!-- 4. HEADSET CRADLE & EARS (White by default; Ears Red on Listening) -->
+    <path class="vifi-cradle" d="M 124 220 C 124 350, 175 385, 256 385 C 337 385, 388 350, 388 220" fill="none" stroke-width="12" stroke-linecap="round" />
+
+    <g class="vifi-ear-left">
+      <rect class="vifi-ear-frame" x="110" y="205" width="28" height="30" rx="6" stroke-width="3.5" />
+      <circle class="vifi-ear-dot vifi-ear-dot-l" cx="124" cy="220" r="4.5" />
+    </g>
+
+    <g class="vifi-ear-right">
+      <rect class="vifi-ear-frame" x="374" y="205" width="28" height="30" rx="6" stroke-width="3.5" />
+      <circle class="vifi-ear-dot vifi-ear-dot-r" cx="388" cy="220" r="4.5" />
+    </g>
+
+    <!-- 5. STEM & HEAVY STUDIO BASE (White) -->
+    <line class="vifi-stem" x1="256" y1="385" x2="256" y2="430" stroke-width="13" stroke-linecap="round" />
+    <line class="vifi-base-stand" x1="190" y1="430" x2="322" y2="430" stroke-width="13" stroke-linecap="round" />
+  </g>
+</svg>

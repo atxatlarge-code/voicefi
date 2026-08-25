@@ -1,19 +1,29 @@
 """
 Native macOS Pure Apple-Style Unified Dynamic Island HUD.
-Provides a clean, borderless, frosted-glass capsule HUD anchored directly beneath
-the top-center screen / camera notch, smoothly morphing across agent lifecycle states:
-- IDLE: Compact persistent pill ("🎙️ VoiceFi • Ready")
+Provides a clean, borderless, frosted-glass fixed-size (480x58) capsule HUD anchored
+at the top-right of the screen with a 20px margin or user-dragged position, smoothly updating
+its internal content across agent lifecycle states:
+- IDLE: "🎙️ VoiceFi • Ready (⇧⌘N)"
 - THINKING: Reasoning indicator ("🧠 Antigravity • Thinking...")
-- WORKING: Tool action pill ("⚡ Antigravity • Running pytest...")
-- SPEAKING: Live speech subtitles ("🔊 Christopher: '...'")
-- LISTENING: Microphone VAD indicator with live typing stream ("🎙️ Jake: '...' ▌")
+- WORKING: Tool action card ("⚡ Antigravity • Running pytest...")
+- SPEAKING: Live speech subtitles ("🧔 Antigravity • Christopher 🔊 [Speaking]")
+- LISTENING: Microphone VAD indicator with live typing stream ("🎙️ Listening (Jake) • Live Stream")
 - EDITING: Interactive review & edit capsule before prompt submission ("✏️ Review & Edit Prompt")
+- PAUSED / TRANSCRIBING / DONE: Acoustic state indicators
 """
 
 import math
 import threading
 import time
-from typing import Optional, Callable
+import warnings
+from typing import Optional, Callable, Dict, Any
+
+try:
+    import objc
+    if hasattr(objc, "ObjCPointerWarning"):
+        warnings.filterwarnings("ignore", category=objc.ObjCPointerWarning)
+except Exception:
+    pass
 
 from AppKit import (
     NSApplication,
@@ -27,6 +37,7 @@ from AppKit import (
     NSSize,
     NSTextField,
     NSTextAlignmentCenter,
+    NSTextAlignmentRight,
     NSButton,
     NSBezelStyleRounded,
     NSColor,
@@ -46,6 +57,28 @@ import objc
 from PyObjCTools import AppHelper
 
 from voicefi.config import load_config, save_config
+
+AVATAR_ICONS: Dict[str, str] = {
+    "antigravity": "🤖",
+    "main": "🤖",
+    "researcher": "🔍",
+    "debugger": "🐞",
+    "qa": "🐞",
+    "tester": "🐞",
+    "architect": "📐",
+    "devops": "📐",
+    "claude": "🎭",
+    "christopher": "🧔",
+    "aria": "⚡",
+    "sonia": "🔬",
+    "guy": "☕",
+    "william": "🦘",
+    "jenny": "👩‍💻",
+    "samantha": "🍎",
+    "alex": "🍏",
+    "daniel": "🎙️",
+    "viv": "✨",
+}
 
 
 try:
@@ -102,8 +135,12 @@ except objc.nosuchclass_error:
 class UnifiedDynamicIslandHUD:
     """
     Singleton Native Apple-Style Unified Dynamic Island HUD for macOS.
-    Thread-safe, main-runloop safe, with persistent capsule, live typing, and review edit modes.
+    Thread-safe, main-runloop safe, fixed-size container that updates its internal
+    content smoothly across all agent and voice lifecycle states.
     """
+
+    STANDARD_WIDTH: float = 480.0
+    STANDARD_HEIGHT: float = 58.0
 
     _instance: Optional["UnifiedDynamicIslandHUD"] = None
     _lock = threading.Lock()
@@ -118,6 +155,7 @@ class UnifiedDynamicIslandHUD:
     def __init__(self):
         self.config = load_config()
         self._current_state = "idle"
+        self._is_speaking = False
         hud_cfg = getattr(self.config, "hud", None)
         self.persistent = getattr(hud_cfg, "persistent", True)
         self.auto_send = getattr(hud_cfg, "auto_send", True)
@@ -133,6 +171,7 @@ class UnifiedDynamicIslandHUD:
         self._body_lbl: Optional[NSTextField] = None
         self._edit_container: Optional[NSView] = None
         self._edit_header: Optional[NSTextField] = None
+        self._edit_hint: Optional[NSTextField] = None
         self._edit_text_field: Optional[NSTextField] = None
         self._send_button: Optional[NSButton] = None
         self._cancel_button: Optional[NSButton] = None
@@ -147,10 +186,29 @@ class UnifiedDynamicIslandHUD:
 
         self._init_native_window()
 
+    @property
+    def is_speaking(self) -> bool:
+        return bool(getattr(self, "_is_speaking", False) and self._current_state == "speaking")
+
+    def _resolve_avatar(self, agent_name: Optional[str], persona_name: Optional[str] = None) -> str:
+        """Resolve avatar emoji based on persona or agent name."""
+        if persona_name:
+            p_key = persona_name.lower().strip()
+            if p_key in AVATAR_ICONS:
+                return AVATAR_ICONS[p_key]
+        if agent_name:
+            a_key = agent_name.lower().strip()
+            if a_key in AVATAR_ICONS:
+                return AVATAR_ICONS[a_key]
+        return "🤖"
+
     def reset_position(self):
-        """Reset user-dragged position back to top-center camera notch."""
+        """Reset user-dragged position back to top-right of the screen with standard margin."""
         self._user_dragged_center_x = None
         self._user_dragged_top_y = None
+        if self._panel:
+            target_rect = self._get_target_frame(self.STANDARD_WIDTH, self.STANDARD_HEIGHT)
+            self._panel.setFrameOrigin_(target_rect.origin)
         if self._current_state == "idle":
             self.set_idle()
 
@@ -163,12 +221,12 @@ class UnifiedDynamicIslandHUD:
         except Exception:
             pass
 
-        w, h = 155, 34
-        rect = NSRect(NSPoint(500, 800), NSSize(w, h))
+        w, h = self.STANDARD_WIDTH, self.STANDARD_HEIGHT
+        target_rect = self._get_target_frame(w, h)
         style_mask = NSWindowStyleMaskBorderless | NSWindowStyleMaskNonactivatingPanel
 
         self._panel = NSPanel.alloc().initWithContentRect_styleMask_backing_defer_(
-            rect,
+            target_rect,
             style_mask,
             NSBackingStoreBuffered,
             False,
@@ -192,12 +250,12 @@ class UnifiedDynamicIslandHUD:
         self._window_delegate = HUDWindowDelegate.alloc().initWithHUD_(self)
         self._panel.setDelegate_(self._window_delegate)
 
-        # Root view container
+        # Root view container (fixed 480x58)
         self._root_view = NSView.alloc().initWithFrame_(NSRect(NSPoint(0, 0), NSSize(w, h)))
         self._root_view.setWantsLayer_(True)
-        self._root_view.layer().setCornerRadius_(h / 2.0)
+        self._root_view.layer().setCornerRadius_(20.0)
         self._root_view.layer().setMasksToBounds_(True)
-        self._root_view.layer().setBorderWidth_(1.0)
+        self._root_view.layer().setBorderWidth_(1.2)
         self._root_view.layer().setBorderColor_(
             NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 1.0, 1.0, 0.20).CGColor()
         )
@@ -210,30 +268,19 @@ class UnifiedDynamicIslandHUD:
         self._effect_view.setBlendingMode_(NSVisualEffectBlendingModeBehindWindow)
         self._effect_view.setState_(1)
         self._effect_view.setWantsLayer_(True)
-        self._effect_view.layer().setCornerRadius_(h / 2.0)
+        self._effect_view.layer().setCornerRadius_(20.0)
         self._root_view.addSubview_(self._effect_view)
 
-        # Single-line Compact Label (for Idle / Transcribing / Done pills)
-        self._label = NSTextField.alloc().initWithFrame_(
-            NSRect(NSPoint(8, 7), NSSize(w - 16, 20))
-        )
-        self._label.setStringValue_("🎙️ VoiceFi • Ready")
-        self._label.setFont_(NSFont.systemFontOfSize_(12.5))
-        self._label.setAlignment_(NSTextAlignmentCenter)
-        self._label.setTextColor_(NSColor.whiteColor())
-        self._label.setBezeled_(False)
-        self._label.setDrawsBackground_(False)
-        self._label.setEditable_(False)
-        self._label.setSelectable_(False)
-        self._root_view.addSubview_(self._label)
-
-        # Avatar badge view
-        self._avatar_box = NSView.alloc().initWithFrame_(NSRect(NSPoint(12, 10), NSSize(28, 28)))
+        # Avatar badge view (left)
+        self._avatar_box = NSView.alloc().initWithFrame_(NSRect(NSPoint(14, 15), NSSize(28, 28)))
         self._avatar_box.setWantsLayer_(True)
         self._avatar_box.layer().setCornerRadius_(14.0)
-        self._avatar_box.setHidden_(True)
+        self._avatar_box.layer().setBackgroundColor_(
+            NSColor.colorWithCalibratedRed_green_blue_alpha_(0.15, 0.20, 0.28, 0.85).CGColor()
+        )
 
         self._avatar_lbl = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(0, 1), NSSize(28, 26)))
+        self._avatar_lbl.setStringValue_("🎙️")
         self._avatar_lbl.setFont_(NSFont.systemFontOfSize_(15))
         self._avatar_lbl.setAlignment_(NSTextAlignmentCenter)
         self._avatar_lbl.setBezeled_(False)
@@ -243,46 +290,57 @@ class UnifiedDynamicIslandHUD:
         self._avatar_box.addSubview_(self._avatar_lbl)
         self._root_view.addSubview_(self._avatar_box)
 
-        # Title Label (Bold Agent/User name)
-        self._title_lbl = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(48, 24), NSSize(140, 18)))
+        # Title Label (Bold Agent/User/VoiceFi name)
+        self._title_lbl = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(50, 32), NSSize(140, 18)))
         self._title_lbl.setFont_(NSFont.boldSystemFontOfSize_(12.5))
         self._title_lbl.setTextColor_(NSColor.whiteColor())
+        self._title_lbl.setStringValue_("VoiceFi")
         self._title_lbl.setBezeled_(False)
         self._title_lbl.setDrawsBackground_(False)
         self._title_lbl.setEditable_(False)
         self._title_lbl.setSelectable_(False)
-        self._title_lbl.setHidden_(True)
         self._root_view.addSubview_(self._title_lbl)
 
-        # Tag Label (Colored status accent)
-        self._tag_lbl = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(180, 24), NSSize(240, 18)))
+        # Tag Label (Colored status accent / shortcut)
+        self._tag_lbl = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(195, 32), NSSize(270, 18)))
         self._tag_lbl.setFont_(NSFont.systemFontOfSize_(11))
+        self._tag_lbl.setStringValue_("• Ready (⇧⌘N)")
         self._tag_lbl.setBezeled_(False)
         self._tag_lbl.setDrawsBackground_(False)
         self._tag_lbl.setEditable_(False)
         self._tag_lbl.setSelectable_(False)
-        self._tag_lbl.setHidden_(True)
         self._root_view.addSubview_(self._tag_lbl)
 
-        # Body Text Label (Subtitles, recognized speech, tool actions)
-        self._body_lbl = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(48, 6), NSSize(380, 18)))
+        # Body Text Label (Subtitles, recognized speech, tool actions, hints)
+        self._body_lbl = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(50, 8), NSSize(416, 22)))
         self._body_lbl.setFont_(NSFont.systemFontOfSize_(11.5))
         self._body_lbl.setTextColor_(NSColor.colorWithCalibratedRed_green_blue_alpha_(0.9, 0.92, 0.96, 0.95))
+        self._body_lbl.setStringValue_("Standing by • Dictate (⌃T) or speak to agent (⌃R)")
         self._body_lbl.setBezeled_(False)
         self._body_lbl.setDrawsBackground_(False)
         self._body_lbl.setEditable_(False)
         self._body_lbl.setSelectable_(False)
-        self._body_lbl.setHidden_(True)
         self._root_view.addSubview_(self._body_lbl)
 
-        # Interactive Edit / Review Container (hidden by default)
-        self._edit_container = NSView.alloc().initWithFrame_(NSRect(NSPoint(0, 0), NSSize(480, 94)))
+        # Single-line Compact Fallback Label (if specifically used)
+        self._label = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(14, 18), NSSize(452, 22)))
+        self._label.setFont_(NSFont.systemFontOfSize_(12.5))
+        self._label.setAlignment_(NSTextAlignmentCenter)
+        self._label.setTextColor_(NSColor.whiteColor())
+        self._label.setBezeled_(False)
+        self._label.setDrawsBackground_(False)
+        self._label.setEditable_(False)
+        self._label.setSelectable_(False)
+        self._label.setHidden_(True)
+        self._root_view.addSubview_(self._label)
+
+        # Interactive Edit / Review Container (hidden by default, fixed 480x58)
+        self._edit_container = NSView.alloc().initWithFrame_(NSRect(NSPoint(0, 0), NSSize(w, h)))
         self._edit_container.setHidden_(True)
 
-        # Edit Header
-        self._edit_header = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(14, 68), NSSize(450, 18)))
-        self._edit_header.setStringValue_("✏️ Review & Edit Prompt (Enter to Send • Esc to Cancel):")
-        self._edit_header.setFont_(NSFont.boldSystemFontOfSize_(11))
+        self._edit_header = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(14, 33), NSSize(270, 18)))
+        self._edit_header.setStringValue_("✏️ Review & Edit Prompt:")
+        self._edit_header.setFont_(NSFont.boldSystemFontOfSize_(11.5))
         self._edit_header.setTextColor_(NSColor.colorWithCalibratedRed_green_blue_alpha_(0.7, 0.85, 1.0, 0.95))
         self._edit_header.setBezeled_(False)
         self._edit_header.setDrawsBackground_(False)
@@ -290,8 +348,18 @@ class UnifiedDynamicIslandHUD:
         self._edit_header.setSelectable_(False)
         self._edit_container.addSubview_(self._edit_header)
 
-        # Edit Text Input Field
-        self._edit_text_field = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(14, 34), NSSize(452, 28)))
+        self._edit_hint = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(290, 33), NSSize(176, 18)))
+        self._edit_hint.setStringValue_("[Enter] Send • [Esc] Cancel")
+        self._edit_hint.setFont_(NSFont.systemFontOfSize_(10.5))
+        self._edit_hint.setAlignment_(NSTextAlignmentRight)
+        self._edit_hint.setTextColor_(NSColor.colorWithCalibratedRed_green_blue_alpha_(0.6, 0.75, 0.9, 0.8))
+        self._edit_hint.setBezeled_(False)
+        self._edit_hint.setDrawsBackground_(False)
+        self._edit_hint.setEditable_(False)
+        self._edit_hint.setSelectable_(False)
+        self._edit_container.addSubview_(self._edit_hint)
+
+        self._edit_text_field = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(14, 7), NSSize(376, 24)))
         self._edit_text_field.setFont_(NSFont.systemFontOfSize_(12.5))
         self._edit_text_field.setTextColor_(NSColor.whiteColor())
         self._edit_text_field.setBezeled_(True)
@@ -303,44 +371,134 @@ class UnifiedDynamicIslandHUD:
         self._edit_text_field.setSelectable_(True)
         self._edit_container.addSubview_(self._edit_text_field)
 
-        # Action Buttons
-        self._send_button = NSButton.alloc().initWithFrame_(NSRect(NSPoint(386, 6), NSSize(80, 24)))
+        self._send_button = NSButton.alloc().initWithFrame_(NSRect(NSPoint(398, 7), NSSize(68, 24)))
         self._send_button.setTitle_("Send ↵")
         self._send_button.setBezelStyle_(NSBezelStyleRounded)
         self._edit_container.addSubview_(self._send_button)
 
-        self._cancel_button = NSButton.alloc().initWithFrame_(NSRect(NSPoint(302, 6), NSSize(78, 24)))
-        self._cancel_button.setTitle_("Cancel ✕")
-        self._cancel_button.setBezelStyle_(NSBezelStyleRounded)
+        self._cancel_button = NSButton.alloc().initWithFrame_(NSRect(NSPoint(0, 0), NSSize(0, 0)))
+        self._cancel_button.setHidden_(True)
         self._edit_container.addSubview_(self._cancel_button)
 
         self._root_view.addSubview_(self._edit_container)
         self._panel.setContentView_(self._root_view)
 
-    def _get_target_frame(self, width: float, height: float) -> NSRect:
-        """Calculate screen positioning anchored top-center below notch, or user-dragged position."""
+    def _get_target_frame(self, width: float = 480.0, height: float = 58.0) -> NSRect:
+        """Calculate screen positioning anchored top-right with margin below Chrome tab bar, or user-dragged position."""
         screen = NSScreen.mainScreen()
         if self._user_dragged_center_x is not None and self._user_dragged_top_y is not None:
             x = self._user_dragged_center_x - (width / 2.0)
             y = self._user_dragged_top_y - height
         elif screen:
             visible = screen.visibleFrame()
-            x = visible.origin.x + (visible.size.width - width) / 2.0
-            y = visible.origin.y + visible.size.height - height - 8.0
+            hud_cfg = getattr(self.config, "hud", None) if hasattr(self, "config") else None
+            margin_x = float(getattr(hud_cfg, "margin_x", 20.0)) if hud_cfg else 20.0
+            margin_y = float(getattr(hud_cfg, "margin_y", 52.0)) if hud_cfg else 52.0
+            x = visible.origin.x + visible.size.width - width - margin_x
+            y = visible.origin.y + visible.size.height - height - margin_y
         else:
-            x, y = 500, 800
+            x, y = 1200, 800
         return NSRect(NSPoint(x, y), NSSize(width, height))
+
+    def _position_top_right(self):
+        """Ensure HUD is positioned at top-right of the screen with standard margin."""
+        if not self._panel:
+            return
+        target_rect = self._get_target_frame(self.STANDARD_WIDTH, self.STANDARD_HEIGHT)
+        self._panel.setFrameOrigin_(target_rect.origin)
+
+    def _position_top_center(self):
+        """Ensure HUD is positioned (compatibility wrapper for _position_top_right)."""
+        self._position_top_right()
+
+    def _apply_rich_state(
+        self,
+        state: str,
+        avatar_emoji: str,
+        avatar_bg: NSColor,
+        title: str,
+        tag_text: str,
+        tag_color: NSColor,
+        body_text: str,
+        border_color: NSColor,
+        width: Optional[float] = None,
+        height: Optional[float] = None,
+        linger: Optional[float] = None,
+    ):
+        """Update window geometry with rich structured view hierarchy on main thread."""
+        w = width or self.STANDARD_WIDTH
+        h = height or self.STANDARD_HEIGHT
+
+        with self._lock:
+            self._current_state = state
+            if self._hide_timer:
+                self._hide_timer.cancel()
+                self._hide_timer = None
+
+        def _update():
+            if not self._panel or not self._root_view or not self._effect_view:
+                return
+
+            if self._edit_container:
+                self._edit_container.setHidden_(True)
+            if self._label:
+                self._label.setHidden_(True)
+
+            target_rect = self._get_target_frame(w, h)
+
+            if not self._panel.isVisible():
+                self._panel.setFrame_display_(target_rect, True)
+
+            self._root_view.layer().setBorderColor_(border_color.CGColor())
+
+            # Avatar Box
+            if self._avatar_box and self._avatar_lbl:
+                self._avatar_box.setHidden_(False)
+                self._avatar_box.layer().setBackgroundColor_(avatar_bg.CGColor())
+                self._avatar_lbl.setStringValue_(avatar_emoji)
+
+            # Title & Tag (Top row)
+            if self._title_lbl:
+                self._title_lbl.setHidden_(False)
+                self._title_lbl.setStringValue_(title)
+
+            if self._tag_lbl:
+                self._tag_lbl.setHidden_(False)
+                self._tag_lbl.setStringValue_(tag_text)
+                self._tag_lbl.setTextColor_(tag_color)
+
+            # Body Text (Bottom row)
+            if self._body_lbl:
+                self._body_lbl.setHidden_(False)
+                self._body_lbl.setStringValue_(body_text)
+
+            self._panel.orderFrontRegardless()
+            self._is_visible = True
+
+            if linger and linger > 0:
+                with self._lock:
+                    if self.persistent:
+                        self._hide_timer = threading.Timer(linger, self.set_idle)
+                    else:
+                        self._hide_timer = threading.Timer(linger, self.hide)
+                    self._hide_timer.daemon = True
+                    self._hide_timer.start()
+
+        if threading.current_thread() is threading.main_thread():
+            _update()
+        else:
+            AppHelper.callAfter(_update)
 
     def _apply_state(
         self,
         state: str,
         text: str,
-        width: float,
-        height: float,
+        width: Optional[float] = None,
+        height: Optional[float] = None,
         font_size: float = 12.5,
         linger: Optional[float] = None,
     ):
-        """Update window geometry for single-line/idle presentation on main thread."""
+        """Single-line / compatibility presentation maintaining fixed geometry."""
         with self._lock:
             self._current_state = state
             if self._hide_timer:
@@ -363,136 +521,11 @@ class UnifiedDynamicIslandHUD:
                 self._body_lbl.setHidden_(True)
 
             self._label.setHidden_(False)
-
-            target_rect = self._get_target_frame(width, height)
-            corner_radius = height / 2.0 if height <= 50 else 20.0
-
-            # Animate frame resizing with smooth Apple spring curve
-            self._is_animating = True
-            try:
-                NSAnimationContext.beginGrouping()
-                NSAnimationContext.currentContext().setDuration_(0.20)
-                self._panel.animator().setFrame_display_(target_rect, True)
-                NSAnimationContext.endGrouping()
-            except Exception:
-                self._panel.setFrame_display_(target_rect, True)
-            finally:
-                self._is_animating = False
-
-            self._root_view.setFrame_(NSRect(NSPoint(0, 0), NSSize(width, height)))
-            self._root_view.layer().setCornerRadius_(corner_radius)
-            self._root_view.layer().setBorderWidth_(1.0)
-            self._root_view.layer().setBorderColor_(
-                NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 1.0, 1.0, 0.20).CGColor()
-            )
-
-            self._effect_view.setFrame_(NSRect(NSPoint(0, 0), NSSize(width, height)))
-            self._effect_view.layer().setCornerRadius_(corner_radius)
-
-            label_h = font_size + 8.0
-            label_y = max(2.0, (height - label_h) / 2.0)
-            self._label.setFrame_(NSRect(NSPoint(8, label_y), NSSize(width - 16, label_h)))
-            self._label.setFont_(NSFont.systemFontOfSize_(font_size))
-            self._label.setAlignment_(NSTextAlignmentCenter)
             self._label.setStringValue_(text)
 
-            self._panel.orderFrontRegardless()
-            self._is_visible = True
-
-            if linger and linger > 0:
-                with self._lock:
-                    if self.persistent:
-                        self._hide_timer = threading.Timer(linger, self.set_idle)
-                    else:
-                        self._hide_timer = threading.Timer(linger, self.hide)
-                    self._hide_timer.daemon = True
-                    self._hide_timer.start()
-
-        if threading.current_thread() is threading.main_thread():
-            _update()
-        else:
-            AppHelper.callAfter(_update)
-
-    def _apply_rich_state(
-        self,
-        state: str,
-        avatar_emoji: str,
-        avatar_bg: NSColor,
-        title: str,
-        tag_text: str,
-        tag_color: NSColor,
-        body_text: str,
-        border_color: NSColor,
-        width: float,
-        height: float,
-        linger: Optional[float] = None,
-    ):
-        """Update window geometry with rich structured multi-line view hierarchy on main thread."""
-        with self._lock:
-            self._current_state = state
-            if self._hide_timer:
-                self._hide_timer.cancel()
-                self._hide_timer = None
-
-        def _update():
-            if not self._panel or not self._root_view or not self._effect_view:
-                return
-
-            if self._edit_container:
-                self._edit_container.setHidden_(True)
-            if self._label:
-                self._label.setHidden_(True)
-
-            target_rect = self._get_target_frame(width, height)
-            corner_radius = 20.0
-
-            self._is_animating = True
-            try:
-                NSAnimationContext.beginGrouping()
-                NSAnimationContext.currentContext().setDuration_(0.20)
-                self._panel.animator().setFrame_display_(target_rect, True)
-                NSAnimationContext.endGrouping()
-            except Exception:
+            target_rect = self._get_target_frame(self.STANDARD_WIDTH, self.STANDARD_HEIGHT)
+            if not self._panel.isVisible():
                 self._panel.setFrame_display_(target_rect, True)
-            finally:
-                self._is_animating = False
-
-            self._root_view.setFrame_(NSRect(NSPoint(0, 0), NSSize(width, height)))
-            self._root_view.layer().setCornerRadius_(corner_radius)
-            self._root_view.layer().setBorderWidth_(1.5)
-            self._root_view.layer().setBorderColor_(border_color.CGColor())
-
-            self._effect_view.setFrame_(NSRect(NSPoint(0, 0), NSSize(width, height)))
-            self._effect_view.layer().setCornerRadius_(corner_radius)
-
-            # Avatar Box
-            if self._avatar_box and self._avatar_lbl:
-                avatar_size = 28.0
-                avatar_y = max(8.0, height - avatar_size - 10.0)
-                self._avatar_box.setHidden_(False)
-                self._avatar_box.setFrame_(NSRect(NSPoint(12, avatar_y), NSSize(avatar_size, avatar_size)))
-                self._avatar_box.layer().setBackgroundColor_(avatar_bg.CGColor())
-                self._avatar_lbl.setStringValue_(avatar_emoji)
-
-            # Title & Tag (Top row)
-            header_y = height - 26.0
-            if self._title_lbl:
-                self._title_lbl.setHidden_(False)
-                self._title_lbl.setFrame_(NSRect(NSPoint(48, header_y), NSSize(140, 18)))
-                self._title_lbl.setStringValue_(title)
-
-            if self._tag_lbl:
-                self._tag_lbl.setHidden_(False)
-                self._tag_lbl.setFrame_(NSRect(NSPoint(180, header_y), NSSize(max(100, width - 190), 18)))
-                self._tag_lbl.setStringValue_(tag_text)
-                self._tag_lbl.setTextColor_(tag_color)
-
-            # Body Text (Bottom row)
-            if self._body_lbl:
-                self._body_lbl.setHidden_(False)
-                body_h = max(16.0, height - 32.0)
-                self._body_lbl.setFrame_(NSRect(NSPoint(48, 6), NSSize(max(100, width - 58), body_h)))
-                self._body_lbl.setStringValue_(body_text)
 
             self._panel.orderFrontRegardless()
             self._is_visible = True
@@ -532,14 +565,12 @@ class UnifiedDynamicIslandHUD:
         if not self._panel:
             return
         if self.fullscreen_overlay:
-            # Always on top of full-screen games, apps, and video playback
             self._panel.setLevel_(NSStatusWindowLevel + 2)
             self._panel.setCollectionBehavior_(
                 NSWindowCollectionBehaviorCanJoinAllSpaces
                 | NSWindowCollectionBehaviorFullScreenAuxiliary
             )
         else:
-            # Allow full screen apps to overlap / hide behind
             self._panel.setLevel_(NSFloatingWindowLevel)
             self._panel.setCollectionBehavior_(
                 NSWindowCollectionBehaviorCanJoinAllSpaces
@@ -560,52 +591,49 @@ class UnifiedDynamicIslandHUD:
             AppHelper.callAfter(_update)
 
     # -------------------------------------------------------------------------
-    # Lifecycle State Handlers
+    # Lifecycle State Handlers (Fixed 480x58)
     # -------------------------------------------------------------------------
 
     def set_idle(self, linger: Optional[float] = None):
-        """Set to Idle State (Compact Persistent Pill)."""
-        self._apply_state(
+        """Set to Idle State (Fixed 480x58 persistent capsule)."""
+        self._apply_rich_state(
             state="idle",
-            text="🎙️ VoiceFi • Ready (⌘⇧N)",
-            width=188,
-            height=34,
-            font_size=12.5,
+            avatar_emoji="🎙️",
+            avatar_bg=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.15, 0.20, 0.28, 0.85),
+            title="VoiceFi",
+            tag_text="• Ready (⇧⌘N)",
+            tag_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.3, 0.9, 0.7, 0.95),
+            body_text="Standing by • Dictate (⌃T) or speak to agent (⌃R)",
+            border_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 1.0, 1.0, 0.20),
             linger=linger,
         )
 
     def set_thinking(self, agent_name: str = "Antigravity", detail: str = "Thinking..."):
-        """Set to Thinking State with rich reasoning card."""
+        """Set to Thinking State with rich reasoning card (fixed 480x58)."""
         display_detail = detail or "Analyzing codebase & dependencies..."
-        width = max(380, min(500, len(display_detail) * 7.5 + 80))
         self._apply_rich_state(
             state="thinking",
             avatar_emoji="🧠",
-            avatar_bg=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.35, 0.2, 0.55, 0.8),
+            avatar_bg=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.35, 0.20, 0.55, 0.85),
             title=agent_name.capitalize(),
             tag_text="• Thinking...",
             tag_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.8, 0.65, 1.0, 0.95),
             body_text=display_detail,
             border_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.65, 0.45, 0.98, 0.75),
-            width=width,
-            height=48,
         )
 
     def set_working(self, agent_name: str = "Antigravity", tool_action: str = "Running tool..."):
-        """Set to Working / Tool Execution State with rich tool card."""
+        """Set to Working / Tool Execution State with rich tool card (fixed 480x58)."""
         display_tool = tool_action or "Executing background tasks..."
-        width = max(390, min(520, len(display_tool) * 7.5 + 80))
         self._apply_rich_state(
             state="working",
             avatar_emoji="⚡",
-            avatar_bg=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.15, 0.35, 0.65, 0.8),
+            avatar_bg=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.15, 0.35, 0.65, 0.85),
             title=agent_name.capitalize(),
             tag_text="• Running Tool",
             tag_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.5, 0.8, 1.0, 0.95),
             body_text=display_tool,
             border_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.3, 0.6, 1.0, 0.8),
-            width=width,
-            height=48,
         )
 
     def set_speaking(
@@ -615,21 +643,20 @@ class UnifiedDynamicIslandHUD:
         persona_name: Optional[str] = None,
         linger: Optional[float] = 2.5,
     ):
-        """Set to Speaking State with rich live speech subtitles."""
+        """Set to Speaking State with rich live speech subtitles (fixed 480x58)."""
+        self._is_speaking = True
         clean = text.strip() or "Speaking..."
         speaker = persona_name if persona_name else agent_name.capitalize()
-        width = max(420, min(540, len(clean) * 7.5 + 80))
+        avatar = self._resolve_avatar(agent_name, persona_name)
         self._apply_rich_state(
             state="speaking",
-            avatar_emoji="🧔",
-            avatar_bg=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.1, 0.4, 0.5, 0.8),
+            avatar_emoji=avatar,
+            avatar_bg=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.1, 0.4, 0.5, 0.85),
             title=agent_name.capitalize(),
             tag_text=f"• {speaker} 🔊 [Speaking]",
             tag_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.3, 0.9, 1.0, 0.95),
             body_text=f'"{clean}"',
             border_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.15, 0.85, 0.95, 0.8),
-            width=width,
-            height=58,
             linger=linger,
         )
 
@@ -639,17 +666,18 @@ class UnifiedDynamicIslandHUD:
         user_name: str = "Jake",
         live_stream: bool = False,
     ):
-        """Set to Listening State with rich microphone badge and live typing preview."""
+        """Set to Listening State with microphone badge and live typing preview (fixed 480x58)."""
         if prompt_preview:
             clean = prompt_preview.strip()
             cursor = " ▌" if live_stream else ""
             body = f'"{clean}"{cursor}'
             tag = "🔴 Live Recording Stream" if live_stream else "🔴 Recording (Live Mic)"
-            width = max(390, min(520, len(clean) * 7.5 + 80))
         else:
             body = "Speak your prompt or question..."
             tag = "🔴 Recording (Live Mic)"
-            width = 360
+
+        if self._label:
+            self._label.setStringValue_("🔴 Listening... (Speak)")
 
         self._apply_rich_state(
             state="listening",
@@ -660,8 +688,6 @@ class UnifiedDynamicIslandHUD:
             tag_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 0.38, 0.42, 0.98),
             body_text=body,
             border_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.92, 0.22, 0.26, 0.85),
-            width=width,
-            height=52,
         )
 
     def set_new_conversation(
@@ -670,17 +696,15 @@ class UnifiedDynamicIslandHUD:
         user_name: str = "Jake",
         live_stream: bool = False,
     ):
-        """Set to New Conversation State with Connected Tools indicator and live prompt preview."""
+        """Set to New Conversation State with Connected Tools indicator (fixed 480x58)."""
         if prompt_preview:
             clean = prompt_preview.strip()
             cursor = " ▌" if live_stream else ""
             body = f'"{clean}"{cursor}'
             tag = "⚡ Connected Tools • Live Stream" if live_stream else "⚡ Connected Tools"
-            width = max(420, min(540, len(clean) * 7.5 + 80))
         else:
             body = "Speak initial prompt to start conversation with connected tools..."
             tag = "⚡ Connected Tools"
-            width = 440
 
         self._apply_rich_state(
             state="new_conversation",
@@ -691,8 +715,6 @@ class UnifiedDynamicIslandHUD:
             tag_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.3, 0.95, 0.8, 0.98),
             body_text=body,
             border_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.2, 0.85, 0.7, 0.85),
-            width=width,
-            height=54,
         )
 
     def start_new_conversation_dialog(
@@ -717,8 +739,10 @@ class UnifiedDynamicIslandHUD:
             self.set_listening(prompt_preview=text, user_name=user_name, live_stream=True)
 
     def update_live_text(self, text: str):
-        """Update subtitle or transcription text dynamically without full resize."""
+        """Update subtitle or transcription text dynamically without frame change."""
         def _update():
+            if self._body_lbl and self._panel and self._panel.isVisible():
+                self._body_lbl.setStringValue_(text)
             if self._label and self._panel and self._panel.isVisible():
                 self._label.setStringValue_(text)
 
@@ -727,8 +751,12 @@ class UnifiedDynamicIslandHUD:
         else:
             AppHelper.callAfter(_update)
 
+    def update_text(self, text: str):
+        """Alias for update_live_text."""
+        self.update_live_text(text)
+
     # -------------------------------------------------------------------------
-    # Interactive Edit / Review State
+    # Interactive Edit / Review State (Fixed 480x58)
     # -------------------------------------------------------------------------
 
     def set_editing(
@@ -740,7 +768,7 @@ class UnifiedDynamicIslandHUD:
     ):
         """
         Open the interactive review & edit capsule on the main thread.
-        Allows the user to modify the transcribed text before sending, or cancel.
+        Maintains fixed 480x58 container dimensions.
         """
         with self._lock:
             self._current_state = "editing"
@@ -752,29 +780,28 @@ class UnifiedDynamicIslandHUD:
             if not self._panel or not self._root_view or not self._edit_container:
                 return
 
-            width, height = 480, 94
-            target_rect = self._get_target_frame(width, height)
-
-            try:
-                NSAnimationContext.beginGrouping()
-                NSAnimationContext.currentContext().setDuration_(0.18)
-                self._panel.animator().setFrame_display_(target_rect, True)
-                NSAnimationContext.endGrouping()
-            except Exception:
+            target_rect = self._get_target_frame(self.STANDARD_WIDTH, self.STANDARD_HEIGHT)
+            if not self._panel.isVisible():
                 self._panel.setFrame_display_(target_rect, True)
 
-            self._root_view.setFrame_(NSRect(NSPoint(0, 0), NSSize(width, height)))
-            self._root_view.layer().setCornerRadius_(20.0)
-            self._effect_view.setFrame_(NSRect(NSPoint(0, 0), NSSize(width, height)))
-            self._effect_view.layer().setCornerRadius_(20.0)
-
-            # Hide standard label and show edit container
+            # Hide standard labels and show edit container
             if self._label:
                 self._label.setHidden_(True)
-            self._edit_container.setHidden_(False)
-            self._edit_container.setFrame_(NSRect(NSPoint(0, 0), NSSize(width, height)))
+            if self._avatar_box:
+                self._avatar_box.setHidden_(True)
+            if self._title_lbl:
+                self._title_lbl.setHidden_(True)
+            if self._tag_lbl:
+                self._tag_lbl.setHidden_(True)
+            if self._body_lbl:
+                self._body_lbl.setHidden_(True)
 
-            header_text = f"✏️ Review & Edit ({target_name}) — [Enter] Send • [Esc] Cancel:"
+            self._edit_container.setHidden_(False)
+            self._root_view.layer().setBorderColor_(
+                NSColor.colorWithCalibratedRed_green_blue_alpha_(0.3, 0.65, 1.0, 0.9).CGColor()
+            )
+
+            header_text = f"✏️ Review & Edit ({target_name}):"
             self._edit_header.setStringValue_(header_text)
             self._edit_text_field.setStringValue_(initial_text)
 
@@ -802,7 +829,6 @@ class UnifiedDynamicIslandHUD:
                 self._edit_text_field,
             )
 
-            # Setup target action on text field and buttons
             self._edit_text_field.setTarget_(self._action_delegate)
             self._edit_text_field.setAction_("submitAction:")
             self._edit_text_field.setDelegate_(self._action_delegate)
@@ -810,10 +836,6 @@ class UnifiedDynamicIslandHUD:
             self._send_button.setTarget_(self._action_delegate)
             self._send_button.setAction_("submitAction:")
 
-            self._cancel_button.setTarget_(self._action_delegate)
-            self._cancel_button.setAction_("cancelAction:")
-
-            # Make key window and focus text field
             self._panel.setBecomesKeyOnlyIfNeeded_(False)
             self._panel.makeKeyAndOrderFront_(None)
             self._panel.makeFirstResponder_(self._edit_text_field)
@@ -830,6 +852,7 @@ class UnifiedDynamicIslandHUD:
 
     def finish_speech(self, linger_seconds: float = 2.0):
         """Conclude speech turn and return to persistent idle or auto-hide."""
+        self._is_speaking = False
         with self._lock:
             if self._hide_timer:
                 self._hide_timer.cancel()
@@ -842,6 +865,7 @@ class UnifiedDynamicIslandHUD:
 
     def hide(self):
         """Hide the HUD panel or return to persistent idle."""
+        self._is_speaking = False
         if self.persistent:
             self.set_idle()
             return
@@ -898,33 +922,47 @@ class UnifiedDynamicIslandHUD:
 
     def show_paused(self, message: str = "⏸️ Agent Speaking (Paused)..."):
         """Compatibility bridge for DictationHUD.show_paused."""
-        self._apply_state(
+        if self._label:
+            self._label.setStringValue_(message)
+        self._apply_rich_state(
             state="paused",
-            text=message,
-            width=240,
-            height=34,
-            font_size=12.5,
+            avatar_emoji="⏸️",
+            avatar_bg=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.55, 0.35, 0.1, 0.85),
+            title="VoiceFi",
+            tag_text="• Paused",
+            tag_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 0.65, 0.2, 0.95),
+            body_text=message,
+            border_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.9, 0.55, 0.15, 0.85),
         )
 
     def show_transcribing(self):
         """Compatibility bridge for DictationHUD.show_transcribing."""
-        self._apply_state(
+        if self._label:
+            self._label.setStringValue_("⏳ Transcribing...")
+        self._apply_rich_state(
             state="transcribing",
-            text="⏳ Transcribing...",
-            width=175,
-            height=34,
-            font_size=12.5,
+            avatar_emoji="⏳",
+            avatar_bg=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.5, 0.45, 0.15, 0.85),
+            title="VoiceFi",
+            tag_text="• Transcribing...",
+            tag_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 0.85, 0.3, 0.95),
+            body_text="Converting speech to text...",
+            border_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.9, 0.8, 0.25, 0.85),
         )
 
     def show_done(self, preview_text: str = ""):
         """Compatibility bridge for DictationHUD.show_done."""
-        disp = f"✅ {preview_text[:20]}..." if preview_text else "✅ Done"
-        self._apply_state(
+        disp = f"✅ {preview_text[:25]}..." if preview_text else "✅ Done"
+        if self._label:
+            self._label.setStringValue_(disp)
+        self._apply_rich_state(
             state="done",
-            text=disp,
-            width=160,
-            height=34,
-            font_size=12.5,
-            linger=1.2,
+            avatar_emoji="✅",
+            avatar_bg=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.15, 0.5, 0.25, 0.85),
+            title="VoiceFi",
+            tag_text="• Done",
+            tag_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.4, 0.95, 0.5, 0.98),
+            body_text=disp,
+            border_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.25, 0.85, 0.45, 0.85),
+            linger=1.5,
         )
-

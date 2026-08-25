@@ -56,6 +56,17 @@ class TestSTTBiasingAndNormalization:
         assert PhoneticNormalizer.normalize("function snake case get user info returns dict") == "function get_user_info returns dict"
         assert PhoneticNormalizer.normalize("create file kebab case payment card") == "create file payment-card"
 
+    def test_phonetic_normalizer_repetition_deduplication(self):
+        # Single word loop artifacts
+        assert PhoneticNormalizer.normalize("fix fix fix the bug") == "fix the bug"
+        assert PhoneticNormalizer.normalize("the the issue is here") == "the issue is here"
+        assert PhoneticNormalizer.normalize("test test") == "test"
+
+        # Multi-word phrase repetition loops from STT hallucinations
+        assert PhoneticNormalizer.normalize("I want to I want to test this code") == "I want to test this code"
+        assert PhoneticNormalizer.normalize("run pie test run pie test right now") == "run pytest right now"
+        assert PhoneticNormalizer.normalize("push the changes push the changes") == "push the changes"
+
 
 class TestProactiveTriageEngine:
     """Test proactive intent classification and workspace routing."""

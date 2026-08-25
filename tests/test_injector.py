@@ -49,7 +49,7 @@ def test_inject_text_to_active_app_with_clipboard_preservation():
         )
         assert success is True
         mock_set.assert_called_with("Hello from dictation")
-        mock_restore.assert_called_once_with("PREVIOUS_CLIPBOARD", delay=0.18)
+        mock_restore.assert_called_once_with("PREVIOUS_CLIPBOARD", delay=0.4)
 
 
 def test_inject_text_to_active_app_cancelled_macro():

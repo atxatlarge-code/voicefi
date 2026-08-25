@@ -193,9 +193,12 @@ class AudioTroubleshooter:
         rate: Optional[int] = None,
         block: bool = True,
         show_hud: bool = True,
+        barge_in: bool = True,
     ) -> VoiceTestResult:
         """
         Synthesize speech, measure Time-to-First-Byte latency, and play through speakers.
+        When barge_in=True: monitors microphone using native Apple hardware echo cancellation
+        and immediately terminates speech if user interrupts aloud.
         """
         target_voice = voice_name_or_id or self.config.tts.voice
         persona = find_persona(target_voice)
@@ -210,24 +213,11 @@ class AudioTroubleshooter:
                 else f"Testing voice {target_voice} with VoiceFi. Speech output is active."
             )
 
-        if show_hud and getattr(self.config.antigravity, "show_speech_popup", True):
-            try:
-                from voicefi.ui.speech_hud import AgentSpeechHUD
-                pos = getattr(self.config.antigravity, "speech_popup_position", "top_center")
-                AgentSpeechHUD.get_instance().show_speech(
-                    text,
-                    agent_name="Voice Test",
-                    persona_name=persona.name if persona else target_voice,
-                    is_speaking=True,
-                    position=pos,
-                )
-            except Exception:
-                pass
-
         start_time = time.perf_counter()
         try:
             engine = get_tts_engine(
                 self.config,
+                agent_name="Voice Test",
                 voice_override=resolved_voice,
                 provider_override=resolved_provider,
                 rate_override=resolved_rate,
@@ -254,14 +244,6 @@ class AudioTroubleshooter:
                 success=False,
                 error=str(e),
             )
-        finally:
-            if show_hud and getattr(self.config.antigravity, "show_speech_popup", True):
-                try:
-                    from voicefi.ui.speech_hud import AgentSpeechHUD
-                    linger = getattr(self.config.antigravity, "speech_popup_linger_seconds", 2.0)
-                    AgentSpeechHUD.get_instance().finish_speech(linger_seconds=linger)
-                except Exception:
-                    pass
 
         return result
 
@@ -856,10 +838,13 @@ class AudioTroubleshooter:
         if fix in ("reset_audio_defaults", "reset_defaults", "reset"):
             self.config.tts.rate = 200
             self.config.tts.provider = "edge_tts"
-            self.config.tts.voice = "en-US-ChristopherNeural"
+            self.config.tts.voice = "en-US-AvaNeural"
             self.config.vad.mode = "hybrid"
             self.config.vad.barge_in = "auto"
             self.config.vad.energy_threshold = 0.004
+            if "antigravity" in self.config.agents:
+                self.config.agents["antigravity"].voice = "en-US-AvaNeural"
+                self.config.agents["antigravity"].provider = "edge_tts"
             save_config(self.config)
             return {"success": True, "message": "Reset audio, TTS voice, speed, and VAD parameters to default."}
 
@@ -879,12 +864,20 @@ class AudioTroubleshooter:
 
         if fix in ("set_offline_fallback", "offline_say", "mac_say"):
             self.config.tts.provider = "mac_say"
-            self.config.tts.voice = "Samantha"
+            from voicefi.tts.offline import is_voice_installed
+            has_ava, ava_name = is_voice_installed("Ava")
+            offline_v = ava_name if (has_ava and ava_name) else "Samantha"
+            self.config.tts.voice = offline_v
             if "antigravity" in self.config.agents:
-                self.config.agents["antigravity"].voice = "Samantha"
+                self.config.agents["antigravity"].voice = offline_v
                 self.config.agents["antigravity"].provider = "mac_say"
             save_config(self.config)
-            return {"success": True, "message": "Switched default TTS to offline native macOS Samantha (zero-latency)."}
+            return {"success": True, "message": f"Switched default TTS to offline native macOS {offline_v} (zero-latency)."}
+
+        if fix in ("download_ava", "download-ava", "offline_ava", "setup_ava", "ava"):
+            from voicefi.tts.offline import run_download_ava_workflow
+            res = run_download_ava_workflow(auto_poll=True, timeout_seconds=120)
+            return res
 
         if fix in ("calibrate_mic", "calibrate"):
             res = self.test_microphone_loopback(duration_seconds=1.5, play_back=False)

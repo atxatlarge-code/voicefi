@@ -96,7 +96,7 @@ class ProjectContextExtractor:
         # Standard technical glossary additions
         dev_terms = ["pytest", "kubectl", "docker", "git", "PR", "FastAPI", "Next.js", "Whisper", "VAD", "STT", "TTS"]
         all_terms = list(dict.fromkeys(dev_terms + symbols))
-        prompt = ", ".join(all_terms)
+        prompt = f"Technical context and developer vocabulary: {', '.join(all_terms)}."
 
         if not extra_words:
             self._cached_prompt = prompt
@@ -148,21 +148,55 @@ class PhoneticNormalizer:
 
     @classmethod
     def normalize(cls, text: str) -> str:
-        """Transform raw transcribed text using phonetic developer rules and case converters."""
+        """Transform raw transcribed text using phonetic developer rules, deduplication, and case converters."""
         if not text:
             return ""
 
-        result = text
+        result = text.strip()
 
-        # 1. Apply phonetic term replacements
+        # 1. Collapse consecutive word/phrase repetition loops (STT hallucination artifact)
+        result = cls._collapse_repetitions(result)
+
+        # 2. Apply phonetic term replacements
         for pattern, replacement in cls.REPLACEMENTS.items():
             result = re.sub(pattern, replacement, result, flags=re.IGNORECASE)
 
-        # 2. Case transformation directives:
+        # 3. Case transformation directives:
         # e.g., "camel case user id" -> "userId"
         result = cls._apply_casing_directives(result)
 
         return result
+
+    @staticmethod
+    def _collapse_repetitions(text: str) -> str:
+        """Collapse consecutive repeated words or multi-word phrases caused by STT hallucination loops."""
+        if not text:
+            return ""
+
+        # Collapse consecutive identical single words: "word word word" -> "word"
+        text = re.sub(r'\b([A-Za-z0-9_-]+)(?:\s+\1\b)+', r'\1', text, flags=re.IGNORECASE)
+
+        # Collapse consecutive multi-word phrases (2 to 5 words)
+        words = text.split()
+        if len(words) < 4:
+            return text
+
+        changed = True
+        while changed:
+            changed = False
+            n = len(words)
+            for phrase_len in range(min(5, n // 2), 1, -1):
+                for i in range(n - 2 * phrase_len + 1):
+                    p1 = [w.lower().strip(".,!?;:") for w in words[i : i + phrase_len]]
+                    p2 = [w.lower().strip(".,!?;:") for w in words[i + phrase_len : i + 2 * phrase_len]]
+                    if p1 == p2:
+                        words = words[: i + phrase_len] + words[i + 2 * phrase_len :]
+                        changed = True
+                        break
+                if changed:
+                    break
+
+        return " ".join(words)
 
     @staticmethod
     def _apply_casing_directives(text: str) -> str:

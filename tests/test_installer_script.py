@@ -25,5 +25,6 @@ def test_installer_contains_required_steps():
     
     assert "voicefi\" setup" in content, "Installer must run voicefi setup"
     assert "voicefi\" autostart" in content, "Installer must enable autostart daemon"
+    assert "download-ava" in content, "Installer must include Ava (Premium) offline setup step"
     assert "voicefi\" onboarding" in content, "Installer must trigger onboarding flow"
     assert "vifi.sh" in content, "Installer must reference vifi.sh"

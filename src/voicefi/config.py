@@ -67,13 +67,18 @@ def detect_system_user_name(prefer_first_name: bool = True) -> str:
 
 
 class TTSConfig(BaseModel):
-    provider: Literal["mac_say", "edge_tts", "elevenlabs"] = "edge_tts"
-    voice: str = "en-US-AndrewNeural"
+    provider: Literal["mac_say", "edge_tts", "elevenlabs", "f5_tts", "local_clone"] = "edge_tts"
+    voice: str = "en-US-AvaNeural"
     rate: Optional[int] = 200
     volume: float = 1.0
     streaming: bool = True
     elevenlabs_api_key: Optional[str] = ""
     elevenlabs_voice_id: Optional[str] = "21m00Tcm4TlvDq8ikWAM"
+    f5_device: Literal["auto", "mps", "cpu", "cuda"] = "auto"
+    f5_model_name: str = "F5-TTS"
+    f5_ref_audio: Optional[str] = None
+    f5_ref_text: Optional[str] = None
+
 
 
 class STTConfig(BaseModel):
@@ -113,7 +118,7 @@ class AntigravityConfig(BaseModel):
     unfocused_voice_prefix: bool = True
     show_speech_popup: bool = True
     speech_popup_linger_seconds: float = 3.0
-    speech_popup_position: Literal["top_center", "top_right", "bottom_right"] = "top_center"
+    speech_popup_position: Literal["top_center", "top_right", "bottom_right"] = "top_right"
     auto_send: bool = True
     persistent_hud: bool = True
 
@@ -124,7 +129,9 @@ class HUDConfig(BaseModel):
     auto_send: bool = True
     show_live_transcript: bool = True
     fullscreen_overlay: bool = True  # True = float above full-screen games/apps; False = allow full-screen overlap/hide behind
-    position: Literal["top_center", "top_right", "bottom_right"] = "top_center"
+    position: Literal["top_center", "top_right", "bottom_right"] = "top_right"
+    margin_x: float = 20.0
+    margin_y: float = 52.0  # Vertical margin in points below menu bar (clearing Chrome's top tab strip)
     linger_seconds: float = 2.0
 
 
@@ -157,11 +164,16 @@ class GlobalHotkeyConfig(BaseModel):
 
 
 class AgentVoiceProfile(BaseModel):
-    provider: Optional[Literal["mac_say", "edge_tts", "elevenlabs"]] = None
+    provider: Optional[Literal["mac_say", "edge_tts", "elevenlabs", "f5_tts", "local_clone"]] = None
     voice: str = "Samantha"
     rate: Optional[int] = None
     pitch: Optional[str] = "+0Hz"
     description: Optional[str] = ""
+    offline_voice: Optional[str] = None
+    offline_provider: Optional[str] = "mac_say"
+    f5_ref_audio: Optional[str] = None
+    f5_ref_text: Optional[str] = None
+
 
 
 class MemoConfig(BaseModel):
@@ -206,13 +218,15 @@ class StudioConfig(BaseModel):
 def default_agents_catalog() -> dict[str, AgentVoiceProfile]:
     return {
         "antigravity": AgentVoiceProfile(
-            voice="en-US-AndrewNeural",
+            voice="en-US-AvaNeural",
             provider="edge_tts",
+            offline_voice="Ava (Premium)",
             description="Antigravity Primary Agent",
         ),
         "claude": AgentVoiceProfile(
-            voice="en-US-GuyNeural",
+            voice="en-US-SteffanNeural",
             provider="edge_tts",
+            offline_voice="Jamie (Premium)",
             description="Claude Code Pair Programmer",
         ),
         "cursor": AgentVoiceProfile(
@@ -251,29 +265,28 @@ class VoiceFiConfig(BaseModel):
 
     def resolve_voice(
         self,
-        agent_or_role: Optional[str] = None,
+        agent_name: Optional[str] = None,
         is_focused: bool = True,
     ) -> tuple[str, str, int]:
         """
-        Resolve (provider, voice, rate) for a specific agent or subagent role.
-        If is_focused is False (unfocused/background agent), uses the configured unfocused voice
-        or a distinctive contrasting acoustic persona so background updates sound distinct.
+        Resolve (provider, voice_id, rate_wpm) for a given agent or subagent.
         """
         default_provider = self.tts.provider
         default_voice = self.tts.voice
-        default_rate = self.tts.rate
+        default_rate = self.tts.rate or 200
 
-        # 1. If this is an unfocused / background agent:
+        # If not focused, check for unfocused voice override or dynamic contrast
         if not is_focused:
             if self.antigravity.unfocused_agent_voice:
                 return default_provider, self.antigravity.unfocused_agent_voice, default_rate
 
-            # Dynamic contrasting acoustic persona for background agents
             if default_provider == "edge_tts":
                 if "Christopher" in default_voice:
                     return default_provider, "en-US-AriaNeural", default_rate
                 elif "Aria" in default_voice:
                     return default_provider, "en-US-ChristopherNeural", default_rate
+                elif "Ava" in default_voice or "Viv" in default_voice:
+                    return default_provider, "en-US-GuyNeural", default_rate
                 else:
                     return default_provider, "en-GB-SoniaNeural", default_rate
             elif default_provider == "mac_say":
@@ -286,13 +299,13 @@ class VoiceFiConfig(BaseModel):
             else:
                 return default_provider, default_voice, default_rate
 
-        if not agent_or_role:
+        if not agent_name:
             return default_provider, default_voice, default_rate
 
-        key = agent_or_role.lower().strip()
+        key = agent_name.lower().strip()
 
-        # Check in subagents first if prefixed or matched
-        if key in self.subagents:
+        # Check subagents map
+        if key in self.subagents and self.subagents[key]:
             profile = self.subagents[key]
             return (
                 profile.provider or default_provider,
@@ -300,8 +313,8 @@ class VoiceFiConfig(BaseModel):
                 profile.rate if profile.rate is not None else default_rate,
             )
 
-        # Check in agents
-        if key in self.agents:
+        # Check agents map
+        if key in self.agents and self.agents[key]:
             profile = self.agents[key]
             return (
                 profile.provider or default_provider,
@@ -311,9 +324,9 @@ class VoiceFiConfig(BaseModel):
 
         # Built-in agent persona fallbacks
         if key in ("claude", "claude_code"):
-            return "edge_tts", "en-US-GuyNeural", default_rate
+            return "edge_tts", "en-US-SteffanNeural", default_rate
         elif key == "antigravity":
-            return "edge_tts", "en-US-AndrewNeural", default_rate
+            return "edge_tts", "en-US-AvaNeural", default_rate
         elif key == "cursor":
             return "edge_tts", "en-US-JennyNeural", default_rate
         elif key in ("researcher", "architect"):
