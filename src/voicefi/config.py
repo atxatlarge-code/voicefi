@@ -230,9 +230,14 @@ def default_agents_catalog() -> dict[str, AgentVoiceProfile]:
             description="Claude Code Pair Programmer",
         ),
         "cursor": AgentVoiceProfile(
-            voice="en-US-JennyNeural",
+            voice="en-US-ChristopherNeural",
             provider="edge_tts",
             description="Cursor Composer Assistant",
+        ),
+        "openai": AgentVoiceProfile(
+            voice="en-IE-EmilyNeural",
+            provider="edge_tts",
+            description="OpenAI Agent",
         ),
     }
 
