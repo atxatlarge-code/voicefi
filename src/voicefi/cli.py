@@ -6,14 +6,16 @@ Supports Antigravity hook integration, one-shot voice dictation, daemon loop, an
 import argparse
 import json
 import os
+import re
 import sys
+import time
 from pathlib import Path
 
 from voicefi import __version__
 from voicefi.cli_format import VoiceFiArgumentParser, resolve_prog_name, render_categorized_help
 from voicefi.config import load_config, save_config, get_default_config_path
 from voicefi.license import FeatureGate
-from voicefi.tts import get_tts_engine, MacSayTTS
+from voicefi.tts import get_tts_engine, MacSayTTS, set_cross_process_hud_state, clear_cross_process_hud_state
 from voicefi.stt import get_stt_engine
 from voicefi.audio.recorder import AudioRecorder
 from voicefi.audio.chimes import play_chime
@@ -29,6 +31,11 @@ from voicefi.memo import (
 
 def cmd_hook(args):
     """Handle AI agent lifecycle hook from stdin."""
+    try:
+        with open("/tmp/antigravity_hook_test.log", "a") as f:
+            f.write(f"[{time.time()}] HOOK CALLED with args={args}\n")
+    except Exception:
+        pass
     config = load_config(args.config)
     target_agent = getattr(args, "agent", "antigravity").lower().strip()
 
@@ -71,11 +78,20 @@ def cmd_hook(args):
     else:
         payload["agent"] = target_agent
 
+    # Set base zero-PII hook telemetry
+    setattr(args, "_telemetry_extra", {
+        "hook_agent": target_agent,
+        "has_stdin_payload": bool(payload),
+        "ipc_forwarded": False,
+    })
+
     # Fast IPC Forwarding: if VoiceFi background daemon is running,
     # forward hook event directly for instant (< 10ms) return to the agent
     from voicefi.integrations.daemon_client import forward_hook_to_daemon
     daemon_resp = forward_hook_to_daemon(payload, config)
     if daemon_resp and daemon_resp.get("status") == "handled":
+        if hasattr(args, "_telemetry_extra") and isinstance(args._telemetry_extra, dict):
+            args._telemetry_extra["ipc_forwarded"] = True
         print(json.dumps({"decision": "allow", "forwarded": True}))
         return
 
@@ -120,6 +136,7 @@ def cmd_listen(args):
         play_chime("start", block=False)
 
     print("🎙️ Listening... (speak and then pause)")
+    set_cross_process_hud_state("listening", user_name=config.user_name)
     recorder = AudioRecorder(
         sample_rate=config.vad.sample_rate,
         energy_threshold=config.vad.energy_threshold,
@@ -131,15 +148,22 @@ def cmd_listen(args):
     def _on_pause(paused: bool):
         if paused:
             print("⏸️ Agent speaking aloud -> listening paused...")
+            set_cross_process_hud_state("paused_agent_speaking", text="Agent Speaking (Paused)...")
         else:
             print("🎙️ Agent finished -> listening resumed...")
+            set_cross_process_hud_state("listening", user_name=config.user_name)
+
+    def _on_speech_start():
+        print("🗣️ Speech detected...")
+        set_cross_process_hud_state("hearing", user_name=config.user_name)
 
     audio_data, temp_wav = recorder.record_speech_auto(
-        on_speech_start=lambda: print("🗣️ Speech detected..."),
+        on_speech_start=_on_speech_start,
         on_pause_change=_on_pause,
     )
 
     print("⏳ Transcribing...")
+    set_cross_process_hud_state("transcribing")
     stt = get_stt_engine(config)
     try:
         text = stt.transcribe(temp_wav)
@@ -148,6 +172,7 @@ def cmd_listen(args):
 
     if text:
         print(f"\n📝 Transcribed: {text}\n")
+        set_cross_process_hud_state("done", text=text[:20])
 
         if args.inject:
             if inject_text_to_active_app(text, submit_enter=args.enter):
@@ -160,6 +185,8 @@ def cmd_listen(args):
     else:
         print("⚠️ No speech detected.")
 
+    clear_cross_process_hud_state()
+
 
 def cmd_loop(args):
     """Interactive continuous voice loop."""
@@ -170,6 +197,22 @@ def cmd_loop(args):
             cmd_listen(args)
     except KeyboardInterrupt:
         print("\n👋 VoiceFi loop stopped.")
+
+
+def cmd_vad(args):
+    """Open the Expert VAD & Acoustic Inspector Panel."""
+    import AppKit
+    from voicefi.ui.expert_vad import ExpertVADPanel
+    from voicefi.audio.monitor import LiveVADMonitor
+    
+    app = AppKit.NSApplication.sharedApplication()
+    app.setActivationPolicy_(AppKit.NSApplicationActivationPolicyRegular)
+    LiveVADMonitor.get_instance().start()
+    
+    panel = ExpertVADPanel.get_instance()
+    panel.show()
+    app.activateIgnoringOtherApps_(True)
+    AppKit.NSApp.run()
 
 
 def cmd_new(args):
@@ -198,10 +241,130 @@ def cmd_tray(args):
 
 
 def cmd_dev(args):
-    """Launch VoiceFi in foreground development mode with live console logs."""
+    """Launch VoiceFi in foreground development mode with live console logs and auto-takeover."""
+    from voicefi.daemon import stop_all_voicefi_daemons, clean_caches, get_launchagent_status
     from voicefi.ui.tray import run_tray
-    print("🚀 Launching VoiceFi in DEV mode (live logs active, Ctrl+C to exit)...")
-    run_tray()
+
+    print("\n🛠️  Preparing VoiceFi DEV Environment...")
+    la_status = get_launchagent_status()
+    if la_status.get("is_loaded") or la_status.get("pid"):
+        print("⏸️  Temporarily stopping background LaunchAgent daemon to prevent port/lock conflicts...")
+        stop_all_voicefi_daemons(disable_launchagent=True, timeout_seconds=2.0)
+    else:
+        # Stop any orphaned processes
+        stop_all_voicefi_daemons(disable_launchagent=False, timeout_seconds=1.0)
+
+    # Clean stale bytecode and temporary locks
+    clean_caches(clean_pycache=True, clean_tmp_state=True, clean_update_cache=True)
+    print("🧹 Stale caches and locks cleared.")
+    print("🚀 Launching VoiceFi in DEV mode (live logs active, Ctrl+C to exit)...\n")
+    try:
+        run_tray(force=True)
+    except KeyboardInterrupt:
+        print("\n👋 VoiceFi DEV mode stopped cleanly.")
+
+
+def cmd_clean(args):
+    """Clean stale Python bytecode, caches, temporary files, and optionally stop running daemons."""
+    from voicefi.daemon import clean_caches, stop_all_voicefi_daemons, link_dev_environment
+
+    clean_all = getattr(args, "all", False)
+    clean_dev = getattr(args, "dev", False)
+    purge_daemons = clean_all or clean_dev or getattr(args, "daemons", False)
+
+    print("\n🧹 VoiceFi Cache & State Cleaner")
+    print("------------------------------------------------------------------")
+    if purge_daemons:
+        print("🛑 Stopping all active VoiceFi daemons and releasing locks/ports...")
+        d_res = stop_all_voicefi_daemons()
+        if d_res.get("stopped_pids"):
+            print(f"  • Stopped PIDs: {d_res['stopped_pids']}")
+        if d_res.get("port_freed"):
+            print("  • Port 5141 freed.")
+
+    res = clean_caches(
+        clean_pycache=True,
+        clean_tmp_state=True,
+        clean_update_cache=True,
+        purge_daemons=False,
+    )
+    print(f"✅ Removed {res['cleaned_pycache_count']} __pycache__ directories and .pyc files.")
+    print(f"✅ Removed {res['cleaned_tmp_count']} temporary /tmp/voicefi* state & lock files.")
+    if res['cleaned_update_cache']:
+        print("✅ Flushed update check cache (~/.voicefi/.update_check.json).")
+
+    if clean_dev:
+        link_res = link_dev_environment()
+        print(f"🔗 Linked agent hooks to development binary: {link_res['target_binary']}")
+
+    print("------------------------------------------------------------------")
+    print("✨ Environment is clean and consistent.\n")
+    print("💡 Next Steps:")
+    print("  • Start live development mode:     vifi dev")
+    print("  • Launch persistent Dynamic HUD:   vifi autostart  (or 'vifi tray')")
+    print("  • Interactive HUD Debug Studio:    vifi hud debug")
+    print("  • Test silent voice connection:    vifi ping")
+    print("  • Run acoustic diagnostic suite:   vifi troubleshoot\n")
+
+
+def cmd_daemon(args):
+    """Manage VoiceFi background daemons, LaunchAgents, and port listeners."""
+    from voicefi.daemon import (
+        get_full_daemon_status,
+        stop_all_voicefi_daemons,
+        clean_caches,
+    )
+    action = getattr(args, "daemon_action", "status")
+
+    if action == "status":
+        st = get_full_daemon_status()
+        la = st["launchagent"]
+        port = st.get("port_5141") or st.get("port_8765") or st.get("port_listener")
+        procs = st["running_processes"]
+        hooks = st["hooks"]
+
+        print("\n📊 VoiceFi Daemon & Process Status")
+        print("==================================================================")
+        print(f"  • LaunchAgent (launchd):  {'🟢 Loaded' if la['is_loaded'] else '⚪ Not Loaded'}" + (f" (PID {la['pid']})" if la['pid'] else ""))
+        print(f"  • LaunchAgent Plist:      {'✅ Present' if la['plist_exists'] else '❌ Missing'} ({la['plist_path']})")
+        print(f"  • Port 5141 Owner:        " + (f"🟢 PID {port['pid']} ({port['command_name']})" if port else "⚪ Port Free"))
+        print(f"  • Tray Lock File:         {'🔒 Locked' if st['lock_active'] else '🔓 Free'}")
+        
+        print("\n  📦 Running VoiceFi Processes:")
+        if procs:
+            for p in procs:
+                print(f"    • PID {p['pid']} (PPID {p['ppid']}): {p['command'][:90]}")
+        else:
+            print("    • None (no standalone background processes)")
+
+        print("\n  🔌 AI Agent Hook Bindings:")
+        print(f"    • Antigravity Hook:     {hooks.get('antigravity') or '❌ Not installed'}")
+        print(f"    • Claude Code Hook:     {hooks.get('claude') or '❌ Not installed'}")
+        print(f"    • Current Python Exec:  {st['python_executable']}")
+        print("==================================================================\n")
+        print("💡 Commands: 'vifi daemon stop' | 'vifi daemon restart' | 'vifi clean --all' | 'vifi dev'\n")
+
+    elif action in ("stop", "kill"):
+        print("\n🛑 Stopping all VoiceFi daemons, background processes, and releasing ports...")
+        res = stop_all_voicefi_daemons()
+        if res.get("stopped_pids"):
+            print(f"✅ Terminated processes: {res['stopped_pids']}")
+        if res.get("port_freed"):
+            print("✅ Port 5141 freed.")
+        print("✅ Background LaunchAgent disabled and all locks cleared.\n")
+
+    elif action in ("restart", "reload"):
+        print("\n🔄 Restarting VoiceFi background daemon...")
+        stop_all_voicefi_daemons()
+        clean_caches()
+        cmd_autostart(args)
+        print("✅ VoiceFi background daemon restarted.\n")
+
+    elif action in ("start", "autostart"):
+        cmd_autostart(args)
+
+    else:
+        print(f"Unknown daemon action: {action}. Use: status, stop, restart, start.")
 
 
 def cmd_onboarding(args):
@@ -232,8 +395,14 @@ def cmd_permissions(args):
     print("------------------------------------------------------------------\n")
 
 
+def cmd_mcp(args):
+    """Run native Stdio JSON-RPC 2.0 Model Context Protocol (MCP) Server for VoiceFi."""
+    from voicefi.mcp_server import run_mcp_server
+    run_mcp_server()
+
+
 def cmd_setup(args):
-    """Automatically register VoiceFi lifecycle hooks with AI agents (Antigravity, Claude Code)."""
+    """Automatically register VoiceFi lifecycle hooks and MCP server with AI agents (Antigravity, Claude Code)."""
     import shutil
     from voicefi.integrations.claude import install_claude_hook
     from voicefi.integrations.discovery import AgentToolDetector
@@ -241,6 +410,7 @@ def cmd_setup(args):
     setup_all = getattr(args, "all", False)
     setup_claude = getattr(args, "claude", False) or setup_all
     setup_antigravity = getattr(args, "antigravity", False) or setup_all
+    is_dev = getattr(args, "dev", False)
 
     # If no explicit agent flags are specified, auto-detect active systems
     if not getattr(args, "claude", False) and not getattr(args, "antigravity", False) and not setup_all:
@@ -248,41 +418,176 @@ def cmd_setup(args):
         if AgentToolDetector.detect_claude_code():
             setup_claude = True
 
-    # Prefer current venv executable path for reliable invocation
-    venv_bin = Path(sys.executable).parent / "voicefi"
-    if venv_bin.exists():
-        bin_path = str(venv_bin)
-    else:
-        bin_path = shutil.which("voicefi") or shutil.which("vifi") or "voicefi"
+    # Resolution logic: if --dev, prioritize project venv
+    bin_path = None
+    if is_dev:
+        ws_candidates = [
+            Path.cwd() / ".venv" / "bin" / "voicefi",
+            Path.cwd() / "venv" / "bin" / "voicefi",
+            Path(__file__).resolve().parent.parent.parent / ".venv" / "bin" / "voicefi",
+        ]
+        for cand in ws_candidates:
+            if cand.is_file() and os.access(str(cand), os.X_OK):
+                bin_path = str(cand)
+                break
+
+    if not bin_path:
+        venv_bin = Path(sys.executable).parent / "voicefi"
+        if venv_bin.exists():
+            bin_path = str(venv_bin)
+        else:
+            bin_path = shutil.which("voicefi") or shutil.which("vifi") or "voicefi"
 
     if setup_antigravity:
-        global_hooks_path = Path.home() / ".gemini" / "config" / "hooks.json"
-        global_hooks_path.parent.mkdir(parents=True, exist_ok=True)
-
-        hooks_data = {}
-        if global_hooks_path.is_file():
-            try:
-                with open(global_hooks_path, "r", encoding="utf-8") as f:
-                    hooks_data = json.load(f) or {}
-            except Exception:
-                hooks_data = {}
-
         hook_command = f"{bin_path} hook"
-        hooks_data["voicefi-voice-layer"] = {
-            "enabled": True,
-            "Stop": [
-                {
-                    "type": "command",
-                    "command": hook_command,
-                    "timeout": 60,
-                }
-            ],
+        hooks_data = {
+            "voicefi-voice-layer": {
+                "enabled": True,
+                "Stop": [
+                    {
+                        "type": "command",
+                        "command": hook_command,
+                        "timeout": 60,
+                    }
+                ],
+            }
         }
 
-        with open(global_hooks_path, "w", encoding="utf-8") as f:
-            json.dump(hooks_data, f, indent=2)
+        plugin_dir = Path.home() / ".gemini" / "config" / "plugins" / "voicefi-plugin"
+        plugin_dir.mkdir(parents=True, exist_ok=True)
 
-        print(f"✅ Antigravity hook installed: {global_hooks_path}")
+        mcp_server_entry = {
+            "command": bin_path,
+            "args": ["mcp"],
+        }
+
+        # Install as standard Antigravity plugin in ~/.gemini/config/plugins/voicefi-plugin
+        try:
+            plugin_json_path = plugin_dir / "plugin.json"
+            plugin_manifest = {
+                "name": "voicefi-plugin",
+                "version": "1.0.0",
+                "description": "VoiceFi Voice Layer lifecycle hooks, skills, and MCP tools for Antigravity AI coding agent.",
+                "author": {"name": "VoiceFi"},
+                "keywords": ["voice", "voicefi", "tts", "stt", "vad", "mcp"],
+            }
+            with open(plugin_json_path, "w", encoding="utf-8") as f:
+                json.dump(plugin_manifest, f, indent=2)
+
+            plugin_hooks_path = plugin_dir / "hooks.json"
+            with open(plugin_hooks_path, "w", encoding="utf-8") as f:
+                json.dump(hooks_data, f, indent=2)
+
+            # Register plugin MCP config
+            plugin_mcp_path = plugin_dir / "mcp_config.json"
+            plugin_mcp_data = {"mcpServers": {"voicefi": mcp_server_entry}}
+            with open(plugin_mcp_path, "w", encoding="utf-8") as f:
+                json.dump(plugin_mcp_data, f, indent=2)
+
+            # Sync bundled skills into plugin directory
+            skills_src_dir = Path(__file__).resolve().parent.parent.parent / ".agents" / "skills"
+            if not skills_src_dir.is_dir():
+                skills_src_dir = Path.cwd() / ".agents" / "skills"
+            if skills_src_dir.is_dir():
+                plugin_skills_dir = plugin_dir / "skills"
+                plugin_skills_dir.mkdir(parents=True, exist_ok=True)
+                for skill_sub in skills_src_dir.iterdir():
+                    if skill_sub.is_dir():
+                        target_sub = plugin_skills_dir / skill_sub.name
+                        target_sub.mkdir(parents=True, exist_ok=True)
+                        for s_file in skill_sub.glob("*"):
+                            if s_file.is_file():
+                                shutil.copy2(s_file, target_sub / s_file.name)
+
+            # Sync rules (AGENTS.md) into plugin directory
+            agents_rule_src = Path(__file__).resolve().parent.parent.parent / "AGENTS.md"
+            if not agents_rule_src.is_file():
+                agents_rule_src = Path.cwd() / "AGENTS.md"
+            if agents_rule_src.is_file():
+                plugin_rules_dir = plugin_dir / "rules"
+                plugin_rules_dir.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(agents_rule_src, plugin_rules_dir / "AGENTS.md")
+
+            # Register in ~/.gemini/config/config.json
+            global_config_json = Path.home() / ".gemini" / "config" / "config.json"
+            if global_config_json.is_file():
+                try:
+                    c_data = json.loads(global_config_json.read_text(encoding="utf-8")) or {}
+                    if "plugins" not in c_data:
+                        c_data["plugins"] = {}
+                    c_data["plugins"]["voicefi-plugin"] = {"enabled": True}
+                    global_config_json.write_text(json.dumps(c_data, indent=2), encoding="utf-8")
+                except Exception:
+                    pass
+
+            # Clean duplicate global hook in ~/.gemini/config/hooks.json to prevent double-firing
+            global_hooks_path = Path.home() / ".gemini" / "config" / "hooks.json"
+            if global_hooks_path.is_file():
+                try:
+                    with open(global_hooks_path, "r", encoding="utf-8") as f:
+                        gh = json.load(f) or {}
+                    if "voicefi-voice-layer" in gh:
+                        del gh["voicefi-voice-layer"]
+                        with open(global_hooks_path, "w", encoding="utf-8") as f:
+                            json.dump(gh, f, indent=2)
+                except Exception:
+                    pass
+        except Exception as e:
+            print(f"⚠️ Notice creating plugin registration: {e}")
+
+        # Also register in global ~/.gemini/config/mcp_config.json
+        try:
+            global_mcp_path = Path.home() / ".gemini" / "config" / "mcp_config.json"
+            global_mcp_data = {}
+            if global_mcp_path.is_file():
+                try:
+                    with open(global_mcp_path, "r", encoding="utf-8") as f:
+                        global_mcp_data = json.load(f) or {}
+                except Exception:
+                    global_mcp_data = {}
+            if "mcpServers" not in global_mcp_data:
+                global_mcp_data["mcpServers"] = {}
+            global_mcp_data["mcpServers"]["voicefi"] = mcp_server_entry
+            with open(global_mcp_path, "w", encoding="utf-8") as f:
+                json.dump(global_mcp_data, f, indent=2)
+            print(f"✅ Antigravity MCP server registered: {global_mcp_path}")
+        except Exception as e:
+            print(f"⚠️ Notice updating global MCP config: {e}")
+
+        print(f"✅ Antigravity plugin & hook installed: {plugin_dir}")
+
+        # Also update workspace-level .agents/mcp_config.json if present
+        ws_agents_dir = Path.cwd() / ".agents"
+        if ws_agents_dir.is_dir():
+            ws_agents_hook = ws_agents_dir / "hooks.json"
+            if ws_agents_hook.is_file():
+                try:
+                    with open(ws_agents_hook, "r", encoding="utf-8") as f:
+                        wsh = json.load(f) or {}
+                    if "voicefi-voice-layer" in wsh:
+                        del wsh["voicefi-voice-layer"]
+                        with open(ws_agents_hook, "w", encoding="utf-8") as f:
+                            json.dump(wsh, f, indent=2)
+                except Exception:
+                    pass
+
+            ws_agents_mcp = ws_agents_dir / "mcp_config.json"
+            try:
+                ws_mcp_data = {}
+                if ws_agents_mcp.is_file():
+                    try:
+                        with open(ws_agents_mcp, "r", encoding="utf-8") as f:
+                            ws_mcp_data = json.load(f) or {}
+                    except Exception:
+                        ws_mcp_data = {}
+                if "mcpServers" not in ws_mcp_data:
+                    ws_mcp_data["mcpServers"] = {}
+                ws_mcp_data["mcpServers"]["voicefi"] = mcp_server_entry
+                with open(ws_agents_mcp, "w", encoding="utf-8") as f:
+                    json.dump(ws_mcp_data, f, indent=2)
+                print(f"✅ Workspace Antigravity MCP config updated: {ws_agents_mcp}")
+            except Exception as e:
+                print(f"⚠️ Could not update workspace MCP config: {e}")
 
     if setup_claude:
         try:
@@ -342,9 +647,19 @@ def cmd_autostart(args):
     launch_agents_dir = Path.home() / "Library" / "LaunchAgents"
     launch_agents_dir.mkdir(parents=True, exist_ok=True)
     plist_path = launch_agents_dir / "com.voicefi.menubar.plist"
-
-    venv_bin = Path(sys.executable).parent / "voicefi"
-    bin_path = str(venv_bin) if venv_bin.exists() else (shutil.which("voicefi") or "voicefi")
+    ws_candidates = [
+        Path.cwd() / ".venv" / "bin" / "voicefi",
+        Path.cwd() / "venv" / "bin" / "voicefi",
+        Path(__file__).resolve().parent.parent.parent / ".venv" / "bin" / "voicefi",
+        Path(sys.executable).parent / "voicefi",
+    ]
+    bin_path = None
+    for cand in ws_candidates:
+        if cand.is_file() and os.access(str(cand), os.X_OK):
+            bin_path = str(cand)
+            break
+    if not bin_path:
+        bin_path = shutil.which("voicefi") or "voicefi"
 
     plist_content = f"""<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -357,6 +672,11 @@ def cmd_autostart(args):
         <string>{bin_path}</string>
         <string>tray</string>
     </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PYTHONUNBUFFERED</key>
+        <string>1</string>
+    </dict>
     <key>RunAtLoad</key>
     <true/>
     <key>KeepAlive</key>
@@ -594,7 +914,7 @@ def cmd_companion(args):
     """Launch Web & Mobile Voice Companion server with QR pairing and PWA."""
     from voicefi.companion.server import run_companion_server
     config = load_config(args.config)
-    port = getattr(args, "port", 8765)
+    port = getattr(args, "port", 5141)
     host = getattr(args, "host", "0.0.0.0")
     print_qr = not getattr(args, "no_qr", False)
     open_browser = getattr(args, "open", False)
@@ -612,7 +932,7 @@ def cmd_panel(args):
     import time
     import webbrowser
     from voicefi.ui.panel import open_control_panel
-    port = getattr(args, "port", 8765)
+    port = getattr(args, "port", 5141)
     no_browser = getattr(args, "no_browser", False)
     is_claude = getattr(args, "claude", False) is True
     config = load_config(args.config)
@@ -727,10 +1047,16 @@ def cmd_troubleshoot(args):
 
     # Hardware Check
     hw = troubleshooter.get_hardware_diagnostics()
+    vad_res = troubleshooter.test_vad()
+    vad_detail = ""
+    if vad_res.get("status") == "ready":
+        d = vad_res.get("details", {})
+        vad_detail = f" (latency: {d.get('avg_latency_ms', 0.1):.3f}ms, ~{d.get('throughput_frames_per_sec', 0):.0f} fps)"
     print(f"\n🖥️  [1/4] Audio Hardware & System:")
     print(f"  • Platform:      {hw['os_platform']} {hw['os_release']} ({hw['machine_arch']})")
     print(f"  • Default Mic:   {hw['default_input'] or 'None'}")
     print(f"  • Default Spkr:  {hw['default_output'] or 'None'}")
+    print(f"  • VAD Engine:    {vad_res.get('engine', 'silero').upper()}{vad_detail}")
     print(f"  • Active Engine: {hw['tts_provider']} ({hw['tts_voice']}) at {hw['tts_rate']} WPM ({hw['tts_rate_pct']})")
 
     # Speaker Output Chime Test
@@ -750,7 +1076,7 @@ def cmd_troubleshoot(args):
         provider=hw['tts_provider'],
         rate=hw['tts_rate'],
         block=True,
-        show_hud=True,
+        show_hud=getattr(args, "hud", False),
     )
     if v_res.success:
         print(f"  ✅ Active voice synthesized and played aloud.")
@@ -787,7 +1113,7 @@ def cmd_troubleshoot(args):
     else:
         print("  ✨ All voice, audio, and hardware subsystems are running at peak performance!")
 
-    print(f"\n🌐 Web Control Panel with live interactive tester: 'vg panel' (http://localhost:8765)\n")
+    print(f"\n🌐 Web Control Panel with live interactive tester: 'vg panel' (http://localhost:5141)\n")
 
 
 def cmd_hearing_test(args):
@@ -807,6 +1133,115 @@ def cmd_feedback_loop(args):
 def cmd_loopback(args):
     """Alias for cmd_feedback_loop."""
     cmd_feedback_loop(args)
+
+
+def cmd_barge_in(args):
+    """Run live interactive barge-in & Silero VAD interruption test."""
+    from voicefi.config import load_config
+    from voicefi.audio.recorder import AudioRecorder
+    from voicefi.tts import get_tts_engine, stop_all_speech, find_persona
+    from voicefi.audio.device import get_audio_device_profile
+    from voicefi.stt.whisper_local import WhisperLocalSTT
+    import threading
+
+    config = load_config()
+    prof = get_audio_device_profile()
+
+    target_voice = getattr(args, "voice", None) or config.tts.voice
+    persona = find_persona(target_voice)
+    resolved_voice = persona.id if persona else target_voice
+
+    default_test_phrase = (
+        "This is a live acoustic barge-in test with Silero VAD. "
+        "I will keep speaking aloud for several seconds so you can test interrupting me. "
+        "Whenever you are ready, speak firmly into your microphone now to cut me off!"
+    )
+    test_phrase = getattr(args, "text", None) or default_test_phrase
+
+    print("\n" + "=" * 65)
+    print("⚡ VoiceFi Active Voice Barge-In & Silero VAD Live Test")
+    print("=" * 65)
+    print(f"🎙️  Microphone:      {prof.get('default_input') or 'Default'}")
+    print(f"🔊 Output Device:   {prof.get('default_output') or 'Default'}")
+    print(f"🎧 Device Profile:  {'Headphones / AirPods ✅' if prof.get('is_headphones_active') else 'Built-in Laptop Speakers (Acoustic Safe Mode)'}")
+    print(f"🧠 VAD Engine:      {getattr(config.vad, 'engine', 'silero').upper()} (Threshold: {getattr(config.vad, 'speech_threshold', 0.5)})")
+    print("-" * 65)
+    print("👉 HOW THIS TEST WORKS:")
+    print("   1. VoiceFi will speak aloud through your speakers/headphones.")
+    print("   2. While it speaks, Silero VAD actively monitors your microphone.")
+    print("   3. Speak firmly into your microphone (e.g. 'Wait, stop right now!').")
+    print("   4. Agent speech will INSTANTLY cut off and transcribe your interruption.")
+    print("-" * 65)
+
+    recorder = AudioRecorder(
+        sample_rate=16000,
+        energy_threshold=config.vad.energy_threshold,
+        silence_duration=0.8,
+        max_record_seconds=15.0,
+        barge_in=True,
+        barge_in_sensitivity=config.vad.barge_in_sensitivity,
+        vad_engine=getattr(config.vad, "engine", "auto"),
+        speech_threshold=getattr(config.vad, "speech_threshold", 0.5),
+    )
+
+    barge_in_triggered = False
+    speech_detected = False
+
+    def on_barge():
+        nonlocal barge_in_triggered
+        barge_in_triggered = True
+        print("\n⚡ [BARGE-IN TRIGGERED] Silero neural VAD confirmed user speech -> Audio playback terminated!")
+
+    def on_speech_start():
+        nonlocal speech_detected
+        speech_detected = True
+        print("🎙️ [SPEECH ONSET] Recording user interruption prompt...")
+
+    def speak_in_background():
+        try:
+            tts = get_tts_engine(config, agent_name="BargeInTest", voice_override=resolved_voice)
+            tts.speak(test_phrase, block=True)
+        except Exception as e:
+            print(f"[TTS] Playback notice: {e}")
+
+    print("\n🔊 Starting agent speech playback...")
+    tts_thread = threading.Thread(target=speak_in_background, daemon=True)
+    tts_thread.start()
+
+    time.sleep(0.3)
+    print("🔴 Live mic monitoring active with Silero VAD (speak now to interrupt)...\n")
+
+    audio_data, wav_path = recorder.record_speech_auto(
+        on_barge_in=on_barge,
+        on_speech_start=on_speech_start,
+    )
+
+    stop_all_speech()
+
+    print("\n" + "=" * 65)
+    print("📊 Test Summary:")
+    if barge_in_triggered:
+        print("✅ Barge-In Status:   SUCCESSFULLY TRIGGERED & INTERRUPTED")
+    else:
+        print("ℹ️  Barge-In Status:   Not triggered (agent completed phrase without interruption)")
+
+    dur = len(audio_data) / 16000.0
+    print(f"⏱️  Captured Audio:   {dur:.2f} seconds")
+
+    if dur > 0.3 and speech_detected:
+        print("📝 Transcribing user speech with Whisper...")
+        try:
+            stt = WhisperLocalSTT()
+            transcript = stt.transcribe(wav_path)
+            if transcript:
+                print(f"💬 You said:         \"{transcript}\"")
+        except Exception as ex:
+            print(f"⚠️  Transcription note: {ex}")
+
+    if wav_path.exists():
+        wav_path.unlink(missing_ok=True)
+
+    print("=" * 65 + "\n")
 
 
 def cmd_ping(args):
@@ -1167,6 +1602,11 @@ def cmd_voice(args):
                 print(f"❌ Microphone test failed: {res.error}\n")
             return
 
+        # Barge-in interactive test
+        if getattr(args, "barge_in", False) or getattr(args, "test_barge_in", False):
+            cmd_barge_in(args)
+            return
+
         # 6. Standard voice audition
         print(f"\n🔊 Auditioning voice: '{target_voice}' (Provider: {provider})")
         print(f"💬 Sample: \"{sample_text}\"")
@@ -1178,7 +1618,7 @@ def cmd_voice(args):
             provider=provider,
             rate=resolved_rate,
             block=True,
-            show_hud=True,
+            show_hud=getattr(args, "hud", False),
         )
         if res.success:
             print(f"✅ Audition finished. Latency: {res.latency_ms} ms, Duration: {res.duration_s}s.\n")
@@ -1883,8 +2323,13 @@ def cmd_obsidian(args):
 
 def cmd_info(args):
     """Display active configuration and system capabilities."""
+    from voicefi.daemon import get_full_daemon_status
+
     config = load_config(args.config)
     tier_info = FeatureGate.get_tier_summary(config)
+    st = get_full_daemon_status()
+    la = st["launchagent"]
+    port = st.get("port_5141") or st.get("port_8765") or st.get("port_listener")
 
     print(f"\n================ VoiceFi v{__version__} ================")
     print("  'Give voice to your agents, and agency for your voice.'")
@@ -1898,10 +2343,16 @@ def cmd_info(args):
         print(f"Agents:        {', '.join(config.agents.keys())}")
     if config.subagents:
         print(f"Subagents:     {', '.join(config.subagents.keys())}")
+    print("----------------------------------------------------")
+    print(f"LaunchAgent:   {'🟢 Active' if la['is_loaded'] else '⚪ Inactive'}" + (f" (PID {la['pid']})" if la['pid'] else ""))
+    print(f"Port 5141:     " + (f"🟢 PID {port['pid']} ({port['command_name']})" if port else "⚪ Free"))
+    print(f"Python Exec:   {st['python_executable']}")
+    print(f"Antigravity:   {st['hooks'].get('antigravity') or '❌ Not installed'}")
+    print(f"Claude Code:   {st['hooks'].get('claude') or '❌ Not installed'}")
     print("====================================================\n")
 
     print("Curated Personas: Viv, Christopher, Aria, Sonia, Guy, William, Samantha, Alex")
-    print("Run 'vg voice audition' to test them over your speakers!\n")
+    print("Run 'vifi ping --all' to test connection & speeds, or 'vifi dev' for live development.\n")
 
 
 def cmd_hud(args):
@@ -2071,7 +2522,7 @@ def cmd_hud(args):
             if state_idx == 1:
                 hud.set_idle(linger=None)
             elif state_idx == 2:
-                hud.set_thinking("Antigravity", "Analyzing codebase & dependencies...")
+                hud.set_thinking("Antigravity", "Reasoning over AST & planning architecture...")
             elif state_idx == 3:
                 hud.set_working("Antigravity", "Executing pytest tests/ (208 passed)")
             elif state_idx == 4:
@@ -2199,19 +2650,19 @@ def cmd_hud(args):
         hud.set_idle()
         _pump(1.8)
 
-        print("  2/6 🧠 State: Thinking (Antigravity)")
-        hud.set_thinking("Antigravity", "Analyzing architecture & dependencies...")
+        print("  2/6 State: Thinking (Antigravity)")
+        hud.set_thinking("Antigravity", "Reasoning over architecture & dependencies...")
         _pump(2.0)
 
-        print("  3/6 ⚡ State: Working (Tool Action)")
+        print("  3/6 State: Working (Tool Action)")
         hud.set_working("Antigravity", "Executing pytest tests/ -v (164 passed)")
         _pump(2.0)
 
-        print("  4/6 🔊 State: Speaking (Live Subtitles)")
+        print("  4/6 State: Speaking (Live Subtitles)")
         hud.set_speaking("Hey Jake! All 164 test suites passed cleanly with zero regressions.", persona_name="Viv")
         _pump(2.8)
 
-        print("  5/6 🎙️ State: Listening (Real-Time Live Typing Stream)")
+        print("  5/6 State: Listening (Real-Time Live Typing Stream)")
         hud.set_listening(user_name=getattr(hud.config, "user_name", "Jake"))
         _pump(1.0)
         phrases = [
@@ -2225,7 +2676,7 @@ def cmd_hud(args):
             _pump(0.6)
         _pump(1.2)
 
-        print("  6/6 ✏️ State: Review & Edit (Interactive Capsule)")
+        print("  6/6 State: Review & Edit (Interactive Capsule)")
         def _dummy_submit(val):
             print(f"[CLI] Submitted prompt from HUD: '{val}'")
         def _dummy_cancel():
@@ -2236,7 +2687,7 @@ def cmd_hud(args):
         hud.show_done(preview_text="Prompt Confirmed")
         _pump(1.5)
         hud.force_hide()
-        print("✅ Unified Dynamic Island HUD showcase completed successfully!\n")
+        print("Unified Dynamic Island HUD showcase completed successfully!\n")
     elif action == "persistent":
         sub = getattr(args, "persistent_state", "toggle")
         current = getattr(getattr(cfg, "hud", None), "persistent", True)
@@ -2252,7 +2703,7 @@ def cmd_hud(args):
         cfg.antigravity.persistent_hud = new_val
         save_config(cfg)
         hud.set_persistent(new_val)
-        print(f"📌 HUD Persistent Mode: {'ENABLED (Always Visible)' if new_val else 'DISABLED (Auto-Hide)'}")
+        print(f"HUD Persistent Mode: {'ENABLED (Always Visible)' if new_val else 'DISABLED (Auto-Hide)'}")
     elif action == "auto-send":
         sub = getattr(args, "auto_send_state", "toggle")
         current = getattr(getattr(cfg, "hud", None), "auto_send", True)
@@ -2268,14 +2719,14 @@ def cmd_hud(args):
         cfg.antigravity.auto_send = new_val
         save_config(cfg)
         hud.set_auto_send(new_val)
-        print(f"⚡ HUD Auto-Send Mode: {'ENABLED (Instant Send)' if new_val else 'DISABLED (Interactive Review Mode)'}")
+        print(f"HUD Auto-Send Mode: {'ENABLED (Instant Send)' if new_val else 'DISABLED (Interactive Review Mode)'}")
     elif action == "show":
         state = getattr(args, "state", "idle")
         custom_text = getattr(args, "text", "")
         if state == "idle":
             hud.set_idle()
         elif state == "thinking":
-            hud.set_thinking(agent_name="Antigravity", detail=custom_text or "Thinking...")
+            hud.set_thinking(agent_name="Antigravity", detail=custom_text or "Reasoning...")
         elif state == "working":
             hud.set_working(agent_name="Antigravity", tool_action=custom_text or "Running tools...")
         elif state == "speaking":
@@ -2286,6 +2737,113 @@ def cmd_hud(args):
             hud.set_editing(custom_text or "Sample prompt to review and edit", on_submit=lambda x: print(f"Submitted: {x}"), target_name="Antigravity")
         _pump(float(getattr(args, "duration", 4.0)))
         hud.force_hide()
+
+
+def extract_cli_metadata(args: argparse.Namespace) -> dict:
+    """
+    Extract sanitized, zero-PII metadata from CLI arguments.
+    Strictly allowlisted: excludes all free-form user text, prompts, transcripts, audio, and paths.
+    """
+    cmd = getattr(args, "command", "unknown") or "unknown"
+    props: dict = {"command": cmd}
+
+    # 1. Subcommands / Actions (Strictly allowlisted strings)
+    subcommand = None
+    if hasattr(args, "voice_action") and args.voice_action:
+        subcommand = str(args.voice_action)
+    elif hasattr(args, "hud_action") and args.hud_action:
+        subcommand = str(args.hud_action)
+    elif hasattr(args, "daemon_action") and args.daemon_action:
+        subcommand = str(args.daemon_action)
+    elif hasattr(args, "clone_action") and args.clone_action:
+        subcommand = str(args.clone_action)
+    elif hasattr(args, "memo_action") and args.memo_action:
+        subcommand = str(args.memo_action)
+    elif hasattr(args, "ambient_action") and args.ambient_action:
+        subcommand = str(args.ambient_action)
+    elif hasattr(args, "feedback_action") and args.feedback_action:
+        subcommand = str(args.feedback_action)
+    elif hasattr(args, "obsidian_action") and args.obsidian_action:
+        subcommand = str(args.obsidian_action)
+    elif cmd in (
+        "download-ava", "ping", "feedback-loop", "hearing-test", "barge-in",
+        "troubleshoot", "kill", "autostart", "stop-autostart", "pause", "resume",
+        "permissions", "mcp", "onboarding", "panel", "companion", "info", "update"
+    ):
+        subcommand = cmd
+
+    if subcommand:
+        props["subcommand"] = subcommand
+
+    # 2. Agent / Persona metadata (Allowlisted clean identifiers only)
+    agent = getattr(args, "agent", None)
+    if agent and isinstance(agent, str):
+        clean_agent = agent.lower().strip()
+        if re.match(r"^[a-z0-9_-]{1,32}$", clean_agent):
+            props["agent"] = clean_agent
+
+    # 3. Voice & Provider metadata (Allowlisted clean identifiers only)
+    voice = getattr(args, "voice", None)
+    if voice and isinstance(voice, str):
+        clean_voice = voice.strip()
+        if "/" not in clean_voice and "\\" not in clean_voice:
+            props["voice"] = clean_voice[:40]
+
+    provider = getattr(args, "provider", None)
+    if provider and isinstance(provider, str):
+        clean_provider = provider.strip().lower()
+        if re.match(r"^[a-z0-9_-]{1,30}$", clean_provider):
+            props["provider"] = clean_provider
+
+    # 4. Safe boolean flags (Allowlisted flags only — ZERO user data)
+    flags = []
+    flag_map = [
+        ("dev", "--dev"),
+        ("all", "--all"),
+        ("silent", "--silent"),
+        ("quiet", "--quiet"),
+        ("json", "--json"),
+        ("interactive", "--interactive"),
+        ("benchmark", "--benchmark"),
+        ("mic_loopback", "--mic"),
+        ("loopback", "--loopback"),
+        ("hearing", "--hearing"),
+        ("feedback_loop", "--feedback-loop"),
+        ("verify", "--verify"),
+        ("check", "--check"),
+        ("no_wait", "--no-wait"),
+        ("no_qr", "--no-qr"),
+        ("no_browser", "--no-browser"),
+        ("claude", "--claude"),
+        ("antigravity", "--antigravity"),
+        ("mcp", "--mcp"),
+        ("daemons", "--daemons"),
+        ("clipboard", "--clipboard"),
+        ("no_synth", "--no-synth"),
+    ]
+    for flag_attr, flag_name in flag_map:
+        val = getattr(args, flag_attr, None)
+        if val is True:
+            flags.append(flag_name)
+
+    if getattr(args, "inject", None) is False:
+        flags.append("--no-inject")
+    if getattr(args, "enter", None) is False:
+        flags.append("--no-enter")
+
+    if flags:
+        props["flags"] = flags
+
+    # 5. Command-specific safe enums
+    if cmd == "hud" and hasattr(args, "state") and args.state:
+        props["hud_state"] = str(args.state)
+
+    if cmd in ("troubleshoot", "voice") and getattr(args, "fix", None):
+        clean_fix = str(args.fix).strip().lower()
+        if re.match(r"^[a-z0-9_-]{1,40}$", clean_fix):
+            props["fix_target"] = clean_fix
+
+    return props
 
 
 def main():
@@ -2318,11 +2876,16 @@ def main():
     speak_p.add_argument("-r", "--rate", type=str, default=None, help="Speech rate / speed override (e.g. 75%%, 150, -25%%)")
 
     # setup
-    setup_p = subparsers.add_parser("setup", help="Auto-configure agent lifecycle hooks (Antigravity, Claude Code)")
+    setup_p = subparsers.add_parser("setup", help="Auto-configure agent lifecycle hooks & MCP servers (Antigravity, Claude Code)")
     setup_p.add_argument("--all", action="store_true", help="Setup all agents globally")
     setup_p.add_argument("--claude", action="store_true", help="Setup Claude Code")
     setup_p.add_argument("--antigravity", action="store_true", help="Setup Antigravity")
+    setup_p.add_argument("--mcp", action="store_true", help="Setup Model Context Protocol (MCP) server configuration")
+    setup_p.add_argument("--dev", action="store_true", help="Link agent hooks to current repository local .venv")
     
+    # mcp
+    mcp_p = subparsers.add_parser("mcp", aliases=["mcp-server"], help="Start native Model Context Protocol (MCP) stdio server")
+
     ob_p = subparsers.add_parser("onboarding", help="Run interactive First-Time User Experience onboarding flow")
     ob_p.set_defaults(func=lambda args: __import__('voicefi.onboarding', fromlist=['']).run_onboarding())
 
@@ -2340,8 +2903,18 @@ def main():
 
     # tray / dev
     subparsers.add_parser("tray", help="Launch macOS menu bar companion")
-    subparsers.add_parser("dev", help="Launch in foreground dev mode with live console logs")
+    subparsers.add_parser("dev", help="Launch in foreground dev mode with live console logs and auto-takeover")
 
+    # clean / purge
+    clean_p = subparsers.add_parser("clean", aliases=["purge", "reset-cache"], help="Clean stale Python bytecode, caches, locks, and daemons")
+    clean_p.add_argument("--all", "-a", action="store_true", help="Stop all background daemons and clean all caches & locks")
+    clean_p.add_argument("--dev", "-d", action="store_true", help="Clean caches, stop daemons, and re-link hooks to local repository .venv")
+    clean_p.add_argument("--daemons", action="store_true", help="Stop and terminate running VoiceFi daemons")
+
+    # daemon / kill
+    daemon_p = subparsers.add_parser("daemon", help="Inspect and manage background daemons, LaunchAgents, and port listeners")
+    daemon_p.add_argument("daemon_action", nargs="?", default="status", choices=["status", "stop", "kill", "restart", "start", "reload"], help="Daemon action (default: status)")
+    subparsers.add_parser("kill", help="Immediately stop all VoiceFi background daemons and free port 5141")
 
     # pause / resume
     subparsers.add_parser("pause", help="Pause VoiceFi audio hooks and active turn-handoffs globally")
@@ -2354,14 +2927,14 @@ def main():
 
     # companion / remote
     comp_p = subparsers.add_parser("companion", aliases=["remote"], help="Launch Web & Mobile Voice Companion (PWA & QR code)")
-    comp_p.add_argument("--port", type=int, default=8765, help="Port to run companion server (default: 8765)")
+    comp_p.add_argument("--port", type=int, default=5141, help="Port to run companion server (default: 5141)")
     comp_p.add_argument("--host", type=str, default="0.0.0.0", help="Host address to bind (default: 0.0.0.0)")
     comp_p.add_argument("--no-qr", action="store_true", help="Do not print terminal QR code")
     comp_p.add_argument("--open", action="store_true", help="Open local companion in default browser")
 
     # panel
     panel_p = subparsers.add_parser("panel", help="Launch interactive Voice Control Panel")
-    panel_p.add_argument("--port", type=int, default=8765, help="Port to run web control panel (default: 8765)")
+    panel_p.add_argument("--port", type=int, default=5141, help="Port to run web control panel (default: 5141)")
     panel_p.add_argument("--no-browser", action="store_true", help="Do not open browser automatically")
     panel_p.add_argument("--claude", action="store_true", help="Directly open Claude Voice Contenders Studio")
 
@@ -2385,7 +2958,7 @@ def main():
 
     # voice panel
     vp_panel = voice_sub.add_parser("panel", help="Launch interactive Voice Control Panel")
-    vp_panel.add_argument("--port", type=int, default=8765)
+    vp_panel.add_argument("--port", type=int, default=5141)
     vp_panel.add_argument("--no-browser", action="store_true")
     vp_panel.add_argument("--claude", action="store_true", help="Directly open Claude Voice Contenders Studio")
 
@@ -2412,6 +2985,7 @@ def main():
     v_test.add_argument("--verify", "--stt-loopback", dest="verify", action="store_true", help="Acoustic STT verification")
     v_test.add_argument("-b", "--benchmark", action="store_true", help="Benchmark latency of all curated voices")
     v_test.add_argument("-a", "--all", action="store_true", help="Audition all curated personas")
+    v_test.add_argument("--hud", action="store_true", help="Display visual Dynamic Island HUD popup during test (default: headless)")
 
     # voice ping (silent connection, speed, and latency test)
     v_ping = voice_sub.add_parser("ping", aliases=["check", "speed-test"], help="Silently test connection, latency, speed, and health of neural voices")
@@ -2447,6 +3021,11 @@ def main():
     ht_p.add_argument("-p", "--provider", type=str, default=None)
     ht_p.add_argument("-r", "--rate", type=str, default=None)
 
+    # barge-in top-level
+    barge_p = subparsers.add_parser("barge-in", aliases=["test-barge-in", "barge_in"], help="Live Active Barge-In test: speaks phrase aloud and tests mid-sentence voice interruption with Silero VAD")
+    barge_p.add_argument("voice", nargs="?", default=None, help="Voice to speak during test")
+    barge_p.add_argument("-t", "--text", type=str, default=None, help="Phrase to speak and interrupt")
+
     # voice troubleshoot
     v_tr = voice_sub.add_parser("troubleshoot", help="Run comprehensive audio & voice troubleshooting diagnostic suite")
     v_tr.add_argument("-i", "--interactive", action="store_true", help="Run interactive guided troubleshooting wizard")
@@ -2455,6 +3034,7 @@ def main():
     v_tr.add_argument("--verify", action="store_true", help="Acoustic STT verification")
     v_tr.add_argument("-b", "--benchmark", "--tts-only", dest="benchmark", action="store_true", help="Benchmark TTS latency only")
     v_tr.add_argument("-v", "--voice", type=str, default=None, help="Specific voice to test")
+    v_tr.add_argument("--hud", action="store_true", help="Display visual Dynamic Island HUD popup during test (default: headless)")
     v_tr.add_argument("--fix", type=str, default=None, help="Apply auto-fix (reset_defaults, set_offline_fallback, calibrate_mic)")
     v_tr.add_argument("--json", action="store_true", help="Output diagnostic report in JSON")
 
@@ -2464,11 +3044,15 @@ def main():
     tr_top.add_argument("-m", "--mic", "--loopback", dest="loopback", action="store_true", help="Microphone loopback test")
     tr_top.add_argument("-b", "--benchmark", "--tts-only", dest="benchmark", action="store_true", help="Benchmark TTS latency only")
     tr_top.add_argument("-v", "--voice", type=str, default=None, help="Specific voice to test")
+    tr_top.add_argument("--hud", action="store_true", help="Display visual Dynamic Island HUD popup during test (default: headless)")
     tr_top.add_argument("--fix", type=str, default=None, help="Apply auto-fix")
     tr_top.add_argument("--json", action="store_true", help="Output diagnostic report in JSON")
 
     # voice audition
     voice_sub.add_parser("audition", help="Play live multi-agent voice showcase across speakers")
+    
+    # vad top-level
+    vad_p = subparsers.add_parser("vad", help="Open the Expert VAD & Acoustic Inspector Panel")
 
     # voice rate / speed
     v_rate = voice_sub.add_parser("rate", help="Get or set speech rate / speed (e.g. 75%%, 150, faster, slower)")
@@ -2731,18 +3315,29 @@ def main():
         "hud": cmd_hud,
         "hearing-test": cmd_hearing_test,
         "hearing": cmd_hearing_test,
+        "feedback": cmd_feedback,
         "feedback-loop": cmd_feedback_loop,
         "feedback_loop": cmd_feedback_loop,
         "voice-loop": cmd_feedback_loop,
         "loopback": cmd_loopback,
+        "barge-in": cmd_barge_in,
+        "barge_in": cmd_barge_in,
+        "test-barge-in": cmd_barge_in,
         "troubleshoot": cmd_troubleshoot,
         "test": cmd_troubleshoot,
         "clone": cmd_clone,
-        "feedback": cmd_feedback,
+        "clean": cmd_clean,
+        "purge": cmd_clean,
+        "reset-cache": cmd_clean,
+        "daemon": cmd_daemon,
+        "kill": lambda a: cmd_daemon(argparse.Namespace(daemon_action="stop")),
         "memo": cmd_memo,
         "buffer": cmd_memo,
         "ambient": cmd_ambient,
         "bias": cmd_bias,
+        "vad": cmd_vad,
+        "mcp": cmd_mcp,
+        "mcp-server": cmd_mcp,
     }
 
     # Asynchronously trigger background update check
@@ -2754,12 +3349,45 @@ def main():
 
     handler = commands.get(args.command)
     if handler:
+        props = extract_cli_metadata(args)
+        start_time = time.time()
+        success = True
+        exit_code = 0
+        error_type = None
+
         try:
-            from voicefi.telemetry import capture_event
-            capture_event("cli_command", {"command": args.command})
-        except Exception:
-            pass
-        handler(args)
+            handler(args)
+        except SystemExit as se:
+            exit_code = se.code if isinstance(se.code, int) else (0 if se.code is None else 1)
+            success = (exit_code == 0)
+            raise
+        except KeyboardInterrupt:
+            success = False
+            exit_code = 130
+            error_type = "KeyboardInterrupt"
+            raise
+        except Exception as e:
+            success = False
+            exit_code = 1
+            error_type = type(e).__name__
+            raise
+        finally:
+            duration_ms = int((time.time() - start_time) * 1000)
+            props["duration_ms"] = duration_ms
+            props["success"] = success
+            props["exit_code"] = exit_code
+            if error_type:
+                props["error_type"] = error_type
+
+            # Enrich with hook/runtime details if attached to args
+            if hasattr(args, "_telemetry_extra") and isinstance(args._telemetry_extra, dict):
+                props.update(args._telemetry_extra)
+
+            try:
+                from voicefi.telemetry import capture_event
+                capture_event("cli_command", props)
+            except Exception:
+                pass
 
 
 if __name__ == "__main__":

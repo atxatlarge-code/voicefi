@@ -40,7 +40,7 @@ CLI entry points: `vifi`, `vg`, `voicefi`
 - `vifi feedback-loop` — Simultaneous speak + listen loopback verification
 - `vifi hearing-test` — Acoustic reception & STT verification check
 - `vifi dev` — Foreground real-time console dev mode with live VAD logging
-- `vifi panel` — Launch the local web control panel (http://localhost:8765)
+- `vifi panel` — Launch the local web control panel (http://localhost:5141)
 - `vifi memo record` — Capture 2-5 min developer voice ramble and synthesize to code plan
 
 ## Architecture & Code Conventions

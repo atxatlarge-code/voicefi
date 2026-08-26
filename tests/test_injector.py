@@ -67,3 +67,31 @@ def test_inject_text_to_active_app_failure():
         mock_run.return_value = MagicMock(returncode=1, stderr="System Events got an error (1002)")
         success = inject_text_to_active_app("hello world", submit_enter=False)
         assert success is False
+
+
+def test_send_message_to_antigravity_via_agentapi():
+    """Test send_message_to_antigravity uses agentapi directly without stealing window focus."""
+    from voicefi.integrations.injector import send_message_to_antigravity
+
+    with patch("pathlib.Path.is_file", return_value=True), \
+         patch("os.access", return_value=True), \
+         patch("subprocess.run") as mock_run, \
+         patch("voicefi.integrations.injector.inject_text_to_active_app") as mock_inject:
+
+        mock_run.return_value = MagicMock(returncode=0)
+
+        delivered = send_message_to_antigravity(
+            conv_id="14007fc9-1e0d-4278-90a4-1dad4c3236fd",
+            text="Let's proceed with the plan",
+            sender_name="Jake",
+        )
+
+        assert delivered is True
+        mock_run.assert_called_once()
+        cmd = mock_run.call_args[0][0]
+        assert "send-message" in cmd
+        assert "--title=Message from Jake" in cmd
+        assert "14007fc9-1e0d-4278-90a4-1dad4c3236fd" in cmd
+        assert "Let's proceed with the plan" in cmd
+        # inject_text_to_active_app should NOT have been called as agentapi succeeded
+        mock_inject.assert_not_called()

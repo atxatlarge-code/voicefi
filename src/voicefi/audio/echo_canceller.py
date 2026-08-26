@@ -143,6 +143,10 @@ def is_acoustic_echo(
                 return True
 
         # 4. Fuzzy sequence similarity
+        ratio = difflib.SequenceMatcher(None, clean_trans, clean_ref).ratio()
+        if ratio >= similarity_threshold:
+            return True
+
     return False
 
 

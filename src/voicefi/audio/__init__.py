@@ -13,9 +13,18 @@ from voicefi.audio.device import (
     get_audio_device_profile,
 )
 
+from voicefi.audio.vad import (
+    VoiceActivityDetector,
+    SileroVAD,
+    find_silero_vad_model,
+)
+
 __all__ = [
     "play_chime",
     "AudioRecorder",
+    "VoiceActivityDetector",
+    "SileroVAD",
+    "find_silero_vad_model",
     "is_acoustic_echo",
     "record_agent_spoken",
     "get_recent_spoken_texts",

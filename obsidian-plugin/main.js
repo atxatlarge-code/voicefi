@@ -52,7 +52,7 @@ var VOICEFI_ICON_SVG = `<path d="M 25 20 A 28 28 0 0 1 75 20" stroke="currentCol
 var DEFAULT_SETTINGS = {
   vifiPath: "vifi",
   audioCues: true,
-  companionPort: 8765
+  companionPort: 5141
 };
 var VoiceFiPlugin = class extends import_obsidian.Plugin {
   constructor() {
@@ -402,8 +402,8 @@ var VoiceFiSettingTab = class extends import_obsidian.PluginSettingTab {
       this.plugin.settings.vifiPath = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian.Setting(containerEl).setName("Companion Port").setDesc("Port for the local VoiceFi Companion server.").addText((text) => text.setPlaceholder("8765").setValue(this.plugin.settings.companionPort.toString()).onChange(async (value) => {
-      this.plugin.settings.companionPort = parseInt(value) || 8765;
+    new import_obsidian.Setting(containerEl).setName("Companion Port").setDesc("Port for the local VoiceFi Companion server.").addText((text) => text.setPlaceholder("5141").setValue(this.plugin.settings.companionPort.toString()).onChange(async (value) => {
+      this.plugin.settings.companionPort = parseInt(value) || 5141;
       await this.plugin.saveSettings();
     }));
     new import_obsidian.Setting(containerEl).setName("Audio Cues").setDesc("Play chimes when listening starts and stops.").addToggle((toggle) => toggle.setValue(this.plugin.settings.audioCues).onChange(async (value) => {

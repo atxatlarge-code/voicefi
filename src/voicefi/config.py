@@ -91,6 +91,8 @@ class STTConfig(BaseModel):
 
 
 class VADConfig(BaseModel):
+    engine: Literal["silero", "energy", "auto"] = "auto"
+    speech_threshold: float = 0.5
     mode: Literal["auto", "ptt", "hybrid"] = "hybrid"
     silence_duration: float = 2.0
     energy_threshold: float = 0.004
@@ -121,6 +123,8 @@ class AntigravityConfig(BaseModel):
     speech_popup_position: Literal["top_center", "top_right", "bottom_right"] = "top_right"
     auto_send: bool = True
     persistent_hud: bool = True
+    mirror_native_mic: bool = True
+    show_native_mic_shortcut: bool = True
 
 
 class HUDConfig(BaseModel):
@@ -131,8 +135,9 @@ class HUDConfig(BaseModel):
     fullscreen_overlay: bool = True  # True = float above full-screen games/apps; False = allow full-screen overlap/hide behind
     position: Literal["top_center", "top_right", "bottom_right"] = "top_right"
     margin_x: float = 20.0
-    margin_y: float = 52.0  # Vertical margin in points below menu bar (clearing Chrome's top tab strip)
+    margin_y: float = 96.0  # Vertical margin in points below menu bar (clearing Chrome's top tab strip & address bar)
     linger_seconds: float = 2.0
+    always_on_vad: bool = True
 
 
 class ClaudeConfig(BaseModel):
@@ -202,7 +207,7 @@ class STTBiasingConfig(BaseModel):
 
 class CompanionConfig(BaseModel):
     enabled: bool = True
-    port: int = 8765
+    port: int = 5141
     host: str = "127.0.0.1"  # Default to loopback for security
     audio_routing: Literal["smart", "origin_only", "phone_only", "mac_only", "both"] = "smart"
     mute_mac_when_companion_active: bool = False
@@ -388,9 +393,9 @@ def load_config(custom_path: Optional[str] = None) -> VoiceFiConfig:
     return VoiceFiConfig()
 
 
-def save_config(config: VoiceFiConfig, target_path: Optional[Path] = None) -> Path:
+def save_config(config: VoiceFiConfig, target_path: Optional[Union[Path, str]] = None) -> Path:
     """Save configuration to the designated YAML file."""
-    dest = target_path or find_config_path() or get_default_config_path()
+    dest = Path(target_path) if target_path else (find_config_path() or get_default_config_path())
     dest.parent.mkdir(parents=True, exist_ok=True)
     with open(dest, "w", encoding="utf-8") as f:
         yaml.safe_dump(config.model_dump(), f, default_flow_style=False, sort_keys=False)

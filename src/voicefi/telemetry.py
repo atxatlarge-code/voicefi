@@ -75,9 +75,11 @@ def sanitize_telemetry_data(data: Any) -> Any:
     elif isinstance(data, dict):
         sanitized = {}
         for k, v in data.items():
-            # Exclude sensitive key names
+            # Exclude sensitive key names and raw user content
             k_lower = str(k).lower()
             if any(k_lower.endswith(s) for s in ("_key", "_secret", "_token", "_password", "auth")):
+                continue
+            if k_lower in ("prompt", "user_prompt", "raw_text", "raw_speech", "transcript_content", "audio_data", "audio_bytes"):
                 continue
             sanitized[k] = sanitize_telemetry_data(v)
         return sanitized

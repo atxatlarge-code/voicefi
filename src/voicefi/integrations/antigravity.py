@@ -12,6 +12,7 @@ from typing import Dict, Any, Optional
 
 from voicefi.config import VoiceFiConfig, load_config
 from voicefi.tts import get_tts_engine, stop_all_speech
+from voicefi.tts.base import set_cross_process_hud_state, clear_cross_process_hud_state
 from voicefi.stt import get_stt_engine
 from voicefi.audio.recorder import AudioRecorder
 from voicefi.audio.chimes import play_chime
@@ -117,14 +118,19 @@ def extract_latest_agent_summary(
     transcript_path: Path,
     max_words: int = 60,
     return_role: bool = False,
+    return_step_index: bool = False,
 ):
     """
     Extract the latest assistant response or question from transcript.jsonl.
     Scans the transcript backwards to locate the latest turn's model response.
-    If return_role is True, returns (summary_text, agent_role), else returns summary_text.
+    If return_role and return_step_index are True, returns (summary_text, agent_role, step_index).
+    If return_role is True, returns (summary_text, agent_role).
+    Else returns summary_text.
     """
     if not transcript_path.is_file():
         default_msg = "I have finished the task. What would you like to do next?"
+        if return_role and return_step_index:
+            return (default_msg, None, None)
         return (default_msg, None) if return_role else default_msg
 
     lines = []
@@ -134,10 +140,13 @@ def extract_latest_agent_summary(
     except Exception as e:
         print(f"[Antigravity] Error reading transcript: {e}", file=sys.stderr)
         default_msg = "The process is complete and ready for your input."
+        if return_role and return_step_index:
+            return (default_msg, None, None)
         return (default_msg, None) if return_role else default_msg
 
     last_model_content = ""
     detected_role: Optional[str] = None
+    detected_step_index: Optional[int] = None
 
     # Traverse backwards to find the latest turn's model message
     for line in reversed(lines):
@@ -147,9 +156,11 @@ def extract_latest_agent_summary(
             step_source = step.get("source", "")
             content = step.get("content", "")
             role = step.get("role") or step.get("agent_role")
+            idx = step.get("step_index")
 
             if step_type == "PLANNER_RESPONSE" and content and not step.get("tool_calls"):
                 last_model_content = content
+                detected_step_index = idx
                 if role:
                     detected_role = str(role).lower()
                 break
@@ -166,6 +177,7 @@ def extract_latest_agent_summary(
                 step = json.loads(line)
                 if step.get("type") == "PLANNER_RESPONSE" and step.get("content") and not step.get("tool_calls"):
                     last_model_content = step.get("content")
+                    detected_step_index = step.get("step_index")
                     role = step.get("role") or step.get("agent_role")
                     if role:
                         detected_role = str(role).lower()
@@ -175,9 +187,13 @@ def extract_latest_agent_summary(
 
     if not last_model_content:
         fallback_msg = "The process is complete and ready for your input."
+        if return_role and return_step_index:
+            return (fallback_msg, detected_role, detected_step_index)
         return (fallback_msg, detected_role) if return_role else fallback_msg
 
     cleaned = clean_markdown_for_speech(last_model_content, max_words=max_words)
+    if return_role and return_step_index:
+        return (cleaned, detected_role, detected_step_index)
     return (cleaned, detected_role) if return_role else cleaned
 
 
@@ -242,12 +258,33 @@ def handle_antigravity_stop_hook(payload: Dict[str, Any], config: Optional[Voice
             engine="antigravity",
         )
 
-    summary, detected_role = extract_latest_agent_summary(
+    summary_res = extract_latest_agent_summary(
         transcript_path,
         max_words=cfg.antigravity.max_spoken_words,
         return_role=True,
+        return_step_index=True,
     )
+    if isinstance(summary_res, tuple) and len(summary_res) == 3:
+        summary, detected_role, step_index = summary_res
+    elif isinstance(summary_res, tuple) and len(summary_res) == 2:
+        summary, detected_role = summary_res
+        step_index = None
+    else:
+        summary = str(summary_res)
+        detected_role = None
+        step_index = None
+
     active_agent = hook_agent_role or detected_role or "antigravity"
+
+    turn_sig = f"{conv_id}:{summary[:35]}"
+    try:
+        claimed = claim_turn(conv_id, turn_sig, step_index=step_index)
+    except TypeError:
+        claimed = claim_turn(conv_id, turn_sig)
+
+    if not claimed:
+        # Already claimed and handled by watcher or another process
+        return {}
 
     # Track pending clarifying question / options if present
     if summary and (summary.endswith("?") or " or " in summary.lower()):
@@ -257,14 +294,9 @@ def handle_antigravity_stop_hook(payload: Dict[str, Any], config: Optional[Voice
         from voicefi.audio.echo_canceller import record_agent_spoken
         record_agent_spoken(summary)
 
-    turn_sig = f"{conv_id}:{summary[:35]}"
-    if not claim_turn(conv_id, turn_sig):
-        # Already handled by menu bar watcher
-        return {}
-
     routing = getattr(getattr(cfg, "companion", None), "audio_routing", "smart")
     mute_mac_active = getattr(getattr(cfg, "companion", None), "mute_mac_when_companion_active", False)
-    is_mobile = (get_claimed_turn_origin(conv_id, turn_sig) == "mobile")
+    is_mobile = (get_claimed_turn_origin(conv_id, turn_sig, step_index=step_index) == "mobile")
 
     if routing == "phone_only":
         return {}
@@ -346,8 +378,26 @@ def handle_antigravity_stop_hook(payload: Dict[str, Any], config: Optional[Voice
             barge_in_sensitivity=getattr(cfg.vad, "barge_in_sensitivity", 1.0),
         )
 
+        def _on_live(txt: str):
+            set_cross_process_hud_state("listening", text=txt, agent_name=active_agent, user_name=cfg.user_name, live_stream=True)
+            try:
+                from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
+                UnifiedDynamicIslandHUD.get_instance().update_live_transcription(txt, user_name=cfg.user_name)
+            except Exception:
+                pass
+
+        def _on_tick(energy: float, conf: float = 0.0, is_spk: bool = False):
+            try:
+                from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
+                UnifiedDynamicIslandHUD.get_instance().update_audio_level(energy, conf, is_spk)
+            except Exception:
+                pass
+
         audio_data, temp_wav = recorder.record_speech_auto(
+            on_speech_start=lambda: set_cross_process_hud_state("hearing", agent_name=active_agent, user_name=cfg.user_name),
             on_barge_in=_on_barge_in,
+            on_live_transcript=_on_live,
+            on_listening_tick=_on_tick,
         )
     else:
         if should_speak:
@@ -364,7 +414,18 @@ def handle_antigravity_stop_hook(payload: Dict[str, Any], config: Optional[Voice
 
         if should_listen:
             if cfg.audio_cues.enabled:
-                play_chime("start", block=False)
+                play_chime("start", block=True)
+                time.sleep(0.1)
+
+            set_cross_process_hud_state("listening", agent_name=active_agent, user_name=cfg.user_name)
+
+            def _on_live(txt: str):
+                set_cross_process_hud_state("listening", text=txt, agent_name=active_agent, user_name=cfg.user_name, live_stream=True)
+                try:
+                    from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
+                    UnifiedDynamicIslandHUD.get_instance().update_live_transcription(txt, user_name=cfg.user_name)
+                except Exception:
+                    pass
 
             recorder = AudioRecorder(
                 sample_rate=cfg.vad.sample_rate,
@@ -374,9 +435,13 @@ def handle_antigravity_stop_hook(payload: Dict[str, Any], config: Optional[Voice
                 barge_in=False,
             )
 
-            audio_data, temp_wav = recorder.record_speech_auto()
+            audio_data, temp_wav = recorder.record_speech_auto(
+                on_speech_start=lambda: set_cross_process_hud_state("hearing", agent_name=active_agent, user_name=cfg.user_name),
+                on_live_transcript=_on_live,
+            )
 
     if temp_wav and Path(temp_wav).is_file():
+        set_cross_process_hud_state("transcribing", agent_name=active_agent)
         stt = get_stt_engine(cfg)
         try:
             transcription = stt.transcribe(temp_wav)
@@ -385,45 +450,41 @@ def handle_antigravity_stop_hook(payload: Dict[str, Any], config: Optional[Voice
 
         if transcription and transcription.strip():
             clean_t = transcription.strip()
+            print(f"[Antigravity] 🎙️ Transcribed speech: \"{clean_t}\"", flush=True)
             from voicefi.audio.echo_canceller import is_acoustic_echo
             if is_acoustic_echo(clean_t, reference_text=summary):
-                print(f"[Antigravity] 🛡️ Suppressed acoustic self-echo: \"{clean_t}\" (matched agent output)")
+                print(f"[Antigravity] 🛡️ Suppressed acoustic self-echo: \"{clean_t}\" (matched agent output)", flush=True)
                 return {}
 
             pending_q = get_pending_question(conv_id)
             eval_res = ActiveListeningEngine.evaluate(clean_t, pending_question=pending_q, is_ambient=False)
-
-            if eval_res.category == SpokenIntentCategory.MIC_CHECK:
-                print(f"[ActiveListening] 🎙️ Mic check detected: '{clean_t}' -> fast reassurance")
-                if eval_res.quick_spoken_reply:
-                    tts = get_tts_engine(cfg, agent_name=active_agent)
-                    tts.stream_speak(eval_res.quick_spoken_reply, block=True)
-                return {}
-
-            if eval_res.category == SpokenIntentCategory.CONVERSATIONAL_FILLER:
-                print(f"[ActiveListening] 💬 Conversational filler detected: '{clean_t}' -> acknowledge")
-                if eval_res.quick_spoken_reply:
-                    tts = get_tts_engine(cfg, agent_name=active_agent)
-                    tts.stream_speak(eval_res.quick_spoken_reply, block=True)
-                return {}
+            print(f"[ActiveListening] Intent evaluation: {eval_res.category.value} (is_actionable={eval_res.is_actionable})", flush=True)
 
             if eval_res.category == SpokenIntentCategory.PENDING_ANSWER:
-                print(f"[ActiveListening] 🎯 Matched pending choice: '{eval_res.selected_option}' (from '{clean_t}')")
+                print(f"[ActiveListening] 🎯 Matched pending choice: '{eval_res.selected_option}' (from '{clean_t}')", flush=True)
                 resolve_pending_question(conv_id, selected_option=eval_res.selected_option)
                 text_to_send = eval_res.selected_option or eval_res.normalized_text
             else:
                 clear_pending_question(conv_id)
-                text_to_send = eval_res.normalized_text
+                text_to_send = eval_res.normalized_text or clean_t
 
             if cfg.antigravity.inject_to_active_window:
-                delivered = send_message_to_antigravity(conv_id=conv_id, text=text_to_send)
+                set_cross_process_hud_state("done", text=text_to_send[:20], agent_name=active_agent)
+                print(f"[Antigravity] 🚀 Dispatching prompt to conversation {str(conv_id)[:8]}: '{text_to_send}'", flush=True)
+                delivered = send_message_to_antigravity(conv_id=conv_id, text=text_to_send, sender_name=cfg.user_name)
                 if delivered:
-                    print("Sent to active conversation.")
+                    print(f"[Antigravity] ✅ Delivered successfully to Antigravity ({str(conv_id)[:8]}).", flush=True)
                 else:
-                    print("⚠️ Delivery failed — text left on clipboard.")
+                    print(f"[Antigravity] ⚠️ Delivery failed — text left on clipboard.", flush=True)
 
             if cfg.audio_cues.enabled:
                 play_chime(cfg.audio_cues.sent_chime, block=False)
+        else:
+            print("[Antigravity] ℹ️ STT returned empty transcription (no speech or below threshold).", flush=True)
+            clear_cross_process_hud_state()
+    else:
+        print("[Antigravity] ℹ️ No audio recording captured from recorder.", flush=True)
+        clear_cross_process_hud_state()
 
     return {}
 

@@ -40,7 +40,7 @@ def get_mdns_hostname() -> str:
         return "localhost"
 
 
-def get_companion_urls(port: int = 8765) -> Dict[str, str]:
+def get_companion_urls(port: int = 5141) -> Dict[str, str]:
     """Get all candidate URLs for pairing with the mobile companion and studio."""
     ip = get_local_ip()
     mdns = get_mdns_hostname()

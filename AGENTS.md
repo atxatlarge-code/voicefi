@@ -8,6 +8,14 @@ Universal Voice Layer for Knowledge Vaults, MCP, and Autonomous AI Coding Agents
 
 | Command | Purpose |
 | :--- | :--- |
+| `vifi clean` | **Cache & State Purge**: Cleans all `__pycache__`, stale locks, and temporary session files. |
+| `vifi clean --all` | **Complete Reset**: Stops background daemons, frees Port 5141, and cleans all caches and locks. |
+| `vifi clean --dev` | **Dev Reset & Link**: Cleans caches, stops daemons, and links hooks to local repository `.venv`. |
+| `vifi daemon status` | **Daemon & Port Status**: Shows running daemons, LaunchAgent state, Port 5141 listener, and PID details. |
+| `vifi daemon stop` / `vifi kill` | **Daemon Terminator**: Safely unloads LaunchAgent, terminates VoiceFi processes, and frees Port 5141. |
+| `vifi dev` | **Live Dev Mode**: Auto-takes over background daemons, cleans caches, and streams live console logs. |
+| `vifi setup --dev` | **Link Dev Hooks & MCP**: Points Antigravity and Claude Code hooks & MCP servers directly to local `.venv`. |
+| `vifi mcp` | **Model Context Protocol Server**: Starts native Stdio JSON-RPC 2.0 MCP server exposing voice tools to AI agents. |
 | `vifi update` | Self-updater: pulls latest GitHub release, upgrades `~/.voicefi/venv`, and reloads hooks. |
 | `vifi update --check` | Check if a newer version is available without installing. |
 | `vifi voice download-ava` | **Instant 0ms Offline Speech Setup**: Guides downloading Apple's **Ava (Premium)** neural voice and auto-configures 0ms offline synthesis. |
@@ -18,10 +26,10 @@ Universal Voice Layer for Knowledge Vaults, MCP, and Autonomous AI Coding Agents
 | `vifi ping --all` | **Silent Multi-Voice Benchmark**: Runs silent connection and speed tests across all curated neural and local voices. |
 | `vifi feedback-loop` | **Simultaneous Speak + Listen Test**: Speaks over speakers while monitoring microphone. |
 | `vifi hearing-test` | **Acoustic Verification**: Plays phrase over speakers and tests room microphone STT match %. |
-| `vifi dev` | **Live Real-Time Console Dev Mode**: Streams real-time VAD energy levels and barge-in events. |
 | `vifi feedback submit "<title>"` | Logs sanitized zero-PII diagnostic report and dispatches to telemetry. |
-| `vifi panel` | Launch interactive web control panel (`http://localhost:8765`). |
+| `vifi panel` | Launch interactive web control panel (`http://localhost:5141`). |
 | `vifi hud debug` | Interactive terminal Dynamic Island HUD Debug Studio. |
+| `python scripts/sync_hud_assets.py` | **HUD & Web Asset Synchronizer**: Captures AppKit HUD screenshots and syncs shared JS/CSS/SVGs to `voicefi.org`. |
 | `vifi autostart` | Enable background LaunchAgent daemon (`vifi tray`) for persistent Dynamic Island HUD & menu bar companion. |
 | `vifi stop-autostart` | Unload and remove background LaunchAgent daemon. |
 

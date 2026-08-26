@@ -17,6 +17,7 @@ from voicefi.tts.base import (
     set_agent_speaking,
     speech_turn_lock,
     stop_all_speech,
+    DuplicateSpeechSuppressed,
 )
 
 

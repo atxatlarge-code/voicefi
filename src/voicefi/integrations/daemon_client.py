@@ -5,13 +5,14 @@ Uses Python standard library (urllib.request / json) for zero import overhead.
 """
 
 import json
+import uuid
 import urllib.request
 import urllib.error
 from typing import Dict, Any, Optional
 from voicefi.config import VoiceFiConfig, load_config
 
 
-def is_daemon_running(port: int = 8765, host: str = "127.0.0.1", timeout: float = 0.25) -> bool:
+def is_daemon_running(port: int = 5141, host: str = "127.0.0.1", timeout: float = 0.25) -> bool:
     """Check if VoiceFi daemon / companion server is running on localhost."""
     url = f"http://{host}:{port}/api/status"
     try:
@@ -25,7 +26,7 @@ def is_daemon_running(port: int = 8765, host: str = "127.0.0.1", timeout: float 
 def forward_hook_to_daemon(
     payload: Dict[str, Any],
     config: Optional[VoiceFiConfig] = None,
-    timeout: float = 0.6,
+    timeout: float = 1.5,
 ) -> Optional[Dict[str, Any]]:
     """
     Forward lifecycle hook event payload to the running VoiceFi background daemon.
@@ -33,8 +34,11 @@ def forward_hook_to_daemon(
     """
     cfg = config or load_config()
     companion_cfg = getattr(cfg, "companion", None)
-    port = getattr(companion_cfg, "port", 8765) if companion_cfg else 8765
+    port = getattr(companion_cfg, "port", 5141) if companion_cfg else 5141
     host = "127.0.0.1"
+
+    if "request_id" not in payload:
+        payload["request_id"] = str(uuid.uuid4())
 
     url = f"http://{host}:{port}/api/hook/event"
     data_bytes = json.dumps(payload).encode("utf-8")

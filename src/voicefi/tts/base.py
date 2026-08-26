@@ -1,9 +1,11 @@
 import fcntl
 import os
+import re
 import subprocess
 import threading
 import time
 import json
+import weakref
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from pathlib import Path
@@ -12,9 +14,149 @@ from typing import Optional, Dict, Any
 SPEECH_LOCK_FILE = Path("/tmp/voicefi_speech.lock")
 AGENT_SPEAKING_STATUS_FILE = Path("/tmp/voicefi_speaking.status")
 AUDIO_PLAYING_STATUS_FILE = Path("/tmp/voicefi_audio_playing.status")
+HUD_STATE_STATUS_FILE = Path("/tmp/voicefi_hud_state.json")
+RECENT_SPEECH_FILE = Path("/tmp/voicefi_recent_speech.json")
 _THREAD_LOCK = threading.Lock()
 _IN_PROCESS_SPEAKING = False
 _IN_PROCESS_AUDIO_PLAYING = False
+_ACTIVE_TTS_ENGINES: weakref.WeakSet = weakref.WeakSet()
+
+
+class DuplicateSpeechSuppressed(Exception):
+    """Raised when speech is suppressed because the exact text was recently spoken."""
+    pass
+
+
+def normalize_text_for_dedup(text: str) -> str:
+    """Normalize text into lower-cased alphanumeric string for robust deduplication."""
+    if not text:
+        return ""
+    return re.sub(r"[^a-z0-9]", "", text.lower()).strip()
+
+
+def is_duplicate_speech(text: str, window_seconds: float = 6.0) -> bool:
+    """
+    Check if the exact text or near-identical text was spoken by any VoiceFi process
+    within the last `window_seconds`.
+    """
+    if not text or not text.strip():
+        return False
+    norm = normalize_text_for_dedup(text)
+    if not norm or len(norm) < 6:
+        return False
+    now = time.time()
+    try:
+        if RECENT_SPEECH_FILE.is_file():
+            data = json.loads(RECENT_SPEECH_FILE.read_text())
+            if isinstance(data, list):
+                for item in data:
+                    item_norm = item.get("norm", "")
+                    ts = float(item.get("timestamp", 0))
+                    if (now - ts) <= window_seconds:
+                        if item_norm == norm:
+                            return True
+                        # Prefix match for long utterances (> 25 chars)
+                        if len(norm) >= 25 and len(item_norm) >= 25:
+                            if norm[:30] == item_norm[:30]:
+                                return True
+    except Exception:
+        pass
+    return False
+
+
+def clear_recent_speech_history() -> None:
+    """Clear recorded speech deduplication history."""
+    try:
+        RECENT_SPEECH_FILE.unlink(missing_ok=True)
+    except Exception:
+        pass
+
+
+def record_recent_speech(text: str) -> None:
+    """Record speech text and timestamp into cross-process recent speech cache."""
+    norm = normalize_text_for_dedup(text)
+    if not norm:
+        return
+    now = time.time()
+    try:
+        entries = []
+        if RECENT_SPEECH_FILE.is_file():
+            try:
+                entries = json.loads(RECENT_SPEECH_FILE.read_text())
+                if not isinstance(entries, list):
+                    entries = []
+            except Exception:
+                entries = []
+        # Keep only entries within last 30s
+        valid_entries = [e for e in entries if (now - float(e.get("timestamp", 0))) < 30.0]
+        valid_entries.append({"norm": norm, "timestamp": now})
+        if len(valid_entries) > 20:
+            valid_entries = valid_entries[-20:]
+        RECENT_SPEECH_FILE.write_text(json.dumps(valid_entries))
+    except Exception:
+        pass
+
+
+def set_cross_process_hud_state(
+    state: str,
+    text: Optional[str] = None,
+    agent_name: Optional[str] = None,
+    persona_name: Optional[str] = None,
+    user_name: Optional[str] = None,
+    detail: Optional[str] = None,
+    tool_action: Optional[str] = None,
+    live_stream: bool = False,
+) -> None:
+    """Set cross-process HUD lifecycle state for seamless multi-process dynamic island presentation."""
+    try:
+        if state == "idle":
+            clear_cross_process_hud_state()
+            return
+
+        payload = {
+            "pid": os.getpid(),
+            "timestamp": time.time(),
+            "state": state,
+            "text": text or "",
+            "agent_name": agent_name or "Antigravity",
+            "persona_name": persona_name or "",
+            "user_name": user_name or "Jake",
+            "detail": detail or "",
+            "tool_action": tool_action or "",
+            "live_stream": live_stream,
+        }
+        HUD_STATE_STATUS_FILE.write_text(json.dumps(payload))
+    except Exception:
+        pass
+
+
+def get_cross_process_hud_state() -> Optional[Dict[str, Any]]:
+    """Retrieve active cross-process HUD state if a non-expired valid payload exists."""
+    try:
+        if HUD_STATE_STATUS_FILE.is_file():
+            raw = HUD_STATE_STATUS_FILE.read_text().strip()
+            if not raw:
+                return None
+            data = json.loads(raw)
+            if isinstance(data, dict):
+                pid = int(data.get("pid", 0))
+                ts = float(data.get("timestamp", 0))
+                if is_pid_alive(pid) and (time.time() - ts) < 60.0:
+                    return data
+                else:
+                    HUD_STATE_STATUS_FILE.unlink(missing_ok=True)
+                    return None
+    except Exception:
+        pass
+    return None
+
+
+def clear_cross_process_hud_state() -> None:
+    """Clear active cross-process HUD state."""
+    try:
+        HUD_STATE_STATUS_FILE.unlink(missing_ok=True)
+    except Exception:
+        pass
 
 
 def set_agent_speaking(
@@ -42,9 +184,16 @@ def set_agent_speaking(
                 "persona_name": persona_name or "Viv",
             }
             AGENT_SPEAKING_STATUS_FILE.write_text(json.dumps(payload))
+            set_cross_process_hud_state(
+                state="speaking",
+                text=text or "",
+                agent_name=agent_name or "VoiceFi",
+                persona_name=persona_name or "Viv",
+            )
         else:
             AGENT_SPEAKING_STATUS_FILE.unlink(missing_ok=True)
             set_agent_audio_playing(False)
+            clear_cross_process_hud_state()
     except Exception:
         pass
 
@@ -215,6 +364,15 @@ def speech_turn_lock(
         try:
             lock_fd = open(SPEECH_LOCK_FILE, "a+")
             fcntl.flock(lock_fd, fcntl.LOCK_EX)
+
+            # Check if this exact speech was already delivered by another process while waiting for lock
+            if text and is_duplicate_speech(text, window_seconds=6.0):
+                print(f"[TTS] 🛡️ Suppressed duplicate speech: \"{text[:40]}...\" (already spoken within 6.0s)")
+                raise DuplicateSpeechSuppressed(f"Duplicate speech: {text[:30]}")
+
+            if text:
+                record_recent_speech(text)
+
             set_agent_speaking(True, text=text, agent_name=agent_name, persona_name=persona_name)
             
             # If any previous audio is still playing out of speakers, wait until total silence
@@ -246,6 +404,9 @@ SPEECH_LOCK = _THREAD_LOCK
 
 class BaseTTS(ABC):
     """Abstract interface for all TTS engines."""
+
+    def __init__(self, *args, **kwargs):
+        _ACTIVE_TTS_ENGINES.add(self)
 
     @abstractmethod
     def speak(self, text: str, block: bool = True) -> None:
@@ -281,14 +442,33 @@ class BaseTTS(ABC):
         """
         Asynchronously synthesize speech directly to an audio file without playing.
         """
-        return self.speak_to_file(text, output_path)
+_LAST_SPEECH_STOP_FILE = Path("/tmp/voicefi_last_speech_stop.ts")
+
+
+def record_speech_stopped() -> None:
+    """Record timestamp when speech was interrupted/stopped."""
+    try:
+        _LAST_SPEECH_STOP_FILE.write_text(str(time.time()))
+    except Exception:
+        pass
+
+
+def get_last_speech_stop_time() -> float:
+    """Retrieve timestamp of the most recent speech stop event."""
+    try:
+        if _LAST_SPEECH_STOP_FILE.is_file():
+            return float(_LAST_SPEECH_STOP_FILE.read_text().strip())
+    except Exception:
+        pass
+    return 0.0
 
 
 def stop_all_speech() -> None:
     """
     Instantly stop any active speech synthesis and audio playback on macOS.
-    Kills any running 'say' or 'afplay' processes and dismisses HUDs.
+    Kills any running 'say' or 'afplay' processes, stops all registered TTS engines, and dismisses HUDs.
     """
+    record_speech_stopped()
     set_agent_speaking(False)
     set_agent_audio_playing(False)
     try:
@@ -297,26 +477,26 @@ def stop_all_speech() -> None:
     except Exception:
         pass
 
-    try:
-        subprocess.run(["killall", "say"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    except Exception:
-        pass
+    for engine in list(_ACTIVE_TTS_ENGINES):
+        try:
+            engine.stop()
+        except Exception:
+            pass
 
-    try:
-        subprocess.run(["killall", "afplay"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    except Exception:
-        pass
+    if not os.environ.get("PYTEST_CURRENT_TEST"):
+        try:
+            subprocess.run(["killall", "say"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception:
+            pass
+
+        try:
+            subprocess.run(["killall", "afplay"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception:
+            pass
 
     try:
         from voicefi.ui.speech_hud import AgentSpeechHUD
         if AgentSpeechHUD._instance:
             AgentSpeechHUD._instance.hide()
-    except Exception:
-        pass
-
-    try:
-        from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
-        if UnifiedDynamicIslandHUD._instance:
-            UnifiedDynamicIslandHUD._instance.hide()
     except Exception:
         pass

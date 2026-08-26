@@ -17,6 +17,7 @@ from typing import Dict, Any, Optional, Tuple
 
 from voicefi.config import VoiceFiConfig, load_config
 from voicefi.tts import get_tts_engine, stop_all_speech
+from voicefi.tts.base import set_cross_process_hud_state, clear_cross_process_hud_state
 from voicefi.stt import get_stt_engine
 from voicefi.audio.recorder import AudioRecorder, resolve_barge_in_mode
 from voicefi.audio.chimes import play_chime
@@ -213,6 +214,7 @@ def handle_claude_stop_hook(
 
     # 5. Record user response with VAD
     print("🎙️ Listening for response to Claude... (speak and then pause)")
+    set_cross_process_hud_state("listening", agent_name="claude", user_name=cfg.user_name)
     recorder = AudioRecorder(
         sample_rate=cfg.vad.sample_rate,
         energy_threshold=cfg.vad.energy_threshold,
@@ -222,13 +224,15 @@ def handle_claude_stop_hook(
 
     try:
         audio_data, temp_wav = recorder.record_speech_auto(
-            on_speech_start=lambda: print("🗣️ Speech detected..."),
+            on_speech_start=lambda: set_cross_process_hud_state("hearing", agent_name="claude", user_name=cfg.user_name),
         )
     except Exception as e:
         print(f"[Claude Hook] Recording error: {e}", file=sys.stderr)
+        clear_cross_process_hud_state()
         return {"status": "error", "error": str(e)}
 
     # 6. Transcribe user speech
+    set_cross_process_hud_state("transcribing", agent_name="claude")
     stt_engine = get_stt_engine(cfg)
     try:
         transcription = stt_engine.transcribe(temp_wav)
@@ -237,11 +241,13 @@ def handle_claude_stop_hook(
 
     if not transcription or not transcription.strip():
         print("⚠️ No speech detected.")
+        clear_cross_process_hud_state()
         return {"status": "no_speech"}
 
     print(f"\n📝 Transcribed: {transcription}\n")
 
     # 7. Safe Window Injection: Inject directly into Claude terminal/app
+    set_cross_process_hud_state("done", text=transcription[:20], agent_name="claude")
     if cfg.claude.inject_to_active_window:
         success = inject_text_to_claude(transcription, submit_enter=cfg.claude.auto_submit)
         if success:
@@ -253,6 +259,7 @@ def handle_claude_stop_hook(
     if cfg.audio_cues.enabled:
         play_chime(cfg.audio_cues.sent_chime, block=False)
 
+    clear_cross_process_hud_state()
     return {"status": "transcribed", "text": transcription, "agent": "claude"}
 
 

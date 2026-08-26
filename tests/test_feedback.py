@@ -25,7 +25,8 @@ def test_collect_system_diagnostics():
 def test_submit_and_list_feedback(tmp_path):
     """Test submitting feedback and verifying persistence."""
     with patch("voicefi.feedback.get_feedback_dir", return_value=tmp_path / "feedback"), \
-         patch("voicefi.feedback.Path.home", return_value=tmp_path):
+         patch("voicefi.feedback.Path.home", return_value=tmp_path), \
+         patch("voicefi.telemetry.capture_event") as mock_capture:
         
         record = submit_feedback(
             title="Audio sample rate mismatch",
@@ -53,7 +54,8 @@ def test_submit_feedback_validation():
 def test_cmd_feedback_cli(capsys, tmp_path):
     """Test CLI feedback submission and listing."""
     with patch("voicefi.feedback.get_feedback_dir", return_value=tmp_path / "feedback"), \
-         patch("voicefi.feedback.Path.home", return_value=tmp_path):
+         patch("voicefi.feedback.Path.home", return_value=tmp_path), \
+         patch("voicefi.telemetry.capture_event") as mock_capture:
 
         # Test submit
         args_submit = MagicMock()

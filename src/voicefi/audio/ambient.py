@@ -6,15 +6,16 @@ emitting completed utterances for real-time proactive triage and transcription.
 
 import time
 import threading
-from typing import Callable, Optional, List
+from typing import Callable, Optional, List, Literal
 import numpy as np
 import sounddevice as sd
 
 from voicefi.tts.base import is_agent_speaking
+from voicefi.audio.vad import VoiceActivityDetector
 
 
 class AmbientAudioStream:
-    """Non-blocking background audio listener that captures natural spoken utterances."""
+    """Non-blocking background audio listener that captures natural spoken utterances with Silero neural VAD."""
 
     def __init__(
         self,
@@ -29,6 +30,8 @@ class AmbientAudioStream:
         on_state_change: Optional[Callable[[str], None]] = None,
         on_utterance_progress: Optional[Callable[[float], None]] = None,
         on_interim_audio: Optional[Callable[[np.ndarray, int], None]] = None,
+        vad_engine: Literal["silero", "energy", "auto"] = "auto",
+        speech_threshold: float = 0.5,
     ):
         self.sample_rate = sample_rate
         self.chunk_duration = chunk_duration
@@ -42,6 +45,14 @@ class AmbientAudioStream:
         self.on_state_change = on_state_change
         self.on_utterance_progress = on_utterance_progress
         self.on_interim_audio = on_interim_audio
+        self.vad_engine = vad_engine
+        self.speech_threshold = speech_threshold
+        self.vad = VoiceActivityDetector(
+            engine=vad_engine,
+            speech_threshold=speech_threshold,
+            energy_threshold=energy_threshold,
+            sample_rate=sample_rate,
+        )
 
         self._running = False
         self._paused = False
@@ -144,14 +155,12 @@ class AmbientAudioStream:
 
                     chunk_count += 1
                     audio_chunk = chunk.flatten()
-                    energy = float(np.sqrt(np.mean(audio_chunk ** 2)))
-
-                    # Dynamically update noise floor
-                    if not speech_started and energy < self.energy_threshold:
-                        self.current_noise_floor = 0.95 * self.current_noise_floor + 0.05 * energy
-
-                    active_threshold = max(self.energy_threshold, self.current_noise_floor * 1.6 + 0.002)
-                    is_speech = energy > active_threshold
+                    vad_res = self.vad.process(audio_chunk)
+                    energy = vad_res["energy"]
+                    self.current_noise_floor = self.vad.running_noise_floor
+                    is_speech = vad_res["is_speech"]
+                    confidence = vad_res["confidence"]
+                    active_engine = vad_res["engine"]
 
                     # 10Hz throttled energy broadcast (every 2nd 50ms chunk)
                     if self.on_energy and (chunk_count % 2 == 0):
@@ -164,8 +173,9 @@ class AmbientAudioStream:
                         if not speech_started:
                             consecutive_speech_chunks = getattr(self, "_consec_speech", 0) + 1
                             self._consec_speech = consecutive_speech_chunks
-                            # Require at least 2 consecutive chunks (~100ms) to filter clicks/breaths
-                            if consecutive_speech_chunks >= 2:
+                            # Require 1 chunk for neural Silero or 2 for energy to filter clicks
+                            min_start_chunks = 1 if active_engine == "silero" else 2
+                            if consecutive_speech_chunks >= min_start_chunks:
                                 speech_started = True
                                 self._consec_speech = 0
                                 consecutive_silence_chunks = 0
@@ -224,6 +234,7 @@ class AmbientAudioStream:
 
                             # Reset state for next utterance
                             recorded_frames.clear()
+                            self.vad.reset()
                             speech_started = False
                             consecutive_silence_chunks = 0
                             self._set_state("listening")

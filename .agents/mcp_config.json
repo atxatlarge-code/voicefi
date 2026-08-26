@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "voicefi": {
+      "command": "vifi",
+      "args": [
+        "mcp"
+      ]
+    }
+  }
+}

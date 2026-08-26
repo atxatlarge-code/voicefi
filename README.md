@@ -224,9 +224,16 @@ antigravity:
 
 ---
 
-## 🧪 Testing
+## 📚 Documentation & Developer Guides
 
-Run the automated test suite:
+- 🚀 **[Developer Workflows (Terminal & MCP)](docs/DEV_WORKFLOWS.md)**: Connect VoiceFi to Terminal, Zsh/Bash pipelines, Claude Code, Cursor, Windsurf, and configure MCP servers/tools.
+- 📐 **[MCP Architecture Specification](docs/MCP_ARCHITECTURE.md)**: Deep dive into the VoiceFi Model Context Protocol design and multi-agent dispatching.
+- 🎙️ **[Dynamic Island HUD Design Guide](docs/HUD_DESIGN_GUIDE.md)**: Visual specs and debug studio guide for macOS fluid glassmorphic HUD.
+- 🤖 **[Agent Persona & Troubleshooting Guide](AGENTS.md)**: Hardware diagnostics, voice barge-in tuning, and multi-agent persona assignments.
+
+---
+
+## 🧪 Testing
 
 ```bash
 uv run pytest
@@ -245,3 +252,4 @@ uv run python scripts/test_loop.py
 - **Software License**: Licensed under the [MIT License](LICENSE).
 - **Patent Notice**: *U.S. Patent Application No. 63/137,300* — LienLogic Data LLC.
 - **Website**: [https://voicefi.org](https://voicefi.org)
+

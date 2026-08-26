@@ -192,7 +192,7 @@ class AudioTroubleshooter:
         provider: Optional[str] = None,
         rate: Optional[int] = None,
         block: bool = True,
-        show_hud: bool = True,
+        show_hud: bool = False,
         barge_in: bool = True,
     ) -> VoiceTestResult:
         """
@@ -764,6 +764,8 @@ class AudioTroubleshooter:
             "tts_rate": effective_rate,
             "tts_rate_pct": f"{int(round((effective_rate / 200.0) * 100))}%",
             "vad_mode": self.config.vad.mode,
+            "vad_engine": getattr(self.config.vad, "engine", "auto"),
+            "vad_speech_threshold": getattr(self.config.vad, "speech_threshold", 0.5),
             "vad_barge_in": self.config.vad.barge_in,
             "vad_threshold": self.config.vad.energy_threshold,
             "audio_cues_enabled": self.config.audio_cues.enabled,
@@ -794,6 +796,32 @@ class AudioTroubleshooter:
 
         return diagnostics
 
+    def test_vad(self) -> Dict[str, Any]:
+        """
+        Benchmark active Voice Activity Detection engine (Silero ONNX vs. Adaptive Energy).
+        """
+        try:
+            from voicefi.audio.vad import VoiceActivityDetector
+            detector = VoiceActivityDetector(
+                engine=getattr(self.config.vad, "engine", "auto"),
+                speech_threshold=getattr(self.config.vad, "speech_threshold", 0.5),
+                energy_threshold=self.config.vad.energy_threshold,
+                sample_rate=self.config.vad.sample_rate,
+            )
+            bench = detector.benchmark(num_frames=30)
+            return {
+                "engine": detector.active_engine,
+                "requested_engine": getattr(self.config.vad, "engine", "auto"),
+                "status": "ready",
+                "details": bench,
+            }
+        except Exception as e:
+            return {
+                "engine": "unknown",
+                "status": "error",
+                "error": str(e),
+            }
+
     def run_full_troubleshoot(self) -> Dict[str, Any]:
         """
         Run automated audio & voice test suite, returning metrics and recommendations.
@@ -801,6 +829,7 @@ class AudioTroubleshooter:
         hw = self.get_hardware_diagnostics()
         spk = self.test_speaker_output(chime="start", block=False)
         voice_test = self.test_voice(block=False, show_hud=False)
+        vad_test = self.test_vad()
 
         effective_rate = self.config.tts.rate or 200
         recommendations = []
@@ -826,6 +855,7 @@ class AudioTroubleshooter:
             "hardware": hw,
             "speaker_test": spk,
             "active_voice_test": voice_test.to_dict(),
+            "vad_test": vad_test,
             "recommendations": recommendations,
             "timestamp": time.time(),
         }
@@ -890,5 +920,31 @@ class AudioTroubleshooter:
                     "message": f"Calibrated microphone VAD threshold to {self.config.vad.energy_threshold} based on ambient noise.",
                 }
             return {"success": False, "message": f"Microphone calibration failed: {res.error}"}
+
+        if fix in ("stop_daemons", "kill_daemons", "free_port", "daemon_stop"):
+            from voicefi.daemon import stop_all_voicefi_daemons
+            res = stop_all_voicefi_daemons()
+            return {
+                "success": True,
+                "message": f"Stopped active background daemons ({res.get('stopped_pids', [])}), unloaded LaunchAgent, and freed Port 5141.",
+            }
+
+        if fix in ("clean", "purge_caches", "clean_caches", "reset_caches"):
+            from voicefi.daemon import clean_caches
+            res = clean_caches(clean_pycache=True, clean_tmp_state=True, clean_update_cache=True)
+            return {
+                "success": True,
+                "message": f"Cleaned {res['cleaned_pycache_count']} __pycache__ items and {res['cleaned_tmp_count']} temporary state files.",
+            }
+
+        if fix in ("link_dev", "setup_dev", "dev_mode"):
+            from voicefi.daemon import link_dev_environment, stop_all_voicefi_daemons, clean_caches
+            stop_all_voicefi_daemons()
+            clean_caches()
+            l_res = link_dev_environment()
+            return {
+                "success": True,
+                "message": f"Linked agent hooks to local development binary: {l_res['target_binary']}.",
+            }
 
         return {"success": False, "message": f"Unknown fix type: '{fix_type}'"}

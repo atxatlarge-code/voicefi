@@ -136,7 +136,7 @@ class ClaudeCompanionServerTestCase(AioHTTPTestCase):
 
     async def get_application(self):
         self.cfg = VoiceFiConfig()
-        self.companion_server = CompanionServer(config=self.cfg, port=8765)
+        self.companion_server = CompanionServer(config=self.cfg, port=5141)
         self.companion_server.loop = asyncio.get_event_loop()
         return self.companion_server.app
 
