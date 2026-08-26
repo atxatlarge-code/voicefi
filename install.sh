@@ -226,7 +226,7 @@ say_msg "📓 ${BOLD}Obsidian:${NC}                Auto-configured across local 
 say_msg "🔊 ${BOLD}Test Voice:${NC}              Run ${CYAN}${BOLD}vifi voice test${NC} (or ${CYAN}${BOLD}vg voice test${NC})"
 say_msg "👂 ${BOLD}Hearing Test:${NC}            Run ${CYAN}${BOLD}vifi hearing-test${NC}"
 say_msg "🔄 ${BOLD}Feedback Loop:${NC}           Run ${CYAN}${BOLD}vifi feedback-loop${NC}"
-say_msg "🎛️  ${BOLD}Control Panel:${NC}           Run ${CYAN}${BOLD}vifi panel${NC} (http://localhost:8765)"
+say_msg "🎛️  ${BOLD}Control Panel:${NC}           Run ${CYAN}${BOLD}vifi panel${NC} (http://localhost:5141)"
 say_msg "📖 ${BOLD}Commands:${NC}                Run ${CYAN}${BOLD}vifi --help${NC}"
 say_msg "------------------------------------------------------------------"
 say_msg ""

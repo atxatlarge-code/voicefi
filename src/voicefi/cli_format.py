@@ -148,8 +148,11 @@ COMMAND_CATEGORIES = [
         ],
     ),
     (
-        "⚙️ Management",
+        "⚙️ Management & Daemons",
         [
+            ("daemon", "Inspect and manage background daemons, LaunchAgents, and ports"),
+            ("clean", "Purge __pycache__, stale locks, caches, and orphaned daemons"),
+            ("dev", "Live foreground dev mode with real-time logs and auto-takeover"),
             ("update", "Check for and install latest VoiceFi updates"),
             ("autostart", "Enable background LaunchAgent daemon (vifi tray)"),
             ("stop-autostart", "Remove background LaunchAgent daemon"),

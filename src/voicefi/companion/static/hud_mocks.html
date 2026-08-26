@@ -339,33 +339,43 @@
           </div>
         </div>
 
-        <!-- Right Side Acoustic / Live Visualizer -->
-        <div id="hudVisualizerContainer" class="flex items-center gap-1">
-          <!-- Waveform Bars (Speaking State) -->
-          <div id="hudWaveBars" class="flex items-center gap-1 h-6 px-2 bg-black/40 rounded-lg border border-cyan-500/20">
-            <span class="wave-bar bg-cyan-400" style="animation-delay: 0.1s; height: 14px;"></span>
-            <span class="wave-bar bg-cyan-300" style="animation-delay: 0.3s; height: 20px;"></span>
-            <span class="wave-bar bg-cyan-400" style="animation-delay: 0.15s; height: 10px;"></span>
-            <span class="wave-bar bg-cyan-200" style="animation-delay: 0.4s; height: 18px;"></span>
-            <span class="wave-bar bg-cyan-400" style="animation-delay: 0.25s; height: 12px;"></span>
+        <!-- Right Side App Logo & Acoustic Visualizer -->
+        <div class="flex items-center gap-2">
+          <div id="hudVisualizerContainer" class="flex items-center gap-1">
+            <!-- Waveform Bars (Speaking State) -->
+            <div id="hudWaveBars" class="flex items-center gap-1 h-6 px-2 bg-black/40 rounded-lg border border-cyan-500/20">
+              <span class="wave-bar bg-cyan-400" style="animation-delay: 0.1s; height: 14px;"></span>
+              <span class="wave-bar bg-cyan-300" style="animation-delay: 0.3s; height: 20px;"></span>
+              <span class="wave-bar bg-cyan-400" style="animation-delay: 0.15s; height: 10px;"></span>
+              <span class="wave-bar bg-cyan-200" style="animation-delay: 0.4s; height: 18px;"></span>
+              <span class="wave-bar bg-cyan-400" style="animation-delay: 0.25s; height: 12px;"></span>
+            </div>
+
+            <!-- Thinking Spinner / Pulse Indicator -->
+            <div id="hudThinkingIndicator" class="hidden items-center gap-1.5 px-2.5 py-1 bg-purple-950/40 border border-purple-500/30 rounded-lg">
+              <div class="w-2 h-2 rounded-full bg-purple-400 animate-ping"></div>
+              <span class="text-[10px] font-mono text-purple-300 font-bold">REASONING</span>
+            </div>
+
+            <!-- Working Tool Indicator -->
+            <div id="hudWorkingIndicator" class="hidden items-center gap-1.5 px-2.5 py-1 bg-blue-950/40 border border-blue-500/30 rounded-lg">
+              <span class="text-xs animate-spin">⚡</span>
+              <span class="text-[10px] font-mono text-blue-300 font-bold">EXECUTING</span>
+            </div>
+
+            <!-- High-Fidelity 5-Bar Reactive Silero VAD Equalizer Visualizer -->
+            <div id="hudVadVisualizer" class="hidden items-center gap-1 h-6 px-2.5 bg-black/50 rounded-xl border border-red-500/30 shadow-[0_0_12px_rgba(255,0,51,0.25)]">
+              <span id="vadBar1" class="w-[3.5px] rounded-full bg-[#ff0033] transition-all duration-75" style="height: 6px;"></span>
+              <span id="vadBar2" class="w-[3.5px] rounded-full bg-[#ff0033] transition-all duration-75" style="height: 12px;"></span>
+              <span id="vadBar3" class="w-[3.5px] rounded-full bg-[#ff0033] transition-all duration-75" style="height: 18px;"></span>
+              <span id="vadBar4" class="w-[3.5px] rounded-full bg-[#ff0033] transition-all duration-75" style="height: 14px;"></span>
+              <span id="vadBar5" class="w-[3.5px] rounded-full bg-[#ff0033] transition-all duration-75" style="height: 7px;"></span>
+            </div>
           </div>
 
-          <!-- Thinking Spinner / Pulse Indicator -->
-          <div id="hudThinkingIndicator" class="hidden items-center gap-1.5 px-2.5 py-1 bg-purple-950/40 border border-purple-500/30 rounded-lg">
-            <div class="w-2 h-2 rounded-full bg-purple-400 animate-ping"></div>
-            <span class="text-[10px] font-mono text-purple-300 font-bold">REASONING</span>
-          </div>
-
-          <!-- Working Tool Indicator -->
-          <div id="hudWorkingIndicator" class="hidden items-center gap-1.5 px-2.5 py-1 bg-blue-950/40 border border-blue-500/30 rounded-lg">
-            <span class="text-xs animate-spin">⚡</span>
-            <span class="text-[10px] font-mono text-blue-300 font-bold">EXECUTING</span>
-          </div>
-
-          <!-- Listening Mic Pulse Indicator -->
-          <div id="hudListeningIndicator" class="hidden items-center gap-1.5 px-2.5 py-1 bg-emerald-950/40 border border-emerald-500/30 rounded-lg">
-            <div class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
-            <span class="text-[10px] font-mono text-emerald-300 font-bold">LIVE MIC</span>
+          <!-- Connected App Logo Badge (Right side) -->
+          <div id="hudAppBadge" class="w-7 h-7 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center p-0.5 shadow-sm text-sm" title="Connected Agent / App">
+            🤖
           </div>
         </div>
       </div>
@@ -379,8 +389,41 @@
 
     </div>
 
+    <!-- LIVE VAD & REAL-TIME AUDIO EQUALIZER CONTROLLER -->
+    <div class="mt-6 max-w-xl w-11/12 bg-[#0d121f]/90 backdrop-blur-md rounded-2xl border border-cyan-500/30 p-4 text-xs font-mono shadow-2xl flex flex-col gap-3">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <span class="text-xs px-2 py-0.5 rounded-md bg-red-500/20 text-red-400 font-bold border border-red-500/30">SILERO VAD</span>
+          <span class="text-white font-bold">Neural Volume & Speech Activity Equalizer</span>
+        </div>
+        <button id="liveMicBtn" onclick="toggleLiveBrowserMic()" class="px-2.5 py-1 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-300 rounded-lg text-[11px] font-bold transition flex items-center gap-1.5">
+          <span id="micDot">🎙️</span> <span id="micBtnText">Test Browser Mic Aloud</span>
+        </button>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px]">
+        <div class="bg-black/40 p-2.5 rounded-xl border border-white/10 flex flex-col gap-1.5">
+          <div class="flex justify-between text-zinc-400">
+            <span>Acoustic Energy / Volume:</span>
+            <span id="volLevelVal" class="text-white font-bold">65%</span>
+          </div>
+          <input type="range" id="volSlider" min="0" max="100" value="65" oninput="updateSimulatedVolume(this.value)" class="w-full accent-red-500 cursor-pointer">
+        </div>
+
+        <div class="bg-black/40 p-2.5 rounded-xl border border-white/10 flex flex-col gap-1.5">
+          <div class="flex justify-between text-zinc-400">
+            <span>Silero Speech Confidence:</span>
+            <span id="vadProbVal" class="text-emerald-400 font-bold">P = 0.94 (Speech)</span>
+          </div>
+          <div class="w-full bg-zinc-800 h-2 rounded-full overflow-hidden">
+            <div id="vadProbBar" class="bg-gradient-to-r from-yellow-500 to-emerald-400 h-full rounded-full transition-all duration-150" style="width: 94%;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ANATOMICAL LIGHTING LIVE EXPLANATION CALLOUT -->
-    <div class="mt-8 max-w-xl w-11/12 bg-[#0c101a]/80 backdrop-blur-md rounded-2xl border border-[#1f273b] p-4 text-xs font-mono shadow-2xl flex items-center justify-between gap-4">
+    <div class="mt-4 max-w-xl w-11/12 bg-[#0c101a]/80 backdrop-blur-md rounded-2xl border border-[#1f273b] p-4 text-xs font-mono shadow-2xl flex items-center justify-between gap-4">
       <div class="flex items-center gap-3">
         <div class="w-12 h-12 shrink-0 bg-black/60 rounded-xl p-1 border border-white/10 flex items-center justify-center" id="hudCalloutLogo">
           <!-- Injected via JS -->
@@ -511,13 +554,13 @@
       const waveBars = document.getElementById('hudWaveBars');
       const thinkingInd = document.getElementById('hudThinkingIndicator');
       const workingInd = document.getElementById('hudWorkingIndicator');
-      const listeningInd = document.getElementById('hudListeningIndicator');
+      const vadVis = document.getElementById('hudVadVisualizer');
 
       // Reset All Indicator Visibilities
-      waveBars.classList.add('hidden');
-      thinkingInd.classList.add('hidden');
-      workingInd.classList.add('hidden');
-      listeningInd.classList.add('hidden');
+      if (waveBars) waveBars.classList.add('hidden');
+      if (thinkingInd) thinkingInd.classList.add('hidden');
+      if (workingInd) workingInd.classList.add('hidden');
+      if (vadVis) vadVis.classList.add('hidden');
 
       // Reset Glow Classes
       hud.className = hud.className.replace(/glow-\w+/g, '').trim();
@@ -557,8 +600,7 @@
         contentRow.classList.remove('hidden');
         personaTag.classList.remove('hidden');
         statusBadge.classList.remove('hidden');
-        thinkingInd.classList.remove('hidden');
-        thinkingInd.classList.add('flex');
+        if (thinkingInd) { thinkingInd.classList.remove('hidden'); thinkingInd.classList.add('flex'); }
 
         agentName.innerText = activePersona.agent;
         personaTag.innerText = activePersona.tag;
@@ -578,15 +620,14 @@
         contentRow.classList.remove('hidden');
         personaTag.classList.remove('hidden');
         statusBadge.classList.remove('hidden');
-        workingInd.classList.remove('hidden');
-        workingInd.classList.add('flex');
+        if (workingInd) { workingInd.classList.remove('hidden'); workingInd.classList.add('flex'); }
 
         agentName.innerText = activePersona.agent;
         personaTag.innerText = activePersona.tag;
         statusBadge.innerText = 'Running Bash Tool';
         statusBadge.className = 'text-[10px] font-mono text-blue-300';
         avatarBg.className = 'w-9 h-9 rounded-xl bg-blue-950/40 border border-blue-500/50 flex items-center justify-center p-0.5 shadow-[0_0_12px_rgba(59,130,246,0.4)]';
-        textBody.innerText = 'Executing: pytest tests/ -v (Passed 210/210 test suites)';
+        textBody.innerText = 'Executing: pytest tests/ -v (Passed 265/265 test suites)';
 
         calloutTitle.innerText = 'Working: Cyber Eyes Scan & USB-C Pin Flash';
         calloutDesc.innerText = 'Laser scan across cyber slit eyes and high-speed data bus pin flashes during tool execution.';
@@ -599,8 +640,7 @@
         contentRow.classList.remove('hidden');
         personaTag.classList.remove('hidden');
         statusBadge.classList.remove('hidden');
-        waveBars.classList.remove('hidden');
-        waveBars.classList.add('flex');
+        if (waveBars) { waveBars.classList.remove('hidden'); waveBars.classList.add('flex'); }
 
         agentName.innerText = activePersona.agent;
         personaTag.innerText = activePersona.tag;
@@ -620,19 +660,95 @@
         contentRow.classList.remove('hidden');
         personaTag.classList.remove('hidden');
         statusBadge.classList.remove('hidden');
-        listeningInd.classList.remove('hidden');
-        listeningInd.classList.add('flex');
+        if (vadVis) { vadVis.classList.remove('hidden'); vadVis.classList.add('flex'); }
 
         agentName.innerText = 'Listening to Jake';
-        personaTag.innerText = '• Voice Activity Detection';
-        statusBadge.innerText = 'Capturing Developer Speech...';
-        statusBadge.className = 'text-[10px] font-mono text-emerald-300';
-        avatarBg.className = 'w-9 h-9 rounded-xl bg-emerald-950/40 border border-emerald-500/50 flex items-center justify-center p-0.5 shadow-[0_0_14px_rgba(16,185,129,0.5)]';
+        personaTag.innerText = '• Silero Neural VAD';
+        statusBadge.innerText = '🔴 Recording (Live Mic)...';
+        statusBadge.className = 'text-[10px] font-mono text-red-400';
+        avatarBg.className = 'w-9 h-9 rounded-xl bg-red-950/40 border border-red-500/50 flex items-center justify-center p-0.5 shadow-[0_0_14px_rgba(255,0,51,0.5)]';
         textBody.innerText = '"Yeah, proceed with the unified Dynamic Island implementation..."';
 
-        calloutTitle.innerText = 'Listening: Headset Ears Glow Red';
-        calloutDesc.innerText = 'Headset ear modules illuminate in red during active microphone speech capture.';
-        if (activeBtn) activeBtn.className = 'px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/40 shadow-sm transition flex items-center gap-1.5';
+        calloutTitle.innerText = 'Listening: Reactive Equalizer & Headset Glow';
+        calloutDesc.innerText = '5-band neural equalizer bars bounce in real-time to acoustic sound while headset ears glow red.';
+        if (activeBtn) activeBtn.className = 'px-3 py-1.5 rounded-lg bg-red-500/20 text-red-400 font-bold border border-red-500/40 shadow-sm transition flex items-center gap-1.5';
+      }
+    }
+
+    // Dynamic Reactive VAD Equalizer Engine
+    let currentVol = 0.65;
+    let vadPhase = 0;
+    const barMultipliers = [0.65, 1.0, 1.45, 1.1, 0.75];
+
+    function updateSimulatedVolume(val) {
+      currentVol = parseFloat(val) / 100.0;
+      document.getElementById('volLevelVal').innerText = Math.round(currentVol * 100) + '%';
+      const prob = currentVol > 0.25 ? Math.min(0.99, 0.5 + currentVol * 0.5) : (currentVol * 1.5);
+      const isSpk = prob >= 0.5;
+      document.getElementById('vadProbVal').innerText = `P = ${prob.toFixed(2)} (${isSpk ? 'Speech' : 'Quiet/Ambient'})`;
+      document.getElementById('vadProbVal').className = isSpk ? 'text-emerald-400 font-bold' : 'text-zinc-400 font-bold';
+      document.getElementById('vadProbBar').style.width = Math.round(prob * 100) + '%';
+    }
+
+    function animateVadBars() {
+      vadPhase = (vadPhase + 0.2) % (Math.PI * 2);
+      const isSpk = currentVol > 0.25;
+      for (let i = 1; i <= 5; i++) {
+        const bar = document.getElementById('vadBar' + i);
+        if (bar) {
+          const osc = 0.85 + 0.15 * Math.sin(vadPhase + (i - 1) * 1.2);
+          const minH = 4;
+          const maxH = 20;
+          const h = Math.max(minH, Math.min(maxH, minH + (maxH - minH) * currentVol * barMultipliers[i - 1] * osc));
+          bar.style.height = `${h}px`;
+          bar.style.backgroundColor = isSpk ? '#ff0033' : 'rgba(255,255,255,0.4)';
+          bar.style.boxShadow = isSpk ? '0 0 6px rgba(255,0,51,0.6)' : 'none';
+        }
+      }
+      requestAnimationFrame(animateVadBars);
+    }
+    requestAnimationFrame(animateVadBars);
+
+    // Live Web Audio Mic Analyzer
+    let audioCtx = null;
+    let micStream = null;
+    async function toggleLiveBrowserMic() {
+      const btn = document.getElementById('liveMicBtn');
+      const text = document.getElementById('micBtnText');
+      if (micStream) {
+        micStream.getTracks().forEach(t => t.stop());
+        micStream = null;
+        if (audioCtx) { audioCtx.close(); audioCtx = null; }
+        text.innerText = 'Test Browser Mic Aloud';
+        btn.classList.remove('bg-red-500/30', 'border-red-500/50', 'text-red-300');
+        return;
+      }
+      try {
+        micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const src = audioCtx.createMediaStreamSource(micStream);
+        const analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 256;
+        src.connect(analyser);
+        const data = new Uint8Array(analyser.frequencyBinCount);
+        text.innerText = '🔴 Mic Active (Speak Aloud)';
+        btn.classList.add('bg-red-500/30', 'border-red-500/50', 'text-red-300');
+        setHUDState('listening');
+
+        function processAudio() {
+          if (!micStream) return;
+          analyser.getByteFrequencyData(data);
+          let sum = 0;
+          for (let i = 0; i < data.length; i++) sum += data[i];
+          const avg = sum / data.length;
+          const energy = Math.min(1.0, (avg / 128.0) * 1.8);
+          updateSimulatedVolume(Math.round(energy * 100));
+          document.getElementById('volSlider').value = Math.round(energy * 100);
+          requestAnimationFrame(processAudio);
+        }
+        processAudio();
+      } catch (e) {
+        alert('Microphone access denied or unavailable: ' + e);
       }
     }
 

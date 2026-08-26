@@ -40,6 +40,9 @@ def test_speech_hud_show_and_update():
     hud._effect_view = MagicMock()
     hud._avatar_box = MagicMock()
     hud._avatar_lbl = MagicMock()
+    hud._app_box = MagicMock()
+    hud._app_lbl = MagicMock()
+    hud._app_img = MagicMock()
     hud._title_lbl = MagicMock()
     hud._tag_lbl = MagicMock()
     hud._body_lbl = MagicMock()
@@ -56,8 +59,7 @@ def test_speech_hud_show_and_update():
 
     hud._body_lbl.setStringValue_.assert_called_with(f'"{test_msg}"')
     hud._title_lbl.setStringValue_.assert_called_with("Antigravity")
-    hud._tag_lbl.setStringValue_.assert_called_with("• Christopher 🔊 [Speaking]")
-    hud._avatar_lbl.setStringValue_.assert_called_with("🧔")
+    hud._tag_lbl.setStringValue_.assert_called_with("Christopher [Speaking]")
     hud._panel.orderFrontRegardless.assert_called()
 
     # 2. Update text during streaming
@@ -76,6 +78,7 @@ def test_speech_hud_show_and_update():
     hud.persistent = False
     hud.hide()
     hud._panel.orderOut_.assert_called_with(None)
+    UnifiedDynamicIslandHUD._instance = None
 
 
 def test_speech_hud_config_integration():

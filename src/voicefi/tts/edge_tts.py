@@ -9,7 +9,7 @@ import subprocess
 import threading
 from pathlib import Path
 from typing import Optional
-from voicefi.tts.base import BaseTTS, speech_turn_lock
+from voicefi.tts.base import BaseTTS, speech_turn_lock, DuplicateSpeechSuppressed
 from voicefi.audio.meeting_detection import is_user_on_call
 
 
@@ -80,6 +80,7 @@ class EdgeTTS(BaseTTS):
         agent_name: str = "VoiceFi",
         persona_name: Optional[str] = None,
     ):
+        super().__init__()
         self.voice = voice or "en-US-AvaNeural"
         self.rate_str = normalize_edge_rate(rate)
         try:
@@ -92,6 +93,7 @@ class EdgeTTS(BaseTTS):
         self.persona_name = persona_name or ("Viv" if ("Ava" in self.voice or "Viv" in self.voice) else self.voice)
         self._current_process: Optional[subprocess.Popen] = None
         self._stop_requested = False
+        self._audio_queue: Optional[any] = None
 
     async def _generate_audio(self, text: str, output_path: str) -> None:
         import edge_tts
@@ -110,85 +112,101 @@ class EdgeTTS(BaseTTS):
         self._stop_requested = False
 
         def _run():
-            with speech_turn_lock(
-                text=text,
-                agent_name=getattr(self, "agent_name", "VoiceFi"),
-                persona_name=getattr(self, "persona_name", getattr(self, "voice", "Viv")),
-            ):
-                if self._stop_requested:
-                    return
+            try:
+                with speech_turn_lock(
+                    text=text,
+                    agent_name=getattr(self, "agent_name", "VoiceFi"),
+                    persona_name=getattr(self, "persona_name", getattr(self, "voice", "Viv")),
+                ):
+                    if self._stop_requested:
+                        return
 
-                import re
-                sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", text) if s.strip()]
-                if not sentences:
-                    sentences = [text]
+                    import re
+                    sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", text) if s.strip()]
+                    if not sentences:
+                        sentences = [text]
 
-                from voicefi.tts.base import set_agent_audio_playing
+                    from voicefi.tts.base import set_agent_audio_playing, is_agent_speaking
 
-                if len(sentences) == 1:
-                    temp_mp3 = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
-                    temp_path = temp_mp3.name
-                    temp_mp3.close()
-                    try:
-                        asyncio.run(self._generate_audio(sentences[0], temp_path))
-                        if not self._stop_requested and Path(temp_path).is_file() and Path(temp_path).stat().st_size > 0:
-                            set_agent_audio_playing(True)
-                            self._current_process = subprocess.Popen(
-                                ["afplay", "-v", self.afplay_vol, temp_path],
-                                stdout=subprocess.DEVNULL,
-                                stderr=subprocess.DEVNULL,
-                            )
-                            self._current_process.wait()
-                    except Exception as e:
-                        print(f"[EdgeTTS] Error generating or playing audio: {e}")
-                    finally:
-                        set_agent_audio_playing(False)
-                        self._current_process = None
-                        Path(temp_path).unlink(missing_ok=True)
-                    return
-
-                # Sentence-pipelined streaming: pre-fetch next sentence while playing current
-                import queue
-                audio_queue: queue.Queue = queue.Queue(maxsize=3)
-
-                def _fetcher():
-                    for s in sentences:
-                        if self._stop_requested:
-                            break
-                        tf = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
-                        tp = tf.name
-                        tf.close()
+                    if len(sentences) == 1:
+                        temp_mp3 = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
+                        temp_path = temp_mp3.name
+                        temp_mp3.close()
                         try:
-                            asyncio.run(self._generate_audio(s, tp))
-                            audio_queue.put(tp)
-                        except Exception:
-                            Path(tp).unlink(missing_ok=True)
-                            audio_queue.put(None)
-                    audio_queue.put(None)
+                            asyncio.run(self._generate_audio(sentences[0], temp_path))
+                            if not self._stop_requested and is_agent_speaking() and Path(temp_path).is_file() and Path(temp_path).stat().st_size > 0:
+                                set_agent_audio_playing(True)
+                                self._current_process = subprocess.Popen(
+                                    ["afplay", "-v", self.afplay_vol, temp_path],
+                                    stdout=subprocess.DEVNULL,
+                                    stderr=subprocess.DEVNULL,
+                                )
+                                self._current_process.wait()
+                        except Exception as e:
+                            print(f"[EdgeTTS] Error generating or playing audio: {e}")
+                        finally:
+                            set_agent_audio_playing(False)
+                            self._current_process = None
+                            Path(temp_path).unlink(missing_ok=True)
+                        return
 
-                fetcher_thread = threading.Thread(target=_fetcher, daemon=True)
-                fetcher_thread.start()
+                    # Sentence-pipelined streaming: pre-fetch next sentence while playing current
+                    import queue
+                    audio_queue: queue.Queue = queue.Queue(maxsize=3)
+                    self._audio_queue = audio_queue
 
-                while not self._stop_requested:
+                    def _fetcher():
+                        for s in sentences:
+                            if self._stop_requested or not is_agent_speaking():
+                                break
+                            tf = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
+                            tp = tf.name
+                            tf.close()
+                            try:
+                                asyncio.run(self._generate_audio(s, tp))
+                                audio_queue.put(tp)
+                            except Exception:
+                                Path(tp).unlink(missing_ok=True)
+                                audio_queue.put(None)
+                        audio_queue.put(None)
+
+                    fetcher_thread = threading.Thread(target=_fetcher, daemon=True)
+                    fetcher_thread.start()
+
                     try:
-                        chunk_path = audio_queue.get(timeout=10.0)
-                    except Exception:
-                        break
-                    if chunk_path is None:
-                        break
-                    try:
-                        if not self._stop_requested and Path(chunk_path).is_file() and Path(chunk_path).stat().st_size > 0:
-                            set_agent_audio_playing(True)
-                            self._current_process = subprocess.Popen(
-                                ["afplay", "-v", self.afplay_vol, chunk_path],
-                                stdout=subprocess.DEVNULL,
-                                stderr=subprocess.DEVNULL,
-                            )
-                            self._current_process.wait()
+                        while not self._stop_requested and is_agent_speaking():
+                            try:
+                                chunk_path = audio_queue.get(timeout=10.0)
+                            except Exception:
+                                break
+                            if chunk_path is None or self._stop_requested or not is_agent_speaking():
+                                if chunk_path and Path(chunk_path).is_file():
+                                    Path(chunk_path).unlink(missing_ok=True)
+                                break
+                            try:
+                                if not self._stop_requested and is_agent_speaking() and Path(chunk_path).is_file() and Path(chunk_path).stat().st_size > 0:
+                                    set_agent_audio_playing(True)
+                                    self._current_process = subprocess.Popen(
+                                        ["afplay", "-v", self.afplay_vol, chunk_path],
+                                        stdout=subprocess.DEVNULL,
+                                        stderr=subprocess.DEVNULL,
+                                    )
+                                    self._current_process.wait()
+                            finally:
+                                set_agent_audio_playing(False)
+                                self._current_process = None
+                                Path(chunk_path).unlink(missing_ok=True)
                     finally:
-                        set_agent_audio_playing(False)
-                        self._current_process = None
-                        Path(chunk_path).unlink(missing_ok=True)
+                        self._audio_queue = None
+                        while not audio_queue.empty():
+                            try:
+                                item = audio_queue.get_nowait()
+                                if item and Path(item).is_file():
+                                    Path(item).unlink(missing_ok=True)
+                            except Exception:
+                                break
+            except DuplicateSpeechSuppressed:
+                return
 
         if block:
             _run()
@@ -222,6 +240,17 @@ class EdgeTTS(BaseTTS):
         """Stop current speech playback."""
         self._stop_requested = True
         if self._current_process and self._current_process.poll() is None:
-            self._current_process.terminate()
+            try:
+                self._current_process.terminate()
+            except Exception:
+                pass
             self._current_process = None
+        if self._audio_queue:
+            while not self._audio_queue.empty():
+                try:
+                    item = self._audio_queue.get_nowait()
+                    if item and Path(item).is_file():
+                        Path(item).unlink(missing_ok=True)
+                except Exception:
+                    break
 

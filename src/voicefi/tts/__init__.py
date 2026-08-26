@@ -2,7 +2,15 @@
 
 from typing import Optional
 from voicefi.config import VoiceFiConfig
-from voicefi.tts.base import BaseTTS, stop_all_speech, is_agent_speaking, set_agent_speaking
+from voicefi.tts.base import (
+    BaseTTS,
+    stop_all_speech,
+    is_agent_speaking,
+    set_agent_speaking,
+    set_cross_process_hud_state,
+    get_cross_process_hud_state,
+    clear_cross_process_hud_state,
+)
 from voicefi.tts.mac_say import MacSayTTS, normalize_mac_rate
 from voicefi.tts.edge_tts import EdgeTTS, normalize_edge_rate
 from voicefi.tts.elevenlabs import ElevenLabsTTS
@@ -170,6 +178,9 @@ __all__ = [
     "stop_all_speech",
     "is_agent_speaking",
     "set_agent_speaking",
+    "set_cross_process_hud_state",
+    "get_cross_process_hud_state",
+    "clear_cross_process_hud_state",
     "ClonedVoiceProfile",
     "VoiceCloneManager",
     "estimate_pitch_f0",

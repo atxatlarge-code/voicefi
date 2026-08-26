@@ -905,7 +905,7 @@ HTML_CLAUDE_DEMO = """<!DOCTYPE html>
 <script>
   const API_BASE = (window.location.protocol === 'http:' || window.location.protocol === 'https:')
     ? window.location.origin
-    : 'http://localhost:8765';
+    : 'http://localhost:5141';
 
   let contendersData = [];
   let currentActiveVoiceId = "en-US-GuyNeural";

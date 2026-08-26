@@ -21,7 +21,7 @@ class TestCompanionHookEndpoint(AioHTTPTestCase):
 
     async def get_application(self):
         self.config = VoiceFiConfig()
-        self.server = CompanionServer(config=self.config, port=8765, host="127.0.0.1")
+        self.server = CompanionServer(config=self.config, port=5141, host="127.0.0.1")
         return self.server.app
 
     @unittest_run_loop

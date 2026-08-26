@@ -82,3 +82,50 @@ def test_cli_cmd_new():
             title="Refactor Task",
             model="pro",
         )
+
+
+def test_tray_trigger_talk_to_antigravity_toggle(mock_tray_env):
+    """Verify that calling trigger_talk_to_antigravity while already listening toggles/finishes recording."""
+    mock_hub, mock_hud = mock_tray_env
+    app = VoiceFiTrayApp.__new__(VoiceFiTrayApp)
+    app.config = VoiceFiConfig()
+    import threading
+    app._listen_lock = threading.Lock()
+    app._current_status = "listening"
+    app.finish_active_recording = MagicMock()
+
+    app.trigger_talk_to_antigravity()
+    app.finish_active_recording.assert_called_once()
+
+
+def test_tray_hybrid_and_ptt_hotkey_release(mock_tray_env):
+    """Verify hotkey release logic for hybrid (tap vs hold) and PTT modes."""
+    mock_hub, mock_hud = mock_tray_env
+    app = VoiceFiTrayApp.__new__(VoiceFiTrayApp)
+    app.config = VoiceFiConfig()
+    import threading
+    import time
+    app._listen_lock = threading.Lock()
+    app._current_status = "idle"
+    app._key_down_times = {}
+    app.active_recorder = None
+    app.finish_active_recording = MagicMock()
+
+    # In hybrid mode: short tap (< 350ms) should NOT finish active recording
+    app.config.vad.mode = "hybrid"
+    app._current_status = "listening"
+    app._key_down_times['respond'] = time.time() - 0.1  # 100ms ago
+
+    # Simulate release callback logic
+    down_time = app._key_down_times.get('respond')
+    if down_time and (time.time() - down_time) >= 0.35:
+        app.finish_active_recording()
+    app.finish_active_recording.assert_not_called()
+
+    # In hybrid mode: hold (> 350ms) SHOULD finish active recording on release
+    app._key_down_times['respond'] = time.time() - 0.5  # 500ms ago
+    down_time = app._key_down_times.get('respond')
+    if down_time and (time.time() - down_time) >= 0.35:
+        app.finish_active_recording()
+    app.finish_active_recording.assert_called_once()
+

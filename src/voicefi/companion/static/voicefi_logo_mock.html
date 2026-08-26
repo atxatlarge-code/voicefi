@@ -348,10 +348,14 @@
               </div>
             </div>
 
-            <div class="shrink-0 pl-3">
-              <span id="hudStateTag" class="px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 flex items-center gap-1">
+            <!-- Right: State Tag + App Logo Badge -->
+            <div class="flex items-center gap-2 shrink-0 pl-3">
+              <span id="hudStateTag" class="px-2 py-1 rounded-lg text-[10px] font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 flex items-center gap-1">
                 SPEAKING
               </span>
+              <div id="hudAppBadge" class="w-8 h-8 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center p-0.5 shadow-sm text-sm" title="Connected App / Agent (Right Side)">
+                🤖
+              </div>
             </div>
 
           </div>
@@ -436,13 +440,13 @@
 
         <div class="bg-[#0b0e14] p-4 rounded-2xl border border-[#1b2230] space-y-2">
           <div class="flex items-center gap-2 text-emerald-300 font-bold">
-            2. Listening / Headset Ears
+            2. Listening / Silero Neural VAD
           </div>
           <ul class="text-[11px] text-zinc-400 space-y-1 list-disc pl-4">
-            <li><strong class="text-white">Active Area:</strong> Left & Right Ear Units (`x=110`, `x=374`) + Center Dots</li>
-            <li><strong class="text-white">Animation:</strong> Vivid emerald neon drop-shadow & cradle audio pulse</li>
-            <li><strong class="text-white">Palette:</strong> Emerald `#10B981` + Bright Mint `#00F5A0`</li>
-            <li><strong class="text-white">Trigger:</strong> Zero-click Energy VAD capturing speech</li>
+            <li><strong class="text-white">Active Area:</strong> Left & Right Ear Units (`x=110`, `x=374`) + 5-Bar Equalizer</li>
+            <li><strong class="text-white">Animation:</strong> Vivid neon drop-shadow & real-time reactive equalizer bars</li>
+            <li><strong class="text-white">Palette:</strong> Crimson `#FF0033` + Coral Glow `#FF2A2A`</li>
+            <li><strong class="text-white">Trigger:</strong> Silero Neural VAD speech qualification ($P \ge 0.50$)</li>
           </ul>
         </div>
 

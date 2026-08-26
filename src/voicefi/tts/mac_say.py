@@ -7,7 +7,7 @@ import subprocess
 import threading
 from pathlib import Path
 from typing import Optional, List
-from voicefi.tts.base import BaseTTS, speech_turn_lock
+from voicefi.tts.base import BaseTTS, speech_turn_lock, DuplicateSpeechSuppressed
 from voicefi.audio.meeting_detection import is_user_on_call
 
 
@@ -93,32 +93,35 @@ class MacSayTTS(BaseTTS):
         cmd = ["say", "-v", self.voice, "-r", str(self.rate), "--", text]
 
         def _run():
-            with speech_turn_lock(
-                text=text,
-                agent_name=getattr(self, "agent_name", "VoiceFi"),
-                persona_name=getattr(self, "persona_name", getattr(self, "voice", "Samantha")),
-            ):
-                if self._stop_requested:
-                    return
-                try:
-                    from voicefi.tts.base import set_agent_audio_playing
-                    set_agent_audio_playing(True)
-                    proc = subprocess.Popen(
-                        cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-                    )
-                    self._current_process = proc
-                    proc.wait()
-                    if not self._stop_requested and proc.returncode != 0:
-                        # Fallback to default system voice
-                        fallback = subprocess.Popen(["say", "--", text], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                        self._current_process = fallback
-                        fallback.wait()
-                except Exception as e:
-                    print(f"[MacSayTTS] Error speaking: {e}")
-                finally:
-                    from voicefi.tts.base import set_agent_audio_playing
-                    set_agent_audio_playing(False)
-                    self._current_process = None
+            try:
+                with speech_turn_lock(
+                    text=text,
+                    agent_name=getattr(self, "agent_name", "VoiceFi"),
+                    persona_name=getattr(self, "persona_name", getattr(self, "voice", "Samantha")),
+                ):
+                    if self._stop_requested:
+                        return
+                    try:
+                        from voicefi.tts.base import set_agent_audio_playing
+                        set_agent_audio_playing(True)
+                        proc = subprocess.Popen(
+                            cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                        )
+                        self._current_process = proc
+                        proc.wait()
+                        if not self._stop_requested and proc.returncode != 0:
+                            # Fallback to default system voice
+                            fallback = subprocess.Popen(["say", "--", text], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                            self._current_process = fallback
+                            fallback.wait()
+                    except Exception as e:
+                        print(f"[MacSayTTS] Error speaking: {e}")
+                    finally:
+                        from voicefi.tts.base import set_agent_audio_playing
+                        set_agent_audio_playing(False)
+                        self._current_process = None
+            except DuplicateSpeechSuppressed:
+                return
 
         if block:
             _run()

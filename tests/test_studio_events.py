@@ -116,7 +116,7 @@ class TestStudioServerEndpoints(AioHTTPTestCase):
 
     async def get_application(self):
         self.config = VoiceFiConfig()
-        self.server = CompanionServer(config=self.config, port=8765)
+        self.server = CompanionServer(config=self.config, port=5141)
         return self.server.app
 
     @unittest_run_loop

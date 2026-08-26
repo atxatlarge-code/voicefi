@@ -39,14 +39,15 @@ def test_dictation_hud_states():
 
         # Transcribing
         hud.show_transcribing()
-        hud._tag_lbl.setStringValue_.assert_called_with("• Transcribing...")
+        hud._tag_lbl.setStringValue_.assert_called_with("Transcribing...")
 
         # Done
         hud.show_done(preview_text="Hello world dictation test")
-        hud._tag_lbl.setStringValue_.assert_called_with("• Done")
+        hud._tag_lbl.setStringValue_.assert_called_with("Done")
 
         # Hide
         hud.persistent = False
         hud._panel.isVisible.return_value = True
         hud.hide()
         hud._panel.orderOut_.assert_called_with(None)
+        UnifiedDynamicIslandHUD._instance = None

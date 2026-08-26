@@ -1759,7 +1759,7 @@
 
       // If user is on insecure HTTP on mobile (where browsers block phone mic), auto-redirect to HTTPS
       if (!window.isSecureContext && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1' && micSource === 'phone') {
-        const httpsPort = location.port ? (parseInt(location.port) === 8765 ? 8766 : parseInt(location.port) + 1) : 8766;
+        const httpsPort = location.port ? (parseInt(location.port) === 5141 ? 5142 : parseInt(location.port) + 1) : 5142;
         showToast("Opening Secure Mode (HTTPS) for Phone Mic...", 2500);
         setTimeout(() => {
           window.location.href = `https://${location.hostname}:${httpsPort}/`;
@@ -1812,7 +1812,7 @@
             isListening = false;
             if (window.bgField) window.bgField.setAudioLevel(0);
             if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-              showToast("Phone mic requires HTTPS (Port 8766). Tap 'Switch to HTTPS' above.", 4500);
+              showToast("Phone mic requires HTTPS (Port 5142). Tap 'Switch to HTTPS' above.", 4500);
               const banner = document.getElementById("httpsPromptBanner");
               if (banner) banner.classList.remove("hidden");
               setOrbState('idle');
@@ -1954,7 +1954,7 @@
           return;
         } catch (err) {
           console.warn("Phone mic / getUserMedia error:", err);
-          showToast("Phone mic requires HTTPS (Port 8766). Tap 'Switch to HTTPS' above.", 4500);
+          showToast("Phone mic requires HTTPS (Port 5142). Tap 'Switch to HTTPS' above.", 4500);
           const banner = document.getElementById("httpsPromptBanner");
           if (banner) banner.classList.remove("hidden");
           setOrbState('idle');
@@ -1963,7 +1963,7 @@
       }
 
       // If no getUserMedia available on this origin (e.g. plain HTTP on LAN)
-      showToast("Phone mic requires HTTPS (Port 8766). Tap 'Switch to HTTPS' above.", 4500);
+      showToast("Phone mic requires HTTPS (Port 5142). Tap 'Switch to HTTPS' above.", 4500);
       const banner = document.getElementById("httpsPromptBanner");
       if (banner) banner.classList.remove("hidden");
       setOrbState('idle');
@@ -3935,7 +3935,7 @@
     const copyQrUrlBtn = document.getElementById("copyQrUrlBtn");
 
     async function loadAndShowQrModal() {
-      let targetUrl = `http://${window.location.hostname || '127.0.0.1'}:8765`;
+      let targetUrl = `http://${window.location.hostname || '127.0.0.1'}:5141`;
       let dataUri = '';
       try {
         const res = await fetch('/api/qr');
@@ -4500,7 +4500,7 @@
       if (httpsBtn) {
         httpsBtn.addEventListener("click", (e) => {
           e.preventDefault();
-          const httpsPort = location.port ? (parseInt(location.port) === 8765 ? 8766 : parseInt(location.port) + 1) : 8766;
+          const httpsPort = location.port ? (parseInt(location.port) === 5141 ? 5142 : parseInt(location.port) + 1) : 5142;
           window.location.href = `https://${location.hostname}:${httpsPort}/`;
         });
       }

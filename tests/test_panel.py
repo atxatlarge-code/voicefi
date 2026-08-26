@@ -220,16 +220,16 @@ def test_panel_rest_api():
 def test_cli_panel_argument():
     """Test CLI argument parsing and execution for panel."""
     with patch("voicefi.ui.panel.open_control_panel") as mock_open:
-        mock_open.return_value = "http://localhost:8765"
+        mock_open.return_value = "http://localhost:5141"
         with patch("time.sleep", side_effect=KeyboardInterrupt):
             args = MagicMock()
-            args.port = 8765
+            args.port = 5141
             args.no_browser = False
             args.config = None
             cmd_panel(args)
             assert mock_open.call_count == 1
             call_kwargs = mock_open.call_args.kwargs
-            assert call_kwargs["port"] == 8765
+            assert call_kwargs["port"] == 5141
             assert call_kwargs["open_browser"] is True
 
 

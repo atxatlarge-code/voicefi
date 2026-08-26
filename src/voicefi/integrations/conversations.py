@@ -36,7 +36,13 @@ def _normalize_turn_signature(signature: str) -> str:
     return clean[:30]
 
 
-def claim_turn(conv_id: Optional[str], signature: str, origin: Optional[str] = None) -> bool:
+def claim_turn(
+    conv_id: Optional[str],
+    signature: str,
+    origin: Optional[str] = None,
+    step_index: Optional[int] = None,
+    turn_id: Optional[str] = None,
+) -> bool:
     """
     Atomically claims a turn using cross-process file locks so only one worker
     (CLI Hook or Background Watcher) handles speech and mic capture.
@@ -46,6 +52,18 @@ def claim_turn(conv_id: Optional[str], signature: str, origin: Optional[str] = N
     lock_file = Path("/tmp/voicefi_active_turns.lock")
     now = time.time()
     norm_sig = _normalize_turn_signature(signature)
+
+    # Derive canonical step_index if embedded in signature (e.g. "conv_id:step_42" or "step:42")
+    resolved_step_idx = step_index
+    if resolved_step_idx is None:
+        m = re.search(r"\bstep[_\s:]+(\d+)\b", signature, re.IGNORECASE)
+        if m:
+            resolved_step_idx = int(m.group(1))
+
+    canonical_turn_id = turn_id or (
+        f"{conv_id}:step_{resolved_step_idx}" if conv_id and resolved_step_idx is not None and resolved_step_idx >= 0
+        else (f"{conv_id}:{norm_sig}" if conv_id and norm_sig else signature)
+    )
 
     resolved_origin = origin
     if not resolved_origin:
@@ -68,41 +86,70 @@ def claim_turn(conv_id: Optional[str], signature: str, origin: Optional[str] = N
                     except Exception:
                         entries = []
 
-                # Clean entries older than 10 seconds (enough to prevent dual hook/watcher race)
+                # Clean entries older than 15 seconds
                 valid_entries = [
                     e for e in entries
-                    if (now - float(e.get("timestamp", 0))) < 10.0
+                    if (now - float(e.get("timestamp", 0))) < 15.0
                 ]
 
-                # Check if this exact signature OR normalized text was already claimed
+                # Check if this exact turn_id, step_index, signature, OR normalized text was already claimed
                 for e in valid_entries:
                     e_sig = e.get("signature", "")
                     e_norm = e.get("norm_sig") or _normalize_turn_signature(e_sig)
                     e_cid = e.get("conv_id", "")
                     e_ts = float(e.get("timestamp", 0))
+                    e_step = e.get("step_index")
+                    e_tid = e.get("turn_id")
+
+                    # 1. Exact Turn ID match
+                    if canonical_turn_id and e_tid and e_tid == canonical_turn_id:
+                        return False
+
+                    # 2. Exact conversation + step index match (100% deterministic)
+                    if (
+                        conv_id
+                        and e_cid == conv_id
+                        and resolved_step_idx is not None
+                        and resolved_step_idx >= 0
+                        and e_step is not None
+                        and e_step == resolved_step_idx
+                    ):
+                        return False
+
+                    # 3. Exact signature string match
                     if e_sig == signature:
                         return False
+
+                    # 4. Normalized text match
                     if norm_sig and e_norm == norm_sig:
-                        # Same text spoken within 60s -> duplicate!
                         return False
+
+                    # 5. Conversation-level rapid debounce (3.5s window for same conversation when step_index is unknown or same)
                     if conv_id and e_cid == conv_id:
-                        # If the same conversation claimed a turn within the last 4.0s, it is the same turn
-                        if (now - e_ts) < 4.0:
+                        if (
+                            resolved_step_idx is not None
+                            and e_step is not None
+                            and resolved_step_idx != e_step
+                        ):
+                            continue
+                        if (now - e_ts) < 3.5:
                             return False
                         if norm_sig and (norm_sig in e_norm or e_norm in norm_sig):
                             return False
 
-                # Claim this turn
+                # Claim this turn atomically
                 valid_entries.append({
                     "conv_id": conv_id,
+                    "turn_id": canonical_turn_id,
+                    "step_index": resolved_step_idx,
                     "signature": signature,
                     "norm_sig": norm_sig,
                     "origin": resolved_origin,
                     "timestamp": now,
                 })
-                # Keep up to 20 entries
-                if len(valid_entries) > 20:
-                    valid_entries = valid_entries[-20:]
+                # Keep up to 25 entries
+                if len(valid_entries) > 25:
+                    valid_entries = valid_entries[-25:]
 
                 with open(turn_file, "w") as f:
                     json.dump(valid_entries, f)
@@ -115,7 +162,11 @@ def claim_turn(conv_id: Optional[str], signature: str, origin: Optional[str] = N
         return True
 
 
-def get_claimed_turn_origin(conv_id: Optional[str], signature: str) -> Optional[str]:
+def get_claimed_turn_origin(
+    conv_id: Optional[str],
+    signature: str,
+    step_index: Optional[int] = None,
+) -> Optional[str]:
     """Get the origin (mobile or desktop) recorded when this turn was claimed."""
     turn_file = Path("/tmp/voicefi_active_turns.json")
     if not turn_file.is_file():
@@ -128,6 +179,16 @@ def get_claimed_turn_origin(conv_id: Optional[str], signature: str) -> Optional[
             for e in reversed(entries):
                 e_sig = e.get("signature", "")
                 e_norm = e.get("norm_sig") or _normalize_turn_signature(e_sig)
+                e_cid = e.get("conv_id", "")
+                e_step = e.get("step_index")
+                if (
+                    conv_id
+                    and e_cid == conv_id
+                    and step_index is not None
+                    and e_step is not None
+                    and e_step == step_index
+                ):
+                    return e.get("origin")
                 if e_sig == signature or (norm_sig and e_norm == norm_sig):
                     return e.get("origin")
     except Exception:
@@ -606,8 +667,8 @@ class ConversationTracker:
     def get_active_or_latest(self) -> Optional[ConversationInfo]:
         """
         Dynamically determine the currently active conversation (Antigravity or Claude Code).
-        Prioritizes the most recently updated conversation based on session cookie
-        and transcript modification times.
+        Prioritizes the most recently updated conversation based on transcript modification times
+        and active session cookies.
         """
         convs = self.get_all_conversations(limit=10)
         if not convs:
@@ -615,15 +676,27 @@ class ConversationTracker:
 
         latest_conv = convs[0]
 
-        # Check persistent session cookie from recent hooks
+        # Check persistent session cookie from recent hooks / focus events
         cookie = load_session_cookie()
         if cookie and cookie.get("conversationId"):
             cid = cookie["conversationId"]
             cookie_time = float(cookie.get("updatedAt", 0))
             now = time.time()
-            
-            # If cookie was recently updated (within 5m) and not superseded by fresher disk writes:
-            if (now - cookie_time) < 300.0 and cookie_time >= (latest_conv.mtime - 4.0):
+
+            # If the newest conversation on disk matches the cookie, it's definitely active
+            if latest_conv.id == cid or (latest_conv.id.startswith("claude_") and latest_conv.id.replace("claude_", "") == cid):
+                self.active_focus_id = latest_conv.id
+                return latest_conv
+
+            # If a different conversation was touched on disk after the cookie was saved,
+            # that fresher conversation on disk takes immediate priority.
+            if latest_conv.mtime > (cookie_time + 1.0):
+                self.set_active_focus(latest_conv.id, transcript_path=latest_conv.transcript_path, title=latest_conv.title)
+                self.active_focus_id = latest_conv.id
+                return latest_conv
+
+            # If cookie was very recently updated (< 60s) and not superseded by disk writes:
+            if (now - cookie_time) < 60.0 and cookie_time >= (latest_conv.mtime - 1.0):
                 for c in convs:
                     if c.id == cid or (c.id.startswith("claude_") and c.id.replace("claude_", "") == cid) or (cid.startswith("claude_") and cid.replace("claude_", "") == c.id):
                         self.active_focus_id = c.id
@@ -645,6 +718,7 @@ class ConversationTracker:
                             return info
 
         # Otherwise the most recently touched conversation on disk is active
+        self.set_active_focus(latest_conv.id, transcript_path=latest_conv.transcript_path, title=latest_conv.title)
         self.active_focus_id = latest_conv.id
         return latest_conv
 

@@ -5,6 +5,7 @@ from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD, HUDActionDelegate
 
 @pytest.fixture
 def mock_appkit():
+    UnifiedDynamicIslandHUD._instance = None
     with patch("voicefi.ui.unified_hud.NSApplication"), \
          patch("voicefi.ui.unified_hud.NSPanel"), \
          patch("voicefi.ui.unified_hud.NSView"), \
@@ -14,6 +15,7 @@ def mock_appkit():
          patch("voicefi.ui.unified_hud.NSScreen"), \
          patch("voicefi.ui.unified_hud.NSAnimationContext"):
         yield
+    UnifiedDynamicIslandHUD._instance = None
 
 
 def test_unified_hud_singleton(mock_appkit):
@@ -184,7 +186,7 @@ def test_unified_hud_draggability_and_reset(mock_appkit):
     assert hud._user_dragged_center_x is None
     assert hud._user_dragged_top_y is None
 
-    # Test top-right anchoring with default margins on NSScreen (margin_x=20.0, margin_y=52.0)
+    # Test top-right anchoring with default margins on NSScreen (margin_x=20.0, margin_y=96.0)
     mock_screen = MagicMock()
     mock_visible = MagicMock()
     mock_visible.origin.x = 0.0
@@ -195,9 +197,9 @@ def test_unified_hud_draggability_and_reset(mock_appkit):
 
     with patch("voicefi.ui.unified_hud.NSScreen.mainScreen", return_value=mock_screen):
         frame_tr = hud._get_target_frame(hud.STANDARD_WIDTH, hud.STANDARD_HEIGHT)
-        # Expected: x = 1920 - 480 - 20 = 1420.0; y = 1080 - 58 - 52 = 970.0 (clears Chrome top tab bar)
+        # Expected: x = 1920 - 480 - 20 = 1420.0; y = 1080 - 58 - 96 = 926.0 (clears Chrome top tab strip and address bar)
         assert frame_tr.origin.x == 1420.0
-        assert frame_tr.origin.y == 970.0
+        assert frame_tr.origin.y == 926.0
         assert frame_tr.size.width == 480.0
         assert frame_tr.size.height == 58.0
 
@@ -208,7 +210,7 @@ def test_unified_hud_draggability_and_reset(mock_appkit):
         assert frame_custom.origin.x == 1920.0 - 480.0 - 30.0
         assert frame_custom.origin.y == 1080.0 - 58.0 - 60.0
         hud.config.hud.margin_x = 20.0
-        hud.config.hud.margin_y = 52.0
+        hud.config.hud.margin_y = 96.0
 
 
 def test_unified_hud_fixed_dimensions(mock_appkit):
@@ -299,4 +301,92 @@ def test_tray_dynamic_config_reload(mock_appkit, tmp_path):
         assert app.hud.persistent is True
         assert app.config.hud.enabled is True
 
+
+def test_unified_hud_vad_visualizer(mock_appkit):
+    hud = UnifiedDynamicIslandHUD.get_instance()
+    hud.set_listening(user_name="Jake")
+    assert hud._current_state == "listening"
+
+    # Test update_audio_level
+    hud.update_audio_level(energy=0.035, speech_prob=0.88, is_speech=True)
+    hud.update_audio_level(energy=0.002, speech_prob=0.05, is_speech=False)
+
+
+def test_vad_visualizer_view_logic():
+    from voicefi.ui.unified_hud import VADAudioVisualizerView
+    from AppKit import NSRect, NSPoint, NSSize
+    v = VADAudioVisualizerView.alloc().initWithFrame_(NSRect(NSPoint(0, 0), NSSize(48, 20)))
+    assert v is not None
+    assert len(v._current_levels) == 5
+
+    # Update with speech level
+    v.setAudioLevel_prob_speech_(0.045, 0.92, True)
+    assert v._is_speech is True
+    assert v._speech_prob == 0.92
+    assert max(v._current_levels) > 0.3
+
+    # Reset
+    v.reset()
+    assert v._speech_prob == 0.0
+    assert v._is_speech is False
+
+
+def test_extract_thought_summary():
+    from voicefi.integrations.watcher import extract_thought_summary
+
+    raw_thinking = "**Analyzing the Core Issue**\n\nI'm now zeroing in on the user's request."
+    assert extract_thought_summary(raw_thinking) == "Analyzing the Core Issue"
+
+    raw_colon = "**Inspecting watcher.py:**\nLet's check the transcript handler."
+    assert extract_thought_summary(raw_colon) == "Inspecting watcher.py"
+
+    raw_plain = "Looking up references to set_thinking across the codebase.\nSecond line."
+    assert extract_thought_summary(raw_plain) == "Looking up references to set_thinking across the codebase."
+
+    raw_emoji = "**🧠 Synthesizing Implementation Plan**\n\nDetail text."
+    assert extract_thought_summary(raw_emoji) == "Synthesizing Implementation Plan"
+
+    assert extract_thought_summary("") == ""
+    assert extract_thought_summary(None) == ""
+
+
+def test_unified_hud_emoji_free_and_user_prompt(mock_appkit):
+    """Verify that HUD states are rendered without emojis (allowing Apple shortcut modifier symbols)."""
+    # Actual emojis (Emoticons, Miscellaneous Symbols & Pictographs, Supplemental Symbols, Transport/Map, etc.)
+    disallowed_emojis = ["🎙", "🔴", "🔊", "🤖", "🧠", "⚡", "✨", "✏", "✅", "⏳", "⏸", "🍎", "🍏"]
+
+    hud = UnifiedDynamicIslandHUD.get_instance()
+
+    # 1. Idle state
+    hud.set_idle()
+    assert hud._current_state == "idle"
+    if hud._tag_lbl and hud._tag_lbl.setStringValue_.call_args:
+        tag_val = str(hud._tag_lbl.setStringValue_.call_args[0][0])
+        for em in disallowed_emojis:
+            assert em not in tag_val, f"Disallowed emoji {em} found in tag: {tag_val}"
+
+    # 2. Speaking state
+    hud.set_speaking(text="Speech update", persona_name="Christopher")
+    assert hud._current_state == "speaking"
+    if hud._tag_lbl and hud._tag_lbl.setStringValue_.call_args:
+        tag_val = str(hud._tag_lbl.setStringValue_.call_args[0][0])
+        for em in disallowed_emojis:
+            assert em not in tag_val
+
+    # 3. Listening state
+    hud.set_listening(user_name="Jake", prompt_preview="Testing dictation")
+    assert hud._current_state == "listening"
+    if hud._tag_lbl and hud._tag_lbl.setStringValue_.call_args:
+        tag_val = str(hud._tag_lbl.setStringValue_.call_args[0][0])
+        for em in disallowed_emojis:
+            assert em not in tag_val
+
+    # 4. User Prompt state
+    hud.set_user_prompt(prompt="Run unit tests", user_name="Jake", source="Antigravity (⌃M)")
+    assert hud._current_state == "listening"
+    all_calls = [str(call[0][0]) for call in hud._tag_lbl.setStringValue_.call_args_list]
+    assert any("Antigravity (⌃M)" in c for c in all_calls)
+    for c in all_calls:
+        for em in disallowed_emojis:
+            assert em not in c, f"Disallowed emoji {em} found in text: {c}"
 

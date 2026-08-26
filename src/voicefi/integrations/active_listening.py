@@ -46,7 +46,6 @@ class ActiveListeningEngine:
     CONVERSATIONAL_FILLER_PATTERNS = [
         r"^(?:okay|ok|nice|cool|sweet|awesome|perfect|thank you|thanks|got it|sounds good|sounds great)[\s.?!]*$",
         r"^(?:okay\s+)?(?:nice\s+)?(?:that\s+)?(?:sounds|looks)\s+(?:great|good|awesome|nice|fine|solid)[\s.?!]*$",
-        r"^(?:yeah|yes|yep|yup|nope|no|sure|right|all right|alright)[\s.?!]*$",
     ]
 
     # Stop words for word overlap comparison
@@ -79,104 +78,88 @@ class ActiveListeningEngine:
         return False
 
     @classmethod
-    def match_pending_choice(cls, text: str, pending_question: Optional[Dict[str, Any]]) -> Optional[str]:
+    def match_pending_choice(cls, text: str, pending_question: Dict[str, Any]) -> Optional[str]:
         """
-        Evaluate if text selects or matches one of the options in an active pending question.
-        Returns the matched option string or None.
+        Match spoken response against multiple choices in pending question.
+        Returns the matched canonical option string, or None if no match.
         """
-        if not pending_question or not text:
+        if not pending_question or "options" not in pending_question:
             return None
 
-        options: List[str] = pending_question.get("options", [])
+        clean_text = text.strip().lower()
+        options = pending_question["options"]
         if not options:
             return None
 
-        clean_input = re.sub(r"[^a-z0-9\s]", "", text.lower()).strip()
-        input_words = set(clean_input.split()) - cls.STOP_WORDS
-
-        best_match = None
-        best_score = 0.0
-
+        # 1. Exact match against option text
         for opt in options:
-            clean_opt = re.sub(r"[^a-z0-9\s]", "", opt.lower()).strip()
-            opt_words = set(clean_opt.split()) - cls.STOP_WORDS
-
-            # 1. Exact or substring match
-            if clean_opt in clean_input or clean_input in clean_opt:
+            opt_clean = opt.strip().lower()
+            if clean_text == opt_clean:
+                return opt
+            if opt_clean in clean_text:
                 return opt
 
-            # 2. Word overlap match (e.g. "deploy to staging now" vs "Stage on Railway")
-            if input_words and opt_words:
-                overlap = input_words.intersection(opt_words)
-                score = len(overlap) / max(1, len(opt_words))
-                if score > 0.4 and score > best_score:
-                    best_score = score
-                    best_match = opt
+        # 2. Key content word matching
+        text_words = set(re.findall(r"\b[a-z0-9]+\b", clean_text)) - cls.STOP_WORDS
+        best_opt = None
+        best_overlap = 0
 
-            # 3. Fuzzy similarity
-            ratio = difflib.SequenceMatcher(None, clean_input, clean_opt).ratio()
-            if ratio > 0.65 and ratio > best_score:
-                best_score = ratio
-                best_match = opt
+        for opt in options:
+            opt_words = set(re.findall(r"\b[a-z0-9]+\b", opt.lower())) - cls.STOP_WORDS
+            if not opt_words:
+                continue
+            overlap = text_words.intersection(opt_words)
+            overlap_score = float(len(overlap))
+            # Prefix/stem overlap (e.g. stage <-> staging, deploy <-> deployment)
+            for tw in text_words:
+                for ow in opt_words:
+                    if len(tw) >= 4 and len(ow) >= 4:
+                        if (tw.startswith(ow[:4]) or ow.startswith(tw[:4])) and tw != ow:
+                            overlap_score += 0.8
+            if overlap_score > best_overlap:
+                best_overlap = overlap_score
+                best_opt = opt
 
-        # Semantic deployment alias handling
-        if "stage" in clean_input or "staging" in clean_input:
-            for opt in options:
-                if "stage" in opt.lower() or "railway" in opt.lower():
-                    return opt
-        if "ship" in clean_input or "prod" in clean_input or "production" in clean_input:
-            for opt in options:
-                if "ship" in opt.lower() or "straightaway" in opt.lower() or "prod" in opt.lower():
-                    return opt
+        if best_opt and best_overlap > 0:
+            return best_opt
 
-        return best_match
+        return None
 
     @classmethod
     def evaluate(
         cls,
-        text: str,
+        raw_text: str,
         pending_question: Optional[Dict[str, Any]] = None,
         is_ambient: bool = False,
     ) -> ActiveListeningResult:
         """
-        Evaluate transcribed utterance for active listening, cognitive safety, and intent verification.
+        Evaluate transcribed spoken audio against intent taxonomy.
         """
-        raw_text = text.strip() if text else ""
-        if not raw_text:
+        if not raw_text or not raw_text.strip():
             return ActiveListeningResult(
-                category=SpokenIntentCategory.IGNORED,
+                category=SpokenIntentCategory.CONVERSATIONAL_FILLER,
                 raw_text="",
                 normalized_text="",
                 is_actionable=False,
             )
 
-        # 1. Phonetic normalization of developer slang
+        # 1. Spoken Code Normalization
         normalized_text = PhoneticNormalizer.normalize(raw_text)
 
-        # 2. Check for Mic Check / Acoustic Test
-        if cls.is_mic_check(raw_text) or cls.is_mic_check(normalized_text):
-            if is_ambient:
-                return ActiveListeningResult(
-                    category=SpokenIntentCategory.MIC_CHECK,
-                    raw_text=raw_text,
-                    normalized_text=normalized_text,
-                    is_actionable=False,
-                    quick_spoken_reply=None,
-                )
-
-            # In active conversation, reply immediately with vocal reassurance
+        # 2. Check for Mic Check / Audio Test
+        if cls.is_mic_check(raw_text):
             if pending_question and pending_question.get("question_text"):
                 q_text = pending_question["question_text"]
-                reply = f"I hear you loud and clear. {q_text}"
+                reply = f"Loud and clear! I'm waiting on your choice: {q_text}"
             else:
-                reply = "I hear you loud and clear."
+                reply = "Loud and clear! Ready for your command."
 
             return ActiveListeningResult(
                 category=SpokenIntentCategory.MIC_CHECK,
                 raw_text=raw_text,
                 normalized_text=normalized_text,
                 is_actionable=False,
-                quick_spoken_reply=reply,
+                quick_spoken_reply=None if is_ambient else reply,
             )
 
         # 3. Check for Pending Question / Choice Match

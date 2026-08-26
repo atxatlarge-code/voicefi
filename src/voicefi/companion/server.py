@@ -63,7 +63,7 @@ class CompanionServer:
     def __init__(
         self,
         config: Optional[VoiceFiConfig] = None,
-        port: int = 8765,
+        port: int = 5141,
         host: str = "0.0.0.0",
     ):
         self.config = config or load_config()
@@ -84,6 +84,7 @@ class CompanionServer:
         self._memo_store = MemoStore()
         self._active_memo_id: Optional[str] = None
         self._memo_thread: Optional[threading.Thread] = None
+        self._processed_hook_requests: Dict[str, float] = {}
 
         @web.middleware
         async def cors_middleware(request, handler):
@@ -666,6 +667,22 @@ class CompanionServer:
         except Exception:
             data = {}
 
+        now = time.time()
+        request_id = str(data.get("request_id") or "")
+        if request_id:
+            # Clean entries older than 30s
+            self._processed_hook_requests = {
+                k: v for k, v in self._processed_hook_requests.items()
+                if (now - v) < 30.0
+            }
+            if request_id in self._processed_hook_requests:
+                return web.json_response({
+                    "success": True,
+                    "status": "duplicate",
+                    "request_id": request_id,
+                })
+            self._processed_hook_requests[request_id] = now
+
         target_agent = str(data.get("agent") or "antigravity").lower().strip()
         conv_id = data.get("conversationId") or data.get("conversation_id") or data.get("conv_id") or ""
         transcript_path_str = data.get("transcriptPath") or data.get("transcript_path") or ""
@@ -702,6 +719,7 @@ class CompanionServer:
             "status": "handled",
             "agent": target_agent,
             "conversationId": conv_id,
+            "request_id": request_id,
         })
 
     async def handle_artifact_review(self, request: web.Request) -> web.Response:
@@ -1861,7 +1879,7 @@ def ensure_ssl_context() -> Optional[object]:
     return None
 
 
-def start_cloudflared_tunnel(port: int = 8765) -> Optional[str]:
+def start_cloudflared_tunnel(port: int = 5141) -> Optional[str]:
     """Start an ephemeral Cloudflare Quick Tunnel and return the trusted public HTTPS URL."""
     try:
         import subprocess
@@ -1883,7 +1901,7 @@ def start_cloudflared_tunnel(port: int = 8765) -> Optional[str]:
 
 
 def run_companion_server(
-    port: int = 8765,
+    port: int = 5141,
     host: str = "0.0.0.0",
     print_qr: bool = True,
     open_browser: bool = False,
@@ -1928,11 +1946,11 @@ def run_companion_server(
     app_runner = web.AppRunner(server.app)
     loop.run_until_complete(app_runner.setup())
     
-    # HTTP Site (Default, e.g. 8765)
+    # HTTP Site (Default, e.g. 5141)
     site_http = web.TCPSite(app_runner, host, port)
     loop.run_until_complete(site_http.start())
 
-    # HTTPS Site (Port + 1, e.g. 8766) with self-signed SSL for secure mobile mic access
+    # HTTPS Site (Port + 1, e.g. 5142) with self-signed SSL for secure mobile mic access
     ssl_ctx = ensure_ssl_context()
     https_port = port + 1
     if ssl_ctx:

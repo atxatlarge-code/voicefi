@@ -1542,11 +1542,15 @@ HTML_CONTROL_PANEL = """<!DOCTYPE html>
           <div id="hwDiagnosticsInfo" style="font-size: 12px; line-height: 1.6; color: var(--text-secondary);">
             <div>• <b>Microphone:</b> <span id="hwDefaultInput">Loading...</span></div>
             <div>• <b>Speakers:</b> <span id="hwDefaultOutput">Loading...</span></div>
-            <div>• <b>VAD Mode:</b> <span id="hwVadMode">hybrid</span> (threshold: <span id="hwVadThresh">0.004</span>)</div>
+            <div>• <b>VAD Engine:</b> <span id="hwVadEngine" style="color: #10b981; font-weight: 600;">Silero Neural ONNX v6</span> (Speech Prob &ge; <span id="hwVadThresh">0.50</span>)</div>
+            <div>• <b>VAD Latency:</b> <span id="hwVadLatency">0.095 ms / frame</span></div>
             <div>• <b>Speech Rate:</b> <span id="hwRatePct">100% (200 WPM)</span></div>
           </div>
         </div>
         <div style="margin-top: 12px; display: flex; gap: 6px; flex-wrap: wrap;">
+          <button class="btn-fix" onclick="benchmarkVadEngine()">
+            🧠 Benchmark Silero VAD
+          </button>
           <button class="btn-fix" onclick="applyTroubleshootFix('calibrate_mic')">
             🎚️ Calibrate Mic
           </button>
@@ -2329,6 +2333,28 @@ HTML_CONTROL_PANEL = """<!DOCTYPE html>
     }
   }
 
+  async function benchmarkVadEngine() {
+    showToast('🧠 Benchmarking Silero Neural VAD engine...');
+    try {
+      const res = await fetch('/api/troubleshoot/vad', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const data = await res.json();
+      if (data.vad && data.vad.details) {
+        const d = data.vad.details;
+        const latEl = document.getElementById('hwVadLatency');
+        if (latEl) latEl.textContent = `${d.avg_latency_ms} ms / frame (${d.total_frames} frames benchmarked)`;
+        showToast(`✅ Silero VAD verified! ${d.avg_latency_ms} ms/frame (${d.frames_per_sec} fps)`);
+      } else {
+        showToast('⚠️ VAD benchmark complete.');
+      }
+    } catch (e) {
+      showToast('❌ VAD Benchmark error: ' + e);
+    }
+  }
+
   function showToast(msg) {
     const t = document.getElementById('toast');
     t.textContent = msg;
@@ -2596,6 +2622,12 @@ class VoicePanelRequestHandler(http.server.BaseHTTPRequestHandler):
             from voicefi.troubleshoot import AudioTroubleshooter
             res = AudioTroubleshooter(self.server.config).benchmark_all_curated_voices()
             self._send_json({"status": "success", "benchmarks": res})
+            return
+
+        if path == "/api/troubleshoot/vad":
+            from voicefi.troubleshoot import AudioTroubleshooter
+            res = AudioTroubleshooter(self.server.config).test_vad()
+            self._send_json({"status": "success", "vad": res})
             return
 
         if path == "/api/troubleshoot/fix":
@@ -3004,7 +3036,7 @@ _server_thread: Optional[threading.Thread] = None
 
 
 def start_panel_server(
-    port: int = 8765, config: Optional[VoiceFiConfig] = None
+    port: int = 5141, config: Optional[VoiceFiConfig] = None
 ) -> Tuple[VoicePanelServer, int]:
     """Start local HTTP server for the Voice Control Panel."""
     global _server_instance, _server_thread
@@ -3034,7 +3066,7 @@ def start_panel_server(
 
 
 def open_control_panel(
-    port: int = 8765, open_browser: bool = True, config: Optional[VoiceFiConfig] = None
+    port: int = 5141, open_browser: bool = True, config: Optional[VoiceFiConfig] = None
 ) -> str:
     """Launch the Control Panel server and open in default web browser."""
     srv, actual_port = start_panel_server(port=port, config=config)

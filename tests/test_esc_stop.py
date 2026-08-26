@@ -38,14 +38,13 @@ def test_mac_say_stop_requested():
             mock_proc.wait.side_effect = _stop_during_wait
 
             tts.speak("Hello world", block=True)
-
-            # First call was the primary say command
-            assert mock_popen.call_count == 1
-            cmd_run = mock_popen.call_args_list[0][0][0]
+            say_calls = [c for c in mock_popen.call_args_list if c[0][0][0] == "say"]
+            assert len(say_calls) == 1
+            cmd_run = say_calls[0][0][0]
             assert cmd_run[0] == "say"
             assert "-v" in cmd_run
             # Fallback should NOT have been called
-            assert mock_popen.call_count == 1
+            assert len(say_calls) == 1
 
 
 def test_audio_recorder_esc_cancels_recording():
@@ -117,4 +116,94 @@ def test_audio_recorder_space_does_not_cancel_recording():
                 # Space should NOT call stop_all_speech or cancel
                 mock_stop.assert_not_called()
                 temp_wav.unlink(missing_ok=True)
+
+
+def test_audio_recorder_esc_while_agent_speaking_stops_speech_without_cancelling_mic():
+    """Verify that pressing Esc while agent is speaking stops speech but preserves mic recording."""
+    recorder = AudioRecorder(sample_rate=16000)
+
+    with patch("voicefi.tts.base.stop_all_speech") as mock_stop, \
+         patch("voicefi.tts.base.is_agent_speaking", return_value=True), \
+         patch("pynput.keyboard.Listener") as mock_listener_cls:
+
+        mock_listener_inst = MagicMock()
+        mock_listener_cls.return_value = mock_listener_inst
+
+        dummy_chunk = np.ones((800, 1), dtype=np.float32) * 0.05
+
+        with patch("sounddevice.InputStream") as mock_input_stream:
+            mock_stream_inst = MagicMock()
+            mock_stream_inst.__enter__.return_value = mock_stream_inst
+
+            def stream_read(size):
+                _, kwargs = mock_listener_cls.call_args
+                on_press_cb = kwargs.get("on_press")
+                from pynput.keyboard import Key
+                # Press Esc while agent is speaking
+                on_press_cb(Key.esc)
+                # Ensure stop_event was NOT set (mic remains active)
+                assert not recorder.stop_event.is_set()
+                # Now finish recording manually
+                recorder.stop_event.set()
+                return dummy_chunk, False
+
+            mock_stream_inst.read.side_effect = stream_read
+            mock_input_stream.return_value = mock_stream_inst
+
+            audio_data, temp_wav = recorder.record_speech_auto()
+
+            # stop_all_speech called to stop the agent's voice
+            mock_stop.assert_called_once()
+            temp_wav.unlink(missing_ok=True)
+
+
+def test_tray_handle_escape_press_when_speaking_with_auto_listen():
+    """Verify tray app handle_escape_press stops speech and triggers mic when auto_listen is ON."""
+    from voicefi.ui.tray import VoiceFiTrayApp
+    from voicefi.config import VoiceFiConfig
+
+    app = VoiceFiTrayApp.__new__(VoiceFiTrayApp)
+    app.config = VoiceFiConfig()
+    app.config.antigravity.auto_listen = True
+    app.watcher = MagicMock()
+    app.watcher._is_handling_turn = False
+    app.speech_hud = MagicMock()
+    app._listen_lock = threading.Lock()
+    app._current_status = "idle"
+
+    with patch("voicefi.ui.tray.is_agent_speaking", return_value=True), \
+         patch("voicefi.ui.tray.stop_all_speech") as mock_stop, \
+         patch.object(app, "trigger_talk_to_antigravity") as mock_talk:
+
+        app.handle_escape_press()
+
+        mock_stop.assert_called_once()
+        app.speech_hud.hide.assert_called_once()
+        mock_talk.assert_called_once()
+
+
+def test_tray_handle_escape_press_when_speaking_without_auto_listen():
+    """Verify tray app handle_escape_press stops speech and resets to idle when auto_listen is OFF."""
+    from voicefi.ui.tray import VoiceFiTrayApp
+    from voicefi.config import VoiceFiConfig
+
+    app = VoiceFiTrayApp.__new__(VoiceFiTrayApp)
+    app.config = VoiceFiConfig()
+    app.config.antigravity.auto_listen = False
+    app.watcher = MagicMock()
+    app.speech_hud = MagicMock()
+    app._listen_lock = threading.Lock()
+    app._current_status = "speaking"
+
+    with patch("voicefi.ui.tray.is_agent_speaking", return_value=True), \
+         patch("voicefi.ui.tray.stop_all_speech") as mock_stop, \
+         patch.object(app, "trigger_talk_to_antigravity") as mock_talk:
+
+        app.handle_escape_press()
+
+        mock_stop.assert_called_once()
+        app.speech_hud.hide.assert_called_once()
+        app.watcher.interrupt.assert_called_once()
+        mock_talk.assert_not_called()
+        assert app._current_status == "idle"
 

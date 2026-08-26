@@ -31,16 +31,16 @@ def test_qr_network_utilities():
     assert hostname is not None
     assert len(hostname) > 0
 
-    urls = get_companion_urls(port=8765)
+    urls = get_companion_urls(port=5141)
     assert "ip_url" in urls
     assert "mdns_url" in urls
     assert "localhost_url" in urls
-    assert urls["localhost_url"] == "http://localhost:8765"
+    assert urls["localhost_url"] == "http://localhost:5141"
 
 
 def test_qr_code_rendering():
     """Test ASCII and PNG QR code generator output."""
-    test_url = "http://192.168.1.50:8765"
+    test_url = "http://192.168.1.50:5141"
 
     ascii_qr = generate_qr_ascii(test_url)
     assert ascii_qr is not None
@@ -55,7 +55,7 @@ class CompanionServerTestCase(AioHTTPTestCase):
 
     async def get_application(self):
         self.cfg = VoiceFiConfig()
-        self.companion_server = CompanionServer(config=self.cfg, port=8765)
+        self.companion_server = CompanionServer(config=self.cfg, port=5141)
         self.companion_server.loop = asyncio.get_event_loop()
         return self.companion_server.app
 
@@ -128,7 +128,7 @@ class CompanionServerTestCase(AioHTTPTestCase):
                     },
                     {
                         "snippet": "port = 8080",
-                        "comment": "Change default port to 8765."
+                        "comment": "Change default port to 5141."
                     }
                 ],
                 "general_feedback": "Looks solid overall.",
@@ -220,7 +220,7 @@ class CompanionServerTestCase(AioHTTPTestCase):
 def test_cli_companion_invocation():
     """Test 'vg companion' CLI command argument handling."""
     args = MagicMock()
-    args.port = 8765
+    args.port = 5141
     args.host = "0.0.0.0"
     args.no_qr = True
     args.open = False
@@ -230,7 +230,7 @@ def test_cli_companion_invocation():
         cmd_companion(args)
         mock_run.assert_called_once()
         kwargs = mock_run.call_args.kwargs
-        assert kwargs["port"] == 8765
+        assert kwargs["port"] == 5141
         assert kwargs["host"] == "0.0.0.0"
         assert kwargs["print_qr"] is False
         assert kwargs["open_browser"] is False

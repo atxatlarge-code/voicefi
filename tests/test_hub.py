@@ -7,6 +7,7 @@ import threading
 from unittest.mock import MagicMock, patch
 import pytest
 
+from AppKit import NSRect, NSPoint, NSSize
 from voicefi.integrations.conversations import ConversationTracker, ConversationInfo
 from voicefi.ui.hub import ConversationHubWindow, HubActionTarget
 
@@ -15,6 +16,21 @@ from voicefi.ui.hub import ConversationHubWindow, HubActionTarget
 def mock_tracker(tmp_path):
     tracker = ConversationTracker(brain_dir=tmp_path)
     return tracker
+
+
+@pytest.fixture(autouse=True)
+def cleanup_hub_window():
+    ConversationHubWindow._instance = None
+    yield
+    if ConversationHubWindow._instance is not None:
+        try:
+            if ConversationHubWindow._instance._panel:
+                ConversationHubWindow._instance.hide()
+                ConversationHubWindow._instance._panel.orderOut_(None)
+                ConversationHubWindow._instance._panel.close()
+        except Exception:
+            pass
+        ConversationHubWindow._instance = None
 
 
 def test_hub_action_target():
@@ -148,4 +164,41 @@ def test_conversation_hub_new_conversation_action(mock_tracker):
     # First target in list is the new_conv action target
     hub._targets[0].buttonClicked_(None)
     assert len(new_conv_called) == 1
+
+
+def test_conversation_hub_positioning(mock_tracker):
+    """Test Activity Hub window is positioned right-aligned and below the main HUD with gap."""
+    from voicefi.config import VoiceFiConfig
+    ConversationHubWindow._instance = None
+    hub = ConversationHubWindow.get_instance(mock_tracker)
+    hub._panel = MagicMock()
+    hub._panel.frame.return_value = NSRect(NSPoint(0, 0), NSSize(520, 420))
+
+    mock_screen = MagicMock()
+    mock_visible = MagicMock()
+    mock_visible.origin.x = 0.0
+    mock_visible.origin.y = 0.0
+    mock_visible.size.width = 1920.0
+    mock_visible.size.height = 1080.0
+    mock_screen.visibleFrame.return_value = mock_visible
+
+    mock_nsscreen = MagicMock()
+    mock_nsscreen.mainScreen.return_value = mock_screen
+
+    cfg = VoiceFiConfig()
+    cfg.hud.margin_x = 20.0
+    cfg.hud.margin_y = 96.0
+
+    with patch("voicefi.ui.hub.NSScreen", mock_nsscreen), \
+         patch("voicefi.config.load_config", return_value=cfg):
+        hub._position_top_right()
+
+        # width = 520, height = 420
+        # Expected x = 1920 - 520 - 0.0 (margin_right, no gap) = 1400.0
+        # Expected y = 1080 - 420 - 96 (margin_y) - 58 (hud_height) - 8 (gap) = 498.0
+        assert hub._panel.setFrameOrigin_.called
+        call_point = hub._panel.setFrameOrigin_.call_args[0][0]
+        assert call_point.x == 1400.0
+        assert call_point.y == 498.0
+
 

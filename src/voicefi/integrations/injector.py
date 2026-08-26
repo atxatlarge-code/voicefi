@@ -340,20 +340,15 @@ def send_message_to_antigravity(
     # Resolve conv_id if empty or placeholder
     if not conv_id or conv_id in ("active", "null", "none"):
         try:
-            from voicefi.integrations.conversations import ConversationTracker, load_session_cookie
-            cookie = load_session_cookie()
-            cookie_cid = (cookie.get("conversationId") or cookie.get("conv_id")) if cookie else None
-            if cookie_cid and not str(cookie_cid).startswith("claude_"):
-                conv_id = cookie_cid
+            from voicefi.integrations.conversations import ConversationTracker
+            active = ConversationTracker().get_active_or_latest()
+            if active and (getattr(active, "engine", "") == "antigravity" or not str(active.id).startswith("claude_")):
+                conv_id = active.id
             else:
-                active = ConversationTracker().get_active_or_latest()
-                if active and (getattr(active, "engine", "") == "antigravity" or not str(active.id).startswith("claude_")):
-                    conv_id = active.id
-                else:
-                    for c in ConversationTracker().get_all_conversations(limit=5):
-                        if getattr(c, "engine", "") == "antigravity" or not str(c.id).startswith("claude_"):
-                            conv_id = c.id
-                            break
+                for c in ConversationTracker().get_all_conversations(limit=5):
+                    if getattr(c, "engine", "") == "antigravity" or not str(c.id).startswith("claude_"):
+                        conv_id = c.id
+                        break
         except Exception:
             pass
 
@@ -379,21 +374,12 @@ def send_message_to_antigravity(
                 return True
             else:
                 print(f"[Injector] agentapi notice: {res.stderr.strip()}")
-                print(f"[Injector] Active session may have expired. Attempting to create new conversation...")
-                new_id = create_new_antigravity_conversation(prompt=clean_text, title=resolved_title)
-                if new_id:
-                    return True
         except Exception as e:
             print(f"[Injector] agentapi exception: {e}")
-            
-    if not conv_id or str(conv_id).startswith("claude_"):
-        print("[Injector] No active session found. Creating a new conversation...")
-        new_id = create_new_antigravity_conversation(prompt=clean_text, title=resolved_title)
-        if new_id:
-            return True
 
-    # Fallback to AppleScript paste with focus restoration
-    return inject_text_to_active_app(clean_text, submit_enter=True, target_antigravity=True, restore_focus=True)
+    # Fallback to direct paste into frontmost active window if user is already focused on chat input
+    # (keeps current window focus completely untouched, 0 window activation)
+    return inject_text_to_active_app(clean_text, submit_enter=True, target_antigravity=False, restore_focus=False)
 
 
 def create_new_antigravity_conversation(
@@ -582,6 +568,11 @@ def send_message_to_agent(
     Automatically resolves engine from conversation ID or active session cookie if unstated.
     """
     if not text or not text.strip():
+        return False
+
+    from voicefi.audio.echo_canceller import is_acoustic_echo
+    if is_acoustic_echo(text.strip()):
+        print(f"[Injector] 🛡️ Blocked injection of acoustic self-echo: \"{text.strip()[:50]}...\"")
         return False
 
     engine = target_engine

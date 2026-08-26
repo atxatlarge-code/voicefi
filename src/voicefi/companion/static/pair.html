@@ -194,7 +194,7 @@
         const res = await fetch('/api/qr');
         if (res.ok) {
           const data = await res.json();
-          const targetUrl = data.urls?.ip_url || data.urls?.mdns_url || `http://${window.location.hostname}:8765`;
+          const targetUrl = data.urls?.ip_url || data.urls?.mdns_url || `http://${window.location.hostname}:5141`;
           populateNetworkOptions(data.urls);
           renderQr(targetUrl, data.qr_data_uri);
           return;
@@ -202,7 +202,7 @@
       } catch (e) {}
 
       // Robust fallback
-      const fallbackUrl = `http://${window.location.hostname || '127.0.0.1'}:8765`;
+      const fallbackUrl = `http://${window.location.hostname || '127.0.0.1'}:5141`;
       renderQr(fallbackUrl, null);
     }
 

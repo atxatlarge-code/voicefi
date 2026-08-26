@@ -163,8 +163,11 @@ def test_dictation_hud_show_paused():
     assert "Agent Speaking" in content
 
     hud.show_listening()
-    content = (hud._title_lbl.stringValue() if hud._title_lbl else "") or (hud._label.stringValue() if hud._label else "")
-    assert "Listening" in content
+    body_content = (hud._body_lbl.stringValue() if hud._body_lbl else "") or (hud._label.stringValue() if hud._label else "")
+    tag_content = (hud._tag_lbl.stringValue() if hud._tag_lbl else "")
+    title_content = (hud._title_lbl.stringValue() if hud._title_lbl else "")
+    all_content = f"{body_content} {tag_content} {title_content}"
+    assert "Listening" in all_content or "Recording" in all_content
     hud.hide()
 
 
@@ -172,10 +175,12 @@ def test_tray_status_map_includes_paused():
     """Verify VoiceFiTrayApp status map displays appropriate paused icon and text."""
     from voicefi.ui.tray import VoiceFiTrayApp
 
-    # Mock rumps to instantiate tray app
+    # Mock rumps and cross-process status to instantiate tray app
     with patch("voicefi.integrations.watcher.TranscriptWatcher"), \
          patch("voicefi.ui.hub.ConversationHubWindow.get_instance"), \
          patch("voicefi.ui.tray.VoiceFiTrayApp._start_global_hotkey_listener"), \
+         patch("voicefi.tts.base.get_agent_speaking_info", return_value=None), \
+         patch("voicefi.tts.base.get_cross_process_hud_state", return_value=None), \
          patch("rumps.Timer"):
         app = VoiceFiTrayApp()
         

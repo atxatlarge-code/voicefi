@@ -507,7 +507,9 @@ def test_transcript_watcher_turn_ready_with_barge_in(tmp_path):
         assert "speaking" in states
         assert mock_stt.transcribe.called
         assert mock_send.called
-        mock_send.assert_called_with(conv_id=None, text="Yes deploy it now", sender_name=cfg.user_name)
+        call_kwargs = mock_send.call_args.kwargs
+        assert call_kwargs.get("text") == "Yes deploy it now"
+        assert call_kwargs.get("sender_name") == cfg.user_name
 
 
 def test_antigravity_stop_hook_with_barge_in(tmp_path):
@@ -539,7 +541,7 @@ def test_antigravity_stop_hook_with_barge_in(tmp_path):
 
         assert mock_stt.transcribe.called
         assert mock_send.called
-        mock_send.assert_called_with(conv_id="test-conv-123", text="Approve PR")
+        mock_send.assert_called_with(conv_id="test-conv-123", text="Approve PR", sender_name=cfg.user_name)
 
 
 

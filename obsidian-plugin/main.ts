@@ -23,7 +23,7 @@ interface VoiceFiSettings {
 const DEFAULT_SETTINGS: VoiceFiSettings = {
 	vifiPath: 'vifi',
 	audioCues: true,
-	companionPort: 8765
+	companionPort: 5141
 }
 
 export default class VoiceFiPlugin extends Plugin {
@@ -442,10 +442,10 @@ class VoiceFiSettingTab extends PluginSettingTab {
 			.setName('Companion Port')
 			.setDesc('Port for the local VoiceFi Companion server.')
 			.addText(text => text
-				.setPlaceholder('8765')
+				.setPlaceholder('5141')
 				.setValue(this.plugin.settings.companionPort.toString())
 				.onChange(async (value) => {
-					this.plugin.settings.companionPort = parseInt(value) || 8765;
+					this.plugin.settings.companionPort = parseInt(value) || 5141;
 					await this.plugin.saveSettings();
 				}));
 
