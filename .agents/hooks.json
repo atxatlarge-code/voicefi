@@ -1,12 +1,1 @@
-{
-  "voicefi-voice-layer": {
-    "enabled": true,
-    "Stop": [
-      {
-        "type": "command",
-        "command": "vifi hook",
-        "timeout": 60
-      }
-    ]
-  }
-}
+{}

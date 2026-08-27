@@ -108,15 +108,44 @@ class CompanionServerTestCase(AioHTTPTestCase):
         assert data_switch.get("active_id") == "test-conv-123"
 
         # 2. Send prompt with mocked agent message dispatcher
+        from voicefi.integrations.injector import DispatchResult
+        mock_res = DispatchResult(success=True, delivery_type="ipc", target_conv_id="test-conv-123", engine="antigravity")
         with patch("voicefi.audio.echo_canceller.is_acoustic_echo", return_value=False), \
-             patch("voicefi.companion.server.send_message_to_agent", return_value=True) as mock_send:
+             patch("voicefi.companion.server.send_message_to_agent", return_value=mock_res) as mock_send:
             resp_send = await self.client.post("/api/send", json={"conv_id": "test-conv-123", "text": "Run unit tests"})
             assert resp_send.status == 200
             data_send = await resp_send.json()
             assert data_send.get("success") is True
-            mock_send.assert_called_once_with(conv_id="test-conv-123", text="Run unit tests", sender_name=None, title=None, target_engine=None)
+            assert data_send.get("delivered_ipc") is True
+            assert data_send.get("pasted_to_foreground") is False
+            mock_send.assert_called_once_with(
+                conv_id="test-conv-123",
+                text="Run unit tests",
+                sender_name=None,
+                title=None,
+                target_engine=None,
+                from_conv_id=None,
+                from_engine=None,
+                include_envelope=False,
+                allow_foreground_fallback=False,
+            )
+
+    async def test_api_send_failure_response(self):
+        """Test POST /api/send returns 500 and delivered_ipc=False when IPC fails."""
+        from voicefi.integrations.injector import DispatchResult
+        fail_res = DispatchResult(success=False, delivery_type="none", error="agentapi unavailable: connection refused")
+        with patch("voicefi.audio.echo_canceller.is_acoustic_echo", return_value=False), \
+             patch("voicefi.companion.server.send_message_to_agent", return_value=fail_res):
+            resp = await self.client.post("/api/send", json={"conv_id": "test-conv-123", "text": "Run unit tests"})
+            assert resp.status == 500
+            data = await resp.json()
+            assert data.get("success") is False
+            assert data.get("delivered_ipc") is False
+            assert data.get("pasted_to_foreground") is False
+            assert "unavailable" in data.get("error", "")
 
     async def test_api_artifact_review(self):
+
         """Test POST /api/conversation/{conv_id}/artifact_review with structured review comments."""
         with patch("voicefi.companion.server.send_message_to_antigravity", return_value=True) as mock_send:
             payload = {

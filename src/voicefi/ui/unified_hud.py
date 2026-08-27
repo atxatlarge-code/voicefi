@@ -1103,17 +1103,50 @@ class UnifiedDynamicIslandHUD:
             border_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.65, 0.45, 0.98, 0.75),
         )
 
-    def set_working(self, agent_name: str = "Antigravity", tool_action: str = "Running tool..."):
+    def set_working(
+        self,
+        agent_name: str = "Antigravity",
+        tool_action: str = "Running tool...",
+        tag_text: Optional[str] = None,
+    ):
         """Set to Working / Tool Execution State with rich tool card (fixed 480x58)."""
         display_tool = tool_action or "Running tool..."
         app_icon = self._resolve_app_icon(agent_name)
+
+        # Derive tag_text if not explicitly provided
+        resolved_tag = tag_text
+        if not resolved_tag:
+            dt_lower = display_tool.lower()
+            if dt_lower.startswith(("grep:", "searching:")):
+                resolved_tag = "Searching Code"
+            elif dt_lower.startswith("finding:"):
+                resolved_tag = "Finding Files"
+            elif dt_lower.startswith(("viewing ", "reading ")):
+                resolved_tag = "Reading File"
+            elif dt_lower.startswith(("editing ", "writing ", "patching ")):
+                resolved_tag = "Editing File"
+            elif dt_lower.startswith("listing:"):
+                resolved_tag = "Browsing Dir"
+            elif dt_lower.startswith(("search:", "fetching:")):
+                resolved_tag = "Web Search"
+            elif dt_lower.startswith("subagent:"):
+                resolved_tag = "Subagent"
+            elif dt_lower.startswith("mcp:"):
+                resolved_tag = "MCP Tool"
+            elif dt_lower.startswith(("task:", "schedule:")):
+                resolved_tag = "Background Task"
+            elif any(k in dt_lower for k in ("passed", "failed", "tests", "pytest", "cargo", "npm", "build")):
+                resolved_tag = "Running Command"
+            else:
+                resolved_tag = "Running Tool"
+
         self._apply_rich_state(
             state="working",
             avatar_emoji="",
             avatar_bg=NSColor.clearColor(),
             avatar_image=app_icon,
             title=agent_name.capitalize(),
-            tag_text="Running Tool",
+            tag_text=resolved_tag,
             tag_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.5, 0.8, 1.0, 0.95),
             body_text=display_tool,
             border_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.3, 0.6, 1.0, 0.8),

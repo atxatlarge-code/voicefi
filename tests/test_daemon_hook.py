@@ -60,11 +60,12 @@ class TestCompanionHookEndpoint(AioHTTPTestCase):
 
 
 def test_cmd_hook_fast_forward_to_daemon(monkeypatch, capsys):
-    """Test cmd_hook immediately returns allow when daemon handles the hook."""
+    """Test cmd_hook immediately returns allow when daemon/server handles the hook."""
     args = argparse.Namespace(config=None, agent="antigravity")
 
-    # Mock forward_hook_to_daemon returning handled
+    # Mock forward_hook_to_server returning handled
     mock_forward = MagicMock(return_value={"success": True, "status": "handled"})
+    monkeypatch.setattr("voicefi.integrations.server_client.forward_hook_to_server", mock_forward)
     monkeypatch.setattr("voicefi.integrations.daemon_client.forward_hook_to_daemon", mock_forward)
     monkeypatch.setattr("sys.stdin.isatty", lambda: True)
 
@@ -80,11 +81,12 @@ def test_cmd_hook_fast_forward_to_daemon(monkeypatch, capsys):
 
 
 def test_cmd_hook_offline_standalone_fallback(monkeypatch, capsys):
-    """Test cmd_hook gracefully falls back to in-process execution when daemon is offline."""
+    """Test cmd_hook gracefully falls back to in-process execution when server is offline."""
     args = argparse.Namespace(config=None, agent="antigravity")
 
-    # Mock forward_hook_to_daemon returning None (daemon offline)
+    # Mock forward_hook_to_server returning None (server offline)
     mock_forward = MagicMock(return_value=None)
+    monkeypatch.setattr("voicefi.integrations.server_client.forward_hook_to_server", mock_forward)
     monkeypatch.setattr("voicefi.integrations.daemon_client.forward_hook_to_daemon", mock_forward)
     monkeypatch.setattr("sys.stdin.isatty", lambda: True)
 

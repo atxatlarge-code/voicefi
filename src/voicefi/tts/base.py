@@ -34,7 +34,7 @@ def normalize_text_for_dedup(text: str) -> str:
     return re.sub(r"[^a-z0-9]", "", text.lower()).strip()
 
 
-def is_duplicate_speech(text: str, window_seconds: float = 6.0) -> bool:
+def is_duplicate_speech(text: str, window_seconds: float = 60.0) -> bool:
     """
     Check if the exact text or near-identical text was spoken by any VoiceFi process
     within the last `window_seconds`.
@@ -87,11 +87,11 @@ def record_recent_speech(text: str) -> None:
                     entries = []
             except Exception:
                 entries = []
-        # Keep only entries within last 30s
-        valid_entries = [e for e in entries if (now - float(e.get("timestamp", 0))) < 30.0]
+        # Keep only entries within last 120s
+        valid_entries = [e for e in entries if (now - float(e.get("timestamp", 0))) < 120.0]
         valid_entries.append({"norm": norm, "timestamp": now})
-        if len(valid_entries) > 20:
-            valid_entries = valid_entries[-20:]
+        if len(valid_entries) > 50:
+            valid_entries = valid_entries[-50:]
         RECENT_SPEECH_FILE.write_text(json.dumps(valid_entries))
     except Exception:
         pass
@@ -105,6 +105,7 @@ def set_cross_process_hud_state(
     user_name: Optional[str] = None,
     detail: Optional[str] = None,
     tool_action: Optional[str] = None,
+    tag_text: Optional[str] = None,
     live_stream: bool = False,
 ) -> None:
     """Set cross-process HUD lifecycle state for seamless multi-process dynamic island presentation."""
@@ -123,6 +124,7 @@ def set_cross_process_hud_state(
             "user_name": user_name or "Jake",
             "detail": detail or "",
             "tool_action": tool_action or "",
+            "tag_text": tag_text or "",
             "live_stream": live_stream,
         }
         HUD_STATE_STATUS_FILE.write_text(json.dumps(payload))
@@ -337,6 +339,45 @@ _LOCK_DEPTH = 0
 
 
 @contextmanager
+def escape_to_stop_speech():
+    """
+    Spawns a lightweight global keyboard listener while active.
+    If the user presses Escape (Key.esc or vk=53), immediately triggers stop_all_speech().
+    """
+    if os.environ.get("PYTEST_CURRENT_TEST"):
+        yield
+        return
+
+    listener = None
+    try:
+        from pynput import keyboard
+        from pynput.keyboard import Key
+
+        def _on_press(key):
+            try:
+                vk = getattr(key, "vk", None)
+                if key == Key.esc or vk == 53:
+                    stop_all_speech()
+            except Exception:
+                pass
+
+        listener = keyboard.Listener(on_press=_on_press)
+        listener.daemon = True
+        listener.start()
+    except Exception:
+        pass
+
+    try:
+        yield
+    finally:
+        if listener is not None:
+            try:
+                listener.stop()
+            except Exception:
+                pass
+
+
+@contextmanager
 def speech_turn_lock(
     text: Optional[str] = None,
     agent_name: Optional[str] = None,
@@ -353,7 +394,8 @@ def speech_turn_lock(
         if _LOCK_DEPTH > 0:
             _LOCK_DEPTH += 1
             try:
-                yield
+                with escape_to_stop_speech():
+                    yield
             finally:
                 _LOCK_DEPTH -= 1
             return
@@ -383,7 +425,8 @@ def speech_turn_lock(
 
             # Brief pause for natural conversational handoff between agents
             time.sleep(0.15)
-            yield
+            with escape_to_stop_speech():
+                yield
         finally:
             # Acoustic decay margin: allow room reverb / speaker decay to dissipate
             time.sleep(0.25)

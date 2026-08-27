@@ -11,18 +11,30 @@ from typing import Optional
 import requests
 from voicefi.tts.base import BaseTTS, speech_turn_lock, DuplicateSpeechSuppressed
 from voicefi.audio.meeting_detection import is_user_on_call
+from voicefi.tts.normalizer import normalize_tts_text
 
 
 class ElevenLabsTTS(BaseTTS):
-    """TTS engine using ElevenLabs REST API."""
+    """TTS engine using ElevenLabs Flash v2.5 & Turbo v2.5 low-latency API."""
 
-    def __init__(self, api_key: str, voice_id: str = "21m00Tcm4TlvDq8ikWAM"):
+    def __init__(
+        self,
+        api_key: str,
+        voice_id: str = "21m00Tcm4TlvDq8ikWAM",
+        model_id: str = "eleven_flash_v2_5",
+        stability: float = 0.5,
+        similarity_boost: float = 0.8,
+    ):
+        super().__init__()
         self.api_key = api_key
         self.voice_id = voice_id
+        self.model_id = model_id or "eleven_flash_v2_5"
+        self.stability = stability
+        self.similarity_boost = similarity_boost
         self._current_process: Optional[subprocess.Popen] = None
 
     def speak(self, text: str, block: bool = True) -> None:
-        """Synthesize and play speech via ElevenLabs API."""
+        """Synthesize and play speech via ElevenLabs Flash streaming API."""
         if not text or not text.strip():
             return
         if not self.api_key:
@@ -33,23 +45,30 @@ class ElevenLabsTTS(BaseTTS):
             print("[ElevenLabsTTS] User is on a call. Skipping speech synthesis.")
             return
 
+        clean_text = normalize_tts_text(text)
+
         def _run():
             try:
                 with speech_turn_lock(
-                    text=text,
+                    text=clean_text,
                     agent_name=getattr(self, "agent_name", "VoiceFi"),
                     persona_name=getattr(self, "persona_name", getattr(self, "voice_id", "ElevenLabs")),
                 ):
-                    url = f"https://api.elevenlabs.io/v1/text-to-speech/{self.voice_id}"
+                    url = f"https://api.elevenlabs.io/v1/text-to-speech/{self.voice_id}/stream?optimize_streaming_latency=3"
                     headers = {
                         "xi-api-key": self.api_key,
                         "Content-Type": "application/json",
                         "Accept": "audio/mpeg",
                     }
                     payload = {
-                        "text": text,
-                        "model_id": "eleven_monolingual_v1",
-                        "voice_settings": {"stability": 0.5, "similarity_boost": 0.75},
+                        "text": clean_text,
+                        "model_id": self.model_id,
+                        "voice_settings": {
+                            "stability": self.stability,
+                            "similarity_boost": self.similarity_boost,
+                            "style": 0.0,
+                            "use_speaker_boost": True,
+                        },
                     }
 
                     temp_mp3 = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
@@ -97,16 +116,22 @@ class ElevenLabsTTS(BaseTTS):
         """Synthesize speech directly to an audio file without playing."""
         if not text or not text.strip() or not self.api_key:
             return False
-        url = f"https://api.elevenlabs.io/v1/text-to-speech/{self.voice_id}"
+        clean_text = normalize_tts_text(text)
+        url = f"https://api.elevenlabs.io/v1/text-to-speech/{self.voice_id}?optimize_streaming_latency=3"
         headers = {
             "xi-api-key": self.api_key,
             "Content-Type": "application/json",
             "Accept": "audio/mpeg",
         }
         payload = {
-            "text": text,
-            "model_id": "eleven_monolingual_v1",
-            "voice_settings": {"stability": 0.5, "similarity_boost": 0.75},
+            "text": clean_text,
+            "model_id": self.model_id,
+            "voice_settings": {
+                "stability": self.stability,
+                "similarity_boost": self.similarity_boost,
+                "style": 0.0,
+                "use_speaker_boost": True,
+            },
         }
         try:
             res = requests.post(url, json=payload, headers=headers, timeout=15)

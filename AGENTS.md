@@ -8,12 +8,13 @@ Universal Voice Layer for Knowledge Vaults, MCP, and Autonomous AI Coding Agents
 
 | Command | Purpose |
 | :--- | :--- |
+| `vifi status` / `vifi server status` | **Server & Port Status**: Shows running server, LaunchAgent state, Port 5141 listener, and PID details. |
+| `vifi stop` / `vifi server stop` | **Server Terminator**: Safely unloads LaunchAgent, terminates VoiceFi processes, and frees Port 5141. |
+| `vifi restart` / `vifi server restart` | **Server Reloader**: Gracefully restarts the background VoiceFi server and reloads configuration. |
 | `vifi clean` | **Cache & State Purge**: Cleans all `__pycache__`, stale locks, and temporary session files. |
-| `vifi clean --all` | **Complete Reset**: Stops background daemons, frees Port 5141, and cleans all caches and locks. |
-| `vifi clean --dev` | **Dev Reset & Link**: Cleans caches, stops daemons, and links hooks to local repository `.venv`. |
-| `vifi daemon status` | **Daemon & Port Status**: Shows running daemons, LaunchAgent state, Port 5141 listener, and PID details. |
-| `vifi daemon stop` / `vifi kill` | **Daemon Terminator**: Safely unloads LaunchAgent, terminates VoiceFi processes, and frees Port 5141. |
-| `vifi dev` | **Live Dev Mode**: Auto-takes over background daemons, cleans caches, and streams live console logs. |
+| `vifi clean --all` | **Complete Reset**: Stops background servers, frees Port 5141, and cleans all caches and locks. |
+| `vifi clean --dev` | **Dev Reset & Link**: Cleans caches, stops servers, and links hooks to local repository `.venv`. |
+| `vifi dev` | **Live Dev Mode**: Auto-takes over background servers, cleans caches, and streams live console logs. |
 | `vifi setup --dev` | **Link Dev Hooks & MCP**: Points Antigravity and Claude Code hooks & MCP servers directly to local `.venv`. |
 | `vifi mcp` | **Model Context Protocol Server**: Starts native Stdio JSON-RPC 2.0 MCP server exposing voice tools to AI agents. |
 | `vifi update` | Self-updater: pulls latest GitHub release, upgrades `~/.voicefi/venv`, and reloads hooks. |
@@ -30,8 +31,8 @@ Universal Voice Layer for Knowledge Vaults, MCP, and Autonomous AI Coding Agents
 | `vifi panel` | Launch interactive web control panel (`http://localhost:5141`). |
 | `vifi hud debug` | Interactive terminal Dynamic Island HUD Debug Studio. |
 | `python scripts/sync_hud_assets.py` | **HUD & Web Asset Synchronizer**: Captures AppKit HUD screenshots and syncs shared JS/CSS/SVGs to `voicefi.org`. |
-| `vifi autostart` | Enable background LaunchAgent daemon (`vifi tray`) for persistent Dynamic Island HUD & menu bar companion. |
-| `vifi stop-autostart` | Unload and remove background LaunchAgent daemon. |
+| `vifi autostart` / `vifi start` | Enable background LaunchAgent server (`vifi tray`) for persistent Dynamic Island HUD & menu bar companion. |
+| `vifi stop-autostart` | Unload and remove background LaunchAgent server. |
 
 ---
 
@@ -118,6 +119,36 @@ To debug how VoiceFi handles simultaneous speech output and microphone capture:
 
 ---
 
+### 5. Hands-Free Feedback Loop (Conversational Voice Loop)
+* **How It Works:** Autonomous turn handoff between developer and AI agents (Antigravity & Claude Code).
+  - **Spoken Persona Feedback:** Agent turn completes -> VoiceFi speaks a concise soundbite in the agent's persona.
+  - **Microphone Handoff:** AudioRecorder opens mic, streams live waveforms (`on_listening_tick`) and dictation previews (`on_live_transcript`) to the Dynamic Island HUD.
+  - **Smart Injection Dispatch:**
+    - **Antigravity:** Native `agentapi` background IPC (0 screen flicker, 0 clipboard hijacking).
+    - **Claude Code & Desktop:** `inject_text_to_claude()` automatically handles terminal CLI focus and Claude Desktop (`Claude.app`) prompt textarea focus clicks before pasting and submitting.
+
+---
+
+### 6. Cross-Agent Dispatch & Return Routing (Antigravity ↔ Claude Code)
+When Antigravity agents collaborate with Claude Code across projects:
+* **Sending Task from Antigravity to Claude:**
+  ```bash
+  vifi send "Refactor the authentication middleware and test all endpoints." --to claude
+  # or via REST API:
+  curl -s -X POST http://localhost:5141/api/send -H "Content-Type: application/json" -d '{"text": "Refactor auth middleware", "engine": "claude"}'
+  ```
+  Automatically wraps the prompt in a provenance envelope containing the originating Antigravity conversation ID and executable return instructions.
+
+* **Sending Findings from Claude Code back to Antigravity:**
+  ```bash
+  vifi send "Refactoring complete! All 14 tests passing." --to antigravity --reply
+  # or via REST API:
+  curl -s -X POST http://localhost:5141/api/send -H "Content-Type: application/json" -d '{"text": "Refactoring complete!", "engine": "antigravity", "conv_id": "reply", "sender_name": "Claude"}'
+  ```
+  Automatically resolves the originating Antigravity conversation ID, dispatches via native `agentapi` IPC, and reactively wakes up the Antigravity agent without screen flicker.
+
+---
+
 ## 🏗️ Architecture & Conventions
 
 * **Source Code**: Located in `src/voicefi/`
@@ -125,6 +156,9 @@ To debug how VoiceFi handles simultaneous speech output and microphone capture:
 * **Hardware Sensing**: `src/voicefi/audio/device.py` (detects built-in speakers vs. AirPods / headphones)
 * **VAD & Audio Recorder**: `src/voicefi/audio/recorder.py` (`resolve_barge_in_mode()`)
 * **Self-Updater Engine**: `src/voicefi/updater.py` (24h cached GitHub check, `vifi update`)
-* **Agent Hooks**: `src/voicefi/integrations/antigravity.py` and `claude.py`
+* **Agent Hooks & Injector**: `src/voicefi/integrations/antigravity.py`, `claude.py`, and `injector.py`
 * **Floating Cocoa HUD**: `src/voicefi/ui/unified_hud.py`
 * **Telemetry & Feedback**: `src/voicefi/telemetry.py` & `src/voicefi/feedback.py`
+* **3D Voice Carousel (Web)**: `docs/3D_CAROUSEL_ARCHITECTURE.md` on `voicefi.org` (covers 3D cylinder orbit geometry, looking-down camera elevation, and responsive radii)
+
+

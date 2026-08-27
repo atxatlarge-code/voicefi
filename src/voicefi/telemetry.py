@@ -4,11 +4,14 @@ Strictly adheres to zero-PII privacy standards (sanitizes filepaths, strips prom
 Respects DO_NOT_TRACK=1, VOICEFI_TELEMETRY=false, and config.telemetry=false.
 """
 
+import hashlib
+import json
 import os
 import platform
 import re
 import sys
 import traceback
+import urllib.request
 import uuid
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -21,17 +24,25 @@ except ImportError:
 from voicefi.config import load_config
 
 _posthog_initialized = False
+_active_command: Optional[str] = None
 
 # Default public ingestion key for anonymous crash/feedback telemetry
 # Can be overridden via config.posthog_api_key or POSTHOG_API_KEY env var
 DEFAULT_POSTHOG_API_KEY = "phc_oFyLfqmnEeFMDehRQ4DzGrN9AGctauZiZhfufRtmW92e"
 
 
+def set_active_command(command: str):
+    """Set the active command context for crash diagnostics and error tracking."""
+    global _active_command
+    if command:
+        _active_command = str(command).strip()[:40]
+
+
 def is_telemetry_enabled() -> bool:
     """Check whether anonymous telemetry is enabled."""
     if os.getenv("DO_NOT_TRACK", "").lower() in ("1", "true", "yes"):
         return False
-    if os.getenv("VOICEFI_TELEMETRY", "").lower() in ("0", "false", "no"):
+    if os.getenv("VOICEFI_TELEMETRY", "").lower() in ("0", "false", "no", "off"):
         return False
 
     try:
@@ -41,13 +52,39 @@ def is_telemetry_enabled() -> bool:
         return True
 
 
-def get_machine_id() -> str:
-    """Get a stable anonymous identifier for the machine."""
+def get_telemetry_id() -> str:
+    """
+    Get a stable anonymous telemetry identifier (UUID4) persisted locally in ~/.voicefi/telemetry.json.
+    Zero PII — generated locally on installation / first run.
+    """
+    config_path = Path.home() / ".voicefi" / "telemetry.json"
     try:
-        # Use uuid.getnode() which is based on MAC address but falls back to random
-        return f"mach_{uuid.getnode()}"
+        if config_path.exists():
+            data = json.loads(config_path.read_text(encoding="utf-8"))
+            if isinstance(data, dict) and data.get("id"):
+                return str(data["id"])
     except Exception:
-        return f"mach_{uuid.uuid4().hex[:12]}"
+        pass
+
+    try:
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        new_id = str(uuid.uuid4())
+        config_path.write_text(json.dumps({"id": new_id}), encoding="utf-8")
+        return new_id
+    except Exception:
+        return str(uuid.uuid4())
+
+
+def get_machine_id() -> str:
+    """Stable anonymous identifier for the machine (delegates to get_telemetry_id)."""
+    return get_telemetry_id()
+
+
+def compute_traceback_hash(traceback_str: str) -> str:
+    """Compute a deterministic SHA-256 hash of a sanitized traceback for error grouping."""
+    if not traceback_str:
+        return "empty"
+    return hashlib.sha256(traceback_str.encode("utf-8")).hexdigest()[:16]
 
 
 def sanitize_telemetry_data(data: Any) -> Any:
@@ -79,7 +116,7 @@ def sanitize_telemetry_data(data: Any) -> Any:
             k_lower = str(k).lower()
             if any(k_lower.endswith(s) for s in ("_key", "_secret", "_token", "_password", "auth")):
                 continue
-            if k_lower in ("prompt", "user_prompt", "raw_text", "raw_speech", "transcript_content", "audio_data", "audio_bytes"):
+            if k_lower in ("prompt", "user_prompt", "raw_text", "raw_speech", "transcript_content", "audio_data", "audio_bytes", "text"):
                 continue
             sanitized[k] = sanitize_telemetry_data(v)
         return sanitized
@@ -116,7 +153,7 @@ def init_telemetry():
         posthog.sync_mode = True
         _posthog_initialized = True
 
-        user_id = get_machine_id()
+        user_id = get_telemetry_id()
 
         # Capture unhandled exceptions
         original_excepthook = sys.excepthook
@@ -126,13 +163,17 @@ def init_telemetry():
                 try:
                     error_msg = "".join(traceback.format_exception(exc_type, exc_value, exc_traceback))
                     sanitized_msg = sanitize_telemetry_data(error_msg)
+                    tb_hash = compute_traceback_hash(sanitized_msg)
                     posthog.capture(
                         "app_crash",
                         distinct_id=user_id,
                         properties={
+                            "command": _active_command or "unknown",
                             "error_type": exc_type.__name__,
                             "error_message": sanitize_telemetry_data(str(exc_value)),
+                            "traceback_hash": tb_hash,
                             "traceback": sanitized_msg,
+                            "$is_server": True,
                         },
                     )
                     posthog.flush()
@@ -153,12 +194,14 @@ def capture_event(event_name: str, properties: Optional[Dict[str, Any]] = None):
     if not _posthog_initialized:
         init_telemetry()
 
-    user_id = get_machine_id()
+    user_id = get_telemetry_id()
     sanitized_props = sanitize_telemetry_data(properties or {})
     if "os" not in sanitized_props:
         sanitized_props["os"] = platform.system()
     if "arch" not in sanitized_props:
         sanitized_props["arch"] = platform.machine()
+    if "$is_server" not in sanitized_props:
+        sanitized_props["$is_server"] = True
 
     if _posthog_initialized and posthog:
         try:
@@ -170,8 +213,6 @@ def capture_event(event_name: str, properties: Optional[Dict[str, Any]] = None):
 
     # Direct HTTPS fallback if PostHog Python package is not loaded
     try:
-        import json
-        import urllib.request
         api_key = os.getenv("POSTHOG_API_KEY") or os.getenv("VOICEFI_POSTHOG_KEY") or DEFAULT_POSTHOG_API_KEY
         payload = json.dumps({
             "api_key": api_key,
@@ -188,4 +229,44 @@ def capture_event(event_name: str, properties: Optional[Dict[str, Any]] = None):
         urllib.request.urlopen(req, timeout=3.0)
     except Exception:
         pass
+
+
+def capture_voice_interaction(
+    trigger: str,
+    duration_ms: int,
+    success: bool = True,
+    agent: Optional[str] = None,
+    voice: Optional[str] = None,
+    provider: Optional[str] = None,
+    chars_count: Optional[int] = None,
+    is_barge_in: Optional[bool] = None,
+    error_type: Optional[str] = None,
+):
+    """
+    Capture a voice_interaction event per utterance (Antigravity/Claude hook, speak CLI, IPC, MCP).
+    Strictly zero-PII: strips all text content and records duration, character length, agent, and voice metadata.
+    """
+    props: Dict[str, Any] = {
+        "trigger": str(trigger)[:20],
+        "duration_ms": max(0, int(duration_ms)),
+        "success": bool(success),
+        "$is_server": True,
+    }
+    if agent:
+        props["agent"] = str(agent).lower().strip()[:32]
+    if voice:
+        clean_v = str(voice).strip()
+        if "/" not in clean_v and "\\" not in clean_v:
+            props["voice"] = clean_v[:40]
+    if provider:
+        props["provider"] = str(provider).strip().lower()[:30]
+    if chars_count is not None:
+        props["chars_count"] = max(0, int(chars_count))
+    if is_barge_in is not None:
+        props["is_barge_in"] = bool(is_barge_in)
+    if error_type:
+        props["error_type"] = str(error_type)[:60]
+
+    capture_event("voice_interaction", props)
+
 

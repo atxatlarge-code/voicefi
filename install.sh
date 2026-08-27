@@ -42,9 +42,17 @@ say_msg "${GREEN}✓${NC} Detected macOS ($ARCH)"
 if [ -z "$DO_NOT_TRACK" ] && [ "$VOICEFI_TELEMETRY" != "0" ] && [ "$VOICEFI_TELEMETRY" != "false" ]; then
     (
         PH_KEY="phc_oFyLfqmnEeFMDehRQ4DzGrN9AGctauZiZhfufRtmW92e"
-        M_ID="$(python3 -c "import uuid; print(f'mach_{uuid.getnode()}')" 2>/dev/null || echo "mach_$(ioreg -rd1 -c IOPlatformExpertDevice | awk '/IOPlatformUUID/ { split($0, a, "\""); print a[4] }' 2>/dev/null || uuidgen 2>/dev/null || echo 'anon')")"
+        TELEMETRY_FILE="$HOME/.voicefi/telemetry.json"
+        mkdir -p "$HOME/.voicefi"
+        M_ID=""
+        if [ -f "$TELEMETRY_FILE" ]; then
+            M_ID="$(python3 -c "import json; print(json.loads(open('$TELEMETRY_FILE').read()).get('id', ''))" 2>/dev/null || grep -o '"id": *"[^"]*"' "$TELEMETRY_FILE" | cut -d'"' -f4 2>/dev/null)"
+        fi
+        if [ -z "$M_ID" ]; then
+            M_ID="$(python3 -c "import uuid, json; u=str(uuid.uuid4()); open('$TELEMETRY_FILE', 'w').write(json.dumps({'id': u})); print(u)" 2>/dev/null || uuidgen 2>/dev/null || echo 'anon')"
+        fi
         S_VER="$(sw_vers -productVersion 2>/dev/null || echo '')"
-        BODY="{\"api_key\":\"$PH_KEY\",\"event\":\"install_started\",\"distinct_id\":\"$M_ID\",\"properties\":{\"os\":\"Darwin\",\"arch\":\"$ARCH\",\"os_version\":\"$S_VER\",\"installer\":\"vifi.sh\"}}"
+        BODY="{\"api_key\":\"$PH_KEY\",\"event\":\"install_started\",\"distinct_id\":\"$M_ID\",\"properties\":{\"os\":\"Darwin\",\"arch\":\"$ARCH\",\"os_version\":\"$S_VER\",\"installer\":\"vifi.sh\",\"\$is_server\":true}}"
         curl -s -m 2 -X POST "https://us.i.posthog.com/capture/" -H "Content-Type: application/json" -d "$BODY" >/dev/null 2>&1 || true
     ) &
 fi
@@ -147,7 +155,7 @@ ln -sf "$BIN_DIR/vifi" "$BIN_DIR/vg"
 say_msg "${CYAN}⚡ Configuring Agent lifecycle hooks (Antigravity & Claude Code)...${NC}"
 "$INSTALL_DIR/venv/bin/voicefi" setup >/dev/null 2>&1 || true
 
-# 6. Enable Persistent Menu Bar Companion & Dynamic Island HUD (autostart daemon)
+# 6. Enable Persistent Menu Bar Companion & Dynamic Island HUD (autostart server)
 say_msg "${CYAN}⚡ Enabling VoiceFi Menu Bar Companion & Persistent Dynamic Island HUD (autostart)...${NC}"
 "$INSTALL_DIR/venv/bin/voicefi" autostart >/dev/null 2>&1 || true
 

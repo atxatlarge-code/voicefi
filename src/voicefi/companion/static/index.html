@@ -2572,8 +2572,17 @@
       }
     }
 
+    let lastRenderedSignature = "";
+
     function renderConversationDetails(data) {
       if (!data) return;
+
+      // Compute state signature to avoid heavy DOM rebuilding & Markdown recompiling on unchanged polls
+      const turns = data.turns || [];
+      const lastTurn = turns.length > 0 ? turns[turns.length - 1] : null;
+      const lastStepsCount = lastTurn && lastTurn.agent_steps ? lastTurn.agent_steps.length : 0;
+      const lastRespLen = lastTurn && lastTurn.agent_response ? lastTurn.agent_response.length : 0;
+      const signature = `${data.id}_${data.status}_${turns.length}_${lastTurn ? `${lastTurn.status}_${lastStepsCount}_${lastRespLen}` : 'none'}_${data.artifacts?.length || 0}`;
 
       // Update Session Bar & Running Status
       chatSessionTitle.innerText = data.title || `Conversation ${data.id.slice(0, 8)}`;
@@ -2674,6 +2683,12 @@
         if (planReviewCard) planReviewCard.classList.add("hidden");
         if (voicePlanReviewCard) voicePlanReviewCard.classList.add("hidden");
       }
+
+      // Skip heavy DOM tree replacement if turns content hasn't changed
+      if (signature === lastRenderedSignature && turnsContainer.children.length > 0) {
+        return;
+      }
+      lastRenderedSignature = signature;
 
       // Render Turns
       if (!data.turns || data.turns.length === 0) {
@@ -4373,13 +4388,14 @@
       // Mount Antigravity Zero-G Particle Field
       try {
         const canvas = document.getElementById('bgAntigravityCanvas');
+        const isMobileScreen = window.innerWidth < 768 || ('ontouchstart' in window) || (navigator.maxTouchPoints > 1);
         if (canvas && typeof AntigravityField !== 'undefined') {
           window.bgField = new AntigravityField(canvas, {
             theme: currentAgTheme,
-            particleCount: 60,
-            dustCount: 75,
-            connectionDistance: 120,
-            repulsionRadius: 140,
+            particleCount: isMobileScreen ? 22 : 60,
+            dustCount: isMobileScreen ? 25 : 75,
+            connectionDistance: isMobileScreen ? 85 : 120,
+            repulsionRadius: isMobileScreen ? 100 : 140,
             repulsionStrength: 1.4,
             buoyancy: -0.012,
             glowEnabled: true,

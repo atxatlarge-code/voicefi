@@ -7,6 +7,7 @@ import sys
 import os
 import json
 import logging
+import time
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 
@@ -231,7 +232,30 @@ class VoiceFiMCPServer:
         cfg = load_config()
         tts = get_tts_engine(cfg, agent_name=agent_name, voice_override=persona)
         
-        tts.stream_speak(text, block=block)
+        start_t = time.time()
+        err = None
+        try:
+            tts.stream_speak(text, block=block)
+        except Exception as ex:
+            err = type(ex).__name__
+            raise
+        finally:
+            dur_ms = int((time.time() - start_t) * 1000)
+            try:
+                from voicefi.telemetry import capture_voice_interaction
+                capture_voice_interaction(
+                    trigger="mcp",
+                    duration_ms=dur_ms,
+                    success=(err is None),
+                    agent=agent_name,
+                    voice=getattr(tts, "voice", None),
+                    provider=getattr(tts, "provider", None),
+                    chars_count=len(text) if text else 0,
+                    error_type=err,
+                )
+            except Exception:
+                pass
+
         return {
             "content": [
                 {
@@ -300,17 +324,18 @@ class VoiceFiMCPServer:
     def _tool_status(self, args: Dict[str, Any]) -> Dict[str, Any]:
         from voicefi.config import load_config
         from voicefi.audio.device import get_default_audio_devices
-        from voicefi.daemon import get_port_listener, find_running_voicefi_processes
+        from voicefi.server import get_port_listener, find_running_voicefi_processes
 
         cfg = load_config()
         in_dev, out_dev = get_default_audio_devices()
         port_num = getattr(cfg, "companion", None) and cfg.companion.port or 5141
         port_info = get_port_listener(port_num) or get_port_listener(8765)
         running_procs = find_running_voicefi_processes()
-        daemon_active = bool(port_info is not None or running_procs)
+        server_active = bool(port_info is not None or running_procs)
 
         status_info = {
-            "daemon_running": daemon_active,
+            "server_running": server_active,
+            "daemon_running": server_active,
             "port": port_num,
             "port_listener": port_info.get("pid") if port_info else None,
             "input_device": in_dev.get("name") if in_dev else "Default Microphone",

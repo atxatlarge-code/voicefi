@@ -18,7 +18,16 @@ class SpokenIntentCategory(str, Enum):
     CONVERSATIONAL_FILLER = "CONVERSATIONAL_FILLER"
     PENDING_ANSWER = "PENDING_ANSWER"
     ACTIONABLE_COMMAND = "ACTIONABLE_COMMAND"
+    ROUTED_COMMAND = "ROUTED_COMMAND"
     IGNORED = "IGNORED"
+
+
+class SpokenTargetChannel(str, Enum):
+    ANTIGRAVITY = "antigravity"
+    CLAUDE = "claude"
+    SLACK = "slack"
+    LINEAR = "linear"
+    GENERAL = "general"
 
 
 @dataclass
@@ -27,6 +36,9 @@ class ActiveListeningResult:
     raw_text: str
     normalized_text: str
     is_actionable: bool
+    target_channel: SpokenTargetChannel = SpokenTargetChannel.ANTIGRAVITY
+    routed_prompt: Optional[str] = None
+    target_metadata: Optional[Dict[str, Any]] = None
     quick_spoken_reply: Optional[str] = None
     selected_option: Optional[str] = None
     confidence: float = 1.0
@@ -126,6 +138,59 @@ class ActiveListeningEngine:
         return None
 
     @classmethod
+    def resolve_target_channel(cls, text: str) -> tuple[SpokenTargetChannel, str, Dict[str, Any]]:
+        """
+        Detect if spoken command is explicitly directed to a specific tool or agent channel
+        (e.g., Claude Code, Slack, Linear, or default Antigravity).
+        """
+        if not text or not text.strip():
+            return SpokenTargetChannel.ANTIGRAVITY, text, {}
+
+        clean = text.strip()
+
+        # 1. Claude Code Direct Routing
+        claude_patterns = [
+            r"^(?:(?:ask|tell|have|send\s+to|switch\s+to)\s+)?claude(?:\s+code)?(?:\s+to|\s*:\s*|\s*,\s*|\s+)\s*(.+)$",
+            r"^claude,\s*(.+)$",
+        ]
+        for pat in claude_patterns:
+            m = re.match(pat, clean, re.IGNORECASE)
+            if m:
+                routed = m.group(1).strip()
+                return SpokenTargetChannel.CLAUDE, routed, {"original_agent": "claude"}
+
+        # 2. Slack Channel Routing
+        slack_explicit_ch = r"^(?:(?:post|send|message|share|drop)\s+(?:in|into|to|on)\s+slack\s+(?:channel\s+)?#?([a-zA-Z0-9_-]+)(?:\s+that|\s+saying|\s*:\s*|\s*,\s*|\s+)\s*(.+))$"
+        slack_general = r"^(?:(?:post|send|message|share|drop)\s+(?:in|into|to|on)\s+slack(?:\s+that|\s+saying|\s*:\s*|\s*,\s*|\s+)\s*(.+))$"
+
+        m_slack_ch = re.match(slack_explicit_ch, clean, re.IGNORECASE)
+        if m_slack_ch:
+            ch_cand = m_slack_ch.group(1).lower().lstrip("#")
+            if ch_cand not in ("that", "this", "saying", "a", "an", "the"):
+                msg = m_slack_ch.group(2).strip()
+                return SpokenTargetChannel.SLACK, msg, {"channel": ch_cand}
+
+        m_slack_gen = re.match(slack_general, clean, re.IGNORECASE)
+        if m_slack_gen:
+            msg = m_slack_gen.group(1).strip()
+            return SpokenTargetChannel.SLACK, msg, {"channel": "general"}
+
+        # 3. Linear Ticket Routing
+        linear_pattern = r"^(?:(?:create|open|log|file|make)\s+(?:a\s+)?(?:new\s+)?linear\s+(?:ticket|issue|bug|task)(?:\s+for|\s+to|\s+titled|\s*:\s*|\s+)?\s*(.+))$"
+        m_linear = re.match(linear_pattern, clean, re.IGNORECASE)
+        if m_linear:
+            title = m_linear.group(1).strip()
+            return SpokenTargetChannel.LINEAR, title, {"title": title}
+
+        # 4. Antigravity Direct Routing
+        ag_pattern = r"^(?:(?:ask|tell|have)\s+)?antigravity(?:\s+to|\s*:\s*|\s*,\s*|\s+)\s*(.+)$"
+        m_ag = re.match(ag_pattern, clean, re.IGNORECASE)
+        if m_ag:
+            return SpokenTargetChannel.ANTIGRAVITY, m_ag.group(1).strip(), {}
+
+        return SpokenTargetChannel.ANTIGRAVITY, clean, {}
+
+    @classmethod
     def evaluate(
         cls,
         raw_text: str,
@@ -190,10 +255,16 @@ class ActiveListeningEngine:
                     quick_spoken_reply=None if is_ambient else "Got it.",
                 )
 
-        # 5. Full Actionable Developer Command
+        # 5. Check for Routed Intent vs Standard Actionable Command
+        target_ch, routed_text, metadata = cls.resolve_target_channel(normalized_text)
+        is_routed = (target_ch != SpokenTargetChannel.ANTIGRAVITY)
+
         return ActiveListeningResult(
-            category=SpokenIntentCategory.ACTIONABLE_COMMAND,
+            category=SpokenIntentCategory.ROUTED_COMMAND if is_routed else SpokenIntentCategory.ACTIONABLE_COMMAND,
             raw_text=raw_text,
             normalized_text=normalized_text,
             is_actionable=True,
+            target_channel=target_ch,
+            routed_prompt=routed_text,
+            target_metadata=metadata,
         )

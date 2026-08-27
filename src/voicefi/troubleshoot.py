@@ -261,10 +261,24 @@ class AudioTroubleshooter:
         """
         target_voice = voice_name_or_id or self.config.tts.voice
         persona = find_persona(target_voice)
-        resolved_voice = persona.id if persona else target_voice
-        resolved_provider = provider or (persona.provider if persona else self.config.tts.provider)
-        resolved_rate = rate or self.config.tts.rate
-        persona_name = persona.name if persona else target_voice
+        if not persona:
+            agent_prov, agent_voice, agent_rate = self.config.resolve_voice(target_voice)
+            if target_voice.lower() in self.config.agents or target_voice.lower() in self.config.subagents or target_voice.lower() in ("obsidian", "aria", "antigravity", "claude", "cursor", "openai"):
+                persona = find_persona(agent_voice)
+                resolved_voice = persona.id if persona else agent_voice
+                resolved_provider = provider or (persona.provider if persona else agent_prov)
+                resolved_rate = rate or (agent_rate or self.config.tts.rate)
+                persona_name = f"{target_voice} ({persona.name if persona else agent_voice})"
+            else:
+                resolved_voice = target_voice
+                resolved_provider = provider or self.config.tts.provider
+                resolved_rate = rate or self.config.tts.rate
+                persona_name = target_voice
+        else:
+            resolved_voice = persona.id
+            resolved_provider = provider or persona.provider
+            resolved_rate = rate or self.config.tts.rate
+            persona_name = persona.name
 
         if not text:
             text = "VoiceFi silent neural voice connection and speed test."
@@ -969,16 +983,16 @@ class AudioTroubleshooter:
                 }
             return {"success": False, "message": f"Microphone calibration failed: {res.error}"}
 
-        if fix in ("stop_daemons", "kill_daemons", "free_port", "daemon_stop"):
-            from voicefi.daemon import stop_all_voicefi_daemons
-            res = stop_all_voicefi_daemons()
+        if fix in ("stop_servers", "kill_servers", "free_port", "server_stop", "stop_daemons", "kill_daemons", "daemon_stop"):
+            from voicefi.server import stop_all_voicefi_servers
+            res = stop_all_voicefi_servers()
             return {
                 "success": True,
-                "message": f"Stopped active background daemons ({res.get('stopped_pids', [])}), unloaded LaunchAgent, and freed Port 5141.",
+                "message": f"Stopped active background servers ({res.get('stopped_pids', [])}), unloaded LaunchAgent, and freed Port 5141.",
             }
 
         if fix in ("clean", "purge_caches", "clean_caches", "reset_caches"):
-            from voicefi.daemon import clean_caches
+            from voicefi.server import clean_caches
             res = clean_caches(clean_pycache=True, clean_tmp_state=True, clean_update_cache=True)
             return {
                 "success": True,
@@ -986,8 +1000,8 @@ class AudioTroubleshooter:
             }
 
         if fix in ("link_dev", "setup_dev", "dev_mode"):
-            from voicefi.daemon import link_dev_environment, stop_all_voicefi_daemons, clean_caches
-            stop_all_voicefi_daemons()
+            from voicefi.server import link_dev_environment, stop_all_voicefi_servers, clean_caches
+            stop_all_voicefi_servers()
             clean_caches()
             l_res = link_dev_environment()
             return {

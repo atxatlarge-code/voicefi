@@ -41,6 +41,7 @@ from voicefi.integrations.injector import (
     inject_text_to_claude,
 )
 from voicefi.integrations.antigravity import clean_markdown_for_speech
+from voicefi.integrations.tool_formatter import format_tool_details
 from voicefi.integrations.watcher import get_recent_transcript_paths
 from voicefi.tts import get_tts_engine
 from voicefi.stt import get_stt_engine
@@ -630,10 +631,17 @@ class CompanionServer:
         try:
             data = await request.json()
             text = data.get("text", "").strip()
-            conv_id = data.get("conv_id")
+            conv_id = data.get("conv_id") or data.get("conversation_id")
+            reply_to = data.get("reply_to") or data.get("reply_to_conv_id")
+            if not conv_id and reply_to:
+                conv_id = reply_to
             title = data.get("title")
             sender_name = data.get("sender_name")
-            target_engine = data.get("engine")
+            target_engine = data.get("engine") or data.get("to_engine")
+            from_conv_id = data.get("from_conv_id")
+            from_engine = data.get("from_engine")
+            include_envelope = data.get("include_envelope", True) if (target_engine in ("claude", "claude_code")) else data.get("include_envelope", False)
+
             if not text:
                 return web.json_response({"error": "Empty text prompt"}, status=400)
 
@@ -643,22 +651,51 @@ class CompanionServer:
                 return web.json_response({"success": True, "suppressed_echo": True, "delivered": False})
 
             set_mobile_turn_origin(conv_id)
-            delivered = send_message_to_agent(
+            result = send_message_to_agent(
                 conv_id=conv_id,
                 text=text,
                 sender_name=sender_name,
                 title=title,
                 target_engine=target_engine,
+                from_conv_id=from_conv_id,
+                from_engine=from_engine,
+                include_envelope=include_envelope,
+                allow_foreground_fallback=False,  # Strict: never blind-paste for API sends
             )
+            is_success = bool(result)
+            delivery_type = getattr(result, "delivery_type", "ipc" if is_success else "none")
+            err_msg = getattr(result, "error", None)
+            target_cid = getattr(result, "target_conv_id", conv_id) or conv_id
+
             self.broadcast_event({
                 "type": "user_command_injected",
-                "conv_id": conv_id or "active",
+                "conv_id": conv_id or target_cid or "active",
                 "text": text,
-                "delivered": delivered,
+                "delivered": is_success,
             })
-            return web.json_response({"success": True, "delivered": delivered})
+            resp_data = {
+                "success": is_success,
+                "delivered": is_success,
+                "delivered_ipc": (delivery_type == "ipc"),
+                "pasted_to_foreground": (delivery_type == "foreground_paste"),
+                "target_engine": target_engine or getattr(result, "engine", "antigravity"),
+                "conv_id": target_cid,
+            }
+            if err_msg:
+                resp_data["error"] = err_msg
+
+            status_code = 200 if is_success else 500
+            return web.json_response(resp_data, status=status_code)
         except Exception as e:
-            return web.json_response({"error": str(e)}, status=500)
+            return web.json_response({
+                "error": str(e),
+                "success": False,
+                "delivered": False,
+                "delivered_ipc": False,
+                "pasted_to_foreground": False,
+            }, status=500)
+
+
 
     async def handle_hook_event(self, request: web.Request) -> web.Response:
         """
@@ -1794,17 +1831,15 @@ class CompanionServer:
                 )
             elif tool_calls:
                 for tc in tool_calls:
+                    t_desc, t_tag = format_tool_details(tc)
                     t_name = tc.get("name") or tc.get("tool_name") or "tool"
-                    t_args = tc.get("args", {})
-                    t_summary = str(t_args.get("toolSummary", "")).strip('\"') if isinstance(t_args, dict) else ""
-                    t_action = str(t_args.get("toolAction", "")).strip('\"') if isinstance(t_args, dict) else ""
                     self.broadcast_event({
                         "type": "agent_working_step",
                         "conv_id": cid,
                         "step_index": idx,
                         "tool_name": t_name,
-                        "summary": t_summary or t_name,
-                        "action": t_action,
+                        "summary": t_desc,
+                        "action": t_tag,
                         "status": "running",
                         "timestamp": time.time(),
                     })
@@ -1881,17 +1916,16 @@ class CompanionServer:
                     )
                 elif tool_calls:
                     for tc in tool_calls:
+                        t_desc, t_tag = format_tool_details(tc)
                         t_name = tc.get("name", "tool")
-                        t_input = tc.get("input", {})
-                        t_summary = f"{t_name} {str(t_input.get('command') or t_input.get('path') or '')[:35]}".strip()
                         self.broadcast_event({
                             "type": "agent_working_step",
                             "conv_id": cid,
                             "step_index": idx,
                             "agent_role": "claude",
                             "tool_name": t_name,
-                            "summary": t_summary or t_name,
-                            "action": t_name,
+                            "summary": t_desc,
+                            "action": t_tag,
                             "status": "running",
                             "timestamp": time.time(),
                         })

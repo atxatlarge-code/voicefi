@@ -7,7 +7,7 @@ import os
 import subprocess
 import time
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Any
 
 
 DEFAULT_TERMINAL_APPS = (
@@ -319,67 +319,153 @@ def inject_text_to_active_app(
         return False
 
 
+from dataclasses import dataclass
+
+
+@dataclass
+class DispatchResult:
+    success: bool
+    delivery_type: str = "none"  # "ipc", "foreground_paste", "none"
+    error: Optional[str] = None
+    target_conv_id: Optional[str] = None
+    engine: str = "antigravity"
+
+    def __bool__(self) -> bool:
+        return self.success
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, bool):
+            return self.success == other
+        return super().__eq__(other)
+
+
+
 def send_message_to_antigravity(
     conv_id: Optional[str] = None,
     text: str = "",
     sender_name: Optional[str] = None,
     title: Optional[str] = None,
-) -> bool:
+    from_conv_id: Optional[str] = None,
+    allow_foreground_fallback: bool = False,
+) -> DispatchResult:
     """
     Send prompt directly to Antigravity conversation via native agentapi IPC.
     This delivers the message cleanly in the background with 0 window focus changes,
     0 clipboard usage, and 0 screen flashing.
-    Supports setting custom message titles and sender attribution (e.g. 'Aria', 'Jake').
+    Supports setting custom message titles, sender attribution, and return-routing.
     """
     if not text or not text.strip():
-        return False
+        return DispatchResult(success=False, delivery_type="none", error="Empty message text", engine="antigravity")
 
     clean_text = text.strip()
     agentapi_bin = Path.home() / ".gemini" / "antigravity" / "bin" / "agentapi"
 
-    # Resolve conv_id if empty or placeholder
-    if not conv_id or conv_id in ("active", "null", "none"):
-        try:
-            from voicefi.integrations.conversations import ConversationTracker
-            active = ConversationTracker().get_active_or_latest()
-            if active and (getattr(active, "engine", "") == "antigravity" or not str(active.id).startswith("claude_")):
-                conv_id = active.id
-            else:
-                for c in ConversationTracker().get_all_conversations(limit=5):
-                    if getattr(c, "engine", "") == "antigravity" or not str(c.id).startswith("claude_"):
-                        conv_id = c.id
-                        break
-        except Exception:
-            pass
+    # Resolve conv_id if "reply" or empty or placeholder
+    target_id = conv_id
+    if target_id == "reply":
+        from voicefi.integrations.conversations import get_return_route
+        route = get_return_route(target_engine="antigravity")
+        if route and route.get("from_conv_id"):
+            target_id = route.get("from_conv_id")
+            print(f"[Injector] ↩️ Resolved return route to originating conversation: {str(target_id)[:8]}")
+
+    if not target_id or target_id in ("active", "null", "none"):
+        from voicefi.integrations.conversations import get_latest_antigravity_conversation_id
+        target_id = get_latest_antigravity_conversation_id()
 
     resolved_title = title
-    if not resolved_title and sender_name:
-        resolved_title = f"Message from {sender_name}"
+    if not resolved_title:
+        if sender_name:
+            resolved_title = f"Message from {sender_name}"
+        else:
+            resolved_title = "Cross-Agent Message"
 
-    if agentapi_bin.is_file() and os.access(agentapi_bin, os.X_OK) and conv_id and not str(conv_id).startswith("claude_"):
-        try:
-            cmd = [str(agentapi_bin), "send-message"]
-            if resolved_title:
-                cmd.append(f"--title={resolved_title}")
-            cmd.extend([str(conv_id), clean_text])
-            res = subprocess.run(
+    if from_conv_id:
+        from voicefi.integrations.conversations import record_agent_route
+        record_agent_route(
+            from_engine=sender_name.lower() if sender_name else "claude",
+            from_conv_id=from_conv_id,
+            to_engine="antigravity",
+            to_conv_id=target_id,
+        )
+
+    if not agentapi_bin.is_file() or not os.access(agentapi_bin, os.X_OK):
+        err = f"agentapi binary not found or not executable at {agentapi_bin}"
+        print(f"[Injector] ❌ {err}")
+        return DispatchResult(success=False, delivery_type="none", error=err, target_conv_id=target_id, engine="antigravity")
+
+    if not target_id or str(target_id).startswith("claude_"):
+        err = f"No valid Antigravity conversation ID found (resolved: {target_id})"
+        print(f"[Injector] ❌ {err}")
+        return DispatchResult(success=False, delivery_type="none", error=err, target_conv_id=target_id, engine="antigravity")
+
+    from voicefi.integrations.antigravity_ls import get_agentapi_env, invalidate_antigravity_ls_cache
+
+    env = get_agentapi_env(target_conv_id=target_id, force_refresh=False)
+    cmd = [str(agentapi_bin), "send-message"]
+    if resolved_title:
+        cmd.append(f"--title={resolved_title}")
+    cmd.extend([str(target_id), clean_text])
+
+    last_stderr = ""
+    try:
+        res = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=env,
+            text=True,
+            timeout=6,
+        )
+        if res.returncode == 0:
+            print(f"[Injector] 🚀 Delivered prompt directly via agentapi IPC to {str(target_id)[:8]} ({resolved_title or 'direct'})")
+            return DispatchResult(success=True, delivery_type="ipc", target_conv_id=target_id, engine="antigravity")
+
+        last_stderr = (res.stderr or res.stdout).strip()
+        print(f"[Injector] agentapi notice (attempt 1): {last_stderr}")
+
+        # If connection/auth error, invalidate cache and retry once
+        if any(token in last_stderr for token in ("Unavailable", "Unauthenticated", "EOF", "error", "connection error")):
+            invalidate_antigravity_ls_cache()
+            env_retry = get_agentapi_env(target_conv_id=target_id, force_refresh=True)
+            res2 = subprocess.run(
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
+                env=env_retry,
                 text=True,
-                timeout=5,
+                timeout=6,
             )
-            if res.returncode == 0:
-                print(f"[Injector] 🚀 Delivered prompt directly via agentapi IPC to {str(conv_id)[:8]} ({resolved_title or 'direct'})")
-                return True
-            else:
-                print(f"[Injector] agentapi notice: {res.stderr.strip()}")
-        except Exception as e:
-            print(f"[Injector] agentapi exception: {e}")
+            if res2.returncode == 0:
+                print(f"[Injector] 🚀 Delivered prompt directly via agentapi IPC on retry to {str(target_id)[:8]}")
+                return DispatchResult(success=True, delivery_type="ipc", target_conv_id=target_id, engine="antigravity")
+            last_stderr = (res2.stderr or res2.stdout).strip()
+            print(f"[Injector] agentapi notice (retry): {last_stderr}")
+    except Exception as e:
+        last_stderr = str(e)
+        print(f"[Injector] agentapi exception: {e}")
 
-    # Fallback to direct paste into frontmost active window if user is already focused on chat input
-    # (keeps current window focus completely untouched, 0 window activation)
-    return inject_text_to_active_app(clean_text, submit_enter=True, target_antigravity=False, restore_focus=False)
+    # If foreground fallback is explicitly permitted (e.g. for dictation flows)
+    if allow_foreground_fallback:
+        pasted = inject_text_to_active_app(clean_text, submit_enter=True, target_antigravity=True, restore_focus=False)
+        return DispatchResult(
+            success=pasted,
+            delivery_type="foreground_paste" if pasted else "none",
+            error=last_stderr if not pasted else None,
+            target_conv_id=target_id,
+            engine="antigravity",
+        )
+
+    # For targeted cross-agent dispatches, NEVER fall back to pasting into foreground apps
+    return DispatchResult(
+        success=False,
+        delivery_type="none",
+        error=f"agentapi IPC delivery failed: {last_stderr}",
+        target_conv_id=target_id,
+        engine="antigravity",
+    )
+
+
 
 
 def create_new_antigravity_conversation(
@@ -491,25 +577,94 @@ def focus_terminal_app() -> Optional[str]:
     return None
 
 
+def _focus_and_click_claude_desktop() -> bool:
+    """Focus Claude Desktop app and post a synthetic mouse click to focus the prompt textarea."""
+    try:
+        import Quartz
+        from AppKit import NSWorkspace
+        ws = NSWorkspace.sharedWorkspace()
+        claude_apps = [app for app in ws.runningApplications() if app.localizedName() == "Claude"]
+        if not claude_apps:
+            return False
+        claude_apps[0].activateWithOptions_(1 << 1)
+        time.sleep(0.2)
+
+        res = subprocess.run([
+            "osascript", "-e",
+            '''
+            tell application "System Events"
+                tell process "Claude"
+                    return {position of window 1, size of window 1}
+                end tell
+            end tell
+            '''
+        ], capture_output=True, text=True, timeout=2)
+        if res.returncode == 0 and res.stdout.strip():
+            parts = [int(p.strip()) for p in res.stdout.strip().split(',')]
+            x, y, w, h = parts[0], parts[1], parts[2], parts[3]
+            click_x = x + (w / 2)
+            click_y = y + h - 80
+            pt = Quartz.CGPoint(click_x, click_y)
+            down = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseDown, pt, Quartz.kCGMouseButtonLeft)
+            up = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseUp, pt, Quartz.kCGMouseButtonLeft)
+            Quartz.CGEventPost(Quartz.kCGHIDEventTap, down)
+            time.sleep(0.05)
+            Quartz.CGEventPost(Quartz.kCGHIDEventTap, up)
+            time.sleep(0.15)
+            return True
+    except Exception as e:
+        print(f"[Injector] Notice focusing Claude Desktop: {e}")
+    return False
+
+
 def inject_text_to_claude(
     text: str,
     submit_enter: bool = True,
     restore_focus: bool = False,
     preserve_clipboard: bool = True,
+    from_conv_id: Optional[str] = None,
+    from_engine: str = "antigravity",
+    include_envelope: bool = False,
 ) -> bool:
     """
     Inject transcribed voice prompt or typed message into Claude Code terminal or Claude App.
+    Optionally formats with a cross-agent provenance envelope and return instructions.
     """
     if not text or not text.strip():
         return False
 
     clean_text = text.strip()
 
+    if include_envelope and from_conv_id:
+        clean_text = f"""[From: {from_engine.capitalize()} | Conversation: {from_conv_id}]
+{clean_text}
+
+💡 To return your findings to Antigravity, run:
+vifi send --to antigravity --reply "Your findings summary"
+# or:
+curl -s -X POST http://localhost:5141/api/send -H "Content-Type: application/json" -d '{{"text": "Your findings summary", "conv_id": "{from_conv_id}", "engine": "antigravity", "sender_name": "Claude"}}'"""
+
+    if from_conv_id:
+        from voicefi.integrations.conversations import record_agent_route
+        record_agent_route(
+            from_engine=from_engine,
+            from_conv_id=from_conv_id,
+            to_engine="claude",
+        )
+
+    prev_clipboard = get_clipboard_text() if preserve_clipboard else None
+
     # Step 1: Set clipboard
     if not set_clipboard_text(clean_text):
         return False
 
     time.sleep(0.05)
+
+    # If Claude Desktop app is running, focus and click its input box
+    app_name = focus_terminal_app()
+    if app_name == "Claude":
+        _focus_and_click_claude_desktop()
+
     enter_script = '''
             delay 0.15
             key code 36
@@ -530,7 +685,7 @@ def inject_text_to_claude(
 
     if targetApp is not "" then
         tell application targetApp to activate
-        delay 0.22
+        delay 0.18
         tell application "System Events"
             tell process targetApp
                 set frontmost to true
@@ -550,9 +705,14 @@ def inject_text_to_claude(
     '''
     try:
         res = subprocess.run(["osascript", "-e", applescript], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=4)
-        return "true" in res.stdout.lower()
+        success = "true" in res.stdout.lower()
+        if preserve_clipboard and prev_clipboard is not None:
+            restore_clipboard_delayed(prev_clipboard, delay=0.4)
+        return success
     except Exception as e:
         print(f"[Injector] inject_text_to_claude error: {e}")
+        if preserve_clipboard and prev_clipboard is not None:
+            restore_clipboard_delayed(prev_clipboard, delay=0.4)
         return False
 
 
@@ -562,23 +722,32 @@ def send_message_to_agent(
     sender_name: Optional[str] = None,
     title: Optional[str] = None,
     target_engine: Optional[str] = None,
-) -> bool:
+    from_conv_id: Optional[str] = None,
+    from_engine: Optional[str] = None,
+    include_envelope: bool = False,
+    allow_foreground_fallback: bool = False,
+) -> DispatchResult:
     """
     Unified dispatcher to send messages to Antigravity or Claude Code.
     Automatically resolves engine from conversation ID or active session cookie if unstated.
     """
     if not text or not text.strip():
-        return False
+        return DispatchResult(success=False, delivery_type="none", error="Empty message text")
 
     from voicefi.audio.echo_canceller import is_acoustic_echo
     if is_acoustic_echo(text.strip()):
         print(f"[Injector] 🛡️ Blocked injection of acoustic self-echo: \"{text.strip()[:50]}...\"")
-        return False
+        return DispatchResult(success=False, delivery_type="none", error="Suppressed acoustic self-echo")
 
     engine = target_engine
     if not engine and conv_id:
         if conv_id.startswith("claude_") or "claude" in conv_id.lower():
             engine = "claude"
+        elif conv_id == "reply":
+            from voicefi.integrations.conversations import get_return_route
+            route = get_return_route()
+            if route and route.get("from_engine"):
+                engine = route.get("from_engine")
         else:
             engine = "antigravity"
 
@@ -594,9 +763,34 @@ def send_message_to_agent(
 
     engine = engine or "antigravity"
 
-    if engine == "claude":
+    if engine in ("claude", "claude_code"):
         print(f"[Injector] 🎭 Injecting prompt into Claude Code terminal: \"{text[:50]}...\"")
-        return inject_text_to_claude(text, submit_enter=True)
+        resolved_from = from_conv_id
+        if not resolved_from and include_envelope:
+            from voicefi.integrations.conversations import get_latest_antigravity_conversation_id
+            resolved_from = get_latest_antigravity_conversation_id()
+        pasted = inject_text_to_claude(
+            text,
+            submit_enter=True,
+            from_conv_id=resolved_from,
+            from_engine=from_engine or "antigravity",
+            include_envelope=include_envelope,
+        )
+        return DispatchResult(
+            success=pasted,
+            delivery_type="foreground_paste" if pasted else "none",
+            error=None if pasted else "Failed to inject keystrokes into Claude terminal window",
+            engine="claude",
+        )
     else:
-        return send_message_to_antigravity(conv_id=conv_id, text=text, sender_name=sender_name, title=title)
+        return send_message_to_antigravity(
+            conv_id=conv_id,
+            text=text,
+            sender_name=sender_name,
+            title=title,
+            from_conv_id=from_conv_id,
+            allow_foreground_fallback=allow_foreground_fallback,
+        )
+
+
 

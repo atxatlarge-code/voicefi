@@ -88,6 +88,8 @@ class AudioRecorder:
         on_live_transcript: Optional[Callable[[str], None]] = None,
         on_chunk: Optional[Callable[[np.ndarray], None]] = None,
         stop_event: Optional[threading.Event] = None,
+        cancel_on_typing: bool = True,
+        **kwargs,
     ) -> Tuple[np.ndarray, Path]:
         """
         Record audio from mic until speech is detected and followed by natural silence.
@@ -100,7 +102,6 @@ class AudioRecorder:
         trigger_stop = stop_event or self.stop_event
         cancelled_by_user = False
         _last_speech_stop_time = 0.0
-        kb_listener = None
         try:
             from pynput import keyboard
             def _on_key_press(k):
@@ -124,6 +125,18 @@ class AudioRecorder:
                         cancelled_by_user = True
                         stop_all_speech()
                         self.stop_event.set()
+                elif cancel_on_typing:
+                    from voicefi.tts.base import is_agent_speaking, is_system_audio_playing
+                    if not is_agent_speaking() and not is_system_audio_playing():
+                        # Exclude modifier keys so shortcuts like Ctrl+R don't trigger typing cancel
+                        is_mod = False
+                        for mod_attr in ('ctrl', 'ctrl_l', 'ctrl_r', 'shift', 'shift_l', 'shift_r', 'alt', 'alt_l', 'alt_r', 'cmd', 'cmd_l', 'cmd_r'):
+                            if hasattr(keyboard.Key, mod_attr) and k == getattr(keyboard.Key, mod_attr):
+                                is_mod = True
+                                break
+                        if not is_mod:
+                            cancelled_by_user = True
+                            self.stop_event.set()
 
             kb_listener = keyboard.Listener(on_press=_on_key_press)
             kb_listener.daemon = True
@@ -251,10 +264,15 @@ class AudioRecorder:
                         else:
                             # Headphones / AirPods: responsive threshold with robust floor against ambient noise
                             grace_chunks = 6  # 300ms settling window from audio onset
+                            min_barge_energy = max(
+                                0.015,
+                                self.energy_threshold * 1.5,
+                                self.vad.running_noise_floor * 1.5,
+                            )
                             barge_in_threshold = max(
-                                0.040,
-                                self.energy_threshold * 2.5,
-                                (self.vad.running_noise_floor * 2.2 + 0.015),
+                                0.035,
+                                self.energy_threshold * 2.2,
+                                (self.vad.running_noise_floor * 2.0 + 0.012),
                             ) / self.barge_in_sensitivity
                             required_chunks = 2 if active_engine == "silero" else 3
                             in_grace_period = agent_speaking_chunks < grace_chunks
@@ -277,8 +295,8 @@ class AudioRecorder:
                                     # On built-in speakers, speaker audio has high speech_conf, so we require energy exceeding the bleed floor
                                     is_barge_candidate = (smoothed_energy > barge_in_threshold and speech_conf >= 0.35)
                                 else:
-                                    # On headphones, there is no speaker bleed
-                                    is_barge_candidate = (smoothed_energy > barge_in_threshold and speech_conf >= 0.25) or (speech_conf >= 0.80)
+                                    # On headphones, require minimum energy floor AND speech confidence to prevent faint room noise / echo false positives
+                                    is_barge_candidate = (smoothed_energy > barge_in_threshold and speech_conf >= 0.25) or (smoothed_energy > min_barge_energy and speech_conf >= 0.75)
                             else:
                                 is_barge_candidate = (smoothed_energy > barge_in_threshold)
 
@@ -461,10 +479,16 @@ class AudioRecorder:
             except Exception:
                 pass
 
-        if cancelled_by_user or not recorded_frames:
-            full_audio = np.zeros(self.sample_rate, dtype=np.float32)
-        else:
-            full_audio = np.concatenate(recorded_frames, axis=0)
+        if cancelled_by_user or not recorded_frames or not speech_started:
+            # Resume background monitor
+            try:
+                from voicefi.audio.monitor import LiveVADMonitor
+                LiveVADMonitor.get_instance().resume()
+            except ImportError:
+                pass
+            return np.zeros(0, dtype=np.float32), None
+
+        full_audio = np.concatenate(recorded_frames, axis=0)
 
         # Save to temporary WAV file
         temp_wav = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)

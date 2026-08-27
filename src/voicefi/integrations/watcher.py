@@ -33,6 +33,7 @@ from voicefi.integrations.conversations import (
     clear_pending_question,
 )
 from voicefi.integrations.active_listening import ActiveListeningEngine, SpokenIntentCategory
+from voicefi.integrations.tool_formatter import format_tool_details, extract_log_summary
 
 
 def extract_thought_summary(thinking_text: str, max_words: int = 14) -> str:
@@ -262,14 +263,39 @@ class TranscriptWatcher:
             self._processed_steps[path_str] = highest_idx
             detected_role = last_step.get("role") or last_step.get("agent_role") or "antigravity"
             first_tool = tool_calls[0] if isinstance(tool_calls, list) and tool_calls else {}
-            tool_name = first_tool.get("name") or "tool"
-            tool_summary = first_tool.get("toolSummary") or first_tool.get("toolAction") or f"Running {tool_name}..."
-            tool_summary = re.sub(r"[\U00010000-\U0010ffff\u2600-\u27bf\u2300-\u23ff\ufe00-\ufe0f]", "", str(tool_summary)).strip()
+            tool_desc, tag_text = format_tool_details(first_tool)
             self._notify_state(
                 "working",
                 agent_name=str(detected_role),
-                tool_action=tool_summary,
+                tool_action=tool_desc,
+                tag_text=tag_text,
             )
+        elif step_type == "GENERIC" and content:
+            self._processed_steps[path_str] = highest_idx
+            detected_role = last_step.get("role") or last_step.get("agent_role") or "antigravity"
+            log_summary = extract_log_summary(str(content))
+            if log_summary:
+                self._notify_state(
+                    "working",
+                    agent_name=str(detected_role),
+                    tool_action=log_summary,
+                    tag_text="Running Command",
+                )
+        elif step_type == "SYSTEM_MESSAGE":
+            self._processed_steps[path_str] = highest_idx
+            detected_role = last_step.get("role") or last_step.get("agent_role") or "antigravity"
+            c = str(content or "")
+            task_match = re.search(r'Task id "[^"]+" finished with result:\s*(.*)', c, re.DOTALL)
+            if task_match:
+                task_res = task_match.group(1).strip()
+                log_summary = extract_log_summary(task_res)
+                if log_summary:
+                    self._notify_state(
+                        "working",
+                        agent_name=str(detected_role),
+                        tool_action=f"Task: {log_summary}",
+                        tag_text="Background Task",
+                    )
         elif step_type == "PLANNER_RESPONSE" and thinking:
             self._processed_steps[path_str] = highest_idx
             detected_role = last_step.get("role") or last_step.get("agent_role") or "antigravity"
@@ -450,7 +476,7 @@ class TranscriptWatcher:
                     energy_threshold=cfg.vad.energy_threshold,
                     silence_duration=cfg.vad.silence_duration,
                     max_record_seconds=cfg.vad.max_record_seconds,
-                    barge_in=True,
+                    barge_in=cfg.vad.barge_in,
                     barge_in_sensitivity=getattr(cfg.vad, "barge_in_sensitivity", 1.0),
                 )
                 def _on_tick(energy: float, conf: float = 0.0, is_spk: bool = False):

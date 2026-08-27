@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Optional, List
 from voicefi.tts.base import BaseTTS, speech_turn_lock, DuplicateSpeechSuppressed
 from voicefi.audio.meeting_detection import is_user_on_call
+from voicefi.tts.normalizer import normalize_tts_text
 
 
 def normalize_mac_rate(rate: any) -> int:
@@ -89,13 +90,14 @@ class MacSayTTS(BaseTTS):
             print("[MacSayTTS] User is on a call. Skipping speech synthesis.")
             return
 
+        clean_text = normalize_tts_text(text)
         self._stop_requested = False
-        cmd = ["say", "-v", self.voice, "-r", str(self.rate), "--", text]
+        cmd = ["say", "-v", self.voice, "-r", str(self.rate), "--", clean_text]
 
         def _run():
             try:
                 with speech_turn_lock(
-                    text=text,
+                    text=clean_text,
                     agent_name=getattr(self, "agent_name", "VoiceFi"),
                     persona_name=getattr(self, "persona_name", getattr(self, "voice", "Samantha")),
                 ):
@@ -111,7 +113,7 @@ class MacSayTTS(BaseTTS):
                         proc.wait()
                         if not self._stop_requested and proc.returncode != 0:
                             # Fallback to default system voice
-                            fallback = subprocess.Popen(["say", "--", text], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                            fallback = subprocess.Popen(["say", "--", clean_text], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                             self._current_process = fallback
                             fallback.wait()
                     except Exception as e:
@@ -133,12 +135,13 @@ class MacSayTTS(BaseTTS):
         """Synthesize speech to an audio file using macOS say."""
         if not text or not text.strip():
             return False
+        clean_text = normalize_tts_text(text)
         try:
             out_p = Path(output_path)
-            cmd = ["say", "-v", self.voice, "-r", str(self.rate), "-o", str(out_p), "--", text]
+            cmd = ["say", "-v", self.voice, "-r", str(self.rate), "-o", str(out_p), "--", clean_text]
             res = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             if res.returncode != 0:
-                fallback = subprocess.run(["say", "-o", str(out_p), "--", text], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                fallback = subprocess.run(["say", "-o", str(out_p), "--", clean_text], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 return fallback.returncode == 0
             return out_p.is_file()
         except Exception as e:

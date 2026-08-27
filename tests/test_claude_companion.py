@@ -119,7 +119,7 @@ def test_send_message_to_agent_routing():
 
         # 1. Claude session ID
         send_message_to_agent(conv_id="claude_12345", text="Run tests")
-        mock_claude.assert_called_once_with("Run tests", submit_enter=True)
+        mock_claude.assert_called_once_with("Run tests", submit_enter=True, from_conv_id=None, from_engine="antigravity", include_envelope=False)
         mock_ag.assert_not_called()
 
     with patch("voicefi.integrations.injector.inject_text_to_claude", return_value=True) as mock_claude, \
@@ -127,7 +127,7 @@ def test_send_message_to_agent_routing():
 
         # 2. Antigravity session ID
         send_message_to_agent(conv_id="ag-conv-987", text="Create plan")
-        mock_ag.assert_called_once_with(conv_id="ag-conv-987", text="Create plan", sender_name=None, title=None)
+        mock_ag.assert_called_once_with(conv_id="ag-conv-987", text="Create plan", sender_name=None, title=None, from_conv_id=None, allow_foreground_fallback=False)
         mock_claude.assert_not_called()
 
 

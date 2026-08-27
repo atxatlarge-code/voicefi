@@ -157,7 +157,9 @@ def test_send_message_to_antigravity_cookie_resolution(tmp_path: Path, monkeypat
     monkeypatch.setattr("os.access", lambda path, mode: True)
 
     success = send_message_to_antigravity(conv_id=None, text="Hello Antigravity")
-    assert success is True
+    assert bool(success) is True
+    assert success.success is True
+
 
 
 def test_cmd_hook_unclosed_stdin_pipe(monkeypatch):
@@ -263,6 +265,37 @@ def test_native_antigravity_input_observer_lifecycle(monkeypatch):
     assert len(observed_updates) >= 1
     assert observed_updates[0] == "Hello from Antigravity mic"
     assert len(cleared) >= 1
+
+
+def test_clean_markdown_short_exclamation_retains_explanation():
+    """Verify short exclamations (Yes!, Sure!, Done!) retain subsequent substantive sentences."""
+    raw = "Yes! I have reviewed all the live assets and verified that the configuration is working properly across all modules."
+    cleaned = clean_markdown_for_speech(raw, max_words=30)
+    assert cleaned.startswith("Yes!")
+    assert "reviewed all the live assets" in cleaned
+    assert len(cleaned.split()) > 5
+
+
+def test_clean_markdown_question_pairing_budget_allocation():
+    """Verify question pairing allocates budget to both status update and closing question."""
+    raw = "I have completed a thorough investigation of the audio subsystem. Would you like me to go ahead and implement the solution?"
+    cleaned = clean_markdown_for_speech(raw, max_words=30)
+    assert "investigation of the audio subsystem" in cleaned
+    assert "Would you like me to go ahead and implement the solution?" in cleaned
+
+
+def test_clean_markdown_list_items_segmented_cleanly():
+    """Verify markdown bullet points and headers are segmented into distinct sentences."""
+    raw = """### Project Deliverables
+- Fixed audio truncation in TTS cleaner
+- Added minimum energy gating for barge in
+- Verified multi turn conversations
+"""
+    cleaned = clean_markdown_for_speech(raw, max_words=60)
+    assert "Fixed audio truncation in T T S cleaner" in cleaned
+    assert "Added minimum energy gating for barge in" in cleaned
+    assert "Verified multi turn conversations" in cleaned
+
 
 
 

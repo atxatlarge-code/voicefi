@@ -250,8 +250,8 @@ var VoiceFiPlugin = class extends import_obsidian.Plugin {
     const cleanText = text.trim();
     if (!cleanText)
       return;
-    if (/^(hey\s+christopher|hey\s+voicefi|voicefi|hey\s+agent|christopher|summarize)/i.test(cleanText)) {
-      this.updateStatus("Asking Christopher...", "\u{1F9E0}");
+    if (/^(hey\s+aria|aria|hey\s+christopher|hey\s+voicefi|voicefi|hey\s+agent|christopher|summarize)/i.test(cleanText)) {
+      this.updateStatus("Asking Vault Agent...", "\u{1F9E0}");
       return;
     }
     const activeView = this.app.workspace.getActiveViewOfType(import_obsidian.MarkdownView);
@@ -283,7 +283,7 @@ var VoiceFiPlugin = class extends import_obsidian.Plugin {
     if (/some\s+(racist|raise|race|race\s+is|eyes)/i.test(checkText)) {
       checkText = checkText.replace(/some\s+(racist|raise|race|race\s+is|eyes)/i, "summarize");
     }
-    const agentMatch = checkText.match(/^(hey\s+christopher|hey\s+voicefi|voicefi|hey\s+agent|christopher)[,.:!?\s]+(.*)$/i);
+    const agentMatch = checkText.match(/^(hey\s+aria|aria|hey\s+christopher|hey\s+voicefi|voicefi|hey\s+agent|christopher)[,.:!?\s]+(.*)$/i);
     const isDirectCommand = /^(summarize(\s+this)?(\s+note)?|what\s+are\s+my\s+(tasks|action\s+items|todos)|what\s+is\s+this\s+note\s+about)[,.:!?\s]*$/i.test(checkText);
     if (agentMatch || isDirectCommand) {
       const query = agentMatch ? agentMatch[2].trim() : checkText;
@@ -291,7 +291,7 @@ var VoiceFiPlugin = class extends import_obsidian.Plugin {
         editor.replaceRange("", startPos, cursor);
         editor.setCursor(startPos);
         this.updateStatus("Thinking...", "\u{1F9E0}");
-        new import_obsidian.Notice(`\u{1F9E0} VoiceFi: Asking Christopher: "${query}"...`);
+        new import_obsidian.Notice(`\u{1F9E0} VoiceFi: Asking Vault Agent: "${query}"...`);
         const title = activeView.file ? activeView.file.basename : "";
         const content = activeView.editor.getValue() || activeView.data;
         await this.askVaultAgent(query, title, content);
