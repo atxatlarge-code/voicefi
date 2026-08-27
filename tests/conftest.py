@@ -23,6 +23,16 @@ def isolate_test_config(tmp_path, monkeypatch):
     test_hud_state = tmp_path / "voicefi_hud_state.json"
     monkeypatch.setattr("voicefi.tts.base.HUD_STATE_STATUS_FILE", test_hud_state)
 
+    test_speaking_file = tmp_path / "voicefi_speaking.status"
+    monkeypatch.setattr("voicefi.tts.base.AGENT_SPEAKING_STATUS_FILE", test_speaking_file)
+
+    test_audio_playing_file = tmp_path / "voicefi_audio_playing.status"
+    monkeypatch.setattr("voicefi.tts.base.AUDIO_PLAYING_STATUS_FILE", test_audio_playing_file)
+
+    import voicefi.tts.base as tts_base
+    tts_base._IN_PROCESS_SPEAKING = False
+    tts_base._IN_PROCESS_AUDIO_PLAYING = False
+
     from voicefi.audio.echo_canceller import clear_agent_spoken_history
     clear_agent_spoken_history()
 

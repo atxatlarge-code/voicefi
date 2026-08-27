@@ -92,6 +92,12 @@ agents:
   cursor:
     provider: "edge_tts"
     voice: "en-US-JennyNeural"
+  obsidian:
+    provider: "edge_tts"
+    voice: "en-US-EmmaNeural"
+  aria:
+    provider: "edge_tts"
+    voice: "en-US-EmmaNeural"
 
 # Distinct Subagent Personas by Role
 subagents:
@@ -100,7 +106,7 @@ subagents:
     voice: "en-GB-SoniaNeural"
   debugger:
     provider: "edge_tts"
-    voice: "en-US-AriaNeural"
+    voice: "en-US-EmmaNeural"
   architect:
     provider: "edge_tts"
     voice: "en-AU-WilliamNeural"

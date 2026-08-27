@@ -90,7 +90,7 @@ echo '{"agent": "antigravity", "last_message": "All 18 unit tests passed in 0.42
 
 ---
 
-### 1.3 Live Dev Mode (`vifi dev`) & Daemon Management
+### 1.3 Live Dev Mode (`vifi dev`) & Server Management
 
 For developers hacking on VoiceFi or wanting full real-time visibility into audio streams, VAD triggers, and hook events:
 
@@ -98,30 +98,39 @@ For developers hacking on VoiceFi or wanting full real-time visibility into audi
 ```bash
 vifi dev
 ```
-- **Auto-Takeover**: Automatically detects and gracefully stops any background daemon or LaunchAgent to prevent Port 5141 conflicts.
+- **Auto-Takeover**: Automatically detects and gracefully stops any background server or LaunchAgent to prevent Port 5141 conflicts.
 - **Live Stream**: Streams real-time VAD energy levels, acoustic safe-mode calculations, TTS generation timings, and JSON IPC events.
 - **Clean Exit**: Press `Ctrl+C` to cleanly exit and restore background services.
 
-#### Daemon Management & Housekeeping
+#### Server Management & Housekeeping
 ```bash
-# Check daemon running status, PID, and port listeners:
-vifi daemon status
+# Check server running status, PID, port listeners, and agent hooks:
+vifi status
+# or:
+vifi server status
 
 # Enable persistent background LaunchAgent (runs tray & HUD on login):
 vifi autostart
+# or:
+vifi start
 
 # Unload and disable LaunchAgent:
 vifi stop-autostart
 
-# Stop all background daemons immediately and free Port 5141:
-vifi daemon stop
+# Stop all background servers immediately and free Port 5141:
+vifi stop
 # or:
-vifi kill
+vifi server stop (or 'vifi kill')
+
+# Restart background server and reload config:
+vifi restart
+# or:
+vifi server restart
 
 # Purge stale caches, locks, and temporary session files:
 vifi clean
 
-# Complete reset (stops daemons, frees port, and cleans all caches):
+# Complete reset (stops servers, frees port, and cleans all caches):
 vifi clean --all
 ```
 
@@ -572,7 +581,7 @@ Combining VoiceFi with external MCP servers transforms spoken voice into structu
 | :--- | :--- | :--- |
 | **Agent Setup** | `vifi setup` | Auto-configures hooks for Antigravity and Claude Code |
 | **Dev Setup** | `vifi setup --dev` | Links hooks directly to local repository virtualenv |
-| **Dev Mode** | `vifi dev` | Live foreground logs, auto-daemon takeover, event stream |
+| **Dev Mode** | `vifi dev` | Live foreground logs, auto-server takeover, event stream |
 | **Speak Text** | `vifi speak "Hello world"` | Speaks string using active persona |
 | **Record Memo** | `vifi memo record -d 3m` | 3-minute voice stream-of-consciousness capture |
 | **Synthesize Memo** | `vifi memo synth --text "..."` | Converts spoken thoughts into plan + Mermaid diagram |
@@ -581,7 +590,8 @@ Combining VoiceFi with external MCP servers transforms spoken voice into structu
 | **Silent Benchmark**| `vifi ping --all` | Silent TTFB latency and throughput test across voices |
 | **Calibrate Mic** | `vifi troubleshoot --fix calibrate` | Dynamically adapts energy threshold to room noise |
 | **Test Barge-In** | `vifi barge-in` | Validates full-duplex mid-speech voice interruption |
-| **Stop Daemons** | `vifi kill` / `vifi clean --all` | Frees Port 5141 and cleans stale locks/caches |
+| **Server Status** | `vifi status` / `vifi server status` | Inspects background server, Port 5141, and agent hooks |
+| **Stop Server** | `vifi stop` / `vifi server stop` | Frees Port 5141 and cleanly stops background server |
 
 ---
 
@@ -589,7 +599,7 @@ Combining VoiceFi with external MCP servers transforms spoken voice into structu
 
 | Issue | Root Cause | Solution |
 | :--- | :--- | :--- |
-| **Port 5141 in use** | A previous daemon or orphaned process is bound to the port. | Run `vifi clean --all` or `vifi kill`. |
+| **Port 5141 in use** | A previous server or orphaned process is bound to the port. | Run `vifi stop` or `vifi clean --all`. |
 | **Microphone not triggering** | Noise floor is too high or threshold is too aggressive. | Run `vifi troubleshoot --fix calibrate` in a quiet room. |
 | **Agent speech cuts off prematurely** | Barge-in is triggering on speaker bleed. | Set barge-in to `auto`: `vifi troubleshoot --fix auto_barge_in`. |
 | **Network latency on TTS** | Cloud EdgeTTS experiencing network jitter. | Switch to 0ms offline neural voice: `vifi voice download-ava`. |

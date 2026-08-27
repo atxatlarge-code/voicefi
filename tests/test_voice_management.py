@@ -23,9 +23,17 @@ def test_persona_lookup():
     assert p1.id == "en-US-ChristopherNeural"
     assert p1.gender == "Male"
 
-    p2 = find_persona("en-US-AriaNeural")
+    p2 = find_persona("en-US-EmmaNeural")
     assert p2 is not None
-    assert p2.name == "Aria"
+    assert p2.name in ("Aria", "Emma")
+
+    p3 = find_persona("Aria")
+    assert p3 is not None
+    assert p3.id == "en-US-EmmaNeural"
+
+    p4 = find_persona("Emma")
+    assert p4 is not None
+    assert p4.id == "en-US-EmmaNeural"
 
     p_none = find_persona("NonExistentVoiceXYZ")
     assert p_none is None
@@ -72,13 +80,13 @@ def test_get_tts_engine_with_agent_name():
     """Test get_tts_engine instantiation with agent mapping."""
     cfg = VoiceFiConfig()
     cfg.subagents["debugger"] = AgentVoiceProfile(
-        voice="en-US-AriaNeural",
+        voice="en-US-EmmaNeural",
         provider="edge_tts",
     )
 
     engine = get_tts_engine(cfg, agent_name="debugger")
     assert isinstance(engine, EdgeTTS)
-    assert engine.voice == "en-US-AriaNeural"
+    assert engine.voice == "en-US-EmmaNeural"
 
 
 def test_voice_catalog_listing():
@@ -121,7 +129,7 @@ def test_unfocused_agent_voice_resolution():
     cfg.tts.voice = "en-US-ChristopherNeural"
     prov, v, rate = cfg.resolve_voice(None, is_focused=False)
     assert prov == "edge_tts"
-    assert v == "en-US-AriaNeural"
+    assert v == "en-US-EmmaNeural"
 
     # Explicit unfocused voice configured
     cfg.antigravity.unfocused_agent_voice = "en-GB-SoniaNeural"

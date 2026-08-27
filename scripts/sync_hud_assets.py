@@ -55,6 +55,8 @@ BRAND_ASSETS = [
     "logo-voicefi-character-dark.svg",
     "logo-voicefi-symbol.svg",
     "logo-voicefi-reactive.svg",
+    "logo-antigravity.svg",
+    "logo-obsidian.svg",
     "icon-master.svg",
     "og-image.png",
 ]

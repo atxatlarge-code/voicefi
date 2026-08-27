@@ -28,7 +28,7 @@ def test_parse_voice_command_audition():
     res2 = parse_voice_command("Can you test Aria for me", cfg)
     assert res2["action"] == "audition"
     assert res2["voice"] == "Aria"
-    assert res2["voice_id"] == "en-US-AriaNeural"
+    assert res2["voice_id"] == "en-US-EmmaNeural"
 
     res3 = parse_voice_command("Let me hear Sonia", cfg)
     assert res3["action"] == "audition"
@@ -59,7 +59,7 @@ def test_parse_voice_command_assignment():
     assert res3["action"] == "assign"
     assert res3["target"] == "debugger"
     assert res3["voice"] == "Aria"
-    assert cfg.subagents["debugger"].voice == "en-US-AriaNeural"
+    assert cfg.subagents["debugger"].voice == "en-US-EmmaNeural"
 
 
 def test_parse_voice_command_speed_and_stop():

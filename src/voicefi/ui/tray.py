@@ -222,10 +222,16 @@ class VoiceFiTrayApp(rumps.App):
         self._build_integrations_submenu()
 
         self.auto_listen_item = rumps.MenuItem(
-            "Auto-Listen on Agent Turn",
+            "⚡ ProActive Feedback Loop (Turn-Taking)",
             callback=self.toggle_auto_listen,
         )
-        self.auto_listen_item.state = 1 if self.config.antigravity.auto_listen else 0
+        self.auto_listen_item.state = 1 if self.config.proactive.feedback_loop.enabled else 0
+
+        self.meeting_item = rumps.MenuItem(
+            "👥 ProActive Meeting Assistant...",
+            callback=self.toggle_meeting_assistant,
+        )
+        self.meeting_item.state = 1 if self.config.proactive.meeting_assistant.enabled else 0
 
         self.read_summary_item = rumps.MenuItem(
             "Read Agent Summaries Aloud",
@@ -800,6 +806,7 @@ class VoiceFiTrayApp(rumps.App):
                         text=hud_state.get("text", ""),
                         detail=hud_state.get("detail", ""),
                         tool_action=hud_state.get("tool_action", ""),
+                        tag_text=hud_state.get("tag_text"),
                         agent_name=hud_state.get("agent_name", "Antigravity"),
                         persona_name=hud_state.get("persona_name"),
                         user_name=hud_state.get("user_name", getattr(self.config, "user_name", "Jake")),
@@ -975,6 +982,7 @@ class VoiceFiTrayApp(rumps.App):
                 hud.set_working(
                     agent_name=kwargs.get("agent_name", "Antigravity"),
                     tool_action=kwargs.get("tool_action", "Running tools..."),
+                    tag_text=kwargs.get("tag_text"),
                 )
             elif state == "user_prompt":
                 hud.set_user_prompt(
@@ -1554,9 +1562,24 @@ class VoiceFiTrayApp(rumps.App):
         hud.reset_position()
 
     def toggle_auto_listen(self, sender):
-        self.config.antigravity.auto_listen = not self.config.antigravity.auto_listen
-        sender.state = 1 if self.config.antigravity.auto_listen else 0
+        new_val = not self.config.proactive.feedback_loop.enabled
+        self.config.proactive.feedback_loop.enabled = new_val
+        self.config.antigravity.auto_listen = new_val
+        self.config.claude.auto_listen = new_val
+        sender.state = 1 if new_val else 0
         save_config(self.config)
+
+    def toggle_meeting_assistant(self, sender):
+        from voicefi.ui.notifications import show_notification
+        new_val = not self.config.proactive.meeting_assistant.enabled
+        self.config.proactive.meeting_assistant.enabled = new_val
+        self.config.ambient.enabled = new_val
+        sender.state = 1 if new_val else 0
+        save_config(self.config)
+        if new_val:
+            show_notification("ProActive Meeting Assistant", "Session Started", "Ambient listener active in background.")
+        else:
+            show_notification("ProActive Meeting Assistant", "Session Stopped", "Meeting notes and ambient listener stopped.")
 
     def toggle_read_summary(self, sender):
         self.config.antigravity.read_summary_aloud = not self.config.antigravity.read_summary_aloud

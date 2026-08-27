@@ -7,12 +7,13 @@ import json
 import re
 import sys
 import threading
+import time
 from pathlib import Path
 from typing import Dict, Any, Optional
 
 from voicefi.config import VoiceFiConfig, load_config
 from voicefi.tts import get_tts_engine, stop_all_speech
-from voicefi.tts.base import set_cross_process_hud_state, clear_cross_process_hud_state
+from voicefi.tts.base import set_cross_process_hud_state, clear_cross_process_hud_state, escape_to_stop_speech
 from voicefi.stt import get_stt_engine
 from voicefi.audio.recorder import AudioRecorder
 from voicefi.audio.chimes import play_chime
@@ -28,10 +29,11 @@ from voicefi.integrations.conversations import (
     resolve_pending_question,
     clear_pending_question,
 )
-from voicefi.integrations.active_listening import ActiveListeningEngine, SpokenIntentCategory
+from voicefi.integrations.active_listening import ActiveListeningEngine, SpokenIntentCategory, SpokenTargetChannel
+from voicefi.tts.normalizer import normalize_tts_text
 
 
-def clean_markdown_for_speech(text: str, max_words: int = 30) -> str:
+def clean_markdown_for_speech(text: str, max_words: int = 60) -> str:
     """
     Clean markdown formatting and extract punchy 1-2 sentence spoken updates/questions.
     Prioritizes trailing questions and status outcomes while stripping code/paths/tables/stacktraces.
@@ -56,15 +58,37 @@ def clean_markdown_for_speech(text: str, max_words: int = 30) -> str:
     # 4. Normalize file paths to basenames only (/path/to/file.py -> file.py)
     text = re.sub(r"(?:/[\w.-]+)+/([\w.-]+\.[a-zA-Z0-9]+)", r"\1", text)
 
-    # 5. Clean Markdown markup
+    # 5. Clean Markdown markup & ensure clean sentence boundaries across lines/lists/headers
+    lines = text.splitlines()
+    cleaned_lines = []
+    for line in lines:
+        l = line.strip()
+        if not l:
+            continue
+        # Strip header markers: ### Heading -> Heading
+        l = re.sub(r"^#{1,6}\s*", "", l)
+        # Strip list markers: - Item, * Item, 1. Item -> Item
+        l = re.sub(r"^[-*+]\s+", "", l)
+        l = re.sub(r"^\d+\.\s+", "", l)
+        # Strip horizontal rules
+        if re.match(r"^[-*_]{3,}$", l):
+            continue
+        # Strip blockquotes
+        l = re.sub(r"^>\s*", "", l)
+        l = l.strip()
+        if not l:
+            continue
+        # If line does not end with terminal punctuation, append a period so sentences don't fuse into run-on blobs
+        if not l.endswith((".", "!", "?", ":", ";", ",")):
+            l += "."
+        cleaned_lines.append(l)
+
+    text = " ".join(cleaned_lines)
+
+    # Clean remaining inline Markdown markup
     text = re.sub(r"`([^`]+)`", r"\1", text)             # Inline code
     text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text) # Links -> text only
-    text = re.sub(r"^\s*#{1,6}\s*", "", text, flags=re.MULTILINE) # Headers
-    text = re.sub(r"^\s*[-*_]{3,}\s*$", " ", text, flags=re.MULTILINE) # Horizontal rules
     text = re.sub(r"[*_~]{1,3}", "", text)                # Bold/Italic
-    text = re.sub(r"^>\s*", "", text, flags=re.MULTILINE) # Blockquotes
-    text = re.sub(r"^\s*[-*+]\s+", "", text, flags=re.MULTILINE)  # Unordered lists
-    text = re.sub(r"^\s*\d+\.\s+", "", text, flags=re.MULTILINE)  # Numbered lists
 
     # 6. Strip emojis and decorative Unicode symbols
     text = re.sub(r"[\U00010000-\U0010ffff\u2600-\u27bf\u2300-\u23ff\ufe00-\ufe0f]", "", text)
@@ -75,43 +99,71 @@ def clean_markdown_for_speech(text: str, max_words: int = 30) -> str:
     if not text:
         return ""
 
-    # 8. Extract sentences & prioritize crisp opening + question pairing
+    # 8. Extract sentences & assemble punchy natural spoken summary
     sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", text) if s.strip()]
     if not sentences:
-        return text[: max_words * 6]
+        return normalize_tts_text(text[: max_words * 6])
 
-    # If the last sentence is a question, pair first sentence with the question if it fits
+    def _truncate_sentence(s: str, budget: int) -> str:
+        words = s.split()
+        if len(words) <= budget:
+            return s
+        truncated = " ".join(words[:budget])
+        last_punct = max(truncated.rfind("."), truncated.rfind("?"), truncated.rfind("!"), truncated.rfind(","))
+        if last_punct > len(truncated) // 2:
+            return truncated[: last_punct + 1]
+        return truncated + "..."
+
+    # Handle trailing question pairing
     if sentences[-1].endswith("?") and len(sentences) > 1:
-        first_s = sentences[0]
         last_s = sentences[-1]
-        combo = f"{first_s} {last_s}"
-        if len(combo.split()) <= max_words:
-            return combo
-        return last_s
+        last_words_count = len(last_s.split())
 
-    # Otherwise assemble first 1-2 sentences up to max_words
+        # If entire text up to question fits in max_words, assemble as many sentences as fit
+        candidate_sentences = []
+        current_words = last_words_count
+        for s in sentences[:-1]:
+            count = len(s.split())
+            if current_words + count <= max_words:
+                candidate_sentences.append(s)
+                current_words += count
+            else:
+                break
+
+        if candidate_sentences:
+            candidate_sentences.append(last_s)
+            return normalize_tts_text(" ".join(candidate_sentences))
+
+        # If not even first sentence fits with question, allocate budget to first sentence + question
+        first_s = sentences[0]
+        first_budget = max_words - last_words_count
+        if first_budget >= 5:
+            trunc_first = _truncate_sentence(first_s, first_budget)
+            return normalize_tts_text(f"{trunc_first} {last_s}")
+        return normalize_tts_text(last_s)
+
+    # Standard sentence assembly up to max_words
     result = []
     current_words = 0
-    for s in sentences:
+    for i, s in enumerate(sentences):
         count = len(s.split())
         if current_words + count <= max_words:
             result.append(s)
             current_words += count
         else:
+            # If we only have very few words so far (e.g. "Yes!", "Sure!", "Done!", total < 6 words),
+            # don't stop prematurely — take the next sentence up to remaining budget!
+            if current_words < 6 and (max_words - current_words) >= 5:
+                trunc = _truncate_sentence(s, max_words - current_words)
+                if trunc:
+                    result.append(trunc)
             break
 
     if result:
-        return " ".join(result)
-    
+        return normalize_tts_text(" ".join(result))
+
     # Fallback to truncated first sentence
-    words = sentences[0].split()
-    if len(words) > max_words:
-        truncated = " ".join(words[:max_words])
-        last_punct = max(truncated.rfind("."), truncated.rfind("?"), truncated.rfind("!"))
-        if last_punct > len(truncated) // 2:
-            return truncated[: last_punct + 1]
-        return truncated + "..."
-    return sentences[0]
+    return normalize_tts_text(_truncate_sentence(sentences[0], max_words))
 
 
 def extract_latest_agent_summary(
@@ -171,25 +223,11 @@ def extract_latest_agent_summary(
             continue
 
     if not last_model_content:
-        # Fallback: scan backwards across all lines for the most recent PLANNER_RESPONSE
-        for line in reversed(lines):
-            try:
-                step = json.loads(line)
-                if step.get("type") == "PLANNER_RESPONSE" and step.get("content") and not step.get("tool_calls"):
-                    last_model_content = step.get("content")
-                    detected_step_index = step.get("step_index")
-                    role = step.get("role") or step.get("agent_role")
-                    if role:
-                        detected_role = str(role).lower()
-                    break
-            except Exception:
-                continue
-
-    if not last_model_content:
-        fallback_msg = "The process is complete and ready for your input."
+        # If the current turn does not have a completed model response yet (e.g. intermediate tool execution),
+        # do not speak stale messages from prior turns.
         if return_role and return_step_index:
-            return (fallback_msg, detected_role, detected_step_index)
-        return (fallback_msg, detected_role) if return_role else fallback_msg
+            return ("", detected_role, detected_step_index)
+        return ("", detected_role) if return_role else ""
 
     cleaned = clean_markdown_for_speech(last_model_content, max_words=max_words)
     if return_role and return_step_index:
@@ -274,6 +312,10 @@ def handle_antigravity_stop_hook(payload: Dict[str, Any], config: Optional[Voice
         detected_role = None
         step_index = None
 
+    if not summary or not summary.strip():
+        # Intermediate tool step or turn in progress with no final model text yet
+        return {}
+
     active_agent = hook_agent_role or detected_role or "antigravity"
 
     turn_sig = f"{conv_id}:{summary[:35]}"
@@ -309,7 +351,8 @@ def handle_antigravity_stop_hook(payload: Dict[str, Any], config: Optional[Voice
             return {}
 
     should_speak = bool(cfg.antigravity.read_summary_aloud and summary)
-    should_listen = bool(cfg.antigravity.auto_listen)
+    should_listen = bool(cfg.antigravity.auto_listen and summary)
+    hook_start_time = time.time()
     
     from voicefi.audio.recorder import resolve_barge_in_mode
     is_barge_in_on, _ = resolve_barge_in_mode(getattr(cfg.vad, "barge_in", "auto"))
@@ -402,7 +445,8 @@ def handle_antigravity_stop_hook(payload: Dict[str, Any], config: Optional[Voice
     else:
         if should_speak:
             tts = get_tts_engine(cfg, agent_name=active_agent)
-            tts.stream_speak(summary, block=True)
+            with escape_to_stop_speech():
+                tts.stream_speak(summary, block=True)
 
         if cfg.antigravity.show_speech_popup:
             try:
@@ -469,22 +513,54 @@ def handle_antigravity_stop_hook(payload: Dict[str, Any], config: Optional[Voice
                 text_to_send = eval_res.normalized_text or clean_t
 
             if cfg.antigravity.inject_to_active_window:
-                set_cross_process_hud_state("done", text=text_to_send[:20], agent_name=active_agent)
-                print(f"[Antigravity] 🚀 Dispatching prompt to conversation {str(conv_id)[:8]}: '{text_to_send}'", flush=True)
-                delivered = send_message_to_antigravity(conv_id=conv_id, text=text_to_send, sender_name=cfg.user_name)
+                target_channel = getattr(eval_res, "target_channel", SpokenTargetChannel.ANTIGRAVITY)
+                routed_text = getattr(eval_res, "routed_prompt", None) or text_to_send
+
+                if target_channel == SpokenTargetChannel.CLAUDE and cfg.proactive.intent_routing.route_to_claude:
+                    set_cross_process_hud_state("done", text=f"Claude: {routed_text[:20]}", agent_name="Claude")
+                    print(f"[IntentRouter] 🔀 Routing spoken prompt to Claude Code: '{routed_text}'", flush=True)
+                    from voicefi.integrations.claude import inject_text_to_claude
+                    delivered = inject_text_to_claude(routed_text, submit_enter=True)
+                elif target_channel == SpokenTargetChannel.SLACK and cfg.proactive.intent_routing.route_to_slack:
+                    set_cross_process_hud_state("done", text=f"Slack: {routed_text[:20]}", agent_name="Slack")
+                    ch = (eval_res.target_metadata or {}).get("channel", "general")
+                    slack_prompt = f"Please post this to Slack (#{ch}): {routed_text}"
+                    print(f"[IntentRouter] 🔀 Routing spoken prompt to Slack via Antigravity: '{slack_prompt}'", flush=True)
+                    delivered = send_message_to_antigravity(conv_id=conv_id, text=slack_prompt, sender_name=cfg.user_name)
+                elif target_channel == SpokenTargetChannel.LINEAR and cfg.proactive.intent_routing.route_to_linear:
+                    set_cross_process_hud_state("done", text=f"Linear: {routed_text[:20]}", agent_name="Linear")
+                    linear_prompt = f"Please create a Linear issue for: {routed_text}"
+                    print(f"[IntentRouter] 🔀 Routing spoken prompt to Linear via Antigravity: '{linear_prompt}'", flush=True)
+                    delivered = send_message_to_antigravity(conv_id=conv_id, text=linear_prompt, sender_name=cfg.user_name)
+                else:
+                    set_cross_process_hud_state("done", text=text_to_send[:20], agent_name=active_agent)
+                    print(f"[Antigravity] 🚀 Dispatching prompt to conversation {str(conv_id)[:8]}: '{text_to_send}'", flush=True)
+                    delivered = send_message_to_antigravity(conv_id=conv_id, text=text_to_send, sender_name=cfg.user_name)
+
                 if delivered:
-                    print(f"[Antigravity] ✅ Delivered successfully to Antigravity ({str(conv_id)[:8]}).", flush=True)
+                    print(f"[Antigravity] ✅ Delivered successfully to {target_channel.value} ({str(conv_id)[:8]}).", flush=True)
                 else:
                     print(f"[Antigravity] ⚠️ Delivery failed — text left on clipboard.", flush=True)
 
             if cfg.audio_cues.enabled:
                 play_chime(cfg.audio_cues.sent_chime, block=False)
-        else:
-            print("[Antigravity] ℹ️ STT returned empty transcription (no speech or below threshold).", flush=True)
-            clear_cross_process_hud_state()
-    else:
-        print("[Antigravity] ℹ️ No audio recording captured from recorder.", flush=True)
-        clear_cross_process_hud_state()
+    if should_speak:
+        turn_dur_ms = int((time.time() - hook_start_time) * 1000)
+        try:
+            from voicefi.telemetry import capture_voice_interaction
+            _, resolved_voice, resolved_provider = cfg.resolve_voice(active_agent)
+            capture_voice_interaction(
+                trigger="hook",
+                duration_ms=turn_dur_ms,
+                success=True,
+                agent=active_agent,
+                voice=resolved_voice,
+                provider=resolved_provider,
+                chars_count=len(summary) if summary else 0,
+                is_barge_in=barge_in_active,
+            )
+        except Exception:
+            pass
 
     return {}
 

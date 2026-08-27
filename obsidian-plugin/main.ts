@@ -249,8 +249,8 @@ export default class VoiceFiPlugin extends Plugin {
 		if (!cleanText) return;
 
 		// If this is an agent command in progress, suppress typing onto note canvas
-		if (/^(hey\s+christopher|hey\s+voicefi|voicefi|hey\s+agent|christopher|summarize)/i.test(cleanText)) {
-			this.updateStatus('Asking Christopher...', '🧠');
+		if (/^(hey\s+aria|aria|hey\s+christopher|hey\s+voicefi|voicefi|hey\s+agent|christopher|summarize)/i.test(cleanText)) {
+			this.updateStatus('Asking Vault Agent...', '🧠');
 			return;
 		}
 
@@ -291,7 +291,7 @@ export default class VoiceFiPlugin extends Plugin {
 			checkText = checkText.replace(/some\s+(racist|raise|race|race\s+is|eyes)/i, 'summarize');
 		}
 
-		const agentMatch = checkText.match(/^(hey\s+christopher|hey\s+voicefi|voicefi|hey\s+agent|christopher)[,.:!?\s]+(.*)$/i);
+		const agentMatch = checkText.match(/^(hey\s+aria|aria|hey\s+christopher|hey\s+voicefi|voicefi|hey\s+agent|christopher)[,.:!?\s]+(.*)$/i);
 		const isDirectCommand = /^(summarize(\s+this)?(\s+note)?|what\s+are\s+my\s+(tasks|action\s+items|todos)|what\s+is\s+this\s+note\s+about)[,.:!?\s]*$/i.test(checkText);
 
 		if (agentMatch || isDirectCommand) {
@@ -302,7 +302,7 @@ export default class VoiceFiPlugin extends Plugin {
 				editor.setCursor(startPos);
 				
 				this.updateStatus('Thinking...', '🧠');
-				new Notice(`🧠 VoiceFi: Asking Christopher: "${query}"...`);
+				new Notice(`🧠 VoiceFi: Asking Vault Agent: "${query}"...`);
 				
 				const title = activeView.file ? activeView.file.basename : '';
 				const content = activeView.editor.getValue() || activeView.data;

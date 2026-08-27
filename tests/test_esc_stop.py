@@ -2,6 +2,7 @@
 Unit tests for Escape key speech stopping and recording cancellation in VoiceFi.
 """
 
+import os
 import threading
 import time
 from unittest.mock import patch, MagicMock
@@ -78,9 +79,9 @@ def test_audio_recorder_esc_cancels_recording():
 
                 # Verify stop_all_speech called
                 mock_stop.assert_called_once()
-                # Verify audio data was discarded
+                # Verify audio data was discarded and temp_wav is None
                 assert np.all(audio_data == 0)
-                temp_wav.unlink(missing_ok=True)
+                assert temp_wav is None
 
 
 def test_audio_recorder_space_does_not_cancel_recording():
@@ -115,7 +116,8 @@ def test_audio_recorder_space_does_not_cancel_recording():
 
                 # Space should NOT call stop_all_speech or cancel
                 mock_stop.assert_not_called()
-                temp_wav.unlink(missing_ok=True)
+                if temp_wav:
+                    temp_wav.unlink(missing_ok=True)
 
 
 def test_audio_recorder_esc_while_agent_speaking_stops_speech_without_cancelling_mic():
@@ -154,7 +156,8 @@ def test_audio_recorder_esc_while_agent_speaking_stops_speech_without_cancelling
 
             # stop_all_speech called to stop the agent's voice
             mock_stop.assert_called_once()
-            temp_wav.unlink(missing_ok=True)
+            if temp_wav:
+                temp_wav.unlink(missing_ok=True)
 
 
 def test_tray_handle_escape_press_when_speaking_with_auto_listen():
@@ -206,4 +209,58 @@ def test_tray_handle_escape_press_when_speaking_without_auto_listen():
         app.watcher.interrupt.assert_called_once()
         mock_talk.assert_not_called()
         assert app._current_status == "idle"
+
+
+def test_escape_to_stop_speech_triggers_stop_all_speech():
+    """Verify escape_to_stop_speech listener intercepts Esc key and triggers stop_all_speech."""
+    from voicefi.tts.base import escape_to_stop_speech
+    from pynput.keyboard import Key
+
+    with patch("voicefi.tts.base.stop_all_speech") as mock_stop:
+        with patch("pynput.keyboard.Listener") as mock_listener_cls:
+            mock_inst = MagicMock()
+            mock_listener_cls.return_value = mock_inst
+
+            # Temporarily clear PYTEST_CURRENT_TEST to test the listener logic
+            with patch.dict("os.environ", {}, clear=False):
+                if "PYTEST_CURRENT_TEST" in os.environ:
+                    del os.environ["PYTEST_CURRENT_TEST"]
+                with escape_to_stop_speech():
+                    # Extract callback passed to pynput.keyboard.Listener
+                    _, kwargs = mock_listener_cls.call_args
+                    on_press_cb = kwargs.get("on_press")
+                    assert on_press_cb is not None
+                    # Press Esc
+                    on_press_cb(Key.esc)
+                    mock_stop.assert_called_once()
+
+
+def test_ensure_daemon_running_auto_spawns():
+    """Verify ensure_daemon_running spawns background tray daemon when port is free."""
+    from voicefi.integrations.daemon_client import ensure_daemon_running
+    from voicefi.config import VoiceFiConfig
+
+    cfg = VoiceFiConfig()
+
+    with patch("voicefi.integrations.daemon_client.is_daemon_running", side_effect=[False, False, True]), \
+         patch("subprocess.Popen") as mock_popen:
+        res = ensure_daemon_running(cfg, timeout=0.5)
+        assert res is True
+        mock_popen.assert_called_once()
+
+
+def test_forward_hook_to_daemon_does_not_autospawn_when_offline():
+    """Verify forward_hook_to_daemon returns None and does not spawn processes if daemon is killed."""
+    from voicefi.integrations.daemon_client import forward_hook_to_daemon
+    from voicefi.config import VoiceFiConfig
+
+    cfg = VoiceFiConfig()
+
+    with patch("voicefi.integrations.daemon_client.is_daemon_running", return_value=False), \
+         patch("subprocess.Popen") as mock_popen:
+        res = forward_hook_to_daemon({"agent": "antigravity"}, cfg)
+        assert res is None
+        mock_popen.assert_not_called()
+
+
 

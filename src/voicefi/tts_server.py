@@ -16,7 +16,9 @@ VOICE_MAP = {
     "ava": "en-US-AvaNeural",
     "emily": "en-IE-EmilyNeural",
     "christopher": "en-US-ChristopherNeural",
-    "aria": "en-US-AriaNeural",
+    "aria": "en-US-EmmaNeural",
+    "emma": "en-US-EmmaNeural",
+    "obsidian": "en-US-EmmaNeural",
     "sonia": "en-GB-SoniaNeural",
     "guy": "en-US-GuyNeural",
 }

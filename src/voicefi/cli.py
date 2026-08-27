@@ -10,6 +10,7 @@ import re
 import sys
 import time
 from pathlib import Path
+from typing import Optional, List, Dict, Any
 
 from voicefi import __version__
 from voicefi.cli_format import VoiceFiArgumentParser, resolve_prog_name, render_categorized_help
@@ -85,17 +86,17 @@ def cmd_hook(args):
         "ipc_forwarded": False,
     })
 
-    # Fast IPC Forwarding: if VoiceFi background daemon is running,
+    # Fast IPC Forwarding: if VoiceFi background server is running,
     # forward hook event directly for instant (< 10ms) return to the agent
-    from voicefi.integrations.daemon_client import forward_hook_to_daemon
-    daemon_resp = forward_hook_to_daemon(payload, config)
-    if daemon_resp and daemon_resp.get("status") == "handled":
+    from voicefi.integrations.server_client import forward_hook_to_server
+    server_resp = forward_hook_to_server(payload, config)
+    if server_resp and server_resp.get("status") == "handled":
         if hasattr(args, "_telemetry_extra") and isinstance(args._telemetry_extra, dict):
             args._telemetry_extra["ipc_forwarded"] = True
         print(json.dumps({"decision": "allow", "forwarded": True}))
         return
 
-    # Standalone fallback: execute in-process if background daemon is offline
+    # Standalone fallback: execute in-process if background server is offline
     if target_agent in ("claude", "claude_code"):
         from voicefi.integrations.claude import handle_claude_stop_hook
         result = handle_claude_stop_hook(payload, config)
@@ -125,7 +126,29 @@ def cmd_speak(args):
     )
     text = " ".join(args.text)
     print(f"🔊 Speaking ({tts.voice}): {text}")
-    tts.speak(text, block=True)
+    start_speak = time.time()
+    err = None
+    try:
+        tts.speak(text, block=True)
+    except Exception as e:
+        err = type(e).__name__
+        raise
+    finally:
+        dur_ms = int((time.time() - start_speak) * 1000)
+        try:
+            from voicefi.telemetry import capture_voice_interaction
+            capture_voice_interaction(
+                trigger="speak",
+                duration_ms=dur_ms,
+                success=(err is None),
+                agent=agent,
+                voice=tts.voice,
+                provider=getattr(tts, "provider", None),
+                chars_count=len(text) if text else 0,
+                error_type=err,
+            )
+        except Exception:
+            pass
 
 
 def cmd_listen(args):
@@ -233,6 +256,46 @@ def cmd_new(args):
         print("🚀 New conversation command dispatched to Antigravity.")
 
 
+def cmd_send(args):
+    """Send a message/task across agents (Antigravity ↔ Claude Code) with correlation tracking."""
+    text = " ".join(args.text) if isinstance(args.text, list) else str(args.text or "")
+    if not text.strip():
+        print("❌ Error: message text cannot be empty.", file=sys.stderr)
+        sys.exit(1)
+
+    target_engine = getattr(args, "to", "claude") or "claude"
+    conv_id = getattr(args, "conv_id", None)
+    if getattr(args, "reply", False):
+        conv_id = "reply"
+
+    from_conv_id = getattr(args, "from_conv_id", None)
+    from_engine = getattr(args, "from_engine", "antigravity")
+    sender_name = getattr(args, "sender_name", None)
+    title = getattr(args, "title", None)
+    include_envelope = not getattr(args, "no_envelope", False)
+
+    from voicefi.integrations.injector import send_message_to_agent
+
+    print(f"🚀 Dispatching message to {target_engine.capitalize()}...")
+    success = send_message_to_agent(
+        conv_id=conv_id,
+        text=text.strip(),
+        sender_name=sender_name,
+        title=title,
+        target_engine=target_engine,
+        from_conv_id=from_conv_id,
+        from_engine=from_engine,
+        include_envelope=include_envelope,
+    )
+
+    if success:
+        print(f"✅ Delivered successfully to {target_engine.capitalize()}.")
+    else:
+        print(f"⚠️ Could not deliver directly to {target_engine.capitalize()}.", file=sys.stderr)
+        sys.exit(1)
+
+
+
 def cmd_tray(args):
     """Launch macOS menu bar tray companion."""
     from voicefi.ui.tray import run_tray
@@ -242,17 +305,17 @@ def cmd_tray(args):
 
 def cmd_dev(args):
     """Launch VoiceFi in foreground development mode with live console logs and auto-takeover."""
-    from voicefi.daemon import stop_all_voicefi_daemons, clean_caches, get_launchagent_status
+    from voicefi.server import stop_all_voicefi_servers, clean_caches, get_launchagent_status
     from voicefi.ui.tray import run_tray
 
     print("\n🛠️  Preparing VoiceFi DEV Environment...")
     la_status = get_launchagent_status()
     if la_status.get("is_loaded") or la_status.get("pid"):
-        print("⏸️  Temporarily stopping background LaunchAgent daemon to prevent port/lock conflicts...")
-        stop_all_voicefi_daemons(disable_launchagent=True, timeout_seconds=2.0)
+        print("⏸️  Temporarily stopping background LaunchAgent server to prevent port/lock conflicts...")
+        stop_all_voicefi_servers(disable_launchagent=True, timeout_seconds=2.0)
     else:
         # Stop any orphaned processes
-        stop_all_voicefi_daemons(disable_launchagent=False, timeout_seconds=1.0)
+        stop_all_voicefi_servers(disable_launchagent=False, timeout_seconds=1.0)
 
     # Clean stale bytecode and temporary locks
     clean_caches(clean_pycache=True, clean_tmp_state=True, clean_update_cache=True)
@@ -265,18 +328,18 @@ def cmd_dev(args):
 
 
 def cmd_clean(args):
-    """Clean stale Python bytecode, caches, temporary files, and optionally stop running daemons."""
-    from voicefi.daemon import clean_caches, stop_all_voicefi_daemons, link_dev_environment
+    """Clean stale Python bytecode, caches, temporary files, and optionally stop running servers."""
+    from voicefi.server import clean_caches, stop_all_voicefi_servers, link_dev_environment
 
     clean_all = getattr(args, "all", False)
     clean_dev = getattr(args, "dev", False)
-    purge_daemons = clean_all or clean_dev or getattr(args, "daemons", False)
+    purge_servers = clean_all or clean_dev or getattr(args, "servers", False) or getattr(args, "daemons", False)
 
     print("\n🧹 VoiceFi Cache & State Cleaner")
     print("------------------------------------------------------------------")
-    if purge_daemons:
-        print("🛑 Stopping all active VoiceFi daemons and releasing locks/ports...")
-        d_res = stop_all_voicefi_daemons()
+    if purge_servers:
+        print("🛑 Stopping all active VoiceFi servers and releasing locks/ports...")
+        d_res = stop_all_voicefi_servers()
         if d_res.get("stopped_pids"):
             print(f"  • Stopped PIDs: {d_res['stopped_pids']}")
         if d_res.get("port_freed"):
@@ -286,7 +349,7 @@ def cmd_clean(args):
         clean_pycache=True,
         clean_tmp_state=True,
         clean_update_cache=True,
-        purge_daemons=False,
+        purge_servers=False,
     )
     print(f"✅ Removed {res['cleaned_pycache_count']} __pycache__ directories and .pyc files.")
     print(f"✅ Removed {res['cleaned_tmp_count']} temporary /tmp/voicefi* state & lock files.")
@@ -300,6 +363,7 @@ def cmd_clean(args):
     print("------------------------------------------------------------------")
     print("✨ Environment is clean and consistent.\n")
     print("💡 Next Steps:")
+    print("  • Check server health & port:      vifi status")
     print("  • Start live development mode:     vifi dev")
     print("  • Launch persistent Dynamic HUD:   vifi autostart  (or 'vifi tray')")
     print("  • Interactive HUD Debug Studio:    vifi hud debug")
@@ -307,23 +371,23 @@ def cmd_clean(args):
     print("  • Run acoustic diagnostic suite:   vifi troubleshoot\n")
 
 
-def cmd_daemon(args):
-    """Manage VoiceFi background daemons, LaunchAgents, and port listeners."""
-    from voicefi.daemon import (
-        get_full_daemon_status,
-        stop_all_voicefi_daemons,
+def cmd_server(args):
+    """Manage VoiceFi background server, LaunchAgents, and port listeners."""
+    from voicefi.server import (
+        get_full_server_status,
+        stop_all_voicefi_servers,
         clean_caches,
     )
-    action = getattr(args, "daemon_action", "status")
+    action = getattr(args, "server_action", None) or getattr(args, "daemon_action", None) or getattr(args, "command", "status")
 
     if action == "status":
-        st = get_full_daemon_status()
+        st = get_full_server_status()
         la = st["launchagent"]
         port = st.get("port_5141") or st.get("port_8765") or st.get("port_listener")
         procs = st["running_processes"]
         hooks = st["hooks"]
 
-        print("\n📊 VoiceFi Daemon & Process Status")
+        print("\n📊 VoiceFi Server & Runtime Status")
         print("==================================================================")
         print(f"  • LaunchAgent (launchd):  {'🟢 Loaded' if la['is_loaded'] else '⚪ Not Loaded'}" + (f" (PID {la['pid']})" if la['pid'] else ""))
         print(f"  • LaunchAgent Plist:      {'✅ Present' if la['plist_exists'] else '❌ Missing'} ({la['plist_path']})")
@@ -342,11 +406,11 @@ def cmd_daemon(args):
         print(f"    • Claude Code Hook:     {hooks.get('claude') or '❌ Not installed'}")
         print(f"    • Current Python Exec:  {st['python_executable']}")
         print("==================================================================\n")
-        print("💡 Commands: 'vifi daemon stop' | 'vifi daemon restart' | 'vifi clean --all' | 'vifi dev'\n")
+        print("💡 Commands: 'vifi status' | 'vifi stop' | 'vifi restart' | 'vifi server' | 'vifi dev'\n")
 
     elif action in ("stop", "kill"):
-        print("\n🛑 Stopping all VoiceFi daemons, background processes, and releasing ports...")
-        res = stop_all_voicefi_daemons()
+        print("\n🛑 Stopping all VoiceFi background servers, processes, and releasing ports...")
+        res = stop_all_voicefi_servers()
         if res.get("stopped_pids"):
             print(f"✅ Terminated processes: {res['stopped_pids']}")
         if res.get("port_freed"):
@@ -354,17 +418,21 @@ def cmd_daemon(args):
         print("✅ Background LaunchAgent disabled and all locks cleared.\n")
 
     elif action in ("restart", "reload"):
-        print("\n🔄 Restarting VoiceFi background daemon...")
-        stop_all_voicefi_daemons()
+        print("\n🔄 Restarting VoiceFi background server...")
+        stop_all_voicefi_servers()
         clean_caches()
         cmd_autostart(args)
-        print("✅ VoiceFi background daemon restarted.\n")
+        print("✅ VoiceFi background server restarted.\n")
 
     elif action in ("start", "autostart"):
         cmd_autostart(args)
 
     else:
-        print(f"Unknown daemon action: {action}. Use: status, stop, restart, start.")
+        print(f"Unknown server action: {action}. Use: status, stop, restart, start.")
+
+
+# Backwards compatibility alias
+cmd_daemon = cmd_server
 
 
 def cmd_onboarding(args):
@@ -1124,7 +1192,39 @@ def cmd_hearing_test(args):
 
 
 def cmd_feedback_loop(args):
-    """Run full feedback loop test (Speak -> Listen -> Transcribe -> Send)."""
+    """Manage ProActive Feedback Loop setting (on/off/status) or run acoustic loop test."""
+    voice_arg = getattr(args, "voice", None)
+    action_arg = getattr(args, "action", None)
+    target = (action_arg or voice_arg or "").lower()
+
+    if target in ("on", "enable", "true", "1"):
+        cfg = load_config(getattr(args, "config", None))
+        cfg.proactive.feedback_loop.enabled = True
+        cfg.antigravity.auto_listen = True
+        save_config(cfg)
+        print("\n⚡ ProActive Feedback Loop: 🟢 ENABLED")
+        print("💡 The microphone will automatically open for your conversational turn after the agent speaks.\n")
+        return
+    elif target in ("off", "disable", "false", "0"):
+        cfg = load_config(getattr(args, "config", None))
+        cfg.proactive.feedback_loop.enabled = False
+        cfg.antigravity.auto_listen = False
+        save_config(cfg)
+        print("\n⚡ ProActive Feedback Loop: ⚪ DISABLED")
+        print("💡 Speech synthesis only. Use Ctrl+R or Ctrl+T to speak on-demand.\n")
+        return
+    elif target == "status":
+        cfg = load_config(getattr(args, "config", None))
+        status_str = "🟢 ENABLED" if cfg.proactive.feedback_loop.enabled else "⚪ DISABLED"
+        print(f"\n⚡ ProActive Feedback Loop Status: {status_str}")
+        print(f"  • Turn Handoff: {'✅ Active' if cfg.proactive.feedback_loop.enabled else '⚪ Inactive'}")
+        print(f"  • Chime Cue: {'✅ On' if cfg.proactive.feedback_loop.chime_cue else '❌ Off'}")
+        print(f"  • Turn Timeout: {cfg.proactive.feedback_loop.timeout_seconds}s")
+        print(f"  • Typing Guard: {'✅ Active' if cfg.proactive.feedback_loop.cancel_on_typing else '❌ Inactive'}")
+        print(f"  • Multi-Channel Routing: {'✅ Active (Claude, Slack, Linear)' if cfg.proactive.intent_routing.enabled else '❌ Inactive'}\n")
+        return
+
+    # Otherwise run acoustic roundtrip verification test
     args.voice_action = "test"
     args.feedback_loop = True
     cmd_voice(args)
@@ -1652,7 +1752,7 @@ def cmd_voice(args):
         audition_cast = [
             ("Viv", "en-US-AvaNeural", "edge_tts", "Antigravity Primary Agent", "Hey! I'm Viv. Expressive, natural, and conversational tone, great for pair programming and deep focus."),
             ("Christopher", "en-US-ChristopherNeural", "edge_tts", "Architect / Deep Focus", "Hey! I'm Christopher. My calm, low-latency neural tone is great for deep focus and long coding sessions."),
-            ("Aria", "en-US-AriaNeural", "edge_tts", "Debugger / QA Alerting", "Hello! I'm Aria. I'm quick, energetic, and expressive, perfect for test announcements, git actions, and build alerts."),
+            ("Aria", "en-US-EmmaNeural", "edge_tts", "Second Voice (Obsidian / Knowledge Vault)", "Hello! I'm Aria. I'm quick, expressive, and connected directly to your Obsidian knowledge vault."),
             ("Sonia", "en-GB-SoniaNeural", "edge_tts", "Researcher Subagent", "Greetings. I am Sonia. My clear British delivery is well suited for code audits and architecture reviews."),
             ("Guy", "en-US-GuyNeural", "edge_tts", "Conversational Pair", "Hey there! I'm Guy. I've got a casual, conversational delivery that feels like pair programming with a friend."),
         ]
@@ -1675,7 +1775,7 @@ def cmd_voice(args):
         voice_raw = args.voice.strip() if getattr(args, "voice", None) else None
 
         known_agent_names = {
-            "antigravity", "claude", "cursor", "windsurf",
+            "antigravity", "claude", "cursor", "windsurf", "obsidian", "vault",
             "researcher", "debugger", "architect", "tester", "writer", "analyst",
             "default", "global", "all"
         }
@@ -2263,7 +2363,19 @@ def cmd_ambient(args):
                 time.sleep(0.5)
         except KeyboardInterrupt:
             stream.stop()
-            print("\n👋 Ambient listener stopped.")
+            print("\n👋 Meeting assistant stopped.")
+    elif action == "status":
+        config = load_config(getattr(args, "config", None))
+        status_str = "🟢 ENABLED (Session Active)" if config.proactive.meeting_assistant.enabled else "⚪ INACTIVE (Start on-demand with 'vifi meeting start')"
+        print(f"\n👥 ProActive Meeting Assistant Status: {status_str}")
+        print(f"  • Auto-Notes: {'✅ Enabled' if config.proactive.meeting_assistant.auto_notes else '❌ Disabled'}")
+        print(f"  • Autonomous Subagents: {'✅ Enabled' if config.proactive.meeting_assistant.auto_dispatch_subagents else '❌ Disabled'}")
+        print(f"  • Energy Threshold: {config.proactive.meeting_assistant.energy_threshold}")
+        print(f"  • Max Utterance Window: {config.proactive.meeting_assistant.max_utterance_seconds}s\n")
+
+
+cmd_meeting = cmd_ambient
+
 
 def cmd_obsidian(args):
     """Manage and install VoiceFi plugin into Obsidian vaults."""
@@ -2345,11 +2457,11 @@ def cmd_obsidian(args):
 
 def cmd_info(args):
     """Display active configuration and system capabilities."""
-    from voicefi.daemon import get_full_daemon_status
+    from voicefi.server import get_full_server_status
 
     config = load_config(args.config)
     tier_info = FeatureGate.get_tier_summary(config)
-    st = get_full_daemon_status()
+    st = get_full_server_status()
     la = st["launchagent"]
     port = st.get("port_5141") or st.get("port_8765") or st.get("port_listener")
 
@@ -2400,13 +2512,13 @@ def cmd_hud(args):
         cfg.hud.persistent = True
         save_config(cfg)
 
-        # Check if background LaunchAgent daemon is running
+        # Check if background LaunchAgent server is running
         import subprocess, shutil, os
         res = subprocess.run(["launchctl", "list", "com.voicefi.menubar"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        is_daemon_running = (res.returncode == 0)
+        is_running = (res.returncode == 0)
         
-        if not is_daemon_running:
-            print("🚀 Launching VoiceFi background companion daemon (autostart)...")
+        if not is_running:
+            print("🚀 Launching VoiceFi background companion server (autostart)...")
             cmd_autostart(args)
         
         hud.set_persistent(True)
@@ -2767,16 +2879,18 @@ def extract_cli_metadata(args: argparse.Namespace) -> dict:
     Strictly allowlisted: excludes all free-form user text, prompts, transcripts, audio, and paths.
     """
     cmd = getattr(args, "command", "unknown") or "unknown"
-    props: dict = {"command": cmd}
+    props: dict = {"command": cmd, "$is_server": True}
 
     # 1. Subcommands / Actions (Strictly allowlisted strings)
     subcommand = None
-    if hasattr(args, "voice_action") and args.voice_action:
+    if hasattr(args, "server_action") and args.server_action:
+        subcommand = str(args.server_action)
+    elif hasattr(args, "daemon_action") and args.daemon_action:
+        subcommand = str(args.daemon_action)
+    elif hasattr(args, "voice_action") and args.voice_action:
         subcommand = str(args.voice_action)
     elif hasattr(args, "hud_action") and args.hud_action:
         subcommand = str(args.hud_action)
-    elif hasattr(args, "daemon_action") and args.daemon_action:
-        subcommand = str(args.daemon_action)
     elif hasattr(args, "clone_action") and args.clone_action:
         subcommand = str(args.clone_action)
     elif hasattr(args, "memo_action") and args.memo_action:
@@ -2787,10 +2901,15 @@ def extract_cli_metadata(args: argparse.Namespace) -> dict:
         subcommand = str(args.feedback_action)
     elif hasattr(args, "obsidian_action") and args.obsidian_action:
         subcommand = str(args.obsidian_action)
+    elif hasattr(args, "hook_action") and args.hook_action:
+        subcommand = str(args.hook_action)
+    elif hasattr(args, "setup_action") and args.setup_action:
+        subcommand = str(args.setup_action)
     elif cmd in (
         "download-ava", "ping", "feedback-loop", "hearing-test", "barge-in",
         "troubleshoot", "kill", "autostart", "stop-autostart", "pause", "resume",
-        "permissions", "mcp", "onboarding", "panel", "companion", "info", "update"
+        "permissions", "mcp", "onboarding", "panel", "companion", "info", "update",
+        "status", "stop", "start", "restart", "server", "setup"
     ):
         subcommand = cmd
 
@@ -2817,7 +2936,7 @@ def extract_cli_metadata(args: argparse.Namespace) -> dict:
         if re.match(r"^[a-z0-9_-]{1,30}$", clean_provider):
             props["provider"] = clean_provider
 
-    # 4. Safe boolean flags (Allowlisted flags only — ZERO user data)
+    # 4. Safe scrubbed args/flags (Allowlisted flags only — ZERO user data/paths)
     flags = []
     flag_map = [
         ("dev", "--dev"),
@@ -2839,9 +2958,11 @@ def extract_cli_metadata(args: argparse.Namespace) -> dict:
         ("claude", "--claude"),
         ("antigravity", "--antigravity"),
         ("mcp", "--mcp"),
+        ("servers", "--servers"),
         ("daemons", "--daemons"),
         ("clipboard", "--clipboard"),
         ("no_synth", "--no-synth"),
+        ("global_install", "--global"),
     ]
     for flag_attr, flag_name in flag_map:
         val = getattr(args, flag_attr, None)
@@ -2853,8 +2974,8 @@ def extract_cli_metadata(args: argparse.Namespace) -> dict:
     if getattr(args, "enter", None) is False:
         flags.append("--no-enter")
 
-    if flags:
-        props["flags"] = flags
+    props["args"] = flags
+    props["flags"] = flags
 
     # 5. Command-specific safe enums
     if cmd == "hud" and hasattr(args, "state") and args.state:
@@ -2922,15 +3043,21 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
     subparsers.add_parser("dev", help="Launch in foreground dev mode with live console logs and auto-takeover")
 
     # clean / purge
-    clean_p = subparsers.add_parser("clean", aliases=["purge", "reset-cache"], help="Clean stale Python bytecode, caches, locks, and daemons")
-    clean_p.add_argument("--all", "-a", action="store_true", help="Stop all background daemons and clean all caches & locks")
-    clean_p.add_argument("--dev", "-d", action="store_true", help="Clean caches, stop daemons, and re-link hooks to local repository .venv")
-    clean_p.add_argument("--daemons", action="store_true", help="Stop and terminate running VoiceFi daemons")
+    clean_p = subparsers.add_parser("clean", aliases=["purge", "reset-cache"], help="Clean stale Python bytecode, caches, locks, and servers")
+    clean_p.add_argument("--all", "-a", action="store_true", help="Stop all background servers and clean all caches & locks")
+    clean_p.add_argument("--dev", "-d", action="store_true", help="Clean caches, stop servers, and re-link hooks to local repository .venv")
+    clean_p.add_argument("--servers", "--daemons", action="store_true", dest="servers", help="Stop and terminate running VoiceFi background servers")
 
-    # daemon / kill
-    daemon_p = subparsers.add_parser("daemon", help="Inspect and manage background daemons, LaunchAgents, and port listeners")
-    daemon_p.add_argument("daemon_action", nargs="?", default="status", choices=["status", "stop", "kill", "restart", "start", "reload"], help="Daemon action (default: status)")
-    subparsers.add_parser("kill", help="Immediately stop all VoiceFi background daemons and free port 5141")
+    # status / stop / start / restart shortcuts
+    subparsers.add_parser("status", help="Show VoiceFi server status, active devices, and port listeners")
+    subparsers.add_parser("stop", help="Stop VoiceFi background server and free port 5141")
+    subparsers.add_parser("start", help="Start VoiceFi background server (LaunchAgent)")
+    subparsers.add_parser("restart", help="Restart VoiceFi background server and reload config")
+
+    # server / daemon / service / kill
+    server_p = subparsers.add_parser("server", aliases=["daemon", "service"], help="Inspect and manage background server, LaunchAgents, and port listeners")
+    server_p.add_argument("server_action", nargs="?", default="status", choices=["status", "stop", "kill", "restart", "start", "reload"], help="Server action (default: status)")
+    subparsers.add_parser("kill", help="Immediately stop all VoiceFi background servers and free port 5141")
 
     # pause / resume
     subparsers.add_parser("pause", help="Pause VoiceFi audio hooks and active turn-handoffs globally")
@@ -3214,12 +3341,12 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
     m_del = memo_sub.add_parser("delete", help="Delete a stored voice memo")
     m_del.add_argument("memo_id", type=str, help="Memo ID to delete")
 
-    # ambient listener & proactive co-pilot
-    amb_p = subparsers.add_parser("ambient", help="Ambient background listening & proactive triage co-pilot")
-    amb_sub = amb_p.add_subparsers(dest="ambient_action", metavar="<action>", help="Ambient action")
-    amb_start = amb_sub.add_parser("start", help="Start background ambient listener")
+    # ambient listener & proactive meeting co-pilot
+    amb_p = subparsers.add_parser("ambient", aliases=["meeting"], help="ProActive Meeting Assistant & ambient background co-pilot")
+    amb_sub = amb_p.add_subparsers(dest="ambient_action", metavar="<action>", help="Meeting / Ambient action")
+    amb_start = amb_sub.add_parser("start", help="Start background meeting assistant session")
     amb_start.add_argument("--source", choices=["mic", "loopback"], default="mic", help="Audio capture source")
-    amb_sub.add_parser("status", help="Show ambient listener status")
+    amb_sub.add_parser("status", help="Show meeting assistant status")
 
     # STT biasing & phonetic normalizer
     bias_p = subparsers.add_parser("bias", help="Inspect active STT vocabulary biasing or test phonetic normalization")
@@ -3290,6 +3417,18 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
     ava_top.add_argument("--timeout", type=int, default=300, help="Polling timeout in seconds (default: 300)")
     ava_top.add_argument("-s", "--silent", "-q", "--quiet", dest="silent", action="store_true", help="Silent mode")
 
+    # send / dispatch
+    send_p = subparsers.add_parser("send", aliases=["dispatch"], help="Send message/task across agents (Antigravity ↔ Claude Code)")
+    send_p.add_argument("text", nargs="+", help="Message or prompt to send")
+    send_p.add_argument("--to", type=str, default="claude", choices=["claude", "antigravity"], help="Target agent engine (claude, antigravity)")
+    send_p.add_argument("--conv-id", "--id", dest="conv_id", type=str, default=None, help="Target conversation ID or 'active'")
+    send_p.add_argument("--reply", action="store_true", help="Reply to the most recent originating conversation")
+    send_p.add_argument("--from-conv-id", "--from", dest="from_conv_id", type=str, default=None, help="Originating conversation ID")
+    send_p.add_argument("--from-engine", type=str, default="antigravity", help="Originating agent engine")
+    send_p.add_argument("--title", type=str, default=None, help="Message title / heading")
+    send_p.add_argument("--sender", dest="sender_name", type=str, default=None, help="Sender attribution (e.g. Claude, Antigravity)")
+    send_p.add_argument("--no-envelope", action="store_true", help="Do not include provenance metadata header")
+
     # help
     subparsers.add_parser("help", help="Display help and command usage")
 
@@ -3315,6 +3454,8 @@ def main():
         sys.exit(0)
 
     commands = {
+        "send": cmd_send,
+        "dispatch": cmd_send,
         "update": cmd_update,
         "upgrade": cmd_update,
         "download-ava": cmd_download_ava,
@@ -3365,16 +3506,27 @@ def main():
         "clean": cmd_clean,
         "purge": cmd_clean,
         "reset-cache": cmd_clean,
-        "daemon": cmd_daemon,
-        "kill": lambda a: cmd_daemon(argparse.Namespace(daemon_action="stop")),
+        "server": cmd_server,
+        "service": cmd_server,
+        "daemon": cmd_server,
+        "status": lambda a: cmd_server(argparse.Namespace(server_action="status", config=getattr(a, "config", None))),
+        "stop": lambda a: cmd_server(argparse.Namespace(server_action="stop", config=getattr(a, "config", None))),
+        "start": lambda a: cmd_server(argparse.Namespace(server_action="start", config=getattr(a, "config", None))),
+        "restart": lambda a: cmd_server(argparse.Namespace(server_action="restart", config=getattr(a, "config", None))),
+        "kill": lambda a: cmd_server(argparse.Namespace(server_action="stop", config=getattr(a, "config", None))),
         "memo": cmd_memo,
         "buffer": cmd_memo,
         "ambient": cmd_ambient,
+        "meeting": cmd_meeting,
+        "feedback-loop": cmd_feedback_loop,
+        "feedbackloop": cmd_feedback_loop,
+        "loop": cmd_feedback_loop,
         "bias": cmd_bias,
         "vad": cmd_vad,
         "mcp": cmd_mcp,
         "mcp-server": cmd_mcp,
     }
+
 
     # Asynchronously trigger background update check
     try:
@@ -3386,6 +3538,11 @@ def main():
     handler = commands.get(args.command)
     if handler:
         props = extract_cli_metadata(args)
+        try:
+            from voicefi.telemetry import set_active_command
+            set_active_command(args.command)
+        except Exception:
+            pass
         start_time = time.time()
         success = True
         exit_code = 0

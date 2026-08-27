@@ -43,6 +43,28 @@ CLI entry points: `vifi`, `vg`, `voicefi`
 - `vifi panel` — Launch the local web control panel (http://localhost:5141)
 - `vifi memo record` — Capture 2-5 min developer voice ramble and synthesize to code plan
 
+## 🎙️ Hands-Free Feedback Loop (Conversational Voice Loop)
+
+VoiceFi provides a fully automated, bidirectional hands-free voice loop for Claude Code via the `Stop` event hook in `~/.claude/settings.json`.
+
+### Lifecycle Flow
+1. **Turn Completion**: When Claude Code finishes generating a response or running tools, the `Stop` hook triggers `vifi hook --agent claude`.
+2. **Crisp Spoken Soundbite**: VoiceFi extracts the key takeaway and speaks it aloud using Claude's voice persona (default: **Guy** / Edge-TTS or Apple Neural).
+3. **Hands-Free Mic Handoff**: The microphone automatically opens with VAD energy detection. The Dynamic Island HUD streams real-time audio waveforms (`on_listening_tick`) and live transcription previews (`on_live_transcript`).
+4. **Smart Window & Turn Injection**: When speech pauses, Whisper STT transcribes the input and the **Smart Window Injector** delivers the prompt:
+   - **Claude Desktop App (`Claude.app`)**: Posts a synthetic focus click to the prompt textarea, pastes (`Cmd+V`), and submits (`Return`).
+   - **Terminal CLI (`Ghostty`, `iTerm2`, `Terminal`, `Warp`, `Cursor`)**: Focuses the active terminal window, pastes, and submits.
+
+### Configuration (`~/.voicefi/config.yaml`)
+```yaml
+claude:
+  read_summary_aloud: true
+  auto_listen: true
+  inject_to_active_window: true
+  auto_submit: true
+  max_spoken_words: 25
+```
+
 ## Architecture & Code Conventions
 
 - **Source Code**: Located in `src/voicefi/`
@@ -52,4 +74,5 @@ CLI entry points: `vifi`, `vg`, `voicefi`
   - STT: `src/voicefi/stt/` (Local Faster-Whisper, Groq Cloud, Apple Speech)
   - Audio I/O: `src/voicefi/audio/` (VAD, recorder, player, echo cancellation)
 - **UI / HUD**: `src/voicefi/ui/` (PyObjC Cocoa floating dynamic island HUDs, macOS tray companion)
-- **Integrations**: `src/voicefi/integrations/` (Antigravity transcript watcher, Claude Code, Cursor focus, Obsidian vault bridge)
+- **Integrations & Injector**: `src/voicefi/integrations/` (Antigravity IPC, Claude Code hook & Desktop injector, Cursor focus, Obsidian vault bridge)
+

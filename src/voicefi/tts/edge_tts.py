@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Optional
 from voicefi.tts.base import BaseTTS, speech_turn_lock, DuplicateSpeechSuppressed
 from voicefi.audio.meeting_detection import is_user_on_call
+from voicefi.tts.normalizer import normalize_tts_text
 
 
 def normalize_edge_rate(rate: any) -> str:
@@ -109,12 +110,13 @@ class EdgeTTS(BaseTTS):
             print("[EdgeTTS] User is on a call. Skipping speech synthesis.")
             return
 
+        clean_text = normalize_tts_text(text)
         self._stop_requested = False
 
         def _run():
             try:
                 with speech_turn_lock(
-                    text=text,
+                    text=clean_text,
                     agent_name=getattr(self, "agent_name", "VoiceFi"),
                     persona_name=getattr(self, "persona_name", getattr(self, "voice", "Viv")),
                 ):
@@ -122,7 +124,7 @@ class EdgeTTS(BaseTTS):
                         return
 
                     import re
-                    sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", text) if s.strip()]
+                    sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", clean_text) if s.strip()]
                     if not sentences:
                         sentences = [text]
 
@@ -218,8 +220,9 @@ class EdgeTTS(BaseTTS):
         """Synthesize text directly to an MP3 file asynchronously."""
         if not text or not text.strip():
             return False
+        clean_text = normalize_tts_text(text)
         try:
-            await self._generate_audio(text, str(output_path))
+            await self._generate_audio(clean_text, str(output_path))
             return Path(output_path).is_file() and Path(output_path).stat().st_size > 0
         except Exception as e:
             print(f"[EdgeTTS] Error synthesizing to file: {e}")

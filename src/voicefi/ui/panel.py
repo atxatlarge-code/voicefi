@@ -2979,7 +2979,7 @@ class VoicePanelRequestHandler(http.server.BaseHTTPRequestHandler):
                 def _showcase():
                     cast = [
                         ("Christopher", "en-US-ChristopherNeural", "edge_tts", "Hey! I'm Christopher. Calm and authoritative for planning."),
-                        ("Aria", "en-US-AriaNeural", "edge_tts", "And I'm Aria! Energetic and crisp for test results."),
+                        ("Aria", "en-US-EmmaNeural", "edge_tts", "And I'm Aria! Energetic and crisp for test results."),
                         ("Sonia", "en-GB-SoniaNeural", "edge_tts", "I am Sonia, analytical and focused for research."),
                         ("Guy", "en-US-GuyNeural", "edge_tts", "Hey there! I'm Guy, ready for pair programming."),
                     ]

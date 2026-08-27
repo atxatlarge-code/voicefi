@@ -435,7 +435,8 @@ def test_audio_recorder_barge_in_disabled_maintains_pause():
             assert len(barge_in_events) == 0, "Barge-in must not trigger when disabled"
             assert not mock_stop_speech.called
         finally:
-            wav_path.unlink(missing_ok=True)
+            if wav_path:
+                wav_path.unlink(missing_ok=True)
 
 
 def test_ptt_barge_in_instant_speech_stop():
@@ -573,5 +574,59 @@ def test_tray_app_barge_in_toggle():
 
         # Toggle back
         app.toggle_barge_in(app.barge_in_item)
-        assert app.config.vad.barge_in == "auto"
+        assert app.config.vad.barge_in is "auto" or app.config.vad.barge_in == "auto"
         assert app.barge_in_item.state == 1
+
+
+def test_headphone_barge_in_low_energy_rejection():
+    """Verify that faint ambient noise with high confidence does not false-trigger barge in without minimum energy."""
+    sample_rate = 16000
+    chunk_duration = 0.05
+    chunk_size = int(sample_rate * chunk_duration)
+
+    recorder = AudioRecorder(
+        sample_rate=sample_rate,
+        energy_threshold=0.005,
+        silence_duration=0.6,
+        max_record_seconds=5.0,
+        barge_in=True,
+        barge_in_sensitivity=1.0,
+    )
+
+    barge_in_events = []
+    def on_barge():
+        barge_in_events.append(True)
+
+    # Faint noise chunk (energy very low, e.g. 0.002, well below min_barge_energy of 0.015)
+    faint_noise_chunk = np.ones((chunk_size, 1), dtype=np.float32) * 0.002
+    silence_chunk = np.zeros((chunk_size, 1), dtype=np.float32)
+
+    chunks = [faint_noise_chunk] * 15 + [silence_chunk] * 15
+    current_idx = [0]
+
+    class MockStream:
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            pass
+        def read(self, size):
+            idx = current_idx[0]
+            current_idx[0] += 1
+            if idx < len(chunks):
+                return chunks[idx], False
+            return silence_chunk, False
+
+    with patch("voicefi.audio.recorder.is_agent_speaking", return_value=True), \
+         patch("voicefi.audio.recorder.is_agent_audio_playing", return_value=True), \
+         patch("voicefi.audio.recorder.is_using_builtin_speakers", return_value=False), \
+         patch.object(recorder, "_create_input_stream", return_value=MockStream()), \
+         patch.object(recorder.vad, "process", return_value={"confidence": 0.95, "energy": 0.002, "engine": "silero"}):
+
+        stop_ev = threading.Event()
+        # Set stop event after small delay
+        threading.Timer(0.3, stop_ev.set).start()
+        recorder.record_speech_auto(on_barge_in=on_barge, stop_event=stop_ev)
+
+    # Assert barge-in was NOT falsely triggered by faint noise despite high confidence score
+    assert len(barge_in_events) == 0
+

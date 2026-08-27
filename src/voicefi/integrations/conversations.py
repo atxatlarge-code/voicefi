@@ -21,6 +21,7 @@ def get_session_cookie_path() -> Path:
 
 
 import fcntl
+from voicefi.integrations.tool_formatter import format_tool_details
 
 
 def _normalize_turn_signature(signature: str) -> str:
@@ -86,10 +87,10 @@ def claim_turn(
                     except Exception:
                         entries = []
 
-                # Clean entries older than 15 seconds
+                # Clean entries older than 60 seconds
                 valid_entries = [
                     e for e in entries
-                    if (now - float(e.get("timestamp", 0))) < 15.0
+                    if (now - float(e.get("timestamp", 0))) < 60.0
                 ]
 
                 # Check if this exact turn_id, step_index, signature, OR normalized text was already claimed
@@ -120,21 +121,17 @@ def claim_turn(
                     if e_sig == signature:
                         return False
 
-                    # 4. Normalized text match
-                    if norm_sig and e_norm == norm_sig:
-                        return False
-
-                    # 5. Conversation-level rapid debounce (3.5s window for same conversation when step_index is unknown or same)
-                    if conv_id and e_cid == conv_id:
-                        if (
-                            resolved_step_idx is not None
-                            and e_step is not None
-                            and resolved_step_idx != e_step
-                        ):
-                            continue
-                        if (now - e_ts) < 3.5:
+                    # 4. Normalized text match or strong prefix match
+                    if norm_sig and e_norm:
+                        if norm_sig == e_norm:
                             return False
-                        if norm_sig and (norm_sig in e_norm or e_norm in norm_sig):
+                        if len(norm_sig) >= 15 and len(e_norm) >= 15:
+                            if norm_sig[:20] == e_norm[:20]:
+                                return False
+
+                    # 5. Conversation-level rapid debounce (5.0s window for same conversation unless distinct step_index)
+                    if conv_id and e_cid == conv_id and (resolved_step_idx is None or resolved_step_idx == e_step):
+                        if (now - e_ts) < 5.0:
                             return False
 
                 # Claim this turn atomically
@@ -477,6 +474,104 @@ def load_session_cookie() -> Optional[Dict[str, Any]]:
     except Exception:
         pass
     return None
+
+
+_AGENT_ROUTES_FILE = Path("/tmp/voicefi_agent_routes.json")
+
+
+def record_agent_route(
+    from_engine: str,
+    from_conv_id: str,
+    to_engine: str,
+    to_conv_id: Optional[str] = None,
+    metadata: Optional[Dict[str, Any]] = None,
+) -> None:
+    """
+    Record cross-agent dispatch route for bi-directional provenance and return routing.
+    """
+    if not from_engine or not from_conv_id:
+        return
+
+    route = {
+        "from_engine": from_engine,
+        "from_conv_id": str(from_conv_id),
+        "to_engine": to_engine,
+        "to_conv_id": str(to_conv_id) if to_conv_id else None,
+        "timestamp": time.time(),
+        "metadata": metadata or {},
+    }
+
+    try:
+        current: List[Dict[str, Any]] = []
+        if _AGENT_ROUTES_FILE.is_file():
+            try:
+                data = json.loads(_AGENT_ROUTES_FILE.read_text())
+                if isinstance(data, list):
+                    current = data
+            except Exception:
+                current = []
+
+        # Keep latest 20 routes within last 24h
+        cutoff = time.time() - 86400.0
+        current = [r for r in current if float(r.get("timestamp", 0)) > cutoff]
+        current.append(route)
+        if len(current) > 20:
+            current = current[-20:]
+
+        _AGENT_ROUTES_FILE.write_text(json.dumps(current, indent=2))
+    except Exception as e:
+        print(f"[ConversationTracker] Notice recording agent route: {e}")
+
+
+def get_return_route(target_engine: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """
+    Get the most recent origin route for returning messages to target_engine.
+    E.g. If Claude wants to reply to Antigravity, finds the last route from Antigravity -> Claude.
+    """
+    if not _AGENT_ROUTES_FILE.is_file():
+        return None
+
+    try:
+        data = json.loads(_AGENT_ROUTES_FILE.read_text())
+        if not isinstance(data, list) or not data:
+            return None
+
+        # Scan backwards from newest
+        for route in reversed(data):
+            if target_engine:
+                if route.get("from_engine") == target_engine:
+                    return route
+            else:
+                return route
+    except Exception:
+        pass
+    return None
+
+
+def get_latest_antigravity_conversation_id() -> Optional[str]:
+    """
+    Find the most recently updated genuine Antigravity conversation ID (excluding Claude sessions).
+    """
+    try:
+        # First check session cookie if it is Antigravity
+        cookie = load_session_cookie()
+        if cookie and cookie.get("engine") == "antigravity":
+            cid = cookie.get("conv_id")
+            if cid and not str(cid).startswith("claude_"):
+                return str(cid)
+
+        tracker = ConversationTracker()
+        active = tracker.get_active_or_latest()
+        if active and getattr(active, "engine", "") == "antigravity" and not str(active.id).startswith("claude_"):
+            return str(active.id)
+
+        for c in tracker.get_all_conversations(limit=10):
+            if getattr(c, "engine", "") == "antigravity" and not str(c.id).startswith("claude_"):
+                return str(c.id)
+    except Exception:
+        pass
+    return None
+
 
 
 @dataclass
@@ -981,19 +1076,15 @@ def parse_full_conversation_details(transcript_path: Path, brain_dir: Optional[P
         elif current_turn is not None:
             if tool_calls:
                 for tc in tool_calls:
+                    t_desc, t_tag = format_tool_details(tc)
                     t_name = tc.get("name") or tc.get("tool_name") or "tool"
                     t_args = tc.get("args", {})
-                    t_summary = ""
-                    t_action = ""
-                    if isinstance(t_args, dict):
-                        t_summary = str(t_args.get("toolSummary", "")).strip('\"')
-                        t_action = str(t_args.get("toolAction", "")).strip('\"')
                     current_turn["agent_steps"].append({
                         "step_index": step_index,
                         "type": "tool_call",
                         "tool_name": t_name,
-                        "summary": t_summary or t_name,
-                        "action": t_action,
+                        "summary": t_desc,
+                        "action": t_tag,
                         "args": t_args,
                         "status": step_status,
                         "output": None,
@@ -1004,7 +1095,11 @@ def parse_full_conversation_details(transcript_path: Path, brain_dir: Optional[P
                 if current_turn["agent_steps"]:
                     for s in reversed(current_turn["agent_steps"]):
                         if s.get("type") == "tool_call" and s.get("output") is None:
-                            s["output"] = content
+                            # Truncate very large tool outputs to prevent mobile WebProcess memory crashes
+                            if content and len(content) > 2500:
+                                s["output"] = content[:2500] + f"\n\n... [{len(content) - 2500:,} more characters truncated for mobile performance]"
+                            else:
+                                s["output"] = content
                             break
             elif stype == "PLANNER_RESPONSE" and source == "MODEL":
                 if content:
@@ -1022,7 +1117,7 @@ def parse_full_conversation_details(transcript_path: Path, brain_dir: Optional[P
                     "action": "",
                     "args": {},
                     "status": step_status,
-                    "output": content,
+                    "output": (content[:2500] + f"\n\n... [{len(content) - 2500:,} more characters truncated]") if (content and len(content) > 2500) else content,
                     "created_at": created_at,
                 })
 
@@ -1307,7 +1402,11 @@ def parse_full_claude_conversation_details(session_path: Path) -> Dict[str, Any]
                     if current_turn["agent_steps"]:
                         for s in reversed(current_turn["agent_steps"]):
                             if s.get("output") is None:
-                                s["output"] = att.get("output") or att.get("content") or ""
+                                raw_out = att.get("output") or att.get("content") or ""
+                                if raw_out and len(raw_out) > 2500:
+                                    s["output"] = raw_out[:2500] + f"\n\n... [{len(raw_out) - 2500:,} more characters truncated]"
+                                else:
+                                    s["output"] = raw_out
                                 break
 
     if current_turn:

@@ -11,8 +11,8 @@ from voicefi.tts.base import (
     is_system_audio_playing,
     speech_turn_lock,
     stop_all_speech,
-    AGENT_SPEAKING_STATUS_FILE,
 )
+import voicefi.tts.base as tts_base
 from voicefi.audio.recorder import AudioRecorder
 from voicefi.ui.dictation_hud import DictationHUD
 from voicefi.config import VoiceFiConfig
@@ -27,12 +27,12 @@ def test_agent_speaking_flag_lifecycle(tmp_path):
     # Set speaking active
     set_agent_speaking(True)
     assert is_agent_speaking()
-    assert AGENT_SPEAKING_STATUS_FILE.is_file()
+    assert tts_base.AGENT_SPEAKING_STATUS_FILE.is_file()
 
     # Clear speaking
     set_agent_speaking(False)
     assert not is_agent_speaking()
-    assert not AGENT_SPEAKING_STATUS_FILE.is_file()
+    assert not tts_base.AGENT_SPEAKING_STATUS_FILE.is_file()
 
 
 def test_speech_turn_lock_sets_and_clears_speaking_state():
@@ -209,6 +209,6 @@ def test_is_agent_speaking_stale_pid_cleanup():
     """Verify is_agent_speaking cleans up stale PID markers if process died."""
     set_agent_speaking(False)
     # Write a status file with a non-existent PID (e.g. 999999)
-    AGENT_SPEAKING_STATUS_FILE.write_text(f"999999:{time.time()}")
+    tts_base.AGENT_SPEAKING_STATUS_FILE.write_text(f"999999:{time.time()}")
     assert not is_agent_speaking()
-    assert not AGENT_SPEAKING_STATUS_FILE.is_file()
+    assert not tts_base.AGENT_SPEAKING_STATUS_FILE.is_file()

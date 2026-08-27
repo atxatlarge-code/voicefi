@@ -244,7 +244,47 @@ def default_agents_catalog() -> dict[str, AgentVoiceProfile]:
             provider="edge_tts",
             description="OpenAI Agent",
         ),
+        "obsidian": AgentVoiceProfile(
+            voice="en-US-EmmaNeural",
+            provider="edge_tts",
+            description="Obsidian Second Voice",
+        ),
+        "aria": AgentVoiceProfile(
+            voice="en-US-EmmaNeural",
+            provider="edge_tts",
+            description="Aria (Second Voice / Obsidian)",
+        ),
     }
+
+
+class ProActiveFeedbackLoopConfig(BaseModel):
+    enabled: bool = True
+    chime_cue: bool = True
+    barge_in: Union[bool, Literal["auto"]] = "auto"
+    timeout_seconds: float = 12.0
+    cancel_on_typing: bool = True
+
+
+class ProActiveMeetingAssistantConfig(BaseModel):
+    enabled: bool = False
+    auto_notes: bool = True
+    auto_dispatch_subagents: bool = True
+    energy_threshold: float = 0.005
+    silence_duration: float = 1.2
+    max_utterance_seconds: float = 15.0
+
+
+class ProActiveIntentRoutingConfig(BaseModel):
+    enabled: bool = True
+    route_to_claude: bool = True
+    route_to_slack: bool = True
+    route_to_linear: bool = True
+
+
+class ProActiveConfig(BaseModel):
+    feedback_loop: ProActiveFeedbackLoopConfig = Field(default_factory=ProActiveFeedbackLoopConfig)
+    meeting_assistant: ProActiveMeetingAssistantConfig = Field(default_factory=ProActiveMeetingAssistantConfig)
+    intent_routing: ProActiveIntentRoutingConfig = Field(default_factory=ProActiveIntentRoutingConfig)
 
 
 class VoiceFiConfig(BaseModel):
@@ -260,6 +300,7 @@ class VoiceFiConfig(BaseModel):
     stt: STTConfig = Field(default_factory=STTConfig)
     stt_biasing: STTBiasingConfig = Field(default_factory=STTBiasingConfig)
     vad: VADConfig = Field(default_factory=VADConfig)
+    proactive: ProActiveConfig = Field(default_factory=ProActiveConfig)
     ambient: AmbientConfig = Field(default_factory=AmbientConfig)
     audio_cues: AudioCuesConfig = Field(default_factory=AudioCuesConfig)
     antigravity: AntigravityConfig = Field(default_factory=AntigravityConfig)
@@ -292,8 +333,8 @@ class VoiceFiConfig(BaseModel):
 
             if default_provider == "edge_tts":
                 if "Christopher" in default_voice:
-                    return default_provider, "en-US-AriaNeural", default_rate
-                elif "Aria" in default_voice:
+                    return default_provider, "en-US-EmmaNeural", default_rate
+                elif "Aria" in default_voice or "Emma" in default_voice:
                     return default_provider, "en-US-ChristopherNeural", default_rate
                 elif "Ava" in default_voice or "Viv" in default_voice:
                     return default_provider, "en-US-GuyNeural", default_rate
@@ -339,10 +380,12 @@ class VoiceFiConfig(BaseModel):
             return "edge_tts", "en-US-AvaNeural", default_rate
         elif key == "cursor":
             return "edge_tts", "en-US-JennyNeural", default_rate
+        elif key in ("obsidian", "aria", "emma"):
+            return "edge_tts", "en-US-EmmaNeural", default_rate
         elif key in ("researcher", "architect"):
             return "edge_tts", "en-GB-SoniaNeural", default_rate
         elif key in ("debugger", "tester"):
-            return "edge_tts", "en-US-AriaNeural", default_rate
+            return "edge_tts", "en-US-EmmaNeural", default_rate
 
         return default_provider, default_voice, default_rate
 
@@ -386,6 +429,16 @@ def load_config(custom_path: Optional[str] = None) -> VoiceFiConfig:
             cfg = VoiceFiConfig(**data)
             if not cfg.user_name or cfg.user_name.strip().lower() in ("auto", "developer", ""):
                 cfg.user_name = detect_system_user_name()
+
+            # Bidirectional sync between legacy auto_listen and proactive.feedback_loop
+            if "proactive" in data and "feedback_loop" in data.get("proactive", {}):
+                fl_enabled = cfg.proactive.feedback_loop.enabled
+                cfg.antigravity.auto_listen = fl_enabled
+                cfg.claude.auto_listen = fl_enabled
+            elif "antigravity" in data and "auto_listen" in data.get("antigravity", {}):
+                ag_al = cfg.antigravity.auto_listen
+                cfg.proactive.feedback_loop.enabled = ag_al
+
             return cfg
         except Exception as e:
             print(f"[VoiceFi] Warning: Error parsing {path}: {e}. Using defaults.")
