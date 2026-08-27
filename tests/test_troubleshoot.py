@@ -132,11 +132,42 @@ class TestTroubleshoot(unittest.TestCase):
             self.assertEqual(h_res.similarity_pct, 100.0)
 
             # Test full loop with dispatch
-            with patch("voicefi.integrations.injector.send_message_to_antigravity", return_value=True) as mock_send:
+            with patch("voicefi.integrations.injector.send_message_to_agent", return_value=True) as mock_send:
                 loop_res = self.troubleshooter.test_full_voice_loop("Aria", text="This is a test", send_to_conversation=True)
                 self.assertTrue(loop_res["success"])
                 self.assertTrue(loop_res["sent_to_agent"])
-                mock_send.assert_called_once_with(conv_id=None, text="This is a test", sender_name="Aria")
+                mock_send.assert_called_once_with(conv_id=None, text="This is a test", sender_name="Aria", title="Feedback Loop (Aria)")
+
+            # Test full loop with no-send
+            with patch("voicefi.integrations.injector.send_message_to_agent", return_value=True) as mock_send:
+                loop_res = self.troubleshooter.test_full_voice_loop("Aria", text="This is a test", send_to_conversation=False)
+                self.assertTrue(loop_res["success"])
+                self.assertFalse(loop_res["sent_to_agent"])
+                mock_send.assert_not_called()
+
+    def test_acoustic_stt_loopback_dynamic_slicing(self):
+        """Test test_acoustic_stt_loopback dynamically slices recorded frames and computes accurate metrics."""
+        import numpy as np
+        fake_audio = np.ones((16000 * 6, 1), dtype="float32") * 0.05
+        with patch("sounddevice.rec", return_value=fake_audio), \
+             patch("sounddevice.stop"), \
+             patch("sounddevice.wait"), \
+             patch("voicefi.tts.get_tts_engine") as mock_tts_factory, \
+             patch("voicefi.stt.get_stt_engine") as mock_stt_factory:
+            mock_tts = MagicMock()
+            mock_tts_factory.return_value = mock_tts
+            mock_stt = MagicMock()
+            mock_stt.transcribe.return_value = "This is a loopback test"
+            mock_stt_factory.return_value = mock_stt
+
+            res = self.troubleshooter.test_acoustic_stt_loopback(
+                voice_name_or_id="Aria",
+                text="This is a loopback test",
+            )
+            self.assertTrue(res.success)
+            self.assertEqual(res.heard_text, "This is a loopback test")
+            self.assertGreater(res.similarity_pct, 95.0)
+            self.assertGreater(res.rms_energy, 0.0)
 
     @patch("voicefi.troubleshoot.save_config")
     def test_apply_fixes(self, mock_save):

@@ -1539,15 +1539,23 @@ def cmd_voice(args):
         # 4. Hearing test (Acoustic verification)
         if getattr(args, "hearing", False) or getattr(args, "hearing_test", False):
             troubleshooter = AudioTroubleshooter(config)
-            print(f"\n👂 Running Hearing Test (Acoustic Reception & STT Check)...")
-            print(f"🎙️ Playing test voice '{resolved_voice}' aloud over speakers...")
-            print(f"💬 Test Phrase: \"{sample_text}\"\n")
+            as_json = getattr(args, "json", False)
+            show_hud = getattr(args, "hud", False)
+            if not as_json:
+                print(f"\n👂 Running Hearing Test (Acoustic Reception & STT Check)...")
+                print(f"🎙️ Playing test voice '{resolved_voice}' aloud over speakers...")
+                print(f"💬 Test Phrase: \"{sample_text}\"\n")
             res = troubleshooter.test_hearing(
                 voice_name_or_id=resolved_voice,
                 text=sample_text,
                 provider=provider,
                 rate=resolved_rate,
+                show_hud=show_hud,
             )
+            if as_json:
+                import json
+                print(json.dumps(res.to_dict(), indent=2))
+                return
             if res.success:
                 print("=================================================================")
                 print("👂 Hearing Test Results:")
@@ -1564,23 +1572,37 @@ def cmd_voice(args):
         if getattr(args, "feedback_loop", False) or getattr(args, "loopback", False) or getattr(args, "full_loop", False) or getattr(args, "verify", False):
             troubleshooter = AudioTroubleshooter(config)
             if args.text or getattr(args, "phrase", None) or getattr(args, "voice", None) or getattr(args, "verify", False) or getattr(args, "feedback_loop", False):
-                print(f"\n🔄 Running Feedback Loop Test (Speak -> Listen -> Transcribe -> Send)...")
-                print(f"🎙️ Step 1: Speaking aloud as '{resolved_voice}' over speakers...")
-                print(f"💬 Outbound Message: \"{sample_text}\"\n")
+                as_json = getattr(args, "json", False)
+                show_hud = getattr(args, "hud", False)
+                no_send = getattr(args, "no_send", False)
+                target_cid = getattr(args, "conv_id", None)
+                if not as_json:
+                    print(f"\n🔄 Running Feedback Loop Test (Speak -> Listen -> Transcribe -> Send)...")
+                    print(f"🎙️ Step 1: Speaking aloud as '{resolved_voice}' over speakers...")
+                    print(f"💬 Outbound Message: \"{sample_text}\"\n")
                 res = troubleshooter.test_feedback_loop(
                     voice_name_or_id=resolved_voice,
                     text=sample_text,
                     provider=provider,
                     rate=resolved_rate,
-                    send_to_conversation=True,
+                    send_to_conversation=(not no_send),
+                    conv_id=target_cid,
+                    show_hud=show_hud,
                 )
+                if as_json:
+                    import json
+                    print(json.dumps(res, indent=2))
+                    return
                 print("=================================================================")
                 print("🎙️ Feedback Loop Test Results:")
                 print(f"  • Sent Message:   \"{res.get('sent_text')}\"")
                 print(f"  • Heard via Mic:  \"{res.get('heard_text')}\"")
                 print(f"  • Accuracy Match: {res.get('similarity_pct')}%")
                 print(f"  • Audio Latency:  {res.get('latency_ms')} ms (RMS: {res.get('rms_energy')})")
-                delivered_str = "Delivered to chat conversation ✅" if res.get('sent_to_agent') else "Printed to terminal ✅"
+                if no_send:
+                    delivered_str = "Dry-run / No send (--no-send) 🔍"
+                else:
+                    delivered_str = "Delivered to chat conversation ✅" if res.get('sent_to_agent') else "Printed to terminal ✅"
                 print(f"  • Dispatch:       {delivered_str}")
                 print("=================================================================\n")
                 return
@@ -2846,14 +2868,8 @@ def extract_cli_metadata(args: argparse.Namespace) -> dict:
     return props
 
 
-def main():
-    try:
-        from voicefi.telemetry import init_telemetry
-        init_telemetry()
-    except Exception:
-        pass
-
-    prog_name = resolve_prog_name()
+def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
+    prog_name = prog or resolve_prog_name()
     parser = VoiceFiArgumentParser(
         prog=prog_name,
         description="VoiceFi: Give voice to your agents, and agency for your voice. The Universal Voice Layer for AI Agents, MCP, and macOS.",
@@ -2982,10 +2998,13 @@ def main():
     v_test.add_argument("-m", "--mic", "--mic-loopback", dest="mic_loopback", action="store_true", help="Record and hear 3s microphone loopback test")
     v_test.add_argument("--hearing", "--hearing-test", dest="hearing", action="store_true", help="Hearing test: Speak test phrase and verify mic reception via STT")
     v_test.add_argument("--feedback-loop", "--loopback", dest="feedback_loop", action="store_true", help="Feedback Loop test: Speak aloud, capture via mic, transcribe, and send")
+    v_test.add_argument("--no-send", "--dry-run", dest="no_send", action="store_true", help="Do not dispatch transcribed text to conversation")
+    v_test.add_argument("-c", "--conv-id", "--cid", dest="conv_id", type=str, default=None, help="Target conversation ID for message delivery")
     v_test.add_argument("--verify", "--stt-loopback", dest="verify", action="store_true", help="Acoustic STT verification")
     v_test.add_argument("-b", "--benchmark", action="store_true", help="Benchmark latency of all curated voices")
     v_test.add_argument("-a", "--all", action="store_true", help="Audition all curated personas")
     v_test.add_argument("--hud", action="store_true", help="Display visual Dynamic Island HUD popup during test (default: headless)")
+    v_test.add_argument("--json", action="store_true", help="Output results in JSON format")
 
     # voice ping (silent connection, speed, and latency test)
     v_ping = voice_sub.add_parser("ping", aliases=["check", "speed-test"], help="Silently test connection, latency, speed, and health of neural voices")
@@ -3011,15 +3030,21 @@ def main():
     fb_p = subparsers.add_parser("feedback-loop", aliases=["feedback_loop", "loopback", "voice-loop"], help="Run Feedback Loop test (Speak -> Listen -> Transcribe -> Send)")
     fb_p.add_argument("voice", nargs="?", default="Aria", help="Voice to speak")
     fb_p.add_argument("-t", "--text", type=str, default="This is a test feedback loop", help="Phrase to speak and verify")
-    fb_p.add_argument("-p", "--provider", type=str, default=None)
-    fb_p.add_argument("-r", "--rate", type=str, default=None)
+    fb_p.add_argument("-p", "--provider", type=str, default=None, help="TTS provider override")
+    fb_p.add_argument("-r", "--rate", type=str, default=None, help="Speech rate / speed override")
+    fb_p.add_argument("--no-send", "--dry-run", dest="no_send", action="store_true", help="Do not dispatch transcribed text to conversation")
+    fb_p.add_argument("-c", "--conv-id", "--cid", dest="conv_id", type=str, default=None, help="Target conversation ID for message delivery")
+    fb_p.add_argument("--hud", action="store_true", help="Display visual Dynamic Island HUD during verification")
+    fb_p.add_argument("--json", action="store_true", help="Output feedback loop results in JSON format")
 
     # hearing-test top-level
     ht_p = subparsers.add_parser("hearing-test", aliases=["hearing"], help="Hearing test: Speak phrase and verify microphone & STT reception from speakers")
     ht_p.add_argument("voice", nargs="?", default="Aria", help="Voice to test")
     ht_p.add_argument("-t", "--text", type=str, default="This is a hearing test", help="Phrase to speak and verify")
-    ht_p.add_argument("-p", "--provider", type=str, default=None)
-    ht_p.add_argument("-r", "--rate", type=str, default=None)
+    ht_p.add_argument("-p", "--provider", type=str, default=None, help="TTS provider override")
+    ht_p.add_argument("-r", "--rate", type=str, default=None, help="Speech rate / speed override")
+    ht_p.add_argument("--hud", action="store_true", help="Display visual Dynamic Island HUD during verification")
+    ht_p.add_argument("--json", action="store_true", help="Output hearing test results in JSON format")
 
     # barge-in top-level
     barge_p = subparsers.add_parser("barge-in", aliases=["test-barge-in", "barge_in"], help="Live Active Barge-In test: speaks phrase aloud and tests mid-sentence voice interruption with Silero VAD")
@@ -3268,6 +3293,17 @@ def main():
     # help
     subparsers.add_parser("help", help="Display help and command usage")
 
+    return parser
+
+
+def main():
+    try:
+        from voicefi.telemetry import init_telemetry
+        init_telemetry()
+    except Exception:
+        pass
+
+    parser = build_parser()
     args = parser.parse_args()
 
     if not args.command:

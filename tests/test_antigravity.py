@@ -194,11 +194,11 @@ def test_cmd_hook_unclosed_stdin_pipe(monkeypatch):
 
 
 def test_antigravity_config_native_mic_settings():
-    """Test that AntigravityConfig includes mirror_native_mic and show_native_mic_shortcut defaults."""
+    """Test that AntigravityConfig defaults mirror_native_mic and show_native_mic_shortcut to False."""
     from voicefi.config import VoiceFiConfig
     cfg = VoiceFiConfig()
-    assert cfg.antigravity.mirror_native_mic is True
-    assert cfg.antigravity.show_native_mic_shortcut is True
+    assert cfg.antigravity.mirror_native_mic is False
+    assert cfg.antigravity.show_native_mic_shortcut is False
 
 
 def test_watcher_user_input_notification(tmp_path: Path, monkeypatch):
@@ -209,13 +209,12 @@ def test_watcher_user_input_notification(tmp_path: Path, monkeypatch):
     from unittest.mock import MagicMock
 
     cfg = VoiceFiConfig()
-    cfg.audio_cues.enabled = False
-
     events = []
-    def record_state(state, **kwargs):
+
+    def mock_notify(state, **kwargs):
         events.append((state, kwargs))
 
-    watcher = TranscriptWatcher(config=cfg, on_state_change=record_state)
+    watcher = TranscriptWatcher(config=cfg, on_state_change=mock_notify)
 
     tfile = tmp_path / "transcript.jsonl"
     with open(tfile, "w", encoding="utf-8") as f:
@@ -234,32 +233,36 @@ def test_watcher_user_input_notification(tmp_path: Path, monkeypatch):
     state, kwargs = events[0]
     assert state == "user_prompt"
     assert "authentication feature" in kwargs.get("prompt", "")
-    assert kwargs.get("source") == "Antigravity (⌃M)"
+    assert "Antigravity" in kwargs.get("source", "")
 
 
 def test_native_antigravity_input_observer_lifecycle(monkeypatch):
-    """Test NativeAntigravityInputObserver starts and stops cleanly."""
+    """Test NativeAntigravityInputObserver starts, updates, and stops cleanly when enabled."""
     import time
     from voicefi.integrations.input_observer import NativeAntigravityInputObserver
     from voicefi.config import VoiceFiConfig
     from unittest.mock import MagicMock
 
     cfg = VoiceFiConfig()
+    cfg.antigravity.mirror_native_mic = True
     observed_updates = []
     observer = NativeAntigravityInputObserver(
         config=cfg,
         on_dictation_update=lambda txt: observed_updates.append(txt),
     )
 
+    cleared = []
+    monkeypatch.setattr("voicefi.integrations.input_observer.clear_cross_process_hud_state", lambda: cleared.append(True))
     monkeypatch.setattr(observer, "_query_focused_input_text", lambda: "Hello from Antigravity mic")
     
     observer.start()
     assert observer._running is True
-    time.sleep(0.15)
+    time.sleep(0.2)
     observer.stop()
     assert observer._running is False
     assert len(observed_updates) >= 1
     assert observed_updates[0] == "Hello from Antigravity mic"
+    assert len(cleared) >= 1
 
 
 

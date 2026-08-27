@@ -570,6 +570,7 @@ class AudioTroubleshooter:
         text: str = "This is a loopback test",
         provider: Optional[str] = None,
         rate: Optional[int] = None,
+        show_hud: bool = False,
     ) -> SpeechLoopbackVerification:
         """
         Acoustic loopback test: Synthesizes voice through speakers while concurrently
@@ -579,7 +580,9 @@ class AudioTroubleshooter:
         import sounddevice as sd
         import soundfile as sf
         import re
-        from voicefi.tts import get_tts_engine, find_persona
+        import difflib
+        from collections import Counter
+        from voicefi.tts import get_tts_engine, find_persona, set_cross_process_hud_state, clear_cross_process_hud_state
         from voicefi.stt import get_stt_engine
 
         persona = find_persona(voice_name_or_id)
@@ -587,11 +590,18 @@ class AudioTroubleshooter:
         resolved_provider = provider or (persona.provider if persona else "edge_tts")
 
         sample_rate = 16000
-        # Estimate duration based on word count: ~2.5 words/s + 2.5s buffer
-        est_duration = max(len(text.split()) / 2.0 + 3.0, 4.5)
+        # Estimate duration based on word count: ~2.5 words/s + 4.0s safe headroom
+        est_duration = max(len(text.split()) / 2.0 + 4.0, 6.0)
         num_frames = int(sample_rate * est_duration)
 
         try:
+            if show_hud:
+                set_cross_process_hud_state(
+                    "speaking",
+                    text=text,
+                    agent_name=persona.name if persona else voice_name_or_id,
+                )
+
             # 1. Start recording buffer in background
             rec_audio = sd.rec(num_frames, samplerate=sample_rate, channels=1, dtype="float32")
 
@@ -607,12 +617,18 @@ class AudioTroubleshooter:
             synth_duration = time.perf_counter() - synth_start
 
             # Wait a brief moment for room reverb to settle
-            time.sleep(0.6)
+            time.sleep(0.4)
             sd.stop()
             sd.wait()
 
-            flat_data = np.nan_to_num(rec_audio.flatten(), nan=0.0, posinf=0.0, neginf=0.0)
-            rms = float(np.sqrt(np.mean(flat_data ** 2)))
+            # Dynamic Slice: Only use frames actually recorded during playback + reverb, avoiding silence zeros
+            actual_frames = min(int((synth_duration + 0.45) * sample_rate), len(rec_audio))
+            recorded_slice = rec_audio[:actual_frames] if actual_frames > 0 else rec_audio
+            flat_data = np.nan_to_num(recorded_slice.flatten(), nan=0.0, posinf=0.0, neginf=0.0)
+            rms = float(np.sqrt(np.mean(flat_data ** 2))) if len(flat_data) > 0 else 0.0
+
+            if show_hud:
+                set_cross_process_hud_state("transcribing", text="Transcribing loopback audio...")
 
             # 3. Save temporary WAV for STT transcription
             temp_wav = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
@@ -628,14 +644,29 @@ class AudioTroubleshooter:
             except Exception:
                 pass
 
-            # 5. Calculate word similarity percentage
-            sent_words = set(re.findall(r"\w+", text.lower()))
-            heard_words = set(re.findall(r"\w+", transcription.lower()))
-            if sent_words:
-                overlap = len(sent_words.intersection(heard_words))
-                similarity = round((overlap / len(sent_words)) * 100.0, 1)
+            # 5. Robust multi-strategy similarity percentage (Sequence alignment + Token overlap)
+            clean_sent = re.sub(r"[^\w\s]", "", text.lower()).strip()
+            clean_heard = re.sub(r"[^\w\s]", "", transcription.lower()).strip()
+
+            sent_words = [w for w in clean_sent.split() if w]
+            heard_words = [w for w in clean_heard.split() if w]
+
+            if not sent_words and not heard_words:
+                similarity = 100.0
+            elif not sent_words or not heard_words:
+                similarity = 0.0
             else:
-                similarity = 100.0 if not heard_words else 0.0
+                seq_ratio = difflib.SequenceMatcher(None, clean_sent, clean_heard).ratio()
+                sent_cnt = Counter(sent_words)
+                heard_cnt = Counter(heard_words)
+                overlap_count = sum((sent_cnt & heard_cnt).values())
+                token_ratio = overlap_count / max(len(sent_words), 1)
+                similarity = round(max(seq_ratio, (seq_ratio * 0.6 + token_ratio * 0.4)) * 100.0, 1)
+
+            if show_hud:
+                set_cross_process_hud_state("done", text=f"Match: {similarity}%")
+                time.sleep(0.5)
+                clear_cross_process_hud_state()
 
             return SpeechLoopbackVerification(
                 voice=persona.name if persona else voice_name_or_id,
@@ -648,6 +679,8 @@ class AudioTroubleshooter:
                 rms_energy=round(rms, 4),
             )
         except Exception as e:
+            if show_hud:
+                clear_cross_process_hud_state()
             return SpeechLoopbackVerification(
                 voice=persona.name if persona else voice_name_or_id,
                 sent_text=text,
@@ -666,6 +699,7 @@ class AudioTroubleshooter:
         text: str = "This is a hearing test",
         provider: Optional[str] = None,
         rate: Optional[int] = None,
+        show_hud: bool = False,
     ) -> SpeechLoopbackVerification:
         """
         Hearing Test: Speak a test phrase over speakers and verify the microphone & STT
@@ -676,6 +710,7 @@ class AudioTroubleshooter:
             text=text,
             provider=provider,
             rate=rate,
+            show_hud=show_hud,
         )
 
     def test_full_voice_loop(
@@ -686,6 +721,7 @@ class AudioTroubleshooter:
         rate: Optional[int] = None,
         send_to_conversation: bool = True,
         conv_id: Optional[str] = None,
+        show_hud: bool = False,
     ) -> Dict[str, Any]:
         """
         Full Voice Loopback Test:
@@ -700,19 +736,29 @@ class AudioTroubleshooter:
             text=text,
             provider=provider,
             rate=rate,
+            show_hud=show_hud,
         )
 
         sent_to_agent = False
         if verification.success and verification.heard_text and send_to_conversation:
             try:
-                from voicefi.integrations.injector import send_message_to_antigravity
-                sent_to_agent = send_message_to_antigravity(
+                from voicefi.integrations.injector import send_message_to_agent
+                sent_to_agent = send_message_to_agent(
                     conv_id=conv_id,
                     text=verification.heard_text,
                     sender_name=verification.voice,
+                    title=f"Feedback Loop ({verification.voice})",
                 )
             except Exception as e:
-                print(f"[Troubleshoot] Error sending message to conversation: {e}")
+                try:
+                    from voicefi.integrations.injector import send_message_to_antigravity
+                    sent_to_agent = send_message_to_antigravity(
+                        conv_id=conv_id,
+                        text=verification.heard_text,
+                        sender_name=verification.voice,
+                    )
+                except Exception as e2:
+                    print(f"[Troubleshoot] Error sending message to conversation: {e2}")
 
         res_dict = verification.to_dict()
         res_dict["sent_to_agent"] = sent_to_agent
@@ -726,6 +772,7 @@ class AudioTroubleshooter:
         rate: Optional[int] = None,
         send_to_conversation: bool = True,
         conv_id: Optional[str] = None,
+        show_hud: bool = False,
     ) -> Dict[str, Any]:
         """
         Feedback Loop Test:
@@ -739,6 +786,7 @@ class AudioTroubleshooter:
             rate=rate,
             send_to_conversation=send_to_conversation,
             conv_id=conv_id,
+            show_hud=show_hud,
         )
 
     def get_hardware_diagnostics(self) -> Dict[str, Any]:

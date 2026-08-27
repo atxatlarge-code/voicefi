@@ -123,8 +123,8 @@ class AntigravityConfig(BaseModel):
     speech_popup_position: Literal["top_center", "top_right", "bottom_right"] = "top_right"
     auto_send: bool = True
     persistent_hud: bool = True
-    mirror_native_mic: bool = True
-    show_native_mic_shortcut: bool = True
+    mirror_native_mic: bool = False
+    show_native_mic_shortcut: bool = False
 
 
 class HUDConfig(BaseModel):

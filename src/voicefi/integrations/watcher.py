@@ -295,7 +295,7 @@ class TranscriptWatcher:
                     "user_prompt",
                     prompt=clean_prompt,
                     user_name=user_name,
-                    source="Antigravity (⌃M)",
+                    source="Antigravity",
                     linger=1.8,
                 )
             else:

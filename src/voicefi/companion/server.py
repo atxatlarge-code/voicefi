@@ -144,6 +144,10 @@ class CompanionServer:
         self.app.router.add_post("/api/stop_mac_recording", self.handle_stop_mac_recording)
         self.app.router.add_post("/api/stt", self.handle_stt)
         self.app.router.add_post("/api/tts", self.handle_tts)
+        self.app.router.add_post("/api/troubleshoot/feedback_loop", self.handle_troubleshoot_feedback_loop)
+        self.app.router.add_post("/api/troubleshoot/feedback-loop", self.handle_troubleshoot_feedback_loop)
+        self.app.router.add_post("/api/troubleshoot/hearing_test", self.handle_troubleshoot_hearing_test)
+        self.app.router.add_post("/api/troubleshoot/hearing-test", self.handle_troubleshoot_hearing_test)
         self.app.router.add_post("/api/vault/query", self.handle_vault_query)
         self.app.router.add_post("/api/hook/event", self.handle_hook_event)
         self.app.router.add_get("/api/qr", self.handle_qr)
@@ -855,6 +859,64 @@ class CompanionServer:
             })
         except Exception as e:
             return web.json_response({"error": str(e)}, status=500)
+
+    async def handle_troubleshoot_feedback_loop(self, request: web.Request) -> web.Response:
+        """Run feedback loop test asynchronously via AudioTroubleshooter and return JSON metrics."""
+        try:
+            data = await request.json() if request.can_read_body else {}
+        except Exception:
+            data = {}
+
+        voice = data.get("voice", "Aria")
+        text = data.get("text", "This is a test feedback loop")
+        send = data.get("send", False)
+        conv_id = data.get("conv_id")
+        rate = data.get("rate")
+        provider = data.get("provider")
+
+        from voicefi.troubleshoot import AudioTroubleshooter
+        loop = asyncio.get_running_loop()
+        troubleshooter = AudioTroubleshooter(self.config)
+
+        res = await loop.run_in_executor(
+            None,
+            lambda: troubleshooter.test_feedback_loop(
+                voice_name_or_id=voice,
+                text=text,
+                provider=provider,
+                rate=rate,
+                send_to_conversation=send,
+                conv_id=conv_id,
+            ),
+        )
+        return web.json_response(res)
+
+    async def handle_troubleshoot_hearing_test(self, request: web.Request) -> web.Response:
+        """Run acoustic hearing test asynchronously via AudioTroubleshooter and return JSON metrics."""
+        try:
+            data = await request.json() if request.can_read_body else {}
+        except Exception:
+            data = {}
+
+        voice = data.get("voice", "Aria")
+        text = data.get("text", "This is a hearing test")
+        rate = data.get("rate")
+        provider = data.get("provider")
+
+        from voicefi.troubleshoot import AudioTroubleshooter
+        loop = asyncio.get_running_loop()
+        troubleshooter = AudioTroubleshooter(self.config)
+
+        res = await loop.run_in_executor(
+            None,
+            lambda: troubleshooter.test_hearing(
+                voice_name_or_id=voice,
+                text=text,
+                provider=provider,
+                rate=rate,
+            ),
+        )
+        return web.json_response(res.to_dict())
 
     async def handle_vault_query(self, request: web.Request) -> web.Response:
         """Process conversational Q&A and active note queries from Obsidian."""

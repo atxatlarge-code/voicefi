@@ -1,4 +1,5 @@
 import time
+import threading
 import getpass
 from voicefi.config import load_config
 from voicefi.tts import get_tts_engine
@@ -108,9 +109,12 @@ def run_onboarding():
     time.sleep(0.5)
 
     # --- Question 3 ---
-    prompt3 = "Aha, copy that. So this confirms the offline feedback loop. Next up, would you like to send this to an agent or tool? Below is a list of the active connections. Would you like to let any of them know?"
+    prompt3 = "Aha, copy that. So this confirms the test feedback loop. Next up, which of the connections would you like to use first? Here's a list:"
     print(f"🎙️  [{voice_label}]: \"{prompt3}\"")
-    tts.speak(prompt3)
+    
+    # Speak concurrently so active connections display while she speaks
+    speech_thread = threading.Thread(target=lambda: tts.speak(prompt3, block=True), daemon=True)
+    speech_thread.start()
     
     # Mock opening the HUD
     print("\n🖥️  [HUD Opens: Showing Active Connections]")
@@ -118,6 +122,9 @@ def run_onboarding():
     print("   b. Claude")
     print("   c. Cursor")
     print("   etc")
+    
+    # Wait for speech playback to finish before opening microphone
+    speech_thread.join()
     
     # Listen 3
     print("\n🔴 Listening... (speak your answer and pause)")
@@ -130,9 +137,40 @@ def run_onboarding():
     
     print(f"📝 You said: \"{text3}\"\n")
     
-    # Simple check for a tool
-    text3_lower = text3.lower() if text3 else ""
-    if "antigravity" in text3_lower:
+def resolve_agent_target(text: str) -> str:
+    """Robustly resolve spoken user intent to a supported agent target."""
+    if not text:
+        return "antigravity"
+    t = text.lower().strip()
+    
+    # 1. Explicit agent names / keywords
+    if any(k in t for k in ["antigravity", "gemini", "option a", "choice a", "letter a", "first", "number 1", "number one"]):
+        return "antigravity"
+    if any(k in t for k in ["claude", "anthropic", "option b", "choice b", "letter b", "second", "number 2", "number two"]):
+        return "claude"
+    if any(k in t for k in ["cursor", "windsurf", "vscode", "code", "option c", "choice c", "letter c", "third", "number 3", "number three"]):
+        return "cursor"
+        
+    # 2. Single-letter / digit matches
+    words = [w.strip(".,!?") for w in t.split()]
+    if "a" in words or "1" in words:
+        return "antigravity"
+    if "b" in words or "2" in words:
+        return "claude"
+    if "c" in words or "3" in words:
+        return "cursor"
+
+    # 3. Affirmative defaults ("yes", "sure", "send it", "let them know", "please do", "all", "ready") -> Antigravity
+    if any(k in t for k in ["yes", "sure", "send", "notify", "let them know", "yep", "yeah", "ok", "okay", "please", "all", "ready"]):
+        return "antigravity"
+
+    return "antigravity"
+
+
+    # --- Question 3 Dispatch ---
+    target_agent = resolve_agent_target(text3)
+    
+    if target_agent == "antigravity":
         print("🚀 Dispatching to Antigravity...\n")
         print("📦 [Background Handoff Payload]")
         print(f"   -> Name: {extracted_name}")
@@ -140,25 +178,55 @@ def run_onboarding():
         print(f"   -> User's Reason for Voice: \"{text2}\"")
         print(f"   -> Request: \"{text3}\"\n")
         
+        payload = f"VoiceFi Setup Complete for {extracted_name}.\nReason they installed VoiceFi: {text2}\nIntent: {text3}\n\nPlease respond naturally to their reason and ask what they want to build first!"
         try:
-            from voicefi.integrations.injector import send_message_to_antigravity
-            payload = f"VoiceFi Setup Complete for {extracted_name}.\nReason they installed VoiceFi: {text2}\nIntent: {text3}\n\nPlease respond naturally to their reason and ask what they want to build first!"
-            success = send_message_to_antigravity(text=payload, sender_name="VoiceFi Setup")
-            if success:
+            from voicefi.integrations.injector import send_message_to_antigravity, focus_antigravity, create_new_antigravity_conversation
+            delivered = send_message_to_antigravity(text=payload, sender_name="VoiceFi Setup")
+            if not delivered:
+                cid = create_new_antigravity_conversation(prompt=payload, title=f"VoiceFi Welcome: {extracted_name}")
+                delivered = bool(cid)
+            
+            # Bring Antigravity window forward so user sees the active response
+            focus_antigravity(focus_input=False)
+            
+            if delivered:
                 print("✅ Payload successfully delivered to Antigravity via IPC.")
                 print("✨ Antigravity will now respond directly in your IDE (and VoiceFi will speak its reply when it finishes!).")
             else:
-                print("⚠️ Failed to deliver to Antigravity. Is the IDE active?")
-        except ImportError:
-            print("⚠️ Could not import injector.")
+                print("⚠️ Failed to deliver automatically. Ensure Antigravity is active.")
+        except Exception as e:
+            print(f"⚠️ Error dispatching to Antigravity: {e}")
             
-    elif "claude" in text3_lower or "cursor" in text3_lower:
-        print(f"🚀 Dispatching to {text3_lower.strip()} (Mock)...")
-        time.sleep(2)
-        print("✅ Tool processed handoff.\n")
-    else:
-        print("ℹ️  No specific active connections mentioned. Directing to connection setup guide...")
+    elif target_agent == "claude":
+        print("🚀 Dispatching to Claude Code...\n")
+        print("📦 [Background Handoff Payload]")
+        print(f"   -> Name: {extracted_name}")
+        print(f"   -> Event: VoiceFi Initial Setup Complete")
+        print(f"   -> User's Reason for Voice: \"{text2}\"")
+        print(f"   -> Request: \"{text3}\"\n")
         
+        payload = f"VoiceFi setup complete for {extracted_name}. Reason: {text2}. Ready to pair program!"
+        try:
+            from voicefi.integrations.injector import inject_text_to_claude
+            delivered = inject_text_to_claude(payload, submit_enter=True)
+            if delivered:
+                print("✅ Payload successfully injected into Claude Code terminal session.")
+                print("✨ Claude Code will respond directly in your terminal (and VoiceFi will speak its reply!).")
+            else:
+                print("💡 Claude Code terminal window not detected. Start Claude with 'claude' in any terminal!")
+        except Exception as e:
+            print(f"⚠️ Error dispatching to Claude Code: {e}")
+            
+    elif target_agent == "cursor":
+        print("🚀 Dispatching to Cursor / Editor...\n")
+        payload = f"VoiceFi setup complete for {extracted_name}. Reason: {text2}. Ready to code!"
+        try:
+            from voicefi.integrations.injector import inject_text_to_active_app
+            inject_text_to_active_app(payload, submit_enter=True)
+            print("✅ Payload injected into active editor.")
+        except Exception as e:
+            print(f"⚠️ Error dispatching to editor: {e}")
+            
     print("\n" + "="*50)
     print(" 🎉 Onboarding flow complete!")
     print("="*50 + "\n")
@@ -166,9 +234,10 @@ def run_onboarding():
     try:
         from voicefi.telemetry import capture_event
         capture_event("onboarding_completed", {
-            "target_agent": "antigravity" if "antigravity" in text3_lower else ("claude" if "claude" in text3_lower else ("cursor" if "cursor" in text3_lower else "none")),
+            "target_agent": target_agent,
             "preferred_name_customized": bool(extracted_name and extracted_name != user_name),
         })
     except Exception:
         pass
+
 

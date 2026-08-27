@@ -511,7 +511,17 @@ class ConversationTracker:
         if not files:
             return []
 
-        files.sort(key=lambda f: os.path.getmtime(f), reverse=True)
+        def _get_conv_mtime(f: str) -> float:
+            try:
+                p = Path(f)
+                full = p.parent / "transcript_full.jsonl"
+                if full.is_file():
+                    return max(os.path.getmtime(f), os.path.getmtime(str(full)))
+                return os.path.getmtime(f)
+            except Exception:
+                return 0.0
+
+        files.sort(key=_get_conv_mtime, reverse=True)
         return [Path(f) for f in files[:limit]]
 
     def _get_pb_titles(self) -> Dict[str, str]:
@@ -542,6 +552,12 @@ class ConversationTracker:
             p = Path(transcript_path)
             conv_id = p.parent.parent.parent.name
             mtime = os.path.getmtime(p)
+            full_path = p.parent / "transcript_full.jsonl"
+            if full_path.is_file():
+                try:
+                    mtime = max(mtime, os.path.getmtime(full_path))
+                except Exception:
+                    pass
 
             # Check cache if mtime unchanged
             if conv_id in self._cache and self._cache[conv_id].mtime == mtime:

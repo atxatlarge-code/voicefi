@@ -9,7 +9,7 @@ import threading
 import time
 from typing import Optional, Callable
 from voicefi.config import VoiceFiConfig, load_config
-from voicefi.tts.base import set_cross_process_hud_state
+from voicefi.tts.base import set_cross_process_hud_state, clear_cross_process_hud_state
 
 
 class NativeAntigravityInputObserver:
@@ -34,7 +34,7 @@ class NativeAntigravityInputObserver:
         """Start the background observer thread."""
         if self._running:
             return
-        if not getattr(self.config.antigravity, "mirror_native_mic", True):
+        if not getattr(self.config.antigravity, "mirror_native_mic", False):
             return
         self._running = True
         self._thread = threading.Thread(target=self._observe_loop, daemon=True, name="AntigravityInputObserver")
@@ -43,6 +43,9 @@ class NativeAntigravityInputObserver:
     def stop(self):
         """Stop the background observer."""
         self._running = False
+        if self._is_active_dictation:
+            self._is_active_dictation = False
+            clear_cross_process_hud_state()
 
     def _query_focused_input_text(self) -> Optional[str]:
         """
@@ -74,7 +77,7 @@ class NativeAntigravityInputObserver:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
                 text=True,
-                timeout=0.6,
+                timeout=0.5,
             )
             return res.stdout.strip()
         except Exception:
@@ -82,8 +85,8 @@ class NativeAntigravityInputObserver:
 
     def _observe_loop(self):
         """Background polling loop for active dictation detection."""
-        idle_sleep = 0.25
-        active_sleep = 0.08
+        idle_sleep = 0.5
+        active_sleep = 0.15
         last_change_time = 0.0
 
         while self._running:
@@ -93,13 +96,14 @@ class NativeAntigravityInputObserver:
 
                 if text is not None and text != "":
                     if text != self._last_observed_text:
-                        # Text changed while Antigravity was focused
                         diff_len = abs(len(text) - len(self._last_observed_text))
                         self._last_observed_text = text
                         last_change_time = now
 
-                        # Incremental expansion (>2 chars added or rapid streaming) indicates voice dictation
-                        if diff_len >= 2 or self._is_active_dictation:
+                        # Incremental streaming text growth indicates voice dictation (Ctrl+M)
+                        # Exclude single character edits and large clipboard pastes (>100 chars at once)
+                        is_streaming_growth = (2 <= diff_len <= 80) or self._is_active_dictation
+                        if is_streaming_growth:
                             self._is_active_dictation = True
                             user_name = getattr(self.config, "user_name", "Jake")
                             set_cross_process_hud_state(
@@ -121,12 +125,14 @@ class NativeAntigravityInputObserver:
                                 )
                             except Exception:
                                 pass
-                    elif self._is_active_dictation and (now - last_change_time > 2.5):
-                        # Dictation finished or user paused
+                    elif self._is_active_dictation and (now - last_change_time > 2.0):
+                        # Dictation paused/finished: clean up HUD state
                         self._is_active_dictation = False
+                        clear_cross_process_hud_state()
                 else:
                     if self._is_active_dictation:
                         self._is_active_dictation = False
+                        clear_cross_process_hud_state()
                     self._last_observed_text = ""
 
                 time.sleep(active_sleep if self._is_active_dictation else idle_sleep)
