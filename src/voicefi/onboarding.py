@@ -47,14 +47,18 @@ def run_onboarding():
     elif "-" in voice_label:
         voice_label = voice_label.split("-")[-1].replace("Neural", "")
 
-    user_name = getpass.getuser().capitalize()
+    from voicefi.config import detect_system_user_name
+    user_name = config.user_name or detect_system_user_name(prefer_first_name=True) or "Jake"
 
     print("\n" + "="*50)
     print(" 🚀 VoiceFi First-Time User Experience")
     print("="*50 + "\n")
 
+    # Short DAC warmup pause to ensure CoreAudio / Bluetooth hardware is un-muted
+    time.sleep(0.3)
+
     # --- Question 1 ---
-    prompt1 = f"Hey.... {user_name}? Can I call you {user_name}?"
+    prompt1 = f"Hey... {user_name}? Can I call you {user_name}?"
     print(f"🎙️  [{voice_label}]: \"{prompt1}\"")
     tts.speak(prompt1)
 
