@@ -574,7 +574,7 @@ class VoiceFiTrayApp(rumps.App):
         self._companion_started = True
 
         def _run_server():
-            from voicefi.companion.server import CompanionServer
+            from voicefi.companion.server import CompanionServer, ensure_ssl_context
             from aiohttp import web
             import asyncio
             port = getattr(getattr(self, "config", None), "companion", None) and self.config.companion.port or 5141
@@ -586,8 +586,20 @@ class VoiceFiTrayApp(rumps.App):
                 server._start_watcher_thread()
                 app_runner = web.AppRunner(server.app)
                 loop.run_until_complete(app_runner.setup())
+                
+                # HTTP Site (Port 5141)
                 site = web.TCPSite(app_runner, "0.0.0.0", port)
                 loop.run_until_complete(site.start())
+
+                # HTTPS Site (Port 5142) for secure mobile mic access
+                ssl_ctx = ensure_ssl_context()
+                if ssl_ctx:
+                    try:
+                        site_https = web.TCPSite(app_runner, "0.0.0.0", port + 1, ssl_context=ssl_ctx)
+                        loop.run_until_complete(site_https.start())
+                    except Exception as ex_https:
+                        print(f"[TrayApp] HTTPS companion startup notice: {ex_https}")
+
                 loop.run_forever()
             except OSError as e:
                 # Port already bound by background LaunchAgent daemon or companion instance

@@ -252,9 +252,15 @@ class CompanionServer:
         )
 
     async def handle_icon(self, request: web.Request) -> web.Response:
-        icon_path = Path(__file__).resolve().parent.parent.parent.parent / "assets" / "icon.png"
-        if icon_path.is_file():
-            return web.Response(body=icon_path.read_bytes(), content_type="image/png")
+        repo_root = Path(__file__).resolve().parent.parent.parent.parent
+        candidate_paths = [
+            repo_root / "assets" / "VoiceFi.iconset" / "icon_512x512.png",
+            repo_root / "assets" / "VoiceFi.iconset" / "icon_256x256.png",
+            repo_root / "assets" / "icon.png",
+        ]
+        for icon_path in candidate_paths:
+            if icon_path.is_file():
+                return web.Response(body=icon_path.read_bytes(), content_type="image/png")
         # Minimal transparent 1x1 png fallback
         png_1x1 = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15c4\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
         return web.Response(body=png_1x1, content_type="image/png")
