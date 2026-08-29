@@ -1,10 +1,25 @@
 {
   "mcpServers": {
     "voicefi": {
-      "command": "/opt/homebrew/Cellar/vifi/0.1.0/libexec/bin/voicefi",
+      "command": "/Users/jaketrigg/Projects/VoiceFi/.venv/bin/voicefi",
       "args": [
         "mcp"
       ]
+    },
+    "cloudflare": {
+      "url": "https://mcp.cloudflare.com/mcp"
+    },
+    "cloudflare-docs": {
+      "url": "https://docs.mcp.cloudflare.com/mcp"
+    },
+    "cloudflare-bindings": {
+      "url": "https://bindings.mcp.cloudflare.com/mcp"
+    },
+    "cloudflare-builds": {
+      "url": "https://builds.mcp.cloudflare.com/mcp"
+    },
+    "cloudflare-observability": {
+      "url": "https://observability.mcp.cloudflare.com/mcp"
     }
   }
 }

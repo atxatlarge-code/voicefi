@@ -516,6 +516,32 @@ class UnifiedDynamicIslandHUD:
         if self._current_state == "idle":
             self.set_idle()
 
+    def set_position(self, position: str):
+        """Set HUD anchor position ('top_right', 'top_center', 'bottom_right')."""
+        self._user_dragged_center_x = None
+        self._user_dragged_top_y = None
+        if hasattr(self, "config") and hasattr(self.config, "hud") and self.config.hud:
+            self.config.hud.position = position
+        if self._panel:
+            target_rect = self._get_target_frame(self.STANDARD_WIDTH, self.STANDARD_HEIGHT)
+            self._panel.setFrameOrigin_(target_rect.origin)
+        if self._current_state == "idle":
+            self.set_idle()
+
+    def handle_body_click(self, sender=None):
+        """Handle click on the HUD body / action line (focus Antigravity or stop speech)."""
+        try:
+            from voicefi.tts.base import is_agent_speaking, stop_all_speech
+            from voicefi.integrations.injector import focus_antigravity
+
+            if is_agent_speaking():
+                stop_all_speech()
+                return
+
+            focus_antigravity()
+        except Exception as ex:
+            print(f"[HUD] Body click error: {ex}")
+
     def _init_native_window(self):
         """Build the borderless NSPanel with native Apple HUD blur and interactive views."""
         if not is_headless():
@@ -565,21 +591,7 @@ class UnifiedDynamicIslandHUD:
             NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 1.0, 1.0, 0.20).CGColor()
         )
 
-        # Close / Dismiss button (✕)
-        try:
-            self._close_btn = NSButton.alloc().initWithFrame_(NSRect(NSPoint(456, 36), NSSize(16, 16)))
-            self._close_btn.setBordered_(False)
-            self._close_btn.setTitle_("✕")
-            self._close_btn.setFont_(NSFont.boldSystemFontOfSize_(10))
-            self._close_target = HUDCloseActionTarget.alloc().initWithCallback_(self.force_hide)
-            self._close_btn.setTarget_(self._close_target)
-            self._close_btn.setAction_("closeAction:")
-            self._close_btn.setToolTip_("Close VoiceFi HUD (Esc)")
-            self._root_view.addSubview_(self._close_btn)
-        except Exception:
-            self._close_btn = None
-
-        # Apple standard HUD frosted blur
+        # Apple standard HUD frosted blur (Background layer)
         self._effect_view = NSVisualEffectView.alloc().initWithFrame_(
             NSRect(NSPoint(0, 0), NSSize(w, h))
         )
@@ -589,6 +601,31 @@ class UnifiedDynamicIslandHUD:
         self._effect_view.setWantsLayer_(True)
         self._effect_view.layer().setCornerRadius_(20.0)
         self._root_view.addSubview_(self._effect_view)
+
+        # Quick Controls Settings (⚙️) and Close / Dismiss (✕) buttons (Foreground interactive layer)
+        try:
+            self._gear_btn = NSButton.alloc().initWithFrame_(NSRect(NSPoint(420, 31), NSSize(24, 20)))
+            self._gear_btn.setBordered_(False)
+            self._gear_btn.setTitle_("⚙️")
+            self._gear_btn.setFont_(NSFont.systemFontOfSize_(12))
+            self._gear_target = HUDCloseActionTarget.alloc().initWithCallback_(self.toggle_quick_controls)
+            self._gear_btn.setTarget_(self._gear_target)
+            self._gear_btn.setAction_("closeAction:")
+            self._gear_btn.setToolTip_("VoiceFi Quick Controls")
+            self._root_view.addSubview_(self._gear_btn)
+
+            self._close_btn = NSButton.alloc().initWithFrame_(NSRect(NSPoint(448, 31), NSSize(22, 20)))
+            self._close_btn.setBordered_(False)
+            self._close_btn.setTitle_("✕")
+            self._close_btn.setFont_(NSFont.boldSystemFontOfSize_(11))
+            self._close_target = HUDCloseActionTarget.alloc().initWithCallback_(self.force_hide)
+            self._close_btn.setTarget_(self._close_target)
+            self._close_btn.setAction_("closeAction:")
+            self._close_btn.setToolTip_("Close VoiceFi HUD (Esc)")
+            self._root_view.addSubview_(self._close_btn)
+        except Exception:
+            self._gear_btn = None
+            self._close_btn = None
 
         # Avatar badge view (left - Medium size 38x38 box with 34x34 vector icon)
         self._avatar_box = NSView.alloc().initWithFrame_(NSRect(NSPoint(14, 10), NSSize(38, 38)))
@@ -686,6 +723,20 @@ class UnifiedDynamicIslandHUD:
         self._body_lbl.setSelectable_(False)
         self._root_view.addSubview_(self._body_lbl)
 
+        # Interactive click target over title and body text area
+        try:
+            self._body_btn = NSButton.alloc().initWithFrame_(NSRect(NSPoint(56, 4), NSSize(320, 48)))
+            self._body_btn.setTransparent_(True)
+            self._body_btn.setBordered_(False)
+            self._body_btn.setTitle_("")
+            self._body_btn.setToolTip_("Click to focus Antigravity chat & logs")
+            self._body_target = ExpertActionTarget.alloc().initWithCallback_(lambda _: self.handle_body_click())
+            self._body_btn.setTarget_(self._body_target)
+            self._body_btn.setAction_("actionHandler:")
+            self._root_view.addSubview_(self._body_btn)
+        except Exception:
+            self._body_btn = None
+
         # App / Agent badge view (right side at x=438, y=15, w=28, h=28)
         self._app_box = NSView.alloc().initWithFrame_(NSRect(NSPoint(438, 15), NSSize(28, 28)))
         self._app_box.setWantsLayer_(True)
@@ -774,7 +825,6 @@ class UnifiedDynamicIslandHUD:
 
         self._root_view.addSubview_(self._edit_container)
         self._panel.setContentView_(self._root_view)
-        
         # Link background LiveVADMonitor to the visualizer
         def _vad_listener(energy, prob, is_speech, raw_chunk, noise_floor, active_thresh):
             if getattr(self, "_visualizer", None) and not self._visualizer.isHidden():
@@ -790,8 +840,26 @@ class UnifiedDynamicIslandHUD:
         except Exception as e:
             print(f"[HUD] Failed to bind LiveVADMonitor: {e}")
 
+        # Native Cocoa Key Monitors: intercept Escape (key code 53) to stop speech instantly
+        try:
+            from AppKit import NSEvent, NSEventMaskKeyDown
+            def _handle_cocoa_key(event):
+                try:
+                    if event and hasattr(event, "keyCode") and event.keyCode() == 53:
+                        from voicefi.tts.base import is_agent_speaking, is_system_audio_playing, stop_all_speech
+                        if is_agent_speaking() or is_system_audio_playing():
+                            stop_all_speech()
+                except Exception:
+                    pass
+                return event
+
+            NSEvent.addGlobalMonitorForEventsMatchingMask_handler_(NSEventMaskKeyDown, _handle_cocoa_key)
+            NSEvent.addLocalMonitorForEventsMatchingMask_handler_(NSEventMaskKeyDown, _handle_cocoa_key)
+        except Exception:
+            pass
+
     def _get_target_frame(self, width: float = 480.0, height: float = 58.0) -> NSRect:
-        """Calculate screen positioning anchored top-right with margin below Chrome tab & address bar, or user-dragged position."""
+        """Calculate screen positioning based on preset anchor (top_right, top_center, bottom_right) or user-dragged position."""
         screen = NSScreen.mainScreen()
         if self._user_dragged_center_x is not None and self._user_dragged_top_y is not None:
             x = self._user_dragged_center_x - (width / 2.0)
@@ -801,8 +869,16 @@ class UnifiedDynamicIslandHUD:
             hud_cfg = getattr(self.config, "hud", None) if hasattr(self, "config") else None
             margin_x = float(getattr(hud_cfg, "margin_x", 20.0)) if hud_cfg else 20.0
             margin_y = float(getattr(hud_cfg, "margin_y", 96.0)) if hud_cfg else 96.0
-            x = visible.origin.x + visible.size.width - width - margin_x
-            y = visible.origin.y + visible.size.height - height - margin_y
+            pos = getattr(hud_cfg, "position", "top_right") if hud_cfg else "top_right"
+            if pos == "top_center":
+                x = visible.origin.x + (visible.size.width - width) / 2.0
+                y = visible.origin.y + visible.size.height - height - 12.0
+            elif pos == "bottom_right":
+                x = visible.origin.x + visible.size.width - width - margin_x
+                y = visible.origin.y + 40.0
+            else:  # top_right (default: anchored top right clearing browser tabs)
+                x = visible.origin.x + visible.size.width - width - margin_x
+                y = visible.origin.y + visible.size.height - height - margin_y
         else:
             x, y = 1200, 800
         return NSRect(NSPoint(x, y), NSSize(width, height))
@@ -933,6 +1009,11 @@ class UnifiedDynamicIslandHUD:
                     self._visualizer.setHidden_(True)
                     if getattr(self, "_vad_btn", None):
                         self._vad_btn.setHidden_(True)
+
+            if getattr(self, "_gear_btn", None):
+                self._gear_btn.setHidden_(False)
+            if getattr(self, "_close_btn", None):
+                self._close_btn.setHidden_(False)
 
             if self._panel and (not is_headless() or hasattr(self._panel, "assert_called") or type(self._panel).__name__ == "MagicMock"):
                 self._panel.orderFrontRegardless()
@@ -1387,6 +1468,10 @@ class UnifiedDynamicIslandHUD:
                 self._body_lbl.setHidden_(True)
             if self._app_box:
                 self._app_box.setHidden_(True)
+            if getattr(self, "_gear_btn", None):
+                self._gear_btn.setHidden_(True)
+            if getattr(self, "_close_btn", None):
+                self._close_btn.setHidden_(True)
 
             self._edit_container.setHidden_(False)
             self._root_view.layer().setBorderColor_(
@@ -1568,6 +1653,16 @@ class UnifiedDynamicIslandHUD:
             body_text="Converting speech to text...",
             border_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.9, 0.8, 0.25, 0.85),
         )
+
+    def toggle_quick_controls(self):
+        """Toggle the Quick Controls panel relative to this HUD."""
+        try:
+            from voicefi.ui.quick_controls import HUDQuickControlsPanel
+            panel = HUDQuickControlsPanel.get_instance()
+            hud_rect = self._panel.frame() if self._panel else None
+            panel.toggle(relative_to_rect=hud_rect)
+        except Exception as e:
+            print(f"[HUD] Error toggling Quick Controls panel: {e}")
 
     def toggle_expert_vad(self):
         """Toggle the Expert VAD Inspector panel relative to this HUD."""

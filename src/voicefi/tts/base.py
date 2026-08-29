@@ -342,6 +342,57 @@ def is_system_audio_playing() -> bool:
         return False
 
 
+def is_escape_key(key: Any) -> bool:
+    """
+    Universally check if a key event from pynput or Cocoa corresponds to the Escape key.
+    Handles Key.esc, KeyCode(char='\\x1b'), KeyCode(vk=53), name='esc', raw ASCII, and string representations.
+    """
+    if key is None:
+        return False
+    try:
+        from pynput.keyboard import Key
+        if key == Key.esc:
+            return True
+    except Exception:
+        pass
+
+    try:
+        vk = getattr(key, "vk", None)
+        if vk == 53:
+            return True
+        name = getattr(key, "name", None)
+        if name in ("esc", "escape"):
+            return True
+        char = getattr(key, "char", None)
+        if char in ("\x1b", "\033"):
+            return True
+        val = getattr(key, "value", None)
+        if val in (53, "esc", "escape"):
+            return True
+        s = str(key)
+        if s in ("Key.esc", "'\\x1b'", "'\\033'", "<53>", "53"):
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def is_speech_interrupted(turn_start_time: float = 0.0) -> bool:
+    """
+    Check if speech playback has been interrupted, stopped, or cancelled across any thread or process.
+    """
+    global _IN_PROCESS_SPEAKING
+    if not _IN_PROCESS_SPEAKING:
+        return True
+    if turn_start_time > 0:
+        stop_time = get_last_speech_stop_time()
+        if stop_time >= turn_start_time:
+            return True
+    if not AGENT_SPEAKING_STATUS_FILE.is_file():
+        return True
+    return False
+
+
 _LOCK_DEPTH = 0
 
 
@@ -349,7 +400,7 @@ _LOCK_DEPTH = 0
 def escape_to_stop_speech():
     """
     Spawns a lightweight global keyboard listener while active.
-    If the user presses Escape (Key.esc or vk=53), immediately triggers stop_all_speech().
+    If the user presses Escape (Key.esc, vk=53, or char=\\x1b), immediately triggers stop_all_speech().
     """
     if os.environ.get("PYTEST_CURRENT_TEST"):
         yield
@@ -358,12 +409,10 @@ def escape_to_stop_speech():
     listener = None
     try:
         from pynput import keyboard
-        from pynput.keyboard import Key
 
         def _on_press(key):
             try:
-                vk = getattr(key, "vk", None)
-                if key == Key.esc or vk == 53:
+                if is_escape_key(key):
                     stop_all_speech()
             except Exception:
                 pass
@@ -536,6 +585,7 @@ def stop_all_speech() -> None:
     try:
         AGENT_SPEAKING_STATUS_FILE.unlink(missing_ok=True)
         AUDIO_PLAYING_STATUS_FILE.unlink(missing_ok=True)
+        HUD_STATE_STATUS_FILE.unlink(missing_ok=True)
     except Exception:
         pass
 
@@ -547,12 +597,12 @@ def stop_all_speech() -> None:
 
     if not os.environ.get("PYTEST_CURRENT_TEST"):
         try:
-            subprocess.run(["killall", "say"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(["killall", "-9", "say"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except Exception:
             pass
 
         try:
-            subprocess.run(["killall", "afplay"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(["killall", "-9", "afplay"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except Exception:
             pass
 
@@ -562,3 +612,10 @@ def stop_all_speech() -> None:
             AgentSpeechHUD._instance.hide()
     except Exception:
         pass
+    try:
+        from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
+        if UnifiedDynamicIslandHUD._instance:
+            UnifiedDynamicIslandHUD._instance.hide_speech()
+    except Exception:
+        pass
+

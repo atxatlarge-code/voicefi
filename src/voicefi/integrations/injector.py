@@ -13,6 +13,7 @@ from typing import Optional, Any
 DEFAULT_TERMINAL_APPS = (
     "Claude",
     "Claude Helper",
+    "ChatGPT",
     "Terminal",
     "iTerm2",
     "iTerm",
@@ -725,6 +726,87 @@ curl -s -X POST http://localhost:5141/api/send -H "Content-Type: application/jso
         return False
 
 
+def focus_chatgpt(focus_input: bool = True) -> bool:
+    """
+    Bring ChatGPT macOS desktop application to the front.
+    """
+    applescript = '''
+    tell application "System Events"
+        if exists (process "ChatGPT") then
+            tell application "ChatGPT" to activate
+            delay 0.15
+            tell process "ChatGPT"
+                set frontmost to true
+            end tell
+            return true
+        end if
+    end tell
+    return false
+    '''
+    try:
+        res = subprocess.run(["osascript", "-e", applescript], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=2)
+        return "true" in res.stdout.lower()
+    except Exception:
+        return False
+
+
+def inject_text_to_chatgpt(
+    text: str,
+    submit_enter: bool = True,
+    restore_focus: bool = False,
+    preserve_clipboard: bool = True,
+) -> bool:
+    """
+    Inject transcribed voice prompt or message into ChatGPT for Mac desktop app.
+    """
+    if not text or not text.strip():
+        return False
+
+    clean_text = text.strip()
+    prev_clipboard = get_clipboard_text() if preserve_clipboard else None
+
+    if not set_clipboard_text(clean_text):
+        return False
+
+    time.sleep(0.05)
+
+    enter_script = '''
+            delay 0.15
+            key code 36
+    ''' if submit_enter else ''
+
+    applescript = f'''
+    tell application "System Events"
+        if exists (process "ChatGPT") then
+            tell application "ChatGPT" to activate
+            delay 0.18
+            tell process "ChatGPT"
+                set frontmost to true
+                try
+                    click menu item "Paste" of menu "Edit" of menu bar item "Edit" of menu bar 1
+                on error
+                    keystroke "v" using command down
+                end try
+                {enter_script}
+            end tell
+            return true
+        end if
+    end tell
+    return false
+    '''
+    try:
+        res = subprocess.run(["osascript", "-e", applescript], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=4)
+        success = "true" in res.stdout.lower()
+        if preserve_clipboard and prev_clipboard is not None:
+            restore_clipboard_delayed(prev_clipboard, delay=0.4)
+        return success
+    except Exception as e:
+        print(f"[Injector] inject_text_to_chatgpt error: {e}")
+        if preserve_clipboard and prev_clipboard is not None:
+            restore_clipboard_delayed(prev_clipboard, delay=0.4)
+        return False
+
+
 def send_message_to_agent(
     conv_id: Optional[str] = None,
     text: str = "",
@@ -737,7 +819,7 @@ def send_message_to_agent(
     allow_foreground_fallback: bool = False,
 ) -> DispatchResult:
     """
-    Unified dispatcher to send messages to Antigravity or Claude Code.
+    Unified dispatcher to send messages to Antigravity, Claude Code, or ChatGPT Desktop.
     Automatically resolves engine from conversation ID or active session cookie if unstated.
     """
     if not text or not text.strip():
@@ -747,6 +829,8 @@ def send_message_to_agent(
     if not engine and conv_id:
         if conv_id.startswith("claude_") or "claude" in conv_id.lower():
             engine = "claude"
+        elif conv_id.startswith("chatgpt_") or "chatgpt" in conv_id.lower() or "openai" in conv_id.lower():
+            engine = "chatgpt"
         elif conv_id == "reply":
             from voicefi.integrations.conversations import get_return_route
             route = get_return_route()
@@ -785,6 +869,25 @@ def send_message_to_agent(
             delivery_type="foreground_paste" if pasted else "none",
             error=None if pasted else "Failed to inject keystrokes into Claude terminal window",
             engine="claude",
+        )
+    elif engine in ("chatgpt", "openai", "codex"):
+        print(f"[Injector] 🤖 Injecting prompt into ChatGPT / Codex Desktop: \"{text[:50]}...\"")
+        pasted = inject_text_to_chatgpt(text, submit_enter=True)
+        return DispatchResult(
+            success=pasted,
+            delivery_type="foreground_paste" if pasted else "none",
+            error=None if pasted else "Failed to inject prompt into ChatGPT for Mac",
+            engine=engine,
+        )
+    elif engine in ("gemini", "gemini_cli"):
+        print(f"[Injector] 🚀 Dispatching prompt to Gemini agent: \"{text[:50]}...\"")
+        return send_message_to_antigravity(
+            conv_id=conv_id,
+            text=text,
+            sender_name=sender_name or "Gemini",
+            title=title,
+            from_conv_id=from_conv_id,
+            allow_foreground_fallback=allow_foreground_fallback,
         )
     else:
         return send_message_to_antigravity(

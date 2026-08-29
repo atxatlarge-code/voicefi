@@ -67,7 +67,7 @@ def get_process_info_by_pid(pid: int) -> Optional[Dict[str, Any]]:
     return {"pid": pid, "command": "unknown"}
 
 
-def find_running_voicefi_processes() -> List[Dict[str, Any]]:
+def find_running_voicefi_processes(include_mcp: bool = True) -> List[Dict[str, Any]]:
     """Scan and return all active VoiceFi / vifi processes."""
     my_pid = os.getpid()
     results = []
@@ -112,10 +112,14 @@ def find_running_voicefi_processes() -> List[Dict[str, Any]]:
                     is_voicefi = True
 
                 if is_voicefi:
+                    is_mcp = bool(" mcp" in cmd_lower or cmd_lower.endswith(" mcp"))
+                    if not include_mcp and is_mcp:
+                        continue
                     results.append({
                         "pid": pid,
                         "ppid": ppid,
                         "command": cmd,
+                        "is_mcp": is_mcp,
                     })
     except Exception:
         pass
@@ -275,6 +279,17 @@ def get_full_server_status() -> Dict[str, Any]:
         except Exception:
             pass
 
+    codex_hook = Path.home() / ".codex" / "hooks.json"
+    codex_cmd = None
+    if codex_hook.is_file():
+        try:
+            codex_data = json.loads(codex_hook.read_text(encoding="utf-8"))
+            hooks_list = codex_data.get("hooks", {}).get("Stop", [{}])[0].get("hooks", [{}])
+            if hooks_list:
+                codex_cmd = hooks_list[0].get("command")
+        except Exception:
+            pass
+
     return {
         "launchagent": la_status,
         "port_5141": port_status,
@@ -286,6 +301,7 @@ def get_full_server_status() -> Dict[str, Any]:
         "hooks": {
             "antigravity": gemini_cmd,
             "claude": claude_cmd,
+            "codex": codex_cmd,
         },
         "python_executable": sys.executable,
     }
@@ -299,6 +315,7 @@ def stop_all_voicefi_servers(
     disable_launchagent: bool = True,
     remove_plist: bool = False,
     timeout_seconds: float = 3.0,
+    stop_mcp: bool = False,
 ) -> Dict[str, Any]:
     """
     Safely and comprehensively stop all running VoiceFi servers, background agents,
@@ -361,8 +378,11 @@ def stop_all_voicefi_servers(
             if remove_plist:
                 plist.unlink(missing_ok=True)
 
-    # 2. Terminate all running VoiceFi processes
-    procs = find_running_voicefi_processes()
+    # 2. Terminate running VoiceFi server and background daemon processes (excluding MCP clients unless stop_mcp=True)
+    try:
+        procs = find_running_voicefi_processes(include_mcp=stop_mcp)
+    except TypeError:
+        procs = find_running_voicefi_processes()
     for p in procs:
         pid = p["pid"]
         try:

@@ -5,6 +5,7 @@ Zero-setup, lightning fast, offline, and supports all system installed voices.
 
 import subprocess
 import threading
+import time
 from pathlib import Path
 from typing import Optional, List
 from voicefi.tts.base import BaseTTS, speech_turn_lock, DuplicateSpeechSuppressed
@@ -71,6 +72,7 @@ class MacSayTTS(BaseTTS):
     """TTS engine powered by macOS native `say` command."""
 
     def __init__(self, voice: str = "Samantha", rate: any = 200):
+        super().__init__()
         self.voice = voice
         self.rate = normalize_mac_rate(rate)
         self._current_process: Optional[subprocess.Popen] = None
@@ -79,8 +81,12 @@ class MacSayTTS(BaseTTS):
     def stop(self) -> None:
         """Interrupt any ongoing speech playback."""
         self._stop_requested = True
-        if self._current_process and self._current_process.poll() is None:
-            self._current_process.terminate()
+        proc = self._current_process
+        if proc and proc.poll() is None:
+            try:
+                proc.terminate()
+            except Exception:
+                pass
             self._current_process = None
 
     def speak(self, text: str, block: bool = True) -> None:
@@ -95,6 +101,7 @@ class MacSayTTS(BaseTTS):
         clean_text = normalize_tts_text(text)
         self._stop_requested = False
         cmd = ["say", "-v", self.voice, "-r", str(self.rate), "--", clean_text]
+        turn_start_time = time.time()
 
         def _run():
             try:
@@ -103,25 +110,25 @@ class MacSayTTS(BaseTTS):
                     agent_name=getattr(self, "agent_name", "VoiceFi"),
                     persona_name=getattr(self, "persona_name", getattr(self, "voice", "Samantha")),
                 ):
-                    if self._stop_requested:
+                    from voicefi.tts.base import is_speech_interrupted, set_agent_audio_playing
+                    if self._stop_requested or is_speech_interrupted(turn_start_time):
                         return
                     try:
-                        from voicefi.tts.base import set_agent_audio_playing
                         set_agent_audio_playing(True)
                         proc = subprocess.Popen(
                             cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
                         )
                         self._current_process = proc
                         proc.wait()
-                        if not self._stop_requested and proc.returncode != 0:
-                            # Fallback to default system voice
+                        was_interrupted = self._stop_requested or is_speech_interrupted(turn_start_time) or (proc.returncode in (-9, -15, 137, 143))
+                        if not was_interrupted and proc.returncode != 0:
+                            # Fallback to default system voice only on genuine error (not stop/interrupt)
                             fallback = subprocess.Popen(["say", "--", clean_text], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                             self._current_process = fallback
                             fallback.wait()
                     except Exception as e:
                         print(f"[MacSayTTS] Error speaking: {e}")
                     finally:
-                        from voicefi.tts.base import set_agent_audio_playing
                         set_agent_audio_playing(False)
                         self._current_process = None
             except DuplicateSpeechSuppressed:
@@ -149,14 +156,6 @@ class MacSayTTS(BaseTTS):
         except Exception as e:
             print(f"[MacSayTTS] Error saving speech to file: {e}")
             return False
-
-    def stop(self) -> None:
-        """Stop current speech synthesis."""
-        self._stop_requested = True
-        proc = self._current_process
-        if proc and proc.poll() is None:
-            proc.terminate()
-            self._current_process = None
 
     @staticmethod
     def list_available_voices() -> List[str]:

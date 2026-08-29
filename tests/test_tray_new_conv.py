@@ -19,6 +19,7 @@ def mock_tray_env():
          patch("voicefi.ui.tray.VoiceFiTrayApp._build_integrations_submenu"), \
          patch("voicefi.ui.tray.VoiceFiTrayApp._build_personas_submenu"), \
          patch("voicefi.ui.tray.VoiceFiTrayApp._build_voice_mode_submenu"), \
+         patch("voicefi.ui.tray.VoiceFiTrayApp._build_hud_submenu"), \
          patch("voicefi.ui.tray.VoiceFiTrayApp._build_troubleshoot_submenu"), \
          patch("voicefi.ui.tray.VoiceFiTrayApp._build_memo_submenu"), \
          patch("voicefi.ui.tray.UnifiedDynamicIslandHUD") as mock_hud_cls:

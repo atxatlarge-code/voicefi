@@ -45,7 +45,7 @@ def test_whisper_local_anti_repetition_params():
     dummy_audio = np.zeros(16000, dtype=np.float32)
     result = stt.transcribe(dummy_audio)
 
-    assert result == "Hello world"
+    assert result.strip().lower() == "hello world"
     mock_model.transcribe.assert_called_once()
     _, kwargs = mock_model.transcribe.call_args
     assert kwargs.get("condition_on_previous_text") is False

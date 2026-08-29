@@ -472,3 +472,57 @@ def test_mcp_tool_call_vifi_aliases(server):
         assert resp_speak["result"]["isError"] is False
         mock_engine.stream_speak.assert_called_once_with("Testing bare speak alias", block=True)
 
+
+def test_mcp_auxiliary_protocol_methods(server):
+    """Test standard MCP auxiliary queries return compliant results."""
+    # resources/list
+    res = server.handle_request({"jsonrpc": "2.0", "id": 30, "method": "resources/list"})
+    assert res is not None and res["result"] == {"resources": []}
+
+    # resources/templates/list
+    res_tpl = server.handle_request({"jsonrpc": "2.0", "id": 31, "method": "resources/templates/list"})
+    assert res_tpl is not None and res_tpl["result"] == {"resourceTemplates": []}
+
+    # prompts/list
+    res_pr = server.handle_request({"jsonrpc": "2.0", "id": 32, "method": "prompts/list"})
+    assert res_pr is not None and res_pr["result"] == {"prompts": []}
+
+    # roots/list
+    res_rt = server.handle_request({"jsonrpc": "2.0", "id": 33, "method": "roots/list"})
+    assert res_rt is not None and res_rt["result"] == {"roots": []}
+
+    # logging/setLevel
+    res_log = server.handle_request({"jsonrpc": "2.0", "id": 34, "method": "logging/setLevel", "params": {"level": "info"}})
+    assert res_log is not None and res_log["result"] == {}
+
+    # notifications (any method with no id)
+    notif = server.handle_request({"jsonrpc": "2.0", "method": "notifications/cancelled", "params": {}})
+    assert notif is None
+
+
+def test_mcp_run_stdio_stream_isolation(server, monkeypatch):
+    """Ensure run_stdio redirects sys.stdout to sys.stderr so internal prints don't corrupt JSON-RPC."""
+    import io
+    import sys
+
+    input_data = (
+        json.dumps({"jsonrpc": "2.0", "id": 100, "method": "ping"}) + "\n"
+    )
+    fake_stdin = io.StringIO(input_data)
+    fake_stdout = io.StringIO()
+    fake_stderr = io.StringIO()
+
+    monkeypatch.setattr(sys, "stdin", fake_stdin)
+    monkeypatch.setattr(sys, "stdout", fake_stdout)
+    monkeypatch.setattr(sys, "stderr", fake_stderr)
+
+    server.run_stdio()
+
+    # JSON-RPC response must be on fake_stdout
+    output_lines = [l.strip() for l in fake_stdout.getvalue().splitlines() if l.strip()]
+    assert len(output_lines) == 1
+    resp = json.loads(output_lines[0])
+    assert resp["id"] == 100
+    assert resp["result"] == {}
+
+

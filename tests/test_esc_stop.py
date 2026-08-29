@@ -263,4 +263,109 @@ def test_forward_hook_to_daemon_does_not_autospawn_when_offline():
         mock_popen.assert_not_called()
 
 
+def test_is_escape_key_all_representations():
+    """Verify is_escape_key identifies all macOS and pynput representations of Escape."""
+    from voicefi.tts.base import is_escape_key
+    from pynput.keyboard import Key, KeyCode
+
+    # Direct Key.esc
+    assert is_escape_key(Key.esc) is True
+
+    # KeyCode with vk=53 (macOS hardware virtual key code for Esc)
+    vk_esc = KeyCode.from_vk(53)
+    assert is_escape_key(vk_esc) is True
+
+    # KeyCode with ASCII escape char (\x1b)
+    char_esc = KeyCode.from_char("\x1b")
+    assert is_escape_key(char_esc) is True
+
+    # Mock KeyCode with name='esc'
+    named_esc = MagicMock()
+    named_esc.name = "esc"
+    named_esc.vk = None
+    named_esc.char = None
+    assert is_escape_key(named_esc) is True
+
+    # Non-escape keys should return False
+    assert is_escape_key(Key.space) is False
+    assert is_escape_key(Key.enter) is False
+    assert is_escape_key(KeyCode.from_char("a")) is False
+    assert is_escape_key(None) is False
+
+
+def test_is_speech_interrupted():
+    """Verify is_speech_interrupted accurately detects stops across time and state."""
+    from voicefi.tts.base import (
+        is_speech_interrupted,
+        set_agent_speaking,
+        record_speech_stopped,
+        AGENT_SPEAKING_STATUS_FILE,
+    )
+
+    # 1. When not speaking -> True (interrupted/inactive)
+    set_agent_speaking(False)
+    assert is_speech_interrupted() is True
+
+    # 2. When active speaking -> False
+    set_agent_speaking(True, text="Active test turn")
+    turn_start = time.time()
+    time.sleep(0.01)
+    assert is_speech_interrupted(turn_start) is False
+
+    # 3. When stop is recorded after turn start -> True
+    record_speech_stopped()
+    assert is_speech_interrupted(turn_start) is True
+
+    # Cleanup
+    set_agent_speaking(False)
+
+
+def test_mac_say_registers_in_active_tts_engines():
+    """Verify MacSayTTS registers in _ACTIVE_TTS_ENGINES and responds to stop_all_speech."""
+    from voicefi.tts.mac_say import MacSayTTS
+    from voicefi.tts.base import _ACTIVE_TTS_ENGINES
+
+    tts = MacSayTTS(voice="Samantha", rate=200)
+    assert tts in _ACTIVE_TTS_ENGINES
+
+    mock_proc = MagicMock()
+    mock_proc.poll.return_value = None
+    tts._current_process = mock_proc
+
+    tts.stop()
+    assert tts._stop_requested is True
+    mock_proc.terminate.assert_called_once()
+
+
+def test_f5_tts_registers_in_active_tts_engines():
+    """Verify F5TTS registers in _ACTIVE_TTS_ENGINES and responds to stop."""
+    from voicefi.tts.f5_tts import F5TTS
+    from voicefi.tts.base import _ACTIVE_TTS_ENGINES
+
+    tts = F5TTS(model_name="F5TTS_v1_Base")
+    assert tts in _ACTIVE_TTS_ENGINES
+
+    mock_proc = MagicMock()
+    mock_proc.poll.return_value = None
+    tts._current_process = mock_proc
+
+    tts.stop()
+    assert tts._stop_requested is True
+    mock_proc.terminate.assert_called_once()
+
+
+def test_edge_tts_no_fallback_on_interruption():
+    """Verify EdgeTTS does not trigger fallback speech when interrupted by Esc."""
+    from voicefi.tts.edge_tts import EdgeTTS
+
+    tts = EdgeTTS(voice="en-US-AvaNeural")
+    tts._stop_requested = True
+
+    with patch.object(tts, "_fallback_speak_direct") as mock_fallback, \
+         patch("voicefi.tts.edge_tts.is_user_on_call", return_value=False):
+        tts.speak("Sentence one. Sentence two.", block=True)
+        mock_fallback.assert_not_called()
+
+
+
 

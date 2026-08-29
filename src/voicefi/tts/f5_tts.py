@@ -37,12 +37,14 @@ class F5TTS(BaseTTS):
         device: Optional[str] = None,
         speed: float = 1.0,
     ):
+        super().__init__()
         self.ref_audio = ref_audio
         self.ref_text = ref_text
         self.model_name = model_name or "F5TTS_v1_Base"
         self.device = device
         self.speed = speed
         self._current_process: Optional[subprocess.Popen] = None
+        self._stop_requested = False
 
     @classmethod
     def get_f5_instance(cls, model_name: str = "F5TTS_v1_Base", device: Optional[str] = None):
@@ -151,16 +153,25 @@ class F5TTS(BaseTTS):
         if not text or not text.strip():
             return
 
+        self._stop_requested = False
+        turn_start_time = time.time()
+
         with speech_turn_lock(
             text=text,
             agent_name=getattr(self, "agent_name", "VoiceFi"),
             persona_name=getattr(self, "persona_name", "Custom Clone"),
         ):
+            from voicefi.tts.base import is_speech_interrupted
+            if self._stop_requested or is_speech_interrupted(turn_start_time):
+                return
+
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
                 tmp_path = Path(tmp.name)
 
             try:
                 success = self.speak_to_file(text, tmp_path)
+                if self._stop_requested or is_speech_interrupted(turn_start_time):
+                    return
                 if not success or not tmp_path.exists():
                     print("[F5-TTS] Failed to generate audio. Falling back to native macOS say.")
                     from voicefi.tts.mac_say import MacSayTTS
@@ -180,6 +191,7 @@ class F5TTS(BaseTTS):
             finally:
                 set_agent_audio_playing(False)
                 set_agent_speaking(False)
+                self._current_process = None
                 try:
                     tmp_path.unlink(missing_ok=True)
                 except Exception:
@@ -187,6 +199,7 @@ class F5TTS(BaseTTS):
 
     def stop(self) -> None:
         """Interrupt playback."""
+        self._stop_requested = True
         if self._current_process:
             try:
                 self._current_process.terminate()

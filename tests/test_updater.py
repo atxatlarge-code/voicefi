@@ -93,7 +93,7 @@ def test_perform_update_flow():
 
 def test_pro_auto_updater_feature_gate():
     """Verify auto-updater requires Pro tier license."""
-    community_cfg = VoiceFiConfig(tier="community", auto_update=True)
+    community_cfg = VoiceFiConfig(tier="community", auto_update=True, trial_started_at=1000.0, trial_duration_days=14)
     assert not FeatureGate.can_use_feature("auto_update", community_cfg)
 
     pro_cfg = VoiceFiConfig(tier="pro", license_key="PRO-123456", auto_update=True)

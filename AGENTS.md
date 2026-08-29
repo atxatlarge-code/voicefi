@@ -21,6 +21,8 @@ Universal Voice Layer for AI Agents, MCP, and macOS.
 | `vifi hook status` | **Hook Diagnostic**: Displays active status and configuration of Antigravity & Claude Code lifecycle hooks. |
 | `vifi hook disable` / `vifi hook enable` | **Hook Switch**: Disables or enables agent Stop hooks in `~/.voicefi/config.yaml` without editing files manually. |
 | `vifi hook remove` | **Hook Uninstaller**: Cleanly unregisters hooks from Antigravity and Claude Code configuration files. |
+| `vifi tier` / `vifi pricing` | **Tier & Free Trial Inspector**: Displays active tier, 14-day free trial countdown, and pricing plans. |
+| `vifi learn` / `vifi learn scan` | **Recursive Self-Learning**: Scans repository symbols and manages phonetic STT self-correction & brevity memory. |
 | `vifi update` | Self-updater: pulls latest GitHub release, upgrades `~/.voicefi/venv`, and reloads hooks. |
 | `vifi update --check` | Check if a newer version is available without installing. |
 | `vifi voice download-ava` | **Instant 0ms Offline Speech Setup**: Guides downloading Apple's **Ava (Premium)** neural voice and auto-configures 0ms offline synthesis. |

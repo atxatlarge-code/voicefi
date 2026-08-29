@@ -205,6 +205,8 @@ class VoiceFiMCPServer:
                     "protocolVersion": PROTOCOL_VERSION,
                     "capabilities": {
                         "tools": {},
+                        "resources": {},
+                        "prompts": {},
                     },
                     "serverInfo": {
                         "name": SERVER_NAME,
@@ -237,6 +239,49 @@ class VoiceFiMCPServer:
                 "jsonrpc": "2.0",
                 "id": req_id,
                 "result": result,
+            }
+
+        elif method == "resources/list":
+            return {
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "result": {
+                    "resources": [],
+                },
+            }
+
+        elif method == "resources/templates/list":
+            return {
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "result": {
+                    "resourceTemplates": [],
+                },
+            }
+
+        elif method == "prompts/list":
+            return {
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "result": {
+                    "prompts": [],
+                },
+            }
+
+        elif method == "roots/list":
+            return {
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "result": {
+                    "roots": [],
+                },
+            }
+
+        elif method == "logging/setLevel":
+            return {
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "result": {},
             }
 
         else:
@@ -631,6 +676,10 @@ class VoiceFiMCPServer:
         logger.info("Starting VoiceFi MCP Server on stdio...")
         self._running = True
 
+        raw_stdout = sys.stdout
+        # Redirect global sys.stdout to sys.stderr so print statements from libraries or VAD do not corrupt JSON-RPC
+        sys.stdout = sys.stderr
+
         for line in sys.stdin:
             line_str = line.strip()
             if not line_str:
@@ -647,14 +696,27 @@ class VoiceFiMCPServer:
                         "message": f"Parse error: {str(e)}",
                     },
                 }
-                sys.stdout.write(json.dumps(err_resp) + "\n")
-                sys.stdout.flush()
+                raw_stdout.write(json.dumps(err_resp) + "\n")
+                raw_stdout.flush()
                 continue
 
-            resp = self.handle_request(req)
+            try:
+                resp = self.handle_request(req)
+            except Exception as e:
+                logger.exception("Unhandled error processing MCP request: %s", e)
+                req_id = req.get("id") if isinstance(req, dict) else None
+                resp = {
+                    "jsonrpc": "2.0",
+                    "id": req_id,
+                    "error": {
+                        "code": -32603,
+                        "message": f"Internal error: {str(e)}",
+                    },
+                } if req_id is not None else None
+
             if resp is not None:
-                sys.stdout.write(json.dumps(resp) + "\n")
-                sys.stdout.flush()
+                raw_stdout.write(json.dumps(resp) + "\n")
+                raw_stdout.flush()
 
 
 def run_mcp_server():

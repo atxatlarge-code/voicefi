@@ -41,6 +41,20 @@ def clean_markdown_for_speech(text: str, max_words: int = 60) -> str:
     if not text or not text.strip():
         return ""
 
+    # 0. Check for Gemini Flash distillation if available and enabled
+    try:
+        from voicefi.integrations.gemini_ai import GeminiIntelligenceEngine
+        gemini_engine = GeminiIntelligenceEngine()
+        if (
+            gemini_engine.is_available()
+            and getattr(getattr(gemini_engine.config, "gemini", None), "enable_soundbite_distillation", True)
+        ):
+            distilled = gemini_engine.distill_spoken_soundbite(text, max_words=max_words, timeout=0.6)
+            if distilled and len(distilled.strip()) > 3:
+                return distilled
+    except Exception:
+        pass
+
     # 1. Bound text size to avoid regex performance bottlenecks on massive outputs
     if len(text) > 4000:
         text = text[:1000] + "\n" + text[-2000:]
@@ -395,7 +409,8 @@ def handle_antigravity_stop_hook(payload: Dict[str, Any], config: Optional[Voice
         tts = get_tts_engine(cfg, agent_name=active_agent)
         def _speak_and_finish():
             try:
-                tts.stream_speak(summary, block=True)
+                with escape_to_stop_speech():
+                    tts.stream_speak(summary, block=True)
             finally:
                 from voicefi.tts.base import set_agent_speaking
                 set_agent_speaking(False)

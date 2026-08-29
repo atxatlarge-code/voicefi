@@ -21,6 +21,7 @@ from aiohttp import web, WSMsgType
 import numpy as np
 
 from voicefi.config import VoiceFiConfig, load_config, save_config
+from voicefi.license import FeatureGate
 from voicefi.integrations.conversations import (
     ConversationTracker,
     load_session_cookie,
@@ -52,6 +53,7 @@ from voicefi.memo.recorder import MemoBufferRecorder
 from voicefi.memo.cleaner import MemoCleaner
 from voicefi.memo.synthesizer import MemoSynthesizer
 from voicefi.companion.qr import get_local_ip, get_companion_urls, print_qr_code, generate_qr_base64_png
+from voicefi.companion.relay_client import RelayClient, RelaySessionCredentials
 
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -86,6 +88,7 @@ class CompanionServer:
         self._active_memo_id: Optional[str] = None
         self._memo_thread: Optional[threading.Thread] = None
         self._processed_hook_requests: Dict[str, float] = {}
+        self.relay_client: Optional[RelayClient] = None
 
         @web.middleware
         async def cors_middleware(request, handler):
@@ -156,6 +159,9 @@ class CompanionServer:
         self.app.router.add_get("/api/qr", self.handle_qr)
         self.app.router.add_get("/api/tunnel/status", self.handle_tunnel_status)
         self.app.router.add_post("/api/tunnel/start", self.handle_tunnel_start)
+        self.app.router.add_get("/api/license", self.handle_get_license)
+        self.app.router.add_post("/api/license", self.handle_post_license)
+        self.app.router.add_get("/api/tier", self.handle_get_license)
         self.app.router.add_post("/api/hook/event", self.handle_hook_event)
         self.app.router.add_get("/ws", self.handle_ws)
 
@@ -276,6 +282,7 @@ class CompanionServer:
                 "last_agent_text": active.last_agent_text,
                 "last_user_text": active.last_user_text,
             }
+        tier_summary = FeatureGate.get_tier_summary(self.config)
         return web.json_response({
             "status": "online",
             "active_conversation": active_data,
@@ -284,7 +291,37 @@ class CompanionServer:
             "mute_mac_when_companion_active": getattr(getattr(self.config, "companion", None), "mute_mac_when_companion_active", False),
             "ambient_active": self._ambient_stream is not None and self._ambient_stream.is_running,
             "memo_active": self._memo_recorder is not None,
+            "tier": tier_summary.get("tier"),
+            "status_text": tier_summary.get("status_text"),
+            "is_pro": tier_summary.get("is_pro"),
+            "is_trial": tier_summary.get("is_trial"),
+            "trial_days_remaining": tier_summary.get("trial_days_remaining"),
+            "trial_expires_at": tier_summary.get("trial_expires_at"),
+            "pricing": tier_summary.get("pricing"),
         })
+
+    async def handle_get_license(self, request: web.Request) -> web.Response:
+        """Return comprehensive licensing, 14-day free trial, and pricing metadata."""
+        self.config = load_config()
+        FeatureGate.ensure_trial_started(self.config)
+        summary = FeatureGate.get_tier_summary(self.config)
+        return web.json_response(summary)
+
+    async def handle_post_license(self, request: web.Request) -> web.Response:
+        """Activate a Pro license key via REST API."""
+        try:
+            data = await request.json()
+            key = str(data.get("license_key", "")).strip()
+            if not key:
+                return web.json_response({"error": "Missing or empty license_key"}, status=400)
+            self.config = load_config()
+            self.config.license_key = key
+            self.config.tier = "pro"
+            save_config(self.config)
+            summary = FeatureGate.get_tier_summary(self.config)
+            return web.json_response({"success": True, "message": "Pro license activated", "summary": summary})
+        except Exception as e:
+            return web.json_response({"error": str(e)}, status=500)
 
     # Ambient APIs
     async def handle_ambient_status(self, request: web.Request) -> web.Response:
@@ -1929,13 +1966,17 @@ class CompanionServer:
 
     def broadcast_event(self, event_data: Dict[str, Any]):
         """Broadcast event to all connected mobile clients."""
-        if not self.active_websockets or not self.loop:
+        if not self.loop:
             return
 
         msg = json.dumps(event_data)
-        for ws in list(self.active_websockets):
-            if not ws.closed:
-                asyncio.run_coroutine_threadsafe(ws.send_str(msg), self.loop)
+        if self.active_websockets:
+            for ws in list(self.active_websockets):
+                if not ws.closed:
+                    asyncio.run_coroutine_threadsafe(ws.send_str(msg), self.loop)
+
+        if self.relay_client and self.relay_client.is_running:
+            asyncio.run_coroutine_threadsafe(self.relay_client.broadcast(event_data), self.loop)
 
     def broadcast_turn_completion(
         self,
@@ -2082,6 +2123,30 @@ class CompanionServer:
                         "summary": t_desc,
                         "action": t_tag,
                         "status": "running",
+                        "timestamp": time.time(),
+                    })
+            elif step.get("thinking"):
+                from voicefi.integrations.watcher import extract_thought_summary
+                t_summary = extract_thought_summary(str(step.get("thinking", "")))
+                self.broadcast_event({
+                    "type": "agent_thinking_step",
+                    "conv_id": cid,
+                    "step_index": idx,
+                    "detail": t_summary or "Reasoning...",
+                    "timestamp": time.time(),
+                })
+            elif stype == "GENERIC" and content:
+                from voicefi.integrations.tool_formatter import extract_log_summary
+                l_summary = extract_log_summary(str(content))
+                if l_summary:
+                    self.broadcast_event({
+                        "type": "agent_working_step",
+                        "conv_id": cid,
+                        "step_index": idx,
+                        "tool_name": "command",
+                        "summary": l_summary,
+                        "action": "Ran Command",
+                        "status": "completed",
                         "timestamp": time.time(),
                     })
             else:
@@ -2309,6 +2374,24 @@ def start_cloudflared_tunnel(port: int = 5141) -> Optional[str]:
     return None
 
 
+def _is_voicefi_running_on_port(port: int) -> bool:
+    """Check if VoiceFi background server is already active on target port."""
+    try:
+        import urllib.request
+        import json
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{port}/api/status",
+            headers={"User-Agent": "VoiceFi-CLI"},
+        )
+        with urllib.request.urlopen(req, timeout=1.0) as resp:
+            if resp.status == 200:
+                data = json.loads(resp.read().decode("utf-8"))
+                return data.get("status") == "online" or "status" in data
+    except Exception:
+        pass
+    return False
+
+
 def run_companion_server(
     port: int = 5141,
     host: str = "0.0.0.0",
@@ -2319,9 +2402,10 @@ def run_companion_server(
     tunnel: bool = False,
     config: Optional[VoiceFiConfig] = None,
 ):
-    """Start and run the VoiceFi Companion Server."""
-    server = CompanionServer(config=config, port=port, host=host)
+    """Start and run the VoiceFi Companion Server with Universal Remote Relay."""
     urls = get_companion_urls(port)
+    creds = RelaySessionCredentials.load_or_create()
+    universal_url = creds.get_pairing_url("https://companion.voicefi.app")
 
     tunnel_url = None
     if tunnel:
@@ -2333,10 +2417,10 @@ def run_companion_server(
                 print_qr_code(tunnel_url, title="VoiceFi Mobile (Trusted HTTPS)")
         else:
             if print_qr:
-                print_qr_code(urls["ip_url"])
+                print_qr_code(universal_url, title="VoiceFi Mobile Companion (5G & Local)")
     else:
         if print_qr:
-            print_qr_code(urls["ip_url"])
+            print_qr_code(universal_url, title="VoiceFi Mobile Companion (5G & Local)")
 
     target_url = urls["studio_localhost_url"] if open_studio else urls["localhost_url"]
 
@@ -2344,10 +2428,45 @@ def run_companion_server(
         import webbrowser
         webbrowser.open(target_url)
 
+    # If VoiceFi background server is already active on this port, start RelayClient and attach
+    if _is_voicefi_running_on_port(port):
+        relay_client = RelayClient(credentials=creds, local_port=port)
+        relay_loop = asyncio.new_event_loop()
+        
+        def _run_relay_loop():
+            asyncio.set_event_loop(relay_loop)
+            relay_loop.run_until_complete(relay_client.start())
+            relay_loop.run_forever()
+
+        relay_thread = threading.Thread(target=_run_relay_loop, daemon=True)
+        relay_thread.start()
+
+        if tunnel_url:
+            print(f"🌐 Trusted Public HTTPS:  {tunnel_url}")
+        print(f"🌐 Universal Mobile Link: {universal_url}")
+        print(f"✅ Connected to active background VoiceFi server on port {port}.")
+        print(f"📱 Studio URL:            {urls['studio_localhost_url']}")
+        print(f"📱 Local Pairing URL:     {urls['ip_url']}")
+        print("💡 Your mobile companion is ready. Press Ctrl+C to exit.\n")
+        try:
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            print("\n👋 Exiting companion view (background server remains active).")
+        finally:
+            relay_loop.call_soon_threadsafe(relay_loop.stop)
+        return
+
+    server = CompanionServer(config=config, port=port, host=host)
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     server.loop = loop
     server._start_watcher_thread()
+
+    # Start Cloud Relay client in server loop
+    relay_client = RelayClient(credentials=creds, local_port=port)
+    server.relay_client = relay_client
+    loop.run_until_complete(relay_client.start())
 
     if start_ambient_stream:
         server.start_ambient()
@@ -2357,7 +2476,22 @@ def run_companion_server(
     
     # HTTP Site (Default, e.g. 5141)
     site_http = web.TCPSite(app_runner, host, port)
-    loop.run_until_complete(site_http.start())
+    try:
+        loop.run_until_complete(site_http.start())
+    except OSError as e:
+        if e.errno == 48:
+            if _is_voicefi_running_on_port(port):
+                print(f"✅ Connected to active background VoiceFi server on port {port}.")
+                try:
+                    while True:
+                        time.sleep(1)
+                except KeyboardInterrupt:
+                    print("\n👋 Exiting companion view.")
+                return
+            else:
+                print(f"⚠️ Port {port} is occupied by another application. Try `vifi clean --all` or specify `--port <number>`.")
+                return
+        raise
 
     # HTTPS Site (Port + 1, e.g. 5142) with self-signed SSL for secure mobile mic access
     ssl_ctx = ensure_ssl_context()

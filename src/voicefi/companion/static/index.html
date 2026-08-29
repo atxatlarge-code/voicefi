@@ -27,7 +27,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 
   <!-- Antigravity Background Effect Engine -->
-  <script src="antigravity-particles.js"></script>
+  <script src="/assets/antigravity-particles.js"></script>
 
   <style>
     :root {
@@ -37,7 +37,8 @@
       height: 100%;
       height: var(--app-height, 100dvh);
       max-height: var(--app-height, 100dvh);
-      background-color: #000000;
+      background-color: #030712;
+      background: radial-gradient(ellipse at 50% 15%, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.9) 45%, #000000 100%);
       color: #ffffff;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
       -webkit-tap-highlight-color: transparent;
@@ -1971,8 +1972,13 @@
         return;
       }
 
+      // On Cloud Relay (5G remote), always use phone mic unless user is explicitly on Mac localhost
+      if (window.__vifi_is_relay) {
+        micSource = "phone";
+      }
+
       // If user manually forced Mac Microphone
-      if (micSource === "mac") {
+      if (micSource === "mac" && !window.__vifi_is_relay) {
         return startMacRecording();
       }
 
@@ -3848,19 +3854,97 @@
         .replace(/'/g, "&#039;");
     }
 
+    // =================================================================
+    // DUAL-TRANSPORT DISCOVERY & CLOUD RELAY RPC BRIDGE
+    // =================================================================
+    function getSessionParams() {
+      const hash = window.location.hash.substring(1);
+      const hashParams = new URLSearchParams(hash);
+      const searchParams = new URLSearchParams(window.location.search);
+
+      const sessionId = hashParams.get('s') || hashParams.get('session') || searchParams.get('s') || searchParams.get('session') || localStorage.getItem('vifi_session_id');
+      const token = hashParams.get('t') || hashParams.get('token') || searchParams.get('t') || searchParams.get('token') || localStorage.getItem('vifi_token');
+      const host = hashParams.get('host') || searchParams.get('host') || localStorage.getItem('vifi_host');
+
+      if (sessionId) localStorage.setItem('vifi_session_id', sessionId);
+      if (token) localStorage.setItem('vifi_token', token);
+      if (host) localStorage.setItem('vifi_host', host);
+
+      return { sessionId, token, host };
+    }
+
+    let pendingRpcRequests = new Map();
+    let rpcReqCounter = 0;
+    const nativeFetch = window.fetch.bind(window);
+
+    // Smart Fetch: Multiplexes /api/* over WebSocket when using Cloud Relay
+    window.fetch = async function(input, init) {
+      const url = typeof input === 'string' ? input : (input && input.url ? input.url : '');
+      const isRelayActive = ws && ws.readyState === WebSocket.OPEN && window.__vifi_is_relay;
+
+      if (isRelayActive && (url.startsWith('/api') || url.startsWith('api/'))) {
+        const path = url.startsWith('/') ? url : `/${url}`;
+        let body = init && init.body;
+        if (body instanceof Blob) {
+          body = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.readAsDataURL(body);
+          });
+        } else if (body && typeof body === 'string') {
+          try { body = JSON.parse(body); } catch (e) {}
+        }
+
+        return new Promise((resolve, reject) => {
+          const id = `rpc_${++rpcReqCounter}_${Date.now()}`;
+          const timeout = setTimeout(() => {
+            pendingRpcRequests.delete(id);
+            nativeFetch(input, init).then(resolve).catch(reject);
+          }, 15000);
+
+          pendingRpcRequests.set(id, { resolve, reject, timeout });
+
+          ws.send(JSON.stringify({
+            type: "rpc_request",
+            id: id,
+            path: path,
+            method: (init && init.method) || "GET",
+            body: body,
+            headers: (init && init.headers) || {}
+          }));
+        });
+      }
+      return nativeFetch(input, init);
+    };
+
     // WebSocket Connection
     let heartbeatTimer = null;
     let reconnectDelay = 1000;
 
     function connectWebSocket() {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.host}/ws`;
+      const { sessionId, token, host } = getSessionParams();
+      let wsUrl;
+      window.__vifi_is_relay = false;
+
+      if (sessionId) {
+        // Universal Cloud Relay Transport (Works over 5G / Anywhere!)
+        window.__vifi_is_relay = true;
+        const relayHost = `${window.location.host}/v1/relay`;
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        wsUrl = `${protocol}//${relayHost}?session=${encodeURIComponent(sessionId)}&role=client&token=${encodeURIComponent(token || '')}`;
+      } else if (host) {
+        wsUrl = `ws://${host}/ws`;
+      } else {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        wsUrl = `${protocol}//${window.location.host}/ws`;
+      }
+
       ws = new WebSocket(wsUrl);
 
       ws.onopen = () => {
         reconnectDelay = 1000;
         connDot.className = "w-2 h-2 rounded-full bg-emerald-400";
-        connText.innerText = "Connected";
+        connText.innerText = window.__vifi_is_relay ? "Connected (Cloud Relay)" : "Connected";
         requestWakeLock();
         fetchConversations();
 
@@ -3876,6 +3960,22 @@
         try {
           const data = JSON.parse(event.data);
           if (data.type === "pong") return;
+          if (data.type === "rpc_response" && data.id) {
+            const pending = pendingRpcRequests.get(data.id);
+            if (pending) {
+              clearTimeout(pending.timeout);
+              pendingRpcRequests.delete(data.id);
+              const mockResponse = {
+                ok: data.status >= 200 && data.status < 300,
+                status: data.status,
+                json: async () => data.data,
+                text: async () => typeof data.data === 'string' ? data.data : JSON.stringify(data.data),
+                blob: async () => new Blob([data.data])
+              };
+              pending.resolve(mockResponse);
+            }
+            return;
+          }
           handleServerEvent(data);
         } catch (e) {
           console.error("WS Parse error", e);
@@ -3964,17 +4064,43 @@
       } else if (data.type === "agent_working_step") {
         if (liveActivityBanner) liveActivityBanner.classList.remove("hidden");
         const stepSummary = data.summary || data.action || data.tool_name || '';
-        const toolLabel = data.tool_name || 'tool';
-        if (liveActivityText) liveActivityText.innerText = `Running ${toolLabel}: ${stepSummary}`;
+        const toolLabel = data.action || data.tool_name || 'Running Tool';
+        if (liveActivityText) liveActivityText.innerText = `${toolLabel}: ${stepSummary}`;
         
         if (!isListening && !isSpeaking) {
-          const label = stepSummary ? (`Running: ${stepSummary.length > 28 ? stepSummary.slice(0, 26) + '...' : stepSummary}`) : (`Running ${toolLabel}`);
-          setOrbState('thinking', label, 'Executing step / tool call...');
+          const shortSummary = stepSummary.length > 36 ? stepSummary.slice(0, 34) + '...' : stepSummary;
+          setOrbState('working', toolLabel, shortSummary);
+          if (typeof updateVoiceFiHud === 'function') {
+            updateVoiceFiHud('working', {
+              title: 'Antigravity',
+              tag: toolLabel,
+              tagColor: 'text-sky-400',
+              body: stepSummary,
+              showAppIcon: true,
+            });
+          }
         }
 
-        // If current conversation matches, refresh details or append step
         if (data.conv_id === activeConvId) {
           fetchConversationDetails(activeConvId);
+        }
+      } else if (data.type === "agent_thinking_step") {
+        if (liveActivityBanner) liveActivityBanner.classList.remove("hidden");
+        const detail = data.detail || 'Reasoning over code architecture...';
+        if (liveActivityText) liveActivityText.innerText = `Thinking: ${detail}`;
+        
+        if (!isListening && !isSpeaking) {
+          const shortDetail = detail.length > 36 ? detail.slice(0, 34) + '...' : detail;
+          setOrbState('thinking', 'Reasoning', shortDetail);
+          if (typeof updateVoiceFiHud === 'function') {
+            updateVoiceFiHud('thinking', {
+              title: 'Antigravity',
+              tag: 'Reasoning',
+              tagColor: 'text-purple-400',
+              body: detail,
+              showAppIcon: true,
+            });
+          }
         }
       } else if (data.type === "conversation_updated") {
         if (data.conv_id === activeConvId) {

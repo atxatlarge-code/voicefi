@@ -134,3 +134,12 @@ def normalize_tts_text(text: str) -> str:
     result = re.sub(r"^\s*,\s*", "", result)
 
     return result.strip()
+
+
+def normalize_stt_text(raw_text: str) -> str:
+    """
+    Normalize raw Whisper STT transcription into canonical developer syntax
+    using the recursive phonetic self-learning engine.
+    """
+    from voicefi.learning.phonetic import PhoneticLearner
+    return PhoneticLearner.get_instance().normalize_stt(raw_text)

@@ -157,13 +157,19 @@ class PhoneticNormalizer:
         # 1. Collapse consecutive word/phrase repetition loops (STT hallucination artifact)
         result = cls._collapse_repetitions(result)
 
-        # 2. Apply phonetic term replacements
+        # 2. Case transformation directives (e.g. "camel case user id" -> "userId", "snake case get user info" -> "get_user_info")
+        result = cls._apply_casing_directives(result)
+
+        # 3. Apply phonetic term replacements
         for pattern, replacement in cls.REPLACEMENTS.items():
             result = re.sub(pattern, replacement, result, flags=re.IGNORECASE)
 
-        # 3. Case transformation directives:
-        # e.g., "camel case user id" -> "userId"
-        result = cls._apply_casing_directives(result)
+        # 4. Apply recursive self-learned phonetic memory & project symbols
+        try:
+            from voicefi.learning.phonetic import PhoneticLearner
+            result = PhoneticLearner.get_instance().normalize_stt(result)
+        except Exception:
+            pass
 
         return result
 
@@ -242,8 +248,8 @@ class PhoneticNormalizer:
                 lambda words: "-".join(w.lower() for w in words)
             )
 
-        text = re.sub(r"\bcamel\s*case\s+([a-zA-Z0-9\s.,!?;:]+?)(?=\b(?:camel|snake|kebab)\s*case\b|$)", _to_camel, text, flags=re.IGNORECASE)
-        text = re.sub(r"\bsnake\s*case\s+([a-zA-Z0-9\s.,!?;:]+?)(?=\b(?:camel|snake|kebab)\s*case\b|$)", _to_snake, text, flags=re.IGNORECASE)
-        text = re.sub(r"\bkebab\s*case\s+([a-zA-Z0-9\s.,!?;:]+?)(?=\b(?:camel|snake|kebab)\s*case\b|$)", _to_kebab, text, flags=re.IGNORECASE)
+        text = re.sub(r"\bcamel[_\s]*case\s+([a-zA-Z0-9\s.,!?;:]+?)(?=\b(?:camel|snake|kebab)[_\s]*case\b|$)", _to_camel, text, flags=re.IGNORECASE)
+        text = re.sub(r"\bsnake[_\s]*case\s+([a-zA-Z0-9\s.,!?;:]+?)(?=\b(?:camel|snake|kebab)[_\s]*case\b|$)", _to_snake, text, flags=re.IGNORECASE)
+        text = re.sub(r"\bkebab[_\s]*case\s+([a-zA-Z0-9\s.,!?;:]+?)(?=\b(?:camel|snake|kebab)[_\s]*case\b|$)", _to_kebab, text, flags=re.IGNORECASE)
 
         return text

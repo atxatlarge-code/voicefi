@@ -1,8 +1,4 @@
-"""
-ElevenLabs TTS provider (Pro Tier).
-Ultra-realistic custom cloned and generative AI voices.
-"""
-
+import time
 import tempfile
 import subprocess
 import threading
@@ -32,14 +28,26 @@ class ElevenLabsTTS(BaseTTS):
         self.stability = stability
         self.similarity_boost = similarity_boost
         self._current_process: Optional[subprocess.Popen] = None
+        self._stop_requested = False
 
-    def _fallback_speak_direct(self, clean_text: str) -> None:
+    def stop(self) -> None:
+        """Interrupt any ongoing speech playback."""
+        self._stop_requested = True
+        proc = self._current_process
+        if proc and proc.poll() is None:
+            try:
+                proc.terminate()
+            except Exception:
+                pass
+            self._current_process = None
+
+    def _fallback_speak_direct(self, clean_text: str, turn_start_time: float = 0.0) -> None:
         """Fallback speak directly using macOS say without re-acquiring lock."""
-        if not clean_text or not clean_text.strip():
+        from voicefi.tts.base import is_speech_interrupted, set_agent_audio_playing, is_agent_speaking
+        if not clean_text or not clean_text.strip() or self._stop_requested or is_speech_interrupted(turn_start_time):
             return
         try:
             from voicefi.tts.offline import is_voice_installed
-            from voicefi.tts.base import set_agent_audio_playing, is_agent_speaking
             try:
                 has_fb, exact_fb = is_voice_installed("Ava (Premium)")
                 target_voice = exact_fb if (has_fb and exact_fb) else ("Ava" if has_fb else "Samantha")
@@ -47,21 +55,27 @@ class ElevenLabsTTS(BaseTTS):
                 target_voice = "Samantha"
             print(f"[ElevenLabsTTS] ⚠️ Online synthesis unavailable; falling back to offline voice '{target_voice}'")
             cmd = ["say", "-v", target_voice, "--", clean_text]
-            if is_agent_speaking():
+            if not self._stop_requested and not is_speech_interrupted(turn_start_time) and is_agent_speaking():
                 set_agent_audio_playing(True)
                 proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 self._current_process = proc
                 proc.wait()
-                if proc.returncode != 0:
+                was_interrupted = self._stop_requested or is_speech_interrupted(turn_start_time) or (proc.returncode in (-9, -15, 137, 143))
+                if not was_interrupted and proc.returncode != 0:
                     fallback = subprocess.Popen(["say", "--", clean_text], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                     self._current_process = fallback
                     fallback.wait()
         except Exception as ex:
             print(f"[ElevenLabsTTS] Offline fallback error: {ex}")
         finally:
-            from voicefi.tts.base import set_agent_audio_playing
             set_agent_audio_playing(False)
             self._current_process = None
+
+    def _safe_fallback(self, clean_text: str, turn_start_time: float = 0.0) -> None:
+        try:
+            self._fallback_speak_direct(clean_text, turn_start_time=turn_start_time)
+        except TypeError:
+            self._fallback_speak_direct(clean_text)
 
     def speak(self, text: str, block: bool = True) -> None:
         """Synthesize and play speech via ElevenLabs Flash streaming API with offline fallback."""
@@ -73,6 +87,8 @@ class ElevenLabsTTS(BaseTTS):
             return
 
         clean_text = normalize_tts_text(text)
+        self._stop_requested = False
+        turn_start_time = time.time()
 
         def _run():
             try:
@@ -81,9 +97,13 @@ class ElevenLabsTTS(BaseTTS):
                     agent_name=getattr(self, "agent_name", "VoiceFi"),
                     persona_name=getattr(self, "persona_name", getattr(self, "voice_id", "ElevenLabs")),
                 ):
+                    from voicefi.tts.base import is_speech_interrupted
+                    if self._stop_requested or is_speech_interrupted(turn_start_time):
+                        return
+
                     if not self.api_key:
                         print("[ElevenLabsTTS] API key not configured; falling back to offline voice.")
-                        self._fallback_speak_direct(clean_text)
+                        self._safe_fallback(clean_text, turn_start_time=turn_start_time)
                         return
 
                     url = f"https://api.elevenlabs.io/v1/text-to-speech/{self.voice_id}/stream?optimize_streaming_latency=3"
@@ -113,18 +133,25 @@ class ElevenLabsTTS(BaseTTS):
                             with open(temp_path, "wb") as f:
                                 f.write(response.content)
 
-                            self._current_process = subprocess.Popen(
-                                ["afplay", temp_path],
-                                stdout=subprocess.DEVNULL,
-                                stderr=subprocess.DEVNULL,
-                            )
-                            self._current_process.wait()
+                            if not self._stop_requested and not is_speech_interrupted(turn_start_time):
+                                proc = subprocess.Popen(
+                                    ["afplay", temp_path],
+                                    stdout=subprocess.DEVNULL,
+                                    stderr=subprocess.DEVNULL,
+                                )
+                                self._current_process = proc
+                                proc.wait()
+                                was_interrupted = self._stop_requested or is_speech_interrupted(turn_start_time) or (proc.returncode in (-9, -15, 137, 143))
+                                if not was_interrupted and proc.returncode != 0:
+                                    self._safe_fallback(clean_text, turn_start_time=turn_start_time)
                         else:
                             print(f"[ElevenLabsTTS] API returned status {response.status_code}: {response.text}; falling back to offline voice")
-                            self._fallback_speak_direct(clean_text)
+                            if not self._stop_requested and not is_speech_interrupted(turn_start_time):
+                                self._safe_fallback(clean_text, turn_start_time=turn_start_time)
                     except Exception as e:
                         print(f"[ElevenLabsTTS] Error during synthesis: {e}; falling back to offline voice")
-                        self._fallback_speak_direct(clean_text)
+                        if not self._stop_requested and not is_speech_interrupted(turn_start_time):
+                            self._safe_fallback(clean_text, turn_start_time=turn_start_time)
                     finally:
                         self._current_process = None
                         try:
@@ -139,12 +166,6 @@ class ElevenLabsTTS(BaseTTS):
         else:
             thread = threading.Thread(target=_run, daemon=True)
             thread.start()
-
-    def stop(self) -> None:
-        """Stop current playback."""
-        if self._current_process and self._current_process.poll() is None:
-            self._current_process.terminate()
-            self._current_process = None
 
     def speak_to_file(self, text: str, output_path: Path) -> bool:
         """Synthesize speech directly to an audio file without playing."""

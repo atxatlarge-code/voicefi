@@ -35,6 +35,18 @@ class AgentToolDetector:
         return os.path.exists("/Applications/Windsurf.app") or os.path.exists(str(Path.home() / "Applications" / "Windsurf.app"))
 
     @staticmethod
+    def detect_chatgpt() -> bool:
+        """Check if ChatGPT macOS desktop app is installed in /Applications."""
+        return os.path.exists("/Applications/ChatGPT.app") or os.path.exists(str(Path.home() / "Applications" / "ChatGPT.app"))
+
+    @staticmethod
+    def detect_codex() -> bool:
+        """Check if Codex CLI or ~/.codex workspace exists."""
+        codex_home = Path.home() / ".codex"
+        codex_bundled = Path("/Applications/ChatGPT.app/Contents/Resources/codex")
+        return codex_home.is_dir() or codex_bundled.is_file()
+
+    @staticmethod
     def detect_aider() -> bool:
         """Check if Aider CLI is installed."""
         return os.path.exists(str(Path.home() / ".aider")) or os.path.exists("/usr/local/bin/aider")
@@ -52,6 +64,16 @@ class AgentToolDetector:
                 "name": "Claude Code CLI",
                 "detected": cls.detect_claude_code(),
                 "description": "Terminal session watcher & prompt return hooks",
+            },
+            "chatgpt": {
+                "name": "ChatGPT for Mac",
+                "detected": cls.detect_chatgpt(),
+                "description": "Desktop app focus, prompt injection & voice loop",
+            },
+            "codex": {
+                "name": "OpenAI Codex",
+                "detected": cls.detect_codex(),
+                "description": "Native stdio MCP tools & background workspace integration",
             },
             "cursor": {
                 "name": "Cursor Composer",

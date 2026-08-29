@@ -24,6 +24,8 @@ def is_voice_installed(target_name: str = "Ava") -> Tuple[bool, Optional[str]]:
         (is_installed, matched_voice_name)
     """
     target_clean = target_name.strip().lower()
+    if target_clean == "viv":
+        target_clean = "ava"
     try:
         output = subprocess.check_output(["say", "-v", "?"], text=True, stderr=subprocess.DEVNULL)
         for line in output.strip().split("\n"):

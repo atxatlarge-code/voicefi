@@ -169,7 +169,7 @@ class TranscriptWatcher:
             except Exception:
                 pass
 
-            time.sleep(0.5)
+            time.sleep(0.15)
 
     def _get_highest_step_index(self, path: Path) -> int:
         highest = -1
@@ -207,7 +207,7 @@ class TranscriptWatcher:
             last_offset = 0
 
         last_processed = self._processed_steps.get(path_str, -1)
-        last_step: Optional[Dict[str, Any]] = None
+        new_steps: List[Dict[str, Any]] = []
         highest_idx = last_processed
 
         try:
@@ -222,108 +222,107 @@ class TranscriptWatcher:
                         idx = step.get("step_index", -1)
                         if idx > highest_idx:
                             highest_idx = idx
-                        last_step = step
+                        new_steps.append(step)
                     except Exception:
                         continue
                 self._file_offsets[path_str] = f.tell()
         except Exception:
             return
 
-        if highest_idx <= last_processed or last_step is None:
+        if not new_steps or highest_idx <= last_processed:
             return
 
-        step_type = last_step.get("type", "")
-        step_source = last_step.get("source", "")
-        content = last_step.get("content", "")
-        tool_calls = last_step.get("tool_calls", [])
-        thinking = last_step.get("thinking", "")
+        for step in new_steps:
+            idx = step.get("step_index", highest_idx)
+            step_type = step.get("type", "")
+            step_source = step.get("source", "")
+            content = step.get("content", "")
+            tool_calls = step.get("tool_calls", [])
+            thinking = step.get("thinking", "")
+            detected_role = step.get("role") or step.get("agent_role") or "antigravity"
 
-        if (
-            step_type == "PLANNER_RESPONSE"
-            and step_source == "MODEL"
-            and last_step.get("status") == "DONE"
-            and not tool_calls
-            and content
-        ):
-            self._processed_steps[path_str] = highest_idx
-            conv_info = self.tracker.parse_conversation(path)
-            if conv_info:
-                self.tracker.set_active_focus(conv_info.id, transcript_path=path, title=conv_info.title)
+            if (
+                step_type == "PLANNER_RESPONSE"
+                and step_source == "MODEL"
+                and step.get("status") == "DONE"
+                and not tool_calls
+                and content
+            ):
+                self._processed_steps[path_str] = idx
+                conv_info = self.tracker.parse_conversation(path)
+                if conv_info:
+                    self.tracker.set_active_focus(conv_info.id, transcript_path=path, title=conv_info.title)
 
-            detected_role = last_step.get("role") or last_step.get("agent_role") or "antigravity"
-            self._handle_turn_ready(
-                content,
-                conv_info,
-                agent_role=str(detected_role),
-                is_active=True,
-                step_index=highest_idx,
-                transcript_path=path,
-            )
-        elif step_type == "PLANNER_RESPONSE" and tool_calls:
-            self._processed_steps[path_str] = highest_idx
-            detected_role = last_step.get("role") or last_step.get("agent_role") or "antigravity"
-            first_tool = tool_calls[0] if isinstance(tool_calls, list) and tool_calls else {}
-            tool_desc, tag_text = format_tool_details(first_tool)
-            self._notify_state(
-                "working",
-                agent_name=str(detected_role),
-                tool_action=tool_desc,
-                tag_text=tag_text,
-            )
-        elif step_type == "GENERIC" and content:
-            self._processed_steps[path_str] = highest_idx
-            detected_role = last_step.get("role") or last_step.get("agent_role") or "antigravity"
-            log_summary = extract_log_summary(str(content))
-            if log_summary:
+                self._handle_turn_ready(
+                    content,
+                    conv_info,
+                    agent_role=str(detected_role),
+                    is_active=True,
+                    step_index=idx,
+                    transcript_path=path,
+                )
+                break  # Finished turn handling initiated
+            elif step_type == "PLANNER_RESPONSE" and tool_calls:
+                self._processed_steps[path_str] = idx
+                first_tool = tool_calls[0] if isinstance(tool_calls, list) and tool_calls else {}
+                tool_desc, tag_text = format_tool_details(first_tool)
                 self._notify_state(
                     "working",
                     agent_name=str(detected_role),
-                    tool_action=log_summary,
-                    tag_text="Running Command",
+                    tool_action=tool_desc,
+                    tag_text=tag_text,
                 )
-        elif step_type == "SYSTEM_MESSAGE":
-            self._processed_steps[path_str] = highest_idx
-            detected_role = last_step.get("role") or last_step.get("agent_role") or "antigravity"
-            c = str(content or "")
-            task_match = re.search(r'Task id "[^"]+" finished with result:\s*(.*)', c, re.DOTALL)
-            if task_match:
-                task_res = task_match.group(1).strip()
-                log_summary = extract_log_summary(task_res)
+            elif step_type == "GENERIC" and content:
+                self._processed_steps[path_str] = idx
+                log_summary = extract_log_summary(str(content))
                 if log_summary:
                     self._notify_state(
                         "working",
                         agent_name=str(detected_role),
-                        tool_action=f"Task: {log_summary}",
-                        tag_text="Background Task",
+                        tool_action=log_summary,
+                        tag_text="Ran Command",
                     )
-        elif step_type == "PLANNER_RESPONSE" and thinking:
-            self._processed_steps[path_str] = highest_idx
-            detected_role = last_step.get("role") or last_step.get("agent_role") or "antigravity"
-            thought_summary = extract_thought_summary(str(thinking))
-            self._notify_state(
-                "thinking",
-                agent_name=str(detected_role),
-                detail=thought_summary or "Reasoning...",
-            )
-        elif step_type == "USER_INPUT":
-            self._processed_steps[path_str] = highest_idx
-            user_content = last_step.get("content", "")
-            if isinstance(user_content, str) and user_content.strip():
-                clean_prompt = clean_markdown_for_speech(user_content, max_words=18)
-                user_name = getattr(self.config, "user_name", "Jake")
-                self._notify_state(
-                    "user_prompt",
-                    prompt=clean_prompt,
-                    user_name=user_name,
-                    source="Antigravity",
-                    linger=1.8,
-                )
-            else:
+            elif step_type == "SYSTEM_MESSAGE":
+                self._processed_steps[path_str] = idx
+                c = str(content or "")
+                task_match = re.search(r'Task id "[^"]+" finished with result:\s*(.*)', c, re.DOTALL)
+                if task_match:
+                    task_res = task_match.group(1).strip()
+                    log_summary = extract_log_summary(task_res)
+                    if log_summary:
+                        self._notify_state(
+                            "working",
+                            agent_name=str(detected_role),
+                            tool_action=f"Task: {log_summary}",
+                            tag_text="Background Task",
+                        )
+            elif step_type == "PLANNER_RESPONSE" and thinking:
+                self._processed_steps[path_str] = idx
+                thought_summary = extract_thought_summary(str(thinking))
                 self._notify_state(
                     "thinking",
-                    agent_name="Antigravity",
-                    detail="Processing...",
+                    agent_name=str(detected_role),
+                    detail=thought_summary or "Reasoning...",
                 )
+            elif step_type == "USER_INPUT":
+                self._processed_steps[path_str] = idx
+                user_content = step.get("content", "")
+                if isinstance(user_content, str) and user_content.strip():
+                    clean_prompt = clean_markdown_for_speech(user_content, max_words=18)
+                    user_name = getattr(self.config, "user_name", "Jake")
+                    self._notify_state(
+                        "user_prompt",
+                        prompt=clean_prompt,
+                        user_name=user_name,
+                        source="Antigravity",
+                        linger=1.8,
+                    )
+                else:
+                    self._notify_state(
+                        "thinking",
+                        agent_name="Antigravity",
+                        detail="Processing...",
+                    )
 
     def _handle_turn_ready(
         self,

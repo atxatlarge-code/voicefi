@@ -60,9 +60,11 @@ def cmd_hook(args):
     if action in ("remove", "uninstall"):
         from voicefi.integrations.antigravity import remove_antigravity_hook
         from voicefi.integrations.claude import remove_claude_hook
+        from voicefi.integrations.codex import remove_codex_hook
         remove_antigravity_hook()
         remove_claude_hook()
-        print("🗑️ VoiceFi hooks removed from Antigravity and Claude Code configuration files.")
+        remove_codex_hook()
+        print("🗑️ VoiceFi hooks removed from Antigravity, Claude Code, and Codex configuration files.")
         return
 
     if action == "status":
@@ -84,6 +86,8 @@ def cmd_hook(args):
         print(f"      - Auto Listen:           {'✅ Yes' if config.claude.auto_listen else '❌ No'}")
         print(f"      - Read Summary Aloud:    {'✅ Yes' if config.claude.read_summary_aloud else '❌ No'}")
         print(f"      - Installed In Settings: {hooks.get('claude') or '❌ Not installed'}")
+        print(f"    • Codex Hook Active:       {'🟢 Enabled' if getattr(config.hooks, 'codex', True) else '🔴 Disabled'}")
+        print(f"      - Installed In Settings: {hooks.get('codex') or '❌ Not installed'}")
         print("==================================================================\n")
         print("💡 Commands: 'vifi hook disable' | 'vifi hook enable' | 'vifi hook remove' | 'vifi pause'\n")
         return
@@ -869,6 +873,18 @@ def cmd_setup(args):
         except Exception as e:
             print(f"⚠️ Could not register Claude Desktop MCP server: {e}")
 
+    # Auto-register Codex & ChatGPT Desktop MCP when detected
+    if AgentToolDetector.detect_codex() or setup_all:
+        try:
+            from voicefi.integrations.codex import install_codex_mcp, install_codex_hook
+            if install_codex_mcp(bin_path=bin_path):
+                print(f"✅ OpenAI Codex MCP server registered: ~/.codex/config.toml")
+            codex_hook_path = install_codex_hook(bin_path=bin_path)
+            if codex_hook_path:
+                print(f"✅ OpenAI Codex hook installed: {codex_hook_path}")
+        except Exception as e:
+            print(f"⚠️ Could not configure OpenAI Codex integration: {e}")
+
     # Ensure config file exists and defaults to Viv for overall and antigravity
     config_path = get_default_config_path()
     config = load_config()
@@ -1399,7 +1415,7 @@ def cmd_hearing_test(args):
 
 
 def cmd_feedback_loop(args):
-    """Manage ProActive Feedback Loop setting (on/off/status) or run acoustic loop test."""
+    """Manage ProActive Listening setting (on/off/status) or run acoustic loop test."""
     voice_arg = getattr(args, "voice", None)
     action_arg = getattr(args, "action", None)
     target = (action_arg or voice_arg or "").lower()
@@ -1409,7 +1425,7 @@ def cmd_feedback_loop(args):
         cfg.proactive.feedback_loop.enabled = True
         cfg.antigravity.auto_listen = True
         save_config(cfg)
-        print("\n⚡ ProActive Feedback Loop: 🟢 ENABLED")
+        print("\n⚡ ProActive Listening: 🟢 ENABLED")
         print("💡 The microphone will automatically open for your conversational turn after the agent speaks.\n")
         return
     elif target in ("off", "disable", "false", "0"):
@@ -1417,13 +1433,13 @@ def cmd_feedback_loop(args):
         cfg.proactive.feedback_loop.enabled = False
         cfg.antigravity.auto_listen = False
         save_config(cfg)
-        print("\n⚡ ProActive Feedback Loop: ⚪ DISABLED")
+        print("\n⚡ ProActive Listening: ⚪ DISABLED")
         print("💡 Speech synthesis only. Use Ctrl+R or Ctrl+T to speak on-demand.\n")
         return
     elif target == "status":
         cfg = load_config(getattr(args, "config", None))
         status_str = "🟢 ENABLED" if cfg.proactive.feedback_loop.enabled else "⚪ DISABLED"
-        print(f"\n⚡ ProActive Feedback Loop Status: {status_str}")
+        print(f"\n⚡ ProActive Listening Status: {status_str}")
         print(f"  • Turn Handoff: {'✅ Active' if cfg.proactive.feedback_loop.enabled else '⚪ Inactive'}")
         print(f"  • Chime Cue: {'✅ On' if cfg.proactive.feedback_loop.chime_cue else '❌ Off'}")
         print(f"  • Turn Timeout: {cfg.proactive.feedback_loop.timeout_seconds}s")
@@ -2662,11 +2678,143 @@ def cmd_obsidian(args):
             print("🎙️ Look for the Microphone icon in your left sidebar and the status bar at the bottom!\n")
 
 
+def cmd_tier(args):
+    """Display active tier, 14-day free trial countdown, and pricing details."""
+    config = load_config(getattr(args, "config", None))
+    FeatureGate.ensure_trial_started(config)
+    summary = FeatureGate.get_tier_summary(config)
+
+    print(f"\n================ VoiceFi Tier & Licensing ================")
+    print(f"Status:        {summary['status_text']}")
+    print(f"Tier:          {summary['tier']}")
+
+    if summary["is_licensed"]:
+        key_masked = (config.license_key[:4] + "****") if len(config.license_key) >= 4 else "****"
+        print(f"License Key:   {key_masked}")
+        print("Capabilities:  All Pro Features Unlocked (Perpetual / Active Subscription)")
+    elif summary["is_trial"]:
+        days = summary["trial_days_remaining"]
+        hours = summary["trial_hours_remaining"]
+        print(f"Free Trial:    🟢 ACTIVE — {days} days remaining ({hours}h total)")
+        print(f"Expires At:    {summary['trial_expires_at']}")
+        print(f"Features:      ✓ 20+ Curated Neural & Local Voices")
+        print(f"               ✓ Ultra-Fast Cloud & Groq STT/TTS Relay")
+        print(f"               ✓ Streaming Realtime STT")
+        print(f"               ✓ Mobile & Web Pacing Companion")
+        print(f"               ✓ Multi-Agent Audio Turn Routing")
+        print("----------------------------------------------------------")
+        print(f"Upgrade to Pro:")
+        print(f"  • Monthly:         $9 / month (lowest in market, cancel anytime)")
+        print(f"  • Annual Special:  $69 / year (1-Time payment for 1 full year · Save 36% · ~$5.75/mo)")
+        print(f"  • Upgrade URL:     https://voicefi.org#pricing")
+        print(f"  • Activate Key:    vifi license activate <LICENSE_KEY>")
+    elif summary["trial_expired"]:
+        print("Free Trial:    🔴 EXPIRED — Running in Community Mode ($0)")
+        print("Features:      ✓ 100% Local Apple Silicon TTS (0ms)")
+        print("               ✓ Local Whisper STT & Faster-Whisper")
+        print("               ✓ Native Stdio MCP Server & CLI")
+        print("----------------------------------------------------------")
+        print(f"Unlock Pro Features ($9/mo or $69/year 1-Time Special):")
+        print(f"  • Upgrade URL:     https://voicefi.org#pricing")
+        print(f"  • Activate Key:    vifi license activate <LICENSE_KEY>")
+    else:
+        print("Community:     $0 / Open-Source Tier")
+        print(f"Upgrade URL:   https://voicefi.org#pricing")
+
+    print(f"==========================================================\n")
+
+
+def cmd_license(args):
+    """Manage VoiceFi license keys and Pro tier activation."""
+    action = getattr(args, "license_action", "status")
+    key = getattr(args, "key", None)
+
+    if action in ("activate", "set", "apply") or key:
+        raw_key = (key or (args.key_args[0] if getattr(args, "key_args", None) else "")).strip()
+        if not raw_key:
+            print("❌ Error: Please provide a valid license key (e.g. vifi license activate PRO-1234-5678)")
+            return
+
+        config = load_config(getattr(args, "config", None))
+        config.license_key = raw_key
+        config.tier = "pro"
+        save_config(config)
+
+        print(f"\n🎉 VoiceFi Pro License Successfully Activated!")
+        print(f"🔑 License Key: {raw_key[:4]}****")
+        print(f"⚡ Tier:        Pro (Unlimited Neural Voices, Cloud Relay & Streaming STT)")
+        print(f"🚀 Thank you for supporting independent open developer tooling!\n")
+        return
+
+    # Default to showing status
+    cmd_tier(args)
+
+
+def cmd_learn(args):
+    """Inspect and manage recursive phonetic and brevity self-learning memory."""
+    from voicefi.learning.phonetic import PhoneticLearner
+    from voicefi.learning.brevity import BrevityLearner
+    from pathlib import Path
+
+    phonetic = PhoneticLearner.get_instance()
+    brevity = BrevityLearner.get_instance()
+    subaction = getattr(args, "learn_action", None) or "status"
+
+    if subaction == "teach":
+        spoken = getattr(args, "spoken", "")
+        canonical = getattr(args, "canonical", "")
+        if not spoken or not canonical:
+            print("❌ Usage: vifi learn teach \"<spoken phrase>\" \"<canonical command/code>\"")
+            return
+        phonetic.record_correction(spoken, canonical)
+        print(f"\n✅ Learned phonetic mapping:")
+        print(f"   Spoken:    '{spoken}'")
+        print(f"   Canonical: '{canonical}'")
+        print(f"   Saved to:  ~/.voicefi/phonetic_memory.json\n")
+        return
+
+    elif subaction == "scan":
+        target_dir = Path(getattr(args, "path", None) or Path.cwd())
+        print(f"\n🔍 Scanning workspace for code symbols: {target_dir}...")
+        found = phonetic.scan_workspace(target_dir)
+        print(f"✅ Indexed {found} project symbols into phonetic self-learning memory.\n")
+        return
+
+    elif subaction == "reset":
+        phonetic.reset()
+        brevity.reset()
+        print("\n🗑️  Reset all recursive phonetic and cognitive brevity memory files.\n")
+        return
+
+    # Default status view
+    p_status = phonetic.get_status()
+    b_status = brevity.get_status()
+
+    print("\n============== VoiceFi Recursive Self-Learning ==============")
+    print(f"Phonetic Memory:    {p_status['total_learned_corrections']} learned rules, {p_status['total_project_symbols']} project symbols")
+    print(f"Spoken Brevity:     {b_status['learned_max_words']} words/turn limit (Interruption rate: {b_status['interruption_rate_pct']}%)")
+    print(f"Turn Telemetry:     {b_status['total_turns']} total turns ({b_status['total_interruptions']} barge-in interruptions)")
+    print("-------------------------------------------------------------")
+    if p_status.get("top_corrections"):
+        print("Top Learned Phonetic Mappings:")
+        for c in p_status["top_corrections"][:5]:
+            print(f"  • '{c['spoken']}' -> '{c['canonical']}' ({c['count']} uses)")
+    else:
+        print("Top Learned Phonetic Mappings: (Built-ins active: pytest, vifi, kubectl, .tsx, .py)")
+    print("-------------------------------------------------------------")
+    print("Commands:")
+    print("  • Scan repository:  vifi learn scan [path]")
+    print("  • Teach mapping:    vifi learn teach \"<spoken>\" \"<canonical>\"")
+    print("  • Reset memory:     vifi learn reset")
+    print("=============================================================\n")
+
+
 def cmd_info(args):
     """Display active configuration and system capabilities."""
     from voicefi.server import get_full_server_status
 
     config = load_config(args.config)
+    FeatureGate.ensure_trial_started(config)
     tier_info = FeatureGate.get_tier_summary(config)
     st = get_full_server_status()
     la = st["launchagent"]
@@ -2674,7 +2822,7 @@ def cmd_info(args):
 
     print(f"\n================ VoiceFi v{__version__} ================")
     print("  'Give voice to your agents, and agency for your voice.'")
-    print(f"Tier:          {tier_info['tier']}")
+    print(f"Tier:          {tier_info['status_text']}")
     print(f"TTS Provider:  {config.tts.provider} (Default Voice: {config.tts.voice})")
     print(f"STT Provider:  {config.stt.provider} (Model: {config.stt.model_size})")
     print(f"VAD Silence:   {config.vad.silence_duration}s")
@@ -3344,6 +3492,25 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
     # info
     subparsers.add_parser("info", help="Show system status and voices")
 
+    # tier / pricing / trial
+    subparsers.add_parser("tier", aliases=["pricing", "trial", "plan"], help="Display active tier, 14-day free trial countdown, and pricing plans")
+    lic_p = subparsers.add_parser("license", help="View license status or activate VoiceFi Pro license key")
+    lic_sub = lic_p.add_subparsers(dest="license_action", metavar="<action>", help="License action (status, activate)")
+    lic_sub.add_parser("status", help="Show active license and 14-day free trial status")
+    lic_act = lic_sub.add_parser("activate", aliases=["set", "apply"], help="Activate a VoiceFi Pro license key")
+    lic_act.add_argument("key", type=str, help="Pro license key (e.g. PRO-1234-5678)")
+
+    # learn / learning (recursive phonetic and brevity self-learning)
+    learn_p = subparsers.add_parser("learn", aliases=["learning"], help="Inspect and manage recursive phonetic and brevity self-learning memory")
+    learn_sub = learn_p.add_subparsers(dest="learn_action", metavar="<action>", help="Learning action (status, scan, teach, reset)")
+    learn_sub.add_parser("status", help="Show recursive phonetic memory and cognitive brevity metrics")
+    l_scan = learn_sub.add_parser("scan", help="Scan active repository to index project symbols into phonetic memory")
+    l_scan.add_argument("path", nargs="?", default=None, help="Directory path to scan (defaults to current directory)")
+    l_teach = learn_sub.add_parser("teach", help="Manually teach VoiceFi a spoken-to-canonical phonetic mapping")
+    l_teach.add_argument("spoken", type=str, help="Spoken phrase (e.g. 'wifi tier')")
+    l_teach.add_argument("canonical", type=str, help="Canonical code / command (e.g. 'vifi tier')")
+    learn_sub.add_parser("reset", help="Reset learned phonetic and brevity memory files")
+
     # voice
     voice_p = subparsers.add_parser("voice", help="Manage and audition agent voices")
     voice_sub = voice_p.add_subparsers(dest="voice_action", metavar="<action>", help="Voice action")
@@ -3413,8 +3580,8 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
     ping_p.add_argument("-r", "--rate", type=str, default=None, help="Speech rate / speed override")
     ping_p.add_argument("--json", action="store_true", help="Output ping results in JSON format")
 
-    # feedback-loop top-level
-    fb_p = subparsers.add_parser("feedback-loop", aliases=["feedback_loop", "loopback", "voice-loop"], help="Run Feedback Loop test (Speak -> Listen -> Transcribe -> Send)")
+    # feedback-loop / proactive top-level
+    fb_p = subparsers.add_parser("feedback-loop", aliases=["proactive", "proactive-listening", "feedback_loop", "loopback", "voice-loop"], help="Manage ProActive Listening (on/off/status) or run acoustic verification test")
     fb_p.add_argument("voice", nargs="?", default="Aria", help="Voice to speak")
     fb_p.add_argument("-t", "--text", type=str, default="This is a test feedback loop", help="Phrase to speak and verify")
     fb_p.add_argument("-p", "--provider", type=str, default=None, help="TTS provider override")
@@ -3688,9 +3855,9 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
     stats_p.add_argument("--force", action="store_true", help="Bypass confirmation prompt for reset")
 
     # send / dispatch
-    send_p = subparsers.add_parser("send", aliases=["dispatch"], help="Send message/task across agents by Conversation ID (Antigravity ↔ Claude Code)")
+    send_p = subparsers.add_parser("send", aliases=["dispatch"], help="Send message/task across agents by Conversation ID (Antigravity ↔ Claude Code ↔ Gemini)")
     send_p.add_argument("text", nargs="+", help="Message or prompt to send")
-    send_p.add_argument("--to", type=str, default="claude", choices=["claude", "antigravity"], help="Target agent engine (claude, antigravity)")
+    send_p.add_argument("--to", type=str, default="claude", choices=["claude", "antigravity", "gemini", "chatgpt", "codex"], help="Target agent engine (claude, antigravity, gemini, chatgpt, codex)")
     send_p.add_argument("--conv-id", "--id", dest="conv_id", type=str, default=None, help="Target conversation ID (default: active conversation)")
     send_p.add_argument("--reply", action="store_true", help="Reply directly to the originating conversation ID")
     send_p.add_argument("--from-conv-id", "--from", dest="from_conv_id", type=str, default=None, help="Originating conversation ID")
@@ -3773,6 +3940,13 @@ def main():
         "pair": cmd_companion,
         "panel": cmd_panel,
         "info": cmd_info,
+        "tier": cmd_tier,
+        "pricing": cmd_tier,
+        "trial": cmd_tier,
+        "plan": cmd_tier,
+        "license": cmd_license,
+        "learn": cmd_learn,
+        "learning": cmd_learn,
         "obsidian": cmd_obsidian,
         "voice": cmd_voice,
         "ping": cmd_ping,

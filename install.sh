@@ -227,10 +227,12 @@ except Exception:
 
 say_msg ""
 say_msg "${GREEN}${BOLD}🎉 VoiceFi Installation Complete!${NC}"
+say_msg "${PURPLE}${BOLD}✨ 14-Day Pro Free Trial Activated!${NC} All 20+ neural voices & streaming STT unlocked."
 say_msg "------------------------------------------------------------------"
 say_msg "🗣️  ${BOLD}Claude Code & Antigravity:${NC} Hands-free conversational voice turns active"
 say_msg "💻  ${BOLD}Cursor & macOS:${NC}            Universal ${CYAN}${BOLD}<Ctrl>+T${NC} dictation into any text box"
 say_msg "📓 ${BOLD}Obsidian:${NC}                Auto-configured across local vaults"
+say_msg "✨ ${BOLD}Trial & Tier Status:${NC}      Run ${CYAN}${BOLD}vifi tier${NC} ($9/mo · $69/year 1-time special)"
 say_msg "🔊 ${BOLD}Test Voice:${NC}              Run ${CYAN}${BOLD}vifi voice test${NC} (or ${CYAN}${BOLD}vg voice test${NC})"
 say_msg "👂 ${BOLD}Hearing Test:${NC}            Run ${CYAN}${BOLD}vifi hearing-test${NC}"
 say_msg "🔄 ${BOLD}Feedback Loop:${NC}           Run ${CYAN}${BOLD}vifi feedback-loop${NC}"

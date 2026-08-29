@@ -221,11 +221,17 @@ class VoiceFiTrayApp(rumps.App):
         self.integrations_menu = rumps.MenuItem("🔌 Integrations")
         self._build_integrations_submenu()
 
+        self.quick_controls_item = rumps.MenuItem("⚙️ HUD Quick Controls...", callback=self.open_quick_controls_ui)
+
         self.auto_listen_item = rumps.MenuItem(
-            "⚡ ProActive Feedback Loop (Turn-Taking)",
+            "⚡ ProActive Listening (Auto Turn-Taking)",
             callback=self.toggle_auto_listen,
         )
         self.auto_listen_item.state = 1 if self.config.proactive.feedback_loop.enabled else 0
+
+        # Fibonacci Pause Delay Submenu
+        self.pause_delay_menu = rumps.MenuItem("⏱️ Pause Delay (Fibonacci)")
+        self._build_pause_delay_submenu()
 
         self.meeting_item = rumps.MenuItem(
             "👥 ProActive Meeting Assistant...",
@@ -252,24 +258,6 @@ class VoiceFiTrayApp(rumps.App):
         self.barge_in_item.state = 1 if self.config.vad.barge_in in (True, "auto") else 0
         self._update_barge_in_menu_item()
 
-        self.persistent_hud_item = rumps.MenuItem(
-            "📌 Persistent Dynamic Island HUD",
-            callback=self.toggle_persistent_hud,
-        )
-        self.persistent_hud_item.state = 1 if getattr(getattr(self.config, "hud", None), "persistent", True) else 0
-
-        self.fullscreen_overlay_item = rumps.MenuItem(
-            "🎮 Always on Top of Full-Screen Apps",
-            callback=self.toggle_fullscreen_overlay,
-        )
-        self.fullscreen_overlay_item.state = 1 if getattr(getattr(self.config, "hud", None), "fullscreen_overlay", True) else 0
-
-        self.auto_send_item = rumps.MenuItem(
-            "⚡ Auto-Send Prompts (Instant)",
-            callback=self.toggle_auto_send,
-        )
-        self.auto_send_item.state = 1 if getattr(getattr(self.config, "hud", None), "auto_send", True) else 0
-
         # Voice Control Panel & Mobile Companion
         self.panel_item = rumps.MenuItem("🎛️ Voice Control Panel...", callback=self.open_control_panel_ui)
         self.companion_item = rumps.MenuItem("📱 Mobile Companion (QR Code)...", callback=self.open_mobile_companion)
@@ -277,6 +265,10 @@ class VoiceFiTrayApp(rumps.App):
         # Voice Personas Submenu (Quick Selection)
         self.voice_personas_menu = rumps.MenuItem("🎭 A Voice For Every Agent")
         self._build_personas_submenu()
+
+        # Dynamic Island HUD Submenu
+        self.hud_menu = rumps.MenuItem("🏝️ Dynamic Island HUD")
+        self._build_hud_submenu()
 
         # Troubleshooting Submenu
         self.troubleshoot_menu = rumps.MenuItem("🔊 Test & Troubleshoot Voice")
@@ -291,7 +283,15 @@ class VoiceFiTrayApp(rumps.App):
         self._build_memo_submenu()
 
         tier_info = FeatureGate.get_tier_summary(self.config)
-        self.tier_item = rumps.MenuItem(f"Tier: {tier_info['tier']} (Patent Pending)", callback=None)
+        if tier_info.get("is_licensed"):
+            self.tier_item = rumps.MenuItem("⚡ Tier: Pro (Licensed)", callback=self.open_pricing_page)
+        elif tier_info.get("is_trial"):
+            days = tier_info.get("trial_days_remaining", 14)
+            self.tier_item = rumps.MenuItem(f"✨ Pro Trial: {days}d left (Upgrade $9/mo · $69/yr)", callback=self.open_pricing_page)
+        elif tier_info.get("trial_expired"):
+            self.tier_item = rumps.MenuItem("⚪ Tier: Community ($0) • Upgrade to Pro...", callback=self.open_pricing_page)
+        else:
+            self.tier_item = rumps.MenuItem(f"Tier: {tier_info['tier']}", callback=self.open_pricing_page)
 
         # Self-updater item
         self.update_item = rumps.MenuItem("✨ Check for Updates...", callback=self.trigger_tray_update)
@@ -310,21 +310,18 @@ class VoiceFiTrayApp(rumps.App):
             rumps.separator,
             self.companion_item,
             self.panel_item,
+            self.quick_controls_item,
             self.voice_personas_menu,
+            self.hud_menu,
+            self.pause_delay_menu,
             self.troubleshoot_menu,
             self.integrations_menu,
             self.voice_mode_menu,
             rumps.separator,
-            self.persistent_hud_item,
-            self.fullscreen_overlay_item,
-            self.auto_send_item,
-            rumps.MenuItem("🎯 Reset HUD Position", callback=self.reset_hud_position),
             self.auto_listen_item,
             self.read_summary_item,
-            self.speech_popup_item,
             self.barge_in_item,
             rumps.separator,
-            rumps.MenuItem("✨ Preview Speech Pop-up", callback=self.preview_speech_popup),
             rumps.MenuItem("🔐 Grant Permissions (Auto-Paste)", callback=self.open_permissions),
             rumps.MenuItem("⚙️ Open Config File", callback=self.open_config_file),
             self.tier_item,
@@ -437,6 +434,10 @@ class VoiceFiTrayApp(rumps.App):
         self.item_claude = rumps.MenuItem(f"Claude Code ({claude_status})", callback=None)
         self.item_claude.state = 1 if self.config.integrations.claude_code else 0
 
+        chatgpt_status = "Connected ✅" if detected["chatgpt"]["detected"] else "Available"
+        self.item_chatgpt = rumps.MenuItem(f"ChatGPT for Mac ({chatgpt_status})", callback=None)
+        self.item_chatgpt.state = 1 if getattr(self.config.integrations, "chatgpt", True) else 0
+
         cursor_status = "Connected ✅" if detected["cursor"]["detected"] else "Available"
         self.item_cursor = rumps.MenuItem(f"Cursor Composer ({cursor_status})", callback=None)
         self.item_cursor.state = 1 if self.config.integrations.cursor else 0
@@ -451,6 +452,7 @@ class VoiceFiTrayApp(rumps.App):
         self.integrations_menu.update([
             self.item_antigravity,
             self.item_claude,
+            self.item_chatgpt,
             self.item_cursor,
             self.item_windsurf,
             rumps.separator,
@@ -483,6 +485,46 @@ class VoiceFiTrayApp(rumps.App):
         item_auto.state = 1 if current_mode == "auto" else 0
 
         self.voice_mode_menu.update([item_hybrid, item_ptt, item_auto])
+
+    def _build_pause_delay_submenu(self):
+        """Populate Fibonacci Pause Delay presets (1s, 2s, 3s, 5s, 8s, 11s)."""
+        from voicefi.config import FIBONACCI_PAUSE_DELAYS
+        current = float(getattr(self.config.vad, "silence_duration", 1.4))
+        presets = [
+            (1.0, "1s (Snappy Rapid-Fire)"),
+            (2.0, "2s (Conversational)"),
+            (3.0, "3s (Deliberate)"),
+            (5.0, "5s (Deep Thinker)"),
+            (8.0, "8s (Pacing & Brainstorming)"),
+            (11.0, "11s (Monologue / Memo)"),
+        ]
+        items = []
+        for val, label in presets:
+            def _make_cb(v):
+                def _cb(_):
+                    self.config.vad.silence_duration = v
+                    save_config(self.config)
+                    self._build_pause_delay_submenu()
+                    try:
+                        rumps.notification("VoiceFi", "Pause Delay Updated", f"Cadence set to {int(v)}s")
+                    except Exception:
+                        pass
+                return _cb
+            item = rumps.MenuItem(label, callback=_make_cb(val))
+            item.state = 1 if abs(current - val) < 0.35 else 0
+            items.append(item)
+        self.pause_delay_menu.update(items)
+
+    def open_quick_controls_ui(self, _=None):
+        """Open native HUD Quick Controls panel."""
+        try:
+            from voicefi.ui.quick_controls import HUDQuickControlsPanel
+            from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
+            hud = UnifiedDynamicIslandHUD.get_instance()
+            hud_rect = hud._panel.frame() if hud._panel else None
+            HUDQuickControlsPanel.get_instance().toggle(relative_to_rect=hud_rect)
+        except Exception as e:
+            print(f"[Tray] Error opening quick controls: {e}")
 
     def _build_memo_submenu(self):
         """Populate voice memo and brain dump actions."""
@@ -648,6 +690,132 @@ class VoiceFiTrayApp(rumps.App):
             )
         except Exception:
             pass
+
+    def _build_hud_submenu(self):
+        """Populate dedicated Dynamic Island HUD submenu with controls, position presets, and state previews."""
+        hud_cfg = getattr(self.config, "hud", None)
+        if hud_cfg is None:
+            from voicefi.config import HUDConfig
+            hud_cfg = HUDConfig()
+            self.config.hud = hud_cfg
+
+        items = []
+
+        # 1. Main Enable Toggle
+        item_enabled = rumps.MenuItem(
+            "🟢 Enable Dynamic Island HUD",
+            callback=self.toggle_hud_enabled,
+        )
+        item_enabled.state = 1 if hud_cfg.enabled else 0
+        items.append(item_enabled)
+
+        # 2. Persistent Mode (Always Visible Resting Pill)
+        item_persistent = rumps.MenuItem(
+            "📌 Persistent Resting Pill (Always Visible)",
+            callback=self.toggle_persistent_hud,
+        )
+        item_persistent.state = 1 if hud_cfg.persistent else 0
+        items.append(item_persistent)
+
+        # 3. Prompt Delivery Mode (Instant Auto-Send vs Review & Edit)
+        item_auto_send = rumps.MenuItem(
+            "⚡ Auto-Send Prompts (Instant)",
+            callback=self.toggle_auto_send,
+        )
+        item_auto_send.state = 1 if hud_cfg.auto_send else 0
+        items.append(item_auto_send)
+
+        # 4. Full-Screen Overlay
+        item_fs = rumps.MenuItem(
+            "🎮 Always on Top of Full-Screen Apps",
+            callback=self.toggle_fullscreen_overlay,
+        )
+        item_fs.state = 1 if getattr(hud_cfg, "fullscreen_overlay", True) else 0
+        items.append(item_fs)
+
+        # 5. Live Typing Stream
+        item_typing = rumps.MenuItem(
+            "✍️ Live Dictation Typing Stream",
+            callback=self.toggle_live_transcript,
+        )
+        item_typing.state = 1 if getattr(hud_cfg, "show_live_transcript", True) else 0
+        items.append(item_typing)
+
+        # 6. Speech Subtitles Pop-up
+        item_speech = rumps.MenuItem(
+            "🔊 Show Speech Subtitles & Waveforms",
+            callback=self.toggle_speech_popup,
+        )
+        item_speech.state = 1 if getattr(self.config.antigravity, "show_speech_popup", True) else 0
+        items.append(item_speech)
+
+        items.append(rumps.separator)
+
+        # 7. Screen Positioning Submenu
+        pos_menu = rumps.MenuItem("📍 Screen Position")
+        cur_pos = getattr(hud_cfg, "position", "top_right")
+
+        def _make_pos_cb(pos_key):
+            def _cb(_):
+                if not hasattr(self.config, "hud") or self.config.hud is None:
+                    from voicefi.config import HUDConfig
+                    self.config.hud = HUDConfig()
+                self.config.hud.position = pos_key
+                save_config(self.config)
+                hud = UnifiedDynamicIslandHUD.get_instance()
+                if hasattr(hud, "set_position"):
+                    hud.set_position(pos_key)
+                else:
+                    hud.reset_position()
+                self._build_hud_submenu()
+                try:
+                    labels = {"top_right": "Top Right", "top_center": "Top Center (Notch)", "bottom_right": "Bottom Right"}
+                    rumps.notification("VoiceFi HUD", "Position Updated", f"Anchored to {labels.get(pos_key, pos_key)}")
+                except Exception:
+                    pass
+            return _cb
+
+        pos_tr = rumps.MenuItem("📍 Top Right (Default • Clears Chrome Tabs)", callback=_make_pos_cb("top_right"))
+        pos_tr.state = 1 if cur_pos == "top_right" else 0
+        pos_tc = rumps.MenuItem("📍 Top Center (MacBook Camera Notch)", callback=_make_pos_cb("top_center"))
+        pos_tc.state = 1 if cur_pos == "top_center" else 0
+        pos_br = rumps.MenuItem("📍 Bottom Right", callback=_make_pos_cb("bottom_right"))
+        pos_br.state = 1 if cur_pos == "bottom_right" else 0
+
+        pos_menu.update([
+            pos_tr,
+            pos_tc,
+            pos_br,
+            rumps.separator,
+            rumps.MenuItem("🎯 Reset Position to Default", callback=self.reset_hud_position),
+        ])
+        items.append(pos_menu)
+
+        items.append(rumps.separator)
+
+        # 8. Interactive State Previews (Audit / Test)
+        preview_menu = rumps.MenuItem("✨ Test & Preview States")
+
+        def _make_preview_cb(state_name):
+            return lambda _: self.preview_hud_state(state_name)
+
+        preview_menu.update([
+            rumps.MenuItem("🟢 Preview Idle Resting Pill (155×34)", callback=_make_preview_cb("idle")),
+            rumps.MenuItem("🧠 Preview Thinking Aura (Purple)", callback=_make_preview_cb("thinking")),
+            rumps.MenuItem("⚡ Preview Tool Execution (Blue)", callback=_make_preview_cb("working")),
+            rumps.MenuItem("🔊 Preview Speaking Subtitles (Cyan)", callback=_make_preview_cb("speaking")),
+            rumps.MenuItem("👂 Preview Listening VAD (Emerald)", callback=_make_preview_cb("listening")),
+            rumps.MenuItem("✏️ Preview Review & Edit Modal", callback=_make_preview_cb("editing")),
+        ])
+        items.append(preview_menu)
+
+        items.append(rumps.separator)
+
+        # 9. Debug Studio & Reset
+        items.append(rumps.MenuItem("🎯 Reset HUD Position", callback=self.reset_hud_position))
+        items.append(rumps.MenuItem("🛠️ Launch HUD Debug Studio (Terminal)...", callback=self.launch_hud_debug_studio))
+
+        self.hud_menu.update(items)
 
     def _build_troubleshoot_submenu(self):
         """Populate voice testing and audio troubleshooting actions."""
@@ -1409,7 +1577,8 @@ class VoiceFiTrayApp(rumps.App):
                         mod = ctrl or cmd
 
                         # 1. Escape: stop speech (and open mic if auto_listen is ON) or cancel recording
-                        if key == Key.esc or vk == 53:
+                        from voicefi.tts.base import is_escape_key
+                        if is_escape_key(key):
                             self.handle_escape_press()
                             return
 
@@ -1521,7 +1690,22 @@ class VoiceFiTrayApp(rumps.App):
 
         threading.Thread(target=_run_pynput, daemon=True).start()
 
-    def toggle_persistent_hud(self, sender):
+    def toggle_hud_enabled(self, sender=None):
+        hud = UnifiedDynamicIslandHUD.get_instance()
+        if not hasattr(self.config, "hud") or self.config.hud is None:
+            from voicefi.config import HUDConfig
+            self.config.hud = HUDConfig()
+        new_val = not self.config.hud.enabled
+        self.config.hud.enabled = new_val
+        save_config(self.config)
+        if new_val:
+            hud.set_persistent(self.config.hud.persistent)
+            hud.set_idle()
+        else:
+            hud.force_hide()
+        self._build_hud_submenu()
+
+    def toggle_persistent_hud(self, sender=None):
         hud = UnifiedDynamicIslandHUD.get_instance()
         new_val = not getattr(getattr(self.config, "hud", None), "persistent", True)
         if not hasattr(self.config, "hud") or self.config.hud is None:
@@ -1529,37 +1713,119 @@ class VoiceFiTrayApp(rumps.App):
             self.config.hud = HUDConfig()
         self.config.hud.persistent = new_val
         self.config.antigravity.persistent_hud = new_val
-        sender.state = 1 if new_val else 0
+        if sender and hasattr(sender, "state"):
+            sender.state = 1 if new_val else 0
         hud.set_persistent(new_val)
         save_config(self.config)
+        self._build_hud_submenu()
 
-    def toggle_fullscreen_overlay(self, sender):
+    def toggle_fullscreen_overlay(self, sender=None):
         hud = UnifiedDynamicIslandHUD.get_instance()
         new_val = not getattr(getattr(self.config, "hud", None), "fullscreen_overlay", True)
         if not hasattr(self.config, "hud") or self.config.hud is None:
             from voicefi.config import HUDConfig
             self.config.hud = HUDConfig()
         self.config.hud.fullscreen_overlay = new_val
-        sender.state = 1 if new_val else 0
+        if sender and hasattr(sender, "state"):
+            sender.state = 1 if new_val else 0
         hud.set_fullscreen_overlay(new_val)
         save_config(self.config)
+        self._build_hud_submenu()
 
-    def toggle_auto_send(self, sender):
+    def toggle_auto_send(self, sender=None):
         new_val = not getattr(getattr(self.config, "hud", None), "auto_send", True)
         if not hasattr(self.config, "hud") or self.config.hud is None:
             from voicefi.config import HUDConfig
             self.config.hud = HUDConfig()
         self.config.hud.auto_send = new_val
         self.config.antigravity.auto_send = new_val
-        sender.state = 1 if new_val else 0
+        if sender and hasattr(sender, "state"):
+            sender.state = 1 if new_val else 0
         hud = UnifiedDynamicIslandHUD.get_instance()
         hud.set_auto_send(new_val)
         save_config(self.config)
+        self._build_hud_submenu()
+
+    def toggle_live_transcript(self, sender=None):
+        if not hasattr(self.config, "hud") or self.config.hud is None:
+            from voicefi.config import HUDConfig
+            self.config.hud = HUDConfig()
+        new_val = not getattr(self.config.hud, "show_live_transcript", True)
+        self.config.hud.show_live_transcript = new_val
+        if sender and hasattr(sender, "state"):
+            sender.state = 1 if new_val else 0
+        save_config(self.config)
+        self._build_hud_submenu()
 
     def reset_hud_position(self, sender=None):
         """Reset HUD position back to default anchor below Chrome top bar."""
         hud = UnifiedDynamicIslandHUD.get_instance()
         hud.reset_position()
+        self._build_hud_submenu()
+        try:
+            rumps.notification("VoiceFi HUD", "Position Reset", "Restored default top-right anchor.")
+        except Exception:
+            pass
+
+    def preview_hud_state(self, state_name: str):
+        """Preview any of the 6 dynamic HUD states directly on the macOS screen."""
+        hud = UnifiedDynamicIslandHUD.get_instance()
+        _, resolved_voice, _ = self.config.resolve_voice("antigravity")
+        from voicefi.tts import find_persona
+        persona = find_persona(resolved_voice)
+        pname = persona.name if persona else resolved_voice
+
+        if state_name == "idle":
+            hud.set_idle()
+        elif state_name == "thinking":
+            hud.set_thinking(agent_name="Antigravity", detail="Reasoning over code architecture & test suite...")
+        elif state_name == "working":
+            hud.set_working(agent_name="Antigravity", tool_action="Running pytest tests/ -v (All 12 passing)")
+        elif state_name == "speaking":
+            hud.set_speaking(
+                text="Dynamic Island HUD is operational with real-time audio waveforms.",
+                agent_name="Antigravity",
+                persona_name=pname,
+            )
+        elif state_name == "listening":
+            hud.set_listening(
+                prompt_preview="Ship the refactored VoiceFi build to production",
+                user_name=getattr(self.config, "user_name", "Jake"),
+                live_stream=True,
+            )
+        elif state_name == "editing":
+            hud.set_editing(
+                initial_text="Ship the refactored VoiceFi build to production",
+                on_submit=lambda txt: None,
+                on_cancel=lambda: None,
+                target_name="Antigravity",
+            )
+
+        if state_name != "idle":
+            def _return_to_idle():
+                time.sleep(3.5)
+                hud_cfg = getattr(self.config, "hud", None)
+                if getattr(hud_cfg, "persistent", True) and getattr(hud_cfg, "enabled", True):
+                    hud.set_idle()
+                else:
+                    hud.finish_speech(linger_seconds=1.0)
+            threading.Thread(target=_return_to_idle, daemon=True).start()
+
+    def launch_hud_debug_studio(self, _=None):
+        """Launch interactive Terminal HUD Debug Studio with real-time keystroke triggers."""
+        import sys
+        vg_bin = Path(sys.executable).parent / "voicefi"
+        vg_cmd = f"'{vg_bin}' hud debug" if vg_bin.is_file() else "vg hud debug"
+        script = f'''
+        tell application "Terminal"
+            activate
+            do script "{vg_cmd}"
+        end tell
+        '''
+        try:
+            subprocess.run(["osascript", "-e", script])
+        except Exception:
+            pass
 
     def toggle_auto_listen(self, sender):
         new_val = not self.config.proactive.feedback_loop.enabled
@@ -1586,10 +1852,12 @@ class VoiceFiTrayApp(rumps.App):
         sender.state = 1 if self.config.antigravity.read_summary_aloud else 0
         save_config(self.config)
 
-    def toggle_speech_popup(self, sender):
+    def toggle_speech_popup(self, sender=None):
         self.config.antigravity.show_speech_popup = not self.config.antigravity.show_speech_popup
-        sender.state = 1 if self.config.antigravity.show_speech_popup else 0
+        if sender and hasattr(sender, "state"):
+            sender.state = 1 if self.config.antigravity.show_speech_popup else 0
         save_config(self.config)
+        self._build_hud_submenu()
 
     def preview_speech_popup(self, _=None):
         """Display a preview of the Native Agent Speech Pop-up."""
@@ -1644,6 +1912,10 @@ class VoiceFiTrayApp(rumps.App):
         if not path.is_file():
             save_config(self.config)
         subprocess.run(["open", str(path)])
+
+    def open_pricing_page(self, _=None):
+        import webbrowser
+        webbrowser.open("https://voicefi.org#pricing")
 
     def trigger_manual_listen(self, ptt_mode: bool = False):
         with self._listen_lock:

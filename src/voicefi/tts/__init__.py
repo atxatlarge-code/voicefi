@@ -18,6 +18,7 @@ from voicefi.tts.mac_say import MacSayTTS, normalize_mac_rate
 from voicefi.tts.edge_tts import EdgeTTS, normalize_edge_rate
 from voicefi.tts.elevenlabs import ElevenLabsTTS
 from voicefi.tts.f5_tts import F5TTS
+from voicefi.tts.gemini_tts import GeminiTTS
 from voicefi.tts.catalog import (
     VoicePersona,
     CURATED_PERSONAS,
@@ -140,6 +141,21 @@ def get_tts_engine(
             api_key=config.tts.elevenlabs_api_key or "",
             voice_id=resolved_voice_id,
         )
+    elif provider in ("gemini", "gemini_live"):
+        resolved_key = (
+            getattr(getattr(config, "gemini", None), "api_key", None)
+            or getattr(config.tts, "gemini_api_key", None)
+        )
+        live_model = (
+            getattr(getattr(config, "gemini", None), "live_model", "gemini-2.0-flash-exp")
+            if hasattr(config, "gemini")
+            else "gemini-2.0-flash-exp"
+        )
+        eng = GeminiTTS(
+            api_key=resolved_key,
+            voice=voice,
+            model=live_model,
+        )
     elif provider == "edge_tts":
         offline_v = None
         if agent_name:
@@ -175,6 +191,7 @@ __all__ = [
     "EdgeTTS",
     "ElevenLabsTTS",
     "F5TTS",
+    "GeminiTTS",
 
     "normalize_edge_rate",
     "normalize_mac_rate",

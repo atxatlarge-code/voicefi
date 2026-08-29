@@ -114,10 +114,10 @@ class AudioRecorder:
         kb_listener = None
         try:
             from pynput import keyboard
+            from voicefi.tts.base import is_escape_key
             def _on_key_press(k):
                 nonlocal cancelled_by_user, _last_speech_stop_time
-                vk = getattr(k, 'vk', None)
-                if k == keyboard.Key.esc or vk == 53:
+                if is_escape_key(k):
                     from voicefi.tts.base import stop_all_speech, is_agent_speaking, is_system_audio_playing, get_last_speech_stop_time, record_speech_stopped
                     now = time.time()
                     last_stop = max(_last_speech_stop_time, get_last_speech_stop_time())
@@ -166,8 +166,8 @@ class AudioRecorder:
             speech_start_time = 0.0
             speech_candidate_chunks = 0
             consecutive_silence_chunks = 0
-            # 0.8s silence pause needed to finish (~16 chunks)
-            chunks_needed_for_silence = max(12, int(min(1.0, max(0.6, self.silence_duration)) / chunk_duration))
+            # Silence pause needed to finish (honors Fibonacci scale from 1s to 11s)
+            chunks_needed_for_silence = max(6, int(max(0.4, float(self.silence_duration)) / chunk_duration))
             start_time = time.time()
 
             # Dynamic noise floor and speech detection tracking
@@ -469,9 +469,10 @@ class AudioRecorder:
                             if not is_transcribing and recorded_frames:
                                 latest_partial_audio = np.concatenate(recorded_frames, axis=0)
 
-                    # Max speech burst cutoff (e.g. continuous sentence capped at 15s)
-                    if speech_started and (now - speech_start_time) >= 15.0:
-                        print("[VAD] Maximum continuous speech burst (15s) reached -> finishing")
+                    # Max speech burst cutoff (dynamically scaled for conversational flow or extended brain dumps)
+                    max_burst_limit = max(30.0, float(self.silence_duration) * 3.0)
+                    if speech_started and (now - speech_start_time) >= max_burst_limit:
+                        print(f"[VAD] Maximum continuous speech burst ({max_burst_limit:.1f}s) reached -> finishing")
                         break
 
                     # Max total record duration safety cutoff
@@ -543,10 +544,10 @@ class AudioRecorder:
         kb_listener = None
         try:
             from pynput import keyboard
+            from voicefi.tts.base import is_escape_key
             def _on_ptt_key(k):
                 nonlocal cancelled_by_user
-                vk = getattr(k, 'vk', None)
-                if k == keyboard.Key.esc or vk == 53:
+                if is_escape_key(k):
                     from voicefi.tts.base import stop_all_speech, is_agent_speaking, is_system_audio_playing
                     if is_agent_speaking() or is_system_audio_playing():
                         # Agent is speaking aloud: Esc stops speech immediately while keeping PTT capture active

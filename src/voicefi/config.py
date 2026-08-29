@@ -67,13 +67,14 @@ def detect_system_user_name(prefer_first_name: bool = True) -> str:
 
 
 class TTSConfig(BaseModel):
-    provider: Literal["mac_say", "edge_tts", "elevenlabs", "f5_tts", "local_clone"] = "edge_tts"
+    provider: Literal["mac_say", "edge_tts", "elevenlabs", "f5_tts", "local_clone", "gemini", "gemini_live"] = "edge_tts"
     voice: str = "en-US-AvaNeural"
     rate: Optional[int] = 200
     volume: float = 1.0
     streaming: bool = True
     elevenlabs_api_key: Optional[str] = ""
     elevenlabs_voice_id: Optional[str] = "21m00Tcm4TlvDq8ikWAM"
+    gemini_api_key: Optional[str] = ""
     f5_device: Literal["auto", "mps", "cpu", "cuda"] = "auto"
     f5_model_name: str = "F5-TTS"
     f5_ref_audio: Optional[str] = None
@@ -88,6 +89,10 @@ class STTConfig(BaseModel):
     streaming: bool = False
     groq_api_key: Optional[str] = ""
     groq_model: str = "whisper-large-v3-turbo"
+
+
+# Fibonacci Pause Delay presets (seconds)
+FIBONACCI_PAUSE_DELAYS: list[float] = [1.0, 2.0, 3.0, 5.0, 8.0, 11.0]
 
 
 class VADConfig(BaseModel):
@@ -158,6 +163,7 @@ class HooksConfig(BaseModel):
 class IntegrationsConfig(BaseModel):
     antigravity: bool = True
     claude_code: bool = True
+    chatgpt: bool = True
     cursor: bool = True
     windsurf: bool = True
     system_dictation: bool = True
@@ -175,7 +181,7 @@ class GlobalHotkeyConfig(BaseModel):
 
 
 class AgentVoiceProfile(BaseModel):
-    provider: Optional[Literal["mac_say", "edge_tts", "elevenlabs", "f5_tts", "local_clone"]] = None
+    provider: Optional[Literal["mac_say", "edge_tts", "elevenlabs", "f5_tts", "local_clone", "gemini", "gemini_live"]] = None
     voice: str = "en-US-AvaNeural"
     rate: Optional[int] = None
     pitch: Optional[str] = "+0Hz"
@@ -185,6 +191,18 @@ class AgentVoiceProfile(BaseModel):
     f5_ref_audio: Optional[str] = None
     f5_ref_text: Optional[str] = None
 
+
+class GeminiConfig(BaseModel):
+    enabled: bool = True
+    api_key: Optional[str] = ""
+    model: str = "gemini-2.5-flash"
+    live_model: str = "gemini-2.0-flash-exp"
+    live_voice: str = "Aoede"  # Aoede, Puck, Charon, Kore, Fenrir
+    temperature: float = 0.2
+    max_tokens: int = 150
+    enable_soundbite_distillation: bool = True
+    enable_memo_structuring: bool = True
+    enable_phonetic_resolver: bool = False
 
 
 class MemoConfig(BaseModel):
@@ -239,6 +257,11 @@ def default_agents_catalog() -> dict[str, AgentVoiceProfile]:
             provider="edge_tts",
             offline_voice="Jamie (Premium)",
             description="Claude Code Pair Programmer",
+        ),
+        "gemini": AgentVoiceProfile(
+            voice="Aoede",
+            provider="gemini",
+            description="Google Gemini Agent",
         ),
         "cursor": AgentVoiceProfile(
             voice="en-US-JennyNeural",
@@ -300,6 +323,9 @@ class VoiceFiConfig(BaseModel):
     auto_update: bool = False  # Silent background auto-updater for Pro tier
     tier: str = "community"
     license_key: str = ""
+    trial_started_at: Optional[float] = None  # Epoch timestamp when 14-day free trial started
+    trial_seal: Optional[str] = None  # Cryptographic hardware-anchored HMAC seal against tampering
+    trial_duration_days: int = 14  # 14-day trial duration
     posthog_api_key: str = ""
     user_name: str = Field(default_factory=detect_system_user_name)
     tts: TTSConfig = Field(default_factory=TTSConfig)
@@ -318,6 +344,7 @@ class VoiceFiConfig(BaseModel):
     global_hotkey: GlobalHotkeyConfig = Field(default_factory=GlobalHotkeyConfig)
     hud: HUDConfig = Field(default_factory=HUDConfig)
     memo: MemoConfig = Field(default_factory=MemoConfig)
+    gemini: GeminiConfig = Field(default_factory=GeminiConfig)
     agents: dict[str, AgentVoiceProfile] = Field(default_factory=default_agents_catalog)
     subagents: dict[str, AgentVoiceProfile] = Field(default_factory=dict)
 
