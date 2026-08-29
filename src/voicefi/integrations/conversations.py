@@ -7,6 +7,7 @@ import glob
 import json
 import os
 import re
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -129,9 +130,12 @@ def claim_turn(
                             if norm_sig[:20] == e_norm[:20]:
                                 return False
 
-                    # 5. Conversation-level rapid debounce (5.0s window for same conversation unless distinct step_index)
-                    if conv_id and e_cid == conv_id and (resolved_step_idx is None or resolved_step_idx == e_step):
-                        if (now - e_ts) < 5.0:
+                    # 5. Conversation-level rapid debounce & explicit speech suppression
+                    if conv_id and e_cid == conv_id:
+                        # Suppress generic turn-end speech if an explicit speech tool/command ran in this conversation within 30s
+                        if "explicit" in e_sig and (now - e_ts) < 30.0:
+                            return False
+                        if (resolved_step_idx is None or resolved_step_idx == e_step) and (now - e_ts) < 5.0:
                             return False
 
                 # Claim this turn atomically
@@ -157,6 +161,28 @@ def claim_turn(
     except Exception:
         # Fallback to permissive execution if locking fails
         return True
+
+
+def claim_active_conversation_turn(
+    text: str,
+    conv_id: Optional[str] = None,
+    step_index: Optional[int] = None,
+    origin: Optional[str] = None,
+) -> bool:
+    """
+    Record an explicit speech action during an active conversation turn so turn-end hooks
+    automatically suppress duplicate summary speech.
+    """
+    cid = conv_id
+    if not cid:
+        cookie = load_session_cookie()
+        if cookie:
+            cid = cookie.get("conv_id")
+    if not cid:
+        return False
+    norm = _normalize_turn_signature(text)
+    turn_sig = f"{cid}:explicit_{norm}"
+    return claim_turn(cid, turn_sig, origin=origin, step_index=step_index)
 
 
 def get_claimed_turn_origin(
@@ -477,6 +503,7 @@ def load_session_cookie() -> Optional[Dict[str, Any]]:
 
 
 _AGENT_ROUTES_FILE = Path("/tmp/voicefi_agent_routes.json")
+_ROUTES_THREAD_LOCK = threading.RLock()
 
 
 def record_agent_route(
@@ -501,26 +528,44 @@ def record_agent_route(
         "metadata": metadata or {},
     }
 
-    try:
-        current: List[Dict[str, Any]] = []
-        if _AGENT_ROUTES_FILE.is_file():
-            try:
-                data = json.loads(_AGENT_ROUTES_FILE.read_text())
-                if isinstance(data, list):
-                    current = data
-            except Exception:
-                current = []
+    with _ROUTES_THREAD_LOCK:
+        try:
+            _AGENT_ROUTES_FILE.parent.mkdir(parents=True, exist_ok=True)
+            lock_path = _AGENT_ROUTES_FILE.with_suffix(".lock")
+            with open(lock_path, "a+") as lock_fp:
+                try:
+                    fcntl.flock(lock_fp, fcntl.LOCK_EX)
+                except Exception:
+                    pass
 
-        # Keep latest 20 routes within last 24h
-        cutoff = time.time() - 86400.0
-        current = [r for r in current if float(r.get("timestamp", 0)) > cutoff]
-        current.append(route)
-        if len(current) > 20:
-            current = current[-20:]
+                try:
+                    current: List[Dict[str, Any]] = []
+                    if _AGENT_ROUTES_FILE.is_file():
+                        try:
+                            raw = _AGENT_ROUTES_FILE.read_text(encoding="utf-8")
+                            data = json.loads(raw)
+                            if isinstance(data, list):
+                                current = data
+                        except Exception:
+                            current = []
 
-        _AGENT_ROUTES_FILE.write_text(json.dumps(current, indent=2))
-    except Exception as e:
-        print(f"[ConversationTracker] Notice recording agent route: {e}")
+                    # Keep latest 20 routes within last 24h
+                    cutoff = time.time() - 86400.0
+                    current = [r for r in current if isinstance(r, dict) and float(r.get("timestamp", 0)) > cutoff]
+                    current.append(route)
+                    if len(current) > 20:
+                        current = current[-20:]
+
+                    tmp_file = _AGENT_ROUTES_FILE.with_suffix(".tmp")
+                    tmp_file.write_text(json.dumps(current, indent=2), encoding="utf-8")
+                    tmp_file.replace(_AGENT_ROUTES_FILE)
+                finally:
+                    try:
+                        fcntl.flock(lock_fp, fcntl.LOCK_UN)
+                    except Exception:
+                        pass
+        except Exception as e:
+            print(f"[ConversationTracker] Notice recording agent route: {e}")
 
 
 def get_return_route(target_engine: Optional[str] = None) -> Optional[Dict[str, Any]]:
@@ -531,20 +576,43 @@ def get_return_route(target_engine: Optional[str] = None) -> Optional[Dict[str, 
     if not _AGENT_ROUTES_FILE.is_file():
         return None
 
-    try:
-        data = json.loads(_AGENT_ROUTES_FILE.read_text())
-        if not isinstance(data, list) or not data:
-            return None
+    with _ROUTES_THREAD_LOCK:
+        lock_path = _AGENT_ROUTES_FILE.with_suffix(".lock")
+        lock_fp = None
+        try:
+            if lock_path.parent.is_dir():
+                lock_fp = open(lock_path, "a+")
+                try:
+                    fcntl.flock(lock_fp, fcntl.LOCK_SH)
+                except Exception:
+                    pass
+        except Exception:
+            pass
 
-        # Scan backwards from newest
-        for route in reversed(data):
-            if target_engine:
-                if route.get("from_engine") == target_engine:
+        try:
+            raw = _AGENT_ROUTES_FILE.read_text(encoding="utf-8")
+            data = json.loads(raw)
+            if not isinstance(data, list) or not data:
+                return None
+
+            # Scan backwards from newest
+            for route in reversed(data):
+                if not isinstance(route, dict):
+                    continue
+                if target_engine:
+                    if route.get("from_engine") == target_engine:
+                        return route
+                else:
                     return route
-            else:
-                return route
-    except Exception:
-        pass
+        except Exception:
+            pass
+        finally:
+            if lock_fp is not None:
+                try:
+                    fcntl.flock(lock_fp, fcntl.LOCK_UN)
+                    lock_fp.close()
+                except Exception:
+                    pass
     return None
 
 
