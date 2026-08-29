@@ -602,9 +602,9 @@ class UnifiedDynamicIslandHUD:
         self._effect_view.layer().setCornerRadius_(20.0)
         self._root_view.addSubview_(self._effect_view)
 
-        # Quick Controls Settings (⚙️) and Close / Dismiss (✕) buttons (Foreground interactive layer)
+        # Quick Controls Settings button (⚙️)
         try:
-            self._gear_btn = NSButton.alloc().initWithFrame_(NSRect(NSPoint(420, 31), NSSize(24, 20)))
+            self._gear_btn = NSButton.alloc().initWithFrame_(NSRect(NSPoint(396, 29), NSSize(26, 22)))
             self._gear_btn.setBordered_(False)
             self._gear_btn.setTitle_("⚙️")
             self._gear_btn.setFont_(NSFont.systemFontOfSize_(12))
@@ -613,19 +613,8 @@ class UnifiedDynamicIslandHUD:
             self._gear_btn.setAction_("closeAction:")
             self._gear_btn.setToolTip_("VoiceFi Quick Controls")
             self._root_view.addSubview_(self._gear_btn)
-
-            self._close_btn = NSButton.alloc().initWithFrame_(NSRect(NSPoint(448, 31), NSSize(22, 20)))
-            self._close_btn.setBordered_(False)
-            self._close_btn.setTitle_("✕")
-            self._close_btn.setFont_(NSFont.boldSystemFontOfSize_(11))
-            self._close_target = HUDCloseActionTarget.alloc().initWithCallback_(self.force_hide)
-            self._close_btn.setTarget_(self._close_target)
-            self._close_btn.setAction_("closeAction:")
-            self._close_btn.setToolTip_("Close VoiceFi HUD (Esc)")
-            self._root_view.addSubview_(self._close_btn)
         except Exception:
             self._gear_btn = None
-            self._close_btn = None
 
         # Avatar badge view (left - Medium size 38x38 box with 34x34 vector icon)
         self._avatar_box = NSView.alloc().initWithFrame_(NSRect(NSPoint(14, 10), NSSize(38, 38)))
@@ -656,7 +645,7 @@ class UnifiedDynamicIslandHUD:
         self._root_view.addSubview_(self._avatar_box)
 
         # Title Label (Bold Agent/User/VoiceFi name)
-        self._title_lbl = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(60, 32), NSSize(140, 18)))
+        self._title_lbl = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(60, 32), NSSize(130, 18)))
         self._title_lbl.setFont_(NSFont.boldSystemFontOfSize_(12.5))
         self._title_lbl.setTextColor_(NSColor.whiteColor())
         self._title_lbl.setStringValue_("VoiceFi")
@@ -667,7 +656,7 @@ class UnifiedDynamicIslandHUD:
         self._root_view.addSubview_(self._title_lbl)
 
         # Tag Label (Colored status accent / shortcut)
-        self._tag_lbl = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(205, 32), NSSize(170, 18)))
+        self._tag_lbl = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(195, 32), NSSize(142, 18)))
         self._tag_lbl.setFont_(NSFont.systemFontOfSize_(11))
         self._tag_lbl.setStringValue_("Ready (⇧⌘N)")
         self._tag_lbl.setBezeled_(False)
@@ -679,13 +668,13 @@ class UnifiedDynamicIslandHUD:
         # VAD Real-Time Audio Level & Speech Probability Visualizer Meter
         try:
             self._visualizer = VADAudioVisualizerView.alloc().initWithFrame_(
-                NSRect(NSPoint(380, 31), NSSize(48, 20))
+                NSRect(NSPoint(344, 29), NSSize(46, 22))
             )
             self._visualizer.setHidden_(True)
             self._root_view.addSubview_(self._visualizer)
             
             # Transparent button over the visualizer to guarantee click interception
-            self._vad_btn = NSButton.alloc().initWithFrame_(NSRect(NSPoint(380, 31), NSSize(48, 20)))
+            self._vad_btn = NSButton.alloc().initWithFrame_(NSRect(NSPoint(344, 29), NSSize(46, 22)))
             self._vad_btn.setTransparent_(True)
             self._vad_btn.setBordered_(False)
             self._vad_btn.setTitle_("")
@@ -713,7 +702,7 @@ class UnifiedDynamicIslandHUD:
             self._visualizer = None
 
         # Body Text Label (Subtitles, recognized speech, tool actions, hints)
-        self._body_lbl = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(60, 8), NSSize(370, 22)))
+        self._body_lbl = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(60, 8), NSSize(365, 22)))
         self._body_lbl.setFont_(NSFont.systemFontOfSize_(11.5))
         self._body_lbl.setTextColor_(NSColor.colorWithCalibratedRed_green_blue_alpha_(0.9, 0.92, 0.96, 0.95))
         self._body_lbl.setStringValue_("Standing by • Dictate (⌃T) or speak to agent (⌃R)")
@@ -723,29 +712,15 @@ class UnifiedDynamicIslandHUD:
         self._body_lbl.setSelectable_(False)
         self._root_view.addSubview_(self._body_lbl)
 
-        # Interactive click target over title and body text area
-        try:
-            self._body_btn = NSButton.alloc().initWithFrame_(NSRect(NSPoint(56, 4), NSSize(320, 48)))
-            self._body_btn.setTransparent_(True)
-            self._body_btn.setBordered_(False)
-            self._body_btn.setTitle_("")
-            self._body_btn.setToolTip_("Click to focus Antigravity chat & logs")
-            self._body_target = ExpertActionTarget.alloc().initWithCallback_(lambda _: self.handle_body_click())
-            self._body_btn.setTarget_(self._body_target)
-            self._body_btn.setAction_("actionHandler:")
-            self._root_view.addSubview_(self._body_btn)
-        except Exception:
-            self._body_btn = None
-
-        # App / Agent badge view (right side at x=438, y=15, w=28, h=28)
-        self._app_box = NSView.alloc().initWithFrame_(NSRect(NSPoint(438, 15), NSSize(28, 28)))
+        # App / Agent badge view (right side at x=432, y=13, w=32, h=32)
+        self._app_box = NSView.alloc().initWithFrame_(NSRect(NSPoint(432, 13), NSSize(32, 32)))
         self._app_box.setWantsLayer_(True)
-        self._app_box.layer().setCornerRadius_(14.0)
+        self._app_box.layer().setCornerRadius_(16.0)
         self._app_box.layer().setMasksToBounds_(True)
         self._app_box.layer().setBackgroundColor_(NSColor.clearColor().CGColor())
 
         try:
-            self._app_img = NSImageView.alloc().initWithFrame_(NSRect(NSPoint(2, 2), NSSize(24, 24)))
+            self._app_img = NSImageView.alloc().initWithFrame_(NSRect(NSPoint(2, 2), NSSize(28, 28)))
             if hasattr(self._app_img, "setImageScaling_"):
                 self._app_img.setImageScaling_(NSImageScaleProportionallyUpOrDown)
             self._app_img.setHidden_(True)
@@ -753,9 +728,9 @@ class UnifiedDynamicIslandHUD:
         except Exception:
             self._app_img = None
 
-        self._app_lbl = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(0, 1), NSSize(28, 26)))
+        self._app_lbl = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(0, 2), NSSize(32, 28)))
         self._app_lbl.setStringValue_("")
-        self._app_lbl.setFont_(NSFont.systemFontOfSize_(14))
+        self._app_lbl.setFont_(NSFont.systemFontOfSize_(16))
         self._app_lbl.setAlignment_(NSTextAlignmentCenter)
         self._app_lbl.setBezeled_(False)
         self._app_lbl.setDrawsBackground_(False)
@@ -1012,8 +987,6 @@ class UnifiedDynamicIslandHUD:
 
             if getattr(self, "_gear_btn", None):
                 self._gear_btn.setHidden_(False)
-            if getattr(self, "_close_btn", None):
-                self._close_btn.setHidden_(False)
 
             if self._panel and (not is_headless() or hasattr(self._panel, "assert_called") or type(self._panel).__name__ == "MagicMock"):
                 self._panel.orderFrontRegardless()
@@ -1470,8 +1443,6 @@ class UnifiedDynamicIslandHUD:
                 self._app_box.setHidden_(True)
             if getattr(self, "_gear_btn", None):
                 self._gear_btn.setHidden_(True)
-            if getattr(self, "_close_btn", None):
-                self._close_btn.setHidden_(True)
 
             self._edit_container.setHidden_(False)
             self._root_view.layer().setBorderColor_(

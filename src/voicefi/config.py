@@ -154,16 +154,27 @@ class ClaudeConfig(BaseModel):
     show_speech_popup: bool = True
 
 
+class CodexConfig(BaseModel):
+    auto_listen: bool = False
+    read_summary_aloud: bool = True
+    auto_submit: bool = False  # False = paste into prompt for manual review; True = auto-press Enter
+    max_spoken_words: int = 60
+    inject_to_active_window: bool = True
+    show_speech_popup: bool = True
+
+
 class HooksConfig(BaseModel):
     enabled: bool = True
     antigravity: bool = True
     claude: bool = True
+    codex: bool = True
 
 
 class IntegrationsConfig(BaseModel):
     antigravity: bool = True
     claude_code: bool = True
     chatgpt: bool = True
+    codex: bool = True
     cursor: bool = True
     windsurf: bool = True
     system_dictation: bool = True
@@ -269,9 +280,14 @@ def default_agents_catalog() -> dict[str, AgentVoiceProfile]:
             description="Cursor Composer Assistant",
         ),
         "openai": AgentVoiceProfile(
-            voice="en-IE-EmilyNeural",
+            voice="en-US-EmmaNeural",
             provider="edge_tts",
-            description="OpenAI Agent",
+            description="OpenAI Agent (Emma)",
+        ),
+        "codex": AgentVoiceProfile(
+            voice="en-US-EmmaNeural",
+            provider="edge_tts",
+            description="OpenAI Codex Agent (Emma)",
         ),
         "obsidian": AgentVoiceProfile(
             voice="en-US-EmmaNeural",
@@ -337,6 +353,7 @@ class VoiceFiConfig(BaseModel):
     audio_cues: AudioCuesConfig = Field(default_factory=AudioCuesConfig)
     antigravity: AntigravityConfig = Field(default_factory=AntigravityConfig)
     claude: ClaudeConfig = Field(default_factory=ClaudeConfig)
+    codex: CodexConfig = Field(default_factory=CodexConfig)
     companion: CompanionConfig = Field(default_factory=CompanionConfig)
     studio: StudioConfig = Field(default_factory=StudioConfig)
     integrations: IntegrationsConfig = Field(default_factory=IntegrationsConfig)
@@ -415,6 +432,8 @@ class VoiceFiConfig(BaseModel):
         elif key == "cursor":
             return "edge_tts", "en-US-JennyNeural", default_rate
         elif key in ("obsidian", "aria", "emma"):
+            return "edge_tts", "en-US-EmmaNeural", default_rate
+        elif key in ("openai", "codex", "chatgpt"):
             return "edge_tts", "en-US-EmmaNeural", default_rate
         elif key in ("researcher", "architect"):
             return "edge_tts", "en-GB-SoniaNeural", default_rate

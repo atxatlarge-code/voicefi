@@ -980,6 +980,9 @@ class CompanionServer:
                 if target_agent in ("claude", "claude_code"):
                     from voicefi.integrations.claude import handle_claude_stop_hook
                     handle_claude_stop_hook(data, fresh_config)
+                elif target_agent in ("codex", "openai", "chatgpt"):
+                    from voicefi.integrations.codex import handle_codex_stop_hook
+                    handle_codex_stop_hook(data, fresh_config)
                 else:
                     from voicefi.integrations.antigravity import handle_antigravity_stop_hook
                     handle_antigravity_stop_hook(data, fresh_config)

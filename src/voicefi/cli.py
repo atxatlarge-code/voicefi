@@ -113,6 +113,14 @@ def cmd_hook(args):
         if not config.claude.auto_listen and not config.claude.read_summary_aloud:
             print(json.dumps({}))
             return
+    elif target_agent in ("codex", "openai", "chatgpt"):
+        if not getattr(config.hooks, "codex", True) or not getattr(config.integrations, "codex", True):
+            print(json.dumps({}))
+            return
+        codex_cfg = getattr(config, "codex", None)
+        if codex_cfg and not codex_cfg.auto_listen and not codex_cfg.read_summary_aloud:
+            print(json.dumps({}))
+            return
     elif target_agent == "antigravity":
         if not getattr(config.hooks, "antigravity", True) or not getattr(config.integrations, "antigravity", True):
             print(json.dumps({}))
@@ -121,39 +129,56 @@ def cmd_hook(args):
             print(json.dumps({}))
             return
 
-    # Read hook payload from stdin non-blockingly without hanging on unclosed pipes
+    # Read hook payload: first check CLI arguments (e.g. Codex notify: turn-ended '{"type":...}')
     payload = {}
-    try:
-        if not sys.stdin.isatty():
-            has_fileno = False
-            try:
-                fd = sys.stdin.fileno()
-                has_fileno = True
-            except Exception:
-                has_fileno = False
+    extra = getattr(args, "extra_args", []) or []
+    candidate_strings = []
+    if action and action not in ("enable", "disable", "status", "remove", "uninstall", "on", "off"):
+        candidate_strings.append(action)
+    candidate_strings.extend(extra)
+    candidate_strings.extend(sys.argv)
 
-            if has_fileno:
-                import select
-                r, _, _ = select.select([fd], [], [], 0.3)
-                if r:
-                    raw_bytes = b""
-                    while True:
-                        chunk = os.read(fd, 65536)
-                        if not chunk:
-                            break
-                        raw_bytes += chunk
-                        r2, _, _ = select.select([fd], [], [], 0.02)
-                        if not r2:
-                            break
-                    text = raw_bytes.decode("utf-8").strip()
-                    if text:
-                        payload = json.loads(text)
-            else:
-                raw_input = sys.stdin.readline()
-                if raw_input and raw_input.strip():
-                    payload = json.loads(raw_input)
-    except Exception:
-        payload = {}
+    for item in candidate_strings:
+        if isinstance(item, str) and item.strip().startswith("{") and item.strip().endswith("}"):
+            try:
+                payload = json.loads(item.strip())
+                break
+            except Exception:
+                pass
+
+    # Read hook payload from stdin non-blockingly if not found in argv
+    if not payload:
+        try:
+            if not sys.stdin.isatty():
+                has_fileno = False
+                try:
+                    fd = sys.stdin.fileno()
+                    has_fileno = True
+                except Exception:
+                    has_fileno = False
+
+                if has_fileno:
+                    import select
+                    r, _, _ = select.select([fd], [], [], 0.3)
+                    if r:
+                        raw_bytes = b""
+                        while True:
+                            chunk = os.read(fd, 65536)
+                            if not chunk:
+                                break
+                            raw_bytes += chunk
+                            r2, _, _ = select.select([fd], [], [], 0.02)
+                            if not r2:
+                                break
+                        text = raw_bytes.decode("utf-8").strip()
+                        if text:
+                            payload = json.loads(text)
+                else:
+                    raw_input = sys.stdin.readline()
+                    if raw_input and raw_input.strip():
+                        payload = json.loads(raw_input)
+        except Exception:
+            payload = {}
 
     if payload.get("agent"):
         target_agent = str(payload["agent"]).lower().strip()
@@ -166,6 +191,14 @@ def cmd_hook(args):
             print(json.dumps({}))
             return
         if not config.claude.auto_listen and not config.claude.read_summary_aloud:
+            print(json.dumps({}))
+            return
+    elif target_agent in ("codex", "openai", "chatgpt"):
+        if not getattr(config.hooks, "codex", True) or not getattr(config.integrations, "codex", True):
+            print(json.dumps({}))
+            return
+        codex_cfg = getattr(config, "codex", None)
+        if codex_cfg and not codex_cfg.auto_listen and not codex_cfg.read_summary_aloud:
             print(json.dumps({}))
             return
     elif target_agent == "antigravity":
@@ -197,6 +230,9 @@ def cmd_hook(args):
     if target_agent in ("claude", "claude_code"):
         from voicefi.integrations.claude import handle_claude_stop_hook
         result = handle_claude_stop_hook(payload, config)
+    elif target_agent in ("codex", "openai", "chatgpt"):
+        from voicefi.integrations.codex import handle_codex_stop_hook
+        result = handle_codex_stop_hook(payload, config)
     else:
         result = handle_antigravity_stop_hook(payload, config)
 
@@ -3402,9 +3438,10 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
     subparsers = parser.add_subparsers(dest="command", metavar="<command>", help="Available subcommands")
 
     # hook
-    hook_p = subparsers.add_parser("hook", aliases=["hooks"], help="Manage or run AI agent lifecycle hooks (Antigravity, Claude Code)")
-    hook_p.add_argument("action", nargs="?", choices=["enable", "disable", "status", "remove", "uninstall", "on", "off"], default=None, help="Hook management action (enable, disable, status, remove)")
-    hook_p.add_argument("-a", "--agent", type=str, default="antigravity", help="Target agent name (antigravity, claude)")
+    hook_p = subparsers.add_parser("hook", aliases=["hooks"], help="Manage or run AI agent lifecycle hooks (Antigravity, Claude Code, Codex)")
+    hook_p.add_argument("action", nargs="?", default=None, help="Hook management action (enable, disable, status, remove) or event name")
+    hook_p.add_argument("extra_args", nargs="*", default=[], help="Additional hook event arguments or JSON payload")
+    hook_p.add_argument("-a", "--agent", type=str, default="antigravity", help="Target agent name (antigravity, claude, codex)")
     hook_p.add_argument("--enable", action="store_true", help="Enable agent lifecycle hooks in configuration")
     hook_p.add_argument("--disable", action="store_true", help="Disable agent lifecycle hooks in configuration")
     hook_p.add_argument("--status", action="store_true", help="Show hook installation and configuration status")
