@@ -616,8 +616,7 @@ class VoiceFiTrayApp(rumps.App):
         self._companion_started = True
 
         def _run_server():
-            from voicefi.companion.server import CompanionServer
-            from voicefi.companion.relay_client import RelayClient, RelaySessionCredentials
+            from voicefi.companion.server import CompanionServer, start_cloudflared_tunnel
             from aiohttp import web
             import asyncio
             port = getattr(getattr(self, "config", None), "companion", None) and self.config.companion.port or 5141
@@ -628,20 +627,26 @@ class VoiceFiTrayApp(rumps.App):
                 server.loop = loop
                 server._start_watcher_thread()
 
-                # Connect to Cloudflare Durable Objects WebSocket Relay
-                creds = RelaySessionCredentials.load_or_create()
-                relay_client = RelayClient(credentials=creds, relay_url="wss://companion.voicefi.app/v1/relay", local_port=port)
-                server.relay_client = relay_client
-                loop.run_until_complete(relay_client.start())
-
                 app_runner = web.AppRunner(server.app)
                 loop.run_until_complete(app_runner.setup())
                 site = web.TCPSite(app_runner, "0.0.0.0", port)
                 loop.run_until_complete(site.start())
+
+                # Connect to Cloudflare Relay Session (companion.voicefi.app)
+                try:
+                    from voicefi.companion.relay_client import RelayClient, RelaySessionCredentials
+                    creds = RelaySessionCredentials.load_or_create()
+                    relay_client = RelayClient(credentials=creds, relay_url="wss://companion.voicefi.app/v1/relay", local_port=port)
+                    server.relay_client = relay_client
+                    loop.create_task(relay_client.start())
+                except Exception as r_err:
+                    print(f"[TrayApp] Relay client notice: {r_err}", flush=True)
+
                 loop.run_forever()
             except OSError as e:
-                # Port already bound by another process; attach relay client
+                # Port already bound; attach relay client
                 try:
+                    from voicefi.companion.relay_client import RelayClient, RelaySessionCredentials
                     creds = RelaySessionCredentials.load_or_create()
                     relay_client = RelayClient(credentials=creds, relay_url="wss://companion.voicefi.app/v1/relay", local_port=port)
                     relay_loop = asyncio.new_event_loop()

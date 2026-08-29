@@ -116,6 +116,7 @@ class CompanionServer:
         self.app.router.add_get("/manifest.json", self.handle_manifest)
         self.app.router.add_get("/sw.js", self.handle_sw)
         self.app.router.add_get("/antigravity-particles.js", self.handle_antigravity_js)
+        self.app.router.add_get("/assets/antigravity-particles.js", self.handle_antigravity_js)
         self.app.router.add_get("/api/icon", self.handle_icon)
         self.app.router.add_get("/api/status", self.handle_status)
         self.app.router.add_get("/api/ambient/status", self.handle_ambient_status)

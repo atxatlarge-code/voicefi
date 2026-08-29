@@ -1480,21 +1480,23 @@ def parse_full_claude_conversation_details(session_path: Path) -> Dict[str, Any]
     if current_turn:
         turns.append(current_turn)
 
-    # Artifacts: Search for plans in ~/.claude/plans and any workspace docs
+    # Artifacts: Search for plans associated with this session in ~/.claude/plans
     artifacts = []
     claude_plans_dir = Path.home() / ".claude" / "plans"
     if claude_plans_dir.is_dir():
         try:
+            full_session_text = "\n".join(lines)
             for item in sorted(claude_plans_dir.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True):
                 if item.is_file() and item.suffix in (".md", ".markdown"):
-                    artifacts.append({
-                        "name": item.name,
-                        "path": str(item),
-                        "size": item.stat().st_size,
-                        "mtime": item.stat().st_mtime,
-                        "extension": "md",
-                        "is_markdown": True,
-                    })
+                    if item.name in full_session_text or item.stem in full_session_text:
+                        artifacts.append({
+                            "name": item.name,
+                            "path": str(item),
+                            "size": item.stat().st_size,
+                            "mtime": item.stat().st_mtime,
+                            "extension": "md",
+                            "is_markdown": True,
+                        })
         except Exception:
             pass
 

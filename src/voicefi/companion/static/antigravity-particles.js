@@ -85,31 +85,32 @@
     }
 
     reset(initial = false) {
-      const w = this.field.width;
-      const h = this.field.height;
+      const w = this.field.width || window.innerWidth || 800;
+      const h = this.field.height || window.innerHeight || 600;
 
       this.x = Math.random() * w;
       this.y = initial ? Math.random() * h : h + Math.random() * 20;
       
       // Floating speed and size
       if (this.isDust) {
-        this.baseRadius = 0.5 + Math.random() * 1.2;
-        this.vx = (Math.random() - 0.5) * 0.15;
-        this.vy = -(0.08 + Math.random() * 0.2); // Gentle upward float
+        this.baseRadius = 0.6 + Math.random() * 1.2;
+        this.vx = (Math.random() - 0.5) * 0.35;
+        this.vy = -(0.18 + Math.random() * 0.35); // Gentle upward float
         this.mass = 0.5;
-        this.alpha = 0.15 + Math.random() * 0.35;
+        this.alpha = 0.20 + Math.random() * 0.35;
       } else {
-        this.baseRadius = 1.2 + Math.random() * 2.4;
-        this.vx = (Math.random() - 0.5) * 0.4;
-        this.vy = -(0.15 + Math.random() * 0.5); // Zero-gravity upward lift
+        this.baseRadius = 1.4 + Math.random() * 2.6;
+        this.vx = (Math.random() - 0.5) * 0.75;
+        this.vy = -(0.35 + Math.random() * 0.75); // Zero-gravity upward lift
         this.mass = 1.0 + Math.random() * 1.5;
-        this.alpha = 0.4 + Math.random() * 0.55;
+        this.alpha = 0.45 + Math.random() * 0.55;
       }
 
       this.radius = this.baseRadius;
       this.color = this.field.getRandomColor();
       this.phase = Math.random() * Math.PI * 2;
       this.pulseSpeed = 0.02 + Math.random() * 0.03;
+      this.originalVx = this.vx;
       this.originalVy = this.vy;
 
       // Thinking state neural orbital mechanics parameters
@@ -122,6 +123,8 @@
     }
 
     update(dt, pointer, state, audioLevel) {
+      if (isNaN(dt) || dt <= 0) dt = 16.6;
+      if (isNaN(this.x) || isNaN(this.y)) this.reset(true);
       const timeScale = Math.min(dt / 16.6, 2.0);
       this.phase += this.pulseSpeed * timeScale;
       this.neuralPhase += 0.018 * timeScale;
@@ -227,13 +230,13 @@
         this.y += this.vy * timeScale;
 
       } else {
-        // Idle Zero-G Drift
-        let buoyancy = this.field.options.buoyancy;
-        this.vy += buoyancy * timeScale;
+        // Idle Zero-G Organic Drift & Float
+        this.vy += this.field.options.buoyancy * timeScale;
 
-        const drift = Math.sin(this.phase) * (this.isDust ? 0.05 : 0.12);
-        this.x += (this.vx + drift) * timeScale;
-        this.y += this.vy * timeScale;
+        const driftX = Math.sin(this.phase) * (this.isDust ? 0.25 : 0.55);
+        const driftY = Math.cos(this.phase * 0.7) * (this.isDust ? 0.20 : 0.45);
+        this.x += (this.vx + driftX) * timeScale;
+        this.y += (this.vy + driftY) * timeScale;
       }
 
       // 2. Audio-reactive / Neural radius expansion
@@ -267,23 +270,20 @@
         }
       }
 
-      // 4. State-specific Inertial Damping
-      if (state === 'listening') {
-        this.vx *= 0.965;
-        this.vy *= 0.965;
-      } else if (state === 'thinking') {
+      // 4. State-specific Inertial Damping & Natural Flow Return
+      if (state === 'idle') {
+        this.vx += (this.originalVx - this.vx) * 0.02 * timeScale;
+        this.vy += (this.originalVy - this.vy) * 0.02 * timeScale;
+      } else if (state === 'listening' || state === 'thinking') {
         this.vx *= 0.965;
         this.vy *= 0.965;
       } else if (state === 'speaking') {
         this.vx *= 0.94;
         this.vy *= 0.96;
-      } else {
-        this.vx *= 0.94;
-        this.vy *= 0.96;
       }
 
       // Ensure minimum upward float doesn't freeze in idle
-      if (state === 'idle' && Math.abs(this.vy) < 0.05) {
+      if (state === 'idle' && Math.abs(this.vy) < 0.1) {
         this.vy = this.originalVy;
       }
 
@@ -1091,8 +1091,10 @@
 
       const loop = (currentTime) => {
         if (!this.running) return;
-        const dt = Math.min(currentTime - this.lastTime, 50); // Cap delta time
-        this.lastTime = currentTime;
+        const now = (typeof currentTime === 'number' && currentTime > 0) ? currentTime : performance.now();
+        const elapsed = now - (this.lastTime || now);
+        const dt = (isNaN(elapsed) || elapsed <= 0) ? 16.6 : Math.min(elapsed, 50);
+        this.lastTime = now;
 
         this.update(dt);
         this.draw();
