@@ -1,6 +1,6 @@
 # AI Agent Developer & Troubleshooting Guide — VoiceFi™
 
-Universal Voice Layer for Knowledge Vaults, MCP, and Autonomous AI Coding Agents.
+Universal Voice Layer for AI Agents, MCP, and macOS.
 
 ---
 
@@ -17,6 +17,10 @@ Universal Voice Layer for Knowledge Vaults, MCP, and Autonomous AI Coding Agents
 | `vifi dev` | **Live Dev Mode**: Auto-takes over background servers, cleans caches, and streams live console logs. |
 | `vifi setup --dev` | **Link Dev Hooks & MCP**: Points Antigravity and Claude Code hooks & MCP servers directly to local `.venv`. |
 | `vifi mcp` | **Model Context Protocol Server**: Starts native Stdio JSON-RPC 2.0 MCP server exposing voice tools to AI agents. |
+| `vifi pause` / `vifi resume` | **Global Voice Toggle**: Instantly pauses/resumes all VoiceFi audio hooks, auto-listen, and handoffs globally. |
+| `vifi hook status` | **Hook Diagnostic**: Displays active status and configuration of Antigravity & Claude Code lifecycle hooks. |
+| `vifi hook disable` / `vifi hook enable` | **Hook Switch**: Disables or enables agent Stop hooks in `~/.voicefi/config.yaml` without editing files manually. |
+| `vifi hook remove` | **Hook Uninstaller**: Cleanly unregisters hooks from Antigravity and Claude Code configuration files. |
 | `vifi update` | Self-updater: pulls latest GitHub release, upgrades `~/.voicefi/venv`, and reloads hooks. |
 | `vifi update --check` | Check if a newer version is available without installing. |
 | `vifi voice download-ava` | **Instant 0ms Offline Speech Setup**: Guides downloading Apple's **Ava (Premium)** neural voice and auto-configures 0ms offline synthesis. |
@@ -28,6 +32,7 @@ Universal Voice Layer for Knowledge Vaults, MCP, and Autonomous AI Coding Agents
 | `vifi feedback-loop` | **Simultaneous Speak + Listen Test**: Speaks over speakers while monitoring microphone. |
 | `vifi hearing-test` | **Acoustic Verification**: Plays phrase over speakers and tests room microphone STT match %. |
 | `vifi feedback submit "<title>"` | Logs sanitized zero-PII diagnostic report and dispatches to telemetry. |
+| `vifi stats` / `vifi analytics` | **Developer Activity & Tool Analytics**: Shows local turn volume, time saved, tool distributions, and acoustic latency benchmarks. |
 | `vifi panel` | Launch interactive web control panel (`http://localhost:5141`). |
 | `vifi hud debug` | Interactive terminal Dynamic Island HUD Debug Studio. |
 | `python scripts/sync_hud_assets.py` | **HUD & Web Asset Synchronizer**: Captures AppKit HUD screenshots and syncs shared JS/CSS/SVGs to `voicefi.org`. |
@@ -146,6 +151,15 @@ When Antigravity agents collaborate with Claude Code across projects:
   curl -s -X POST http://localhost:5141/api/send -H "Content-Type: application/json" -d '{"text": "Refactoring complete!", "engine": "antigravity", "conv_id": "reply", "sender_name": "Claude"}'
   ```
   Automatically resolves the originating Antigravity conversation ID, dispatches via native `agentapi` IPC, and reactively wakes up the Antigravity agent without screen flicker.
+
+---
+
+### 7. Agent Speech Protocol & MCP Tool Guardrails
+* **No Unsolicited Speech:** AI agents MUST NOT automatically invoke `voicefi_speak` or TTS audio tools on standard conversational replies, explanations, or code summaries.
+* **Zero Response Latency:** Keep text streaming immediately without blocking on audio playback.
+* **When to Invoke `voicefi_speak`:**
+  - ONLY when the user explicitly asks to speak aloud (e.g. *"speak to me"*, *"say this out loud"*, *"test the Viv voice"*).
+  - When explicitly auditing or demonstrating voice synthesis capabilities upon user prompt.
 
 ---
 

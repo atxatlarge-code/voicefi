@@ -36,7 +36,7 @@ This guide details how developers can connect VoiceFi to their daily workflows t
                                                     │
                                                     ▼
                      ┌─────────────────────────────────────────────────────────────┐
-                     │                  VOICEFI CORE AUDIO DAEMON                  │
+                     │                  VOICEFI CORE AUDIO SERVER                  │
                      │  • Streaming STT (Local Whisper / Groq Cloud / Apple Speech)│
                      │  • Neural TTS Personas (Ava, Christopher, Aria, Sonia, Guy) │
                      │  • Silero Energy VAD & Full-Duplex Acoustic Barge-In Safe   │
@@ -609,9 +609,9 @@ Combining VoiceFi with external MCP servers transforms spoken voice into structu
 
 ## 📚 Related Documentation
 
-- [MCP Architecture Specification](file:///Users/jaketrigg/Projects/VoiceFi/docs/MCP_ARCHITECTURE.md)
-- [Unified Dynamic Island HUD Design Guide](file:///Users/jaketrigg/Projects/VoiceFi/docs/HUD_DESIGN_GUIDE.md)
-- [Active Listening & Cognitive Safety Skill](file:///Users/jaketrigg/Projects/VoiceFi/.agents/skills/active-listening/SKILL.md)
-- [Voice Memo Buffer Skill](file:///Users/jaketrigg/Projects/VoiceFi/.agents/skills/voice-memo-buffer/SKILL.md)
-- [Ambient Listener Skill](file:///Users/jaketrigg/Projects/VoiceFi/.agents/skills/ambient-listener/SKILL.md)
-- [Voice Persona Skill](file:///Users/jaketrigg/Projects/VoiceFi/.agents/skills/voice-persona/SKILL.md)
+- [MCP Architecture Specification](MCP_ARCHITECTURE.md)
+- [Unified Dynamic Island HUD Design Guide](HUD_DESIGN_GUIDE.md)
+- [Active Listening & Cognitive Safety Skill](../.agents/skills/active-listening/SKILL.md)
+- [Voice Memo Buffer Skill](../.agents/skills/voice-memo-buffer/SKILL.md)
+- [Ambient Listener Skill](../.agents/skills/ambient-listener/SKILL.md)
+- [Voice Persona Skill](../.agents/skills/voice-persona/SKILL.md)

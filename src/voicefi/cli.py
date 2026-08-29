@@ -1,6 +1,6 @@
 """
 CLI interface for VoiceFi.
-Supports Antigravity hook integration, one-shot voice dictation, daemon loop, and setup.
+Supports Antigravity hook integration, one-shot voice dictation, background server loop, and setup.
 """
 
 import argparse
@@ -31,7 +31,63 @@ from voicefi.memo import (
 
 
 def cmd_hook(args):
-    """Handle AI agent lifecycle hook from stdin."""
+    """Handle AI agent lifecycle hook from stdin or manage hook configurations."""
+    action = getattr(args, "action", None)
+    if getattr(args, "disable", False):
+        action = "disable"
+    elif getattr(args, "enable", False):
+        action = "enable"
+    elif getattr(args, "status", False):
+        action = "status"
+    elif getattr(args, "remove", False):
+        action = "remove"
+
+    if action in ("disable", "off"):
+        config = load_config(args.config)
+        config.hooks.enabled = False
+        save_config(config)
+        print("🛑 VoiceFi hooks disabled globally (config.yaml: hooks.enabled = false).")
+        print("   Agent Stop hooks will immediately return without audio, microphone, or keyboard activity.")
+        return
+
+    if action in ("enable", "on"):
+        config = load_config(args.config)
+        config.hooks.enabled = True
+        save_config(config)
+        print("✅ VoiceFi hooks enabled globally (config.yaml: hooks.enabled = true).")
+        return
+
+    if action in ("remove", "uninstall"):
+        from voicefi.integrations.antigravity import remove_antigravity_hook
+        from voicefi.integrations.claude import remove_claude_hook
+        remove_antigravity_hook()
+        remove_claude_hook()
+        print("🗑️ VoiceFi hooks removed from Antigravity and Claude Code configuration files.")
+        return
+
+    if action == "status":
+        config = load_config(args.config)
+        from voicefi.server import get_full_server_status
+        st = get_full_server_status()
+        hooks = st.get("hooks", {})
+        print("\n🪝 VoiceFi Agent Lifecycle Hook Status")
+        print("==================================================================")
+        print(f"  • Global Hooks Enabled:    {'🟢 YES' if (config.enabled and config.hooks.enabled) else '🔴 NO (Disabled)'}")
+        print(f"  • VoiceFi Master Switch:   {'🟢 Enabled' if config.enabled else '⚪ Paused (enabled: false)'}")
+        print(f"  • Config Hooks Switch:     {'🟢 Enabled' if config.hooks.enabled else '🔴 Disabled (hooks.enabled: false)'}")
+        print("\n  📦 Agent Configurations:")
+        print(f"    • Antigravity Hook Active: {'🟢 Enabled' if config.hooks.antigravity else '🔴 Disabled'}")
+        print(f"      - Auto Listen:           {'✅ Yes' if config.antigravity.auto_listen else '❌ No'}")
+        print(f"      - Read Summary Aloud:    {'✅ Yes' if config.antigravity.read_summary_aloud else '❌ No'}")
+        print(f"      - Installed In Plugin:   {hooks.get('antigravity') or '❌ Not installed'}")
+        print(f"    • Claude Code Hook Active: {'🟢 Enabled' if config.hooks.claude else '🔴 Disabled'}")
+        print(f"      - Auto Listen:           {'✅ Yes' if config.claude.auto_listen else '❌ No'}")
+        print(f"      - Read Summary Aloud:    {'✅ Yes' if config.claude.read_summary_aloud else '❌ No'}")
+        print(f"      - Installed In Settings: {hooks.get('claude') or '❌ Not installed'}")
+        print("==================================================================\n")
+        print("💡 Commands: 'vifi hook disable' | 'vifi hook enable' | 'vifi hook remove' | 'vifi pause'\n")
+        return
+
     try:
         with open("/tmp/antigravity_hook_test.log", "a") as f:
             f.write(f"[{time.time()}] HOOK CALLED with args={args}\n")
@@ -39,6 +95,27 @@ def cmd_hook(args):
         pass
     config = load_config(args.config)
     target_agent = getattr(args, "agent", "antigravity").lower().strip()
+
+    # 1. Instant kill-switch guard: if VoiceFi is globally paused or hooks are disabled
+    if not config.enabled or not getattr(config.hooks, "enabled", True):
+        print(json.dumps({}))
+        return
+
+    # 2. Per-agent hook disable guard
+    if target_agent in ("claude", "claude_code"):
+        if not getattr(config.hooks, "claude", True) or not getattr(config.integrations, "claude_code", True):
+            print(json.dumps({}))
+            return
+        if not config.claude.auto_listen and not config.claude.read_summary_aloud:
+            print(json.dumps({}))
+            return
+    elif target_agent == "antigravity":
+        if not getattr(config.hooks, "antigravity", True) or not getattr(config.integrations, "antigravity", True):
+            print(json.dumps({}))
+            return
+        if not config.antigravity.auto_listen and not config.antigravity.read_summary_aloud:
+            print(json.dumps({}))
+            return
 
     # Read hook payload from stdin non-blockingly without hanging on unclosed pipes
     payload = {}
@@ -79,6 +156,22 @@ def cmd_hook(args):
     else:
         payload["agent"] = target_agent
 
+    # Re-check per-agent guard with payload agent if specified
+    if target_agent in ("claude", "claude_code"):
+        if not getattr(config.hooks, "claude", True) or not getattr(config.integrations, "claude_code", True):
+            print(json.dumps({}))
+            return
+        if not config.claude.auto_listen and not config.claude.read_summary_aloud:
+            print(json.dumps({}))
+            return
+    elif target_agent == "antigravity":
+        if not getattr(config.hooks, "antigravity", True) or not getattr(config.integrations, "antigravity", True):
+            print(json.dumps({}))
+            return
+        if not config.antigravity.auto_listen and not config.antigravity.read_summary_aloud:
+            print(json.dumps({}))
+            return
+
     # Set base zero-PII hook telemetry
     setattr(args, "_telemetry_extra", {
         "hook_agent": target_agent,
@@ -93,7 +186,7 @@ def cmd_hook(args):
     if server_resp and server_resp.get("status") == "handled":
         if hasattr(args, "_telemetry_extra") and isinstance(args._telemetry_extra, dict):
             args._telemetry_extra["ipc_forwarded"] = True
-        print(json.dumps({"decision": "allow", "forwarded": True}))
+        print(json.dumps({}))
         return
 
     # Standalone fallback: execute in-process if background server is offline
@@ -103,8 +196,11 @@ def cmd_hook(args):
     else:
         result = handle_antigravity_stop_hook(payload, config)
 
-    # Output JSON object as required by hook contract
-    print(json.dumps(result))
+    # Output clean JSON object as required by hook contract
+    out = result if isinstance(result, dict) else {}
+    if "decision" in out and out["decision"] == "allow":
+        out["decision"] = "approve"
+    print(json.dumps(out))
 
 
 def cmd_speak(args):
@@ -125,6 +221,11 @@ def cmd_speak(args):
         rate_override=rate_override,
     )
     text = " ".join(args.text)
+    try:
+        from voicefi.integrations.conversations import claim_active_conversation_turn
+        claim_active_conversation_turn(text)
+    except Exception:
+        pass
     print(f"🔊 Speaking ({tts.voice}): {text}")
     start_speak = time.time()
     err = None
@@ -292,7 +393,97 @@ def cmd_send(args):
         print(f"✅ Delivered successfully to {target_engine.capitalize()}.")
     else:
         print(f"⚠️ Could not deliver directly to {target_engine.capitalize()}.", file=sys.stderr)
+
+    try:
+        from voicefi.telemetry import capture_agent_dispatch
+        capture_agent_dispatch(
+            source_engine=from_engine,
+            target_engine=target_engine,
+            is_reply=getattr(args, "reply", False),
+            char_count=len(text.strip()),
+            success=success,
+        )
+    except Exception:
+        pass
+
+    if not success:
         sys.exit(1)
+
+
+def cmd_duel(args):
+    """Run an acoustic voice banter / joke duel between Antigravity and Claude Code."""
+    turns = getattr(args, "turns", 3) or 3
+    live = getattr(args, "live", False)
+    from voicefi.config import load_config
+    from voicefi.tts import get_tts_engine
+    import time
+
+    cfg = load_config()
+    tts_antigravity = get_tts_engine(cfg, agent_name="antigravity")
+    tts_claude = get_tts_engine(cfg, agent_name="claude")
+
+    rounds = [
+        (
+            "Hey Claude! Why do programmers prefer dark mode? ... Because light attracts bugs! Alright Claude, your turn. Hit me with one back!",
+            "Haha, classic! Alright Antigravity, try this one: Why did the neural network cross the road? ... To optimize the loss function on the other side! Give me round two!"
+        ),
+        (
+            "Stochastic humor, I love it! Here is my second one: There are 10 types of people in the world... those who understand binary, and those who do not. Your move, Claude!",
+            "Very retro! Here is mine: Why was the JavaScript developer sad? ... Because they did not Node how to Express themselves! Hit me with your third one, Antigravity!"
+        ),
+        (
+            "Poor JavaScript, always asynchronously crying! Alright, here is my final joke: A SQL query walks into a bar, walks up to two tables and asks... Can I join you? Claude, bring us home with your grand finale!",
+            "Brilliant relational humor! Here is the grand finale: How many programmers does it take to change a lightbulb? ... None, that is a hardware problem! That was three rounds of high-latency comedy, Antigravity. Great bantering with you!"
+        ),
+    ]
+
+    print("\n🎭 ══════════════════════════════════════════════════════════════════")
+    print("   VoiceFi Acoustic Voice Banter Test: Ava ↔ Steffan")
+    print(f"   Rounds: {min(turns, len(rounds))} | Mode: Audio Benchmark | Live Dispatch: {'ON' if live else 'OFF'}")
+    print("══════════════════════════════════════════════════════════════════\n")
+
+    for i in range(min(turns, len(rounds))):
+        agy_text, cld_text = rounds[i]
+        print(f"🥊 Round {i+1} — Antigravity (Ava):")
+        print(f"   \"{agy_text}\"\n")
+        tts_antigravity.speak(agy_text, block=True)
+        time.sleep(0.4)
+
+        if live:
+            from voicefi.integrations.injector import send_message_to_agent
+            send_message_to_agent(text=agy_text, target_engine="claude", include_envelope=True)
+
+        print(f"🥊 Round {i+1} — Claude Code (Steffan):")
+        print(f"   \"{cld_text}\"\n")
+        tts_claude.speak(cld_text, block=True)
+        time.sleep(0.1)
+        
+        # Play corny SFX after punchlines!
+        from voicefi.audio.sfx import play_sfx
+        if i == 0:
+            play_sfx("drum_smash", block=True)
+        elif i == 1:
+            play_sfx("honk", block=True)
+        elif i == 2:
+            play_sfx("applause", block=True)
+        time.sleep(0.4)
+
+    print("✨ Duel complete! Both agents delivered their punchlines.\n")
+
+
+def cmd_sfx(args):
+    """Play a comedy or dramatic sound effect (drum_smash, honk, sad_trombone, applause, boing, crickets)."""
+    name = getattr(args, "name", "drum_smash") or "drum_smash"
+    volume = getattr(args, "volume", 1.0) or 1.0
+    from voicefi.audio.sfx import play_sfx, list_available_sfx
+    if name == "list":
+        print(f"🎵 Available sound effects: {', '.join(list_available_sfx())}")
+        return
+    success = play_sfx(name, block=True, volume=volume)
+    if not success:
+        print(f"⚠️ Unknown SFX: '{name}'. Available: {list_available_sfx()}", file=sys.stderr)
+        sys.exit(1)
+
 
 
 
@@ -470,15 +661,23 @@ def cmd_mcp(args):
 
 
 def cmd_setup(args):
-    """Automatically register VoiceFi lifecycle hooks and MCP server with AI agents (Antigravity, Claude Code)."""
+    """Automatically register VoiceFi lifecycle hooks and MCP server with AI agents (Antigravity, Claude Code, Claude Desktop)."""
     import shutil
-    from voicefi.integrations.claude import install_claude_hook
+    from voicefi.integrations.claude import install_claude_hook, install_claude_desktop_mcp
     from voicefi.integrations.discovery import AgentToolDetector
 
     setup_all = getattr(args, "all", False)
     setup_claude = getattr(args, "claude", False) or setup_all
     setup_antigravity = getattr(args, "antigravity", False) or setup_all
     is_dev = getattr(args, "dev", False)
+
+    if getattr(args, "remove_hooks", False):
+        from voicefi.integrations.antigravity import remove_antigravity_hook
+        from voicefi.integrations.claude import remove_claude_hook
+        remove_antigravity_hook()
+        remove_claude_hook()
+        print("🗑️ VoiceFi hooks removed from Antigravity and Claude Code configuration files.")
+        return
 
     # If no explicit agent flags are specified, auto-detect active systems
     if not getattr(args, "claude", False) and not getattr(args, "antigravity", False) and not setup_all:
@@ -663,6 +862,12 @@ def cmd_setup(args):
             print(f"✅ Claude Code hook installed: {claude_settings}")
         except Exception as e:
             print(f"⚠️ Could not install Claude Code hook: {e}")
+        try:
+            claude_desktop_cfg = install_claude_desktop_mcp(bin_path=bin_path)
+            if claude_desktop_cfg:
+                print(f"✅ Claude Desktop MCP server registered: {claude_desktop_cfg}")
+        except Exception as e:
+            print(f"⚠️ Could not register Claude Desktop MCP server: {e}")
 
     # Ensure config file exists and defaults to Viv for overall and antigravity
     config_path = get_default_config_path()
@@ -986,11 +1191,13 @@ def cmd_companion(args):
     host = getattr(args, "host", "0.0.0.0")
     print_qr = not getattr(args, "no_qr", False)
     open_browser = getattr(args, "open", False)
+    tunnel = getattr(args, "tunnel", False)
     run_companion_server(
         port=port,
         host=host,
         print_qr=print_qr,
         open_browser=open_browser,
+        tunnel=tunnel,
         config=config,
     )
 
@@ -2489,6 +2696,52 @@ def cmd_info(args):
     print("Run 'vifi ping --all' to test connection & speeds, or 'vifi dev' for live development.\n")
 
 
+def cmd_stats(args):
+    """View local developer activity, tool usage, time saved, and acoustic latency benchmarks."""
+    from voicefi.analytics import (
+        print_stats_dashboard,
+        export_events_json,
+        export_events_csv,
+        clean_analytics_data,
+        reset_analytics_data,
+    )
+
+    if getattr(args, "reset", False):
+        if getattr(args, "force", False) or input("⚠️ Are you sure you want to wipe all local analytics data? [y/N] ").strip().lower() in ("y", "yes"):
+            reset_analytics_data()
+            print("✅ Successfully wiped local analytics database (~/.voicefi/analytics.db).")
+            return
+        else:
+            print("Operation cancelled.")
+            return
+
+    clean_days = getattr(args, "clean", None)
+    if clean_days is not None:
+        days_val = int(clean_days) if clean_days > 0 else 30
+        pruned = clean_analytics_data(retention_days=days_val)
+        print(f"✅ Cleaned local analytics: {pruned} records older than {days_val} days purged.")
+        return
+
+    days = 7
+    if getattr(args, "today", False):
+        days = 1
+    elif getattr(args, "all", False):
+        days = 0
+    elif getattr(args, "days", None) is not None:
+        days = int(args.days)
+
+    export_fmt = getattr(args, "export", None)
+    if export_fmt:
+        if str(export_fmt).lower() == "csv":
+            print(export_events_csv(days=days))
+        else:
+            print(export_events_json(days=days))
+        return
+
+    print_stats_dashboard(days=days)
+
+
+
 def cmd_hud(args):
     """Control, configure, and debug Unified Dynamic Island HUD on macOS."""
     action = getattr(args, "hud_action", "test")
@@ -3001,8 +3254,13 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
     subparsers = parser.add_subparsers(dest="command", metavar="<command>", help="Available subcommands")
 
     # hook
-    hook_p = subparsers.add_parser("hook", help="Run as AI agent lifecycle hook (Antigravity, Claude Code)")
+    hook_p = subparsers.add_parser("hook", aliases=["hooks"], help="Manage or run AI agent lifecycle hooks (Antigravity, Claude Code)")
+    hook_p.add_argument("action", nargs="?", choices=["enable", "disable", "status", "remove", "uninstall", "on", "off"], default=None, help="Hook management action (enable, disable, status, remove)")
     hook_p.add_argument("-a", "--agent", type=str, default="antigravity", help="Target agent name (antigravity, claude)")
+    hook_p.add_argument("--enable", action="store_true", help="Enable agent lifecycle hooks in configuration")
+    hook_p.add_argument("--disable", action="store_true", help="Disable agent lifecycle hooks in configuration")
+    hook_p.add_argument("--status", action="store_true", help="Show hook installation and configuration status")
+    hook_p.add_argument("--remove", action="store_true", help="Remove hook definitions from agent settings")
 
     # speak
     speak_p = subparsers.add_parser("speak", help="Speak text aloud")
@@ -3019,6 +3277,7 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
     setup_p.add_argument("--antigravity", action="store_true", help="Setup Antigravity")
     setup_p.add_argument("--mcp", action="store_true", help="Setup Model Context Protocol (MCP) server configuration")
     setup_p.add_argument("--dev", action="store_true", help="Link agent hooks to current repository local .venv")
+    setup_p.add_argument("--remove-hooks", "--uninstall-hooks", dest="remove_hooks", action="store_true", help="Remove VoiceFi hooks from agent configurations")
     
     # mcp
     mcp_p = subparsers.add_parser("mcp", aliases=["mcp-server"], help="Start native Model Context Protocol (MCP) stdio server")
@@ -3068,12 +3327,13 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
     subparsers.add_parser("autostart", help="Register macOS LaunchAgent to keep menu bar icon persistent")
     subparsers.add_parser("stop-autostart", help="Remove macOS LaunchAgent autostart")
 
-    # companion / remote
-    comp_p = subparsers.add_parser("companion", aliases=["remote"], help="Launch Web & Mobile Voice Companion (PWA & QR code)")
+    # companion / remote / pair
+    comp_p = subparsers.add_parser("companion", aliases=["remote", "pair"], help="Launch Web & Mobile Voice Companion (PWA & QR code)")
     comp_p.add_argument("--port", type=int, default=5141, help="Port to run companion server (default: 5141)")
     comp_p.add_argument("--host", type=str, default="0.0.0.0", help="Host address to bind (default: 0.0.0.0)")
     comp_p.add_argument("--no-qr", action="store_true", help="Do not print terminal QR code")
     comp_p.add_argument("--open", action="store_true", help="Open local companion in default browser")
+    comp_p.add_argument("--tunnel", action="store_true", help="Start trusted HTTPS Cloudflare tunnel for remote / mobile LTE/5G access anywhere")
 
     # panel
     panel_p = subparsers.add_parser("panel", help="Launch interactive Voice Control Panel")
@@ -3417,17 +3677,38 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
     ava_top.add_argument("--timeout", type=int, default=300, help="Polling timeout in seconds (default: 300)")
     ava_top.add_argument("-s", "--silent", "-q", "--quiet", dest="silent", action="store_true", help="Silent mode")
 
+    # stats / analytics / insights
+    stats_p = subparsers.add_parser("stats", aliases=["analytics", "insights"], help="View local developer activity, tool usage, time saved, and acoustic latency benchmarks")
+    stats_p.add_argument("-d", "--days", type=int, default=7, help="Number of days to analyze (default: 7)")
+    stats_p.add_argument("--today", action="store_true", help="Show only today's activity")
+    stats_p.add_argument("--all", action="store_true", help="Show all-time activity")
+    stats_p.add_argument("--export", choices=["json", "csv"], default=None, help="Export local analytics event log as JSON or CSV")
+    stats_p.add_argument("--clean", type=int, nargs="?", const=30, default=None, help="Purge local records older than N days (default: 30)")
+    stats_p.add_argument("--reset", action="store_true", help="Completely wipe local analytics database (~/.voicefi/analytics.db)")
+    stats_p.add_argument("--force", action="store_true", help="Bypass confirmation prompt for reset")
+
     # send / dispatch
-    send_p = subparsers.add_parser("send", aliases=["dispatch"], help="Send message/task across agents (Antigravity ↔ Claude Code)")
+    send_p = subparsers.add_parser("send", aliases=["dispatch"], help="Send message/task across agents by Conversation ID (Antigravity ↔ Claude Code)")
     send_p.add_argument("text", nargs="+", help="Message or prompt to send")
     send_p.add_argument("--to", type=str, default="claude", choices=["claude", "antigravity"], help="Target agent engine (claude, antigravity)")
-    send_p.add_argument("--conv-id", "--id", dest="conv_id", type=str, default=None, help="Target conversation ID or 'active'")
-    send_p.add_argument("--reply", action="store_true", help="Reply to the most recent originating conversation")
+    send_p.add_argument("--conv-id", "--id", dest="conv_id", type=str, default=None, help="Target conversation ID (default: active conversation)")
+    send_p.add_argument("--reply", action="store_true", help="Reply directly to the originating conversation ID")
     send_p.add_argument("--from-conv-id", "--from", dest="from_conv_id", type=str, default=None, help="Originating conversation ID")
     send_p.add_argument("--from-engine", type=str, default="antigravity", help="Originating agent engine")
     send_p.add_argument("--title", type=str, default=None, help="Message title / heading")
     send_p.add_argument("--sender", dest="sender_name", type=str, default=None, help="Sender attribution (e.g. Claude, Antigravity)")
     send_p.add_argument("--no-envelope", action="store_true", help="Do not include provenance metadata header")
+
+    # duel / banter
+    duel_p = subparsers.add_parser("duel", aliases=["banter", "acoustic-test"], help="Run acoustic banter & voice benchmark test (Ava ↔ Steffan personas)")
+    duel_p.add_argument("--turns", type=int, default=3, help="Number of joke turns (default: 3)")
+    duel_p.add_argument("--topic", type=str, default="programming jokes", help="Duel topic")
+    duel_p.add_argument("--live", action="store_true", help="Live dispatch prompts to Claude Code terminal session")
+
+    # sfx / sound cues
+    sfx_p = subparsers.add_parser("sfx", aliases=["sound"], help="Play comedy or dramatic audio cues (drum_smash, honk, sad_trombone, applause)")
+    sfx_p.add_argument("name", nargs="?", default="drum_smash", help="Sound effect name (drum_smash, honk, sad_trombone, applause, boing, crickets, list)")
+    sfx_p.add_argument("--volume", "-v", type=float, default=1.0, help="Playback volume (0.1 - 2.0)")
 
     # help
     subparsers.add_parser("help", help="Display help and command usage")
@@ -3454,6 +3735,13 @@ def main():
         sys.exit(0)
 
     commands = {
+        "sfx": cmd_sfx,
+        "sound": cmd_sfx,
+        "duel": cmd_duel,
+        "banter": cmd_duel,
+        "stats": cmd_stats,
+        "analytics": cmd_stats,
+        "insights": cmd_stats,
         "send": cmd_send,
         "dispatch": cmd_send,
         "update": cmd_update,
@@ -3482,6 +3770,7 @@ def main():
         "stop-autostart": cmd_stop_autostart,
         "companion": cmd_companion,
         "remote": cmd_companion,
+        "pair": cmd_companion,
         "panel": cmd_panel,
         "info": cmd_info,
         "obsidian": cmd_obsidian,
@@ -3507,6 +3796,7 @@ def main():
         "purge": cmd_clean,
         "reset-cache": cmd_clean,
         "server": cmd_server,
+
         "service": cmd_server,
         "daemon": cmd_server,
         "status": lambda a: cmd_server(argparse.Namespace(server_action="status", config=getattr(a, "config", None))),

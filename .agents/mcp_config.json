@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "voicefi": {
-      "command": "/Users/jaketrigg/Projects/VoiceFi/.venv/bin/voicefi",
+      "command": "/opt/homebrew/Cellar/vifi/0.1.0/libexec/bin/voicefi",
       "args": [
         "mcp"
       ]

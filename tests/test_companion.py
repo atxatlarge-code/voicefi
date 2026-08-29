@@ -121,8 +121,8 @@ class CompanionServerTestCase(AioHTTPTestCase):
             mock_send.assert_called_once_with(
                 conv_id="test-conv-123",
                 text="Run unit tests",
-                sender_name=None,
-                title=None,
+                sender_name="ViFi Companion",
+                title="Message from ViFi Companion",
                 target_engine=None,
                 from_conv_id=None,
                 from_engine=None,
@@ -205,6 +205,33 @@ class CompanionServerTestCase(AioHTTPTestCase):
         assert "qr_data_uri" in data
         assert data["qr_data_uri"].startswith("data:image/png;base64,")
 
+    async def test_api_tunnel_endpoints(self):
+        """Test GET /api/tunnel/status and POST /api/tunnel/start."""
+        # 1. Test status before start
+        resp_status = await self.client.get("/api/tunnel/status")
+        assert resp_status.status == 200
+        data_status = await resp_status.json()
+        assert "active" in data_status
+
+        # 2. Test starting tunnel with mock
+        with patch("voicefi.companion.server.get_active_tunnel_url", return_value=None), \
+             patch("voicefi.companion.server.start_cloudflared_tunnel", return_value="https://test-quick-tunnel.trycloudflare.com"):
+            resp_start = await self.client.post("/api/tunnel/start")
+            assert resp_start.status == 200
+            data_start = await resp_start.json()
+            assert data_start.get("status") == "success"
+            assert data_start.get("tunnel_url") == "https://test-quick-tunnel.trycloudflare.com"
+            assert "urls" in data_start
+            assert data_start["urls"]["tunnel_url"] == "https://test-quick-tunnel.trycloudflare.com"
+
+        # 3. Test QR endpoint reflects active tunnel
+        with patch("voicefi.companion.server.get_active_tunnel_url", return_value="https://test-quick-tunnel.trycloudflare.com"):
+            resp_qr = await self.client.get("/api/qr")
+            assert resp_qr.status == 200
+            data_qr = await resp_qr.json()
+            assert data_qr.get("active_tunnel_url") == "https://test-quick-tunnel.trycloudflare.com"
+            assert data_qr.get("preferred_url") == "https://test-quick-tunnel.trycloudflare.com"
+
     async def test_websocket_channel(self):
         """Test bidirectional WebSocket handshake and event broadcasting."""
         ws = await self.client.ws_connect("/ws")
@@ -230,7 +257,12 @@ class CompanionServerTestCase(AioHTTPTestCase):
             msg_conf = await ws.receive_json()
             assert msg_conf.get("type") == "user_command_injected"
             assert msg_conf.get("text") == "Check git diff"
-            mock_send.assert_called_once_with(conv_id="test-conv-456", text="Check git diff")
+            mock_send.assert_called_once_with(
+                conv_id="test-conv-456",
+                text="Check git diff",
+                sender_name="ViFi Companion",
+                title="Message from ViFi Companion",
+            )
 
         # 4. Test server broadcasting agent turn completion
         self.companion_server.broadcast_turn_completion(

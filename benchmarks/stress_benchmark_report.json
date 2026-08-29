@@ -1,0 +1,199 @@
+{
+  "timestamp": "2026-08-29T04:55:49.770930+00:00",
+  "environment": {
+    "platform": "macOS-26.5.1-arm64-arm-64bit-Mach-O",
+    "python_version": "3.14.3",
+    "cpu_count": 18,
+    "memory_total_gb": 64.0
+  },
+  "summary": {
+    "total_requests_executed": 510,
+    "total_errors": 0,
+    "overall_error_rate_pct": 0.0,
+    "lock_depth_clean": true,
+    "agent_speaking_clean": true,
+    "initial_child_processes": 0,
+    "final_child_processes": 0,
+    "orphaned_child_processes": 0,
+    "initial_file_descriptors": 4,
+    "final_file_descriptors": 4,
+    "fd_growth": 0
+  },
+  "benchmarks": {
+    "mcp_stdio": {
+      "sequential_50": {
+        "requests": 50,
+        "errors": 0,
+        "error_rate_pct": 0.0,
+        "total_time_s": 1.8006,
+        "throughput_rps": 27.77,
+        "total_chars": 565,
+        "synthesis_cps": 313.79,
+        "latency_ms": {
+          "min": 0.021,
+          "mean": 36.006,
+          "p50": 0.122,
+          "p90": 51.329,
+          "p95": 59.462,
+          "p99": 1405.923,
+          "max": 1405.923
+        }
+      },
+      "concurrent_50_workers_20": {
+        "requests": 50,
+        "concurrency": 20,
+        "errors": 0,
+        "error_rate_pct": 0.0,
+        "total_time_s": 0.2131,
+        "throughput_rps": 234.59,
+        "total_chars": 661,
+        "synthesis_cps": 3101.28,
+        "latency_ms": {
+          "min": 0.021,
+          "mean": 23.887,
+          "p50": 0.165,
+          "p90": 132.965,
+          "p95": 169.162,
+          "p99": 176.01,
+          "max": 176.01
+        }
+      }
+    },
+    "http_rest": {
+      "sequential_50": {
+        "requests": 50,
+        "errors": 0,
+        "error_rate_pct": 0.0,
+        "total_time_s": 1.7291,
+        "throughput_rps": 28.92,
+        "total_chars": 348,
+        "synthesis_cps": 201.26,
+        "latency_ms": {
+          "min": 1.365,
+          "mean": 34.56,
+          "p50": 2.781,
+          "p90": 82.331,
+          "p95": 93.347,
+          "p99": 197.392,
+          "max": 197.392
+        }
+      },
+      "concurrent_50_workers_20": {
+        "requests": 50,
+        "concurrency": 20,
+        "errors": 0,
+        "error_rate_pct": 0.0,
+        "total_time_s": 1.7565,
+        "throughput_rps": 28.47,
+        "total_chars": 286,
+        "synthesis_cps": 162.82,
+        "latency_ms": {
+          "min": 1.746,
+          "mean": 398.598,
+          "p50": 12.4,
+          "p90": 1559.985,
+          "p95": 1673.873,
+          "p99": 1718.648,
+          "max": 1718.648
+        }
+      }
+    },
+    "developer_cli": {
+      "sequential_50": {
+        "requests": 50,
+        "errors": 0,
+        "error_rate_pct": 0.0,
+        "total_time_s": 0.1741,
+        "throughput_rps": 287.2,
+        "total_chars": 268,
+        "synthesis_cps": 1539.41,
+        "latency_ms": {
+          "min": 0.017,
+          "mean": 3.477,
+          "p50": 0.045,
+          "p90": 9.092,
+          "p95": 10.609,
+          "p99": 11.222,
+          "max": 11.222
+        }
+      },
+      "concurrent_50_workers_15": {
+        "requests": 50,
+        "concurrency": 15,
+        "errors": 0,
+        "error_rate_pct": 0.0,
+        "total_time_s": 0.1237,
+        "throughput_rps": 404.08,
+        "total_chars": 190,
+        "synthesis_cps": 1535.5,
+        "latency_ms": {
+          "min": 0.02,
+          "mean": 8.715,
+          "p50": 0.093,
+          "p90": 34.198,
+          "p95": 50.206,
+          "p99": 80.297,
+          "max": 80.297
+        }
+      }
+    },
+    "python_sdk": {
+      "sequential_50": {
+        "requests": 50,
+        "errors": 0,
+        "error_rate_pct": 0.0,
+        "total_time_s": 5.9728,
+        "throughput_rps": 8.37,
+        "total_chars": 1340,
+        "synthesis_cps": 224.35,
+        "latency_ms": {
+          "min": 96.975,
+          "mean": 119.451,
+          "p50": 117.005,
+          "p90": 139.804,
+          "p95": 147.482,
+          "p99": 165.269,
+          "max": 165.269
+        }
+      },
+      "concurrent_60_contenders_20": {
+        "requests": 60,
+        "concurrency": 20,
+        "errors": 0,
+        "error_rate_pct": 0.0,
+        "total_time_s": 18.7007,
+        "throughput_rps": 3.21,
+        "total_chars": 1110,
+        "synthesis_cps": 59.36,
+        "latency_ms": {
+          "min": 111.309,
+          "mean": 3842.938,
+          "p50": 3395.342,
+          "p90": 6271.347,
+          "p95": 6305.368,
+          "p99": 9642.189,
+          "max": 9783.504
+        }
+      }
+    },
+    "universal_swarm": {
+      "requests": 100,
+      "concurrency": 20,
+      "errors": 0,
+      "error_rate_pct": 0.0,
+      "total_time_s": 3.2012,
+      "throughput_rps": 31.24,
+      "total_chars": 323,
+      "synthesis_cps": 100.9,
+      "latency_ms": {
+        "min": 0.015,
+        "mean": 396.198,
+        "p50": 1.984,
+        "p90": 1877.9,
+        "p95": 2418.989,
+        "p99": 2447.375,
+        "max": 2448.312
+      }
+    }
+  }
+}

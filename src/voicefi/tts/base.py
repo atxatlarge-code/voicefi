@@ -11,12 +11,12 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Optional, Dict, Any
 
-SPEECH_LOCK_FILE = Path("/tmp/voicefi_speech.lock")
-AGENT_SPEAKING_STATUS_FILE = Path("/tmp/voicefi_speaking.status")
-AUDIO_PLAYING_STATUS_FILE = Path("/tmp/voicefi_audio_playing.status")
-HUD_STATE_STATUS_FILE = Path("/tmp/voicefi_hud_state.json")
-RECENT_SPEECH_FILE = Path("/tmp/voicefi_recent_speech.json")
-_THREAD_LOCK = threading.Lock()
+SPEECH_LOCK_FILE = Path(os.environ.get("VOICEFI_SPEECH_LOCK", "/tmp/voicefi_speech.lock"))
+AGENT_SPEAKING_STATUS_FILE = Path(os.environ.get("VOICEFI_SPEAKING_STATUS", "/tmp/voicefi_speaking.status"))
+AUDIO_PLAYING_STATUS_FILE = Path(os.environ.get("VOICEFI_AUDIO_PLAYING_STATUS", "/tmp/voicefi_audio_playing.status"))
+HUD_STATE_STATUS_FILE = Path(os.environ.get("VOICEFI_HUD_STATE_STATUS", "/tmp/voicefi_hud_state.json"))
+RECENT_SPEECH_FILE = Path(os.environ.get("VOICEFI_RECENT_SPEECH", "/tmp/voicefi_recent_speech.json"))
+_THREAD_LOCK = threading.RLock()
 _IN_PROCESS_SPEAKING = False
 _IN_PROCESS_AUDIO_PLAYING = False
 _ACTIVE_TTS_ENGINES: weakref.WeakSet = weakref.WeakSet()
@@ -321,9 +321,16 @@ def is_agent_speaking() -> bool:
 
 
 def is_system_audio_playing() -> bool:
-    """Check if any macOS speech playback process (afplay or say) is currently producing audio."""
+    """Check if any macOS speech playback process (afplay/say) or streaming audio output is currently producing audio."""
     if os.environ.get("PYTEST_CURRENT_TEST"):
         return False
+
+    try:
+        from voicefi.audio.output_lock import is_audio_output_locked
+        if is_audio_output_locked():
+            return True
+    except Exception:
+        pass
 
     try:
         res_af = subprocess.run(["pgrep", "-x", "afplay"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -390,6 +397,8 @@ def speech_turn_lock(
     Supports re-entrant execution within the same thread/process.
     """
     global _LOCK_DEPTH
+    from voicefi.audio.output_lock import exclusive_audio
+
     with _THREAD_LOCK:
         if _LOCK_DEPTH > 0:
             _LOCK_DEPTH += 1
@@ -423,13 +432,18 @@ def speech_turn_lock(
                 time.sleep(0.1)
                 max_wait -= 1
 
-            # Brief pause for natural conversational handoff between agents
-            time.sleep(0.15)
-            with escape_to_stop_speech():
-                yield
+            # Acquire physical audio output mutex across all OS processes
+            owner_label = f"{agent_name or 'agent'}:{persona_name or 'tts'}"
+            with exclusive_audio(timeout=30.0, owner=owner_label):
+                # Brief pause for natural conversational handoff between agents
+                if not os.environ.get("PYTEST_CURRENT_TEST"):
+                    time.sleep(0.15)
+                with escape_to_stop_speech():
+                    yield
         finally:
             # Acoustic decay margin: allow room reverb / speaker decay to dissipate
-            time.sleep(0.25)
+            if not os.environ.get("PYTEST_CURRENT_TEST"):
+                time.sleep(0.25)
             set_agent_speaking(False)
             if lock_fd is not None:
                 try:
@@ -509,11 +523,16 @@ def get_last_speech_stop_time() -> float:
 def stop_all_speech() -> None:
     """
     Instantly stop any active speech synthesis and audio playback on macOS.
-    Kills any running 'say' or 'afplay' processes, stops all registered TTS engines, and dismisses HUDs.
+    Kills any running 'say' or 'afplay' processes, stops all registered TTS engines, and releases audio lock.
     """
     record_speech_stopped()
     set_agent_speaking(False)
     set_agent_audio_playing(False)
+    try:
+        from voicefi.audio.output_lock import force_release_audio_lock
+        force_release_audio_lock()
+    except Exception:
+        pass
     try:
         AGENT_SPEAKING_STATUS_FILE.unlink(missing_ok=True)
         AUDIO_PLAYING_STATUS_FILE.unlink(missing_ok=True)

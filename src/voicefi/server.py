@@ -19,8 +19,10 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 
+LAUNCHAGENT_LABELS = ["com.voicefi.menubar", "com.voicefi.tray"]
 LAUNCHAGENT_LABEL = "com.voicefi.menubar"
 LAUNCHAGENT_PLIST = Path.home() / "Library" / "LaunchAgents" / f"{LAUNCHAGENT_LABEL}.plist"
+LAUNCHAGENT_PLISTS = [Path.home() / "Library" / "LaunchAgents" / f"{lbl}.plist" for lbl in LAUNCHAGENT_LABELS]
 LOCK_FILE = Path("/tmp/voicefi_tray.lock")
 PID_FILE = Path("/tmp/voicefi_tray.pid")
 
@@ -123,65 +125,53 @@ def find_running_voicefi_processes() -> List[Dict[str, Any]]:
 def get_port_listener(port: int = 5141) -> Optional[Dict[str, Any]]:
     """Find process currently listening on the specified TCP port."""
     try:
-        res = subprocess.run(
-            ["lsof", "-n", "-P", f"-i:{port}", "-sTCP:LISTEN"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            timeout=3,
-        )
-        if res.returncode == 0 and res.stdout.strip():
-            lines = res.stdout.strip().splitlines()
-            if len(lines) > 1:
-                cols = lines[1].split()
-                if len(cols) >= 2:
-                    pname = cols[0]
-                    try:
-                        pid = int(cols[1])
-                        return {
-                            "port": port,
-                            "pid": pid,
-                            "command_name": pname,
-                            "full_info": get_process_info_by_pid(pid),
-                        }
-                    except ValueError:
-                        pass
-    except Exception:
-        pass
+        port = int(port)
+    except (ValueError, TypeError):
+        return None
+
+    for flag in [f"-iTCP:{port}", f"-i:{port}"]:
+        try:
+            res = subprocess.run(
+                ["lsof", "-n", "-P", flag, "-sTCP:LISTEN"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=3,
+            )
+            if res.returncode == 0 and res.stdout.strip():
+                lines = res.stdout.strip().splitlines()
+                for line in lines[1:]:
+                    cols = line.split()
+                    if len(cols) >= 2:
+                        pname = cols[0]
+                        try:
+                            pid = int(cols[1])
+                            if is_pid_running(pid):
+                                return {
+                                    "port": port,
+                                    "pid": pid,
+                                    "command_name": pname,
+                                    "full_info": get_process_info_by_pid(pid),
+                                }
+                        except ValueError:
+                            continue
+        except Exception:
+            pass
     return None
 
 
 def get_launchagent_status() -> Dict[str, Any]:
     """Check macOS LaunchAgent state for VoiceFi."""
     uid = get_current_uid()
-    plist_exists = LAUNCHAGENT_PLIST.is_file()
-    is_loaded = False
-    pid = None
+    for lbl in LAUNCHAGENT_LABELS:
+        plist_path = Path.home() / "Library" / "LaunchAgents" / f"{lbl}.plist"
+        plist_exists = plist_path.is_file()
+        is_loaded = False
+        pid = None
 
-    try:
-        res = subprocess.run(
-            ["launchctl", "list", LAUNCHAGENT_LABEL],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            timeout=3,
-        )
-        if res.returncode == 0:
-            is_loaded = True
-            for line in res.stdout.splitlines():
-                line = line.strip()
-                if line.startswith('"PID"') or line.startswith('"pid"'):
-                    try:
-                        pid = int(line.split("=")[-1].replace(";", "").strip())
-                    except ValueError:
-                        pass
-    except Exception:
-        pass
-
-    if not is_loaded:
         try:
             res = subprocess.run(
-                ["launchctl", "print", f"gui/{uid}/{LAUNCHAGENT_LABEL}"],
+                ["launchctl", "list", lbl],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
@@ -190,20 +180,50 @@ def get_launchagent_status() -> Dict[str, Any]:
             if res.returncode == 0:
                 is_loaded = True
                 for line in res.stdout.splitlines():
-                    if "pid =" in line:
+                    line = line.strip()
+                    if line.startswith('"PID"') or line.startswith('"pid"'):
                         try:
-                            pid = int(line.split("=")[-1].strip())
+                            pid = int(line.split("=")[-1].replace(";", "").strip())
                         except ValueError:
                             pass
         except Exception:
             pass
 
+        if not is_loaded:
+            try:
+                res = subprocess.run(
+                    ["launchctl", "print", f"gui/{uid}/{lbl}"],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    timeout=3,
+                )
+                if res.returncode == 0:
+                    is_loaded = True
+                    for line in res.stdout.splitlines():
+                        if "pid =" in line:
+                            try:
+                                pid = int(line.split("=")[-1].strip())
+                            except ValueError:
+                                pass
+            except Exception:
+                pass
+
+        if is_loaded or plist_exists:
+            return {
+                "label": lbl,
+                "plist_path": str(plist_path),
+                "plist_exists": plist_exists,
+                "is_loaded": is_loaded,
+                "pid": pid,
+            }
+
     return {
         "label": LAUNCHAGENT_LABEL,
         "plist_path": str(LAUNCHAGENT_PLIST),
-        "plist_exists": plist_exists,
-        "is_loaded": is_loaded,
-        "pid": pid,
+        "plist_exists": LAUNCHAGENT_PLIST.is_file(),
+        "is_loaded": False,
+        "pid": None,
     }
 
 
@@ -305,39 +325,41 @@ def stop_all_voicefi_servers(
     stopped_pids = []
     errors = []
 
-    # 1. Unload and disable LaunchAgent first to avoid respawn loops
-    try:
-        subprocess.run(
-            ["launchctl", "bootout", f"gui/{uid}/{LAUNCHAGENT_LABEL}"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            timeout=5,
-        )
-    except Exception as e:
-        errors.append(f"Launchctl bootout notice: {e}")
-
-    try:
-        subprocess.run(
-            ["launchctl", "disable", f"gui/{uid}/{LAUNCHAGENT_LABEL}"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            timeout=5,
-        )
-    except Exception as e:
-        pass
-
-    if LAUNCHAGENT_PLIST.is_file():
+    # 1. Unload and disable LaunchAgents first to avoid respawn loops
+    for lbl in LAUNCHAGENT_LABELS:
         try:
             subprocess.run(
-                ["launchctl", "unload", str(LAUNCHAGENT_PLIST)],
+                ["launchctl", "bootout", f"gui/{uid}/{lbl}"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=5,
+            )
+        except Exception as e:
+            errors.append(f"Launchctl bootout notice for {lbl}: {e}")
+
+        try:
+            subprocess.run(
+                ["launchctl", "disable", f"gui/{uid}/{lbl}"],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 timeout=5,
             )
         except Exception:
             pass
-        if remove_plist:
-            LAUNCHAGENT_PLIST.unlink(missing_ok=True)
+
+    for plist in LAUNCHAGENT_PLISTS:
+        if plist.is_file():
+            try:
+                subprocess.run(
+                    ["launchctl", "unload", str(plist)],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=5,
+                )
+            except Exception:
+                pass
+            if remove_plist:
+                plist.unlink(missing_ok=True)
 
     # 2. Terminate all running VoiceFi processes
     procs = find_running_voicefi_processes()
@@ -355,7 +377,7 @@ def stop_all_voicefi_servers(
         alive = [pid for pid in stopped_pids if is_pid_running(pid)]
         if not alive:
             break
-        time.sleep(0.15)
+        time.sleep(0.1)
 
     # Force kill any stubborn processes
     for pid in stopped_pids:
@@ -377,6 +399,9 @@ def stop_all_voicefi_servers(
                 except Exception:
                     pass
 
+    # Brief settle margin for socket release
+    time.sleep(0.1)
+
     # 4. Clean up lock files and stale state
     clean_lock_files()
 
@@ -392,10 +417,10 @@ def stop_all_voicefi_servers(
 stop_all_voicefi_daemons = stop_all_voicefi_servers
 
 
-def clean_lock_files():
-    """Purge all temporary lock files, cross-process HUD states, and PID markers."""
+def clean_lock_files(only_stale: bool = False):
+    """Purge temporary lock files, cross-process HUD states, and PID markers."""
     tmp_dir = Path("/tmp")
-    for lock in [
+    known_files = [
         LOCK_FILE,
         PID_FILE,
         Path("/tmp/voicefi_active_turns.lock"),
@@ -404,16 +429,62 @@ def clean_lock_files():
         Path("/tmp/voicefi_hud_state.json"),
         Path("/tmp/voicefi_hud_stream.json"),
         Path("/tmp/voicefi_speech_pause.lock"),
-    ]:
+        Path("/tmp/voicefi_speaking.status"),
+        Path("/tmp/voicefi_audio_playing.status"),
+        Path("/tmp/voicefi_recent_speech.json"),
+        Path("/tmp/voicefi_last_speech_stop.ts"),
+    ]
+
+    if not only_stale:
+        for lock in known_files:
+            try:
+                if lock.is_file() or lock.is_symlink():
+                    lock.unlink(missing_ok=True)
+            except Exception:
+                pass
         try:
-            if lock.is_file() or lock.is_symlink():
-                lock.unlink(missing_ok=True)
+            for f in tmp_dir.glob("voicefi*"):
+                try:
+                    if f.is_file() or f.is_symlink():
+                        f.unlink(missing_ok=True)
+                except Exception:
+                    pass
         except Exception:
             pass
+        return
+
+    # Only stale cleanup
     try:
         for f in tmp_dir.glob("voicefi*"):
             try:
-                if f.is_file() or f.is_symlink():
+                if not (f.is_file() or f.is_symlink()):
+                    continue
+                is_stale = False
+                try:
+                    content = f.read_text(errors="ignore").strip()
+                    if content.startswith("{") and "pid" in content:
+                        data = json.loads(content)
+                        if isinstance(data, dict) and "pid" in data:
+                            f_pid = int(data["pid"])
+                            if not is_pid_running(f_pid):
+                                is_stale = True
+                    elif ":" in content:
+                        parts = content.split(":")
+                        if len(parts) >= 2 and parts[0].isdigit():
+                            f_pid = int(parts[0])
+                            if not is_pid_running(f_pid):
+                                is_stale = True
+                except Exception:
+                    pass
+
+                try:
+                    mtime = f.stat().st_mtime
+                    if (time.time() - mtime) > 120.0:
+                        is_stale = True
+                except Exception:
+                    pass
+
+                if is_stale:
                     f.unlink(missing_ok=True)
             except Exception:
                 pass

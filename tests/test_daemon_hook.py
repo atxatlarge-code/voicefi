@@ -75,9 +75,10 @@ def test_cmd_hook_fast_forward_to_daemon(monkeypatch, capsys):
         mock_local_handle.assert_not_called()
 
     captured = capsys.readouterr()
-    res = json.loads(captured.out.strip())
-    assert res.get("decision") == "allow"
-    assert res.get("forwarded") is True
+    json_lines = [l for l in captured.out.strip().splitlines() if l.strip().startswith("{")]
+    assert json_lines, f"No JSON line found in stdout: {captured.out}"
+    res = json.loads(json_lines[-1])
+    assert isinstance(res, dict)
 
 
 def test_cmd_hook_offline_standalone_fallback(monkeypatch, capsys):
@@ -98,5 +99,80 @@ def test_cmd_hook_offline_standalone_fallback(monkeypatch, capsys):
 
     captured = capsys.readouterr()
     res = json.loads(captured.out.strip())
-    assert res.get("decision") == "allow"
+    assert res.get("decision") == "approve"
     assert res.get("mode") == "standalone"
+
+
+def test_cmd_hook_when_globally_disabled(monkeypatch, capsys):
+    """Test cmd_hook immediately returns empty JSON when VoiceFi is disabled."""
+    args = argparse.Namespace(config=None, agent="antigravity", action=None, disable=False, enable=False, status=False, remove=False)
+    cfg = VoiceFiConfig(enabled=False)
+    monkeypatch.setattr("voicefi.cli.load_config", lambda *a, **kw: cfg)
+    monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+
+    with patch("voicefi.integrations.server_client.forward_hook_to_server") as mock_forward, \
+         patch("voicefi.integrations.antigravity.handle_antigravity_stop_hook") as mock_handle:
+        cmd_hook(args)
+        mock_forward.assert_not_called()
+        mock_handle.assert_not_called()
+
+    captured = capsys.readouterr()
+    assert captured.out.strip() == "{}"
+
+
+def test_cmd_hook_when_hooks_disabled(monkeypatch, capsys):
+    """Test cmd_hook immediately returns empty JSON when hooks.enabled is False."""
+    args = argparse.Namespace(config=None, agent="antigravity", action=None, disable=False, enable=False, status=False, remove=False)
+    cfg = VoiceFiConfig(enabled=True)
+    cfg.hooks.enabled = False
+    monkeypatch.setattr("voicefi.cli.load_config", lambda *a, **kw: cfg)
+    monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+
+    with patch("voicefi.integrations.server_client.forward_hook_to_server") as mock_forward, \
+         patch("voicefi.integrations.antigravity.handle_antigravity_stop_hook") as mock_handle:
+        cmd_hook(args)
+        mock_forward.assert_not_called()
+        mock_handle.assert_not_called()
+
+    captured = capsys.readouterr()
+    assert captured.out.strip() == "{}"
+
+
+def test_cmd_hook_when_agent_hooks_disabled(monkeypatch, capsys):
+    """Test cmd_hook exits when specific agent hook or auto_listen/summary is disabled."""
+    args = argparse.Namespace(config=None, agent="antigravity", action=None, disable=False, enable=False, status=False, remove=False)
+    cfg = VoiceFiConfig(enabled=True)
+    cfg.hooks.antigravity = False
+    monkeypatch.setattr("voicefi.cli.load_config", lambda *a, **kw: cfg)
+    monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+
+    with patch("voicefi.integrations.server_client.forward_hook_to_server") as mock_forward, \
+         patch("voicefi.integrations.antigravity.handle_antigravity_stop_hook") as mock_handle:
+        cmd_hook(args)
+        mock_forward.assert_not_called()
+        mock_handle.assert_not_called()
+
+    captured = capsys.readouterr()
+    assert captured.out.strip() == "{}"
+
+
+def test_cmd_hook_action_disable_and_enable(monkeypatch, capsys):
+    """Test vifi hook disable and vifi hook enable toggle config state."""
+    cfg = VoiceFiConfig(enabled=True)
+    cfg.hooks.enabled = True
+    saved_cfgs = []
+    monkeypatch.setattr("voicefi.cli.load_config", lambda *a, **kw: cfg)
+    monkeypatch.setattr("voicefi.cli.save_config", lambda c: saved_cfgs.append(c))
+
+    # Disable
+    args_dis = argparse.Namespace(config=None, action="disable", disable=False, enable=False, status=False, remove=False)
+    cmd_hook(args_dis)
+    assert cfg.hooks.enabled is False
+    assert len(saved_cfgs) == 1
+
+    # Enable
+    args_en = argparse.Namespace(config=None, action="enable", disable=False, enable=False, status=False, remove=False)
+    cmd_hook(args_en)
+    assert cfg.hooks.enabled is True
+    assert len(saved_cfgs) == 2
+

@@ -133,8 +133,12 @@ def handle_claude_stop_hook(
     cfg = config or load_config()
 
     # Guard 2: Instant pause kill-switch check
-    if not cfg.enabled:
+    if not cfg.enabled or not getattr(cfg.hooks, "enabled", True) or not getattr(cfg.hooks, "claude", True):
         return {"status": "paused"}
+    if not getattr(cfg.integrations, "claude_code", True):
+        return {"status": "disabled"}
+    if not cfg.claude.auto_listen and not cfg.claude.read_summary_aloud:
+        return {"status": "disabled"}
 
     # 1. Extract summary text from payload or session file
     text_to_speak = ""
@@ -382,3 +386,81 @@ def install_claude_hook(
     os.replace(temp_file, target_path)
 
     return target_path
+
+
+def remove_claude_hook(settings_path: Optional[Path] = None) -> bool:
+    """
+    Remove VoiceFi Stop hook from ~/.claude/settings.json.
+    """
+    target_path = settings_path or (Path.home() / ".claude" / "settings.json")
+    if not target_path.is_file():
+        return False
+
+    try:
+        with open(target_path, "r", encoding="utf-8") as f:
+            settings_data = json.load(f) or {}
+    except Exception:
+        return False
+
+    if "hooks" not in settings_data or not isinstance(settings_data["hooks"], dict):
+        return True
+
+    stop_hooks = settings_data["hooks"].get("Stop", [])
+    if isinstance(stop_hooks, list):
+        new_stop_hooks = []
+        for item in stop_hooks:
+            item_str = json.dumps(item) if isinstance(item, dict) else str(item)
+            if "voicefi" not in item_str and "vifi" not in item_str:
+                new_stop_hooks.append(item)
+        if new_stop_hooks:
+            settings_data["hooks"]["Stop"] = new_stop_hooks
+        else:
+            del settings_data["hooks"]["Stop"]
+            if not settings_data["hooks"]:
+                del settings_data["hooks"]
+
+    temp_file = target_path.with_suffix(".json.tmp")
+    with open(temp_file, "w", encoding="utf-8") as f:
+        json.dump(settings_data, f, indent=2)
+    os.replace(temp_file, target_path)
+    return True
+
+
+def install_claude_desktop_mcp(
+    config_path: Optional[Path] = None,
+    bin_path: Optional[str] = None,
+) -> Optional[Path]:
+    """
+    Register VoiceFi MCP server in Claude Desktop's claude_desktop_config.json.
+    Exposes voicefi_speak, voicefi_send, voicefi_sfx, voicefi_listen tools directly to Claude.
+    """
+    import shutil
+    target_path = config_path or (Path.home() / "Library" / "Application Support" / "Claude" / "claude_desktop_config.json")
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+
+    data: Dict[str, Any] = {}
+    if target_path.is_file():
+        try:
+            with open(target_path, "r", encoding="utf-8") as f:
+                data = json.load(f) or {}
+        except Exception:
+            data = {}
+
+    executable = bin_path or shutil.which("vifi") or shutil.which("voicefi") or "vifi"
+    mcp_entry = {
+        "command": executable,
+        "args": ["mcp"],
+    }
+
+    if "mcpServers" not in data or not isinstance(data["mcpServers"], dict):
+        data["mcpServers"] = {}
+
+    data["mcpServers"]["voicefi"] = mcp_entry
+
+    temp_file = target_path.with_suffix(".json.tmp")
+    with open(temp_file, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+    os.replace(temp_file, target_path)
+
+    return target_path
+

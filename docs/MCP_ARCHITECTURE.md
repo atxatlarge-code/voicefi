@@ -1,6 +1,6 @@
 # 📐 VoiceFi™ Architecture: The Universal MCP Voice Layer
 > **Model Context Protocol (MCP) Server & Client Integration Specification**  
-> **Target:** VoiceFi Core Daemon, CLI, & Multi-Agent Orchestration  
+> **Target:** VoiceFi Core Server, CLI, & Multi-Agent Orchestration  
 > **Patent Reference:** U.S. Patent Application No. 63/137,300 (*LienLogic Data LLC*)
 
 ---
@@ -30,7 +30,7 @@ This document specifies the bidirectional MCP architecture for VoiceFi:
                                         │
                                         ▼
  ┌─────────────────────────────────────────────────────────────────────────────┐
- │                      VOICEFI CORE AUDIO DAEMON                              │
+ │                      VOICEFI CORE AUDIO SERVER                              │
  │  [Streaming STT (Whisper/Groq)] ◄──► [TTS Personas] ◄──► [Energy VAD Engine]│
  └──────────────────────────────────────┬──────────────────────────────────────┘
                                         │

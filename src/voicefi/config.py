@@ -94,7 +94,7 @@ class VADConfig(BaseModel):
     engine: Literal["silero", "energy", "auto"] = "auto"
     speech_threshold: float = 0.5
     mode: Literal["auto", "ptt", "hybrid"] = "hybrid"
-    silence_duration: float = 2.0
+    silence_duration: float = 1.4
     energy_threshold: float = 0.004
     max_record_seconds: int = 45
     sample_rate: int = 16000
@@ -147,6 +147,12 @@ class ClaudeConfig(BaseModel):
     max_spoken_words: int = 60
     inject_to_active_window: bool = True
     show_speech_popup: bool = True
+
+
+class HooksConfig(BaseModel):
+    enabled: bool = True
+    antigravity: bool = True
+    claude: bool = True
 
 
 class IntegrationsConfig(BaseModel):
@@ -308,6 +314,7 @@ class VoiceFiConfig(BaseModel):
     companion: CompanionConfig = Field(default_factory=CompanionConfig)
     studio: StudioConfig = Field(default_factory=StudioConfig)
     integrations: IntegrationsConfig = Field(default_factory=IntegrationsConfig)
+    hooks: HooksConfig = Field(default_factory=HooksConfig)
     global_hotkey: GlobalHotkeyConfig = Field(default_factory=GlobalHotkeyConfig)
     hud: HUDConfig = Field(default_factory=HUDConfig)
     memo: MemoConfig = Field(default_factory=MemoConfig)

@@ -310,12 +310,6 @@ class TranscriptWatcher:
             user_content = last_step.get("content", "")
             if isinstance(user_content, str) and user_content.strip():
                 clean_prompt = clean_markdown_for_speech(user_content, max_words=18)
-                cues_cfg = getattr(self.config, "audio_cues", None)
-                if cues_cfg and getattr(cues_cfg, "enabled", True):
-                    sent_chime = getattr(cues_cfg, "sent_chime", "")
-                    if sent_chime:
-                        play_chime(sent_chime, block=False)
-
                 user_name = getattr(self.config, "user_name", "Jake")
                 self._notify_state(
                     "user_prompt",
@@ -448,6 +442,8 @@ class TranscriptWatcher:
                     try:
                         tts.stream_speak(spoken_text, block=True)
                     finally:
+                        from voicefi.tts.base import set_agent_speaking
+                        set_agent_speaking(False)
                         if cfg.antigravity.show_speech_popup:
                             try:
                                 from voicefi.ui.speech_hud import AgentSpeechHUD

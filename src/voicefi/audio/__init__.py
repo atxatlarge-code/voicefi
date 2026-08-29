@@ -19,9 +19,20 @@ from voicefi.audio.vad import (
     find_silero_vad_model,
 )
 
+from voicefi.audio.player import StreamingAudioPlayer
+from voicefi.audio.output_lock import (
+    exclusive_audio,
+    is_audio_output_locked,
+    force_release_audio_lock,
+)
+
 __all__ = [
     "play_chime",
     "AudioRecorder",
+    "StreamingAudioPlayer",
+    "exclusive_audio",
+    "is_audio_output_locked",
+    "force_release_audio_lock",
     "VoiceActivityDetector",
     "SileroVAD",
     "find_silero_vad_model",

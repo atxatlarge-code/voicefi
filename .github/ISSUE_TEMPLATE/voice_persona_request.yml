@@ -1,0 +1,81 @@
+name: "🎙️ Voice Persona Request"
+description: "Request a new AI agent neural voice persona or TTS engine integration."
+title: "[Persona]: "
+labels: ["persona", "voice-engine"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        VoiceFi pairs AI coding agents (Antigravity, Claude Code) with distinct acoustic voice personas.
+        Use this form to propose new neural voices, provider engines, or custom agent roles!
+
+  - type: input
+    id: persona_name
+    attributes:
+      label: Proposed Persona Name / Alias
+      description: What memorable name or alias should this voice persona have?
+      placeholder: "e.g., Ada, Orion, Jarvis, Neo, Echo"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: voice_provider
+    attributes:
+      label: Voice Engine / Provider
+      description: Which TTS provider or local synthesis engine powers this voice?
+      options:
+        - "Apple Local Neural (0ms offline Ava / Evan / Zoe)"
+        - "Edge-TTS (High-fidelity cloud neural speech)"
+        - "ElevenLabs (Custom cloned voice / API)"
+        - "Kokoro (Local ONNX lightweight neural)"
+        - "Piper (Local ONNX fast offline neural)"
+        - "F5-TTS (Local zero-shot voice cloning)"
+        - "OpenAI TTS (tts-1 / tts-1-hd)"
+        - "Other / Custom Engine"
+    validations:
+      required: true
+
+  - type: input
+    id: model_identifier
+    attributes:
+      label: Model Identifier / Voice Key
+      description: The underlying voice identifier or model string.
+      placeholder: "e.g., en-US-AvaNeural, en-GB-SoniaNeural, or ElevenLabs Voice ID"
+    validations:
+      required: true
+
+  - type: textarea
+    id: vocal_qualities
+    attributes:
+      label: Vocal Qualities & Acoustic Characteristics
+      description: Describe the persona's tone, timbre, pacing, accent, and vibe.
+      placeholder: "Warm, authoritative British accent with brisk pacing and concise delivery..."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: target_agent_role
+    attributes:
+      label: Intended Agent Role & Use Case
+      description: Which role does this voice best embody in a multi-agent team?
+      options:
+        - "Primary Orchestrator / Lead Architect"
+        - "Subagent Worker / Code Implementer"
+        - "QA Auditor / Skeptical Challenger"
+        - "Code Reviewer / Security Auditor"
+        - "Standup Lead / Ambient Meeting Scribe"
+        - "Humor / Banter / Pair Programming Companion"
+        - "General Purpose / Universal"
+    validations:
+      required: true
+
+  - type: textarea
+    id: sample_script
+    attributes:
+      label: Sample Audition Phrases or Audio Link
+      description: Provide sample test phrases or links to reference audio samples.
+      placeholder: |
+        "Build succeeded. All 42 unit tests passed in 1.4 seconds. Ready for deployment."
+        Audio link: https://...
+    validations:
+      required: false

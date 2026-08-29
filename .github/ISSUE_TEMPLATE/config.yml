@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: GitHub Discussions & Q&A
+    url: https://github.com/atxatlarge-code/voicefi/discussions
+    about: Ask architecture questions, share ideas, and showcase custom voice personas or agent workflows.
+  - name: Official Documentation & Quickstart
+    url: https://voicefi.org
+    about: Read full documentation, MCP integration guides, and CLI cheat sheets.
+  - name: Security Vulnerability Report
+    url: https://github.com/atxatlarge-code/voicefi/security/advisories/new
+    about: Privately report potential security vulnerabilities and privacy issues.

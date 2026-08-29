@@ -1,37 +1,45 @@
 # 🗺️ VoiceFi™ Product & Engineering Roadmap
-> **"Second Brain, Second Voice • The Universal Voice & Agency Layer for Knowledge Vaults & Autonomous Agents."**
+> **"Give voice to your agents, and agency for your voice."**  
+> *The Universal Voice & Agency Layer for Autonomous AI Agents, MCP, and Knowledge Systems.*
 
 ***
 
 ## 🌟 Vision
-VoiceFi transforms static text knowledge bases (Obsidian, markdown vaults) and developer toolchains into **Autonomous Conversational Operating Systems**. We bridge raw human speech, studio-quality neural personas, and autonomous AI subagents into a unified, zero-latency feedback loop.
+VoiceFi gives **voice to AI agents** and **agency to human voice**:
+
+1. **Voice to Agents:** Giving autonomous coding agents, IDEs, and background subagents distinct acoustic presence, studio-quality neural personas, and zero-latency spoken dialogue.
+2. **Agency for Voice:** Elevating human speech from passive transcription into direct, high-leverage agent dispatch, multi-agent orchestration, and hands-free developer flow state.
 
 ---
 
 ## 📍 Milestones & Execution Status
 
 ```mermaid
-gantt
-    title VoiceFi Development Roadmap
-    dateFormat  YYYY-MM-DD
-    section Phase 1: Core Voice Bridge
-    2.7ms Streaming STT Engine           :done,    p1_1, 2026-08-20, 2026-08-23
-    Obsidian Plugin & Custom Icon        :done,    p1_2, 2026-08-21, 2026-08-23
-    Spoken Markdown Voice Shortcuts      :done,    p1_3, 2026-08-22, 2026-08-23
-    1-Line Installer & Vault Discovery   :done,    p1_4, 2026-08-22, 2026-08-23
-    section Phase 2: Two-Way Vault Voice
-    Talk To Your Notes (Voice RAG)       :active,  p2_1, 2026-08-23, 2026-09-05
-    Christopher Socratic Partner Mode    :active,  p2_2, 2026-08-24, 2026-09-08
-    Note Summary Audio Playback          :         p2_3, 2026-08-28, 2026-09-12
-    section Phase 3: Agent Dispatch
-    Voice ➔ Antigravity Subagents        :         p3_1, 2026-09-01, 2026-09-20
-    Real-time Spoken Linear Task Sync    :         p3_2, 2026-09-05, 2026-09-25
-    section Phase 4: Podcasting & Memos
-    5-Min Brain Dump ➔ Structured Note   :         p4_1, 2026-09-15, 2026-10-05
-    Daily Vault Podcast Briefings        :         p4_2, 2026-09-20, 2026-10-15
-    section Phase 5: Semantic Biasing
-    Vault-Aware Vocabulary Biasing       :         p5_1, 2026-10-01, 2026-10-25
-    Hands-Free Auto-[[Wikilinking]]      :         p5_2, 2026-10-10, 2026-11-01
+flowchart LR
+    subgraph P1["Phase 1: Core Voice Bridge (Done)"]
+        A1["2.7ms Streaming STT Engine"]
+        A2["0ms Offline Apple Ava"]
+        A3["AppKit Dynamic Island HUD"]
+    end
+
+    subgraph P2["Phase 2: Agent Voice & Agency (Active)"]
+        B1["Antigravity & Claude Hooks"]
+        B2["Native MCP Server (voicefi_*)"]
+        B3["Cross-Agent Bridge (vifi send)"]
+    end
+
+    subgraph P3["Phase 3: Multi-IDE & Dispatch"]
+        C1["Cursor & Windsurf Rules"]
+        C2["Ambient Standup & Linear Sync"]
+        C3["Voice-to-Subagent Dispatch"]
+    end
+
+    subgraph P4["Phase 4: Synthesis & Pacing"]
+        D1["5-Min Walking Voice Memos"]
+        D2["Spoken PR & Morning Briefings"]
+    end
+
+    P1 --> P2 --> P3 --> P4
 ```
 
 ---
@@ -41,7 +49,7 @@ gantt
 - [x] **Obsidian Ribbon Plugin & Custom Brand Icon:** Fused studio shockmount & smiling robot face ribbon icon registered in Obsidian.
 - [x] **Spoken Markdown Shortcuts:** Hands-free voice formatting (`"New line"`, `"New paragraph"`, `"Bullet [text]"`, `"Task [text]"`, `"Heading one/two"`).
 - [x] **Atomic Anchor Replacement:** Seamless live ghost text streaming without flickering or accidental text deletion.
-- [x] **Self-Healing Daemon:** Automatic background engine auto-spawn upon clicking the Obsidian ribbon icon.
+- [x] **Self-Healing Background Server:** Automatic background engine auto-spawn upon clicking the Obsidian ribbon icon.
 - [x] **Modular 1-Line Installer:** Interactive `[Y/n]` Obsidian vault auto-discovery in `install.sh` and dedicated `vifi obsidian install` CLI.
 
 ---

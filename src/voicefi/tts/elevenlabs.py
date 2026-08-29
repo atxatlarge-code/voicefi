@@ -33,12 +33,39 @@ class ElevenLabsTTS(BaseTTS):
         self.similarity_boost = similarity_boost
         self._current_process: Optional[subprocess.Popen] = None
 
-    def speak(self, text: str, block: bool = True) -> None:
-        """Synthesize and play speech via ElevenLabs Flash streaming API."""
-        if not text or not text.strip():
+    def _fallback_speak_direct(self, clean_text: str) -> None:
+        """Fallback speak directly using macOS say without re-acquiring lock."""
+        if not clean_text or not clean_text.strip():
             return
-        if not self.api_key:
-            print("[ElevenLabsTTS] Error: API key is not configured.")
+        try:
+            from voicefi.tts.offline import is_voice_installed
+            from voicefi.tts.base import set_agent_audio_playing, is_agent_speaking
+            try:
+                has_fb, exact_fb = is_voice_installed("Ava (Premium)")
+                target_voice = exact_fb if (has_fb and exact_fb) else ("Ava" if has_fb else "Samantha")
+            except Exception:
+                target_voice = "Samantha"
+            print(f"[ElevenLabsTTS] ⚠️ Online synthesis unavailable; falling back to offline voice '{target_voice}'")
+            cmd = ["say", "-v", target_voice, "--", clean_text]
+            if is_agent_speaking():
+                set_agent_audio_playing(True)
+                proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                self._current_process = proc
+                proc.wait()
+                if proc.returncode != 0:
+                    fallback = subprocess.Popen(["say", "--", clean_text], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    self._current_process = fallback
+                    fallback.wait()
+        except Exception as ex:
+            print(f"[ElevenLabsTTS] Offline fallback error: {ex}")
+        finally:
+            from voicefi.tts.base import set_agent_audio_playing
+            set_agent_audio_playing(False)
+            self._current_process = None
+
+    def speak(self, text: str, block: bool = True) -> None:
+        """Synthesize and play speech via ElevenLabs Flash streaming API with offline fallback."""
+        if not text or not text.strip():
             return
             
         if is_user_on_call():
@@ -54,6 +81,11 @@ class ElevenLabsTTS(BaseTTS):
                     agent_name=getattr(self, "agent_name", "VoiceFi"),
                     persona_name=getattr(self, "persona_name", getattr(self, "voice_id", "ElevenLabs")),
                 ):
+                    if not self.api_key:
+                        print("[ElevenLabsTTS] API key not configured; falling back to offline voice.")
+                        self._fallback_speak_direct(clean_text)
+                        return
+
                     url = f"https://api.elevenlabs.io/v1/text-to-speech/{self.voice_id}/stream?optimize_streaming_latency=3"
                     headers = {
                         "xi-api-key": self.api_key,
@@ -88,9 +120,11 @@ class ElevenLabsTTS(BaseTTS):
                             )
                             self._current_process.wait()
                         else:
-                            print(f"[ElevenLabsTTS] API returned status {response.status_code}: {response.text}")
+                            print(f"[ElevenLabsTTS] API returned status {response.status_code}: {response.text}; falling back to offline voice")
+                            self._fallback_speak_direct(clean_text)
                     except Exception as e:
-                        print(f"[ElevenLabsTTS] Error during synthesis: {e}")
+                        print(f"[ElevenLabsTTS] Error during synthesis: {e}; falling back to offline voice")
+                        self._fallback_speak_direct(clean_text)
                     finally:
                         self._current_process = None
                         try:

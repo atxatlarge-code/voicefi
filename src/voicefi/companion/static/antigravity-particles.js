@@ -364,24 +364,16 @@
           peakAlpha = Math.min(0.85, (alpha * 0.5) + neuralGlow);
         }
 
-        if (this.field.isMobile) {
-          // Fast mobile glow: draw smooth alpha halo without heap-allocating RadialGradients 60x/sec
-          ctx.beginPath();
-          ctx.arc(this.x, this.y, this.radius * 2.2, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(${c.r}, ${c.g}, ${c.b}, ${Math.min(0.22, peakAlpha * 0.35)})`;
-          ctx.fill();
-        } else {
-          const glowRadius = this.radius * glowMultiplier;
-          const gradient = ctx.createRadialGradient(this.x, this.y, this.radius * 0.2, this.x, this.y, glowRadius);
-          gradient.addColorStop(0, `rgba(${c.r}, ${c.g}, ${c.b}, ${peakAlpha})`);
-          gradient.addColorStop(0.35, `rgba(${c.r}, ${c.g}, ${c.b}, ${peakAlpha * 0.4})`);
-          gradient.addColorStop(1, `rgba(${c.r}, ${c.g}, ${c.b}, 0)`);
-          
-          ctx.beginPath();
-          ctx.arc(this.x, this.y, glowRadius, 0, Math.PI * 2);
-          ctx.fillStyle = gradient;
-          ctx.fill();
-        }
+        const glowRadius = this.radius * glowMultiplier;
+        const gradient = ctx.createRadialGradient(this.x, this.y, this.radius * 0.2, this.x, this.y, glowRadius);
+        gradient.addColorStop(0, `rgba(${c.r}, ${c.g}, ${c.b}, ${peakAlpha})`);
+        gradient.addColorStop(0.35, `rgba(${c.r}, ${c.g}, ${c.b}, ${peakAlpha * 0.4})`);
+        gradient.addColorStop(1, `rgba(${c.r}, ${c.g}, ${c.b}, 0)`);
+        
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, glowRadius, 0, Math.PI * 2);
+        ctx.fillStyle = gradient;
+        ctx.fill();
       }
 
       // Synaptic Idea Flash Flare (electric flare when idea lightning strikes this node)
@@ -531,23 +523,17 @@
 
       this.ctx = this.canvas.getContext('2d', { alpha: true });
       
-      // Auto-detect mobile / touch devices for performance scaling
-      this.isMobile = (typeof window !== 'undefined') && (
-        window.innerWidth < 768 ||
-        ('ontouchstart' in window) ||
-        (navigator.maxTouchPoints && navigator.maxTouchPoints > 1)
-      );
-
-      // Configuration defaults (auto-tuned for mobile vs desktop)
+      // Configuration defaults
       this.options = Object.assign({
         theme: 'google',               // 'google' | 'monochrome' | 'broadcast' | 'emerald'
-        particleCount: this.isMobile ? 24 : 75,
-        dustCount: this.isMobile ? 28 : 90,
-        connectionDistance: this.isMobile ? 90 : 130,
-        repulsionRadius: this.isMobile ? 100 : 150,
+        particleCount: 75,
+        dustCount: 90,
+        connectionDistance: 130,
+        repulsionRadius: 150,
         repulsionStrength: 1.5,
         buoyancy: -0.012,              // Gentle upward lift (zero-g float)
         glowEnabled: true,
+        glowIntensity: 1.2,
         connectConstellations: true,
         enablePointerGravity: true,
         autoResize: true,
@@ -555,7 +541,7 @@
         listeningPullStrength: 2.0,    // Gravitational pull intensity in listening state (black hole)
         listeningSwirl: 1.2,           // Orbital vortex / swirl factor around singularity
         thinkingSwirlSpeed: 1.0,       // Active orbital neural constellation swirl speed
-        enableIdeaLightning: !this.isMobile, // Flashes of synaptic lightning arcs (desktop only)
+        enableIdeaLightning: true,     // Flashes of synaptic lightning arcs between particles during thinking
         ideaLightningInterval: 0.35,   // Frequency interval (in seconds) between idea lightning strikes
         pullCenterSelector: null,      // Optional CSS selector to dynamically align center with a DOM element
         pullCenterX: undefined,        // Optional custom pull center X (defaults to width / 2)
@@ -1013,29 +999,24 @@
         ctx.restore();
       }
 
-      // 3. Draw Constellation Links (Neural Network Web - batched for 60fps mobile & desktop performance)
+      // 3. Draw Constellation Links (Neural Network Web - reacts dynamically to states)
       if (this.options.connectConstellations && !this.options.reducedMotion) {
         let maxDist = this.options.connectionDistance;
         let lineWidth = 0.75;
 
         if (this.state === 'thinking') {
-          maxDist *= 1.15; // Expand constellation web in thinking mode
-          lineWidth = 0.9;
+          maxDist *= 1.25; // Expand constellation web in thinking mode
+          lineWidth = 1.0;
         } else if (this.state === 'speaking') {
-          maxDist *= (1.0 + audio * 0.20);
-          lineWidth = 0.75 + audio * 1.2;
+          maxDist *= (1.0 + audio * 0.25);
+          lineWidth = 0.75 + audio * 1.8;
         } else if (audio > 0.02) {
-          maxDist *= (1.0 + audio * 0.20);
-          lineWidth = 0.75 + audio * 1.0;
+          maxDist *= (1.0 + audio * 0.25);
+          lineWidth = 0.75 + audio * 1.5;
         }
 
         const maxDistSq = maxDist * maxDist;
         const len = this.particles.length;
-        let lineAlpha = this.state === 'thinking' ? 0.35 : (this.state === 'speaking' ? 0.45 : 0.22);
-        if (audio > 0.02) lineAlpha = Math.min(0.75, lineAlpha + audio * 0.4);
-
-        ctx.beginPath();
-        let batchedLines = 0;
 
         for (let i = 0; i < len; i++) {
           const pi = this.particles[i];
@@ -1046,9 +1027,24 @@
             const distSq = dx * dx + dy * dy;
 
             if (distSq < maxDistSq) {
+              const dist = Math.sqrt(distSq);
+              let alpha = (1 - dist / maxDist) * 0.35;
+
+              if (this.state === 'thinking') {
+                // Gentle traveling cognitive neural wave along links
+                const pulseWave = Math.sin((pi.x + pj.y) * 0.006 - this.time * 1.2);
+                const neuralBoost = Math.max(0, pulseWave) * 0.45;
+                alpha = Math.min(0.95, alpha * 1.3 + neuralBoost);
+              } else if (this.state === 'speaking' || audio > 0.02) {
+                alpha = Math.min(1.0, alpha * (0.8 + audio * 1.8 * glowIntensity));
+              }
+
+              ctx.beginPath();
               ctx.moveTo(pi.x, pi.y);
               ctx.lineTo(pj.x, pj.y);
-              batchedLines++;
+              ctx.strokeStyle = `${this.theme.lineColor}${Math.min(1.0, alpha)})`;
+              ctx.lineWidth = lineWidth;
+              ctx.stroke();
             }
           }
 
@@ -1059,17 +1055,16 @@
             const distSq = dx * dx + dy * dy;
             const pointerMax = this.options.repulsionRadius;
             if (distSq < pointerMax * pointerMax) {
+              const dist = Math.sqrt(distSq);
+              const alpha = (1 - dist / pointerMax) * (0.45 + audio * 0.5 * glowIntensity);
+              ctx.beginPath();
               ctx.moveTo(pi.x, pi.y);
               ctx.lineTo(this.pointer.x, this.pointer.y);
-              batchedLines++;
+              ctx.strokeStyle = `${this.theme.lineColor}${Math.min(1.0, alpha)})`;
+              ctx.lineWidth = lineWidth + 0.5;
+              ctx.stroke();
             }
           }
-        }
-
-        if (batchedLines > 0) {
-          ctx.strokeStyle = `${this.theme.lineColor}${lineAlpha})`;
-          ctx.lineWidth = lineWidth;
-          ctx.stroke();
         }
       }
 

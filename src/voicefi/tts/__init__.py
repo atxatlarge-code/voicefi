@@ -7,6 +7,8 @@ from voicefi.tts.base import (
     stop_all_speech,
     is_agent_speaking,
     set_agent_speaking,
+    is_agent_audio_playing,
+    set_agent_audio_playing,
     set_cross_process_hud_state,
     get_cross_process_hud_state,
     clear_cross_process_hud_state,
@@ -139,11 +141,23 @@ def get_tts_engine(
             voice_id=resolved_voice_id,
         )
     elif provider == "edge_tts":
+        offline_v = None
+        if agent_name:
+            key = agent_name.lower().strip()
+            if key in config.agents and getattr(config.agents[key], "offline_voice", None):
+                offline_v = config.agents[key].offline_voice
+            elif key in config.subagents and getattr(config.subagents[key], "offline_voice", None):
+                offline_v = config.subagents[key].offline_voice
+        if not offline_v:
+            offline_v = "Ava (Premium)"
+
         eng = EdgeTTS(
             voice=voice,
             rate=rate,
             volume=getattr(config.tts, "volume", 1.0),
             streaming=config.tts.streaming,
+            agent_name=agent_name or "VoiceFi",
+            offline_fallback_voice=offline_v,
         )
     else:
         # Default to native macOS say
@@ -179,6 +193,8 @@ __all__ = [
     "stop_all_speech",
     "is_agent_speaking",
     "set_agent_speaking",
+    "is_agent_audio_playing",
+    "set_agent_audio_playing",
     "set_cross_process_hud_state",
     "get_cross_process_hud_state",
     "clear_cross_process_hud_state",

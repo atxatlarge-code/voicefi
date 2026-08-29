@@ -1,0 +1,65 @@
+name: "✨ Feature Request"
+description: "Suggest an idea, agent integration, MCP tool, or new capability for VoiceFi."
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for suggesting an enhancement to VoiceFi!
+        Please describe your proposed feature, use cases, and how it empowers AI coding agents or developers.
+
+  - type: textarea
+    id: problem_statement
+    attributes:
+      label: Problem Statement / Motivation
+      description: Is your feature request related to a problem or limitation? A clear and concise description of what the problem is.
+      placeholder: "I'm always frustrated when..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed_solution
+    attributes:
+      label: Proposed Solution / Desired Behavior
+      description: A clear and concise description of what you want to happen.
+      placeholder: "Add support for..."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: target_surface
+    attributes:
+      label: Target Integration Surface
+      description: Which part of VoiceFi does this feature primarily affect?
+      options:
+        - "MCP Stdio Tools & Server Protocol"
+        - "Terminal CLI (`vifi` commands & subcommands)"
+        - "AI Agent Lifecycle Hooks (Google Antigravity, Claude Code, Cursor, Zed)"
+        - "Cross-Agent Command Dispatch & Return Routing (`vifi send` / IPC)"
+        - "Text-to-Speech (TTS) Engine / Voice Personas"
+        - "Speech-to-Text (STT) Engine / Audio Dictation"
+        - "Voice Activity Detection (VAD) & Active Barge-In"
+        - "Dynamic Island HUD & macOS UI Overlay"
+        - "Companion REST API (:5141) & Web Control Panel"
+        - "Other"
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: A clear and concise description of any alternative solutions or features you've considered.
+      placeholder: "I tried using X, but encountered..."
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional_context
+    attributes:
+      label: Additional Context, Agent Workflows, or Mockups
+      description: Add any other context, sample code, agent prompts, or screenshots about the feature request here.
+      placeholder: "Here is an example workflow with Antigravity / Claude Code..."
+    validations:
+      required: false

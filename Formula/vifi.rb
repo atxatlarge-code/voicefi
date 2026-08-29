@@ -5,7 +5,7 @@ class Vifi < Formula
   homepage "https://voicefi.org"
   url "https://github.com/atxatlarge-code/voicefi/archive/refs/heads/main.tar.gz"
   version "0.1.0"
-  license "Apache-2.0"
+  license "MIT"
 
   depends_on "python@3.12"
   depends_on "portaudio"

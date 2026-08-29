@@ -324,25 +324,15 @@ def get_curated_personas(provider: Optional[str] = None) -> List[VoicePersona]:
     return [cp for cp in CURATED_PERSONAS if cp.provider.lower() == p]
 
 
-def find_persona(name_or_id: str) -> Optional[VoicePersona]:
+def find_persona(name_or_id: Optional[str]) -> Optional[VoicePersona]:
     """Find a curated, custom cloned, or installed system voice by name or exact ID (case-insensitive)."""
+    if not name_or_id or not isinstance(name_or_id, str):
+        return None
     target = name_or_id.lower().strip()
+    if not target:
+        return None
     
-    # Exact or curated match first
-    for cp in CURATED_PERSONAS:
-        if cp.id.lower() == target or cp.name.lower() == target:
-            return cp
-
-    # Curated persona normalized aliases (e.g. avaneural, ava neural, christopherneural)
-    clean_target = re.sub(r"[^a-z0-9]", "", target)
-    if clean_target:
-        for cp in CURATED_PERSONAS:
-            norm_id = re.sub(r"[^a-z0-9]", "", cp.id.lower())
-            norm_name = re.sub(r"[^a-z0-9]", "", cp.name.lower())
-            short_id = re.sub(r"^[a-z]{4}", "", norm_id)
-            if clean_target in (norm_id, norm_name, short_id):
-                return cp
-
+    # 1. Explicit offline neural voice matches
     if target in ("ava premium", "ava-premium", "ava (premium)"):
         for cp in CURATED_PERSONAS:
             if cp.id == "Ava (Premium)":
@@ -359,7 +349,29 @@ def find_persona(name_or_id: str) -> Optional[VoicePersona]:
         for cp in CURATED_PERSONAS:
             if cp.id == "Oliver (Enhanced)":
                 return cp
-    elif target in ("serena premium", "serena-premium", "serena (premium)"):
+
+    # 2. Common neural persona aliases (e.g. viv, ava, avaneural -> en-US-AvaNeural)
+    clean_target = re.sub(r"[^a-z0-9]", "", target)
+    if clean_target in ("viv", "ava", "avaneural", "avaedge", "enusavaneural"):
+        for cp in CURATED_PERSONAS:
+            if cp.id == "en-US-AvaNeural":
+                return cp
+
+    # 3. Exact or curated match
+    for cp in CURATED_PERSONAS:
+        if cp.id.lower() == target or cp.name.lower() == target:
+            return cp
+
+    # 4. Curated persona normalized aliases (e.g. christopherneural, guyneural)
+    if clean_target:
+        for cp in CURATED_PERSONAS:
+            norm_id = re.sub(r"[^a-z0-9]", "", cp.id.lower())
+            norm_name = re.sub(r"[^a-z0-9]", "", cp.name.lower())
+            short_id = re.sub(r"^[a-z]{4}", "", norm_id)
+            if clean_target in (norm_id, norm_name, short_id):
+                return cp
+
+    if target in ("serena premium", "serena-premium", "serena (premium)"):
         for cp in CURATED_PERSONAS:
             if cp.id == "Serena (Premium)":
                 return cp

@@ -247,6 +247,14 @@ def handle_antigravity_stop_hook(payload: Dict[str, Any], config: Optional[Voice
     """
     cfg = config or load_config()
 
+    # Guard: Return immediately if globally disabled, hooks disabled, or antigravity hooks disabled
+    if not cfg.enabled or not getattr(cfg.hooks, "enabled", True) or not getattr(cfg.hooks, "antigravity", True):
+        return {}
+    if not getattr(cfg.integrations, "antigravity", True):
+        return {}
+    if not cfg.antigravity.auto_listen and not cfg.antigravity.read_summary_aloud:
+        return {}
+
     conv_id = payload.get("conversationId") or payload.get("conversation_id") or payload.get("conv_id") or ""
     transcript_path_str = payload.get("transcriptPath") or payload.get("transcript_path") or ""
     workspace_paths = payload.get("workspacePaths") or payload.get("workspace_paths") or []
@@ -389,6 +397,8 @@ def handle_antigravity_stop_hook(payload: Dict[str, Any], config: Optional[Voice
             try:
                 tts.stream_speak(summary, block=True)
             finally:
+                from voicefi.tts.base import set_agent_speaking
+                set_agent_speaking(False)
                 if cfg.antigravity.show_speech_popup:
                     try:
                         from voicefi.ui.speech_hud import AgentSpeechHUD
@@ -563,4 +573,32 @@ def handle_antigravity_stop_hook(payload: Dict[str, Any], config: Optional[Voice
             pass
 
     return {}
+
+
+def remove_antigravity_hook(plugin_dir: Optional[Path] = None) -> bool:
+    """
+    Remove VoiceFi Stop hook from ~/.gemini/config/plugins/voicefi-plugin/hooks.json
+    and ~/.gemini/config/hooks.json.
+    """
+    target_dir = plugin_dir or (Path.home() / ".gemini" / "config" / "plugins" / "voicefi-plugin")
+    hook_file = target_dir / "hooks.json"
+    if hook_file.is_file():
+        try:
+            with open(hook_file, "w", encoding="utf-8") as f:
+                json.dump({}, f, indent=2)
+        except Exception:
+            pass
+
+    global_hooks = Path.home() / ".gemini" / "config" / "hooks.json"
+    if global_hooks.is_file():
+        try:
+            with open(global_hooks, "r", encoding="utf-8") as f:
+                data = json.load(f) or {}
+            if "voicefi-voice-layer" in data:
+                del data["voicefi-voice-layer"]
+                with open(global_hooks, "w", encoding="utf-8") as f:
+                    json.dump(data, f, indent=2)
+        except Exception:
+            pass
+    return True
 

@@ -378,7 +378,7 @@ def send_message_to_antigravity(
         if sender_name:
             resolved_title = f"Message from {sender_name}"
         else:
-            resolved_title = "Cross-Agent Message"
+            resolved_title = "Message from ViFi Companion"
 
     if from_conv_id:
         from voicefi.integrations.conversations import record_agent_route
@@ -481,6 +481,8 @@ def create_new_antigravity_conversation(
     agentapi_bin = Path.home() / ".gemini" / "antigravity" / "bin" / "agentapi"
 
     if agentapi_bin.is_file() and os.access(agentapi_bin, os.X_OK):
+        from voicefi.integrations.antigravity_ls import get_agentapi_env
+        env = get_agentapi_env(force_refresh=False)
         cmd = [str(agentapi_bin), "new-conversation"]
         if model:
             cmd.append(f"--model={model}")
@@ -492,6 +494,7 @@ def create_new_antigravity_conversation(
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
+                env=env,
                 text=True,
                 timeout=8,
             )
@@ -500,10 +503,16 @@ def create_new_antigravity_conversation(
                 try:
                     import json
                     out_data = json.loads(res.stdout)
-                    cid = out_data.get("conversation_id") or out_data.get("id") or out_data.get("conversationId")
+                    cid = (
+                        out_data.get("conversation_id")
+                        or out_data.get("id")
+                        or out_data.get("conversationId")
+                        or (out_data.get("response", {}).get("newConversation", {}).get("conversationId") if isinstance(out_data.get("response"), dict) else None)
+                    )
                     if cid:
                         from voicefi.integrations.conversations import save_session_cookie
                         save_session_cookie(conv_id=str(cid), title=title or clean_prompt[:40])
+                        focus_antigravity(focus_input=True)
                         return str(cid)
                 except Exception:
                     pass
@@ -733,11 +742,6 @@ def send_message_to_agent(
     """
     if not text or not text.strip():
         return DispatchResult(success=False, delivery_type="none", error="Empty message text")
-
-    from voicefi.audio.echo_canceller import is_acoustic_echo
-    if is_acoustic_echo(text.strip()):
-        print(f"[Injector] 🛡️ Blocked injection of acoustic self-echo: \"{text.strip()[:50]}...\"")
-        return DispatchResult(success=False, delivery_type="none", error="Suppressed acoustic self-echo")
 
     engine = target_engine
     if not engine and conv_id:

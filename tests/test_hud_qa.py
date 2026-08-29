@@ -64,49 +64,49 @@ def test_hud_state_transitions():
 
     # 1. Idle
     hud.set_idle()
-    pump(0.05)
+    pump(0.1)
     assert hud._current_state == "idle"
     assert hud._title_lbl.stringValue() == "VoiceFi"
 
     # 2. Thinking
     hud.set_thinking(agent_name="Antigravity", detail="Reasoning over AST...")
-    pump(0.05)
+    pump(0.1)
     assert hud._current_state == "thinking"
     assert "Antigravity" in hud._title_lbl.stringValue()
     assert "Reasoning over AST" in hud._body_lbl.stringValue()
 
     # 3. Working
     hud.set_working(agent_name="Antigravity", tool_action="pytest tests/ -v")
-    pump(0.05)
+    pump(0.1)
     assert hud._current_state == "working"
     assert "pytest tests/ -v" in hud._body_lbl.stringValue()
 
     # 4. Speaking
     hud.set_speaking(text="Test completed successfully!", agent_name="Antigravity")
-    pump(0.05)
+    pump(0.1)
     assert hud._current_state == "speaking"
     assert "Test completed successfully!" in hud._body_lbl.stringValue()
 
     # 5. Listening
     hud.set_listening(prompt_preview="Fix the expired token bug", user_name="Jake", live_stream=True)
-    pump(0.05)
+    pump(0.1)
     assert hud._current_state == "listening"
     assert "Fix the expired token bug" in hud._body_lbl.stringValue()
 
     # 5b. Hearing (Voice Onset Detected)
     hud.set_hearing(prompt_preview="Fix the expired token bug", user_name="Jake")
-    pump(0.05)
+    pump(0.1)
     assert hud._current_state == "listening"
     assert "Hearing (Jake)" in hud._title_lbl.stringValue()
 
     # 6. Editing
     hud.set_editing(initial_text="Review and edit this prompt", on_submit=lambda x: None)
-    pump(0.05)
+    pump(0.1)
     assert hud._current_state == "editing"
 
     # 7. Reset to Idle
     hud.set_idle()
-    pump(0.05)
+    pump(0.1)
     assert hud._current_state == "idle"
 
 

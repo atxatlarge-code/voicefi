@@ -122,4 +122,15 @@ def normalize_tts_text(text: str) -> str:
     for pattern, replacement in TECH_SPOKEN_MAP.items():
         result = re.sub(pattern, replacement, result, flags=re.IGNORECASE)
 
-    return result
+    # =========================================================================
+    # 4. Ellipses & Dramatic Pauses (prevents orphan punctuation in TTS pipeline)
+    # =========================================================================
+    # If preceded by sentence-ending punctuation (!, ?), turn ellipsis into clean space
+    result = re.sub(r"([!?])\s*(\.{2,}|…)\s*", r"\1 ", result)
+    # Otherwise replace standalone ellipsis with a natural comma pause
+    result = re.sub(r"\s*(\.{2,}|…)\s*", ", ", result)
+    # Clean double commas or leading commas
+    result = re.sub(r",\s*,+", ", ", result)
+    result = re.sub(r"^\s*,\s*", "", result)
+
+    return result.strip()

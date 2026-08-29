@@ -290,4 +290,30 @@ def test_cmd_voice_set_reversed_args(capsys):
         assert "Successfully assigned agent 'claude' to voice: 'en-US-AvaNeural'" in captured.out
 
 
+def test_find_persona_ava_viv_aliases():
+    """Verify find_persona cleanly resolves Viv, Ava, and Ava Neural to EdgeTTS, while Ava (Premium) maps to mac_say."""
+    from voicefi.tts.catalog import find_persona
+
+    p_viv = find_persona("Viv")
+    assert p_viv is not None
+    assert p_viv.id == "en-US-AvaNeural"
+    assert p_viv.provider == "edge_tts"
+
+    p_ava = find_persona("Ava")
+    assert p_ava is not None
+    assert p_ava.id == "en-US-AvaNeural"
+    assert p_ava.provider == "edge_tts"
+
+    p_ava_neural = find_persona("Ava Neural")
+    assert p_ava_neural is not None
+    assert p_ava_neural.id == "en-US-AvaNeural"
+    assert p_ava_neural.provider == "edge_tts"
+
+    p_premium = find_persona("Ava (Premium)")
+    assert p_premium is not None
+    assert p_premium.id == "Ava (Premium)"
+    assert p_premium.provider == "mac_say"
+
+
+
 

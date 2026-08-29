@@ -8,6 +8,7 @@ import os
 import json
 import logging
 import time
+from contextlib import redirect_stdout
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 
@@ -43,6 +44,10 @@ MCP_TOOLS: List[Dict[str, Any]] = [
                 "agent_name": {
                     "type": "string",
                     "description": "Optional agent identifier (e.g. 'antigravity', 'claude', 'researcher') for persona resolution.",
+                },
+                "conv_id": {
+                    "type": "string",
+                    "description": "Optional conversation ID to link speech turn with active agent turn",
                 },
                 "block": {
                     "type": "boolean",
@@ -114,6 +119,60 @@ MCP_TOOLS: List[Dict[str, Any]] = [
                     "description": "Voice name or persona to benchmark (default: active Antigravity voice).",
                 },
             },
+        },
+    },
+    {
+        "name": "voicefi_send",
+        "description": "Send a message, task finding, or joke to Antigravity or Claude Code across agents with correlation tracking.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "text": {
+                    "type": "string",
+                    "description": "The message text or prompt to dispatch.",
+                },
+                "to": {
+                    "type": "string",
+                    "enum": ["antigravity", "claude"],
+                    "description": "Target agent engine (default: 'antigravity').",
+                },
+                "conv_id": {
+                    "type": "string",
+                    "description": "Target conversation ID, or 'reply' to reply directly to the originating conversation.",
+                },
+                "title": {
+                    "type": "string",
+                    "description": "Optional title or header for the message.",
+                },
+                "sender": {
+                    "type": "string",
+                    "description": "Sender attribution (e.g. 'Claude', 'Antigravity').",
+                },
+                "reply": {
+                    "type": "boolean",
+                    "description": "Set true to automatically reply to the originating conversation ID.",
+                },
+            },
+            "required": ["text"],
+        },
+    },
+    {
+        "name": "voicefi_sfx",
+        "description": "Play a comedy sound effect (drum_smash / ba-dum-tss, honk, sad_trombone, applause, boing, crickets).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "enum": ["drum_smash", "drums", "honk", "sad_trombone", "applause", "cheer", "boing", "crickets"],
+                    "description": "Name of the sound effect to play (default: 'drum_smash').",
+                },
+                "volume": {
+                    "type": "number",
+                    "description": "Volume multiplier (0.0 to 1.0, default: 1.0).",
+                },
+            },
+            "required": ["name"],
         },
     },
 ]
@@ -192,30 +251,69 @@ class VoiceFiMCPServer:
 
     def execute_tool(self, name: str, args: Dict[str, Any]) -> Dict[str, Any]:
         """Execute a tool and format the response according to MCP specification."""
+        start_t = time.time()
+        res = None
+        err_type = None
+        agent_name = args.get("agent_name") or args.get("agent") or "antigravity"
+        persona = args.get("persona")
+        text_arg = args.get("text", "")
+        char_count = len(str(text_arg)) if text_arg else None
+
+        # Support aliases: both canonical 'voicefi_*' and short 'vifi_*' / bare names
+        canonical_name = name
+        if name.startswith("vifi_"):
+            canonical_name = "voicefi_" + name[5:]
+        elif name in ("speak", "listen", "stop", "status", "set_voice", "ping_voice", "send", "sfx"):
+            canonical_name = "voicefi_" + name
+
         try:
-            if name == "voicefi_speak":
-                return self._tool_speak(args)
-            elif name == "voicefi_listen":
-                return self._tool_listen(args)
-            elif name == "voicefi_stop":
-                return self._tool_stop(args)
-            elif name == "voicefi_status":
-                return self._tool_status(args)
-            elif name == "voicefi_set_voice":
-                return self._tool_set_voice(args)
-            elif name == "voicefi_ping_voice":
-                return self._tool_ping_voice(args)
+            if canonical_name == "voicefi_speak":
+                res = self._tool_speak(args)
+            elif canonical_name == "voicefi_listen":
+                res = self._tool_listen(args)
+            elif canonical_name == "voicefi_stop":
+                res = self._tool_stop(args)
+            elif canonical_name == "voicefi_status":
+                res = self._tool_status(args)
+            elif canonical_name == "voicefi_set_voice":
+                res = self._tool_set_voice(args)
+            elif canonical_name == "voicefi_ping_voice":
+                res = self._tool_ping_voice(args)
+            elif canonical_name == "voicefi_send":
+                res = self._tool_send(args)
+            elif canonical_name == "voicefi_sfx":
+                res = self._tool_sfx(args)
             else:
-                return {
+                res = {
                     "content": [{"type": "text", "text": f"Unknown tool: {name}"}],
                     "isError": True,
                 }
+            return res
         except Exception as e:
+            err_type = type(e).__name__
             logger.exception("Error executing tool %s: %s", name, e)
-            return {
+            res = {
                 "content": [{"type": "text", "text": f"Error executing {name}: {str(e)}"}],
                 "isError": True,
             }
+            return res
+        finally:
+            dur_ms = max(1, int((time.time() - start_t) * 1000))
+            is_error = bool(res and res.get("isError", False))
+            try:
+                from voicefi.telemetry import capture_mcp_tool_call
+                capture_mcp_tool_call(
+                    tool_name=canonical_name,
+                    duration_ms=dur_ms,
+                    caller_agent=agent_name,
+                    persona=persona,
+                    char_count=char_count,
+                    success=(not is_error and err_type is None),
+                    error_type=err_type,
+                )
+            except Exception:
+                pass
+
 
     def _tool_speak(self, args: Dict[str, Any]) -> Dict[str, Any]:
         from voicefi.config import load_config
@@ -232,6 +330,12 @@ class VoiceFiMCPServer:
         cfg = load_config()
         tts = get_tts_engine(cfg, agent_name=agent_name, voice_override=persona)
         
+        try:
+            from voicefi.integrations.conversations import claim_active_conversation_turn
+            claim_active_conversation_turn(text, conv_id=args.get("conv_id"))
+        except Exception:
+            pass
+
         start_t = time.time()
         err = None
         try:
@@ -273,6 +377,8 @@ class VoiceFiMCPServer:
 
         cfg = load_config()
         max_sec = args.get("max_seconds", cfg.vad.max_record_seconds)
+        timeout_arg = args.get("timeout")
+        timeout = float(timeout_arg) if timeout_arg is not None else None
 
         recorder = AudioRecorder(
             sample_rate=cfg.vad.sample_rate,
@@ -282,7 +388,7 @@ class VoiceFiMCPServer:
             barge_in=False,
         )
 
-        audio_data, temp_wav = recorder.record_speech_auto()
+        audio_data, temp_wav = recorder.record_speech_auto(timeout=timeout)
         if not temp_wav or not Path(temp_wav).is_file():
             return {
                 "content": [{"type": "text", "text": "No speech detected or recording was cancelled."}],
@@ -427,6 +533,96 @@ class VoiceFiMCPServer:
         else:
             return {
                 "content": [{"type": "text", "text": f"Ping benchmark failed for {voice}: {res.error or res.status}"}],
+                "isError": True,
+            }
+
+    def _tool_send(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        from voicefi.integrations.injector import send_message_to_agent
+
+        text = args.get("text")
+        if text is None or not isinstance(text, str) or not text.strip():
+            return {"content": [{"type": "text", "text": "Empty message text."}], "isError": True}
+
+        raw_engine = args.get("to") or "antigravity"
+        target_engine = str(raw_engine).lower().strip() if isinstance(raw_engine, str) else "antigravity"
+        conv_id = args.get("conv_id")
+        if args.get("reply", False):
+            conv_id = "reply"
+
+        sender_name = args.get("sender", "Claude")
+        title = args.get("title")
+
+        result = send_message_to_agent(
+            conv_id=conv_id,
+            text=text.strip(),
+            sender_name=sender_name,
+            title=title,
+            target_engine=target_engine,
+            from_engine="claude" if target_engine == "antigravity" else "antigravity",
+        )
+
+        if result.success:
+            return {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": f"Successfully dispatched message to {target_engine.capitalize()} (Target ID: {result.target_conv_id or 'active'}).",
+                    }
+                ],
+                "isError": False,
+            }
+        else:
+            return {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": f"Failed to dispatch to {target_engine.capitalize()}: {result.error}",
+                    }
+                ],
+                "isError": True,
+            }
+
+    def _tool_sfx(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        from voicefi.audio.sfx import play_sfx, list_available_sfx
+
+        name = args.get("name")
+        if name is None or not isinstance(name, str) or not name.strip():
+            return {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": f"Missing or invalid sound effect name. Available: {', '.join(list_available_sfx())}",
+                    }
+                ],
+                "isError": True,
+            }
+
+        try:
+            volume = float(args.get("volume", 1.0))
+            volume = max(0.0, min(volume, 2.0))
+        except (ValueError, TypeError):
+            volume = 1.0
+
+        clean_name = name.strip()
+        success = play_sfx(clean_name, block=True, volume=volume)
+        if success:
+            return {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": f"Successfully played sound effect '{clean_name}'.",
+                    }
+                ],
+                "isError": False,
+            }
+        else:
+            return {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": f"Unknown sound effect '{clean_name}'. Available: {', '.join(list_available_sfx())}",
+                    }
+                ],
                 "isError": True,
             }
 

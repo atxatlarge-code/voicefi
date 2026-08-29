@@ -135,6 +135,9 @@ class CompanionServer:
         self.app.router.add_post("/api/conversation/new", self.handle_new_conversation)
         self.app.router.add_post("/api/switch", self.handle_switch)
         self.app.router.add_post("/api/send", self.handle_send)
+        self.app.router.add_post("/api/speak", self.handle_speak)
+        self.app.router.add_post("/api/sfx", self.handle_sfx)
+        self.app.router.add_post("/api/stop", self.handle_stop)
         self.app.router.add_post("/api/conversation/{conv_id}/artifact_review", self.handle_artifact_review)
         self.app.router.add_post("/api/artifact_review", self.handle_artifact_review)
         self.app.router.add_post("/api/conversation/{conv_id}/image_feedback", self.handle_image_feedback)
@@ -150,8 +153,10 @@ class CompanionServer:
         self.app.router.add_post("/api/troubleshoot/hearing_test", self.handle_troubleshoot_hearing_test)
         self.app.router.add_post("/api/troubleshoot/hearing-test", self.handle_troubleshoot_hearing_test)
         self.app.router.add_post("/api/vault/query", self.handle_vault_query)
-        self.app.router.add_post("/api/hook/event", self.handle_hook_event)
         self.app.router.add_get("/api/qr", self.handle_qr)
+        self.app.router.add_get("/api/tunnel/status", self.handle_tunnel_status)
+        self.app.router.add_post("/api/tunnel/start", self.handle_tunnel_start)
+        self.app.router.add_post("/api/hook/event", self.handle_hook_event)
         self.app.router.add_get("/ws", self.handle_ws)
 
     # Static Handlers
@@ -629,26 +634,47 @@ class CompanionServer:
 
     async def handle_send(self, request: web.Request) -> web.Response:
         try:
-            data = await request.json()
-            text = data.get("text", "").strip()
+            try:
+                data = await request.json()
+            except Exception:
+                return web.json_response({
+                    "error": "Invalid JSON payload",
+                    "success": False,
+                    "delivered": False,
+                    "delivered_ipc": False,
+                    "pasted_to_foreground": False,
+                }, status=400)
+
+            if not isinstance(data, dict):
+                return web.json_response({
+                    "error": "JSON body must be an object",
+                    "success": False,
+                    "delivered": False,
+                    "delivered_ipc": False,
+                    "pasted_to_foreground": False,
+                }, status=400)
+
+            raw_text = data.get("text")
+            if raw_text is None or not isinstance(raw_text, str) or not raw_text.strip():
+                return web.json_response({
+                    "error": "Empty text prompt",
+                    "success": False,
+                    "delivered": False,
+                    "delivered_ipc": False,
+                    "pasted_to_foreground": False,
+                }, status=400)
+
+            text = raw_text.strip()
             conv_id = data.get("conv_id") or data.get("conversation_id")
             reply_to = data.get("reply_to") or data.get("reply_to_conv_id")
             if not conv_id and reply_to:
                 conv_id = reply_to
-            title = data.get("title")
-            sender_name = data.get("sender_name")
+            sender_name = data.get("sender_name") or "ViFi Companion"
+            title = data.get("title") or f"Message from {sender_name}"
             target_engine = data.get("engine") or data.get("to_engine")
             from_conv_id = data.get("from_conv_id")
             from_engine = data.get("from_engine")
             include_envelope = data.get("include_envelope", True) if (target_engine in ("claude", "claude_code")) else data.get("include_envelope", False)
-
-            if not text:
-                return web.json_response({"error": "Empty text prompt"}, status=400)
-
-            from voicefi.audio.echo_canceller import is_acoustic_echo
-            if is_acoustic_echo(text):
-                print(f"[CompanionServer] 🛡️ Filtered acoustic self-echo in /api/send: \"{text}\"")
-                return web.json_response({"success": True, "suppressed_echo": True, "delivered": False})
 
             set_mobile_turn_origin(conv_id)
             result = send_message_to_agent(
@@ -694,6 +720,177 @@ class CompanionServer:
                 "delivered_ipc": False,
                 "pasted_to_foreground": False,
             }, status=500)
+
+    async def handle_speak(self, request: web.Request) -> web.Response:
+        """
+        Synthesize and play speech aloud through local speakers/TTS within speech_turn_lock.
+        Receives JSON: {"text": "...", "voice": "...", "rate": "...", "conv_id": "..."}
+        Returns JSON: {"status": "ok", "text": "..."}
+        """
+        try:
+            try:
+                data = await request.json()
+            except Exception:
+                return web.json_response({"error": "Invalid JSON payload", "status": "error"}, status=400)
+
+            if not isinstance(data, dict):
+                return web.json_response({"error": "JSON body must be an object", "status": "error"}, status=400)
+
+            raw_text = data.get("text")
+            if raw_text is None or not isinstance(raw_text, str) or not raw_text.strip():
+                return web.json_response({"error": "Missing or empty 'text' field", "status": "error"}, status=400)
+
+            clean_text = raw_text.strip()
+            voice = data.get("voice")
+            rate = data.get("rate")
+            conv_id = data.get("conv_id") or data.get("conversation_id")
+            agent = data.get("agent") or data.get("agent_name") or "antigravity"
+            block = bool(data.get("block", True))
+
+            if conv_id:
+                try:
+                    from voicefi.integrations.conversations import claim_active_conversation_turn
+                    claim_active_conversation_turn(clean_text, conv_id=conv_id)
+                except Exception:
+                    pass
+
+            self.broadcast_event({
+                "type": "agent_speaking_started",
+                "text": clean_text,
+                "conv_id": conv_id or "active",
+                "voice": voice,
+            })
+
+            def _speak_sync():
+                from voicefi.config import load_config
+                from voicefi.tts import get_tts_engine
+                from voicefi.tts.base import speech_turn_lock
+
+                cfg = load_config()
+                tts = get_tts_engine(cfg, agent_name=agent, voice_override=voice)
+                if rate and hasattr(tts, "rate"):
+                    try:
+                        tts.rate = str(rate)
+                    except Exception:
+                        pass
+
+                with speech_turn_lock(text=clean_text, agent_name=agent, persona_name=getattr(tts, "persona_name", None)):
+                    tts.speak(clean_text)
+
+            loop = asyncio.get_running_loop()
+            if block:
+                try:
+                    await loop.run_in_executor(None, _speak_sync)
+                finally:
+                    self.broadcast_event({
+                        "type": "agent_speaking_finished",
+                        "conv_id": conv_id or "active",
+                    })
+            else:
+                def _background_speak():
+                    try:
+                        _speak_sync()
+                    finally:
+                        self.broadcast_event({
+                            "type": "agent_speaking_finished",
+                            "conv_id": conv_id or "active",
+                        })
+
+                threading.Thread(target=_background_speak, daemon=True).start()
+
+            return web.json_response({
+                "status": "ok",
+                "text": clean_text,
+            })
+        except Exception as e:
+            return web.json_response({"error": str(e), "status": "error"}, status=500)
+
+    async def handle_sfx(self, request: web.Request) -> web.Response:
+        """
+        Trigger procedural sound effect via play_sfx().
+        Receives JSON: {"name": "...", "volume": 0.8, "block": false}
+        Returns JSON: {"status": "ok", "sfx": "name"}
+        """
+        try:
+            try:
+                data = await request.json()
+            except Exception:
+                return web.json_response({"error": "Invalid JSON payload", "status": "error"}, status=400)
+
+            if not isinstance(data, dict):
+                return web.json_response({"error": "JSON body must be an object", "status": "error"}, status=400)
+
+            raw_name = data.get("name", "drum_smash")
+            if raw_name is None or not isinstance(raw_name, str) or not raw_name.strip():
+                from voicefi.audio.sfx import list_available_sfx
+                return web.json_response({
+                    "error": "Missing or invalid 'name' parameter",
+                    "status": "error",
+                    "available": list_available_sfx(),
+                }, status=400)
+
+            clean_name = raw_name.strip()
+            raw_volume = data.get("volume", 0.8)
+            try:
+                volume = float(raw_volume)
+                volume = max(0.0, min(volume, 2.0))
+            except (ValueError, TypeError):
+                return web.json_response({
+                    "error": "Invalid 'volume' parameter, expected number",
+                    "status": "error",
+                }, status=400)
+
+            block = bool(data.get("block", False))
+
+            from voicefi.audio.sfx import play_sfx, list_available_sfx
+
+            success = play_sfx(clean_name, block=block, volume=volume)
+            if not success:
+                return web.json_response({
+                    "error": f"Unknown sound effect: '{clean_name}'",
+                    "status": "error",
+                    "available": list_available_sfx(),
+                }, status=400)
+
+            self.broadcast_event({
+                "type": "sfx_played",
+                "name": clean_name,
+            })
+
+            return web.json_response({
+                "status": "ok",
+                "sfx": clean_name,
+            })
+        except Exception as e:
+            return web.json_response({"error": str(e), "status": "error"}, status=500)
+
+    async def handle_stop(self, request: web.Request) -> web.Response:
+        """
+        Trigger stop_all_speech() to halt all active speech playback and audio recording.
+        Returns JSON: {"status": "ok", "stopped": true}
+        """
+        try:
+            from voicefi.tts.base import stop_all_speech
+            stop_all_speech()
+
+            # Also stop any active Mac audio recording if in progress
+            if hasattr(self, "_active_mac_recorder") and self._active_mac_recorder:
+                try:
+                    self._active_mac_recorder.stop()
+                except Exception:
+                    pass
+
+            self.broadcast_event({
+                "type": "speech_stopped",
+                "timestamp": time.time(),
+            })
+
+            return web.json_response({
+                "status": "ok",
+                "stopped": True,
+            })
+        except Exception as e:
+            return web.json_response({"error": str(e), "status": "error"}, status=500)
 
 
 
@@ -1295,11 +1492,45 @@ class CompanionServer:
 
     async def handle_qr(self, request: web.Request) -> web.Response:
         urls = get_companion_urls(self.port)
-        qr_b64 = generate_qr_base64_png(urls["ip_url"])
+        active_tunnel = get_active_tunnel_url()
+        if active_tunnel:
+            urls["tunnel_url"] = active_tunnel
+        preferred_url = active_tunnel or urls["ip_url"]
+        qr_b64 = generate_qr_base64_png(preferred_url)
         return web.json_response({
             "urls": urls,
+            "active_tunnel_url": active_tunnel,
+            "preferred_url": preferred_url,
             "qr_data_uri": qr_b64,
         })
+
+    async def handle_tunnel_status(self, request: web.Request) -> web.Response:
+        active_tunnel = get_active_tunnel_url()
+        return web.json_response({
+            "active": bool(active_tunnel),
+            "tunnel_url": active_tunnel,
+        })
+
+    async def handle_tunnel_start(self, request: web.Request) -> web.Response:
+        import asyncio
+        tunnel_url = get_active_tunnel_url()
+        if not tunnel_url:
+            tunnel_url = await asyncio.to_thread(start_cloudflared_tunnel, self.port)
+        
+        if tunnel_url:
+            urls = get_companion_urls(self.port)
+            urls["tunnel_url"] = tunnel_url
+            qr_b64 = generate_qr_base64_png(tunnel_url)
+            return web.json_response({
+                "status": "success",
+                "tunnel_url": tunnel_url,
+                "urls": urls,
+                "qr_data_uri": qr_b64,
+            })
+        return web.json_response({
+            "status": "error",
+            "message": "Could not create Cloudflare Tunnel. Verify cloudflared is installed."
+        }, status=500)
 
     # WebSocket Real-Time Channel
     async def handle_ws(self, request: web.Request) -> web.WebSocketResponse:
@@ -1330,13 +1561,11 @@ class CompanionServer:
                         if msg_type == "user_voice_command":
                             text = payload.get("text", "").strip()
                             cid = payload.get("conv_id")
+                            sender_name = payload.get("sender_name") or "ViFi Companion"
+                            title = payload.get("title") or f"Message from {sender_name}"
                             if text:
-                                from voicefi.audio.echo_canceller import is_acoustic_echo
-                                if is_acoustic_echo(text):
-                                    print(f"[CompanionServer] 🛡️ Filtered acoustic self-echo in websocket: \"{text}\"")
-                                    continue
                                 set_mobile_turn_origin(cid)
-                                send_message_to_agent(conv_id=cid, text=text)
+                                send_message_to_agent(conv_id=cid, text=text, sender_name=sender_name, title=title)
                                 self.broadcast_event({
                                     "type": "user_command_injected",
                                     "conv_id": cid or "active",
@@ -1386,6 +1615,18 @@ class CompanionServer:
                             self.pause_memo()
                         elif msg_type == "memo_stop":
                             self.stop_memo()
+                        elif msg_type == "stop":
+                            from voicefi.tts.base import stop_all_speech
+                            stop_all_speech()
+                            if hasattr(self, "_active_mac_recorder") and self._active_mac_recorder:
+                                try:
+                                    self._active_mac_recorder.stop()
+                                except Exception:
+                                    pass
+                            self.broadcast_event({
+                                "type": "speech_stopped",
+                                "timestamp": time.time(),
+                            })
                         elif msg_type == "ping":
                             record_companion_heartbeat(len(self.active_websockets))
                             await ws.send_str(json.dumps({"type": "pong"}))
@@ -1975,22 +2216,94 @@ def ensure_ssl_context() -> Optional[object]:
     return None
 
 
+_ACTIVE_TUNNEL_PROC: Optional[Any] = None
+_ACTIVE_TUNNEL_URL: Optional[str] = None
+
+
+def get_active_tunnel_url() -> Optional[str]:
+    """Return currently active Cloudflare Quick Tunnel URL if running."""
+    global _ACTIVE_TUNNEL_PROC, _ACTIVE_TUNNEL_URL
+    if _ACTIVE_TUNNEL_URL and _ACTIVE_TUNNEL_PROC and _ACTIVE_TUNNEL_PROC.poll() is None:
+        return _ACTIVE_TUNNEL_URL
+
+    # Check persisted file and active process
+    tunnel_file = Path.home() / ".voicefi" / "tunnel_url.txt"
+    if tunnel_file.is_file():
+        try:
+            url = tunnel_file.read_text(encoding="utf-8").strip()
+            if url.startswith("https://") and "trycloudflare.com" in url:
+                import subprocess
+                res = subprocess.run(["pgrep", "-f", "cloudflared tunnel"], capture_output=True, text=True)
+                if res.returncode == 0 and res.stdout.strip():
+                    _ACTIVE_TUNNEL_URL = url
+                    return url
+        except Exception:
+            pass
+    return None
+
+
 def start_cloudflared_tunnel(port: int = 5141) -> Optional[str]:
     """Start an ephemeral Cloudflare Quick Tunnel and return the trusted public HTTPS URL."""
+    global _ACTIVE_TUNNEL_PROC, _ACTIVE_TUNNEL_URL
+    existing = get_active_tunnel_url()
+    if existing:
+        return existing
+
     try:
         import subprocess
         import re
         import time
-        cmd = ["cloudflared", "tunnel", "--url", f"http://127.0.0.1:{port}"]
-        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        import shutil
+        import threading
+
+        binary = (
+            shutil.which("cloudflared")
+            or (Path("/opt/homebrew/bin/cloudflared").is_file() and "/opt/homebrew/bin/cloudflared")
+            or (Path("/usr/local/bin/cloudflared").is_file() and "/usr/local/bin/cloudflared")
+            or ((Path.home() / ".local/bin/cloudflared").is_file() and str(Path.home() / ".local/bin/cloudflared"))
+        )
+        if not binary:
+            return None
+
+        # Kill stale cloudflared instances
+        subprocess.run(["pkill", "-f", "cloudflared tunnel"], check=False)
+        time.sleep(0.5)
+
+        cmd = [str(binary), "tunnel", "--url", f"http://127.0.0.1:{port}"]
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            start_new_session=True,
+        )
+        _ACTIVE_TUNNEL_PROC = proc
+
         start_time = time.time()
-        while time.time() - start_time < 10:
+        found_url = None
+        while time.time() - start_time < 12:
             line = proc.stdout.readline()
             if not line:
                 break
             match = re.search(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com", line)
             if match:
-                return match.group(0)
+                found_url = match.group(0)
+                break
+
+        if found_url:
+            _ACTIVE_TUNNEL_URL = found_url
+            tunnel_file = Path.home() / ".voicefi" / "tunnel_url.txt"
+            tunnel_file.parent.mkdir(parents=True, exist_ok=True)
+            tunnel_file.write_text(found_url, encoding="utf-8")
+
+            def _drain():
+                while proc.poll() is None:
+                    if not proc.stdout.readline():
+                        break
+
+            threading.Thread(target=_drain, daemon=True).start()
+            return found_url
     except Exception as e:
         print(f"[CompanionServer] Tunnel warning: {e}")
     return None

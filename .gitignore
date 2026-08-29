@@ -58,6 +58,8 @@ token.json
 # Reference assets & stock photography
 assets/*.jpg
 assets/ref-*
+assets/reference-*
+
 
 # Test runner, linting & coverage caches
 .pytest_cache/
@@ -93,3 +95,22 @@ scratch/
 pr/
 marketing/
 mocks/
+
+# Agent session artifacts & ephemeral test runs
+.agents/auditor_*
+.agents/challenger_*
+.agents/worker_*
+.agents/reviewer_*
+.agents/explorer_*
+.agents/orchestrator_*
+.agents/sentinel/
+.agents/teamwork_preview_*
+.agents/test_writer_*
+.agents/victory_auditor/
+.agents/ORIGINAL_REQUEST.md
+.agents/PROJECT.md
+ORIGINAL_REQUEST.md
+PROJECT.md
+TEST_INFRA.md
+TEST_READY.md
+

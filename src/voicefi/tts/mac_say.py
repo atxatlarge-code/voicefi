@@ -53,6 +53,8 @@ def normalize_mac_rate(rate: any) -> int:
     if isinstance(rate, (int, float)):
         if rate == 0:
             return 200
+        if rate < -90:
+            return 60
         if -90 <= rate < 0:
             return max(min(int(round(200 * (1.0 + rate / 100.0))), 400), 60)
         if 1 <= rate <= 45:

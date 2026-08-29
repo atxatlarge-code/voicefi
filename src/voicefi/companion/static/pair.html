@@ -92,6 +92,23 @@
       </div>
     </div>
 
+    <!-- Cloudflare Hotspot / Remote Tunnel Launcher Card -->
+    <div id="tunnelCard" class="bg-[#121214] border border-[#27272a] rounded-2xl p-3.5 text-left space-y-2">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-1.5">
+          <span class="text-sm">🌐</span>
+          <span class="text-xs font-bold text-white font-mono">Hotspot / Remote Tunnel</span>
+        </div>
+        <span id="tunnelStatusBadge" class="text-[9px] font-mono px-2 py-0.5 rounded bg-zinc-800 text-zinc-400">Offline</span>
+      </div>
+      <p class="text-[11px] text-zinc-400 leading-relaxed">
+        Bypasses phone hotspot firewall isolation and enables 100% full microphone permissions on Android Chrome & iOS Safari.
+      </p>
+      <button id="launchTunnelBtn" type="button" class="w-full py-2 bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white text-xs font-bold font-mono rounded-xl transition active:scale-95 cursor-pointer shadow-md flex items-center justify-center gap-1.5">
+        <span>🚀</span> <span id="launchTunnelText">Create HTTPS Tunnel Link</span>
+      </button>
+    </div>
+
     <!-- Live Connection Status Pill -->
     <div id="connStatusBox" class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#141414] border border-[#27272a] text-xs font-mono text-zinc-400">
       <span id="connDot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
@@ -126,6 +143,9 @@
     const connDot = document.getElementById('connDot');
     const connLabel = document.getElementById('connLabel');
     const networkSelect = document.getElementById('networkSelect');
+    const launchTunnelBtn = document.getElementById('launchTunnelBtn');
+    const launchTunnelText = document.getElementById('launchTunnelText');
+    const tunnelStatusBadge = document.getElementById('tunnelStatusBadge');
 
     let allUrls = {};
 
@@ -162,6 +182,7 @@
       networkSelect.innerHTML = '';
 
       const options = [
+        { label: '🌐 Cloudflare HTTPS (Hotspot / Remote)', key: 'tunnel_url' },
         { label: 'Wi-Fi LAN', key: 'ip_url' },
         { label: 'mDNS (.local)', key: 'mdns_url' },
         { label: 'HTTPS Wi-Fi', key: 'https_ip_url' },
@@ -189,13 +210,59 @@
       }
     });
 
+    if (launchTunnelBtn) {
+      launchTunnelBtn.addEventListener('click', async () => {
+        launchTunnelText.innerText = 'Creating HTTPS Tunnel...';
+        launchTunnelBtn.disabled = true;
+        try {
+          const res = await fetch('/api/tunnel/start', { method: 'POST' });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.tunnel_url) {
+              if (tunnelStatusBadge) {
+                tunnelStatusBadge.className = 'text-[9px] font-mono px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-500/40 text-emerald-400';
+                tunnelStatusBadge.innerText = '• LIVE HTTPS';
+              }
+              launchTunnelText.innerText = 'HTTPS Tunnel Active';
+              allUrls.tunnel_url = data.tunnel_url;
+              populateNetworkOptions(data.urls || allUrls);
+              renderQr(data.tunnel_url, data.qr_data_uri);
+              return;
+            }
+          }
+          launchTunnelText.innerText = 'Tunnel Failed (Check cloudflared)';
+          setTimeout(() => {
+            launchTunnelText.innerText = 'Create HTTPS Tunnel Link';
+            launchTunnelBtn.disabled = false;
+          }, 3000);
+        } catch (e) {
+          launchTunnelText.innerText = 'Network Error';
+          setTimeout(() => {
+            launchTunnelText.innerText = 'Create HTTPS Tunnel Link';
+            launchTunnelBtn.disabled = false;
+          }, 3000);
+        }
+      });
+    }
+
     async function loadQrInfo() {
       try {
         const res = await fetch('/api/qr');
         if (res.ok) {
           const data = await res.json();
-          const targetUrl = data.urls?.ip_url || data.urls?.mdns_url || `http://${window.location.hostname}:5141`;
+          const targetUrl = data.urls?.tunnel_url || data.active_tunnel_url || data.urls?.ip_url || data.urls?.mdns_url || `http://${window.location.hostname}:5141`;
           populateNetworkOptions(data.urls);
+          
+          if (data.urls?.tunnel_url || data.active_tunnel_url) {
+            if (tunnelStatusBadge) {
+              tunnelStatusBadge.className = 'text-[9px] font-mono px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-500/40 text-emerald-400';
+              tunnelStatusBadge.innerText = '• LIVE HTTPS';
+            }
+            if (launchTunnelText) {
+              launchTunnelText.innerText = 'HTTPS Tunnel Active';
+            }
+          }
+          
           renderQr(targetUrl, data.qr_data_uri);
           return;
         }

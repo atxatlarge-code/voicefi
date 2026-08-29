@@ -113,7 +113,9 @@ def test_handle_claude_stop_hook_auto_submit_false(tmp_path):
          patch("voicefi.integrations.claude.AudioRecorder", return_value=mock_recorder), \
          patch("voicefi.integrations.claude.get_stt_engine", return_value=mock_stt), \
          patch("voicefi.integrations.claude.inject_text_to_claude") as mock_inject, \
-         patch("voicefi.integrations.claude.claim_turn", return_value=True):
+         patch("voicefi.integrations.claude.claim_turn", return_value=True), \
+         patch("voicefi.integrations.claude.pop_mobile_turn_origin", return_value=False), \
+         patch("voicefi.integrations.claude.has_active_companion_client", return_value=False):
 
         payload = {"message": "Claude is ready."}
         result = handle_claude_stop_hook(payload, cfg)
@@ -144,7 +146,9 @@ def test_handle_claude_stop_hook_direct_injection(tmp_path):
          patch("voicefi.integrations.claude.AudioRecorder", return_value=mock_recorder), \
          patch("voicefi.integrations.claude.get_stt_engine", return_value=mock_stt), \
          patch("voicefi.integrations.claude.inject_text_to_claude") as mock_inject, \
-         patch("voicefi.integrations.claude.claim_turn", return_value=True):
+         patch("voicefi.integrations.claude.claim_turn", return_value=True), \
+         patch("voicefi.integrations.claude.pop_mobile_turn_origin", return_value=False), \
+         patch("voicefi.integrations.claude.has_active_companion_client", return_value=False):
 
         payload = {"message": "Claude finished."}
         result = handle_claude_stop_hook(payload, cfg)

@@ -412,6 +412,7 @@
   </div>
 
   <!-- Header with Session Switcher and View Tabs -->
+  <!-- Header with Session Switcher and View Tabs (Option 1 Clean Layout) -->
   <header class="safe-top pb-2 px-3.5 border-b border-[#1c1c1c] bg-black/85 backdrop-blur-md z-20 shrink-0">
     <div class="flex items-center justify-between gap-3 mb-2.5">
       <div class="flex items-center gap-2">
@@ -462,34 +463,22 @@
             </g>
           </svg>
         </div>
-        <div>
+        <div class="flex items-center gap-2">
           <h1 class="font-extrabold text-sm tracking-tight text-white flex items-center font-sans">
             Voice<span class="text-[#FF2A2A]">Fi</span>
           </h1>
+          <div id="connStatus" class="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-950/60 border border-emerald-500/40 text-[9px] font-mono font-bold text-emerald-400">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" id="connDot"></span>
+            <span id="connText">• LIVE</span>
+          </div>
         </div>
       </div>
 
       <div class="flex items-center gap-1.5">
-        <button id="openLoopDemoBtn" title="Launch Interactive Autonomous Feedback Loop Demo" class="px-2 py-1 text-cyan-300 hover:text-white bg-[#101726] hover:bg-[#19243c] border border-cyan-500/40 rounded-lg text-[10px] mono transition flex items-center gap-1 cursor-pointer font-bold shadow-sm active:scale-95">
-          🔄 LOOP DEMO
+        <button id="openSettingsBtn" type="button" class="px-2.5 py-1 bg-[#141414] hover:bg-[#222222] border border-[#27272a] rounded-lg text-[10px] font-mono text-zinc-200 flex items-center gap-1.5 transition active:scale-95 cursor-pointer shadow-sm" title="Companion Settings">
+          <span class="text-xs">⚙️</span>
+          <span class="font-bold">Settings</span>
         </button>
-        <button id="qrPairBtn" title="Pair Mobile Phone (Scan QR Code)" class="px-2 py-1 text-white hover:text-white bg-[#18181b] hover:bg-[#27272a] border border-[#333333] rounded-lg text-[10px] mono transition flex items-center gap-1 cursor-pointer font-bold">
-          📱 PAIR
-        </button>
-        <button id="agRemoteBtn" title="Antigravity Remote Control Bridge" class="px-2 py-1 text-zinc-400 hover:text-white bg-[#111111] hover:bg-[#1c1c1c] border border-[#222222] rounded-lg text-[10px] mono transition flex items-center gap-1 cursor-pointer">
-          REMOTE
-        </button>
-        <button id="agThemeBtn" title="Cycle Antigravity Zero-G Theme (Google Glow / Mono / Studio Red)" class="px-2 py-1 text-zinc-400 hover:text-white bg-[#111111] hover:bg-[#1c1c1c] border border-[#222222] rounded-lg text-[10px] mono transition flex items-center gap-1 cursor-pointer">
-          <span class="w-1.5 h-1.5 rounded-full bg-blue-500" id="agThemeDot"></span>
-          <span id="agThemeText">AG</span>
-        </button>
-        <button id="refreshBtn" title="Refresh Session Details" class="px-2 py-1 text-[#888888] hover:text-white bg-[#111111] border border-[#222222] rounded-lg text-[10px] mono transition cursor-pointer">
-          SYNC
-        </button>
-        <div id="connStatus" class="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[#111111] border border-[#222222] text-[10px] font-mono text-[#888888]">
-          <span class="w-1.5 h-1.5 rounded-full bg-white" id="connDot"></span>
-          <span id="connText">Connecting...</span>
-        </div>
       </div>
     </div>
 
@@ -513,10 +502,10 @@
 
     <!-- Navigation Tabs -->
     <div class="flex items-center bg-[#0c0c0c] p-0.5 rounded-xl border border-[#222222] text-xs font-semibold">
-      <button id="tabVoice" class="flex-1 py-1 rounded-lg text-center transition flex items-center justify-center gap-1 text-[#888888] hover:text-white cursor-pointer">
+      <button id="tabVoice" class="flex-1 py-1 rounded-lg text-center transition flex items-center justify-center gap-1 bg-white text-black shadow-sm cursor-pointer font-bold">
         <span>Voice</span>
       </button>
-      <button id="tabChat" class="flex-1 py-1 rounded-lg text-center transition flex items-center justify-center gap-1 bg-white text-black shadow-sm cursor-pointer font-bold">
+      <button id="tabChat" class="flex-1 py-1 rounded-lg text-center transition flex items-center justify-center gap-1 text-[#888888] hover:text-white cursor-pointer">
         <span>Chat & Logs</span>
       </button>
       <button id="tabArtifacts" class="flex-1 py-1 rounded-lg text-center transition flex items-center justify-center gap-1 text-[#888888] hover:text-white cursor-pointer">
@@ -529,7 +518,7 @@
   <div class="flex-1 relative overflow-hidden flex flex-col bg-transparent">
 
     <!-- VIEW 1: Voice Stage -->
-    <section id="viewVoice" class="hidden flex-1 flex flex-col items-center justify-between p-4 max-w-sm mx-auto w-full z-10 overflow-y-auto">
+    <section id="viewVoice" class="flex-1 flex flex-col items-center justify-between p-4 max-w-sm mx-auto w-full z-10 overflow-y-auto">
       
       <!-- Insecure HTTP Helper Banner (Prompts user to switch to HTTPS for Phone Mic) -->
       <div id="httpsPromptBanner" class="hidden w-full bg-amber-950/60 border border-amber-500/50 rounded-2xl p-2.5 mb-2.5 text-left shrink-0">
@@ -546,56 +535,13 @@
         </div>
       </div>
 
-      <!-- Top Quick Command & Mac Remote Shortcuts Bar -->
-      <div class="w-full bg-[#0c0c0c]/90 backdrop-blur-md rounded-2xl p-2.5 border border-[#222222] shadow-sm space-y-2 shrink-0">
-        <!-- Quick Typing Input Form -->
-        <form id="textForm" class="flex gap-1.5">
-          <input id="textInput" type="text" placeholder="Type a prompt to Mac..." class="flex-1 bg-[#050505] border border-[#222222] rounded-xl px-3 py-2 text-xs text-white placeholder-[#555555] focus:outline-none focus:border-white transition">
-          <button type="submit" class="px-3.5 py-2 bg-white text-black hover:bg-[#e4e4e7] rounded-xl text-xs font-bold shadow-sm transition cursor-pointer shrink-0">
-            Send
-          </button>
-        </form>
-
-        <!-- Mac Remote Shortcuts & Mic Routing Bar -->
-        <div class="pt-1.5 border-t border-[#1c1c1c]">
-          <div class="flex items-center justify-between text-[9px] font-mono text-zinc-400 mb-1.5 uppercase tracking-wider px-0.5">
-            <span>Mac Remote Shortcuts</span>
-            <!-- Live Voice & Agent State Badge Pill (Top-Right Aligned) -->
-            <div id="orbIcon" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#111111]/90 backdrop-blur-md border border-[#27272a] text-[10px] font-mono font-bold text-zinc-300 tracking-wider shadow-sm transition-all">
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400" id="orbStatusDot"></span>
-              <span id="orbStatusText">[PHONE MIC]</span>
-            </div>
-          </div>
-          <div class="grid grid-cols-4 gap-1.5 font-mono text-[10px]">
-            <button type="button" id="macScreenshotBtn" class="py-1.5 px-1 bg-[#141414] hover:bg-[#222222] border border-[#27272a] rounded-xl font-bold text-white flex flex-col items-center justify-center gap-0.5 transition active:scale-95 cursor-pointer" title="Capture Mac Desktop Screen">
-              <span class="text-xs">🖥️</span>
-              <span class="text-[9px]">Screen</span>
-            </button>
-            <button type="button" id="macMicBtn" class="py-1.5 px-1 bg-[#141414] hover:bg-[#222222] border border-[#27272a] rounded-xl font-bold text-white flex flex-col items-center justify-center gap-0.5 transition active:scale-95 cursor-pointer" title="Speak into Mac Studio Microphone">
-              <span class="text-xs">🎙️</span>
-              <span class="text-[9px]">Mac Mic</span>
-            </button>
-            <button type="button" id="micSourceToggleBtn" class="py-1.5 px-1 bg-[#141414] hover:bg-[#222222] border border-[#27272a] rounded-xl font-bold text-white flex flex-col items-center justify-center gap-0.5 transition active:scale-95 cursor-pointer" title="Toggle Default Microphone (Phone / Mac)">
-              <span id="micSourceToggleIcon" class="text-xs">📱</span>
-              <span id="micSourceToggleTitle" class="text-[9px]">Phone</span>
-            </button>
-            <button type="button" id="phoneScreenshotBtn" class="py-1.5 px-1 bg-[#141414] hover:bg-[#222222] border border-[#27272a] rounded-xl font-bold text-white flex flex-col items-center justify-center gap-0.5 transition active:scale-95 cursor-pointer" title="Attach Phone Camera Photo / Screenshot">
-              <span class="text-xs">📎</span>
-              <span class="text-[9px]">Photo</span>
-            </button>
-          </div>
-        </div>
-
-        <!-- Attached Screenshot Preview Chip (Voice View) -->
-        <div id="voiceAttachedImagePreview" class="hidden p-2 bg-[#141414] border border-white/50 rounded-xl shadow-xl flex items-center justify-between">
-          <div class="flex items-center gap-2.5 truncate">
-            <img id="voiceAttachedThumbnail" src="" class="w-10 h-10 object-cover rounded-lg border border-zinc-600 bg-black cursor-pointer" title="View attached screenshot">
-            <div class="truncate text-left">
-              <span class="text-[11px] font-bold text-white flex items-center gap-1 font-mono"><span class="text-[9px] text-[#888888]">[ATTACHED]</span> <span id="voiceAttachedFilename" class="truncate">screenshot.jpg</span></span>
-              <p class="text-[9px] text-zinc-400 font-mono">Will be sent with next prompt</p>
-            </div>
-          </div>
-          <button type="button" id="voiceRemoveAttachedBtn" class="p-1 text-[#888888] hover:text-white text-xs font-bold transition cursor-pointer" title="Remove attachment">✕</button>
+      <!-- Top Live Voice Status Pill -->
+      <div class="w-full flex items-center justify-between px-1 mb-1 shrink-0">
+        <span class="text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-wider">Hands-Free Voice</span>
+        <!-- Live Voice & Agent State Badge Pill (Top-Right Aligned) -->
+        <div id="orbIcon" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#111111]/90 backdrop-blur-md border border-[#27272a] text-[10px] font-mono font-bold text-zinc-300 tracking-wider shadow-sm transition-all">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400" id="orbStatusDot"></span>
+          <span id="orbStatusText">[PHONE MIC]</span>
         </div>
       </div>
 
@@ -682,7 +628,7 @@
     </section>
 
     <!-- VIEW 2: Full Antigravity Chat & Working Logs -->
-    <section id="viewChat" class="flex-1 flex flex-col h-full overflow-hidden max-w-4xl mx-auto w-full bg-transparent">
+    <section id="viewChat" class="hidden flex-1 flex flex-col h-full overflow-hidden max-w-4xl mx-auto w-full bg-transparent">
       
       <!-- Session Bar -->
       <div class="px-3.5 py-1.5 bg-[#0a0a0a]/80 backdrop-blur-md border-b border-[#1c1c1c] flex items-center justify-between text-xs text-[#888888]">
@@ -741,87 +687,6 @@
         <span class="text-[9px] font-mono bg-white text-black font-bold px-1.5 py-0.2 rounded">LIVE</span>
       </div>
 
-      <!-- Attached Images List Container (Renders a distinct line for every attached image) -->
-      <div id="attachedImagesContainer" class="hidden px-3 pt-2 pb-1 bg-black/90 backdrop-blur-md border-t border-[#1c1c1e] space-y-1.5 max-h-48 overflow-y-auto">
-        <!-- Injected dynamically by renderAttachedImagesList() -->
-      </div>
-
-      <!-- Hidden Multi-File Upload Inputs -->
-      <input type="file" id="phoneCameraInput" accept="image/*" multiple class="hidden">
-      <input type="file" id="phoneCameraDirectInput" accept="image/*" capture="environment" class="hidden">
-
-      <!-- Bottom Chat Input Bar (Native Messages Layout) -->
-      <div class="p-2 sm:p-2.5 bg-black/95 backdrop-blur-md border-t border-[#1a1a1a] shrink-0 safe-bottom">
-        
-        <!-- Expandable Quick Action Utility Tray (Toggled by (+) button) -->
-        <div id="quickActionsTray" class="hidden mb-2 pt-1 pb-1">
-          <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar font-mono text-[10px]">
-            <button type="button" id="chatMacScreenshotBtn" class="px-3 py-1.5 rounded-full bg-[#18181b] hover:bg-[#27272a] border border-[#2e2e32] text-zinc-200 hover:text-white flex items-center gap-1.5 shrink-0 font-bold transition active:scale-95 cursor-pointer" title="Capture Mac Desktop Screen">
-              <span class="text-xs">🖥️</span>
-              <span>MAC SCREEN</span>
-            </button>
-            <button type="button" id="chatPhoneScreenshotBtn" class="px-3 py-1.5 rounded-full bg-[#18181b] hover:bg-[#27272a] border border-[#2e2e32] text-zinc-200 hover:text-white flex items-center gap-1.5 shrink-0 font-bold transition active:scale-95 cursor-pointer" title="Share Phone Screen / Stream">
-              <span class="text-xs">📱</span>
-              <span>PHONE SCREEN</span>
-            </button>
-            <button type="button" id="chatDirectCameraBtn" class="px-3 py-1.5 rounded-full bg-[#18181b] hover:bg-[#27272a] border border-[#2e2e32] text-zinc-200 hover:text-white flex items-center gap-1.5 shrink-0 font-bold transition active:scale-95 cursor-pointer" title="Take Live Camera Photo">
-              <span class="text-xs">📸</span>
-              <span>CAMERA</span>
-            </button>
-            <button type="button" id="chatCameraBtn" class="px-3 py-1.5 rounded-full bg-[#18181b] hover:bg-[#27272a] border border-[#2e2e32] text-zinc-200 hover:text-white flex items-center gap-1.5 shrink-0 font-bold transition active:scale-95 cursor-pointer" title="Upload Images or Files">
-              <span class="text-xs">📁</span>
-              <span>ALL FILES</span>
-            </button>
-          </div>
-        </div>
-
-        <!-- Native Messages Form Row -->
-        <form id="chatForm" class="flex items-center gap-2 w-full">
-          
-          <!-- 1. Left Action Button: (+) Plus button -->
-          <button type="button" id="chatAttachToggleBtn" class="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-[#1c1c1e] hover:bg-[#2c2c2e] active:scale-95 border border-[#2c2c2e] text-zinc-300 hover:text-white flex items-center justify-center shrink-0 transition-all cursor-pointer shadow-sm" title="Add attachments or shortcuts">
-            <svg id="chatAttachPlusIcon" class="w-5 h-5 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-          </button>
-
-          <!-- 2. Center Pill Input Capsule -->
-          <div class="flex-1 min-w-0 h-10 sm:h-11 bg-[#1c1c1e] focus-within:bg-[#242426] border border-[#2c2c2e] focus-within:border-zinc-500 rounded-full px-3.5 flex items-center gap-2 transition-all shadow-inner">
-            <!-- Text Input -->
-            <input id="chatInput" type="text" autocomplete="off" placeholder="Text message" class="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-white placeholder-zinc-400 font-sans focus:outline-none">
-
-            <!-- Inside Right Actions: Quick Prompt & Instant Multi-Select Gallery -->
-            <div class="flex items-center gap-1 shrink-0">
-              <!-- Quick Emoji / Prompt Shortcuts -->
-              <button type="button" id="chatEmojiBtn" class="p-1 text-zinc-400 hover:text-zinc-200 active:scale-95 transition cursor-pointer" title="Quick prompt shortcuts">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M15.182 15.182a4.5 4.5 0 01-6.364 0M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9.75 9.75c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75zm6 0c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75z" />
-                </svg>
-              </button>
-
-              <!-- Direct Multi-Select Gallery Photo Picker Button -->
-              <button type="button" id="chatGalleryBtn" class="p-1 text-zinc-400 hover:text-white active:scale-95 transition cursor-pointer" title="Multi-select photos from gallery">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
-                </svg>
-              </button>
-            </div>
-          </div>
-
-          <!-- 3. Right Action Button: Dynamic Voice Mic / Send Arrow -->
-          <button type="button" id="chatMainActionBtn" class="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-[#2a3826] hover:bg-[#384c33] text-[#a4d87e] active:scale-95 flex items-center justify-center shrink-0 transition-all cursor-pointer shadow-md" title="Record voice command or send message">
-            <!-- Mic Icon (Default when input is empty) -->
-            <svg id="chatActionMicIcon" class="w-5 h-5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15a3 3 0 003-3V6a3 3 0 00-3-3 3 3 0 00-3 3v6a3 3 0 003 3z" />
-            </svg>
-            <!-- Send Icon (Active when typing or attachments present) -->
-            <svg id="chatActionSendIcon" class="w-5 h-5 hidden transition-transform" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
-            </svg>
-          </button>
-        </form>
-      </div>
-
     </section>
 
     <!-- VIEW 3: Artifacts Browser -->
@@ -841,29 +706,198 @@
 
   </div>
 
-  <!-- Footer Controls (Shown on Voice View) -->
-  <footer id="mainFooter" class="px-4 py-3 border-t border-[#1c1c1c] flex items-center justify-between text-xs text-[#888888] bg-black/80 backdrop-blur-md shrink-0 gap-2 overflow-x-auto safe-bottom">
-    <label class="flex items-center gap-1.5 cursor-pointer shrink-0">
-      <input id="autoListenToggle" type="checkbox" checked class="w-3.5 h-3.5 rounded bg-black border-[#333333] text-white focus:ring-0 focus:ring-offset-0 transition">
-      <span class="font-medium text-[#cccccc] text-[10px] mono">Hands-Free Loop</span>
-    </label>
+  <!-- Universal Persistent Bottom Bar (Option 1 Layout: Always Available on Voice, Chat & Artifacts) -->
+  <!-- Attached Images List Container (Renders a distinct line for every attached image) -->
+  <div id="attachedImagesContainer" class="hidden px-3 pt-2 pb-1 bg-black/90 backdrop-blur-md border-t border-[#1c1c1e] space-y-1.5 max-h-48 overflow-y-auto z-20">
+    <!-- Injected dynamically by renderAttachedImagesList() -->
+  </div>
 
-    <div class="flex items-center gap-1 shrink-0">
-      <span class="text-[10px] text-[#666666] font-mono">Audio:</span>
-      <select id="audioRoutingSelect" class="px-2 py-0.5 rounded-lg bg-[#111111] border border-[#222222] text-[10px] text-white font-mono focus:outline-none focus:border-white transition">
-        <option value="smart">Smart Auto</option>
-        <option value="origin_only">Origin Only</option>
-        <option value="phone_only">Phone Only</option>
-        <option value="mac_only">Mac Only</option>
-        <option value="both">Both (Echo)</option>
-      </select>
+  <!-- Hidden Multi-File Upload Inputs -->
+  <input type="file" id="phoneCameraInput" accept="image/*" multiple class="hidden">
+  <input type="file" id="phoneCameraDirectInput" accept="image/*" capture="environment" class="hidden">
+
+  <!-- Bottom Chat Input Bar (Native Messages Layout) -->
+  <div class="p-2 sm:p-2.5 bg-black/95 backdrop-blur-md border-t border-[#1a1a1a] shrink-0 safe-bottom z-20">
+    
+    <!-- Expandable Quick Action Utility Tray (Toggled by (+) button) -->
+    <div id="quickActionsTray" class="hidden mb-2 pt-1 pb-1">
+      <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar font-mono text-[10px]">
+        <button type="button" id="chatMacScreenshotBtn" class="px-3 py-1.5 rounded-full bg-[#18181b] hover:bg-[#27272a] border border-[#2e2e32] text-zinc-200 hover:text-white flex items-center gap-1.5 shrink-0 font-bold transition active:scale-95 cursor-pointer" title="Capture Mac Desktop Screen">
+          <span class="text-xs">🖥️</span>
+          <span>MAC SCREEN</span>
+        </button>
+        <button type="button" id="chatPhoneScreenshotBtn" class="px-3 py-1.5 rounded-full bg-[#18181b] hover:bg-[#27272a] border border-[#2e2e32] text-zinc-200 hover:text-white flex items-center gap-1.5 shrink-0 font-bold transition active:scale-95 cursor-pointer" title="Share Phone Screen / Stream">
+          <span class="text-xs">📱</span>
+          <span>PHONE SCREEN</span>
+        </button>
+        <button type="button" id="chatDirectCameraBtn" class="px-3 py-1.5 rounded-full bg-[#18181b] hover:bg-[#27272a] border border-[#2e2e32] text-zinc-200 hover:text-white flex items-center gap-1.5 shrink-0 font-bold transition active:scale-95 cursor-pointer" title="Take Live Camera Photo">
+          <span class="text-xs">📸</span>
+          <span>CAMERA</span>
+        </button>
+        <button type="button" id="chatCameraBtn" class="px-3 py-1.5 rounded-full bg-[#18181b] hover:bg-[#27272a] border border-[#2e2e32] text-zinc-200 hover:text-white flex items-center gap-1.5 shrink-0 font-bold transition active:scale-95 cursor-pointer" title="Upload Images or Files">
+          <span class="text-xs">📁</span>
+          <span>ALL FILES</span>
+        </button>
+      </div>
     </div>
 
-    <button id="wakeLockBtn" class="flex items-center gap-1.5 text-[#888888] hover:text-white transition shrink-0">
-      <span id="wakeLockDot" class="w-1.5 h-1.5 rounded-full bg-white"></span>
-      <span id="wakeLockText" class="text-[10px] mono">Awake</span>
-    </button>
-  </footer>
+    <!-- Native Messages Form Row -->
+    <form id="chatForm" class="flex items-center gap-2 w-full max-w-4xl mx-auto">
+      
+      <!-- 1. Left Action Button: (+) Plus button -->
+      <button type="button" id="chatAttachToggleBtn" class="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-[#1c1c1e] hover:bg-[#2c2c2e] active:scale-95 border border-[#2c2c2e] text-zinc-300 hover:text-white flex items-center justify-center shrink-0 transition-all cursor-pointer shadow-sm" title="Add attachments or shortcuts">
+        <svg id="chatAttachPlusIcon" class="w-5 h-5 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+        </svg>
+      </button>
+
+      <!-- 2. Center Pill Input Capsule -->
+      <div class="flex-1 min-w-0 h-10 sm:h-11 bg-[#1c1c1e] focus-within:bg-[#242426] border border-[#2c2c2e] focus-within:border-zinc-500 rounded-full px-3.5 flex items-center gap-2 transition-all shadow-inner">
+        <!-- Text Input -->
+        <input id="chatInput" type="text" autocomplete="off" placeholder="Text message to Mac..." class="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-white placeholder-zinc-400 font-sans focus:outline-none">
+
+        <!-- Inside Right Actions: Quick Prompt & Instant Multi-Select Gallery -->
+        <div class="flex items-center gap-1 shrink-0">
+          <!-- Quick Emoji / Prompt Shortcuts -->
+          <button type="button" id="chatEmojiBtn" class="p-1 text-zinc-400 hover:text-zinc-200 active:scale-95 transition cursor-pointer" title="Quick prompt shortcuts">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15.182 15.182a4.5 4.5 0 01-6.364 0M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9.75 9.75c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75zm6 0c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75z" />
+            </svg>
+          </button>
+
+          <!-- Direct Multi-Select Gallery Photo Picker Button -->
+          <button type="button" id="chatGalleryBtn" class="p-1 text-zinc-400 hover:text-white active:scale-95 transition cursor-pointer" title="Multi-select photos from gallery">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- 3. Right Action Button: Dynamic Voice Mic / Send Arrow -->
+      <button type="button" id="chatMainActionBtn" class="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-[#2a3826] hover:bg-[#384c33] text-[#a4d87e] active:scale-95 flex items-center justify-center shrink-0 transition-all cursor-pointer shadow-md" title="Record voice command or send message">
+        <!-- Mic Icon (Default when input is empty) -->
+        <svg id="chatActionMicIcon" class="w-5 h-5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15a3 3 0 003-3V6a3 3 0 00-3-3 3 3 0 00-3 3v6a3 3 0 003 3z" />
+        </svg>
+        <!-- Send Icon (Active when typing or attachments present) -->
+        <svg id="chatActionSendIcon" class="w-5 h-5 hidden transition-transform" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
+        </svg>
+      </button>
+    </form>
+  </div>
+
+  <!-- Consolidated Settings Modal (Option 1) -->
+  <div id="settingsModal" class="fixed inset-0 bg-black/90 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-[#0c0c0c] border border-[#27272a] rounded-2xl max-w-md w-full p-5 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+      <!-- Header -->
+      <div class="flex items-center justify-between border-b border-[#222222] pb-3 text-left">
+        <div class="flex items-center gap-2">
+          <span class="text-base">⚙️</span>
+          <span class="text-white text-xs font-mono font-bold tracking-tight uppercase">Companion Settings</span>
+        </div>
+        <button id="closeSettingsModal" type="button" class="p-1 text-zinc-400 hover:text-white rounded-lg transition text-xs font-bold cursor-pointer">
+          ✕
+        </button>
+      </div>
+
+      <!-- Section 1: Pairing & Remote Control -->
+      <div class="space-y-2 text-left">
+        <div class="text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-wider">Device & Connectivity</div>
+        <div class="grid grid-cols-2 gap-2">
+          <button id="qrPairBtn" type="button" class="p-3 bg-[#141414] hover:bg-[#202020] border border-[#27272a] rounded-xl flex flex-col items-start gap-1 transition active:scale-95 cursor-pointer text-left">
+            <span class="text-base">📱</span>
+            <span class="text-xs font-bold text-white font-mono">Pair Phone</span>
+            <span class="text-[10px] text-zinc-400">Scan QR Code</span>
+          </button>
+          <button id="agRemoteBtn" type="button" class="p-3 bg-[#141414] hover:bg-[#202020] border border-[#27272a] rounded-xl flex flex-col items-start gap-1 transition active:scale-95 cursor-pointer text-left">
+            <span class="text-base">🎮</span>
+            <span class="text-xs font-bold text-white font-mono">Remote Bridge</span>
+            <span class="text-[10px] text-zinc-400">Antigravity Actions</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Section 2: Audio Routing & Voice Loop -->
+      <div class="space-y-2 text-left">
+        <div class="text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-wider">Audio & Hands-Free Loop</div>
+        <div class="bg-[#141414] border border-[#27272a] rounded-xl p-3 space-y-3">
+          <div class="flex items-center justify-between gap-2">
+            <div>
+              <div class="text-xs font-bold text-white font-mono">Audio Routing</div>
+              <div class="text-[10px] text-zinc-400">Target speaker output</div>
+            </div>
+            <select id="audioRoutingSelect" class="px-2.5 py-1.5 rounded-lg bg-[#0a0a0a] border border-[#333333] text-xs text-white font-mono focus:outline-none focus:border-white transition cursor-pointer">
+              <option value="smart">Smart Auto</option>
+              <option value="origin_only">Origin Only</option>
+              <option value="phone_only">Phone Only</option>
+              <option value="mac_only">Mac Only</option>
+              <option value="both">Both (Echo)</option>
+            </select>
+          </div>
+          
+          <div class="pt-2 border-t border-[#222222] flex items-center justify-between gap-2">
+            <div>
+              <div class="text-xs font-bold text-white font-mono">Hands-Free Loop</div>
+              <div class="text-[10px] text-zinc-400">Auto-listen when agent finishes</div>
+            </div>
+            <label class="flex items-center gap-1.5 cursor-pointer">
+              <input id="autoListenToggle" type="checkbox" checked class="w-4 h-4 rounded bg-black border-[#333333] text-white focus:ring-0 focus:ring-offset-0 transition cursor-pointer">
+            </label>
+          </div>
+
+          <div class="pt-2 border-t border-[#222222] flex items-center justify-between gap-2">
+            <div>
+              <div class="text-xs font-bold text-white font-mono">Feedback Loop Demo</div>
+              <div class="text-[10px] text-zinc-400">7-Phase reactive character demo</div>
+            </div>
+            <button id="openLoopDemoBtn" type="button" class="px-2.5 py-1 text-cyan-300 hover:text-white bg-[#101726] hover:bg-[#19243c] border border-cyan-500/40 rounded-lg text-[10px] font-mono font-bold transition active:scale-95 cursor-pointer">
+              🔄 Launch
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 3: Visual & Themes -->
+      <div class="space-y-2 text-left">
+        <div class="text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-wider">Visual & Screen</div>
+        <div class="bg-[#141414] border border-[#27272a] rounded-xl p-3 space-y-3">
+          <div class="flex items-center justify-between gap-2">
+            <div>
+              <div class="text-xs font-bold text-white font-mono">Zero-G Particle Theme</div>
+              <div class="text-[10px] text-zinc-400">Backdrop physics color</div>
+            </div>
+            <button id="agThemeBtn" type="button" class="px-2.5 py-1.5 bg-[#0a0a0a] hover:bg-[#1c1c1c] border border-[#333333] rounded-lg text-xs font-mono text-zinc-200 flex items-center gap-1.5 transition cursor-pointer">
+              <span class="w-2 h-2 rounded-full bg-blue-500" id="agThemeDot"></span>
+              <span id="agThemeText">Google</span>
+            </button>
+          </div>
+
+          <div class="pt-2 border-t border-[#222222] flex items-center justify-between gap-2">
+            <div>
+              <div class="text-xs font-bold text-white font-mono">Keep Screen Awake</div>
+              <div class="text-[10px] text-zinc-400">Prevent phone sleep while pacing</div>
+            </div>
+            <button id="wakeLockBtn" type="button" class="px-2.5 py-1.5 bg-[#0a0a0a] hover:bg-[#1c1c1c] border border-[#333333] rounded-lg text-xs font-mono text-zinc-200 flex items-center gap-1.5 transition cursor-pointer">
+              <span id="wakeLockDot" class="w-2 h-2 rounded-full bg-white"></span>
+              <span id="wakeLockText">Awake</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 4: System Status & Refresh -->
+      <div class="pt-1 flex items-center justify-between text-xs font-mono text-zinc-400 border-t border-[#222222]">
+        <div class="flex items-center gap-1.5">
+          <span>Daemon: Port 5141</span>
+        </div>
+        <button id="refreshBtn" type="button" class="px-2.5 py-1 text-zinc-300 hover:text-white bg-[#1a1a1a] hover:bg-[#262626] border border-[#333333] rounded-lg text-[10px] font-mono transition cursor-pointer">
+          🔄 SYNC NOW
+        </button>
+      </div>
+    </div>
+  </div>
 
   <!-- QR Code Mobile Pairing Modal -->
   <div id="qrPairModal" class="fixed inset-0 bg-black/90 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
@@ -891,6 +925,11 @@
           COPY
         </button>
       </div>
+
+      <!-- Cloudflare Quick Tunnel Action inside QR Modal -->
+      <button id="modalLaunchTunnelBtn" type="button" class="w-full py-2 bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white text-xs font-bold font-mono rounded-xl transition active:scale-95 cursor-pointer shadow-md flex items-center justify-center gap-1.5">
+        <span>🌐</span> <span id="modalLaunchTunnelText">Create HTTPS Tunnel (Hotspot / Remote)</span>
+      </button>
 
       <p class="text-[10px] text-zinc-400 text-left">
         💡 <strong>Tip:</strong> After opening on your phone, tap <em>Share &rarr; Add to Home Screen</em> to run as a full-screen standalone app.
@@ -1258,6 +1297,9 @@
     const audioRoutingSelect = document.getElementById("audioRoutingSelect");
     const agentRoleBadge = document.getElementById("agentRoleBadge");
     const sessionStatusTag = document.getElementById("sessionStatusTag");
+    const openSettingsBtn = document.getElementById("openSettingsBtn");
+    const closeSettingsModal = document.getElementById("closeSettingsModal");
+    const settingsModal = document.getElementById("settingsModal");
     
     // View Tabs
     const tabVoice = document.getElementById("tabVoice");
@@ -1401,7 +1443,7 @@
     }
     window.addEventListener("resize", updateVoiceCenterCoordinates);
 
-    // Tab Navigation (Monochrome)
+    // Tab Navigation (Option 1 Segmented Switcher)
     function switchView(tab) {
       currentView = tab;
       viewVoice.classList.add("hidden");
@@ -1418,18 +1460,18 @@
       if (tab === 'voice') {
         viewVoice.classList.remove("hidden");
         tabVoice.className = activeTab;
-        mainFooter.classList.remove("hidden");
+        if (mainFooter) mainFooter.classList.remove("hidden");
         setTimeout(updateVoiceCenterCoordinates, 50);
       } else if (tab === 'chat') {
         viewChat.classList.remove("hidden");
         tabChat.className = activeTab;
-        mainFooter.classList.add("hidden");
+        if (mainFooter) mainFooter.classList.add("hidden");
         scrollToChatBottom();
         if (window.bgField) window.bgField.setPullCenter(undefined, undefined);
       } else if (tab === 'artifacts') {
         viewArtifacts.classList.remove("hidden");
         tabArtifacts.className = activeTab;
-        mainFooter.classList.add("hidden");
+        if (mainFooter) mainFooter.classList.add("hidden");
         if (window.bgField) window.bgField.setPullCenter(undefined, undefined);
       }
     }
@@ -1437,6 +1479,30 @@
     tabVoice.addEventListener("click", () => switchView('voice'));
     tabChat.addEventListener("click", () => switchView('chat'));
     tabArtifacts.addEventListener("click", () => switchView('artifacts'));
+
+    // Settings Modal Handlers
+    if (openSettingsBtn && settingsModal) {
+      openSettingsBtn.addEventListener("click", () => {
+        settingsModal.classList.remove("hidden");
+      });
+    }
+    if (closeSettingsModal && settingsModal) {
+      closeSettingsModal.addEventListener("click", () => {
+        settingsModal.classList.add("hidden");
+      });
+    }
+    if (settingsModal) {
+      settingsModal.addEventListener("click", (e) => {
+        if (e.target === settingsModal) {
+          settingsModal.classList.add("hidden");
+        }
+      });
+    }
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && settingsModal && !settingsModal.classList.contains("hidden")) {
+        settingsModal.classList.add("hidden");
+      }
+    });
 
     function scrollToChatBottom() {
       setTimeout(() => {
@@ -1669,66 +1735,223 @@
       updateVoiceCenterCoordinates();
     }
 
-    // Audio & Speech Synthesis
+    // Audio Context Unlocking for Mobile Chrome & Safari Autoplay Policies
+    let audioUnlocked = false;
+    function unlockAudio() {
+      if (audioUnlocked) return;
+      initAudioContext();
+      if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      if (ttsAudio) {
+        ttsAudio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+        ttsAudio.play().then(() => {
+          ttsAudio.pause();
+          audioUnlocked = true;
+        }).catch(() => {});
+      }
+    }
+    document.addEventListener('touchstart', unlockAudio, { once: false, passive: true });
+    document.addEventListener('click', unlockAudio, { once: false, passive: true });
+
+    // Audio & Speech Synthesis with FIFO Turn Queue
+    let currentTtsSourceNode = null;
+    let currentTtsAbortController = null;
+    let speechQueue = [];
+    let isProcessingSpeechQueue = false;
+
+    function stopAllAgentSpeech() {
+      speechQueue = [];
+      isProcessingSpeechQueue = false;
+      isSpeaking = false;
+
+      // 1. Cancel in-flight TTS network fetch
+      if (currentTtsAbortController) {
+        try {
+          currentTtsAbortController.abort();
+        } catch (e) {}
+        currentTtsAbortController = null;
+      }
+
+      // 2. Stop and disconnect WebAudio source node immediately
+      if (currentTtsSourceNode) {
+        try {
+          currentTtsSourceNode.onended = null;
+          currentTtsSourceNode.stop(0);
+          currentTtsSourceNode.disconnect();
+        } catch (e) {}
+        currentTtsSourceNode = null;
+      }
+
+      // 3. Stop HTML5 <audio> element and reset
+      if (ttsAudio) {
+        try {
+          ttsAudio.onended = null;
+          ttsAudio.pause();
+          ttsAudio.currentTime = 0;
+          ttsAudio.removeAttribute('src');
+          ttsAudio.load();
+        } catch (e) {}
+      }
+
+      // 4. Cancel browser SpeechSynthesis
+      if ('speechSynthesis' in window) {
+        try {
+          window.speechSynthesis.cancel();
+        } catch (e) {}
+      }
+
+      // 5. Send POST /api/stop to server to halt Mac afplay / background speech
+      try {
+        fetch('/api/stop', { method: 'POST' }).catch(() => {});
+      } catch (e) {}
+
+      // 6. Send WebSocket stop message if connected
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        try {
+          ws.send(JSON.stringify({ type: 'stop' }));
+        } catch (e) {}
+      }
+    }
+
     function speakTextAloud(text, onComplete, agentRole) {
-      if (!text) {
+      if (!text || !text.trim()) {
         if (onComplete) onComplete();
         return;
       }
+      unlockAudio();
+      
+      // Enqueue speech item so turns play sequentially without overlapping
+      speechQueue.push({
+        text: text.trim(),
+        onComplete: onComplete,
+        agentRole: agentRole,
+        enqueuedAt: Date.now()
+      });
+
+      if (!isProcessingSpeechQueue) {
+        processSpeechQueue();
+      }
+    }
+
+    async function processSpeechQueue() {
+      if (speechQueue.length === 0) {
+        isProcessingSpeechQueue = false;
+        isSpeaking = false;
+        if (!isListening) {
+          setOrbState('idle');
+        }
+        return;
+      }
+
+      isProcessingSpeechQueue = true;
+      const currentItem = speechQueue.shift();
+      const text = currentItem.text;
+      const onComplete = currentItem.onComplete;
+      const agentRole = currentItem.agentRole;
+
       isSpeaking = true;
-      setOrbState('speaking');
+      const isClaude = agentRole === 'claude' || (agentRole && agentRole.toLowerCase().includes('claude'));
+      setOrbState('speaking', isClaude ? 'Claude Speaking' : 'Agent Speaking', text.slice(0, 45) + (text.length > 45 ? '...' : ''));
 
       const resolvedRole = agentRole || (activeConversationData && (activeConversationData.engine || activeConversationData.agent_role)) || (activeConvId && activeConvId.startsWith("claude_") ? "claude" : "antigravity");
 
-      fetch('/api/tts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: text, agent_role: resolvedRole })
-      })
-      .then(res => {
-        if (res.ok) return res.blob();
-        throw new Error("Server TTS fallback");
-      })
-      .then(blob => {
-        const audioUrl = URL.createObjectURL(blob);
-        ttsAudio.src = audioUrl;
-        ttsAudio.onended = () => {
-          recordAgentSpokenText(text);
-          isSpeaking = false;
-          setOrbState('idle');
-          setTimeout(() => {
-            if (onComplete) onComplete();
-          }, 800);
-        };
-        ttsAudio.play().catch(() => fallbackSpeechSynthesis(text, onComplete));
-      })
-      .catch(() => {
-        fallbackSpeechSynthesis(text, onComplete);
-      });
+      const finishCurrentTurn = () => {
+        recordAgentSpokenText(text);
+        if (onComplete) {
+          try { onComplete(); } catch (e) {}
+        }
+        // Small conversational pause between speakers (400ms) before next speech turn
+        setTimeout(() => {
+          if (speechQueue.length > 0) {
+            processSpeechQueue();
+          } else {
+            isProcessingSpeechQueue = false;
+            isSpeaking = false;
+            if (!isListening) {
+              setOrbState('idle');
+            }
+          }
+        }, 400);
+      };
+
+      currentTtsAbortController = new AbortController();
+
+      try {
+        const res = await fetch('/api/tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: text, agent_role: resolvedRole }),
+          signal: currentTtsAbortController.signal
+        });
+
+        if (!isSpeaking || !isProcessingSpeechQueue) return; // User stopped speech
+
+        if (res.ok) {
+          const arrayBuffer = await res.arrayBuffer();
+          if (!isSpeaking || !isProcessingSpeechQueue) return;
+
+          initAudioContext();
+          if (audioCtx) {
+            try {
+              const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+              if (!isSpeaking || !isProcessingSpeechQueue) return;
+
+              const source = audioCtx.createBufferSource();
+              source.buffer = audioBuffer;
+              source.connect(audioCtx.destination);
+              currentTtsSourceNode = source;
+              source.onended = () => {
+                if (currentTtsSourceNode === source) {
+                  currentTtsSourceNode = null;
+                }
+                finishCurrentTurn();
+              };
+              source.start(0);
+              return;
+            } catch (decodeErr) {
+              console.warn("WebAudio decode fallback:", decodeErr);
+            }
+          }
+
+          // Fallback to HTML5 Audio element
+          if (!isSpeaking || !isProcessingSpeechQueue) return;
+          const blob = new Blob([arrayBuffer], { type: 'audio/mpeg' });
+          const audioUrl = URL.createObjectURL(blob);
+          ttsAudio.src = audioUrl;
+          ttsAudio.onended = () => {
+            finishCurrentTurn();
+          };
+          ttsAudio.play().catch(() => {
+            if (isSpeaking && isProcessingSpeechQueue) fallbackSpeechSynthesis(text, finishCurrentTurn);
+          });
+          return;
+        }
+      } catch (err) {
+        if (err.name === 'AbortError') return;
+        console.warn("Server TTS fetch error:", err);
+      }
+
+      // Fallback
+      if (isSpeaking && isProcessingSpeechQueue) {
+        fallbackSpeechSynthesis(text, finishCurrentTurn);
+      }
     }
 
     function fallbackSpeechSynthesis(text, onComplete) {
+      if (!isSpeaking || !isProcessingSpeechQueue) return;
       if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
         const utter = new SpeechSynthesisUtterance(text);
         utter.rate = 1.05;
         utter.onend = () => {
-          recordAgentSpokenText(text);
-          isSpeaking = false;
-          setOrbState('idle');
-          setTimeout(() => {
-            if (onComplete) onComplete();
-          }, 800);
+          if (onComplete) onComplete();
         };
         utter.onerror = () => {
-          isSpeaking = false;
-          setOrbState('idle');
           if (onComplete) onComplete();
         };
         window.speechSynthesis.speak(utter);
       } else {
-        isSpeaking = false;
-        setOrbState('idle');
         if (onComplete) onComplete();
       }
     }
@@ -1741,11 +1964,7 @@
 
     async function startListening() {
       initAudioContext();
-      if (isSpeaking) {
-        if ('speechSynthesis' in window) window.speechSynthesis.cancel();
-        ttsAudio.pause();
-        isSpeaking = false;
-      }
+      stopAllAgentSpeech();
 
       if (isListening) {
         stopListening();
@@ -1811,13 +2030,8 @@
             console.warn("SpeechRecognition error:", event.error);
             isListening = false;
             if (window.bgField) window.bgField.setAudioLevel(0);
-            if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-              showToast("Phone mic requires HTTPS (Port 5142). Tap 'Switch to HTTPS' above.", 4500);
-              const banner = document.getElementById("httpsPromptBanner");
-              if (banner) banner.classList.remove("hidden");
-              setOrbState('idle');
-            } else if (event.error !== 'no-speech' && event.error !== 'aborted') {
-              // Try Tier 2 (MediaRecorder with local Whisper)
+            if (event.error !== 'no-speech' && event.error !== 'aborted') {
+              // Try Tier 2 (MediaRecorder with local Whisper backend)
               startMediaRecorderListening();
             } else {
               setOrbState('idle');
@@ -1829,7 +2043,7 @@
             if (window.bgField) window.bgField.setAudioLevel(0);
             const captured = (finalTranscript || interimTranscript).trim();
             if (captured) {
-              sendVoiceCommand(captured);
+              sendVoiceCommand(captured, true);
             } else {
               setOrbState('idle');
             }
@@ -1847,6 +2061,7 @@
     }
 
     async function startMediaRecorderListening() {
+      stopAllAgentSpeech();
       if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
         try {
           micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -1898,7 +2113,7 @@
               });
               const data = await res.json();
               if (data.transcript && data.transcript.trim()) {
-                sendVoiceCommand(data.transcript.trim());
+                sendVoiceCommand(data.transcript.trim(), true);
               } else {
                 setOrbState('idle');
               }
@@ -2012,60 +2227,9 @@
       if (!userInput || !userInput.trim()) return false;
       const now = Date.now();
 
-      // If phone is currently playing TTS or finished less than 1.2s ago, it's acoustic bleed
-      if (isSpeaking || (now - lastSpokenTime < 1200)) {
+      // Only suppress if phone speaker is actively playing audio or finished less than 600ms ago
+      if (isSpeaking || (now - lastSpokenTime < 600)) {
         return true;
-      }
-
-      const cleanUser = userInput.toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
-      if (cleanUser.length < 3) return false;
-
-      const userWords = cleanUser.split(" ").filter(w => w.length > 2);
-      if (userWords.length === 0) return false;
-
-      // Check all recent agent summaries within the last 45 seconds
-      const candidates = recentSpokenHistory
-        .filter(entry => (now - entry.timestamp) <= 45000)
-        .map(entry => entry.text);
-      if (lastSpokenAgentText && !candidates.includes(lastSpokenAgentText)) {
-        candidates.push(lastSpokenAgentText);
-      }
-
-      for (const ref of candidates) {
-        if (!ref) continue;
-        const cleanRef = ref.toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
-        if (!cleanRef) continue;
-
-        // 1. Exact match
-        if (cleanUser === cleanRef) return true;
-
-        // 2. Substring containment
-        if (cleanRef.includes(cleanUser) || (cleanUser.length >= 8 && cleanUser.includes(cleanRef))) {
-          return true;
-        }
-
-        // 3. Prefix matching: if user input starts with the first few words of the ref
-        const refWords = cleanRef.split(" ").filter(w => w.length > 2);
-        if (refWords.length >= 2 && userWords.length >= 2) {
-          const minLen = Math.min(refWords.length, userWords.length);
-          let prefixMatchCount = 0;
-          for (let i = 0; i < minLen; i++) {
-            if (refWords[i] === userWords[i]) prefixMatchCount++;
-            else break;
-          }
-          if (prefixMatchCount >= 2 && (prefixMatchCount === userWords.length || prefixMatchCount >= 3)) {
-            return true;
-          }
-        }
-
-        // 4. Token overlap ratio
-        const refWordSet = new Set(refWords);
-        let matchCount = 0;
-        userWords.forEach(w => { if (refWordSet.has(w)) matchCount++; });
-        const overlapRatio = matchCount / userWords.length;
-        if (overlapRatio >= 0.40) {
-          return true;
-        }
       }
 
       return false;
@@ -2161,11 +2325,11 @@
       }
     }
 
-    function sendVoiceCommand(text) {
+    function sendVoiceCommand(text, isVoice = false) {
       if (!text || !text.trim()) return;
 
-      // Acoustic echo suppression: prevent speaker audio from echoing back into microphone
-      if (isAcousticEcho(text.trim())) {
+      // Acoustic echo suppression: only filter if this is audio input and phone is actively speaking
+      if (isVoice && isAcousticEcho(text.trim())) {
         console.warn("[VoiceFi] Acoustic echo suppressed:", text);
         showToast("Acoustic self-echo filtered", 2000);
         setOrbState('idle');
@@ -2195,18 +2359,20 @@
       appendOptimisticUserMessage(displayMsg);
       startActiveTurnPolling(activeConvId);
 
+      const targetPayload = {
+        type: "user_voice_command",
+        conv_id: activeConvId || null,
+        text: fullText
+      };
+
       if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({
-          type: "user_voice_command",
-          conv_id: activeConvId,
-          text: fullText
-        }));
+        ws.send(JSON.stringify(targetPayload));
       } else {
         fetch('/api/send', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ conv_id: activeConvId, text: fullText })
-        });
+          body: JSON.stringify({ conv_id: activeConvId || null, text: fullText })
+        }).catch(err => console.error("Send error:", err));
       }
 
       setTimeout(() => {
@@ -2253,6 +2419,7 @@
     }
 
     async function startMacRecording() {
+      stopAllAgentSpeech();
       showToast("Listening on Mac Studio Mic...", 3000);
       setOrbState('listening', 'Mac Mic Active', 'Speak clearly near your Mac...');
       isListening = true;
@@ -3754,19 +3921,23 @@
           recordAgentSpokenText(data.summary);
         }
 
-        // Smart Audio Routing Check (Strict Mobile Origin Gate)
+        // Smart Audio Routing Check
         const origin = data.origin || "desktop";
         let shouldSpeakOnPhone = false;
-        if (audioRoutingMode === "phone_only" || audioRoutingMode === "both") {
+        if (audioRoutingMode === "phone_only" || audioRoutingMode === "both" || audioRoutingMode === "smart") {
           shouldSpeakOnPhone = true;
-        } else if (audioRoutingMode === "smart" || audioRoutingMode === "origin_only") {
+        } else if (audioRoutingMode === "origin_only") {
           shouldSpeakOnPhone = (origin === "mobile");
         }
 
         if (shouldSpeakOnPhone) {
           speakTextAloud(data.summary, () => {
-            if (autoListen && !isListening && currentView === 'voice') {
-              setTimeout(startListening, 600);
+            if (autoListen && !isListening && speechQueue.length === 0 && currentView === 'voice') {
+              setTimeout(() => {
+                if (autoListen && !isListening && !isSpeaking && speechQueue.length === 0 && currentView === 'voice') {
+                  startListening();
+                }
+              }, 600);
             }
           }, data.agent_role || (isClaude ? 'claude' : 'antigravity'));
         } else {
@@ -3858,6 +4029,7 @@
     // Event Listeners
     orbBtn.addEventListener("click", () => {
       initAudioContext();
+      stopAllAgentSpeech();
       if (window.bgField) window.bgField.pulse(0.9);
       if (isListening) {
         stopListening();
@@ -3869,6 +4041,7 @@
     if (chatMicBtn) {
       chatMicBtn.addEventListener("click", () => {
         initAudioContext();
+        stopAllAgentSpeech();
         if (isListening) {
           stopListening();
         } else {
@@ -3948,6 +4121,8 @@
     const qrModalImg = document.getElementById("qrModalImg");
     const qrModalUrl = document.getElementById("qrModalUrl");
     const copyQrUrlBtn = document.getElementById("copyQrUrlBtn");
+    const modalLaunchTunnelBtn = document.getElementById("modalLaunchTunnelBtn");
+    const modalLaunchTunnelText = document.getElementById("modalLaunchTunnelText");
 
     async function loadAndShowQrModal() {
       let targetUrl = `http://${window.location.hostname || '127.0.0.1'}:5141`;
@@ -3957,7 +4132,10 @@
         if (res.ok) {
           const data = await res.json();
           dataUri = data.qr_data_uri || '';
-          targetUrl = data.urls?.ip_url || data.urls?.mdns_url || targetUrl;
+          targetUrl = data.urls?.tunnel_url || data.active_tunnel_url || data.urls?.ip_url || data.urls?.mdns_url || targetUrl;
+          if (data.urls?.tunnel_url || data.active_tunnel_url) {
+            if (modalLaunchTunnelText) modalLaunchTunnelText.innerText = 'HTTPS Tunnel Active';
+          }
         }
       } catch (e) {}
 
@@ -3983,6 +4161,40 @@
         }
       }
       qrPairModal?.classList.remove("hidden");
+    }
+
+    if (modalLaunchTunnelBtn) {
+      modalLaunchTunnelBtn.addEventListener("click", async () => {
+        if (modalLaunchTunnelText) modalLaunchTunnelText.innerText = "Creating HTTPS Tunnel...";
+        modalLaunchTunnelBtn.disabled = true;
+        try {
+          const res = await fetch('/api/tunnel/start', { method: 'POST' });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.tunnel_url) {
+              if (modalLaunchTunnelText) modalLaunchTunnelText.innerText = "HTTPS Tunnel Active";
+              if (qrModalUrl) qrModalUrl.innerText = data.tunnel_url;
+              if (data.qr_data_uri && qrModalImg) {
+                qrModalImg.src = data.qr_data_uri;
+                qrModalImg.classList.remove('hidden');
+              }
+              showToast("Cloudflare HTTPS Tunnel ready!", 2500);
+              return;
+            }
+          }
+          if (modalLaunchTunnelText) modalLaunchTunnelText.innerText = "Tunnel Failed (Check cloudflared)";
+          setTimeout(() => {
+            if (modalLaunchTunnelText) modalLaunchTunnelText.innerText = "Create HTTPS Tunnel (Hotspot / Remote)";
+            modalLaunchTunnelBtn.disabled = false;
+          }, 3000);
+        } catch (e) {
+          if (modalLaunchTunnelText) modalLaunchTunnelText.innerText = "Network Error";
+          setTimeout(() => {
+            if (modalLaunchTunnelText) modalLaunchTunnelText.innerText = "Create HTTPS Tunnel (Hotspot / Remote)";
+            modalLaunchTunnelBtn.disabled = false;
+          }, 3000);
+        }
+      });
     }
 
     if (qrPairBtn && qrPairModal) {
@@ -4293,22 +4505,27 @@
       setOrbState('idle');
     });
 
-    textForm.addEventListener("submit", (e) => {
-      e.preventDefault();
-      const val = textInput.value.trim();
-      if (val) {
-        sendVoiceCommand(val);
-        textInput.value = "";
-      }
-    });
+    if (textForm && textInput) {
+      textForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const val = textInput.value.trim();
+        if (val) {
+          sendVoiceCommand(val, false);
+          textInput.value = "";
+        }
+      });
+    }
 
     chatForm.addEventListener("submit", (e) => {
       e.preventDefault();
       const val = chatInput.value.trim();
       if (val || currentAttachedImages.length > 0) {
-        sendVoiceCommand(val || "Process attached images");
+        sendVoiceCommand(val || "Process attached images", false);
         chatInput.value = "";
         updateChatActionState();
+        if (currentView !== 'chat') {
+          switchView('chat');
+        }
       }
     });
 
@@ -4383,23 +4600,24 @@
       });
     }
 
-    // Initialize - Default to Chat & History view for instant visibility
+    // Initialize - Default to Voice Stage for instant voice interaction
     async function initApp() {
       // Mount Antigravity Zero-G Particle Field
       try {
         const canvas = document.getElementById('bgAntigravityCanvas');
-        const isMobileScreen = window.innerWidth < 768 || ('ontouchstart' in window) || (navigator.maxTouchPoints > 1);
         if (canvas && typeof AntigravityField !== 'undefined') {
           window.bgField = new AntigravityField(canvas, {
             theme: currentAgTheme,
-            particleCount: isMobileScreen ? 22 : 60,
-            dustCount: isMobileScreen ? 25 : 75,
-            connectionDistance: isMobileScreen ? 85 : 120,
-            repulsionRadius: isMobileScreen ? 100 : 140,
+            particleCount: 70,
+            dustCount: 85,
+            connectionDistance: 130,
+            repulsionRadius: 150,
             repulsionStrength: 1.4,
             buoyancy: -0.012,
             glowEnabled: true,
+            glowIntensity: 1.2,
             connectConstellations: true,
+            enableIdeaLightning: true,
           });
         }
       } catch (err) {
@@ -4408,7 +4626,7 @@
 
       updateAgThemeUI();
       updateMicSourceUI();
-      switchView('chat');
+      switchView('voice');
       connectWebSocket();
       initMarkdownCommenting();
       initImageMarkupStudio();
