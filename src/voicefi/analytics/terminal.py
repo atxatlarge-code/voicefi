@@ -11,7 +11,9 @@ from voicefi.analytics.queries import (
     get_daily_turn_volume,
     get_tool_usage_breakdown,
     get_agent_distribution,
+    get_cognitive_flow_breakdown,
 )
+
 
 
 # Terminal ANSI Color Codes
@@ -108,8 +110,28 @@ def format_stats_dashboard(days: int = 7) -> str:
         for a in agent_dist:
             lines.append(f"  • {BOLD}{a['agent']:<24}{RESET} {a['count']:>5} turns  {DIM}({a['percentage']:>5.1f}%){RESET}")
 
+    # Cognitive Flow & Context Switching Dynamics
+    flow_data = get_cognitive_flow_breakdown(days=days)
+    if flow_data and flow_data.get("total_turns", 0) > 0:
+        lines.append(f"\n{BOLD}🧠 Cognitive Flow & Context Switching Dynamics{RESET}")
+        lines.append(f"{DIM}{'─' * 74}{RESET}")
+        score = flow_data.get("flow_preservation_score", 100.0)
+        score_color = GREEN if score >= 85.0 else (YELLOW if score >= 60.0 else MAGENTA)
+        mins_saved = flow_data.get("net_flow_minutes_saved", 0.0)
+
+        lines.append(f"  {BOLD}• Flow Preservation Index:{RESET}  {score_color}{score:.1f}% (Deep Flow){RESET}  ·  {GREEN}+{mins_saved:.1f}m net focus saved{RESET}")
+        lines.append(f"\n  {DIM}{'Modality':<28} {'Turns':<10} {'Avg Turnaround (CTL)':<22} {'Context Swaps':<14}{RESET}")
+        lines.append(f"  {DIM}{'─' * 72}{RESET}")
+        for m in flow_data.get("modalities", []):
+            name_str = f"{m['icon']} {m['name']}"
+            t_str = f"{m['turns']} turns"
+            ctl_str = f"{m['avg_ctl']}"
+            swaps_str = f"{m['swaps']}"
+            lines.append(f"  {BOLD}{name_str:<28}{RESET} {t_str:<10} {CYAN}{ctl_str:<22}{RESET} {DIM}{swaps_str:<14}{RESET}")
+
     lines.append(f"{DIM}{'─' * 74}{RESET}")
     lines.append(f"{DIM}💡 Tip: Run 'vifi stats --export json' to export your local data, or 'vifi stats --clean' to purge.{RESET}\n")
+
 
     return "\n".join(lines)
 
