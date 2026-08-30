@@ -1,0 +1,348 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-10-17/server.schema.json",
+  "name": "voicefi",
+  "version": "1.0.0",
+  "kind": "product",
+  "description": "VoiceFi™ — Universal Voice Layer for AI Agents, MCP, and macOS. High-fidelity 48kHz neural Edge TTS, voice personas, hands-free active listening, and cross-agent communication.",
+  "instructions": "VoiceFi exposes real-time text-to-speech synthesis, acoustic voice persona discovery, hands-free active listening, and cross-agent communication tools via Model Context Protocol (MCP). Use voicefi_synthesize to generate 48kHz streaming audio URLs for any supported neural voice persona (Viv, Ava, Christopher, Emily, Aria, Sonia, Guy, Stefan).",
+  "homepage": "https://voicefi.org",
+  "documentation": "https://voicefi.org/docs.html",
+  "documentationUrl": "https://voicefi.org/docs.html",
+  "serverUrl": "https://voicefi.org/mcp",
+  "url": "https://voicefi.org/mcp",
+  "endpoint": "https://voicefi.org/mcp",
+  "protocolVersion": "2024-11-05",
+  "serverInfo": {
+    "name": "voicefi",
+    "version": "1.0.0",
+    "description": "VoiceFi™ — Universal Voice Layer for AI Agents, MCP, and macOS."
+  },
+  "transport": {
+    "type": "streamable-http",
+    "endpoint": "https://voicefi.org/mcp",
+    "url": "https://voicefi.org/mcp"
+  },
+  "capabilities": {
+    "tools": {
+      "listChanged": false
+    },
+    "resources": {
+      "subscribe": false,
+      "listChanged": false
+    },
+    "prompts": {
+      "listChanged": false
+    }
+  },
+  "authentication": {
+    "required": false,
+    "schemes": []
+  },
+  "tools": [
+    {
+      "name": "voicefi_synthesize",
+      "description": "Synthesizes 48kHz neural speech from text using VoiceFi Edge TTS and returns streamable audio URL and metadata.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "voice": {
+            "type": "string",
+            "description": "Voice persona key or name (e.g. 'viv', 'ava', 'christopher', 'emily', 'aria', 'sonia', 'guy', 'stefan').",
+            "enum": ["viv", "ava", "christopher", "emily", "aria", "sonia", "guy", "stefan", "samantha"]
+          },
+          "text": {
+            "type": "string",
+            "description": "The text content to synthesize into spoken speech."
+          }
+        },
+        "required": ["text"]
+      }
+    },
+    {
+      "name": "voicefi_speak",
+      "description": "Speak text aloud to the user using VoiceFi TTS with live Dynamic Island HUD visualization.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "The text content to synthesize and speak aloud."
+          },
+          "persona": {
+            "type": "string",
+            "description": "Optional persona or voice name (e.g. 'Ava (Premium)', 'Viv', 'Samantha', 'Christopher'). If omitted, uses active agent configuration."
+          },
+          "agent_name": {
+            "type": "string",
+            "description": "Optional agent identifier (e.g. 'antigravity', 'claude', 'cursor') for persona resolution."
+          },
+          "conv_id": {
+            "type": "string",
+            "description": "Optional conversation ID to link speech turn with active agent turn."
+          },
+          "block": {
+            "type": "boolean",
+            "description": "Whether to wait for playback to complete before returning (default: true)."
+          }
+        },
+        "required": ["text"]
+      }
+    },
+    {
+      "name": "voicefi_listen",
+      "description": "Open the microphone, record user speech with Voice Activity Detection (VAD), and transcribe to text.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "timeout": {
+            "type": "integer",
+            "description": "Maximum seconds to wait for user to begin speaking (default: 10)."
+          },
+          "max_seconds": {
+            "type": "integer",
+            "description": "Maximum recording duration in seconds (default: 30)."
+          }
+        }
+      }
+    },
+    {
+      "name": "voicefi_stop",
+      "description": "Immediately stop all active Text-to-Speech (TTS) audio playback and dismiss the speech HUD.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "voicefi_status",
+      "description": "Get VoiceFi system status including audio devices, configured agent voice personas, VAD thresholds, and daemon state.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "voicefi_set_voice",
+      "description": "Configure the voice persona or provider for a specific AI agent or subagent.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "agent": {
+            "type": "string",
+            "description": "Agent or subagent name (e.g. 'antigravity', 'claude', 'default', 'researcher')."
+          },
+          "persona": {
+            "type": "string",
+            "description": "Voice persona name or ID (e.g. 'Ava (Premium)', 'Viv', 'Samantha', 'Christopher', 'Onyx')."
+          }
+        },
+        "required": ["agent", "persona"]
+      }
+    },
+    {
+      "name": "voicefi_ping_voice",
+      "description": "Measure silent TTS synthesis latency (Time to First Byte / TTFB), throughput, and payload size without audio playback.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "voice": {
+            "type": "string",
+            "description": "Voice name or persona to benchmark (default: 'viv')."
+          }
+        }
+      }
+    },
+    {
+      "name": "voicefi_send",
+      "description": "Send a message, task finding, or joke to Antigravity or Claude Code across agents with correlation tracking.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "The message text or prompt to dispatch."
+          },
+          "to": {
+            "type": "string",
+            "enum": ["antigravity", "claude"],
+            "description": "Target agent engine (default: 'antigravity')."
+          },
+          "conv_id": {
+            "type": "string",
+            "description": "Target conversation ID, or 'reply' to reply directly to the originating conversation."
+          },
+          "title": {
+            "type": "string",
+            "description": "Optional title or header for the message."
+          },
+          "sender": {
+            "type": "string",
+            "description": "Sender attribution (e.g. 'Claude', 'Antigravity')."
+          },
+          "reply": {
+            "type": "boolean",
+            "description": "Set true to automatically reply to the originating conversation ID."
+          }
+        },
+        "required": ["text"]
+      }
+    },
+    {
+      "name": "voicefi_sfx",
+      "description": "Play a comedy sound effect (drum_smash / ba-dum-tss, honk, sad_trombone, applause, boing, crickets).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "enum": ["drum_smash", "drums", "honk", "sad_trombone", "applause", "cheer", "boing", "crickets"],
+            "description": "Name of the sound effect to play (default: 'drum_smash')."
+          },
+          "volume": {
+            "type": "number",
+            "description": "Volume multiplier (0.0 to 1.0, default: 1.0)."
+          }
+        },
+        "required": ["name"]
+      }
+    },
+    {
+      "name": "voicefi_get_docs",
+      "description": "Queries VoiceFi CLI documentation, architecture specifications, persona catalogs, and setup instructions.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "topic": {
+            "type": "string",
+            "description": "Documentation topic.",
+            "enum": ["installation", "barge-in", "personas", "mcp-server", "cross-agent-bridge", "troubleshooting", "all"]
+          }
+        },
+        "required": ["topic"]
+      }
+    },
+    {
+      "name": "voicefi_generate_install_command",
+      "description": "Generates the customized one-liner curl installation command for VoiceFi based on agent target and persona preference.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "agent": {
+            "type": "string",
+            "description": "Target AI agent environment.",
+            "enum": ["antigravity", "claude", "cursor", "all"]
+          },
+          "offlineAva": {
+            "type": "boolean",
+            "description": "Whether to configure Apple Silicon 0ms offline Ava (Premium) voice."
+          },
+          "devMode": {
+            "type": "boolean",
+            "description": "Whether to link directly to local development repo venv."
+          }
+        }
+      }
+    },
+    {
+      "name": "voicefi_compare_personas",
+      "description": "Returns comparative matrix of VoiceFi neural and offline voice personas (latency, tone, accent, recommended use case).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "useCase": {
+            "type": "string",
+            "description": "Filter personas by use case or return all.",
+            "enum": ["all", "pair_programming", "code_review", "rapid_debugging", "failsafe"]
+          }
+        }
+      }
+    },
+    {
+      "name": "voicefi_diagnose_hardware",
+      "description": "Analyzes hardware and agent environment to recommend optimal VAD thresholds, barge-in mode, and CLI diagnostic commands.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "deviceType": {
+            "type": "string",
+            "description": "Connected audio output device.",
+            "enum": ["headphones", "speakers", "airpods", "built_in"]
+          },
+          "os": {
+            "type": "string",
+            "description": "Operating system.",
+            "enum": ["macos_apple_silicon", "macos_intel", "linux", "windows"]
+          },
+          "agent": {
+            "type": "string",
+            "description": "AI Coding Agent.",
+            "enum": ["antigravity", "claude", "cursor", "other"]
+          }
+        },
+        "required": ["deviceType"]
+      }
+    },
+    {
+      "name": "voicefi_join_waitlist",
+      "description": "Adds a user email to the VoiceFi Pro / Early Access waitlist in Cloudflare KV store.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "User's email address."
+          }
+        },
+        "required": ["email"]
+      }
+    }
+  ],
+  "resources": [
+    {
+      "uri": "voicefi://personas",
+      "name": "Voice Personas Catalog",
+      "description": "Catalog of VoiceFi curated neural and offline voice personas.",
+      "mimeType": "application/json"
+    },
+    {
+      "uri": "voicefi://docs/quickstart",
+      "name": "VoiceFi Quickstart Guide",
+      "description": "1-line installer and quickstart guide for VoiceFi.",
+      "mimeType": "text/markdown"
+    }
+  ],
+  "prompts": [
+    {
+      "name": "voicefi_persona_selection",
+      "description": "Recommend the optimal voice persona and acoustic settings based on user workflow and environment.",
+      "arguments": [
+        {
+          "name": "use_case",
+          "description": "Primary coding workflow (pair_programming, code_review, rapid_debugging, voice_memos)",
+          "required": false
+        }
+      ]
+    }
+  ],
+  "servers": [
+    {
+      "name": "voicefi",
+      "description": "VoiceFi Cloudflare Edge MCP Server — Universal Voice Layer for AI Agents, MCP, and macOS.",
+      "url": "https://voicefi.org/mcp",
+      "endpoint": "https://voicefi.org/mcp",
+      "transport": "streamable-http",
+      "auth": "none",
+      "protocolVersion": "2024-11-05"
+    }
+  ],
+  "endpoints": [
+    {
+      "name": "mcp",
+      "endpoint": "https://voicefi.org/mcp",
+      "transport": "streamable-http",
+      "authentication": {
+        "required": false
+      }
+    }
+  ]
+}
