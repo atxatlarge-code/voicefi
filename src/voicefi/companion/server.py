@@ -793,11 +793,21 @@ class CompanionServer:
                     pass
 
             self.broadcast_event({
+                "type": "speak",
+                "text": clean_text,
+                "conv_id": conv_id or "active",
+                "voice": voice or "Viv",
+                "agent_role": agent,
+            })
+            self.broadcast_event({
                 "type": "agent_speaking_started",
                 "text": clean_text,
                 "conv_id": conv_id or "active",
-                "voice": voice,
+                "voice": voice or "Viv",
             })
+
+            target_device = (data.get("target") or data.get("device") or "").lower()
+            speak_on_mac = target_device not in ("phone", "mobile", "companion")
 
             def _speak_sync():
                 from voicefi.config import load_config
@@ -815,26 +825,27 @@ class CompanionServer:
                 with speech_turn_lock(text=clean_text, agent_name=agent, persona_name=getattr(tts, "persona_name", None)):
                     tts.speak(clean_text)
 
-            loop = asyncio.get_running_loop()
-            if block:
-                try:
-                    await loop.run_in_executor(None, _speak_sync)
-                finally:
-                    self.broadcast_event({
-                        "type": "agent_speaking_finished",
-                        "conv_id": conv_id or "active",
-                    })
-            else:
-                def _background_speak():
+            if speak_on_mac:
+                loop = asyncio.get_running_loop()
+                if block:
                     try:
-                        _speak_sync()
+                        await loop.run_in_executor(None, _speak_sync)
                     finally:
                         self.broadcast_event({
                             "type": "agent_speaking_finished",
                             "conv_id": conv_id or "active",
                         })
+                else:
+                    def _background_speak():
+                        try:
+                            _speak_sync()
+                        finally:
+                            self.broadcast_event({
+                                "type": "agent_speaking_finished",
+                                "conv_id": conv_id or "active",
+                            })
 
-                threading.Thread(target=_background_speak, daemon=True).start()
+                    threading.Thread(target=_background_speak, daemon=True).start()
 
             return web.json_response({
                 "status": "ok",

@@ -1,0 +1,310 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   viewBox="0 0 1128 191"
+   width="1128"
+   height="191"
+   version="1.1"
+   id="svg23"
+   sodipodi:docname="linkedin-banner-white.svg"
+   inkscape:version="1.4.3 (0d15f750, 2025-12-25)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs23">
+    <linearGradient
+       inkscape:collect="always"
+       xlink:href="#vfLightSymRed"
+       id="linearGradient23"
+       x1="84.332092"
+       y1="118.45367"
+       x2="226.30122"
+       y2="260.42281"
+       gradientTransform="scale(1.6482456,0.6067057)"
+       gradientUnits="userSpaceOnUse" />
+    <linearGradient
+       inkscape:collect="always"
+       xlink:href="#vfLightSymRed"
+       id="linearGradient24"
+       x1="110.33247"
+       y1="191.54692"
+       x2="218.09907"
+       y2="299.31352"
+       gradientTransform="scale(1.5589246,0.64146785)"
+       gradientUnits="userSpaceOnUse" />
+    <linearGradient
+       inkscape:collect="always"
+       xlink:href="#vfLightSymRed"
+       id="linearGradient25"
+       x1="145.23198"
+       y1="246.74512"
+       x2="217.49374"
+       y2="319.00688"
+       gradientTransform="scale(1.4115349,0.70844867)"
+       gradientUnits="userSpaceOnUse" />
+    <linearGradient
+       inkscape:collect="always"
+       xlink:href="#vfLightSymRed"
+       id="linearGradient26"
+       x1="112.81202"
+       y1="88.549485"
+       x2="302.72577"
+       y2="278.46324"
+       gradientTransform="scale(1.2321382,0.81159725)"
+       gradientUnits="userSpaceOnUse" />
+  </defs>
+  <sodipodi:namedview
+     id="namedview23"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="0.49686094"
+     inkscape:cx="564.54428"
+     inkscape:cy="96.606507"
+     inkscape:window-width="1369"
+     inkscape:window-height="725"
+     inkscape:window-x="0"
+     inkscape:window-y="40"
+     inkscape:window-maximized="0"
+     inkscape:current-layer="g23" />
+  <rect
+     width="1128"
+     height="191"
+     fill="#FFFFFF"
+     id="rect1" />
+  <!-- Center-aligned Official Lockup (590x120 scaled to height ~110px) -->
+  <g
+     transform="matrix(1.6006674,0,0,1.5584339,586.89431,116.85939)"
+     id="g23">
+    <g
+       transform="matrix(0.92,0,0,0.92,-295.14746,-66.623028)"
+       id="g22">
+      <!-- VoiceFi.org Official Master Logo (LIGHT THEME) -->
+      <defs
+         id="defs3">
+        <linearGradient
+           id="vfLightSymRed"
+           x1="0"
+           y1="0"
+           x2="1"
+           y2="1">
+          <stop
+             offset="0%"
+             stop-color="#FF3B30"
+             id="stop1" />
+          <stop
+             offset="50%"
+             stop-color="#FF2A2A"
+             id="stop2" />
+          <stop
+             offset="100%"
+             stop-color="#E0002A"
+             id="stop3" />
+        </linearGradient>
+      </defs>
+      <g
+         id="voicefi-logo-group">
+        <!-- ICON (VoiceFi Character Symbol) -->
+        <g
+           transform="matrix(0.28,0,0,0.28,0,4)"
+           id="g11">
+          <g
+             transform="translate(-68,-63)"
+             id="g10">
+            <!-- Electric Red Wi-Fi Signal Arcs -->
+            <g
+               stroke="url(#vfLightSymRed)"
+               stroke-linecap="round"
+               fill="none"
+               id="g5"
+               style="stroke:url(#linearGradient26)">
+              <path
+                 d="m 152,145 a 120,120 0 0 1 208,0"
+                 stroke-width="26"
+                 id="path3"
+                 style="stroke:url(#linearGradient23)" />
+              <path
+                 d="m 184,180 a 80,80 0 0 1 144,0"
+                 stroke-width="24"
+                 id="path4"
+                 style="stroke:url(#linearGradient24)" />
+              <path
+                 d="m 216,215 a 42,42 0 0 1 80,0"
+                 stroke-width="22"
+                 id="path5"
+                 style="stroke:url(#linearGradient25)" />
+            </g>
+            <!-- Cyber Face Eyes -->
+            <g
+               stroke="#0f172a"
+               stroke-width="14"
+               stroke-linecap="round"
+               id="g6">
+              <line
+                 x1="202"
+                 y1="262"
+                 x2="234"
+                 y2="262"
+                 id="line5" />
+              <line
+                 x1="278"
+                 y1="262"
+                 x2="310"
+                 y2="262"
+                 id="line6" />
+            </g>
+            <!-- USB-C Port Nose -->
+            <g
+               id="g7">
+              <rect
+                 x="236"
+                 y="276"
+                 width="40"
+                 height="18"
+                 rx="9"
+                 fill="#ffffff"
+                 stroke="#ff2a2a"
+                 stroke-width="4"
+                 id="rect6" />
+              <line
+                 x1="246"
+                 y1="285"
+                 x2="266"
+                 y2="285"
+                 stroke="#0f172a"
+                 stroke-width="3.5"
+                 stroke-linecap="round"
+                 id="line7" />
+            </g>
+            <!-- Waveform Smile -->
+            <path
+               d="m 228,322 q 28,26 56,0"
+               fill="none"
+               stroke="#ff2a2a"
+               stroke-width="8"
+               stroke-linecap="round"
+               id="path7" />
+            <!-- Studio Cradle & Plug Base -->
+            <path
+               d="m 124,220 c 0,130 51,165 132,165 81,0 132,-35 132,-165"
+               fill="none"
+               stroke="#0f172a"
+               stroke-width="20"
+               stroke-linecap="round"
+               id="path8" />
+            <!-- Plug Prongs with Knurled Accents -->
+            <g
+               id="g9">
+              <rect
+                 x="108"
+                 y="202"
+                 width="32"
+                 height="34"
+                 rx="7"
+                 fill="#ffffff"
+                 stroke="#0f172a"
+                 stroke-width="4.5"
+                 id="rect8" />
+              <circle
+                 cx="124"
+                 cy="219"
+                 r="5.5"
+                 fill="#ff2a2a"
+                 id="circle8" />
+              <rect
+                 x="372"
+                 y="202"
+                 width="32"
+                 height="34"
+                 rx="7"
+                 fill="#ffffff"
+                 stroke="#0f172a"
+                 stroke-width="4.5"
+                 id="rect9" />
+              <circle
+                 cx="388"
+                 cy="219"
+                 r="5.5"
+                 fill="#ff2a2a"
+                 id="circle9" />
+            </g>
+            <!-- Solid Stem & Ground Base -->
+            <line
+               x1="256"
+               y1="385"
+               x2="256"
+               y2="435"
+               stroke="#0f172a"
+               stroke-width="22"
+               stroke-linecap="round"
+               id="line9" />
+            <line
+               x1="185"
+               y1="435"
+               x2="327"
+               y2="435"
+               stroke="#0f172a"
+               stroke-width="22"
+               stroke-linecap="round"
+               id="line10" />
+          </g>
+        </g>
+        <!-- WORDMARK: VoiceFi.org (Pure Outlined Vector Paths) -->
+        <g
+           transform="translate(122,-1)"
+           id="g21">
+          <path
+             d="m 44.6,100 h -18 L 1.1,25.5 h 17 L 35.6,80 53.1,25.5 h 17 z"
+             fill="#ff2a2a"
+             id="path11" />
+          <path
+             d="m 95.3,101.2 v 0 q -8.1,0 -14.75,-3.7 Q 73.9,93.8 69.95,87.35 66,80.9 66,72.7 v 0 Q 66,64.4 69.95,58 73.9,51.6 80.55,47.9 87.2,44.2 95.3,44.2 v 0 q 8.1,0 14.7,3.7 6.6,3.7 10.55,10.1 3.95,6.4 3.95,14.7 v 0 q 0,8.2 -3.95,14.65 -3.95,6.45 -10.55,10.15 -6.6,3.7 -14.7,3.7 z m 0,-13.5 v 0 q 4.1,0 7.15,-1.9 3.05,-1.9 4.8,-5.3 1.75,-3.4 1.75,-7.8 v 0 q 0,-4.4 -1.75,-7.75 -1.75,-3.35 -4.8,-5.3 Q 99.4,57.7 95.3,57.7 v 0 q -4.1,0 -7.2,1.95 -3.1,1.95 -4.85,5.3 -1.75,3.35 -1.75,7.75 v 0 q 0,4.4 1.75,7.8 1.75,3.4 4.85,5.3 3.1,1.9 7.2,1.9 z"
+             fill="#0f172a"
+             id="path12" />
+          <path
+             d="m 144.8,100 h -15 V 45.4 h 15 z m 0,-59.5 h -15 v -15 h 15 z"
+             fill="#ff2a2a"
+             id="path13" />
+          <path
+             d="m 179.1,101.2 v 0 q -8.2,0 -14.75,-3.75 Q 157.8,93.7 153.95,87.2 150.1,80.7 150.1,72.6 v 0 q 0,-8.1 3.8,-14.55 3.8,-6.45 10.4,-10.15 6.6,-3.7 14.8,-3.7 v 0 q 6.1,0 11.3,2.1 5.2,2.1 8.9,5.85 3.7,3.75 5.3,8.85 v 0 l -13,5.6 q -1.4,-4.1 -4.75,-6.5 -3.35,-2.4 -7.75,-2.4 v 0 q -3.9,0 -6.95,1.9 -3.05,1.9 -4.8,5.3 -1.75,3.4 -1.75,7.8 v 0 q 0,4.4 1.75,7.8 1.75,3.4 4.8,5.3 3.05,1.9 6.95,1.9 v 0 q 4.5,0 7.8,-2.4 3.3,-2.4 4.7,-6.5 v 0 l 13,5.7 q -1.5,4.8 -5.2,8.6 -3.7,3.8 -8.9,5.95 -5.2,2.15 -11.4,2.15 z"
+             fill="#0f172a"
+             id="path14" />
+          <path
+             d="m 236.2,101.2 v 0 q -8.7,0 -15.1,-3.85 -6.4,-3.85 -9.9,-10.35 -3.5,-6.5 -3.5,-14.4 v 0 q 0,-8.2 3.65,-14.6 3.65,-6.4 9.85,-10.1 6.2,-3.7 14,-3.7 v 0 q 6.5,0 11.5,2.05 5,2.05 8.45,5.75 3.45,3.7 5.25,8.55 1.8,4.85 1.8,10.55 v 0 q 0,1.6 -0.15,3.15 -0.15,1.55 -0.55,2.65 v 0 h -38.2 q 0.2,2.1 1,3.9 v 0 q 1.5,3.5 4.6,5.45 3.1,1.95 7.5,1.95 v 0 q 4,0 6.85,-1.6 2.85,-1.6 4.45,-4.4 v 0 l 12,5.7 q -1.6,4 -5.05,7 -3.45,3 -8.15,4.65 -4.7,1.65 -10.3,1.65 z M 223.6,65.9 v 0 h 22.7 q -0.1,-1.3 -0.5,-2.5 v 0 q -1.1,-3.3 -3.85,-5.25 -2.75,-1.95 -6.75,-1.95 v 0 q -3.9,0 -6.7,1.9 -2.8,1.9 -4.2,5.6 v 0 q -0.4,1 -0.7,2.2 z"
+             fill="#0f172a"
+             id="path15" />
+          <path
+             d="M 284.1,100 H 268.6 V 25.5 h 51 V 39 h -35.5 v 18.9 h 30.5 v 13.5 h -30.5 z"
+             fill="#ff2a2a"
+             id="path16" />
+          <path
+             d="m 337.7,100 h -15 V 45.4 h 15 z m 0,-59.5 h -15 v -15 h 15 z"
+             fill="#ff2a2a"
+             id="path17" />
+          <path
+             d="m 357.56,100 h -6.9 v -7.8 h 6.9 z"
+             fill="#94a3b8"
+             id="path18" />
+          <path
+             d="m 382.94,100.72 v 0 q -4.68,0 -8.55,-2.22 -3.87,-2.22 -6.15,-6.06 -2.28,-3.84 -2.28,-8.7 v 0 q 0,-4.92 2.28,-8.73 2.28,-3.81 6.12,-6 3.84,-2.19 8.58,-2.19 v 0 q 4.8,0 8.61,2.19 3.81,2.19 6.06,6 2.25,3.81 2.25,8.73 v 0 q 0,4.92 -2.28,8.76 -2.28,3.84 -6.12,6.03 -3.84,2.19 -8.52,2.19 z m 0,-6.3 v 0 q 2.88,0 5.1,-1.38 2.22,-1.38 3.51,-3.81 1.29,-2.43 1.29,-5.49 v 0 q 0,-3.06 -1.29,-5.46 -1.29,-2.4 -3.51,-3.78 -2.22,-1.38 -5.1,-1.38 v 0 q -2.82,0 -5.07,1.38 -2.25,1.38 -3.54,3.78 -1.29,2.4 -1.29,5.46 v 0 q 0,3.06 1.29,5.49 1.29,2.43 3.54,3.81 2.25,1.38 5.07,1.38 z"
+             fill="#94a3b8"
+             id="path19" />
+          <path
+             d="m 412.04,100 h -6.78 V 67.54 h 6.48 v 4.14 q 1.08,-2.1 2.88,-3.18 v 0 q 2.4,-1.38 5.76,-1.38 v 0 h 1.98 v 6.18 h -2.82 q -3.36,0 -5.43,2.07 -2.07,2.07 -2.07,5.91 v 0 z"
+             fill="#94a3b8"
+             id="path20" />
+          <path
+             d="m 441.44,113.2 v 0 q -3.54,0 -6.54,-1.14 -3,-1.14 -5.16,-3.15 -2.16,-2.01 -3.24,-4.71 v 0 l 6.24,-2.58 q 0.84,2.28 3.09,3.78 2.25,1.5 5.55,1.5 v 0 q 2.58,0 4.62,-0.99 2.04,-0.99 3.24,-2.88 1.2,-1.89 1.2,-4.53 v 0 -4.08 q -1.44,1.8 -3.42,2.88 v 0 q -3,1.62 -6.72,1.62 v 0 q -4.5,0 -8.1,-2.1 -3.6,-2.1 -5.67,-5.76 -2.07,-3.66 -2.07,-8.22 v 0 q 0,-4.62 2.07,-8.22 2.07,-3.6 5.61,-5.7 3.54,-2.1 8.1,-2.1 v 0 q 3.72,0 6.66,1.56 v 0 q 2.22,1.26 3.84,3.3 v 0 -4.14 h 6.42 V 98.5 q 0,4.2 -2.01,7.53 -2.01,3.33 -5.55,5.25 -3.54,1.92 -8.16,1.92 z m -0.36,-20.58 v 0 q 2.7,0 4.8,-1.29 2.1,-1.29 3.33,-3.48 1.23,-2.19 1.23,-4.95 0,-2.76 -1.26,-4.98 -1.26,-2.22 -3.36,-3.51 -2.1,-1.29 -4.74,-1.29 v 0 q -2.76,0 -4.92,1.29 -2.16,1.29 -3.39,3.48 -1.23,2.19 -1.23,5.01 v 0 q 0,2.7 1.23,4.92 1.23,2.22 3.39,3.51 2.16,1.29 4.92,1.29 z"
+             fill="#94a3b8"
+             id="path21" />
+        </g>
+      </g>
+    </g>
+  </g>
+</svg>

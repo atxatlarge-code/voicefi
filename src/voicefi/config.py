@@ -146,8 +146,8 @@ class HUDConfig(BaseModel):
 
 
 class ClaudeConfig(BaseModel):
-    auto_listen: bool = True
-    read_summary_aloud: bool = True
+    auto_listen: bool = False
+    read_summary_aloud: bool = False
     auto_submit: bool = False  # False = paste into terminal prompt for manual review; True = auto-press Enter
     max_spoken_words: int = 60
     inject_to_active_window: bool = True
@@ -156,7 +156,7 @@ class ClaudeConfig(BaseModel):
 
 class CodexConfig(BaseModel):
     auto_listen: bool = False
-    read_summary_aloud: bool = True
+    read_summary_aloud: bool = False
     auto_submit: bool = False  # False = paste into prompt for manual review; True = auto-press Enter
     max_spoken_words: int = 60
     inject_to_active_window: bool = True
@@ -314,6 +314,12 @@ class ProActiveMeetingAssistantConfig(BaseModel):
     enabled: bool = False
     auto_notes: bool = True
     auto_dispatch_subagents: bool = True
+    auto_execute_actions: bool = True
+    sync_linear: bool = True
+    post_slack: bool = False
+    default_slack_channel: str = "#general"
+    notes_dir: str = "~/.voicefi/meetings"
+    granola_formatting: bool = True
     energy_threshold: float = 0.005
     silence_duration: float = 1.2
     max_utterance_seconds: float = 15.0
@@ -431,14 +437,10 @@ class VoiceFiConfig(BaseModel):
             return "edge_tts", "en-US-AvaNeural", default_rate
         elif key == "cursor":
             return "edge_tts", "en-US-JennyNeural", default_rate
-        elif key in ("obsidian", "aria", "emma"):
-            return "edge_tts", "en-US-EmmaNeural", default_rate
-        elif key in ("openai", "codex", "chatgpt"):
-            return "edge_tts", "en-US-EmmaNeural", default_rate
+        elif key in ("obsidian", "aria", "emma", "openai", "codex", "chatgpt", "debugger", "tester"):
+            return "edge_tts", "en-US-AvaNeural", default_rate
         elif key in ("researcher", "architect"):
             return "edge_tts", "en-GB-SoniaNeural", default_rate
-        elif key in ("debugger", "tester"):
-            return "edge_tts", "en-US-EmmaNeural", default_rate
 
         return default_provider, default_voice, default_rate
 

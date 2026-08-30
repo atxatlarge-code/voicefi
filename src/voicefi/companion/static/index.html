@@ -27,7 +27,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 
   <!-- Antigravity Background Effect Engine -->
-  <script src="/assets/antigravity-particles.js"></script>
+  <script src="antigravity-particles.js"></script>
 
   <style>
     :root {
@@ -37,8 +37,7 @@
       height: 100%;
       height: var(--app-height, 100dvh);
       max-height: var(--app-height, 100dvh);
-      background-color: #030712;
-      background: radial-gradient(ellipse at 50% 15%, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.9) 45%, #000000 100%);
+      background-color: #000000;
       color: #ffffff;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
       -webkit-tap-highlight-color: transparent;
@@ -590,6 +589,34 @@
         </p>
       </div>
 
+      <!-- Plan Review & Approval Card (Voice View) -->
+      <div id="voicePlanReviewCard" class="hidden w-full mt-2.5 p-3 bg-[#0a0a0a]/95 border border-[#333333] rounded-2xl backdrop-blur-md shadow-lg space-y-2 shrink-0">
+        <div class="flex items-center justify-between pb-1.5 border-b border-[#222222]">
+          <div class="flex items-center gap-1.5">
+            <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
+            <span class="text-[10px] font-bold text-white mono uppercase tracking-wider">PLAN REVIEW REQUIRED</span>
+          </div>
+          <button id="voiceViewPlanBtn" type="button" class="text-[10px] font-mono text-zinc-400 hover:text-white underline cursor-pointer">
+            [VIEW PLAN]
+          </button>
+        </div>
+        <div class="flex items-center justify-between text-xs">
+          <span class="font-mono text-zinc-300 text-[11px] truncate">implementation_plan.md</span>
+          <span class="text-[9px] font-mono text-zinc-500">[AWAITING APPROVAL]</span>
+        </div>
+        <div class="grid grid-cols-3 gap-1.5 pt-0.5">
+          <button type="button" id="voiceApprovePlanBtn" class="py-1.5 px-1 text-center bg-white text-black font-bold text-[10px] font-mono rounded-lg hover:bg-zinc-200 transition active:scale-95 cursor-pointer">
+            [APPROVE]
+          </button>
+          <button type="button" id="voiceRequestPlanChangesBtn" class="py-1.5 px-1 text-center bg-[#141414] hover:bg-[#222222] text-white border border-[#333333] font-bold text-[10px] font-mono rounded-lg transition active:scale-95 cursor-pointer">
+            [REVISE]
+          </button>
+          <button type="button" id="voiceTriggerVoiceReviewBtn" class="py-1.5 px-1 text-center bg-[#141414] hover:bg-[#222222] text-white border border-[#333333] font-bold text-[10px] font-mono rounded-lg transition active:scale-95 cursor-pointer">
+            [VOICE REVIEW]
+          </button>
+        </div>
+      </div>
+
     </section>
 
     <!-- VIEW 2: Full Antigravity Chat & Working Logs -->
@@ -605,6 +632,34 @@
           <span id="chatStatusTag" class="px-2.5 py-0.5 rounded-full text-[10px] font-mono bg-[#141414] text-[#888888] border border-[#222222]">[IDLE]</span>
           <span id="chatTurnCount" class="text-[10px] font-mono bg-[#141414] border border-[#222222] px-2 py-0.5 rounded text-[#888888]">0 turns</span>
           <button id="jumpBottomBtn" class="text-[11px] text-[#888888] hover:text-white underline cursor-pointer">↓</button>
+        </div>
+      </div>
+
+      <!-- Plan Review & Approval Card (Chat View) -->
+      <div id="planReviewCard" class="hidden px-3.5 py-2.5 bg-[#0a0a0a]/95 border-b border-[#2e2e2e] backdrop-blur-md shadow-md space-y-2 shrink-0">
+        <div class="flex items-center justify-between pb-1.5 border-b border-[#222222]">
+          <div class="flex items-center gap-2">
+            <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
+            <span class="text-[11px] font-bold text-white mono uppercase tracking-wider">PLAN REVIEW REQUIRED</span>
+          </div>
+          <button id="viewPlanBtn" type="button" class="text-[10px] font-mono text-zinc-400 hover:text-white underline cursor-pointer">
+            [VIEW PLAN]
+          </button>
+        </div>
+        <div class="flex items-center justify-between text-xs">
+          <span class="font-mono text-zinc-300 text-[11px] truncate">implementation_plan.md</span>
+          <span id="planStatusTag" class="text-[10px] font-mono text-zinc-500">[AWAITING APPROVAL]</span>
+        </div>
+        <div class="grid grid-cols-3 gap-2 pt-0.5">
+          <button type="button" id="approvePlanBtn" class="py-2 px-1 text-center bg-white text-black font-bold text-[10px] font-mono rounded-lg hover:bg-zinc-200 transition active:scale-95 cursor-pointer">
+            [APPROVE & PROCEED]
+          </button>
+          <button type="button" id="requestPlanChangesBtn" class="py-2 px-1 text-center bg-[#141414] hover:bg-[#222222] text-white border border-[#333333] font-bold text-[10px] font-mono rounded-lg transition active:scale-95 cursor-pointer">
+            [REQUEST CHANGES]
+          </button>
+          <button type="button" id="voiceReviewPlanBtn" class="py-2 px-1 text-center bg-[#141414] hover:bg-[#222222] text-white border border-[#333333] font-bold text-[10px] font-mono rounded-lg transition active:scale-95 cursor-pointer">
+            [VOICE REVIEW]
+          </button>
         </div>
       </div>
 
@@ -783,6 +838,16 @@
               <input id="autoListenToggle" type="checkbox" checked class="w-4 h-4 rounded bg-black border-[#333333] text-white focus:ring-0 focus:ring-offset-0 transition cursor-pointer">
             </label>
           </div>
+
+          <div class="pt-2 border-t border-[#222222] flex items-center justify-between gap-2">
+            <div>
+              <div class="text-xs font-bold text-white font-mono">Feedback Loop Demo</div>
+              <div class="text-[10px] text-zinc-400">7-Phase reactive character demo</div>
+            </div>
+            <button id="openLoopDemoBtn" type="button" class="px-2.5 py-1 text-cyan-300 hover:text-white bg-[#101726] hover:bg-[#19243c] border border-cyan-500/40 rounded-lg text-[10px] font-mono font-bold transition active:scale-95 cursor-pointer">
+              🔄 Launch
+            </button>
+          </div>
         </div>
       </div>
 
@@ -862,6 +927,105 @@
         💡 <strong>Tip:</strong> After opening on your phone, tap <em>Share &rarr; Add to Home Screen</em> to run as a full-screen standalone app.
       </p>
     </div>
+  </div>
+
+  <!-- Autonomous Feedback Loop Interactive Demo Modal -->
+  <div id="feedbackLoopModal" class="fixed inset-0 bg-black/95 backdrop-blur-xl z-50 hidden flex flex-col justify-between p-4 sm:p-6 overflow-y-auto">
+    
+    <!-- Modal Top Header -->
+    <div class="max-w-4xl w-full mx-auto flex items-center justify-between border-b border-[#22293a] pb-3 shrink-0">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-xl bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center text-cyan-300 font-mono font-bold text-sm shadow-[0_0_12px_rgba(6,182,212,0.4)]">
+          🔄
+        </div>
+        <div>
+          <h2 class="text-xs sm:text-sm font-bold font-mono tracking-tight text-white flex items-center gap-2">
+            AUTONOMOUS FEEDBACK LOOP LIVE DEMO
+            <span class="text-[9px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-semibold uppercase tracking-wider">Reactive Logo</span>
+          </h2>
+          <p class="text-[10px] text-zinc-400">Watch the VoiceFi Character light up active areas across all 7 autonomous phases</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button id="demoLoopAutoPlayBtn" onclick="toggleLoopAutoPlay()" class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-gradient-to-r from-red-500 via-purple-600 to-cyan-500 hover:opacity-90 text-white shadow-lg flex items-center gap-1.5 transition active:scale-95 cursor-pointer">
+          <span id="demoLoopPlayIcon">▶️</span>
+          <span id="demoLoopPlayText">Auto-Simulate Loop</span>
+        </button>
+        <button id="closeFeedbackLoopModal" class="p-2 text-zinc-400 hover:text-white rounded-xl bg-[#141824] border border-[#242c40] transition text-xs font-bold cursor-pointer">
+          ✕
+        </button>
+      </div>
+    </div>
+
+    <!-- Center Stage: Giant Reactive Character Logo & Active Phase Display -->
+    <div class="max-w-4xl w-full mx-auto my-auto py-6 flex flex-col items-center justify-center text-center space-y-5">
+      
+      <!-- Big VoiceFi Reactive Logo Host (160px) -->
+      <div class="w-40 h-40 sm:w-48 sm:h-48 relative flex items-center justify-center p-2 rounded-3xl bg-[#0c0f18]/80 border border-white/10 shadow-2xl backdrop-blur-md transition-transform duration-300">
+        <div id="demoLoopLogoHost" class="w-full h-full flex items-center justify-center">
+          <!-- Dynamically injected SVG via getVoiceFiReactiveSVG -->
+        </div>
+      </div>
+
+      <!-- Active Phase Title & Badge -->
+      <div class="space-y-1.5 max-w-lg">
+        <div id="demoLoopPhaseBadge" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold bg-purple-500/20 text-purple-300 border border-purple-500/40 shadow-md">
+          PHASE 1: AGENT REASONING & MILESTONE
+        </div>
+        <h3 id="demoLoopPhaseTitle" class="text-lg sm:text-xl font-extrabold text-white tracking-tight font-mono">
+          WiFi Broadcast Hat Pulse Active
+        </h3>
+        <p id="demoLoopPhaseDesc" class="text-xs text-zinc-300 leading-relaxed font-sans">
+          Antigravity runs test suites in the background; crown WiFi arcs radiate energetic pulses as the agent evaluates AST dependencies.
+        </p>
+      </div>
+
+      <!-- Dialogue / Soundbite Telemetry Card -->
+      <div class="w-full max-w-lg bg-[#0c101a]/90 border border-[#20293d] rounded-2xl p-4 text-left shadow-xl space-y-2 backdrop-blur-md">
+        <div class="flex items-center justify-between text-[10px] font-mono text-zinc-400 uppercase tracking-wider pb-1.5 border-b border-[#1b2336]">
+          <span id="demoLoopCardLabel">Synthesized Soundbite (Viv)</span>
+          <span id="demoLoopCardLatency" class="text-cyan-400 font-bold">Latency: 0ms (Offline)</span>
+        </div>
+        <p id="demoLoopCardBody" class="text-xs sm:text-sm text-zinc-100 font-mono leading-relaxed">
+          "Ran 24 tests. 1 failed in test_auth.py: expired token handling. Should I fix it?"
+        </p>
+      </div>
+
+    </div>
+
+    <!-- Bottom Interactive 7-Phase Navigator Tabs -->
+    <div class="max-w-4xl w-full mx-auto border-t border-[#22293a] pt-4 shrink-0 space-y-3">
+      <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-1.5 font-mono text-[10px]">
+        <button id="phaseBtn-1" onclick="setDemoLoopPhase(1)" class="p-2 rounded-xl bg-purple-500/20 text-purple-300 font-bold border border-purple-500/40 text-center transition cursor-pointer">
+          <span class="block text-xs">PHASE 1</span> Thinking Hat
+        </button>
+        <button id="phaseBtn-2" onclick="setDemoLoopPhase(2)" class="p-2 rounded-xl bg-[#111622] text-zinc-400 hover:text-white border border-[#22293a] text-center transition cursor-pointer">
+          <span class="block text-xs">PHASE 2</span> Soundbite
+        </button>
+        <button id="phaseBtn-3" onclick="setDemoLoopPhase(3)" class="p-2 rounded-xl bg-[#111622] text-zinc-400 hover:text-white border border-[#22293a] text-center transition cursor-pointer">
+          <span class="block text-xs">PHASE 3</span> Speak Mouth
+        </button>
+        <button id="phaseBtn-4" onclick="setDemoLoopPhase(4)" class="p-2 rounded-xl bg-[#111622] text-zinc-400 hover:text-white border border-[#22293a] text-center transition cursor-pointer">
+          <span class="block text-xs">PHASE 4</span> VAD Ears Glow
+        </button>
+        <button id="phaseBtn-5" onclick="setDemoLoopPhase(5)" class="p-2 rounded-xl bg-[#111622] text-zinc-400 hover:text-white border border-[#22293a] text-center transition cursor-pointer">
+          <span class="block text-xs">PHASE 5</span> AST Biasing
+        </button>
+        <button id="phaseBtn-6" onclick="setDemoLoopPhase(6)" class="p-2 rounded-xl bg-[#111622] text-zinc-400 hover:text-white border border-[#22293a] text-center transition cursor-pointer">
+          <span class="block text-xs">PHASE 6</span> Safety Gate
+        </button>
+        <button id="phaseBtn-7" onclick="setDemoLoopPhase(7)" class="p-2 rounded-xl bg-[#111622] text-zinc-400 hover:text-white border border-[#22293a] text-center transition cursor-pointer">
+          <span class="block text-xs">PHASE 7</span> Turn Inject
+        </button>
+      </div>
+
+      <div class="flex items-center justify-between text-[11px] font-mono text-zinc-400 pt-1">
+        <span>Patent Ref: U.S. Patent Application No. 63/137,300</span>
+        <a href="/logo_mock" class="text-cyan-300 hover:underline flex items-center gap-1">Open Standalone Status Icon Studio →</a>
+      </div>
+    </div>
+
   </div>
 
   <!-- Antigravity Remote Bridge Modal -->
@@ -1706,12 +1870,19 @@
       currentTtsAbortController = new AbortController();
 
       try {
-        const res = await fetch('/api/tts', {
+        let res = await fetch('/api/tts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: text, agent_role: resolvedRole }),
+          body: JSON.stringify({ text: text, voice: 'Viv', agent_role: resolvedRole }),
           signal: currentTtsAbortController.signal
         });
+
+        if (!res.ok) {
+          // Fallback to GET query param
+          res = await fetch(`/api/tts?voice=Viv&text=${encodeURIComponent(text)}`, {
+            signal: currentTtsAbortController.signal
+          });
+        }
 
         if (!isSpeaking || !isProcessingSpeechQueue) return; // User stopped speech
 
@@ -1722,7 +1893,12 @@
           initAudioContext();
           if (audioCtx) {
             try {
-              const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+              if (audioCtx.state === 'suspended') {
+                await audioCtx.resume();
+              }
+              const audioBuffer = await new Promise((resolve, reject) => {
+                audioCtx.decodeAudioData(arrayBuffer.slice(0), resolve, reject);
+              });
               if (!isSpeaking || !isProcessingSpeechQueue) return;
 
               const source = audioCtx.createBufferSource();
@@ -1738,7 +1914,7 @@
               source.start(0);
               return;
             } catch (decodeErr) {
-              console.warn("WebAudio decode fallback:", decodeErr);
+              console.warn("WebAudio decode error:", decodeErr);
             }
           }
 
@@ -1746,24 +1922,25 @@
           if (!isSpeaking || !isProcessingSpeechQueue) return;
           const blob = new Blob([arrayBuffer], { type: 'audio/mpeg' });
           const audioUrl = URL.createObjectURL(blob);
-          ttsAudio.src = audioUrl;
-          ttsAudio.onended = () => {
-            finishCurrentTurn();
-          };
-          ttsAudio.play().catch(() => {
-            if (isSpeaking && isProcessingSpeechQueue) fallbackSpeechSynthesis(text, finishCurrentTurn);
-          });
-          return;
+          if (ttsAudio) {
+            ttsAudio.src = audioUrl;
+            ttsAudio.onended = () => {
+              finishCurrentTurn();
+            };
+            try {
+              await ttsAudio.play();
+              return;
+            } catch (playErr) {
+              console.warn("HTML5 audio play blocked:", playErr);
+            }
+          }
         }
       } catch (err) {
         if (err.name === 'AbortError') return;
         console.warn("Server TTS fetch error:", err);
       }
 
-      // Fallback
-      if (isSpeaking && isProcessingSpeechQueue) {
-        fallbackSpeechSynthesis(text, finishCurrentTurn);
-      }
+      finishCurrentTurn();
     }
 
     function fallbackSpeechSynthesis(text, onComplete) {
@@ -1771,7 +1948,18 @@
       if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
         const utter = new SpeechSynthesisUtterance(text);
-        utter.rate = 1.05;
+        utter.rate = 1.0;
+        utter.pitch = 1.0;
+
+        // Try selecting natural female voice matching Viv profile if available on OS
+        const voices = window.speechSynthesis.getVoices() || [];
+        const preferredVoice = voices.find(v => (v.name.includes("Ava") || v.name.includes("Samantha") || v.name.includes("Karen") || v.name.includes("Zoe") || v.name.includes("Natural")) && v.lang.startsWith("en"))
+          || voices.find(v => v.lang.startsWith("en") && !v.name.includes("Male") && !v.name.includes("David"))
+          || voices.find(v => v.lang.startsWith("en"));
+        if (preferredVoice) {
+          utter.voice = preferredVoice;
+        }
+
         utter.onend = () => {
           if (onComplete) onComplete();
         };
@@ -1799,13 +1987,8 @@
         return;
       }
 
-      // On Cloud Relay (5G remote), always use phone mic unless user is explicitly on Mac localhost
-      if (window.__vifi_is_relay) {
-        micSource = "phone";
-      }
-
       // If user manually forced Mac Microphone
-      if (micSource === "mac" && !window.__vifi_is_relay) {
+      if (micSource === "mac") {
         return startMacRecording();
       }
 
@@ -2670,6 +2853,23 @@
             No artifacts generated yet for this conversation.
           </div>
         `;
+      }
+
+      // Update Plan Review Action Cards
+      const hasPlan = Boolean(
+        data.plan_info &&
+        data.plan_info.exists &&
+        data.plan_info.requires_review === true &&
+        data.plan_info.status !== 'approved'
+      );
+      const planReviewCard = document.getElementById("planReviewCard");
+      const voicePlanReviewCard = document.getElementById("voicePlanReviewCard");
+      if (hasPlan) {
+        if (planReviewCard) planReviewCard.classList.remove("hidden");
+        if (voicePlanReviewCard) voicePlanReviewCard.classList.remove("hidden");
+      } else {
+        if (planReviewCard) planReviewCard.classList.add("hidden");
+        if (voicePlanReviewCard) voicePlanReviewCard.classList.add("hidden");
       }
 
       // Skip heavy DOM tree replacement if turns content hasn't changed
@@ -3693,21 +3893,15 @@
     const nativeFetch = window.fetch.bind(window);
 
     // Smart Fetch: Multiplexes /api/* over WebSocket when using Cloud Relay
-    window.fetch = async function(input, init) {
+    window.fetch = function(input, init) {
       const url = typeof input === 'string' ? input : (input && input.url ? input.url : '');
       const isRelayActive = ws && ws.readyState === WebSocket.OPEN && window.__vifi_is_relay;
 
       if (isRelayActive && (url.startsWith('/api') || url.startsWith('api/'))) {
         const path = url.startsWith('/') ? url : `/${url}`;
-        let body = init && init.body;
-        if (body instanceof Blob) {
-          body = await new Promise((resolve) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result);
-            reader.readAsDataURL(body);
-          });
-        } else if (body && typeof body === 'string') {
-          try { body = JSON.parse(body); } catch (e) {}
+        // Direct edge endpoints (audio streaming, static assets) use native fetch directly
+        if (path.startsWith('/api/tts') || path.startsWith('/api/icon') || path.startsWith('/api/waitlist')) {
+          return nativeFetch(input, init);
         }
 
         return new Promise((resolve, reject) => {
@@ -3715,9 +3909,14 @@
           const timeout = setTimeout(() => {
             pendingRpcRequests.delete(id);
             nativeFetch(input, init).then(resolve).catch(reject);
-          }, 15000);
+          }, 8000);
 
           pendingRpcRequests.set(id, { resolve, reject, timeout });
+
+          let body = init && init.body;
+          if (body && typeof body === 'string') {
+            try { body = JSON.parse(body); } catch (e) {}
+          }
 
           ws.send(JSON.stringify({
             type: "rpc_request",
@@ -3744,7 +3943,9 @@
       if (sessionId) {
         // Universal Cloud Relay Transport (Works over 5G / Anywhere!)
         window.__vifi_is_relay = true;
-        const relayHost = `${window.location.host}/v1/relay`;
+        const relayHost = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+          ? `${window.location.host}/v1/relay`
+          : `voicefi.org/v1/relay`;
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         wsUrl = `${protocol}//${relayHost}?session=${encodeURIComponent(sessionId)}&role=client&token=${encodeURIComponent(token || '')}`;
       } else if (host) {
@@ -3785,7 +3986,13 @@
                 status: data.status,
                 json: async () => data.data,
                 text: async () => typeof data.data === 'string' ? data.data : JSON.stringify(data.data),
-                blob: async () => new Blob([data.data])
+                blob: async () => new Blob([data.data]),
+                arrayBuffer: async () => {
+                  if (typeof data.data === 'string') {
+                    return new TextEncoder().encode(data.data).buffer;
+                  }
+                  return new ArrayBuffer(0);
+                }
               };
               pending.resolve(mockResponse);
             }
@@ -3809,7 +4016,19 @@
     }
 
     function handleServerEvent(data) {
-      if (data.type === "user_command_injected") {
+      if (data.type === "speak" || data.type === "speak_text") {
+        if (data.text) {
+          if (latestText) latestText.innerText = data.text;
+          speakTextAloud(data.text, null, data.agent_role || data.agent || 'antigravity');
+        }
+      } else if (data.type === "agent_speaking_started") {
+        if (data.text && !isSpeaking) {
+          if (latestText) latestText.innerText = data.text;
+          if (audioRoutingMode === "phone_only" || audioRoutingMode === "both") {
+            speakTextAloud(data.text, null, data.voice || 'Viv');
+          }
+        }
+      } else if (data.type === "user_command_injected") {
         const isClaude = data.conv_id && (data.conv_id.startsWith("claude_") || data.conv_id.toLowerCase().includes("claude"));
         showToast(`Command received by ${isClaude ? "Claude Code" : "Antigravity"}`, 3000);
         if (data.conv_id && data.conv_id !== "active") {
@@ -3839,18 +4058,9 @@
         // Smart Audio Routing Check
         const origin = data.origin || "desktop";
         let shouldSpeakOnPhone = false;
-
-        // Never play audio if this browser tab is minimized or hidden in the background
-        if (document.hidden) {
-          shouldSpeakOnPhone = false;
-        } else if (audioRoutingMode === "phone_only") {
+        if (audioRoutingMode === "phone_only" || audioRoutingMode === "both" || audioRoutingMode === "smart") {
           shouldSpeakOnPhone = true;
-        } else if (audioRoutingMode === "both") {
-          shouldSpeakOnPhone = true;
-        } else if (audioRoutingMode === "mac_only") {
-          shouldSpeakOnPhone = false;
-        } else if (audioRoutingMode === "smart" || audioRoutingMode === "origin_only") {
-          // Smart / Origin-Based: Only speak aloud on phone if this turn originated from mobile companion
+        } else if (audioRoutingMode === "origin_only") {
           shouldSpeakOnPhone = (origin === "mobile");
         }
 
@@ -4004,6 +4214,66 @@
       if (activeConvId) fetchConversationDetails(activeConvId);
     });
 
+    // Plan Review Action Logic
+    async function handlePlanAction(action, customText = "") {
+      if (!activeConvId) {
+        showToast("No active conversation selected", 2500);
+        return;
+      }
+      try {
+        showToast(`Dispatching plan action: [${action.toUpperCase()}]...`, 2000);
+        const res = await fetch('/api/plan/action', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            conv_id: activeConvId,
+            action: action,
+            text: customText
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast(`Plan action [${action.toUpperCase()}] sent`, 2500);
+          appendOptimisticUserMessage(data.prompt);
+          startActiveTurnPolling(activeConvId);
+        }
+      } catch (err) {
+        console.error("Plan action error:", err);
+        showToast("Error dispatching plan action", 3000);
+      }
+    }
+
+    // Plan Review Buttons (Chat View)
+    document.getElementById("approvePlanBtn")?.addEventListener("click", () => handlePlanAction('approve'));
+    document.getElementById("requestPlanChangesBtn")?.addEventListener("click", () => {
+      switchView('chat');
+      chatInput.value = "Please revise the implementation plan: ";
+      chatInput.focus();
+    });
+    document.getElementById("voiceReviewPlanBtn")?.addEventListener("click", () => {
+      switchView('voice');
+      showToast("Dictate your plan review...", 2500);
+      setTimeout(startListening, 300);
+    });
+    document.getElementById("viewPlanBtn")?.addEventListener("click", () => {
+      viewArtifactContent("implementation_plan.md");
+    });
+
+    // Plan Review Buttons (Voice View)
+    document.getElementById("voiceApprovePlanBtn")?.addEventListener("click", () => handlePlanAction('approve'));
+    document.getElementById("voiceRequestPlanChangesBtn")?.addEventListener("click", () => {
+      switchView('chat');
+      chatInput.value = "Please revise the implementation plan: ";
+      chatInput.focus();
+    });
+    document.getElementById("voiceTriggerVoiceReviewBtn")?.addEventListener("click", () => {
+      showToast("Dictate your plan review...", 2500);
+      setTimeout(startListening, 300);
+    });
+    document.getElementById("voiceViewPlanBtn")?.addEventListener("click", () => {
+      viewArtifactContent("implementation_plan.md");
+    });
+
     // QR Code Mobile Pairing Modal Handlers
     const qrPairBtn = document.getElementById("qrPairBtn");
     const qrPairModal = document.getElementById("qrPairModal");
@@ -4138,6 +4408,165 @@
         agRemoteModal.classList.add("hidden");
       });
     }
+
+    // ==========================================================================
+    // AUTONOMOUS FEEDBACK LOOP INTERACTIVE DEMO ENGINE (REACTIVE LOGO)
+    // ==========================================================================
+    const feedbackLoopModal = document.getElementById("feedbackLoopModal");
+    const openLoopDemoBtn = document.getElementById("openLoopDemoBtn");
+    const voiceStageFeedbackLoopBtn = document.getElementById("voiceStageFeedbackLoopBtn");
+    const closeFeedbackLoopModal = document.getElementById("closeFeedbackLoopModal");
+    const demoLoopLogoHost = document.getElementById("demoLoopLogoHost");
+    const demoLoopPhaseBadge = document.getElementById("demoLoopPhaseBadge");
+    const demoLoopPhaseTitle = document.getElementById("demoLoopPhaseTitle");
+    const demoLoopPhaseDesc = document.getElementById("demoLoopPhaseDesc");
+    const demoLoopCardLabel = document.getElementById("demoLoopCardLabel");
+    const demoLoopCardBody = document.getElementById("demoLoopCardBody");
+    const demoLoopAutoPlayBtn = document.getElementById("demoLoopAutoPlayBtn");
+    const demoLoopPlayIcon = document.getElementById("demoLoopPlayIcon");
+    const demoLoopPlayText = document.getElementById("demoLoopPlayText");
+
+    let currentDemoPhase = 1;
+    let demoLoopTimer = null;
+
+    const feedbackLoopPhases = {
+      1: {
+        state: 'thinking',
+        badge: 'PHASE 1: AGENT REASONING & MILESTONE',
+        badgeClass: 'bg-purple-500/20 text-purple-300 border-purple-500/40',
+        title: 'WiFi Broadcast Hat Pulse Active',
+        desc: 'Antigravity runs test suites in the background; crown WiFi arcs radiate energetic pulses as the agent evaluates AST dependencies and reaches an autonomous milestone.',
+        cardLabel: 'Raw Agent Turn Output (Antigravity)',
+        cardBody: '"Ran 24 tests in tests/test_auth.py: 1 failed (test_jwt_expired). 23 passed. Should I fix the expired token handling?"'
+      },
+      2: {
+        state: 'working',
+        badge: 'PHASE 2: SOUNDBITE CLEANING & SYNTHESIS',
+        badgeClass: 'bg-red-500/20 text-red-300 border-red-500/40',
+        title: 'Cyber Eyes Turn Red & Strip RegEx',
+        desc: 'VoiceFi strips raw markdown, fences, ANSI codes, and tracebacks into a concise 1-2 sentence spoken soundbite budgeted to 15-30 words.',
+        cardLabel: 'Normalized Acoustic Soundbite',
+        cardBody: '"Antigravity encountered 1 test failure in auth tests. Expired token handling needs a fix. Should I proceed with the update?"'
+      },
+      3: {
+        state: 'speaking',
+        badge: 'PHASE 3: ACOUSTIC PERSONA PLAYBACK (Speaking)',
+        badgeClass: 'bg-red-500/20 text-red-300 border-red-500/40',
+        title: 'Mouth & Jaw Turn Red & Articulate Speech',
+        desc: 'System audio ducks by -18dB. The mouth articulates dynamically in red while the jawline resonates, projecting Viv\'s neural voice into the room or AirPods.',
+        cardLabel: 'Speech Output (Viv • 0ms Apple Neural Engine)',
+        cardBody: '"Ran 24 tests. 1 failed in test_auth.py. Should I fix the expired token handling?"'
+      },
+      4: {
+        state: 'listening',
+        badge: 'PHASE 4: ZERO-CLICK VAD LISTENING (Microphone Hot)',
+        badgeClass: 'bg-red-500/20 text-red-300 border-red-500/40',
+        title: 'Headset Ears Turn Red & Capture Audio',
+        desc: 'The instant speech concludes, Energy VAD opens the microphone hands-free. Side ear pieces illuminate red during developer speech capture.',
+        cardLabel: 'Live Microphone Input (Developer Spoken Turn)',
+        cardBody: 'Jake: "Yeah, go ahead and fix the expired token handling in auth controller."'
+      },
+      5: {
+        state: 'working',
+        badge: 'PHASE 5: AST LEXICAL BIASING & COMPILER',
+        badgeClass: 'bg-red-500/20 text-red-300 border-red-500/40',
+        title: 'Phonetic Developer Normalizer & AST Tokens',
+        desc: 'Whisper injects workspace symbol prompts. Developer spoken shorthand ("fix expired token handling", "pie test") is compiled to exact code syntax.',
+        cardLabel: 'Workspace AST Normalized Prompt',
+        cardBody: 'Normalized AST Directive: `fix_expired_token_handling()` in `src/voicefi/auth.py`'
+      },
+      6: {
+        state: 'thinking',
+        badge: 'PHASE 6: COGNITIVE SAFETY GATE',
+        badgeClass: 'bg-purple-500/20 text-purple-300 border-purple-500/40',
+        title: 'Acoustic Intent Verification & Safety Triage',
+        desc: 'Filters accidental mic checks ("Can you hear me?") and non-substantive filler. Verifies destructive commands before execution.',
+        cardLabel: 'Cognitive Safety Evaluation',
+        cardBody: 'Status: PASS • Tier 1 (Low Risk - Automated Code Edit & Unit Test). Proceeding with atomic turn locking.'
+      },
+      7: {
+        state: 'speaking',
+        badge: 'PHASE 7: ATOMIC TURN CLAIMING & INJECTION',
+        badgeClass: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40',
+        title: 'Turn Token Claimed & Injected into Antigravity',
+        desc: 'Claims atomic fcntl file lock, injects prompt into active agent terminal, and triggers execution. Handoff completes with dispatch chime!',
+        cardLabel: 'Atomic Session Injection Complete',
+        cardBody: 'Prompt submitted to Antigravity session! Agent resumes execution — cycle seamlessly continues for hands-free collaboration.'
+      }
+    };
+
+    function setDemoLoopPhase(phaseNum) {
+      currentDemoPhase = phaseNum;
+      const data = feedbackLoopPhases[phaseNum];
+      if (!data) return;
+
+      if (demoLoopLogoHost) {
+        demoLoopLogoHost.innerHTML = getVoiceFiReactiveSVG(data.state, `loop_demo_${phaseNum}`);
+      }
+
+      if (demoLoopPhaseBadge) {
+        demoLoopPhaseBadge.innerHTML = data.badge;
+        demoLoopPhaseBadge.className = `inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold border shadow-md ${data.badgeClass}`;
+      }
+      if (demoLoopPhaseTitle) demoLoopPhaseTitle.innerText = data.title;
+      if (demoLoopPhaseDesc) demoLoopPhaseDesc.innerText = data.desc;
+      if (demoLoopCardLabel) demoLoopCardLabel.innerText = data.cardLabel;
+      if (demoLoopCardBody) demoLoopCardBody.innerText = data.cardBody;
+
+      for (let i = 1; i <= 7; i++) {
+        const btn = document.getElementById(`phaseBtn-${i}`);
+        if (btn) {
+          if (i === phaseNum) {
+            btn.className = `p-2 rounded-xl font-bold border text-center transition cursor-pointer ${data.badgeClass}`;
+          } else {
+            btn.className = 'p-2 rounded-xl bg-[#111622] text-zinc-400 hover:text-white border border-[#22293a] text-center transition cursor-pointer';
+          }
+        }
+      }
+    }
+
+    function openFeedbackLoopModal() {
+      if (feedbackLoopModal) {
+        feedbackLoopModal.classList.remove("hidden");
+        setDemoLoopPhase(1);
+      }
+    }
+
+    function closeFeedbackLoopModalHandler() {
+      if (feedbackLoopModal) {
+        feedbackLoopModal.classList.add("hidden");
+        if (demoLoopTimer) {
+          clearInterval(demoLoopTimer);
+          demoLoopTimer = null;
+          if (demoLoopPlayIcon) demoLoopPlayIcon.innerText = '▶️';
+          if (demoLoopPlayText) demoLoopPlayText.innerText = 'Auto-Simulate Loop';
+          if (demoLoopAutoPlayBtn) demoLoopAutoPlayBtn.className = 'px-3 py-1.5 rounded-xl text-xs font-semibold bg-gradient-to-r from-red-500 via-purple-600 to-cyan-500 hover:opacity-90 text-white shadow-lg flex items-center gap-1.5 transition active:scale-95 cursor-pointer';
+        }
+      }
+    }
+
+    function toggleLoopAutoPlay() {
+      if (demoLoopTimer) {
+        clearInterval(demoLoopTimer);
+        demoLoopTimer = null;
+        if (demoLoopPlayIcon) demoLoopPlayIcon.innerText = '▶️';
+        if (demoLoopPlayText) demoLoopPlayText.innerText = 'Auto-Simulate Loop';
+        if (demoLoopAutoPlayBtn) demoLoopAutoPlayBtn.className = 'px-3 py-1.5 rounded-xl text-xs font-semibold bg-gradient-to-r from-red-500 via-purple-600 to-cyan-500 hover:opacity-90 text-white shadow-lg flex items-center gap-1.5 transition active:scale-95 cursor-pointer';
+      } else {
+        if (demoLoopPlayIcon) demoLoopPlayIcon.innerText = '⏸️';
+        if (demoLoopPlayText) demoLoopPlayText.innerText = 'Pause Simulation';
+        if (demoLoopAutoPlayBtn) demoLoopAutoPlayBtn.className = 'px-3 py-1.5 rounded-xl text-xs font-semibold bg-amber-500 hover:bg-amber-400 text-black shadow-lg flex items-center gap-1.5 transition active:scale-95 cursor-pointer';
+        
+        demoLoopTimer = setInterval(() => {
+          let next = (currentDemoPhase % 7) + 1;
+          setDemoLoopPhase(next);
+        }, 2600);
+      }
+    }
+
+    openLoopDemoBtn?.addEventListener("click", openFeedbackLoopModal);
+    voiceStageFeedbackLoopBtn?.addEventListener("click", openFeedbackLoopModal);
+    closeFeedbackLoopModal?.addEventListener("click", closeFeedbackLoopModalHandler);
 
     if (saveAgRemoteBtn && agRemoteUrlInput) {
       saveAgRemoteBtn.addEventListener("click", async () => {

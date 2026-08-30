@@ -5,7 +5,8 @@ developer acronyms, file extensions, and technical syntax for spoken speech synt
 """
 
 import re
-from typing import Dict
+from enum import Enum
+from typing import Dict, Optional
 
 
 # Technical & developer acronyms to phonetic spoken form
@@ -143,3 +144,116 @@ def normalize_stt_text(raw_text: str) -> str:
     """
     from voicefi.learning.phonetic import PhoneticLearner
     return PhoneticLearner.get_instance().normalize_stt(raw_text)
+
+
+class AppStyleContext(str, Enum):
+    CHAT = "chat"        # Slack, Discord, Microsoft Teams, Messages, Telegram, WhatsApp
+    EMAIL = "email"      # Apple Mail, Outlook, Gmail, Superhuman
+    CODE = "code"        # Cursor, VS Code, Antigravity, Windsurf, Xcode, Terminal, iTerm2, Warp, Ghostty
+    DOCS = "docs"        # Notion, Obsidian, Apple Notes, Google Docs, Confluence, Craft
+    GENERAL = "general"  # Safari, Chrome, default desktop apps
+
+
+def classify_app_context(app_name: str) -> AppStyleContext:
+    """Classify frontmost macOS application into semantic communication context."""
+    if not app_name:
+        return AppStyleContext.GENERAL
+    low = app_name.lower().strip()
+    if any(k in low for k in ("slack", "discord", "teams", "messages", "telegram", "whatsapp", "signal")):
+        return AppStyleContext.CHAT
+    if any(k in low for k in ("mail", "outlook", "gmail", "superhuman", "thunderbird", "spark", "airmail")):
+        return AppStyleContext.EMAIL
+    if any(k in low for k in ("cursor", "code", "visual studio", "antigravity", "windsurf", "xcode", "terminal", "iterm", "warp", "ghostty", "alacritty", "kitty", "wezterm", "intellij", "pycharm", "webstorm")):
+        return AppStyleContext.CODE
+    if any(k in low for k in ("notion", "obsidian", "notes", "docs", "confluence", "craft", "bear", "pages")):
+        return AppStyleContext.DOCS
+    return AppStyleContext.GENERAL
+
+
+def strip_verbal_fillers(text: str) -> str:
+    """
+    Remove verbal disfluencies and filler words ('um', 'uh', 'ah', 'like', 'you know', 'basically', stutter duplicates)
+    while preserving code keywords, CLI flags, and technical terms.
+    """
+    if not text or not text.strip():
+        return ""
+
+    result = text.strip()
+
+    # 1. Standalone fillers at start of sentence or mid-sentence
+    result = re.sub(r"(?i)(?:,\s*)?\b(?:um|uh|er|ah|eh|erm)\b[,.\s]*", " ", result)
+
+    # 2. Filler phrases with commas or surrounding pauses
+    result = re.sub(r"(?i)\b(?:you know|i mean|(?:so\s+)?basically|like I said|to be honest)\b[,]*\s*", " ", result)
+
+    # 3. Filler 'like' conversational ticks
+    result = re.sub(r"(?i)\b(\w+)\s+like\s+(really|super|just|kinda|sorta|to|for|about|in|on|with|going|trying)\b", r"\1 \2", result)
+    result = re.sub(r"(?i)\b(is|was|are|were|be|been|have|had|would|could|should)\s+like\s+", r"\1 ", result)
+
+    # 4. Repeated stutter duplicates ('the the', 'in in', 'that that', 'to to', 'we we', 'is is', 'and and')
+    # Protect CLI flag words like 'dash dash', 'minus minus', 'plus plus'
+    result = re.sub(r"(?i)\b(?!(?:dash|minus|dot|plus)\b)(\w{1,8})\s+\1\b", r"\1", result)
+
+    # 5. Clean up resulting punctuation artifacts & whitespace
+    result = re.sub(r"\s+([,.:;?!])", r"\1", result)
+    result = re.sub(r",\s*,+", ", ", result)
+    result = re.sub(r"^\s*[,.]\s*", "", result)
+    result = re.sub(r"\s+", " ", result).strip()
+
+    if result and result[0].islower():
+        result = result[0].upper() + result[1:]
+
+    return result
+
+
+def format_for_app_context(text: str, app_name: Optional[str] = None, context: Optional[AppStyleContext] = None) -> str:
+    """
+    Format and adapt speech transcription based on the frontmost application context:
+    - Chat (Slack/Discord): conversational, concise, bullet points if listing items.
+    - Email (Mail/Outlook): proper capitalization, greeting separation, polite punctuation.
+    - Code IDE/Terminal (Cursor/VS Code/Terminal): technical formatting, code symbols, inline flags.
+    - Docs (Notion/Obsidian): structured markdown paragraphs & lists.
+    - General: clean standard capitalization & punctuation.
+    """
+    if not text or not text.strip():
+        return ""
+
+    cleaned = strip_verbal_fillers(text)
+    ctx = context or classify_app_context(app_name or "")
+
+    if ctx == AppStyleContext.CODE:
+        # Code formatting: preserve technical operators and flags
+        cleaned = re.sub(r"(?i)\bdouble equals\b", "==", cleaned)
+        cleaned = re.sub(r"(?i)\btriple equals\b", "===", cleaned)
+        cleaned = re.sub(r"(?i)\bnot equal to\b", "!=", cleaned)
+        cleaned = re.sub(r"(?i)\barrow function\b", "=>", cleaned)
+        cleaned = re.sub(r"(?i)\bdot length\b", ".length", cleaned)
+        cleaned = re.sub(r"(?i)\bdot json\b", ".json", cleaned)
+        cleaned = re.sub(r"(?i)\bminus minus\s*([a-zA-Z0-9_-]+)", r"--\1", cleaned)
+        cleaned = re.sub(r"(?i)\bdash dash\s*([a-zA-Z0-9_-]+)", r"--\1", cleaned)
+        return cleaned
+
+    elif ctx == AppStyleContext.CHAT:
+        # Chat formatting: concise, multi-bullet points if listing items ("first... second...")
+        if re.search(r"(?i)\b(first|1st|one)\b.*?\b(second|third|2nd|3rd|two|three|next|then|finally|also)\b", cleaned):
+            parts = re.split(r"(?i)(?:\bfirst\b|\bsecond\b|\bthird\b|\bnext\b|\bthen\b|\bfinally\b|\balso\b)", cleaned)
+            lines = [p.strip().strip(",.- ") for p in parts if p.strip()]
+            if len(lines) >= 2:
+                return "\n".join([f"• {l.capitalize()}" for l in lines])
+        return cleaned
+
+    elif ctx == AppStyleContext.EMAIL:
+        # Email formatting: ensure trailing period and clear sentence spacing
+        if cleaned and not cleaned.endswith((".", "!", "?")):
+            cleaned += "."
+        return cleaned
+
+    elif ctx == AppStyleContext.DOCS:
+        # Docs / Notes formatting: markdown friendly
+        if "\n" not in cleaned and len(cleaned.split()) > 30:
+            sentences = re.split(r"(?<=[.!?])\s+", cleaned)
+            if len(sentences) >= 3:
+                return " ".join(sentences[:2]) + "\n\n" + " ".join(sentences[2:])
+        return cleaned
+
+    return cleaned

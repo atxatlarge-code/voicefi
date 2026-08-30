@@ -1,0 +1,19 @@
+# Smithery MCP Server Manifest for VoiceFi™
+# Documentation: https://smithery.ai/docs/config
+
+startCommand:
+  type: "stdio"
+  configSchema:
+    type: "object"
+    properties:
+      agent:
+        type: "string"
+        description: "Default AI agent name for voice persona resolution (e.g. antigravity, claude, cursor)"
+        default: "antigravity"
+  commandFunction: |-
+    (config) => ({
+      command: "vifi",
+      args: ["mcp"]
+    })
+exampleConfig:
+  agent: "antigravity"

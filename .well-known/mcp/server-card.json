@@ -1,5 +1,5 @@
 {
-  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-10-17/server.schema.json",
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "org.voicefi/voicefi",
   "version": "1.0.0",
   "kind": "product",
@@ -22,7 +22,7 @@
   "serverInfo": {
     "name": "voicefi",
     "version": "1.0.0",
-    "description": "VoiceFi™ — Universal Voice Layer for AI Agents, MCP, and macOS."
+    "description": "VoiceFi\u2122 \u2014 Universal Voice Layer for AI Agents, MCP, and macOS."
   },
   "transport": {
     "type": "streamable-http",
@@ -407,7 +407,7 @@
   "servers": [
     {
       "name": "voicefi",
-      "description": "VoiceFi Cloudflare Edge MCP Server — Universal Voice Layer for AI Agents, MCP, and macOS.",
+      "description": "VoiceFi Cloudflare Edge MCP Server \u2014 Universal Voice Layer for AI Agents, MCP, and macOS.",
       "url": "https://voicefi.org/mcp",
       "endpoint": "https://voicefi.org/mcp",
       "transport": "streamable-http",

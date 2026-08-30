@@ -1199,13 +1199,44 @@ def parse_full_conversation_details(transcript_path: Path, brain_dir: Optional[P
     artifacts = get_conversation_artifacts(conv_id, brain_dir=brain_dir)
 
     plan_info = None
+    bdir = brain_dir or (Path.home() / ".gemini" / "antigravity" / "brain")
     for art in artifacts:
         if art.get("name") == "implementation_plan.md":
+            plan_path = bdir / conv_id / "implementation_plan.md"
+            meta_path = bdir / conv_id / "implementation_plan.md.metadata.json"
+            requires_review = True
+            plan_status = "awaiting_approval"
+
+            # Check metadata.json
+            if meta_path.is_file():
+                try:
+                    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+                    if meta.get("requestFeedback") is False or meta.get("userFacing") is False:
+                        requires_review = False
+                        plan_status = "approved"
+                except Exception:
+                    pass
+
+            # Check file content header / status
+            if requires_review and plan_path.is_file():
+                try:
+                    content = plan_path.read_text(encoding="utf-8", errors="ignore")
+                    if re.search(r"(?i)#\s*\[(?:APPROVED|COMPLETED|DONE)", content) or re.search(r"(?i)\*\*Status:\*\*\s*(?:Approved|Completed|Done)", content):
+                        requires_review = False
+                        plan_status = "approved"
+                    elif "User Review Required" not in content and "Open Questions" not in content:
+                        requires_review = False
+                        plan_status = "approved"
+                except Exception:
+                    pass
+
             plan_info = {
                 "name": "implementation_plan.md",
                 "mtime": art.get("mtime"),
                 "size": art.get("size"),
                 "exists": True,
+                "requires_review": requires_review,
+                "status": plan_status,
             }
             break
 

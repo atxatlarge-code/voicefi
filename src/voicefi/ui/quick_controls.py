@@ -38,6 +38,7 @@ try:
         NSBezelStyleRounded,
         NSColor,
         NSFloatingWindowLevel,
+        NSStatusWindowLevel,
         NSFont,
         NSScreen,
         NSView,
@@ -45,6 +46,8 @@ try:
         NSVisualEffectMaterialHUDWindow,
         NSVisualEffectBlendingModeBehindWindow,
         NSWindowCollectionBehaviorCanJoinAllSpaces,
+        NSWindowCollectionBehaviorFullScreenAuxiliary,
+        NSWindowCollectionBehaviorStationary,
         NSSegmentedControl,
         NSSegmentStyleTexturedRounded,
         NSPopUpButton,
@@ -141,7 +144,7 @@ class HUDQuickControlsPanel:
         )
         self._panel.setOpaque_(False)
         self._panel.setBackgroundColor_(NSColor.clearColor())
-        self._panel.setLevel_(NSFloatingWindowLevel + 2)
+        self._panel.setLevel_(NSStatusWindowLevel + 2)
         self._panel.setFloatingPanel_(True)
         self._panel.setHidesOnDeactivate_(False)
         self._panel.setCanHide_(False)
@@ -150,7 +153,11 @@ class HUDQuickControlsPanel:
         self._panel.setReleasedWhenClosed_(False)
         self._panel.setMovableByWindowBackground_(True)
         self._panel.setMovable_(True)
-        self._panel.setCollectionBehavior_(NSWindowCollectionBehaviorCanJoinAllSpaces)
+        self._panel.setCollectionBehavior_(
+            NSWindowCollectionBehaviorCanJoinAllSpaces
+            | NSWindowCollectionBehaviorFullScreenAuxiliary
+            | NSWindowCollectionBehaviorStationary
+        )
 
         # Root Visual Effect Frosted Glass Container
         root_view = NSVisualEffectView.alloc().initWithFrame_(NSRect(NSPoint(0, 0), NSSize(w, h)))
@@ -599,16 +606,79 @@ class HUDQuickControlsPanel:
     # Presentation Handlers
     # -------------------------------------------------------------------------
 
+    def _refresh_values_from_config(self):
+        """Sync all segmented controls and toggles with current config state."""
+        try:
+            self.config = load_config()
+            if self.seg_proactive:
+                is_proactive = getattr(getattr(self.config, "proactive", None), "feedback_loop", None)
+                is_on = getattr(is_proactive, "enabled", True) if is_proactive else True
+                self.seg_proactive.setSelectedSegment_(0 if is_on else 1)
+
+            if self.seg_barge_in:
+                cur_barge = getattr(self.config.vad, "barge_in", "auto")
+                barge_idx = 0 if cur_barge == "auto" else 1 if cur_barge is True else 2
+                self.seg_barge_in.setSelectedSegment_(barge_idx)
+
+            if self.seg_pause_delay:
+                cur_silence = getattr(self.config.vad, "silence_duration", 1.4)
+                closest_idx = 0
+                min_diff = 999.0
+                for i, d in enumerate(FIBONACCI_PAUSE_DELAYS):
+                    diff = abs(d - float(cur_silence))
+                    if diff < min_diff:
+                        min_diff = diff
+                        closest_idx = i
+                self.seg_pause_delay.setSelectedSegment_(closest_idx)
+
+            if self.seg_auto_send:
+                cur_auto_send = getattr(getattr(self.config, "hud", None), "auto_send", True)
+                self.seg_auto_send.setSelectedSegment_(0 if cur_auto_send else 1)
+
+            if self.seg_spoken_summaries:
+                ag_spoken = getattr(getattr(self.config, "antigravity", None), "read_summary_aloud", True)
+                self.seg_spoken_summaries.setSelectedSegment_(0 if ag_spoken else 1)
+
+            if self.btn_persistent:
+                is_pers = getattr(getattr(self.config, "hud", None), "persistent", True)
+                self.btn_persistent.setTitle_(f"📌 HUD: {'ON' if is_pers else 'OFF'}")
+
+            if self.btn_fullscreen:
+                is_full = getattr(getattr(self.config, "hud", None), "fullscreen_overlay", True)
+                self.btn_fullscreen.setTitle_(f"🎮 Overlay: {'ON' if is_full else 'OFF'}")
+        except Exception as e:
+            print(f"[QuickControls] Error refreshing values: {e}")
+
     def show(self, relative_to_rect: Optional[Any] = None):
-        if not HAS_APPKIT or is_headless() or not self._panel:
+        if not HAS_APPKIT or is_headless():
             self._is_visible = True
             return
 
+        if not self._panel:
+            self._build_panel()
+
+        if not self._panel:
+            return
+
         def _do_show():
+            self._refresh_values_from_config()
             if relative_to_rect:
                 x = relative_to_rect.origin.x + (relative_to_rect.size.width - self.PANEL_WIDTH) / 2.0
                 y = relative_to_rect.origin.y - self.PANEL_HEIGHT - 10.0
+                if y < 20.0:
+                    y = relative_to_rect.origin.y + relative_to_rect.size.height + 10.0
+                screen = NSScreen.mainScreen()
+                if screen:
+                    screen_w = screen.frame().size.width
+                    x = max(10.0, min(x, screen_w - self.PANEL_WIDTH - 10.0))
                 self._panel.setFrameOrigin_(NSPoint(x, y))
+            else:
+                screen = NSScreen.mainScreen()
+                if screen:
+                    screen_rect = screen.frame()
+                    x = screen_rect.size.width - self.PANEL_WIDTH - 20.0
+                    y = screen_rect.size.height - self.PANEL_HEIGHT - 90.0
+                    self._panel.setFrameOrigin_(NSPoint(x, y))
 
             self._panel.orderFrontRegardless()
             self._is_visible = True
@@ -633,7 +703,9 @@ class HUDQuickControlsPanel:
             AppHelper.callAfter(_do_hide)
 
     def toggle(self, relative_to_rect: Optional[Any] = None):
-        if self._is_visible:
+        if not self._panel:
+            self._build_panel()
+        if self._is_visible and self._panel and self._panel.isVisible():
             self.hide()
         else:
             self.show(relative_to_rect)
