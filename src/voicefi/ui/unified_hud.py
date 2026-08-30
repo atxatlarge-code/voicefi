@@ -164,7 +164,7 @@ try:
     HUDCloseActionTarget = objc.lookUpClass("HUDCloseActionTarget")
 except objc.nosuchclass_error:
     class HUDCloseActionTarget(objc.lookUpClass("NSObject")):
-        """Objective-C delegate wrapper for HUD close / dismiss button action."""
+        """Objective-C delegate wrapper for HUD button actions."""
 
         def initWithCallback_(self, callback):
             self = objc.super(HUDCloseActionTarget, self).init()
@@ -175,6 +175,82 @@ except objc.nosuchclass_error:
         def closeAction_(self, sender):
             if self.callback:
                 self.callback()
+
+        def actionHandler_(self, sender):
+            if self.callback:
+                self.callback()
+
+
+try:
+    HUDQuickControlsButtonView = objc.lookUpClass("HUDQuickControlsButtonView")
+except objc.nosuchclass_error:
+    class HUDQuickControlsButtonView(objc.lookUpClass("NSView")):
+        """Interactive Gear button view that captures clicks and directly opens Quick Controls."""
+
+        def initWithFrame_(self, frame):
+            self = objc.super(HUDQuickControlsButtonView, self).initWithFrame_(frame)
+            if self is not None:
+                self._hovered = False
+                try:
+                    options = 0x01 | 0x02 | 0x80  # NSTrackingMouseEnteredAndExited | NSTrackingMouseMoved | NSTrackingActiveAlways
+                    self.tracking_area = objc.lookUpClass("NSTrackingArea").alloc().initWithRect_options_owner_userInfo_(
+                        self.bounds(), options, self, None
+                    )
+                    self.addTrackingArea_(self.tracking_area)
+                except Exception:
+                    pass
+            return self
+
+        def acceptsFirstMouse_(self, event):
+            return True
+
+        def mouseDownCanMoveWindow(self):
+            return False
+
+        def hitTest_(self, point):
+            try:
+                converted = self.convertPoint_fromView_(point, None)
+                if objc.lookUpClass("Foundation").NSPointInRect(converted, self.bounds()):
+                    return self
+            except Exception:
+                pass
+            return objc.super(HUDQuickControlsButtonView, self).hitTest_(point)
+
+        def mouseEntered_(self, event):
+            self._hovered = True
+            self.setNeedsDisplay_(True)
+
+        def mouseExited_(self, event):
+            self._hovered = False
+            self.setNeedsDisplay_(True)
+
+        def resetCursorRects(self):
+            try:
+                self.addCursorRect_cursor_(self.bounds(), objc.lookUpClass("NSCursor").pointingHandCursor())
+            except Exception:
+                pass
+
+        def drawRect_(self, dirtyRect):
+            objc.super(HUDQuickControlsButtonView, self).drawRect_(dirtyRect)
+            try:
+                gear_str = objc.lookUpClass("NSString").stringWithString_("⚙️")
+                font = NSFont.systemFontOfSize_(13.0)
+                attrs = {
+                    objc.lookUpClass("NSAttributedString").fontAttributeName(): font,
+                }
+                size = gear_str.sizeWithAttributes_(attrs)
+                b = self.bounds()
+                x = b.origin.x + (b.size.width - size.width) / 2.0
+                y = b.origin.y + (b.size.height - size.height) / 2.0
+                gear_str.drawAtPoint_withAttributes_(NSPoint(x, y), attrs)
+            except Exception:
+                pass
+
+        def mouseDown_(self, event):
+            try:
+                UnifiedDynamicIslandHUD.get_instance().toggle_quick_controls()
+            except Exception as e:
+                print(f"[HUD] Gear Click Error: {e}")
 
 
 try:
@@ -207,6 +283,9 @@ except objc.nosuchclass_error:
 
         def acceptsFirstMouse_(self, event):
             return True
+
+        def mouseDownCanMoveWindow(self):
+            return False
             
         def hitTest_(self, point):
             converted = self.convertPoint_fromView_(point, None)
@@ -604,13 +683,9 @@ class UnifiedDynamicIslandHUD:
 
         # Quick Controls Settings button (⚙️)
         try:
-            self._gear_btn = NSButton.alloc().initWithFrame_(NSRect(NSPoint(396, 29), NSSize(26, 22)))
-            self._gear_btn.setBordered_(False)
-            self._gear_btn.setTitle_("⚙️")
-            self._gear_btn.setFont_(NSFont.systemFontOfSize_(12))
-            self._gear_target = HUDCloseActionTarget.alloc().initWithCallback_(self.toggle_quick_controls)
-            self._gear_btn.setTarget_(self._gear_target)
-            self._gear_btn.setAction_("closeAction:")
+            self._gear_btn = HUDQuickControlsButtonView.alloc().initWithFrame_(
+                NSRect(NSPoint(394, 28), NSSize(28, 24))
+            )
             self._gear_btn.setToolTip_("VoiceFi Quick Controls")
             self._root_view.addSubview_(self._gear_btn)
         except Exception:
@@ -672,37 +747,13 @@ class UnifiedDynamicIslandHUD:
             )
             self._visualizer.setHidden_(True)
             self._root_view.addSubview_(self._visualizer)
-            
-            # Transparent button over the visualizer to guarantee click interception
-            self._vad_btn = NSButton.alloc().initWithFrame_(NSRect(NSPoint(344, 29), NSSize(46, 22)))
-            self._vad_btn.setTransparent_(True)
-            self._vad_btn.setBordered_(False)
-            self._vad_btn.setTitle_("")
-            
-            # Action target
-            try:
-                ExpertActionTarget = objc.lookUpClass("ExpertActionTarget")
-            except objc.nosuchclass_error:
-                class ExpertActionTarget(objc.lookUpClass("NSObject")):
-                    def initWithCallback_(self, callback):
-                        self = objc.super(ExpertActionTarget, self).init()
-                        if self is not None:
-                            self.callback = callback
-                        return self
-                    def actionHandler_(self, sender):
-                        if self.callback:
-                            self.callback(sender)
-                            
-            self._vad_target = ExpertActionTarget.alloc().initWithCallback_(lambda _: self.toggle_expert_vad())
-            self._vad_btn.setTarget_(self._vad_target)
-            self._vad_btn.setAction_("actionHandler:")
-            self._root_view.addSubview_(self._vad_btn)
-            
+            self._vad_btn = None
         except Exception:
             self._visualizer = None
+            self._vad_btn = None
 
         # Body Text Label (Subtitles, recognized speech, tool actions, hints)
-        self._body_lbl = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(60, 8), NSSize(365, 22)))
+        self._body_lbl = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(60, 8), NSSize(275, 22)))
         self._body_lbl.setFont_(NSFont.systemFontOfSize_(11.5))
         self._body_lbl.setTextColor_(NSColor.colorWithCalibratedRed_green_blue_alpha_(0.9, 0.92, 0.96, 0.95))
         self._body_lbl.setStringValue_("Standing by • Dictate (⌃T) or speak to agent (⌃R)")
@@ -1333,6 +1384,26 @@ class UnifiedDynamicIslandHUD:
             tag_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.3, 0.95, 0.8, 0.98),
             body_text=body,
             border_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.2, 0.85, 0.7, 0.85),
+        )
+
+    def set_meeting(
+        self,
+        title: str = "Meeting Notes",
+        status_tag: str = "Live Note Taker",
+        body_text: str = "Recording and distilling structured notes...",
+        linger: Optional[float] = None,
+    ):
+        """Set to Meeting State with real-time note-taking and action execution indicator (fixed 480x58)."""
+        self._apply_rich_state(
+            state="meeting",
+            avatar_emoji="👥",
+            avatar_bg=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.25, 0.45, 0.95, 0.35),
+            title=title,
+            tag_text=status_tag,
+            tag_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.4, 0.85, 1.0, 0.98),
+            body_text=body_text,
+            border_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.3, 0.5, 1.0, 0.85),
+            linger=linger,
         )
 
     def start_new_conversation_dialog(

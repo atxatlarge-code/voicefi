@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1128 191" width="1128" height="191">
+  <defs>
+    <radialGradient id="darkHalo" cx="50%" cy="50%" r="60%">
+      <stop offset="0%" stop-color="#FF2A2A" stop-opacity="0.08" />
+      <stop offset="100%" stop-color="#08090C" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+
+  <rect width="1128" height="191" fill="#08090C" />
+  <rect width="1128" height="191" fill="url(#darkHalo)" />
+
+  <g transform="translate(564, 95.5)">
+    <!-- Wordmark on left of center -->
+    <text x="-160" y="18" font-family="-apple-system, BlinkMacSystemFont, 'Plus Jakarta Sans', 'Inter', sans-serif" font-weight="900" font-size="64" fill="#FFFFFF" letter-spacing="-2.5">
+      <tspan fill="#FF2A2A">V</tspan>o<tspan fill="#FF2A2A">i</tspan>ce<tspan fill="#FF2A2A">Fi</tspan><tspan font-size="22" font-weight="700" fill="#64748B" dy="-28" letter-spacing="0">™</tspan>
+    </text>
+
+    <!-- voicefi.org on right -->
+    <text x="380" y="13" text-anchor="end" font-family="'JetBrains Mono', 'SF Mono', Menlo, monospace" font-size="22" font-weight="600" fill="#94A3B8" letter-spacing="1.5">
+      voicefi.org
+    </text>
+  </g>
+</svg>

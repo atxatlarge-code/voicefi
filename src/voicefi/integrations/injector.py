@@ -229,7 +229,12 @@ def inject_text_to_active_app(
     if processed is None:
         return False
 
-    clean_text = processed
+    app_name = get_frontmost_app_name()
+    from voicefi.tts.normalizer import format_for_app_context
+    clean_text = format_for_app_context(processed, app_name=app_name)
+    if not clean_text or not clean_text.strip():
+        clean_text = processed
+
     now = time.time()
     if clean_text == _LAST_INJECTED_TEXT and (now - _LAST_INJECT_TIME) < 0.8:
         print("[Injector] Ignored duplicate injection within 0.8s window")

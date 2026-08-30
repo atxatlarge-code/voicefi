@@ -175,6 +175,70 @@ MCP_TOOLS: List[Dict[str, Any]] = [
             "required": ["name"],
         },
     },
+    {
+        "name": "voicefi_meeting_start",
+        "description": "Start an intelligent ProActive Meeting Note Taker session with Granola-style live markdown distillation and real-time action listener.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "title": {
+                    "type": "string",
+                    "description": "Optional title or agenda for the meeting session.",
+                },
+                "output_path": {
+                    "type": "string",
+                    "description": "Optional custom file path to save the generated markdown notes.",
+                },
+                "auto_execute": {
+                    "type": "boolean",
+                    "description": "Whether to auto-execute detected actions (Linear tickets, Slack posts, branch scaffolds) along the way (default: true).",
+                },
+                "speaker": {
+                    "type": "string",
+                    "description": "Optional primary speaker name.",
+                },
+            },
+        },
+    },
+    {
+        "name": "voicefi_meeting_stop",
+        "description": "Finalize active meeting note taker session, compile structured Granola-style notes, save markdown artifact, and return summary + actions.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+        },
+    },
+    {
+        "name": "voicefi_meeting_status",
+        "description": "Get real-time meeting note taker status, elapsed time, decisions made, and staged/executed action items.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+        },
+    },
+    {
+        "name": "voicefi_meeting_action",
+        "description": "Record an architectural decision or execute a meeting action item (Linear issue, Slack post, branch scaffold, research query) into active notes.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "action_type": {
+                    "type": "string",
+                    "enum": ["linear_ticket", "slack_message", "subagent_scaffold", "research", "decision", "todo"],
+                    "description": "Type of action to record or execute.",
+                },
+                "title": {
+                    "type": "string",
+                    "description": "Title, description, or content of the action item or decision.",
+                },
+                "details": {
+                    "type": "object",
+                    "description": "Optional parameters (e.g. channel, assignee, branch, query).",
+                },
+            },
+            "required": ["action_type", "title"],
+        },
+    },
 ]
 
 
@@ -308,7 +372,20 @@ class VoiceFiMCPServer:
         canonical_name = name
         if name.startswith("vifi_"):
             canonical_name = "voicefi_" + name[5:]
-        elif name in ("speak", "listen", "stop", "status", "set_voice", "ping_voice", "send", "sfx"):
+        elif name in (
+            "speak",
+            "listen",
+            "stop",
+            "status",
+            "set_voice",
+            "ping_voice",
+            "send",
+            "sfx",
+            "meeting_start",
+            "meeting_stop",
+            "meeting_status",
+            "meeting_action",
+        ):
             canonical_name = "voicefi_" + name
 
         try:
@@ -328,6 +405,14 @@ class VoiceFiMCPServer:
                 res = self._tool_send(args)
             elif canonical_name == "voicefi_sfx":
                 res = self._tool_sfx(args)
+            elif canonical_name == "voicefi_meeting_start":
+                res = self._tool_meeting_start(args)
+            elif canonical_name == "voicefi_meeting_stop":
+                res = self._tool_meeting_stop(args)
+            elif canonical_name == "voicefi_meeting_status":
+                res = self._tool_meeting_status(args)
+            elif canonical_name == "voicefi_meeting_action":
+                res = self._tool_meeting_action(args)
             else:
                 res = {
                     "content": [{"type": "text", "text": f"Unknown tool: {name}"}],
@@ -364,13 +449,18 @@ class VoiceFiMCPServer:
         from voicefi.config import load_config
         from voicefi.tts import get_tts_engine
 
-        text = args.get("text", "")
-        if not text or not text.strip():
+        raw_text = args.get("text")
+        if raw_text is None or not isinstance(raw_text, str):
             return {"content": [{"type": "text", "text": "No text provided to speak."}], "isError": True}
+        if not raw_text.strip():
+            return {"content": [{"type": "text", "text": "No text provided to speak."}], "isError": True}
+        text = raw_text
 
-        persona = args.get("persona")
-        agent_name = args.get("agent_name") or "antigravity"
-        block = args.get("block", True)
+        raw_persona = args.get("persona")
+        persona = str(raw_persona).strip() if raw_persona is not None and str(raw_persona).strip() else None
+        raw_agent = args.get("agent_name") or args.get("agent") or "antigravity"
+        agent_name = str(raw_agent).strip() if raw_agent is not None and str(raw_agent).strip() else "antigravity"
+        block = bool(args.get("block", True))
 
         cfg = load_config()
         tts = get_tts_engine(cfg, agent_name=agent_name, voice_override=persona)
@@ -423,7 +513,15 @@ class VoiceFiMCPServer:
         cfg = load_config()
         max_sec = args.get("max_seconds", cfg.vad.max_record_seconds)
         timeout_arg = args.get("timeout")
-        timeout = float(timeout_arg) if timeout_arg is not None else None
+        timeout = None
+        if timeout_arg is not None:
+            try:
+                timeout = float(timeout_arg)
+            except (ValueError, TypeError) as e:
+                return {
+                    "content": [{"type": "text", "text": f"Error executing voicefi_listen: could not convert string to float: {timeout_arg}"}],
+                    "isError": True,
+                }
 
         recorder = AudioRecorder(
             sample_rate=cfg.vad.sample_rate,
@@ -479,10 +577,18 @@ class VoiceFiMCPServer:
 
         cfg = load_config()
         in_dev, out_dev = get_default_audio_devices()
-        port_num = getattr(cfg, "companion", None) and cfg.companion.port or 5141
+        port_num = 5141
+        if hasattr(cfg, "companion") and cfg.companion and hasattr(cfg.companion, "port"):
+            port_num = cfg.companion.port or 5141
         port_info = get_port_listener(port_num) or get_port_listener(8765)
         running_procs = find_running_voicefi_processes()
         server_active = bool(port_info is not None or running_procs)
+
+        antigravity_voice = cfg.tts.voice
+        if hasattr(cfg, "agents") and isinstance(cfg.agents, dict) and "antigravity" in cfg.agents:
+            ag_profile = cfg.agents.get("antigravity")
+            if ag_profile and hasattr(ag_profile, "voice"):
+                antigravity_voice = ag_profile.voice
 
         status_info = {
             "server_running": server_active,
@@ -493,7 +599,7 @@ class VoiceFiMCPServer:
             "output_device": out_dev.get("name") if out_dev else "Default Output",
             "primary_tts_voice": cfg.tts.voice,
             "primary_tts_provider": cfg.tts.provider,
-            "antigravity_voice": cfg.agents.get("antigravity").voice if "antigravity" in cfg.agents else cfg.tts.voice,
+            "antigravity_voice": antigravity_voice,
             "barge_in": cfg.vad.barge_in,
             "energy_threshold": cfg.vad.energy_threshold,
         }
@@ -512,8 +618,10 @@ class VoiceFiMCPServer:
         from voicefi.config import load_config, save_config, AgentVoiceProfile
         from voicefi.tts import find_persona
 
-        agent = args.get("agent", "antigravity").strip().lower()
-        persona_name = args.get("persona", "").strip()
+        raw_agent = args.get("agent", "antigravity")
+        agent = str(raw_agent).strip().lower() if raw_agent is not None else "antigravity"
+        raw_persona = args.get("persona", "")
+        persona_name = str(raw_persona).strip() if raw_persona is not None else ""
         if not persona_name:
             return {"content": [{"type": "text", "text": "Persona name is required."}], "isError": True}
 
@@ -550,7 +658,8 @@ class VoiceFiMCPServer:
         from voicefi.tts import find_persona
 
         cfg = load_config()
-        voice = args.get("voice")
+        raw_voice = args.get("voice")
+        voice = str(raw_voice).strip() if raw_voice is not None and str(raw_voice).strip() else None
         persona = find_persona(voice) if voice else None
         target_voice = persona.id if persona else (voice or cfg.tts.voice)
         target_provider = persona.provider if persona else (getattr(cfg.tts, "provider", "edge_tts"))
@@ -584,22 +693,25 @@ class VoiceFiMCPServer:
     def _tool_send(self, args: Dict[str, Any]) -> Dict[str, Any]:
         from voicefi.integrations.injector import send_message_to_agent
 
-        text = args.get("text")
-        if text is None or not isinstance(text, str) or not text.strip():
+        raw_text = args.get("text")
+        if raw_text is None or not isinstance(raw_text, str):
+            return {"content": [{"type": "text", "text": "Empty message text."}], "isError": True}
+        text = raw_text.strip()
+        if not text:
             return {"content": [{"type": "text", "text": "Empty message text."}], "isError": True}
 
         raw_engine = args.get("to") or "antigravity"
-        target_engine = str(raw_engine).lower().strip() if isinstance(raw_engine, str) else "antigravity"
-        conv_id = args.get("conv_id")
+        target_engine = str(raw_engine).lower().strip() if raw_engine is not None else "antigravity"
+        conv_id = str(args.get("conv_id")).strip() if args.get("conv_id") is not None else None
         if args.get("reply", False):
             conv_id = "reply"
 
-        sender_name = args.get("sender", "Claude")
-        title = args.get("title")
+        sender_name = str(args.get("sender", "Claude")).strip() if args.get("sender") is not None else "Claude"
+        title = str(args.get("title")).strip() if args.get("title") is not None else None
 
         result = send_message_to_agent(
             conv_id=conv_id,
-            text=text.strip(),
+            text=text,
             sender_name=sender_name,
             title=title,
             target_engine=target_engine,
@@ -630,8 +742,19 @@ class VoiceFiMCPServer:
     def _tool_sfx(self, args: Dict[str, Any]) -> Dict[str, Any]:
         from voicefi.audio.sfx import play_sfx, list_available_sfx
 
-        name = args.get("name")
-        if name is None or not isinstance(name, str) or not name.strip():
+        raw_name = args.get("name")
+        if raw_name is None or not isinstance(raw_name, str):
+            return {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": f"Missing or invalid sound effect name. Available: {', '.join(list_available_sfx())}",
+                    }
+                ],
+                "isError": True,
+            }
+        name = raw_name.strip()
+        if not name:
             return {
                 "content": [
                     {
@@ -670,6 +793,173 @@ class VoiceFiMCPServer:
                 ],
                 "isError": True,
             }
+
+    def _tool_meeting_start(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        from voicefi.integrations.meeting import MeetingNoteTaker
+        note_taker = MeetingNoteTaker.get_instance()
+        title = args.get("title")
+        output_path = args.get("output_path")
+        auto_exec = args.get("auto_execute", True)
+        speaker = args.get("speaker")
+
+        session = note_taker.start_session(
+            title=title,
+            output_path=output_path,
+            auto_execute_actions=auto_exec,
+            speaker_name=speaker,
+        )
+
+        res_msg = (
+            f"✅ ProActive Meeting Note Taker started successfully!\n"
+            f"• Title: {session.title}\n"
+            f"• Notes File: {session.markdown_path}\n"
+            f"• Auto-Execute Actions: {'Enabled' if auto_exec else 'Disabled'}\n"
+            f"• Status: 🟢 Active"
+        )
+        return {"content": [{"type": "text", "text": res_msg}], "isError": False}
+
+    def _tool_meeting_stop(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        from voicefi.integrations.meeting import MeetingNoteTaker, ActionStatus
+        note_taker = MeetingNoteTaker.get_instance()
+        session = note_taker.stop_session()
+
+        if not session:
+            return {
+                "content": [{"type": "text", "text": "No active meeting note taker session was found to stop."}],
+                "isError": True,
+            }
+
+        executed_actions = [a for a in session.action_items if a.status == ActionStatus.COMPLETED]
+        res_msg = (
+            f"🏁 Meeting Session Finalized!\n"
+            f"• Title: {session.title}\n"
+            f"• Duration: {session.duration_formatted}\n"
+            f"• Spoken Turns: {len(session.utterances)}\n"
+            f"• Decisions Recorded: {len(session.decisions)}\n"
+            f"• Actions Executed: {len(executed_actions)}\n"
+            f"• Notes Artifact: {session.markdown_path}\n\n"
+            f"### Executive Summary\n{session.executive_summary or 'Completed.'}\n\n"
+        )
+        if session.decisions:
+            res_msg += "### Key Decisions Made\n"
+            for d in session.decisions:
+                res_msg += f"- [x] **{d.topic}:** {d.decision}\n"
+            res_msg += "\n"
+
+        res_msg += "### Real-Time Actions Taken Along The Way\n"
+        if session.action_items:
+            for a in session.action_items:
+                res_msg += f"- [{a.category.value}] {a.title} -> {a.result_summary or a.status.value}\n"
+        else:
+            res_msg += "_No actions recorded during session._\n"
+
+        return {"content": [{"type": "text", "text": res_msg}], "isError": False}
+
+    def _tool_meeting_status(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        from voicefi.integrations.meeting import MeetingNoteTaker, ActionStatus
+        note_taker = MeetingNoteTaker.get_instance()
+        session = note_taker.active_session
+
+        if not session or session.status != "active":
+            return {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": json.dumps({"status": "inactive", "message": "No active meeting session."}, indent=2),
+                    }
+                ],
+                "isError": False,
+            }
+
+        executed_count = len([a for a in session.action_items if a.status == ActionStatus.COMPLETED])
+        staged_count = len([a for a in session.action_items if a.status == ActionStatus.STAGED])
+        status_data = {
+            "session_id": session.session_id,
+            "title": session.title,
+            "status": session.status,
+            "duration": session.duration_formatted,
+            "duration_seconds": session.duration_seconds,
+            "utterance_count": len(session.utterances),
+            "decisions_count": len(session.decisions),
+            "decisions": [{"topic": d.topic, "decision": d.decision, "time": d.timestamp_str} for d in session.decisions],
+            "actions_executed_count": executed_count,
+            "actions_staged_count": staged_count,
+            "action_items": [
+                {"id": a.id, "title": a.title, "category": a.category.value, "status": a.status.value, "result": a.result_summary}
+                for a in session.action_items
+            ],
+            "markdown_path": session.markdown_path,
+        }
+
+        return {"content": [{"type": "text", "text": json.dumps(status_data, indent=2)}], "isError": False}
+
+    def _tool_meeting_action(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        from voicefi.integrations.meeting import (
+            MeetingNoteTaker,
+            MeetingActionExecutor,
+            MeetingActionItem,
+            MeetingDecision,
+            ActionCategory,
+            ActionStatus,
+        )
+        import uuid
+        import datetime
+
+        note_taker = MeetingNoteTaker.get_instance()
+        session = note_taker.active_session
+
+        action_type = args.get("action_type", "").lower()
+        title = args.get("title", "").strip()
+        details = args.get("details", {}) or {}
+
+        if not title:
+            return {"content": [{"type": "text", "text": "Action title is required."}], "isError": True}
+
+        # If no session is active, auto-start one
+        if not session or session.status != "active":
+            session = note_taker.start_session(title=f"Ad-hoc Meeting ({datetime.date.today().isoformat()})")
+
+        if action_type == "decision":
+            dec = MeetingDecision(
+                topic=details.get("topic", "Architecture"),
+                decision=title,
+                rationale=details.get("rationale"),
+                timestamp_str=datetime.datetime.now().strftime("%H:%M:%S"),
+            )
+            session.decisions.append(dec)
+            session.save_to_disk()
+            return {
+                "content": [{"type": "text", "text": f"✅ Recorded Decision: {title} (Topic: {dec.topic})"}],
+                "isError": False,
+            }
+
+        cat_map = {
+            "linear_ticket": ActionCategory.LINEAR_TICKET,
+            "slack_message": ActionCategory.SLACK_MESSAGE,
+            "subagent_scaffold": ActionCategory.SUBAGENT_SCAFFOLD,
+            "research": ActionCategory.CODEBASE_RESEARCH,
+            "todo": ActionCategory.GENERAL_TODO,
+        }
+        category = cat_map.get(action_type, ActionCategory.GENERAL_TODO)
+        act_id = f"act_{uuid.uuid4().hex[:6]}"
+        action_item = MeetingActionItem(
+            id=act_id,
+            raw_utterance=f"[MCP] {title}",
+            title=title,
+            category=category,
+            status=ActionStatus.STAGED,
+            assignee=details.get("assignee"),
+            target_channel_or_branch=details.get("channel") or details.get("branch"),
+            details=details,
+        )
+        session.action_items.append(action_item)
+        res_summary = MeetingActionExecutor.execute_action(action_item)
+        session.save_to_disk()
+
+        return {
+            "content": [{"type": "text", "text": f"⚡ Executed Meeting Action [{category.value}]: {title} -> {res_summary}"}],
+            "isError": False,
+        }
 
     def run_stdio(self):
         """Main stdio loop reading JSON-RPC requests from sys.stdin and writing to sys.stdout."""

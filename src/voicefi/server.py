@@ -107,7 +107,7 @@ def find_running_voicefi_processes(include_mcp: bool = True) -> List[Dict[str, A
                     is_voicefi = True
                 elif any(kw in cmd_lower for kw in [
                     "test_btn_crash", "test_hud", "unified_hud", "activity_hub",
-                    "capture_hud_states", "sync_hud_assets", "audition_server"
+                    "capture_hud_states", "sync_hud_assets", "audition_server", "pytest"
                 ]):
                     is_voicefi = True
 

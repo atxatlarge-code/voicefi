@@ -100,6 +100,13 @@ def cmd_hook(args):
     config = load_config(args.config)
     target_agent = getattr(args, "agent", "antigravity").lower().strip()
 
+    # Set base zero-PII hook telemetry early
+    setattr(args, "_telemetry_extra", {
+        "hook_agent": target_agent,
+        "has_stdin_payload": False,
+        "ipc_forwarded": False,
+    })
+
     # 1. Instant kill-switch guard: if VoiceFi is globally paused or hooks are disabled
     if not config.enabled or not getattr(config.hooks, "enabled", True):
         print(json.dumps({}))
@@ -2583,37 +2590,57 @@ def cmd_bias(args):
 
 
 def cmd_ambient(args):
-    """Ambient background listening & proactive triage co-pilot."""
+    """Ambient background listening & proactive meeting co-pilot."""
     import time
+    import datetime
     action = getattr(args, "ambient_action", "start") or "start"
+
+    from voicefi.integrations.meeting import MeetingNoteTaker, ActionStatus
+
+    note_taker = MeetingNoteTaker.get_instance()
 
     if action == "start":
         from voicefi.audio.ambient import AmbientAudioStream
-        from voicefi.integrations.proactive import ProactiveDispatcher
         from voicefi.stt import get_stt_engine
 
-        config = load_config(args.config)
-        dispatcher = ProactiveDispatcher()
+        config = load_config(getattr(args, "config", None))
         stt = get_stt_engine(config)
 
-        print("\n🎙️ Starting VoiceFi Ambient Listener & Proactive Co-Pilot...")
-        print("💡 Listening in the background. Press Ctrl+C to stop.\n")
+        title = getattr(args, "title", None)
+        output_path = getattr(args, "output", None)
+        speaker = getattr(args, "speaker", None)
+        auto_exec = getattr(args, "auto_execute", True)
+
+        session = note_taker.start_session(
+            title=title,
+            output_path=output_path,
+            auto_execute_actions=auto_exec,
+            speaker_name=speaker,
+        )
+
+        print(f"\n🎙️ Starting VoiceFi ProActive Meeting Note Taker...")
+        print(f"📋 Title: {session.title}")
+        print(f"📄 Notes File: {session.markdown_path}")
+        print(f"⚡ Auto-Execute Actions: {'✅ Enabled' if auto_exec else '❌ Disabled'}")
+        print("💡 Listening in the background. Press Ctrl+C to finalize & save meeting notes.\n")
 
         def _on_utterance(audio_data, sample_rate):
             text = stt.transcribe(audio_data, sample_rate=sample_rate)
             if text:
-                print(f"📝 Heard: \"{text}\"")
-                task = dispatcher.process_utterance(text)
-                if task:
-                    print(f"⚡ [Proactive Triage] Detected {task.category.value}: {task.summary}")
-                    print(f"   👉 Workspace Mode: {task.suggested_workspace} (isolated sandbox)")
-                    print(f"   👉 Action Prompt: {task.action_prompt}\n")
+                utt = note_taker.record_utterance(text, speaker_name=speaker)
+                action_badge = " ⚡ [Action Triggered]" if utt.is_actionable else ""
+                print(f"📝 `[{utt.timestamp_str}]` {utt.speaker}: \"{utt.text}\"{action_badge}")
+
+                if utt.is_actionable and session.action_items:
+                    latest_action = session.action_items[-1]
+                    res_str = latest_action.result_summary or latest_action.title
+                    print(f"   👉 [{latest_action.category.value}] {res_str}")
 
         stream = AmbientAudioStream(
             sample_rate=config.vad.sample_rate,
-            energy_threshold=config.ambient.energy_threshold,
-            silence_duration=config.ambient.silence_duration,
-            max_utterance_duration=config.ambient.max_utterance_seconds,
+            energy_threshold=config.proactive.meeting_assistant.energy_threshold,
+            silence_duration=config.proactive.meeting_assistant.silence_duration,
+            max_utterance_duration=config.proactive.meeting_assistant.max_utterance_seconds,
             on_utterance=_on_utterance,
         )
         stream.start()
@@ -2622,15 +2649,85 @@ def cmd_ambient(args):
                 time.sleep(0.5)
         except KeyboardInterrupt:
             stream.stop()
-            print("\n👋 Meeting assistant stopped.")
+            final_session = note_taker.stop_session()
+            print("\n" + "=" * 60)
+            print("🏁 Meeting Session Finalized!")
+            print(f"📄 Notes saved to: {final_session.markdown_path if final_session else session.markdown_path}")
+            if final_session and final_session.action_items:
+                print("\n⚡ Actions Executed Along The Way:")
+                for a in final_session.action_items:
+                    print(f"  • [{a.category.value}] {a.title} -> {a.result_summary or a.status.value}")
+            print("=" * 60 + "\n")
+
+    elif action == "stop":
+        session = note_taker.stop_session()
+        if session:
+            print(f"\n✅ Meeting '{session.title}' finalized.")
+            print(f"📄 Notes saved to: {session.markdown_path}")
+            print(f"⏱️ Total Duration: {session.duration_formatted}")
+            print(f"📝 Spoken Turns: {len(session.utterances)}")
+            print(f"⚡ Actions Recorded: {len(session.action_items)}\n")
+        else:
+            print("\n⚪ No active meeting session found to stop.\n")
+
     elif action == "status":
-        config = load_config(getattr(args, "config", None))
-        status_str = "🟢 ENABLED (Session Active)" if config.proactive.meeting_assistant.enabled else "⚪ INACTIVE (Start on-demand with 'vifi meeting start')"
-        print(f"\n👥 ProActive Meeting Assistant Status: {status_str}")
-        print(f"  • Auto-Notes: {'✅ Enabled' if config.proactive.meeting_assistant.auto_notes else '❌ Disabled'}")
-        print(f"  • Autonomous Subagents: {'✅ Enabled' if config.proactive.meeting_assistant.auto_dispatch_subagents else '❌ Disabled'}")
-        print(f"  • Energy Threshold: {config.proactive.meeting_assistant.energy_threshold}")
-        print(f"  • Max Utterance Window: {config.proactive.meeting_assistant.max_utterance_seconds}s\n")
+        session = note_taker.active_session
+        if session and session.status == "active":
+            print(f"\n🟢 Active Meeting Session: {session.title}")
+            print(f"  • Elapsed Duration: {session.duration_formatted}")
+            print(f"  • Spoken Turns: {len(session.utterances)}")
+            print(f"  • Decisions Recorded: {len(session.decisions)}")
+            print(f"  • Actions Executed: {len([a for a in session.action_items if a.status == ActionStatus.COMPLETED])}")
+            print(f"  • Notes File: {session.markdown_path}\n")
+        else:
+            config = load_config(getattr(args, "config", None))
+            print(f"\n⚪ ProActive Meeting Assistant: Standing by")
+            print(f"  • Storage Directory: {config.proactive.meeting_assistant.notes_dir}")
+            print(f"  • Auto-Execute Actions: {'✅ Enabled' if config.proactive.meeting_assistant.auto_execute_actions else '❌ Disabled'}")
+            print(f"  • Start on-demand with: 'vifi meeting start'\n")
+
+    elif action == "list":
+        files = note_taker.list_saved_sessions()
+        if not files:
+            print("\n📂 No saved meeting notes found yet.\n")
+        else:
+            print(f"\n📂 Saved Meeting Notes ({len(files)} sessions):")
+            for f in files[:15]:
+                dt = datetime.datetime.fromtimestamp(f["modified_at"]).strftime("%Y-%m-%d %H:%M")
+                print(f"  • [{dt}] {f['title']} ({f['filename']})")
+            print()
+
+    elif action == "show":
+        files = note_taker.list_saved_sessions()
+        if not files:
+            print("\n📂 No saved meeting notes found.\n")
+            return
+        target_id = getattr(args, "target", "latest") or "latest"
+        target_file = files[0]["filepath"]
+        if target_id != "latest":
+            matched = [f["filepath"] for f in files if target_id in f["filename"] or target_id in f["title"]]
+            if matched:
+                target_file = matched[0]
+
+        with open(target_file, "r", encoding="utf-8") as f:
+            print("\n" + f.read() + "\n")
+
+    elif action in ("test", "simulate"):
+        interactive = getattr(args, "interactive", False)
+        import importlib.util
+        from pathlib import Path
+        qa_path = Path(__file__).resolve().parent.parent.parent / "scripts" / "qa_meeting_simulation.py"
+        spec = importlib.util.spec_from_file_location("qa_meeting_simulation", str(qa_path))
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        suite = mod.MeetingQASuite(verbose=True)
+        if interactive:
+            suite.run_interactive_tester()
+        else:
+            success = suite.run_automated_simulation()
+            if not success:
+                import sys
+                sys.exit(1)
 
 
 cmd_meeting = cmd_ambient
@@ -3807,10 +3904,25 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
 
     # ambient listener & proactive meeting co-pilot
     amb_p = subparsers.add_parser("ambient", aliases=["meeting"], help="ProActive Meeting Assistant & ambient background co-pilot")
-    amb_sub = amb_p.add_subparsers(dest="ambient_action", metavar="<action>", help="Meeting / Ambient action")
+    amb_sub = amb_p.add_subparsers(dest="ambient_action", metavar="<action>", help="Meeting / Ambient action (start, stop, status, list, show)")
+    
     amb_start = amb_sub.add_parser("start", help="Start background meeting assistant session")
+    amb_start.add_argument("-t", "--title", type=str, default=None, help="Title for the meeting session")
+    amb_start.add_argument("-o", "--output", type=str, default=None, help="Custom output markdown file path")
+    amb_start.add_argument("-s", "--speaker", type=str, default=None, help="Primary speaker name")
     amb_start.add_argument("--source", choices=["mic", "loopback"], default="mic", help="Audio capture source")
-    amb_sub.add_parser("status", help="Show meeting assistant status")
+    amb_start.add_argument("--auto-execute", action="store_true", default=True, help="Auto-execute detected Linear tickets, Slack updates, branch scaffolds")
+    amb_start.add_argument("--no-auto-execute", dest="auto_execute", action="store_false", help="Stage action items without auto-executing")
+
+    amb_sub.add_parser("stop", help="Finalize active meeting session and save notes")
+    amb_sub.add_parser("status", help="Show active meeting assistant status and action logs")
+    amb_sub.add_parser("list", help="List saved meeting notes and sessions")
+
+    amb_show = amb_sub.add_parser("show", help="Display full meeting notes")
+    amb_show.add_argument("target", nargs="?", default="latest", help="Meeting ID, keyword, or 'latest'")
+
+    amb_test = amb_sub.add_parser("test", aliases=["simulate"], help="Run comprehensive automated QA simulation or interactive utterance tester")
+    amb_test.add_argument("-i", "--interactive", action="store_true", help="Launch interactive utterance tester")
 
     # STT biasing & phonetic normalizer
     bias_p = subparsers.add_parser("bias", help="Inspect active STT vocabulary biasing or test phonetic normalization")

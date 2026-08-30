@@ -1186,6 +1186,13 @@ class VoiceFiTrayApp(rumps.App):
                 hud.show_transcribing()
             elif state == "done":
                 hud.show_done(preview_text=kwargs.get("text", ""))
+            elif state == "meeting":
+                hud.set_meeting(
+                    title=kwargs.get("title", "Meeting Notes"),
+                    status_tag=kwargs.get("tag_text", "Live Note Taker"),
+                    body_text=kwargs.get("text", "Recording and distilling structured notes..."),
+                    linger=kwargs.get("linger"),
+                )
             elif state == "new_conversation":
                 hud.set_new_conversation(
                     prompt_preview=kwargs.get("text", ""),
