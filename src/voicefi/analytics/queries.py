@@ -33,15 +33,18 @@ def calculate_time_saved_breakdown(
     typing_wpm: int = 55,
     substantive_dispatches: Optional[int] = None,
     banter_dispatches: Optional[int] = None,
+    user_chars: Optional[int] = None,
+    agent_chars: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
     Calculate granular time-saved line items across all productivity dimensions:
-    1. Speech vs Typing/Reading Bandwidth (calibrated against realistic 50-70 WPM typing vs 150-190 WPM speech)
-    2. Zero-Gaze Audio Triage (eliminating ~18s visual polling / bubble babysitting idle lag per turn)
+    1. Speech vs Typing Input Bandwidth (user's spoken voice prompts dictated @ ~170 WPM vs 55 WPM typing)
+    2. Zero-Gaze Audio Triage (agent spoken soundbites heard while eyes stay in code editor vs ~18s visual polling)
     3. Cross-Agent Handoff Automation (weighted: ~30s per substantive code delegation, ~3.5s per lightweight joke/ping)
     4. Voice Memo & Architecture Spec Synthesis (speech-to-structured architecture/PR plans @ 8m)
     """
     safe_chars = max(0, int(total_chars))
+    safe_user_chars = max(0, int(user_chars)) if user_chars is not None else safe_chars
     safe_spoken_seconds = max(0.0, float(total_spoken_seconds))
     safe_turns = max(0, int(total_turns))
     safe_dispatches = max(0, int(dispatches_count))
@@ -62,11 +65,15 @@ def calculate_time_saved_breakdown(
             "memo_str": "+0 mins",
             "substantive_dispatches": 0,
             "banter_dispatches": 0,
+            "user_spoken_chars": safe_user_chars,
         }
 
+    # Speech vs Typing: User's voice dictation (~170 WPM / 14.2 chars/sec) vs manual keyboard typing (~55 WPM / 4.58 chars/sec)
     chars_per_sec = (safe_wpm * 5) / 60.0  # ~4.58 chars/sec @ 55 wpm
-    typing_reading_seconds = safe_chars / max(chars_per_sec, 1.0)
-    speech_vs_typing_seconds = max(0.0, typing_reading_seconds - safe_spoken_seconds)
+    speech_chars_per_sec = (170 * 5) / 60.0  # ~14.17 chars/sec @ 170 wpm
+    typing_time_seconds = safe_user_chars / max(chars_per_sec, 1.0)
+    speaking_time_seconds = safe_user_chars / max(speech_chars_per_sec, 1.0)
+    speech_vs_typing_seconds = max(0.0, typing_time_seconds - speaking_time_seconds)
     
     # Zero-Gaze Audio Triage: Eliminates 18s of idle lag / progress-bubble visual polling per turn
     babysitting_seconds = safe_turns * 18.0
@@ -148,6 +155,8 @@ def get_analytics_summary(days: int = 7, store: Optional[AnalyticsStore] = None)
                 COUNT(*) as total_events,
                 SUM(CASE WHEN event_name = 'voice_interaction' OR (event_name = 'mcp_tool_call' AND tool_name IN ('voicefi_speak', 'speak')) THEN 1 ELSE 0 END) as total_turns,
                 SUM(CASE WHEN event_name = 'voice_interaction' OR (event_name = 'mcp_tool_call' AND tool_name IN ('voicefi_speak', 'speak')) THEN duration_ms ELSE 0 END) as total_duration_ms,
+                SUM(CASE WHEN event_name = 'voice_interaction' OR (event_name = 'mcp_tool_call' AND tool_name IN ('voicefi_listen', 'listen')) THEN char_count ELSE 0 END) as user_spoken_chars,
+                SUM(CASE WHEN (event_name = 'mcp_tool_call' AND tool_name IN ('voicefi_speak', 'speak')) THEN char_count ELSE 0 END) as agent_spoken_chars,
                 SUM(CASE WHEN event_name = 'voice_interaction' OR (event_name = 'mcp_tool_call' AND tool_name IN ('voicefi_speak', 'speak')) THEN char_count ELSE 0 END) as total_chars,
                 SUM(CASE WHEN is_barge_in = 1 OR event_name IN ('barge_in_event', 'speech_interrupted') OR tool_name IN ('voicefi_stop', 'stop') THEN 1 ELSE 0 END) as barge_in_count,
                 SUM(CASE WHEN is_barge_in = 1 OR event_name = 'barge_in_event' THEN 1 ELSE 0 END) as vad_barge_in_count,
@@ -166,6 +175,8 @@ def get_analytics_summary(days: int = 7, store: Optional[AnalyticsStore] = None)
         total_turns = int(row["total_turns"] or 0)
         total_duration_ms = int(row["total_duration_ms"] or 0)
         total_spoken_seconds = total_duration_ms / 1000.0
+        user_spoken_chars = int(row["user_spoken_chars"] or 0)
+        agent_spoken_chars = int(row["agent_spoken_chars"] or 0)
         total_chars = int(row["total_chars"] or 0)
         barge_in_count = int(row["barge_in_count"] or 0)
         vad_barge_in_count = int(row["vad_barge_in_count"] or 0)
@@ -286,6 +297,8 @@ def get_analytics_summary(days: int = 7, store: Optional[AnalyticsStore] = None)
             memos_count=memos_count,
             substantive_dispatches=substantive_dispatches,
             banter_dispatches=banter_dispatches,
+            user_chars=user_spoken_chars,
+            agent_chars=agent_spoken_chars,
         )
 
         return {

@@ -345,7 +345,17 @@ def cmd_listen(args):
         print(f"\n📝 Transcribed: {text}\n")
         set_cross_process_hud_state("done", text=text[:20])
 
-        if args.inject:
+        target_engine = getattr(args, "to", "active")
+        if target_engine in ("antigravity", "claude"):
+            from voicefi.integrations.injector import send_message_to_agent
+            res = send_message_to_agent(engine=target_engine, text=text)
+            if res.success:
+                print(f"🚀 Sent directly to {target_engine.capitalize()} via background IPC (0 focus change).")
+            else:
+                print(f"⚠️ IPC dispatch notice: {res.error} — falling back to active app injection.")
+                if args.inject:
+                    inject_text_to_active_app(text, submit_enter=args.enter)
+        elif args.inject:
             if inject_text_to_active_app(text, submit_enter=args.enter):
                 print("Sent to active conversation.")
             else:
@@ -3886,6 +3896,7 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
 
     # listen
     listen_p = subparsers.add_parser("listen", help="Listen from microphone and transcribe")
+    listen_p.add_argument("--to", choices=["active", "antigravity", "claude"], default="active", help="Target agent or app for zero-focus background IPC dispatch (default: active)")
     listen_p.add_argument("--no-inject", dest="inject", action="store_false", default=True, help="Do not inject into active app")
     listen_p.add_argument("--no-enter", dest="enter", action="store_false", default=True, help="Do not press Enter after pasting")
     listen_p.add_argument("-q", "--quiet", action="store_true", help="Disable audio feedback chimes")

@@ -96,7 +96,7 @@ def test_calculate_time_saved_hours():
         memos_count=1,
         typing_wpm=50,
     )
-    assert hours > 1.0
+    assert hours > 0.8
     assert isinstance(hours, float)
 
 

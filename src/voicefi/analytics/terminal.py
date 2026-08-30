@@ -71,8 +71,8 @@ def format_stats_dashboard(days: int = 7, store: Optional[AnalyticsStore] = None
         lines.append(f"    {DIM}↳ Zero-Gaze Audio Triage:{RESET} {GREEN}{baby_str:<10}{RESET} {DIM}({summary['total_turns']} turns: 0s idle lag vs ~18s bubble babysitting){RESET}")
 
         speech_str = bd.get("speech_vs_typing_str", "+0 mins")
-        chars_count = summary.get("total_chars", 0)
-        lines.append(f"    {DIM}↳ Speech vs Typing:{RESET}        {GREEN}{speech_str:<10}{RESET} {DIM}({chars_count} chars @ ~170 wpm vs 55 wpm){RESET}")
+        user_chars = bd.get("user_spoken_chars", summary.get("total_chars", 0))
+        lines.append(f"    {DIM}↳ User Speech vs Typing:{RESET}   {GREEN}{speech_str:<10}{RESET} {DIM}({user_chars} user dictated chars @ ~170 wpm vs 55 wpm typing){RESET}")
 
         if summary.get("dispatches_count", 0) > 0:
             disp_str = bd.get("dispatch_str", "+0 mins")

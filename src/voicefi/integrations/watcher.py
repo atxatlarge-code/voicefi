@@ -317,6 +317,23 @@ class TranscriptWatcher:
                         source="Antigravity",
                         linger=1.8,
                     )
+                    try:
+                        from voicefi.telemetry import record_event
+                        # Strip XML wrapper tags like <USER_REQUEST>...</USER_REQUEST>
+                        clean_body = re.sub(r"<[^>]+>", "", user_content).strip()
+                        if clean_body:
+                            record_event(
+                                "voice_interaction",
+                                {
+                                    "caller_agent": "antigravity",
+                                    "char_count": len(clean_body),
+                                    "words_count": len(clean_body.split()),
+                                    "source": "antigravity_transcript",
+                                    "step_index": idx,
+                                },
+                            )
+                    except Exception:
+                        pass
                 else:
                     self._notify_state(
                         "thinking",
