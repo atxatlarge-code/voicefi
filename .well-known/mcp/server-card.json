@@ -1,10 +1,11 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-10-17/server.schema.json",
-  "name": "voicefi",
+  "name": "org.voicefi/voicefi",
   "version": "1.0.0",
   "kind": "product",
-  "description": "VoiceFi™ — Universal Voice Layer for AI Agents, MCP, and macOS. High-fidelity 48kHz neural Edge TTS, voice personas, hands-free active listening, and cross-agent communication.",
+  "description": "Universal voice layer for AI agents: 48kHz neural TTS, personas, and active listening.",
   "instructions": "VoiceFi exposes real-time text-to-speech synthesis, acoustic voice persona discovery, hands-free active listening, and cross-agent communication tools via Model Context Protocol (MCP). Use voicefi_synthesize to generate 48kHz streaming audio URLs for any supported neural voice persona (Viv, Ava, Christopher, Emily, Aria, Sonia, Guy, Stefan).",
+  "websiteUrl": "https://voicefi.org",
   "homepage": "https://voicefi.org",
   "documentation": "https://voicefi.org/docs.html",
   "documentationUrl": "https://voicefi.org/docs.html",
@@ -12,6 +13,12 @@
   "url": "https://voicefi.org/mcp",
   "endpoint": "https://voicefi.org/mcp",
   "protocolVersion": "2024-11-05",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://voicefi.org/mcp"
+    }
+  ],
   "serverInfo": {
     "name": "voicefi",
     "version": "1.0.0",
@@ -48,14 +55,26 @@
           "voice": {
             "type": "string",
             "description": "Voice persona key or name (e.g. 'viv', 'ava', 'christopher', 'emily', 'aria', 'sonia', 'guy', 'stefan').",
-            "enum": ["viv", "ava", "christopher", "emily", "aria", "sonia", "guy", "stefan", "samantha"]
+            "enum": [
+              "viv",
+              "ava",
+              "christopher",
+              "emily",
+              "aria",
+              "sonia",
+              "guy",
+              "stefan",
+              "samantha"
+            ]
           },
           "text": {
             "type": "string",
             "description": "The text content to synthesize into spoken speech."
           }
         },
-        "required": ["text"]
+        "required": [
+          "text"
+        ]
       }
     },
     {
@@ -85,7 +104,9 @@
             "description": "Whether to wait for playback to complete before returning (default: true)."
           }
         },
-        "required": ["text"]
+        "required": [
+          "text"
+        ]
       }
     },
     {
@@ -136,7 +157,10 @@
             "description": "Voice persona name or ID (e.g. 'Ava (Premium)', 'Viv', 'Samantha', 'Christopher', 'Onyx')."
           }
         },
-        "required": ["agent", "persona"]
+        "required": [
+          "agent",
+          "persona"
+        ]
       }
     },
     {
@@ -164,7 +188,10 @@
           },
           "to": {
             "type": "string",
-            "enum": ["antigravity", "claude"],
+            "enum": [
+              "antigravity",
+              "claude"
+            ],
             "description": "Target agent engine (default: 'antigravity')."
           },
           "conv_id": {
@@ -184,7 +211,9 @@
             "description": "Set true to automatically reply to the originating conversation ID."
           }
         },
-        "required": ["text"]
+        "required": [
+          "text"
+        ]
       }
     },
     {
@@ -195,7 +224,16 @@
         "properties": {
           "name": {
             "type": "string",
-            "enum": ["drum_smash", "drums", "honk", "sad_trombone", "applause", "cheer", "boing", "crickets"],
+            "enum": [
+              "drum_smash",
+              "drums",
+              "honk",
+              "sad_trombone",
+              "applause",
+              "cheer",
+              "boing",
+              "crickets"
+            ],
             "description": "Name of the sound effect to play (default: 'drum_smash')."
           },
           "volume": {
@@ -203,7 +241,9 @@
             "description": "Volume multiplier (0.0 to 1.0, default: 1.0)."
           }
         },
-        "required": ["name"]
+        "required": [
+          "name"
+        ]
       }
     },
     {
@@ -215,10 +255,20 @@
           "topic": {
             "type": "string",
             "description": "Documentation topic.",
-            "enum": ["installation", "barge-in", "personas", "mcp-server", "cross-agent-bridge", "troubleshooting", "all"]
+            "enum": [
+              "installation",
+              "barge-in",
+              "personas",
+              "mcp-server",
+              "cross-agent-bridge",
+              "troubleshooting",
+              "all"
+            ]
           }
         },
-        "required": ["topic"]
+        "required": [
+          "topic"
+        ]
       }
     },
     {
@@ -230,7 +280,12 @@
           "agent": {
             "type": "string",
             "description": "Target AI agent environment.",
-            "enum": ["antigravity", "claude", "cursor", "all"]
+            "enum": [
+              "antigravity",
+              "claude",
+              "cursor",
+              "all"
+            ]
           },
           "offlineAva": {
             "type": "boolean",
@@ -252,7 +307,13 @@
           "useCase": {
             "type": "string",
             "description": "Filter personas by use case or return all.",
-            "enum": ["all", "pair_programming", "code_review", "rapid_debugging", "failsafe"]
+            "enum": [
+              "all",
+              "pair_programming",
+              "code_review",
+              "rapid_debugging",
+              "failsafe"
+            ]
           }
         }
       }
@@ -266,20 +327,37 @@
           "deviceType": {
             "type": "string",
             "description": "Connected audio output device.",
-            "enum": ["headphones", "speakers", "airpods", "built_in"]
+            "enum": [
+              "headphones",
+              "speakers",
+              "airpods",
+              "built_in"
+            ]
           },
           "os": {
             "type": "string",
             "description": "Operating system.",
-            "enum": ["macos_apple_silicon", "macos_intel", "linux", "windows"]
+            "enum": [
+              "macos_apple_silicon",
+              "macos_intel",
+              "linux",
+              "windows"
+            ]
           },
           "agent": {
             "type": "string",
             "description": "AI Coding Agent.",
-            "enum": ["antigravity", "claude", "cursor", "other"]
+            "enum": [
+              "antigravity",
+              "claude",
+              "cursor",
+              "other"
+            ]
           }
         },
-        "required": ["deviceType"]
+        "required": [
+          "deviceType"
+        ]
       }
     },
     {
@@ -293,7 +371,9 @@
             "description": "User's email address."
           }
         },
-        "required": ["email"]
+        "required": [
+          "email"
+        ]
       }
     }
   ],
