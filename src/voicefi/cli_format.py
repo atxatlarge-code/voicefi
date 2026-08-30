@@ -102,6 +102,7 @@ COMMAND_CATEGORIES = [
             ("hook", "Run as AI agent lifecycle hook (Antigravity, Claude Code)"),
             ("speak", "Speak text aloud with neural or local offline voice"),
             ("listen", "Listen from microphone, transcribe, and inject into active app"),
+            ("wake", "Run interactive 'Hey Viv' wake word listener & dispatcher"),
             ("loop", "Start continuous interactive voice loop"),
             ("new", "Start a new AI agent conversation with connected tools"),
             ("setup", "Auto-configure agent lifecycle hooks (Antigravity, Claude)"),

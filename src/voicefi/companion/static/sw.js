@@ -1,5 +1,5 @@
 // Service Worker for VoiceFi Mobile Companion PWA
-const CACHE_NAME = 'voicefi-companion-v10';
+const CACHE_NAME = 'voicefi-companion-v12';
 const ASSETS_TO_CACHE = [
   '/',
   '/manifest.json',
@@ -31,8 +31,8 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Pass WebSocket and API requests straight to live network
-  if (event.request.url.includes('/ws') || event.request.url.includes('/api/')) {
+  // Pass WebSocket, API, and Downloads requests straight to live network
+  if (event.request.url.includes('/ws') || event.request.url.includes('/api/') || event.request.url.includes('/downloads')) {
     return;
   }
 

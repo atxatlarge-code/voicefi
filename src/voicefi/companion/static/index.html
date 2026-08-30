@@ -475,6 +475,10 @@
       </div>
 
       <div class="flex items-center gap-1.5">
+        <a href="/downloads" class="px-2.5 py-1 bg-red-950/40 hover:bg-red-900/60 border border-red-500/40 rounded-lg text-[10px] font-mono text-red-300 flex items-center gap-1.5 transition active:scale-95 cursor-pointer shadow-sm no-underline" title="Reel & Media Downloads">
+          <span class="text-xs">📥</span>
+          <span class="font-bold">Downloads</span>
+        </a>
         <button id="openSettingsBtn" type="button" class="px-2.5 py-1 bg-[#141414] hover:bg-[#222222] border border-[#27272a] rounded-lg text-[10px] font-mono text-zinc-200 flex items-center gap-1.5 transition active:scale-95 cursor-pointer shadow-sm" title="Companion Settings">
           <span class="text-xs">⚙️</span>
           <span class="font-bold">Settings</span>
@@ -506,10 +510,13 @@
         <span>Voice</span>
       </button>
       <button id="tabChat" class="flex-1 py-1 rounded-lg text-center transition flex items-center justify-center gap-1 text-[#888888] hover:text-white cursor-pointer">
-        <span>Chat & Logs</span>
+        <span>Chat</span>
       </button>
       <button id="tabArtifacts" class="flex-1 py-1 rounded-lg text-center transition flex items-center justify-center gap-1 text-[#888888] hover:text-white cursor-pointer">
         <span>Artifacts</span> <span id="artifactBadge" class="hidden text-[9px] bg-[#222222] text-white px-1 rounded-full mono">0</span>
+      </button>
+      <button id="tabDownloads" class="flex-1 py-1 rounded-lg text-center transition flex items-center justify-center gap-1 text-[#888888] hover:text-white cursor-pointer" title="Reel & Media Downloads">
+        <span>Downloads</span> <span class="text-[9px] bg-red-950/80 border border-red-500/40 text-red-400 px-1 rounded-full mono font-bold">HD</span>
       </button>
     </div>
   </header>
@@ -683,9 +690,23 @@
 
     <!-- VIEW 3: Artifacts Browser -->
     <section id="viewArtifacts" class="hidden flex-1 flex flex-col h-full overflow-hidden max-w-4xl mx-auto w-full p-4 bg-transparent">
-      <div class="flex items-center justify-between mb-3">
+      <div class="flex items-center justify-between mb-2.5">
         <h2 class="font-bold text-xs text-white uppercase tracking-wider">Generated Project Artifacts</h2>
         <span id="artifactsCountTag" class="text-xs text-[#888888] font-mono">0 documents</span>
+      </div>
+
+      <!-- Quick Jump to Media Reel Exports inside Artifacts view -->
+      <div onclick="switchView('downloads')" class="mb-3 p-3 bg-gradient-to-r from-red-950/40 via-[#141414] to-black border border-red-500/30 rounded-2xl flex items-center justify-between gap-3 cursor-pointer hover:border-red-500/60 active:scale-[0.99] transition-all shadow-sm shrink-0">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <span class="text-lg">🎬</span>
+          <div class="min-w-0">
+            <div class="text-xs font-bold text-white tracking-tight">Social Reel & Video Downloads</div>
+            <div class="text-[10px] text-red-400 font-mono">9:16 Video Reel • 1:1 Square • Audio Master</div>
+          </div>
+        </div>
+        <button type="button" class="px-2.5 py-1 bg-red-600 text-white font-extrabold text-[10px] rounded-lg shadow-sm">
+          Open →
+        </button>
       </div>
       
       <!-- Artifacts List Grid -->
@@ -693,6 +714,62 @@
         <div class="col-span-full py-12 text-center text-[#666666] text-xs font-mono">
           No artifacts generated yet for this conversation.
         </div>
+      </div>
+    </section>
+
+    <!-- VIEW 4: Downloads & Media Hub (Direct Native Tab) -->
+    <section id="viewDownloads" class="hidden flex-1 flex flex-col h-full overflow-y-auto max-w-md mx-auto w-full p-4 bg-transparent no-scrollbar">
+      <div class="flex items-center justify-between mb-2 shrink-0">
+        <h2 class="font-bold text-xs text-white uppercase tracking-wider flex items-center gap-1.5">
+          <span>🎬</span> <span>Reel & Media Exports</span>
+        </h2>
+        <span class="px-2 py-0.5 rounded bg-red-950/60 border border-red-500/40 text-[10px] font-mono font-bold text-red-400">
+          🏆 Master 1080p
+        </span>
+      </div>
+
+      <!-- Reel Selector Tabs -->
+      <div class="w-full flex items-center justify-center p-1 bg-zinc-900/90 border border-zinc-800 rounded-xl gap-1 mb-2.5 shrink-0 overflow-x-auto no-scrollbar">
+        <button type="button" id="tabReel3" onclick="selectCompanionReel('reel3')" class="flex-1 py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all bg-purple-600 text-white shadow flex items-center justify-center gap-1 shrink-0">
+          <span>🎙️</span> <span>Making ViFi</span> <span class="text-[9px] px-1 py-0.2 rounded bg-black/40 text-purple-200">50s</span>
+        </button>
+        <button type="button" id="tabReel2" onclick="selectCompanionReel('reel2')" class="flex-1 py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all text-zinc-400 hover:text-zinc-200 flex items-center justify-center gap-1 shrink-0">
+          <span>🎤</span> <span>Rap Battle</span> <span class="text-[9px] px-1 py-0.2 rounded bg-zinc-800 text-zinc-400">77s</span>
+        </button>
+        <button type="button" id="tabReel1" onclick="selectCompanionReel('reel1')" class="flex-1 py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all text-zinc-400 hover:text-zinc-200 flex items-center justify-center gap-1 shrink-0">
+          <span>🦇</span> <span>Vampire</span> <span class="text-[9px] px-1 py-0.2 rounded bg-zinc-800 text-zinc-400">31s</span>
+        </button>
+      </div>
+
+      <!-- Video Player Preview Container -->
+      <div class="relative w-full aspect-[9/16] max-w-[220px] mx-auto bg-black rounded-3xl overflow-hidden border-2 border-purple-500/40 shadow-[0_0_40px_rgba(168,85,247,0.25)] flex items-center justify-center mb-2.5 shrink-0">
+        <video id="companionReelVideo" src="/downloads/free_your_voice_reel.mp4" playsinline controls loop class="w-full h-full object-cover"></video>
+      </div>
+
+      <!-- Title & Specs -->
+      <div class="text-center mb-2.5 shrink-0">
+        <h3 id="compReelTitle" class="text-xs font-black tracking-tight text-white flex items-center justify-center gap-1.5">
+          🎙️ Free Your Voice · Studio Radio Master <span id="compReelBadge" class="text-[9px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300 mono font-bold">16s</span>
+        </h3>
+        <p id="compReelDesc" class="text-[10px] text-zinc-400 mt-0.5 font-mono">Booming Radio DSP & synced cards</p>
+      </div>
+
+      <!-- Download Action Buttons -->
+      <div class="w-full flex flex-col gap-2 pb-6 shrink-0">
+        <button type="button" onclick="downloadCurrentCompanion('9:16')" class="w-full py-3 px-4 rounded-xl bg-red-600 hover:bg-red-500 active:scale-[0.98] text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(255,42,42,0.35)] transition-all cursor-pointer">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+          </svg>
+          <span>Save 9:16 Video Reel (.mp4)</span>
+        </button>
+
+        <button type="button" onclick="downloadCurrentCompanion('1:1')" class="w-full py-2.5 px-3.5 rounded-xl bg-[#141414] hover:bg-[#202020] border border-[#27272a] active:scale-[0.98] text-zinc-200 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer">
+          <span>⬛ Download 1:1 Square Post (.mp4)</span>
+        </button>
+
+        <button type="button" onclick="downloadCurrentCompanion('audio')" class="w-full py-2.5 px-3.5 rounded-xl bg-[#141414] hover:bg-[#202020] border border-[#27272a] active:scale-[0.98] text-zinc-200 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer">
+          <span>🎵 Download Master Audio (.mp3)</span>
+        </button>
       </div>
     </section>
 
@@ -880,13 +957,15 @@
       </div>
 
       <!-- Section 4: System Status & Refresh -->
-      <div class="pt-1 flex items-center justify-between text-xs font-mono text-zinc-400 border-t border-[#222222]">
+      <div class="pt-2 flex items-center justify-between text-xs font-mono text-zinc-400 border-t border-[#222222]">
         <div class="flex items-center gap-1.5">
           <span>Daemon: Port 5141</span>
         </div>
-        <button id="refreshBtn" type="button" class="px-2.5 py-1 text-zinc-300 hover:text-white bg-[#1a1a1a] hover:bg-[#262626] border border-[#333333] rounded-lg text-[10px] font-mono transition cursor-pointer">
-          🔄 SYNC NOW
-        </button>
+        <div class="flex items-center gap-2">
+          <button id="hardReloadBtn" onclick="hardReloadApp()" type="button" class="px-2.5 py-1 text-red-300 hover:text-white bg-red-950/40 hover:bg-red-900/60 border border-red-500/40 rounded-lg text-[10px] font-mono font-bold transition active:scale-95 cursor-pointer" title="Unregister ServiceWorker and Hard Reload App">
+            🔄 RELOAD APP
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -1297,9 +1376,11 @@
     const tabVoice = document.getElementById("tabVoice");
     const tabChat = document.getElementById("tabChat");
     const tabArtifacts = document.getElementById("tabArtifacts");
+    const tabDownloads = document.getElementById("tabDownloads");
     const viewVoice = document.getElementById("viewVoice");
     const viewChat = document.getElementById("viewChat");
     const viewArtifacts = document.getElementById("viewArtifacts");
+    const viewDownloads = document.getElementById("viewDownloads");
     const mainFooter = document.getElementById("mainFooter");
     const artifactBadge = document.getElementById("artifactBadge");
 
@@ -1441,6 +1522,7 @@
       viewVoice.classList.add("hidden");
       viewChat.classList.add("hidden");
       viewArtifacts.classList.add("hidden");
+      if (viewDownloads) viewDownloads.classList.add("hidden");
 
       const inactiveTab = "flex-1 py-1 rounded-lg text-center transition flex items-center justify-center gap-1 text-[#888888] hover:text-white cursor-pointer";
       const activeTab = "flex-1 py-1 rounded-lg text-center transition flex items-center justify-center gap-1 bg-white text-black shadow-sm cursor-pointer font-bold";
@@ -1448,6 +1530,7 @@
       tabVoice.className = inactiveTab;
       tabChat.className = inactiveTab;
       tabArtifacts.className = inactiveTab;
+      if (tabDownloads) tabDownloads.className = inactiveTab;
 
       if (tab === 'voice') {
         viewVoice.classList.remove("hidden");
@@ -1465,12 +1548,132 @@
         tabArtifacts.className = activeTab;
         if (mainFooter) mainFooter.classList.add("hidden");
         if (window.bgField) window.bgField.setPullCenter(undefined, undefined);
+      } else if (tab === 'downloads') {
+        if (viewDownloads) viewDownloads.classList.remove("hidden");
+        if (tabDownloads) tabDownloads.className = activeTab;
+        if (mainFooter) mainFooter.classList.add("hidden");
+        if (window.bgField) window.bgField.setPullCenter(undefined, undefined);
       }
     }
 
     tabVoice.addEventListener("click", () => switchView('voice'));
     tabChat.addEventListener("click", () => switchView('chat'));
     tabArtifacts.addEventListener("click", () => switchView('artifacts'));
+    if (tabDownloads) tabDownloads.addEventListener("click", () => switchView('downloads'));
+
+    window.switchView = switchView;
+
+    // Mobile Media Download & Native Share Helper
+    const COMPANION_REELS = {
+      reel3: {
+        title: "🎙️ How We Built VoiceFi · Multi-Agent Story",
+        dur: "50s",
+        desc: "Viv, Claude, Christopher & Emily on building the voice layer",
+        reel916: "/downloads/how_we_built_voicefi_reel_9_16.mp4",
+        reel11: "/downloads/how_we_built_voicefi_square_1_1.mp4",
+        audio: "/downloads/how_we_built_voicefi_dialogue.mp3"
+      },
+      reel2: {
+        title: "🎤 AI Rap Battle · Viv vs Claude",
+        dur: "77s",
+        desc: "Savage AI Smack Talk • 808 Boom-Bap & Scratches",
+        reel916: "/downloads/ai_rap_battle_viv_claude_reel.mp4",
+        reel11: "/downloads/ai_rap_battle_viv_claude_square.mp4",
+        audio: "/downloads/rap_battle_dialogue.mp3"
+      },
+      reel1: {
+        title: "🦇 ViFi Jokes · Vampire + Castlevania",
+        dur: "31s",
+        desc: "Multi-track comedy dialogue with Viv, Steffan & Emily",
+        reel916: "/downloads/vampire_vifi_joke_reel.mp4",
+        reel11: "/downloads/vampire_vifi_joke_square.mp4",
+        audio: "/downloads/vampire_vifi_joke_dialogue.mp3"
+      }
+    };
+
+    let activeCompanionReel = "reel3";
+
+    window.selectCompanionReel = function(key) {
+      activeCompanionReel = key;
+      const data = COMPANION_REELS[key];
+      const video = document.getElementById('companionReelVideo');
+      if (video) {
+        video.src = data.reel916;
+        video.load();
+      }
+
+      const titleEl = document.getElementById('compReelTitle');
+      const descEl = document.getElementById('compReelDesc');
+      if (titleEl) titleEl.innerHTML = `${data.title} <span id="compReelBadge" class="text-[9px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300 mono font-bold">${data.dur}</span>`;
+      if (descEl) descEl.innerText = data.desc;
+
+      const tab3 = document.getElementById('tabReel3');
+      const tab2 = document.getElementById('tabReel2');
+      const tab1 = document.getElementById('tabReel1');
+      
+      const inactiveClass = "flex-1 py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all text-zinc-400 hover:text-zinc-200 flex items-center justify-center gap-1 shrink-0";
+      if (tab3) tab3.className = inactiveClass;
+      if (tab2) tab2.className = inactiveClass;
+      if (tab1) tab1.className = inactiveClass;
+
+      if (key === 'reel3') {
+        if (tab3) tab3.className = "flex-1 py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all bg-purple-600 text-white shadow flex items-center justify-center gap-1 shrink-0";
+      } else if (key === 'reel2') {
+        if (tab2) tab2.className = "flex-1 py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all bg-red-600 text-white shadow flex items-center justify-center gap-1 shrink-0";
+      } else {
+        if (tab1) tab1.className = "flex-1 py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all bg-red-600 text-white shadow flex items-center justify-center gap-1 shrink-0";
+      }
+    };
+
+    window.downloadCurrentCompanion = function(type) {
+      const data = COMPANION_REELS[activeCompanionReel];
+      if (type === '9:16') downloadOrShareMedia(data.reel916, `${activeCompanionReel}_916.mp4`);
+      else if (type === '1:1') downloadOrShareMedia(data.reel11, `${activeCompanionReel}_square.mp4`);
+      else downloadOrShareMedia(data.audio, `${activeCompanionReel}_audio.mp3`);
+    };
+
+    window.downloadOrShareMedia = async function(url, filename) {
+      if (navigator.canShare) {
+        try {
+          const res = await fetch(url);
+          const blob = await res.blob();
+          const file = new File([blob], filename, { type: blob.type });
+          if (navigator.canShare({ files: [file] })) {
+            await navigator.share({
+              files: [file],
+              title: filename,
+              text: 'VoiceFi Master Video Reel'
+            });
+            return;
+          }
+        } catch (e) {
+          console.log('Share fallback triggered:', e);
+        }
+      }
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    };
+
+    // Hard Reload App & Clear Service Worker Cache
+    window.hardReloadApp = async function() {
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        for (let registration of registrations) {
+          await registration.unregister();
+        }
+      }
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        for (let key of keys) {
+          await caches.delete(key);
+        }
+      }
+      window.location.href = window.location.pathname + '?reload=' + Date.now();
+    };
 
     // Settings Modal Handlers
     if (openSettingsBtn && settingsModal) {

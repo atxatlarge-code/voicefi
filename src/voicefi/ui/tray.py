@@ -197,6 +197,20 @@ class VoiceFiTrayApp(rumps.App):
         except ImportError as e:
             print(f"[Tray] LiveVADMonitor failed to start: {e}")
 
+        # Start 'Hey Viv' Background Wake-Word Listener if enabled
+        self.wakeword_listener = None
+        wakeword_cfg = getattr(self.config, "wakeword", None)
+        if getattr(wakeword_cfg, "enabled", True):
+            try:
+                from voicefi.audio.wakeword import WakeWordListener
+                self.wakeword_listener = WakeWordListener(
+                    config=self.config,
+                    on_wake=self._handle_wakeword_trigger,
+                )
+                self.wakeword_listener.start()
+            except Exception as e:
+                print(f"[Tray] Wake word listener failed to start: {e}")
+
         # Build Menu Items with explicit keyboard shortcut hints
         self.stop_speaking_item = rumps.MenuItem("🛑 Stop Talking (Esc)", callback=self.stop_speaking_now)
         self.new_conversation_item = rumps.MenuItem(
@@ -222,6 +236,12 @@ class VoiceFiTrayApp(rumps.App):
         self._build_integrations_submenu()
 
         self.quick_controls_item = rumps.MenuItem("⚙️ HUD Quick Controls...", callback=self.open_quick_controls_ui)
+
+        self.wakeword_item = rumps.MenuItem(
+            "🎙️ 'Hey Viv' Wake Word",
+            callback=self.toggle_wakeword,
+        )
+        self.wakeword_item.state = 1 if getattr(getattr(self.config, "wakeword", None), "enabled", True) else 0
 
         self.auto_listen_item = rumps.MenuItem(
             "⚡ ProActive Listening (Auto Turn-Taking)",
@@ -318,6 +338,7 @@ class VoiceFiTrayApp(rumps.App):
             self.integrations_menu,
             self.voice_mode_menu,
             rumps.separator,
+            self.wakeword_item,
             self.auto_listen_item,
             self.read_summary_item,
             self.barge_in_item,
@@ -1326,6 +1347,8 @@ class VoiceFiTrayApp(rumps.App):
 
         def _worker():
             temp_wav = None
+            if self.wakeword_listener:
+                self.wakeword_listener.pause()
             try:
                 active_conv = self.watcher.tracker.get_active_or_latest() if self.watcher else None
                 if self.config.audio_cues.enabled:
@@ -1417,6 +1440,9 @@ class VoiceFiTrayApp(rumps.App):
                 self.active_recorder = None
                 self._current_status = "idle"
                 self._key_down_times.clear()
+                self._build_conversations_submenu()
+                if self.wakeword_listener and getattr(getattr(self.config, "wakeword", None), "enabled", True):
+                    self.wakeword_listener.resume()
                 self._build_conversations_submenu()
 
         threading.Thread(target=_worker, daemon=True).start()
@@ -1855,6 +1881,78 @@ class VoiceFiTrayApp(rumps.App):
         except Exception:
             pass
 
+    def toggle_wakeword(self, sender=None):
+        """Toggle 'Hey Viv' background wake word detection."""
+        if not hasattr(self.config, "wakeword") or self.config.wakeword is None:
+            from voicefi.config import WakeWordConfig
+            self.config.wakeword = WakeWordConfig()
+
+        new_val = not self.config.wakeword.enabled
+        self.config.wakeword.enabled = new_val
+        save_config(self.config)
+
+        if hasattr(self, "wakeword_item") and self.wakeword_item:
+            self.wakeword_item.state = 1 if new_val else 0
+
+        if new_val:
+            if not self.wakeword_listener:
+                try:
+                    from voicefi.audio.wakeword import WakeWordListener
+                    self.wakeword_listener = WakeWordListener(
+                        config=self.config,
+                        on_wake=self._handle_wakeword_trigger,
+                    )
+                except Exception as e:
+                    print(f"[Tray] Error initializing wake word listener: {e}")
+            if self.wakeword_listener:
+                self.wakeword_listener.start()
+            try:
+                rumps.notification("VoiceFi", "'Hey Viv' Wake Word Enabled", "Listening continuously in background for 'Hey Viv'")
+            except Exception:
+                pass
+        else:
+            if self.wakeword_listener:
+                self.wakeword_listener.stop()
+            try:
+                rumps.notification("VoiceFi", "'Hey Viv' Wake Word Disabled", "Wake word detection paused")
+            except Exception:
+                pass
+
+    def _handle_wakeword_trigger(self, phrase: str, prompt: str):
+        """Handle 'Hey Viv' wake word detection from background listener."""
+        print(f"[VoiceFi] ⚡ Wake word triggered: '{phrase}' (prompt: '{prompt}')")
+
+        hud = UnifiedDynamicIslandHUD.get_instance()
+        active_conv = self.watcher.tracker.get_active_or_latest() if self.watcher else None
+        conv_id = active_conv.id if active_conv else None
+
+        if prompt and len(prompt.strip()) >= 3:
+            from voicefi.stt.biasing import PhoneticNormalizer
+            norm_prompt = PhoneticNormalizer.normalize(prompt.strip())
+
+            hud.set_hearing(user_name=getattr(self.config, "user_name", "Developer"))
+            time.sleep(0.2)
+
+            def _send_action(payload_text: str):
+                send_message_to_agent(conv_id=conv_id, text=payload_text, sender_name=f"{self.config.user_name} (Voice)")
+                if self.config.audio_cues.enabled:
+                    play_chime(self.config.audio_cues.sent_chime, block=False)
+                try:
+                    title = active_conv.title if active_conv else "Antigravity"
+                    rumps.notification(f"VoiceFi • {title[:30]}", "Prompt Sent via 'Hey Viv'", payload_text[:80])
+                except Exception:
+                    pass
+
+            is_auto_send = getattr(getattr(self.config, "hud", None), "auto_send", True) and getattr(self.config.antigravity, "auto_send", True)
+            if is_auto_send:
+                _send_action(norm_prompt)
+                hud.show_done(preview_text=norm_prompt[:25])
+            else:
+                target_name = active_conv.title[:20] if (active_conv and active_conv.title) else "Antigravity"
+                hud.set_editing(norm_prompt, on_submit=_send_action, target_name=target_name)
+        else:
+            self.trigger_talk_to_antigravity()
+
     def toggle_auto_listen(self, sender):
         new_val = not self.config.proactive.feedback_loop.enabled
         self.config.proactive.feedback_loop.enabled = new_val
@@ -1966,6 +2064,8 @@ class VoiceFiTrayApp(rumps.App):
 
         def _worker():
             temp_wav = None
+            if self.wakeword_listener:
+                self.wakeword_listener.pause()
             try:
                 if self.config.audio_cues.enabled:
                     play_chime("start", block=False)
@@ -2057,6 +2157,8 @@ class VoiceFiTrayApp(rumps.App):
                     temp_wav.unlink(missing_ok=True)
                 self.active_recorder = None
                 self._current_status = "idle"
+                if self.wakeword_listener and getattr(getattr(self.config, "wakeword", None), "enabled", True):
+                    self.wakeword_listener.resume()
                 self._key_down_times.clear()
 
         threading.Thread(target=_worker, daemon=True).start()

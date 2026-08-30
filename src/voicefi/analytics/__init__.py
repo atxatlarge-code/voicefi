@@ -14,6 +14,8 @@ from voicefi.analytics.queries import (
     get_tool_usage_breakdown,
     get_agent_distribution,
     calculate_time_saved_hours,
+    calculate_time_saved_breakdown,
+    get_cognitive_flow_breakdown,
 )
 from voicefi.analytics.terminal import (
     format_stats_dashboard,
@@ -35,6 +37,8 @@ __all__ = [
     "get_tool_usage_breakdown",
     "get_agent_distribution",
     "calculate_time_saved_hours",
+    "calculate_time_saved_breakdown",
+    "get_cognitive_flow_breakdown",
     "format_stats_dashboard",
     "print_stats_dashboard",
     "export_events_json",
@@ -42,3 +46,4 @@ __all__ = [
     "clean_analytics_data",
     "reset_analytics_data",
 ]
+

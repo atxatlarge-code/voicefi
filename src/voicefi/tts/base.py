@@ -414,6 +414,11 @@ def escape_to_stop_speech():
             try:
                 if is_escape_key(key):
                     stop_all_speech()
+                    try:
+                        from voicefi.telemetry import capture_barge_in_event
+                        capture_barge_in_event(device_type="keyboard_esc", is_full_duplex=False)
+                    except Exception:
+                        pass
             except Exception:
                 pass
 

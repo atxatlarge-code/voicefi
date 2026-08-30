@@ -86,16 +86,16 @@ def test_telemetry_sanitization():
     from voicefi.telemetry import sanitize_telemetry_data
 
     sample = {
-        "path": "/Users/angelica/Projects/myapp/main.py",
-        "error": "Failed at /Users/angelica/.voicefi/config.yaml with sk-1234567890abcdef123456",
+        "path": "/Users/developer/Projects/myapp/main.py",
+        "error": "Failed at /Users/developer/.voicefi/config.yaml with sk-1234567890abcdef123456",
         "nested": [
-            "/Users/angelica/Library/Application Support/voicefi",
+            "/Users/developer/Library/Application Support/voicefi",
             {"secret_key": "super_secret", "normal_metric": 42}
         ]
     }
 
     sanitized = sanitize_telemetry_data(sample)
-    assert "/Users/angelica" not in sanitized["path"]
+    assert "/Users/developer" not in sanitized["path"]
     assert "~" in sanitized["path"]
     assert "sk-1234567890abcdef123456" not in sanitized["error"]
     assert "[REDACTED_API_KEY]" in sanitized["error"]

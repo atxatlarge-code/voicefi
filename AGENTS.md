@@ -35,8 +35,11 @@ Universal Voice Layer for AI Agents, MCP, and macOS.
 | `vifi hearing-test` | **Acoustic Verification**: Plays phrase over speakers and tests room microphone STT match %. |
 | `vifi feedback submit "<title>"` | Logs sanitized zero-PII diagnostic report and dispatches to telemetry. |
 | `vifi stats` / `vifi analytics` | **Developer Activity & Tool Analytics**: Shows local turn volume, time saved, tool distributions, and acoustic latency benchmarks. |
+| `vifi bridge` / `vifi bridge --server` | **Local Daemon IPC Bridge**: Manages bidirectional Unix domain socket (`/tmp/voicefi.sock`) & WebSocket connection to Gemini Spark / Antigravity agents. |
+| `vifi spark [prompt]` | **Gemini Spark Runner**: Executes prompts with spoken soundbite distillation, `SIGINT`/`SIGTERM` barge-in cancellation, and turn-end hooks. |
 | `vifi panel` | Launch interactive web control panel (`http://localhost:5141`). |
 | `vifi hud debug` | Interactive terminal Dynamic Island HUD Debug Studio. |
+| `vifi wake` / `vifi listen --wake` | **'Hey Viv' Wake Word Studio**: Runs interactive foreground wake word listener and Antigravity voice dispatcher. |
 | `python scripts/sync_hud_assets.py` | **HUD & Web Asset Synchronizer**: Captures AppKit HUD screenshots and syncs shared JS/CSS/SVGs to `voicefi.org`. |
 | `vifi autostart` / `vifi start` | Enable background LaunchAgent server (`vifi tray`) for persistent Dynamic Island HUD & menu bar companion. |
 | `vifi stop-autostart` | Unload and remove background LaunchAgent server. |

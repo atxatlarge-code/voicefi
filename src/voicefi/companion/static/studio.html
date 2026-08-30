@@ -134,10 +134,13 @@
     <!-- Mode Selector Tabs -->
     <div class="hidden md:flex items-center p-1 rounded-xl bg-slate-900/80 border border-white/5 text-xs font-medium">
       <button id="tabAll" onclick="switchStudioView('all')" class="px-3.5 py-1.5 rounded-lg bg-emerald-500 text-slate-950 font-semibold shadow transition-all">
-        ⚡ Studio (All)
+        ⚡ All Stages
+      </button>
+      <button id="tabRecorder" onclick="switchStudioView('recorder')" class="px-3.5 py-1.5 rounded-lg text-slate-300 hover:text-white transition-all">
+        🎙️ Voice Recorder & FX
       </button>
       <button id="tabAmbient" onclick="switchStudioView('ambient')" class="px-3.5 py-1.5 rounded-lg text-slate-300 hover:text-white transition-all">
-        🎙️ Ambient + Active Listening
+        🎧 Ambient Listener
       </button>
       <button id="tabMemo" onclick="switchStudioView('memo')" class="px-3.5 py-1.5 rounded-lg text-slate-300 hover:text-white transition-all">
         🧠 Voice Memo Buffer
@@ -167,6 +170,335 @@
   <!-- Main Content Stage -->
   <main class="relative z-10 flex-1 overflow-y-auto custom-scrollbar p-4 lg:p-6">
     <div class="max-w-7xl mx-auto space-y-6">
+
+      <!-- ======================================================== -->
+      <!-- SECTION 0: VOICE RECORDING & FX STUDIO + REEL GENERATOR  -->
+      <!-- ======================================================== -->
+      <div id="stageRecorder" class="glass-panel rounded-2xl p-5 lg:p-7 shadow-2xl space-y-6 border-t-2 border-t-rose-500/80">
+        
+        <!-- Header & Action Row -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-white/5">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-500 to-amber-600 flex items-center justify-center text-xl shadow-lg shadow-rose-500/20 border border-rose-400/30">
+              🎙️
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <h2 class="font-extrabold text-base lg:text-lg text-white tracking-tight">
+                  Voice Recording Studio & FX Transformer
+                </h2>
+                <span class="px-2 py-0.5 text-[10px] font-mono font-bold rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 uppercase">
+                  Booming Radio & Reels
+                </span>
+              </div>
+              <p class="text-xs text-slate-400">Record in browser or companion, apply booming radio DSP presets & sound effects, and compile multi-format video reels</p>
+            </div>
+          </div>
+
+          <!-- Quick Actions -->
+          <div class="flex items-center gap-2">
+            <button onclick="refreshStudioRecordings()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-white/10 text-xs font-mono text-slate-300 hover:text-white transition-all flex items-center gap-1.5" title="Refresh Audio Library">
+              🔄 Refresh Library
+            </button>
+            <a href="/downloads" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-white/10 text-xs font-mono text-slate-300 hover:text-white transition-all flex items-center gap-1.5">
+              🏆 View Downloads
+            </a>
+          </div>
+        </div>
+
+        <!-- 3-Column Studio Workflow Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+          <!-- COLUMN 1: RECORD & UPLOAD -->
+          <div class="space-y-4 flex flex-col">
+            <div class="flex items-center justify-between text-xs font-mono text-slate-400">
+              <span class="text-slate-200 font-bold flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-rose-400"></span>
+                1. Voice Capture & Ingestion
+              </span>
+              <span id="recStatusBadge" class="text-[10px] text-slate-500 font-mono">Ready</span>
+            </div>
+
+            <!-- Live Browser Microphone Recorder Card -->
+            <div class="glass-card rounded-xl p-4 space-y-3.5 border border-rose-500/20 bg-rose-950/10">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-rose-300 flex items-center gap-1.5">
+                  🎙️ Browser Live Mic
+                </span>
+                <span id="studioRecTimer" class="font-mono text-xs font-bold text-white">00:00.0</span>
+              </div>
+
+              <!-- Live Frequency / Waveform Canvas -->
+              <div class="relative h-16 bg-slate-950/80 rounded-lg overflow-hidden border border-white/5 flex items-center justify-center">
+                <canvas id="studioVisualizerCanvas" class="w-full h-full"></canvas>
+                <div id="studioMicPrompt" class="absolute inset-0 flex items-center justify-center text-xs text-slate-500 font-mono pointer-events-none">
+                  Press Record to speak
+                </div>
+              </div>
+
+              <!-- Recorder Buttons -->
+              <div class="flex items-center gap-2">
+                <button id="btnStudioRecord" onclick="toggleStudioRecording()" class="flex-1 py-2 px-3 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-lg shadow-rose-600/20 transition-all flex items-center justify-center gap-1.5">
+                  <span id="studioRecIcon">●</span>
+                  <span id="studioRecText">Record Voice</span>
+                </button>
+                <button id="btnStudioDiscard" onclick="discardStudioRecording()" class="hidden py-2 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-white/10 text-slate-400 hover:text-white text-xs">
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            <!-- File Drag & Drop Ingestion -->
+            <div id="audioDropzone" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleAudioDrop(event)" onclick="triggerFileInput()" class="glass-card rounded-xl p-4 border-2 border-dashed border-white/10 hover:border-rose-500/40 cursor-pointer transition-all text-center space-y-2 group">
+              <input type="file" id="studioFileInput" accept="audio/*,.wav,.mp3,.m4a,.ogg,.flac,.webm" class="hidden" onchange="handleFileSelect(event)" />
+              <div class="w-8 h-8 rounded-full bg-slate-800 group-hover:bg-rose-500/20 text-slate-400 group-hover:text-rose-400 flex items-center justify-center mx-auto transition-all text-sm">
+                📁
+              </div>
+              <div>
+                <p class="text-xs font-semibold text-slate-300 group-hover:text-white">Upload Audio File</p>
+                <p class="text-[10px] text-slate-500">Drag & drop .wav, .mp3, .m4a from phone or desktop</p>
+              </div>
+            </div>
+
+            <!-- Audio Library & Active Track Selector -->
+            <div class="space-y-1.5 flex-1">
+              <div class="flex items-center justify-between text-[11px] font-mono text-slate-400">
+                <span>Active Track:</span>
+                <span id="activeAudioDuration" class="text-rose-400 font-bold">No audio</span>
+              </div>
+              <select id="audioLibrarySelect" onchange="selectLibraryAudio(this.value)" class="w-full bg-slate-900/90 border border-white/10 rounded-lg p-2 text-xs font-mono text-slate-200 focus:outline-none focus:border-rose-500">
+                <option value="">-- Select audio recording or upload --</option>
+              </select>
+
+              <!-- Audio Player / Scrubber -->
+              <div id="audioPlaybackBox" class="glass-card rounded-lg p-2.5 space-y-2 mt-2 hidden">
+                <audio id="studioAudioPlayer" controls class="w-full h-8"></audio>
+                <div id="audioMetaRow" class="flex items-center justify-between text-[10px] font-mono text-slate-400 px-1">
+                  <span id="audioCodecMeta">44.1kHz · 2ch</span>
+                  <span id="audioSizeMeta">0.0 KB</span>
+                </div>
+
+                <!-- Trim & Cut Controls -->
+                <div class="pt-2 border-t border-white/5 space-y-2">
+                  <div class="flex items-center justify-between text-[11px] font-mono text-slate-300">
+                    <span class="font-bold text-rose-300 flex items-center gap-1">✂️ Trim Audio</span>
+                    <span id="trimDurationBadge" class="text-[10px] text-slate-400">0.0s selected</span>
+                  </div>
+
+                  <div class="grid grid-cols-2 gap-2">
+                    <div class="space-y-1">
+                      <div class="flex items-center justify-between text-[10px] text-slate-400 font-mono">
+                        <span>Start (s)</span>
+                        <button onclick="setTrimToCurrent('start')" class="text-rose-400 hover:text-rose-300">Use Head</button>
+                      </div>
+                      <input type="number" id="trimStartInput" step="0.1" min="0" value="0.0" oninput="onTrimInputChange()" class="w-full bg-slate-950/80 border border-white/10 rounded px-2 py-1 text-xs font-mono text-white focus:border-rose-500" />
+                    </div>
+
+                    <div class="space-y-1">
+                      <div class="flex items-center justify-between text-[10px] text-slate-400 font-mono">
+                        <span>End (s)</span>
+                        <button onclick="setTrimToCurrent('end')" class="text-rose-400 hover:text-rose-300">Use Head</button>
+                      </div>
+                      <input type="number" id="trimEndInput" step="0.1" min="0" value="0.0" oninput="onTrimInputChange()" class="w-full bg-slate-950/80 border border-white/10 rounded px-2 py-1 text-xs font-mono text-white focus:border-rose-500" />
+                    </div>
+                  </div>
+
+                  <div class="flex items-center gap-2 pt-1">
+                    <button id="btnPreviewTrim" onclick="togglePreviewTrim()" class="flex-1 py-1.5 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs transition-all flex items-center justify-center gap-1">
+                      <span id="previewTrimIcon">▶</span>
+                      <span id="previewTrimText">Preview Trim</span>
+                    </button>
+                    <button id="btnApplyTrim" onclick="applyAudioTrim()" class="py-1.5 px-3 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-md shadow-rose-600/20 transition-all flex items-center justify-center gap-1">
+                      <span>✂️ Cut</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- COLUMN 2: VOICE FX TRANSFORMER & SFX -->
+          <div class="space-y-4 flex flex-col">
+            <div class="flex items-center justify-between text-xs font-mono text-slate-400">
+              <span class="text-slate-200 font-bold flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+                2. Voice Transformation & FX
+              </span>
+              <span class="text-[10px] text-amber-400 font-semibold">Web Audio 0ms Preview</span>
+            </div>
+
+            <!-- FX Preset Cards -->
+            <div class="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto custom-scrollbar pr-1" id="presetGrid">
+              <!-- Dynamically populated presets with Radio Announcer active by default -->
+            </div>
+
+            <!-- Live Audition Controller -->
+            <div class="glass-card rounded-xl p-3 space-y-2.5 border border-amber-500/20 bg-amber-950/10">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-amber-300 flex items-center gap-1.5">
+                  🎧 Audition FX
+                </span>
+                <span id="activePresetBadge" class="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold">
+                  radio_announcer
+                </span>
+              </div>
+              <div class="flex items-center gap-2">
+                <button id="btnAuditionFX" onclick="toggleAuditionFX()" class="flex-1 py-1.5 px-3 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-all flex items-center justify-center gap-1.5 shadow-md shadow-amber-500/20">
+                  <span id="auditionIcon">▶</span>
+                  <span id="auditionText">Audition FX Live</span>
+                </button>
+                <button onclick="applyAndMasterFX()" class="py-1.5 px-3 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs transition-all shadow-md shadow-rose-600/20 flex items-center gap-1">
+                  <span>✨ Master</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Fine-Tune DSP Controls (Accordion / Sliders) -->
+            <div class="glass-card rounded-xl p-3 space-y-2 border border-white/5">
+              <div class="flex items-center justify-between text-[11px] font-mono text-slate-300 cursor-pointer" onclick="toggleCustomSliders()">
+                <span class="font-bold">🎛️ Fine-Tune Sliders</span>
+                <span id="sliderToggleArrow">▼</span>
+              </div>
+              <div id="customSlidersContainer" class="space-y-2 pt-1 text-[10px] font-mono">
+                <div>
+                  <div class="flex justify-between text-slate-400 mb-0.5">
+                    <span>Booming Bass (+dB):</span>
+                    <span id="valBass" class="text-rose-400 font-bold">+9.0 dB</span>
+                  </div>
+                  <input type="range" id="sliderBass" min="0" max="15" step="0.5" value="9.0" oninput="onCustomParamChange()" class="w-full accent-rose-500 h-1 bg-slate-800 rounded cursor-pointer" />
+                </div>
+                <div>
+                  <div class="flex justify-between text-slate-400 mb-0.5">
+                    <span>Vocal Presence / Sparkle:</span>
+                    <span id="valTreble" class="text-amber-400 font-bold">+4.5 dB</span>
+                  </div>
+                  <input type="range" id="sliderTreble" min="0" max="12" step="0.5" value="4.5" oninput="onCustomParamChange()" class="w-full accent-amber-500 h-1 bg-slate-800 rounded cursor-pointer" />
+                </div>
+                <div>
+                  <div class="flex justify-between text-slate-400 mb-0.5">
+                    <span>Broadcast Compression:</span>
+                    <span id="valComp" class="text-cyan-400 font-bold">75%</span>
+                  </div>
+                  <input type="range" id="sliderComp" min="0" max="1" step="0.05" value="0.75" oninput="onCustomParamChange()" class="w-full accent-cyan-500 h-1 bg-slate-800 rounded cursor-pointer" />
+                </div>
+              </div>
+            </div>
+
+            <!-- SFX Stinger Palette -->
+            <div class="glass-card rounded-xl p-2.5 space-y-1.5 border border-white/5">
+              <div class="flex items-center justify-between text-[11px] font-mono text-slate-400">
+                <span>🔔 Sound Effect Stingers:</span>
+                <span class="text-[10px] text-slate-500">Tap to audition / cue</span>
+              </div>
+              <div class="grid grid-cols-3 gap-1">
+                <button onclick="cueSFX('drum_smash')" class="py-1 px-1.5 rounded bg-slate-800 hover:bg-slate-700 text-[10px] font-mono text-slate-300 hover:text-white transition-all text-center">
+                  🥁 Rimshot
+                </button>
+                <button onclick="cueSFX('applause')" class="py-1 px-1.5 rounded bg-slate-800 hover:bg-slate-700 text-[10px] font-mono text-slate-300 hover:text-white transition-all text-center">
+                  👏 Applause
+                </button>
+                <button onclick="cueSFX('honk')" class="py-1 px-1.5 rounded bg-slate-800 hover:bg-slate-700 text-[10px] font-mono text-slate-300 hover:text-white transition-all text-center">
+                  🎺 Honk
+                </button>
+                <button onclick="cueSFX('sad_trombone')" class="py-1 px-1.5 rounded bg-slate-800 hover:bg-slate-700 text-[10px] font-mono text-slate-300 hover:text-white transition-all text-center">
+                  📉 Trombone
+                </button>
+                <button onclick="cueSFX('crickets')" class="py-1 px-1.5 rounded bg-slate-800 hover:bg-slate-700 text-[10px] font-mono text-slate-300 hover:text-white transition-all text-center">
+                  🦗 Crickets
+                </button>
+                <button onclick="cueSFX('boing')" class="py-1 px-1.5 rounded bg-slate-800 hover:bg-slate-700 text-[10px] font-mono text-slate-300 hover:text-white transition-all text-center">
+                  🌀 Boing
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- COLUMN 3: MULTI-FORMAT SOCIAL REEL COMPILER -->
+          <div class="space-y-4 flex flex-col">
+            <div class="flex items-center justify-between text-xs font-mono text-slate-400">
+              <span class="text-slate-200 font-bold flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-purple-400"></span>
+                3. Social Reel & Slide Compiler
+              </span>
+              <button onclick="autoTranscribeStudioAudio()" class="text-[10px] text-purple-300 hover:text-white font-mono flex items-center gap-1">
+                <span>🤖 Auto-Transcribe</span>
+              </button>
+            </div>
+
+            <!-- Format & Typography Selectors -->
+            <div class="glass-card rounded-xl p-3.5 space-y-3 border border-purple-500/20 bg-purple-950/10">
+              <!-- Aspect Ratio Selector Pills -->
+              <div class="space-y-1">
+                <label class="text-[10px] font-mono text-slate-400">Video Aspect Ratio:</label>
+                <div class="grid grid-cols-4 gap-1 text-[11px] font-mono font-bold">
+                  <button id="fmt916" onclick="selectReelFormat('9:16')" class="py-1 px-1 rounded bg-purple-600 text-white shadow text-center">9:16</button>
+                  <button id="fmt11" onclick="selectReelFormat('1:1')" class="py-1 px-1 rounded bg-slate-800 text-slate-400 hover:text-white text-center">1:1</button>
+                  <button id="fmt45" onclick="selectReelFormat('4:5')" class="py-1 px-1 rounded bg-slate-800 text-slate-400 hover:text-white text-center">4:5</button>
+                  <button id="fmt169" onclick="selectReelFormat('16:9')" class="py-1 px-1 rounded bg-slate-800 text-slate-400 hover:text-white text-center">16:9</button>
+                </div>
+              </div>
+
+              <!-- Typography & Speaker Selector -->
+              <div class="grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <label class="text-[10px] font-mono text-slate-400">Typography:</label>
+                  <select id="reelTypoSelect" class="w-full bg-slate-900 border border-white/10 rounded-lg p-1.5 text-xs text-slate-200 mt-0.5">
+                    <option value="classic_ai">Classic AI (Space Grotesk)</option>
+                    <option value="witty_comedy">Witty Comedy (Bricolage)</option>
+                    <option value="dev_terminal">Dev Terminal (Outfit)</option>
+                    <option value="clean_tech">Clean Tech (Jakarta)</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="text-[10px] font-mono text-slate-400">Speaker Persona:</label>
+                  <select id="reelSpeakerSelect" class="w-full bg-slate-900 border border-white/10 rounded-lg p-1.5 text-xs text-slate-200 mt-0.5">
+                    <option value="Radio Host">Radio Announcer 🎙️</option>
+                    <option value="Viv">Viv (Antigravity) ⚡</option>
+                    <option value="Claude">Claude (Anthropic) 🧠</option>
+                    <option value="Emily">Emily (VoiceFi) 🎙️</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <!-- Slide Cards Deck Editor -->
+            <div class="space-y-1.5 flex-1">
+              <div class="flex items-center justify-between text-[11px] font-mono text-slate-400">
+                <span>Slide Captions (<span id="slideCountBadge">1</span>):</span>
+                <button onclick="addCustomSlide()" class="text-[10px] text-slate-400 hover:text-white">+ Add Slide</button>
+              </div>
+              <div id="slidesEditorContainer" class="space-y-2 max-h-40 overflow-y-auto custom-scrollbar pr-1">
+                <!-- Slide cards rendered dynamically -->
+              </div>
+            </div>
+
+            <!-- Compile Reel Action Button -->
+            <button id="btnCompileReel" onclick="compileSocialReel()" class="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-purple-600 via-rose-600 to-amber-600 hover:from-purple-500 hover:to-amber-500 text-white font-extrabold text-xs shadow-lg shadow-purple-600/20 transition-all flex items-center justify-center gap-2">
+              <span>🎬</span>
+              <span id="compileBtnText">Compile Social Reel (.mp4)</span>
+            </button>
+
+            <!-- Video Output Modal / Preview Area -->
+            <div id="reelOutputContainer" class="glass-card rounded-xl p-3 space-y-2 border border-purple-500/30 bg-purple-950/20 hidden">
+              <div class="flex items-center justify-between text-xs font-bold text-purple-300">
+                <span>🏆 Reel Ready!</span>
+                <span id="reelSizeBadge" class="text-[10px] font-mono text-slate-400">1.2 MB</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <a id="linkDownloadReel" href="" download class="flex-1 py-1.5 px-3 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs text-center transition-all">
+                  ⬇️ Download MP4
+                </a>
+                <button onclick="openPairingModal()" class="py-1.5 px-2.5 rounded-lg bg-slate-800 text-slate-300 hover:text-white text-xs" title="Send to Phone">
+                  📱 Phone
+                </button>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
 
       <!-- ======================================================== -->
       <!-- SECTION 1: DUAL COMPANION STAGES (AMBIENT & MEMO)       -->
@@ -972,26 +1304,722 @@
       });
     }
 
+    // =========================================================================
+    // VOICE RECORDING STUDIO & FX TRANSFORMER JAVASCRIPT
+    // =========================================================================
+
+    let studioMediaRecorder = null;
+    let studioAudioChunks = [];
+    let studioRecStartTime = 0;
+    let studioRecTimerInterval = null;
+    let studioAudioContext = null;
+    let studioAnalyser = null;
+    let studioVisualizerAnimation = null;
+    let currentRecordingId = null;
+    let currentAudioUrl = null;
+    let activePreset = 'radio_announcer';
+    let studioPresets = [];
+    let isAuditioning = false;
+    let auditionSource = null;
+    let currentSlides = [];
+    let activeReelFormat = '9:16';
+
+    // 1. Fetch Studio Presets and Library
+    function initRecordingStudio() {
+      fetch('/api/studio/presets')
+        .then(r => r.json())
+        .then(d => {
+          studioPresets = d.presets || [];
+          renderPresetGrid(studioPresets);
+        })
+        .catch(e => console.warn('Could not fetch studio presets:', e));
+
+      refreshStudioRecordings();
+    }
+
+    function renderPresetGrid(presets) {
+      const grid = document.getElementById('presetGrid');
+      if (!grid) return;
+      grid.innerHTML = '';
+      presets.forEach(p => {
+        const isSel = (p.id === activePreset);
+        const card = document.createElement('button');
+        card.id = `preset_card_${p.id}`;
+        card.onclick = () => selectVoicePreset(p.id);
+        card.className = `p-2.5 rounded-xl border text-left transition-all ${
+          isSel 
+            ? 'bg-rose-500/20 border-rose-500 text-white shadow-lg shadow-rose-500/10' 
+            : 'bg-slate-900/60 border-white/5 text-slate-300 hover:bg-slate-800/80 hover:text-white'
+        }`;
+        card.innerHTML = `
+          <div class="flex items-center gap-1.5 mb-1">
+            <span class="text-base">${p.icon}</span>
+            <span class="font-bold text-xs truncate">${escapeHtml(p.name)}</span>
+          </div>
+          <p class="text-[10px] text-slate-400 line-clamp-2 leading-tight">${escapeHtml(p.description)}</p>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    function selectVoicePreset(presetId) {
+      activePreset = presetId;
+      document.getElementById('activePresetBadge').textContent = presetId;
+      studioPresets.forEach(p => {
+        const c = document.getElementById(`preset_card_${p.id}`);
+        if (c) {
+          if (p.id === presetId) {
+            c.className = 'p-2.5 rounded-xl border text-left transition-all bg-rose-500/20 border-rose-500 text-white shadow-lg shadow-rose-500/10';
+          } else {
+            c.className = 'p-2.5 rounded-xl border text-left transition-all bg-slate-900/60 border-white/5 text-slate-300 hover:bg-slate-800/80 hover:text-white';
+          }
+        }
+      });
+      if (isAuditioning) {
+        stopAuditionFX();
+        startAuditionFX();
+      }
+    }
+
+    function refreshStudioRecordings() {
+      fetch('/api/studio/recordings')
+        .then(r => r.json())
+        .then(d => {
+          const sel = document.getElementById('audioLibrarySelect');
+          if (!sel) return;
+          const curr = sel.value;
+          sel.innerHTML = '<option value="">-- Select audio recording or upload --</option>';
+          (d.recordings || []).forEach(r => {
+            const opt = document.createElement('option');
+            opt.value = r.id;
+            opt.textContent = `${r.is_fx_master ? '✨ ' : '🎙️ '}${r.filename} (${r.duration}s · ${r.size_formatted})`;
+            sel.appendChild(opt);
+          });
+          if (curr) sel.value = curr;
+        })
+        .catch(e => console.warn('Could not refresh recordings:', e));
+    }
+
+    function selectLibraryAudio(recId) {
+      if (!recId) return;
+      currentRecordingId = recId;
+      const url = recId.startsWith('download_') ? `/downloads/${recId.replace('download_', '')}` : `/api/studio/recording/${recId}`;
+      currentAudioUrl = url;
+
+      const player = document.getElementById('studioAudioPlayer');
+      player.src = url;
+      document.getElementById('audioPlaybackBox').classList.remove('hidden');
+      document.getElementById('activeAudioDuration').textContent = `Loading...`;
+
+      player.onloadedmetadata = () => {
+        const dur = player.duration || 0;
+        document.getElementById('activeAudioDuration').textContent = `${dur.toFixed(1)}s`;
+        document.getElementById('audioCodecMeta').textContent = `44.1kHz · Stereo`;
+
+        // Initialize trim inputs
+        const startInput = document.getElementById('trimStartInput');
+        const endInput = document.getElementById('trimEndInput');
+        if (startInput && endInput) {
+          startInput.value = '0.0';
+          startInput.max = dur.toFixed(1);
+          endInput.value = dur.toFixed(1);
+          endInput.max = dur.toFixed(1);
+          onTrimInputChange();
+        }
+      };
+    }
+
+    function setTrimToCurrent(which) {
+      const player = document.getElementById('studioAudioPlayer');
+      const time = Math.max(0, player.currentTime || 0).toFixed(1);
+      if (which === 'start') {
+        document.getElementById('trimStartInput').value = time;
+      } else {
+        document.getElementById('trimEndInput').value = time;
+      }
+      onTrimInputChange();
+    }
+
+    function onTrimInputChange() {
+      const start = parseFloat(document.getElementById('trimStartInput').value || 0);
+      const end = parseFloat(document.getElementById('trimEndInput').value || 0);
+      const diff = Math.max(0, end - start).toFixed(1);
+      document.getElementById('trimDurationBadge').textContent = `${diff}s selected (${start.toFixed(1)}s → ${end.toFixed(1)}s)`;
+    }
+
+    let isPreviewingTrim = false;
+    let previewTrimTimeout = null;
+
+    function togglePreviewTrim() {
+      const player = document.getElementById('studioAudioPlayer');
+      const start = Math.max(0, parseFloat(document.getElementById('trimStartInput').value || 0));
+      const end = parseFloat(document.getElementById('trimEndInput').value || player.duration);
+
+      if (isPreviewingTrim) {
+        player.pause();
+        if (previewTrimTimeout) clearTimeout(previewTrimTimeout);
+        isPreviewingTrim = false;
+        document.getElementById('previewTrimIcon').textContent = '▶';
+        document.getElementById('previewTrimText').textContent = 'Preview Trim';
+      } else {
+        player.currentTime = start;
+        player.play();
+        isPreviewingTrim = true;
+        document.getElementById('previewTrimIcon').textContent = '⏹';
+        document.getElementById('previewTrimText').textContent = 'Stop Preview';
+
+        const durationMs = Math.max(200, (end - start) * 1000);
+        if (previewTrimTimeout) clearTimeout(previewTrimTimeout);
+        previewTrimTimeout = setTimeout(() => {
+          player.pause();
+          isPreviewingTrim = false;
+          document.getElementById('previewTrimIcon').textContent = '▶';
+          document.getElementById('previewTrimText').textContent = 'Preview Trim';
+        }, durationMs);
+      }
+    }
+
+    async function applyAudioTrim() {
+      if (!currentRecordingId) {
+        alert('Please select or record an audio file first!');
+        return;
+      }
+      const start = parseFloat(document.getElementById('trimStartInput').value || 0);
+      const end = parseFloat(document.getElementById('trimEndInput').value || 0);
+      if (end <= start) {
+        alert('Start time must be less than end time!');
+        return;
+      }
+
+      const btn = document.getElementById('btnApplyTrim');
+      const origText = btn.innerHTML;
+      btn.innerHTML = '<span>⏳ Trimming...</span>';
+      btn.disabled = true;
+
+      try {
+        const res = await fetch('/api/studio/trim', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            recording_id: currentRecordingId,
+            start_sec: start,
+            end_sec: end
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          currentRecordingId = data.trimmed_id;
+          refreshStudioRecordings();
+          selectLibraryAudio(data.trimmed_id);
+          alert(`✂️ Trim Complete!\nNew trimmed track: ${data.trimmed_id} (${data.duration}s)`);
+        } else {
+          alert('Trim error: ' + data.error);
+        }
+      } catch (err) {
+        alert('Trim request failed: ' + err.message);
+      } finally {
+        btn.innerHTML = origText;
+        btn.disabled = false;
+      }
+    }
+
+    // 2. Microphone Live Recording
+    async function toggleStudioRecording() {
+      if (studioMediaRecorder && studioMediaRecorder.state === 'recording') {
+        stopStudioRecording();
+      } else {
+        startStudioRecording();
+      }
+    }
+
+    async function startStudioRecording() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        studioAudioChunks = [];
+        studioMediaRecorder = new MediaRecorder(stream);
+        
+        studioMediaRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) studioAudioChunks.push(e.data);
+        };
+
+        studioMediaRecorder.onstop = async () => {
+          const blob = new Blob(studioAudioChunks, { type: 'audio/webm' });
+          uploadStudioBlob(blob);
+          stream.getTracks().forEach(t => t.stop());
+          clearInterval(studioRecTimerInterval);
+          cancelAnimationFrame(studioVisualizerAnimation);
+          document.getElementById('studioMicPrompt').classList.remove('hidden');
+        };
+
+        studioMediaRecorder.start(250);
+        studioRecStartTime = Date.now();
+        document.getElementById('studioRecIcon').textContent = '⏹';
+        document.getElementById('studioRecText').textContent = 'Stop Recording';
+        document.getElementById('btnStudioRecord').className = 'flex-1 py-2 px-3 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 font-bold text-xs transition-all flex items-center justify-center gap-1.5';
+        document.getElementById('btnStudioDiscard').classList.remove('hidden');
+        document.getElementById('recStatusBadge').textContent = 'Recording...';
+        document.getElementById('recStatusBadge').className = 'text-[10px] text-rose-400 font-mono font-bold animate-pulse';
+        document.getElementById('studioMicPrompt').classList.add('hidden');
+
+        studioRecTimerInterval = setInterval(() => {
+          const elap = (Date.now() - studioRecStartTime) / 1000;
+          const mins = Math.floor(elap / 60);
+          const secs = Math.floor(elap % 60);
+          const ms = Math.floor((elap % 1) * 10);
+          document.getElementById('studioRecTimer').textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}.${ms}`;
+        }, 100);
+
+        setupVisualizer(stream);
+      } catch (err) {
+        alert('Microphone access error: ' + err.message);
+      }
+    }
+
+    function stopStudioRecording() {
+      if (studioMediaRecorder && studioMediaRecorder.state === 'recording') {
+        studioMediaRecorder.stop();
+        document.getElementById('studioRecIcon').textContent = '●';
+        document.getElementById('studioRecText').textContent = 'Record Voice';
+        document.getElementById('btnStudioRecord').className = 'flex-1 py-2 px-3 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-lg shadow-rose-600/20 transition-all flex items-center justify-center gap-1.5';
+        document.getElementById('recStatusBadge').textContent = 'Processing...';
+      }
+    }
+
+    function discardStudioRecording() {
+      if (studioMediaRecorder && studioMediaRecorder.state === 'recording') {
+        studioAudioChunks = [];
+        studioMediaRecorder.stop();
+      }
+      document.getElementById('btnStudioDiscard').classList.add('hidden');
+      document.getElementById('studioRecTimer').textContent = '00:00.0';
+      document.getElementById('recStatusBadge').textContent = 'Ready';
+    }
+
+    function setupVisualizer(stream) {
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const src = audioCtx.createMediaStreamSource(stream);
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 64;
+      src.connect(analyser);
+
+      const canvas = document.getElementById('studioVisualizerCanvas');
+      const ctx = canvas.getContext('2d');
+      const dataArr = new Uint8Array(analyser.frequencyBinCount);
+
+      function draw() {
+        studioVisualizerAnimation = requestAnimationFrame(draw);
+        analyser.getByteFrequencyData(dataArr);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        const barWidth = (canvas.width / dataArr.length) * 1.5;
+        let x = 0;
+        for (let i = 0; i < dataArr.length; i++) {
+          const barHeight = (dataArr[i] / 255) * canvas.height;
+          ctx.fillStyle = `rgb(244, 63, 94)`;
+          ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
+          x += barWidth + 2;
+        }
+      }
+      draw();
+    }
+
+    async function uploadStudioBlob(blob) {
+      const formData = new FormData();
+      formData.append('file', blob, `voice_recording_${Date.now()}.webm`);
+
+      try {
+        const res = await fetch('/api/studio/upload', {
+          method: 'POST',
+          body: formData
+        });
+        const data = await res.json();
+        if (data.success) {
+          currentRecordingId = data.id;
+          refreshStudioRecordings();
+          selectLibraryAudio(data.id);
+          document.getElementById('recStatusBadge').textContent = 'Uploaded';
+        }
+      } catch (e) {
+        console.error('Upload failed:', e);
+      }
+    }
+
+    // 3. File Dropzone & Ingestion
+    function triggerFileInput() {
+      document.getElementById('studioFileInput').click();
+    }
+
+    function handleDragOver(e) {
+      e.preventDefault();
+      document.getElementById('audioDropzone').classList.add('border-rose-500', 'bg-rose-500/10');
+    }
+
+    function handleDragLeave(e) {
+      e.preventDefault();
+      document.getElementById('audioDropzone').classList.remove('border-rose-500', 'bg-rose-500/10');
+    }
+
+    function handleAudioDrop(e) {
+      e.preventDefault();
+      handleDragLeave(e);
+      if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+        uploadStudioFile(e.dataTransfer.files[0]);
+      }
+    }
+
+    function handleFileSelect(e) {
+      if (e.target.files && e.target.files[0]) {
+        uploadStudioFile(e.target.files[0]);
+      }
+    }
+
+    async function uploadStudioFile(file) {
+      const formData = new FormData();
+      formData.append('file', file);
+      document.getElementById('recStatusBadge').textContent = 'Uploading...';
+
+      try {
+        const res = await fetch('/api/studio/upload', {
+          method: 'POST',
+          body: formData
+        });
+        const data = await res.json();
+        if (data.success) {
+          currentRecordingId = data.id;
+          refreshStudioRecordings();
+          selectLibraryAudio(data.id);
+          document.getElementById('recStatusBadge').textContent = 'Ready';
+        }
+      } catch (e) {
+        alert('File upload failed: ' + e.message);
+      }
+    }
+
+    // 4. Live Auditioning with Web Audio API
+    function toggleAuditionFX() {
+      if (isAuditioning) {
+        stopAuditionFX();
+      } else {
+        startAuditionFX();
+      }
+    }
+
+    async function startAuditionFX() {
+      if (!currentAudioUrl) {
+        alert('Please record or select an audio track first!');
+        return;
+      }
+
+      const player = document.getElementById('studioAudioPlayer');
+      player.pause();
+
+      if (!studioAudioContext) {
+        studioAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (studioAudioContext.state === 'suspended') {
+        await studioAudioContext.resume();
+      }
+
+      try {
+        document.getElementById('auditionText').textContent = 'Loading DSP...';
+        const resp = await fetch(currentAudioUrl);
+        const arrayBuf = await resp.arrayBuffer();
+        const audioBuf = await studioAudioContext.decodeAudioData(arrayBuf);
+
+        auditionSource = studioAudioContext.createBufferSource();
+        auditionSource.buffer = audioBuf;
+
+        const bassFilter = studioAudioContext.createBiquadFilter();
+        bassFilter.type = 'lowshelf';
+        bassFilter.frequency.value = 85;
+
+        const trebleFilter = studioAudioContext.createBiquadFilter();
+        trebleFilter.type = 'highshelf';
+        trebleFilter.frequency.value = 8000;
+
+        const compressor = studioAudioContext.createDynamicsCompressor();
+
+        if (activePreset === 'radio_announcer') {
+          bassFilter.gain.value = parseFloat(document.getElementById('sliderBass').value || 9.0);
+          trebleFilter.gain.value = parseFloat(document.getElementById('sliderTreble').value || 4.5);
+          compressor.threshold.value = -20;
+          compressor.ratio.value = 6;
+          compressor.attack.value = 0.008;
+          compressor.release.value = 0.100;
+        } else if (activePreset === 'am_radio') {
+          bassFilter.type = 'highpass';
+          bassFilter.frequency.value = 400;
+          trebleFilter.type = 'lowpass';
+          trebleFilter.frequency.value = 3400;
+          compressor.threshold.value = -24;
+          compressor.ratio.value = 8;
+        } else {
+          bassFilter.gain.value = 3.0;
+          trebleFilter.gain.value = 2.0;
+          compressor.threshold.value = -16;
+          compressor.ratio.value = 4;
+        }
+
+        auditionSource.connect(bassFilter);
+        bassFilter.connect(trebleFilter);
+        trebleFilter.connect(compressor);
+        compressor.connect(studioAudioContext.destination);
+
+        auditionSource.onended = () => {
+          stopAuditionFX();
+        };
+
+        auditionSource.start(0);
+        isAuditioning = true;
+        document.getElementById('auditionIcon').textContent = '⏹';
+        document.getElementById('auditionText').textContent = 'Stop Audition';
+      } catch (err) {
+        console.error('Audition error:', err);
+        stopAuditionFX();
+      }
+    }
+
+    function stopAuditionFX() {
+      if (auditionSource) {
+        try { auditionSource.stop(); } catch (e) {}
+        auditionSource = null;
+      }
+      isAuditioning = false;
+      document.getElementById('auditionIcon').textContent = '▶';
+      document.getElementById('auditionText').textContent = 'Audition FX Live';
+    }
+
+    function toggleCustomSliders() {
+      const box = document.getElementById('customSlidersContainer');
+      const arrow = document.getElementById('sliderToggleArrow');
+      if (box.classList.contains('hidden')) {
+        box.classList.remove('hidden');
+        arrow.textContent = '▲';
+      } else {
+        box.classList.add('hidden');
+        arrow.textContent = '▼';
+      }
+    }
+
+    function onCustomParamChange() {
+      const b = document.getElementById('sliderBass').value;
+      const t = document.getElementById('sliderTreble').value;
+      const c = document.getElementById('sliderComp').value;
+      document.getElementById('valBass').textContent = `+${parseFloat(b).toFixed(1)} dB`;
+      document.getElementById('valTreble').textContent = `+${parseFloat(t).toFixed(1)} dB`;
+      document.getElementById('valComp').textContent = `${Math.round(c * 100)}%`;
+    }
+
+    function cueSFX(sfxName) {
+      fetch('/api/sfx', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: sfxName, volume: 0.9 })
+      });
+    }
+
+    // 5. Apply Studio Master DSP & Render Master Audio
+    async function applyAndMasterFX() {
+      if (!currentRecordingId) {
+        alert('Please record or select an audio file first!');
+        return;
+      }
+      stopAuditionFX();
+
+      const btn = event.target;
+      const origText = btn.innerHTML;
+      btn.innerHTML = '<span>⏳ Processing...</span>';
+
+      try {
+        const res = await fetch('/api/studio/apply_fx', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            recording_id: currentRecordingId,
+            preset: activePreset,
+            custom_params: {
+              bass_boost_db: parseFloat(document.getElementById('sliderBass').value),
+              treble_boost_db: parseFloat(document.getElementById('sliderTreble').value),
+              compression: parseFloat(document.getElementById('sliderComp').value),
+            }
+          })
+        });
+        const d = await res.json();
+        if (d.success) {
+          currentRecordingId = d.master_id;
+          refreshStudioRecordings();
+          selectLibraryAudio(d.master_id);
+          alert(`✅ Master Audio Ready!\nTransformed with preset "${activePreset}".`);
+        } else {
+          alert('FX Error: ' + d.error);
+        }
+      } catch (err) {
+        alert('Mastering failed: ' + err.message);
+      } finally {
+        btn.innerHTML = origText;
+      }
+    }
+
+    // 6. Auto-Transcribe & Slide Deck Editor
+    async function autoTranscribeStudioAudio() {
+      if (!currentRecordingId) {
+        alert('Please select an audio file first!');
+        return;
+      }
+      const speaker = document.getElementById('reelSpeakerSelect').value;
+
+      try {
+        const res = await fetch('/api/studio/transcribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ recording_id: currentRecordingId, speaker })
+        });
+        const data = await res.json();
+        if (data.suggested_slides) {
+          currentSlides = data.suggested_slides;
+          renderSlidesEditor(currentSlides);
+        }
+      } catch (err) {
+        alert('Transcription error: ' + err.message);
+      }
+    }
+
+    function renderSlidesEditor(slides) {
+      const container = document.getElementById('slidesEditorContainer');
+      container.innerHTML = '';
+      document.getElementById('slideCountBadge').textContent = slides.length;
+
+      slides.forEach((s, idx) => {
+        const card = document.createElement('div');
+        card.className = 'glass-card rounded-lg p-2.5 space-y-1.5 border border-white/5 text-xs';
+        card.innerHTML = `
+          <div class="flex items-center justify-between text-[10px] font-mono text-slate-400">
+            <span class="font-bold text-purple-300">Slide ${idx+1}/${slides.length} (${s.speaker})</span>
+            <div class="flex items-center gap-1.5">
+              <span>${s.dur}s</span>
+              <button onclick="removeSlide(${idx})" class="text-rose-400 hover:text-rose-200">✕</button>
+            </div>
+          </div>
+          <input type="text" value="${escapeHtml(s.hook)}" onchange="updateSlideText(${idx}, this.value)" class="w-full bg-slate-950/80 border border-white/10 rounded p-1.5 text-xs font-mono text-slate-200" />
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function updateSlideText(idx, val) {
+      if (currentSlides[idx]) {
+        currentSlides[idx].hook = val;
+      }
+    }
+
+    function removeSlide(idx) {
+      currentSlides.splice(idx, 1);
+      renderSlidesEditor(currentSlides);
+    }
+
+    function addCustomSlide() {
+      const speaker = document.getElementById('reelSpeakerSelect').value;
+      currentSlides.push({
+        slide_idx: currentSlides.length + 1,
+        speaker: speaker,
+        counter: `${currentSlides.length + 1}/${currentSlides.length + 1}`,
+        hook: "“New slide caption...”",
+        dur: 4.0
+      });
+      renderSlidesEditor(currentSlides);
+    }
+
+    function selectReelFormat(fmt) {
+      activeReelFormat = fmt;
+      ['916', '11', '45', '169'].forEach(f => {
+        const btn = document.getElementById(`fmt${f}`);
+        if (f === fmt.replace(':', '')) {
+          btn.className = 'py-1 px-1 rounded bg-purple-600 text-white shadow text-center';
+        } else {
+          btn.className = 'py-1 px-1 rounded bg-slate-800 text-slate-400 hover:text-white text-center';
+        }
+      });
+    }
+
+    // 7. Compile Multi-Format Social Reel
+    async function compileSocialReel() {
+      if (!currentRecordingId) {
+        alert('Please record or select an audio track first!');
+        return;
+      }
+      if (!currentSlides.length) {
+        await autoTranscribeStudioAudio();
+      }
+
+      const btn = document.getElementById('btnCompileReel');
+      const textSpan = document.getElementById('compileBtnText');
+      textSpan.textContent = 'Compiling MP4 Reel... (Rendering Slides)';
+      btn.disabled = true;
+
+      try {
+        const res = await fetch('/api/studio/generate_reel', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            recording_id: currentRecordingId,
+            slides: currentSlides,
+            format: activeReelFormat,
+            preset: document.getElementById('reelTypoSelect').value,
+            speaker: document.getElementById('reelSpeakerSelect').value,
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          document.getElementById('reelOutputContainer').classList.remove('hidden');
+          document.getElementById('linkDownloadReel').href = data.download_url;
+          document.getElementById('reelSizeBadge').textContent = `${data.size_mb} MB (${data.format})`;
+          alert(`🎬 Reel successfully compiled! Ready for download (${data.format}).`);
+        } else {
+          alert('Reel compilation error: ' + data.error);
+        }
+      } catch (err) {
+        alert('Compilation failed: ' + err.message);
+      } finally {
+        textSpan.textContent = 'Compile Social Reel (.mp4)';
+        btn.disabled = false;
+      }
+    }
+
     // 9. View Switchers
     function switchStudioView(mode) {
       const tabAll = document.getElementById('tabAll');
+      const tabRec = document.getElementById('tabRecorder');
       const tabAmb = document.getElementById('tabAmbient');
       const tabMemo = document.getElementById('tabMemo');
+      const stageRec = document.getElementById('stageRecorder');
       const stageAmb = document.getElementById('stageAmbient');
       const stageMemo = document.getElementById('stageMemo');
+      const dualGrid = document.getElementById('dualStageGrid');
 
-      [tabAll, tabAmb, tabMemo].forEach(t => t.className = 'px-3.5 py-1.5 rounded-lg text-slate-300 hover:text-white transition-all');
+      [tabAll, tabRec, tabAmb, tabMemo].forEach(t => {
+        if (t) t.className = 'px-3.5 py-1.5 rounded-lg text-slate-300 hover:text-white transition-all';
+      });
 
       if (mode === 'all') {
         tabAll.className = 'px-3.5 py-1.5 rounded-lg bg-emerald-500 text-slate-950 font-semibold shadow transition-all';
+        stageRec.classList.remove('hidden');
+        dualGrid.classList.remove('hidden');
         stageAmb.classList.remove('hidden');
         stageMemo.classList.remove('hidden');
+      } else if (mode === 'recorder') {
+        tabRec.className = 'px-3.5 py-1.5 rounded-lg bg-rose-500 text-slate-950 font-semibold shadow transition-all';
+        stageRec.classList.remove('hidden');
+        dualGrid.classList.add('hidden');
       } else if (mode === 'ambient') {
         tabAmb.className = 'px-3.5 py-1.5 rounded-lg bg-cyan-500 text-slate-950 font-semibold shadow transition-all';
+        stageRec.classList.add('hidden');
+        dualGrid.classList.remove('hidden');
         stageAmb.classList.remove('hidden');
         stageMemo.classList.add('hidden');
       } else if (mode === 'memo') {
         tabMemo.className = 'px-3.5 py-1.5 rounded-lg bg-emerald-500 text-slate-950 font-semibold shadow transition-all';
+        stageRec.classList.add('hidden');
+        dualGrid.classList.remove('hidden');
         stageAmb.classList.add('hidden');
         stageMemo.classList.remove('hidden');
       }
@@ -1020,6 +2048,7 @@
     }
 
     function fetchInitialStatus() {
+      initRecordingStudio();
       fetch('/api/ambient/status')
         .then(r => r.json())
         .then(d => {

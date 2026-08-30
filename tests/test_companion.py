@@ -91,6 +91,37 @@ class CompanionServerTestCase(AioHTTPTestCase):
         assert data.get("status") == "online"
         assert "connected_clients" in data
 
+    async def test_api_stats(self):
+        """Test GET /api/stats and /api/analytics endpoints return structured developer analytics."""
+        resp = await self.client.get("/api/stats?days=7")
+        assert resp.status == 200
+        data = await resp.json()
+        assert data.get("status") == "ok"
+        assert data.get("days") == 7
+        assert "summary" in data
+        assert "cognitive_flow" in data
+        assert "daily_volume" in data
+        assert "tool_distribution" in data
+        assert "agent_distribution" in data
+
+        # Check /api/analytics alias
+        resp_alias = await self.client.get("/api/analytics")
+        assert resp_alias.status == 200
+        data_alias = await resp_alias.json()
+        assert data_alias.get("status") == "ok"
+
+        # Check /api/stats?days=today
+        resp_today = await self.client.get("/api/stats?days=today")
+        assert resp_today.status == 200
+        data_today = await resp_today.json()
+        assert data_today.get("days") == 1
+
+        # Check /api/stats?days=all
+        resp_all = await self.client.get("/api/stats?days=all")
+        assert resp_all.status == 200
+        data_all = await resp_all.json()
+        assert data_all.get("days") == 0
+
     async def test_api_conversations(self):
         """Test GET /api/conversations returns list of conversations."""
         resp = await self.client.get("/api/conversations")

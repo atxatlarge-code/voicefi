@@ -430,16 +430,26 @@ class VoiceFiMCPServer:
         finally:
             dur_ms = max(1, int((time.time() - start_t) * 1000))
             is_error = bool(res and res.get("isError", False))
+            resolved_persona = persona or args.get("_resolved_persona")
+            resolved_provider = args.get("_resolved_provider")
+            tts_latency = args.get("_tts_latency_ms")
+            extra_props = {}
+            if resolved_provider:
+                extra_props["provider"] = resolved_provider
+            if tts_latency is not None:
+                extra_props["tts_latency_ms"] = float(tts_latency)
+                extra_props["ttfb_ms"] = float(tts_latency)
             try:
                 from voicefi.telemetry import capture_mcp_tool_call
                 capture_mcp_tool_call(
                     tool_name=canonical_name,
                     duration_ms=dur_ms,
                     caller_agent=agent_name,
-                    persona=persona,
+                    persona=resolved_persona,
                     char_count=char_count,
                     success=(not is_error and err_type is None),
                     error_type=err_type,
+                    extra_props=extra_props if extra_props else None,
                 )
             except Exception:
                 pass
@@ -464,36 +474,19 @@ class VoiceFiMCPServer:
 
         cfg = load_config()
         tts = get_tts_engine(cfg, agent_name=agent_name, voice_override=persona)
-        
+        args["_resolved_persona"] = getattr(tts, "persona_name", None) or getattr(tts, "voice", None)
+        args["_resolved_provider"] = getattr(tts, "provider", None)
+
         try:
             from voicefi.integrations.conversations import claim_active_conversation_turn
             claim_active_conversation_turn(text, conv_id=args.get("conv_id"))
         except Exception:
             pass
 
-        start_t = time.time()
-        err = None
         try:
             tts.stream_speak(text, block=block)
-        except Exception as ex:
-            err = type(ex).__name__
+        except Exception:
             raise
-        finally:
-            dur_ms = int((time.time() - start_t) * 1000)
-            try:
-                from voicefi.telemetry import capture_voice_interaction
-                capture_voice_interaction(
-                    trigger="mcp",
-                    duration_ms=dur_ms,
-                    success=(err is None),
-                    agent=agent_name,
-                    voice=getattr(tts, "voice", None),
-                    provider=getattr(tts, "provider", None),
-                    chars_count=len(text) if text else 0,
-                    error_type=err,
-                )
-            except Exception:
-                pass
 
         return {
             "content": [
@@ -675,6 +668,9 @@ class VoiceFiMCPServer:
             kb_size = round(res.audio_bytes / 1024.0, 1)
             lat = round(res.latency_ms, 1)
             spd = round(res.chars_per_sec, 1)
+            args["_resolved_persona"] = p_name
+            args["_resolved_provider"] = res.provider
+            args["_tts_latency_ms"] = res.latency_ms
             return {
                 "content": [
                     {

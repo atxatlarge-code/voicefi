@@ -532,6 +532,124 @@ def cmd_sfx(args):
         sys.exit(1)
 
 
+def cmd_fx(args):
+    """Apply studio voice transformation DSP effect (radio announcer, podcast, monster, etc.)."""
+    from voicefi.audio.effects import VoiceFXEngine, FX_PRESETS
+
+    in_file = getattr(args, "input", None)
+    if not in_file or in_file == "list":
+        print("\n📻 Available Voice FX Presets:")
+        for p in FX_PRESETS.values():
+            print(f"  • {p['icon']} {p['id']:<20} - {p['name']} ({p['description']})")
+        print()
+        return
+
+    in_path = Path(in_file).resolve()
+    if not in_path.is_file():
+        print(f"❌ Input audio file not found: {in_path}", file=sys.stderr)
+        sys.exit(1)
+
+    preset = getattr(args, "preset", "radio_announcer") or "radio_announcer"
+    out_file = getattr(args, "output", None)
+    if not out_file:
+        out_file = in_path.parent / f"{in_path.stem}_{preset}.mp3"
+    out_path = Path(out_file).resolve()
+
+    print(f"🎛️  Applying voice effect '{preset}' to {in_path.name}...")
+    try:
+        res = VoiceFXEngine.apply_effect(
+            input_audio=in_path,
+            output_audio=out_path,
+            preset=preset,
+            normalize_loudness=True
+        )
+        info = VoiceFXEngine.get_audio_info(res)
+        print(f"✅ Master audio created: {res} ({info['duration']}s · {info['size_formatted']})")
+    except Exception as e:
+        print(f"❌ FX error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def cmd_reel(args):
+    """Compile multi-format social video reels from audio and slides."""
+    from voicefi.video.reel_builder import ReelBuilder
+
+    in_file = getattr(args, "input", None)
+    if not in_file:
+        print("❌ Please specify input audio file: vifi reel <audio_file>", file=sys.stderr)
+        sys.exit(1)
+
+    in_path = Path(in_file).resolve()
+    if not in_path.is_file():
+        print(f"❌ Audio file not found: {in_path}", file=sys.stderr)
+        sys.exit(1)
+
+    fmt = getattr(args, "format", "9:16") or "9:16"
+    typo = getattr(args, "preset", "classic_ai") or "classic_ai"
+    speaker = getattr(args, "speaker", "Radio Host") or "Radio Host"
+    scale = getattr(args, "font_scale", 1.0) or 1.0
+
+    out_file = getattr(args, "output", None)
+    if not out_file:
+        fmt_clean = fmt.replace(":", "_")
+        out_file = in_path.parent / f"{in_path.stem}_{fmt_clean}.mp4"
+    out_path = Path(out_file).resolve()
+
+    print(f"🎬 Compiling {fmt} Social Reel with '{typo}' typography for {in_path.name}...")
+    try:
+        res = ReelBuilder.compile_reel(
+            output_mp4=out_path,
+            audio_file=in_path,
+            format_type=fmt,
+            preset_name=typo,
+            font_multiplier=scale,
+            speaker_name=speaker
+        )
+        print(f"✅ Reel ready: {res} ({res.stat().st_size / 1024:.1f} KB)")
+        if getattr(args, "open", False):
+            subprocess.run(["open", str(res)])
+    except Exception as e:
+        print(f"❌ Reel compilation error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def cmd_trim(args):
+    """Trim audio file start and end points with smooth de-clicking fades."""
+    from voicefi.audio.effects import VoiceFXEngine
+
+    in_file = getattr(args, "input", None)
+    if not in_file:
+        print("❌ Please specify input audio file: vifi trim <audio_file> --start <seconds> --end <seconds>", file=sys.stderr)
+        sys.exit(1)
+
+    in_path = Path(in_file).resolve()
+    if not in_path.is_file():
+        print(f"❌ Input audio file not found: {in_path}", file=sys.stderr)
+        sys.exit(1)
+
+    start_sec = float(getattr(args, "start", 0.0) or 0.0)
+    raw_end = getattr(args, "end", None)
+    end_sec = float(raw_end) if raw_end is not None else None
+
+    out_file = getattr(args, "output", None)
+    if not out_file:
+        stem = in_path.stem
+        out_file = in_path.parent / f"{stem}_trimmed.mp3"
+    out_path = Path(out_file).resolve()
+
+    print(f"✂️  Trimming {in_path.name} from {start_sec:.2f}s to {end_sec if end_sec is not None else 'end'}...")
+    try:
+        res = VoiceFXEngine.trim_audio(
+            input_audio=in_path,
+            output_audio=out_path,
+            start_sec=start_sec,
+            end_sec=end_sec
+        )
+        info = VoiceFXEngine.get_audio_info(res)
+        print(f"✅ Trimmed audio created: {res} ({info['duration']}s · {info['size_formatted']})")
+    except Exception as e:
+        print(f"❌ Trim error: {e}", file=sys.stderr)
+        sys.exit(1)
 
 
 def cmd_tray(args):
@@ -563,6 +681,89 @@ def cmd_dev(args):
         run_tray(force=True)
     except KeyboardInterrupt:
         print("\n👋 VoiceFi DEV mode stopped cleanly.")
+
+
+def cmd_wake(args):
+    """Run interactive foreground 'Hey Viv' wake-word listener with live console logs."""
+    import time
+    from voicefi.config import load_config
+    from voicefi.audio.wakeword import WakeWordListener
+    from voicefi.audio.recorder import AudioRecorder
+    from voicefi.audio.chimes import play_chime
+    from voicefi.stt import get_stt_engine
+    from voicefi.integrations.injector import send_message_to_antigravity
+    from voicefi.stt.biasing import PhoneticNormalizer
+
+    config = load_config(getattr(args, "config", None))
+    aliases = list(getattr(config.wakeword, "aliases", ["hey viv", "viv", "hey vifi"]))
+    phrase = getattr(config.wakeword, "phrase", "Hey Viv")
+
+    print("\n🎙️  VoiceFi 'Hey Viv' Wake-Word Studio")
+    print("==================================================================")
+    print(f"  • Primary Trigger:   '{phrase}'")
+    print(f"  • Active Aliases:    {', '.join(aliases)}")
+    print(f"  • Target Channel:    Antigravity (agentapi IPC)")
+    print(f"  • Acoustic Chime:    {'Enabled' if config.wakeword.chime else 'Disabled'}")
+    print("==================================================================")
+    print("👉 Say 'Hey Viv' or 'Hey Viv, <your command>' aloud (Ctrl+C to exit)...\n")
+
+    def _on_wake(matched_phrase: str, prompt: str):
+        print(f"\n⚡ [WAKE TRIGGERED] Matched '{matched_phrase}'")
+        if prompt and len(prompt.strip()) >= 3:
+            norm = PhoneticNormalizer.normalize(prompt.strip())
+            print(f"🚀 Prompt: \"{norm}\"")
+            print("📤 Dispatching directly to Antigravity via agentapi IPC...")
+            res = send_message_to_antigravity(text=norm, sender_name=f"{config.user_name} (Hey Viv)", title="Prompt via Hey Viv")
+            if res.success:
+                print(f"✅ Delivered to Antigravity conversation ({res.delivery_type.upper()})")
+                if config.audio_cues.enabled:
+                    play_chime(config.audio_cues.sent_chime, block=False)
+            else:
+                print(f"⚠️ Dispatch notice: {res.error}")
+        else:
+            print("🎙️ Wake word detected without prompt -> Listening for command...")
+            if config.audio_cues.enabled:
+                play_chime("start", block=False)
+            recorder = AudioRecorder(
+                sample_rate=config.vad.sample_rate,
+                energy_threshold=config.vad.energy_threshold,
+                silence_duration=config.vad.silence_duration,
+            )
+            _, temp_wav = recorder.record_speech_auto()
+            try:
+                stt = get_stt_engine(config)
+                text = stt.transcribe(temp_wav)
+                if text and text.strip():
+                    norm = PhoneticNormalizer.normalize(text.strip())
+                    print(f"🚀 Spoken Prompt: \"{norm}\"")
+                    print("📤 Dispatching directly to Antigravity via agentapi IPC...")
+                    res = send_message_to_antigravity(text=norm, sender_name=f"{config.user_name} (Hey Viv)", title="Prompt via Hey Viv")
+                    if res.success:
+                        print(f"✅ Delivered to Antigravity conversation ({res.delivery_type.upper()})")
+                        if config.audio_cues.enabled:
+                            play_chime(config.audio_cues.sent_chime, block=False)
+                    else:
+                        print(f"⚠️ Dispatch notice: {res.error}")
+            finally:
+                if temp_wav:
+                    try:
+                        temp_wav.unlink(missing_ok=True)
+                    except Exception:
+                        pass
+        print("\n👂 Resumed listening for 'Hey Viv'...")
+
+    listener = WakeWordListener(
+        config=config,
+        on_wake=_on_wake,
+    )
+    listener.start()
+
+    try:
+        while True:
+            time.sleep(0.5)
+    except KeyboardInterrupt:
+        print("\n👋 'Hey Viv' wake listener stopped.")
+        listener.stop()
 
 
 def cmd_clean(args):
@@ -631,6 +832,10 @@ def cmd_server(args):
         print(f"  • LaunchAgent Plist:      {'✅ Present' if la['plist_exists'] else '❌ Missing'} ({la['plist_path']})")
         print(f"  • Port 5141 Owner:        " + (f"🟢 PID {port['pid']} ({port['command_name']})" if port else "⚪ Port Free"))
         print(f"  • Tray Lock File:         {'🔒 Locked' if st['lock_active'] else '🔓 Free'}")
+        ww = st.get("wakeword", {})
+        ww_enabled = ww.get("enabled", True)
+        ww_phrase = ww.get("phrase", "Hey Viv")
+        print(f"  • Wake Word Listener:     {'🟢 Enabled' if ww_enabled else '⚪ Disabled'} ('{ww_phrase}')")
         
         print("\n  📦 Running VoiceFi Processes:")
         if procs:
@@ -1008,6 +1213,8 @@ def cmd_autostart(args):
     <dict>
         <key>PYTHONUNBUFFERED</key>
         <string>1</string>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     </dict>
     <key>RunAtLoad</key>
     <true/>
@@ -2998,9 +3205,15 @@ def cmd_stats(args):
 
     clean_days = getattr(args, "clean", None)
     if clean_days is not None:
-        days_val = int(clean_days) if clean_days > 0 else 30
+        try:
+            days_val = max(0, int(clean_days))
+        except (ValueError, TypeError):
+            days_val = 30
         pruned = clean_analytics_data(retention_days=days_val)
-        print(f"✅ Cleaned local analytics: {pruned} records older than {days_val} days purged.")
+        if days_val == 0:
+            print(f"✅ Cleaned local analytics: {pruned} records purged (all-time retention reset).")
+        else:
+            print(f"✅ Cleaned local analytics: {pruned} records older than {days_val} days purged.")
         return
 
     days = 7
@@ -3009,17 +3222,29 @@ def cmd_stats(args):
     elif getattr(args, "all", False):
         days = 0
     elif getattr(args, "days", None) is not None:
-        days = int(args.days)
+        try:
+            days = int(args.days)
+        except (ValueError, TypeError):
+            days = 7
 
     export_fmt = getattr(args, "export", None)
-    if export_fmt:
-        if str(export_fmt).lower() == "csv":
-            print(export_events_csv(days=days))
-        else:
-            print(export_events_json(days=days))
-        return
+    try:
+        if export_fmt:
+            if str(export_fmt).lower() == "csv":
+                print(export_events_csv(days=days))
+            else:
+                print(export_events_json(days=days))
+            return
 
-    print_stats_dashboard(days=days)
+        print_stats_dashboard(days=days)
+    except BrokenPipeError:
+        if not os.environ.get("PYTEST_CURRENT_TEST"):
+            try:
+                devnull = os.open(os.devnull, os.O_WRONLY)
+                os.dup2(devnull, sys.stdout.fileno())
+            except Exception:
+                pass
+        return
 
 
 
@@ -3523,6 +3748,98 @@ def extract_cli_metadata(args: argparse.Namespace) -> dict:
     return props
 
 
+def cmd_bridge(args):
+    """Run or manage the VoiceFi local IPC bridge service."""
+    import asyncio
+    from voicefi.ipc import VoiceFiIPCBridge, VoiceFiIPCServer
+
+    config = load_config(getattr(args, "config", None))
+    sock_path = getattr(args, "socket", None) or config.ipc.socket_path
+    ws_port = getattr(args, "ws_port", None) or config.ipc.ws_port
+    agent_name = getattr(args, "agent", None) or "Spark"
+    persona = getattr(args, "persona", None) or getattr(config.spark, "persona", "Viv")
+
+    if getattr(args, "server", False):
+        print(f"🚀 Starting VoiceFi IPC Server at {sock_path} (WS: ws://127.0.0.1:{ws_port})...")
+        server = VoiceFiIPCServer(
+            socket_path=sock_path,
+            ws_port=ws_port,
+            config=config,
+        )
+        async def _run_srv():
+            await server.start()
+            while server.is_running:
+                await asyncio.sleep(1)
+
+        try:
+            asyncio.run(_run_srv())
+        except KeyboardInterrupt:
+            print("\n🛑 Stopping IPC Server...")
+            asyncio.run(server.stop())
+        return
+
+    print(f"🔗 Starting VoiceFi IPC Bridge for {agent_name} ({persona} persona) -> {sock_path}...")
+    bridge = VoiceFiIPCBridge(
+        socket_path=sock_path,
+        ws_url=f"ws://127.0.0.1:{ws_port}/ws",
+        agent_name=agent_name,
+        persona=persona,
+        config=config,
+    )
+
+    async def _run():
+        await bridge.start()
+        print("✅ IPC Bridge connected and listening for spoken prompts. Press Ctrl+C to exit.")
+        while True:
+            await asyncio.sleep(1)
+
+    try:
+        asyncio.run(_run())
+    except KeyboardInterrupt:
+        print("\n🛑 Disconnecting IPC Bridge...")
+        asyncio.run(bridge.stop())
+
+
+def cmd_spark(args):
+    """Run Gemini Spark agent runner with voice IPC bridge and turn-end hooks."""
+    import asyncio
+    from voicefi.integrations.spark import GeminiSparkRunner
+
+    config = load_config(getattr(args, "config", None))
+    sock_path = getattr(args, "socket", None) or config.ipc.socket_path
+    persona = getattr(args, "persona", None) or getattr(config.spark, "persona", "Viv")
+    prompt = " ".join(args.prompt).strip() if getattr(args, "prompt", None) else None
+
+    runner = GeminiSparkRunner(
+        config=config,
+        persona=persona,
+    )
+
+    if prompt:
+        print(f"⚡ Executing Spark prompt in {persona} persona: \"{prompt}\"")
+        async def _run_single():
+            await runner.bridge.start()
+            await asyncio.sleep(0.1)
+            soundbite = await runner.execute_prompt(prompt)
+            print(f"🏁 Spoken Soundbite: \"{soundbite}\"")
+            await runner.stop()
+
+        asyncio.run(_run_single())
+        return
+
+    print(f"🚀 Gemini Spark Voice Agent running (persona: {persona}). Listening on IPC bridge...")
+    async def _run_loop():
+        await runner.start()
+        while True:
+            await asyncio.sleep(1)
+
+    try:
+        asyncio.run(_run_loop())
+    except KeyboardInterrupt:
+        print("\n🛑 Stopping Gemini Spark...")
+        asyncio.run(runner.stop())
+
+
 def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
     prog_name = prog or resolve_prog_name()
     parser = VoiceFiArgumentParser(
@@ -3578,6 +3895,10 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
     loop_p.add_argument("--no-inject", dest="inject", action="store_false", default=True)
     loop_p.add_argument("--no-enter", dest="enter", action="store_false", default=True)
     loop_p.add_argument("-q", "--quiet", action="store_true")
+
+    # wake / wakeword / hey-viv
+    wake_p = subparsers.add_parser("wake", aliases=["wakeword", "hey-viv"], help="Run interactive 'Hey Viv' wake word listener and dispatcher")
+    wake_p.add_argument("--phrase", help="Override primary wake phrase (default: 'Hey Viv')")
 
     # tray / dev
     subparsers.add_parser("tray", help="Launch macOS menu bar companion")
@@ -4021,10 +4342,47 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
     duel_p.add_argument("--topic", type=str, default="programming jokes", help="Duel topic")
     duel_p.add_argument("--live", action="store_true", help="Live dispatch prompts to Claude Code terminal session")
 
+    # fx / audio effects
+    fx_p = subparsers.add_parser("fx", aliases=["voice-fx", "effects"], help="Transform voice audio using studio DSP effects (radio announcer, podcast, monster, etc.)")
+    fx_p.add_argument("input", nargs="?", default=None, help="Input audio file path or 'list' to show presets")
+    fx_p.add_argument("-p", "--preset", default="radio_announcer", help="Voice effect preset (radio_announcer, studio_podcast, stadium_announcer, am_radio, cyber_robot, deep_monster, helium_chipmunk, ethereal_space)")
+    fx_p.add_argument("-o", "--output", default=None, help="Output master audio file path (.mp3, .wav, .m4a)")
+
+    # reel / video reel compiler
+    reel_p = subparsers.add_parser("reel", aliases=["video", "compile-reel"], help="Compile multi-format social video reels (9:16, 1:1, 4:5, 16:9)")
+    reel_p.add_argument("input", nargs="?", default=None, help="Input master audio file path")
+    reel_p.add_argument("-f", "--format", default="9:16", choices=["9:16", "1:1", "4:5", "16:9"], help="Video aspect ratio preset")
+    reel_p.add_argument("-p", "--preset", default="classic_ai", help="Typography preset pairing")
+    reel_p.add_argument("-s", "--speaker", default="Radio Host", help="Speaker name / avatar attribution")
+    reel_p.add_argument("--scale", "--font-scale", dest="font_scale", type=float, default=1.0, help="Typography sizing multiplier")
+    reel_p.add_argument("-o", "--output", default=None, help="Output MP4 file path")
+    reel_p.add_argument("--open", action="store_true", help="Automatically open video after compilation")
+
+    # trim / audio cutter
+    trim_p = subparsers.add_parser("trim", aliases=["cut", "slice"], help="Trim audio start and end timestamps with de-clicking fades")
+    trim_p.add_argument("input", nargs="?", default=None, help="Input audio file path")
+    trim_p.add_argument("--start", "-s", type=float, default=0.0, help="Start timestamp in seconds (default: 0.0)")
+    trim_p.add_argument("--end", "-e", type=float, default=None, help="End timestamp in seconds (default: end of audio)")
+    trim_p.add_argument("-o", "--output", default=None, help="Output trimmed audio file path (.mp3, .wav, .m4a)")
+
     # sfx / sound cues
     sfx_p = subparsers.add_parser("sfx", aliases=["sound"], help="Play comedy or dramatic audio cues (drum_smash, honk, sad_trombone, applause)")
     sfx_p.add_argument("name", nargs="?", default="drum_smash", help="Sound effect name (drum_smash, honk, sad_trombone, applause, boing, crickets, list)")
     sfx_p.add_argument("--volume", "-v", type=float, default=1.0, help="Playback volume (0.1 - 2.0)")
+
+    # bridge / ipc
+    bridge_p = subparsers.add_parser("bridge", aliases=["ipc-bridge", "ipc"], help="Run or manage VoiceFi Local IPC daemon bridge service")
+    bridge_p.add_argument("--server", "-s", action="store_true", help="Run local IPC daemon socket server")
+    bridge_p.add_argument("--socket", type=str, default=None, help="Path to Unix domain socket (default: /tmp/voicefi.sock)")
+    bridge_p.add_argument("--ws-port", type=int, default=None, help="Fallback WebSocket port (default: 8765)")
+    bridge_p.add_argument("-a", "--agent", type=str, default="Spark", help="Target agent identifier")
+    bridge_p.add_argument("-p", "--persona", type=str, default=None, help="Voice persona (Viv, Christopher, etc.)")
+
+    # spark / gemini runner
+    spark_p = subparsers.add_parser("spark", help="Run Gemini Spark agent runner with voice bridge and turn-end hooks")
+    spark_p.add_argument("prompt", nargs="*", default=None, help="Optional prompt to execute once")
+    spark_p.add_argument("-p", "--persona", type=str, default=None, help="Spoken persona (Viv, Christopher, etc.)")
+    spark_p.add_argument("--socket", type=str, default=None, help="Path to Unix domain socket")
 
     # help
     subparsers.add_parser("help", help="Display help and command usage")
@@ -4051,6 +4409,19 @@ def main():
         sys.exit(0)
 
     commands = {
+        "fx": cmd_fx,
+        "voice-fx": cmd_fx,
+        "effects": cmd_fx,
+        "trim": cmd_trim,
+        "cut": cmd_trim,
+        "slice": cmd_trim,
+        "reel": cmd_reel,
+        "video": cmd_reel,
+        "compile-reel": cmd_reel,
+        "bridge": cmd_bridge,
+        "ipc-bridge": cmd_bridge,
+        "ipc": cmd_bridge,
+        "spark": cmd_spark,
         "sfx": cmd_sfx,
         "sound": cmd_sfx,
         "duel": cmd_duel,
@@ -4129,6 +4500,9 @@ def main():
         "kill": lambda a: cmd_server(argparse.Namespace(server_action="stop", config=getattr(a, "config", None))),
         "memo": cmd_memo,
         "buffer": cmd_memo,
+        "wake": cmd_wake,
+        "wakeword": cmd_wake,
+        "hey-viv": cmd_wake,
         "ambient": cmd_ambient,
         "meeting": cmd_meeting,
         "feedback-loop": cmd_feedback_loop,
@@ -4172,6 +4546,16 @@ def main():
             exit_code = 130
             error_type = "KeyboardInterrupt"
             raise
+        except BrokenPipeError:
+            exit_code = 0
+            success = True
+            if not os.environ.get("PYTEST_CURRENT_TEST"):
+                try:
+                    devnull = os.open(os.devnull, os.O_WRONLY)
+                    os.dup2(devnull, sys.stdout.fileno())
+                except Exception:
+                    pass
+            sys.exit(0)
         except Exception as e:
             success = False
             exit_code = 1

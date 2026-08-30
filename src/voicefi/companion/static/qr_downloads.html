@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en" class="bg-black text-white">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VoiceFi™ · Scan to Download</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@700;800&family=Plus+Jakarta+Sans:wght@600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Plus Jakarta Sans', sans-serif; background: #07090F; color: #FFF; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-6">
+  <div class="max-w-md w-full bg-[#11141D] border border-gray-800 rounded-3xl p-8 flex flex-col items-center gap-6 shadow-[0_0_60px_rgba(255,42,42,0.2)]">
+    <!-- Header -->
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-red-600/20 border border-red-500/40 flex items-center justify-center font-black text-red-500 text-xl">
+        ViFi
+      </div>
+      <div>
+        <h1 class="text-xl font-extrabold tracking-tight">Scan with Phone</h1>
+        <p class="text-xs text-gray-400 font-medium">Point camera to open Mobile Downloads</p>
+      </div>
+    </div>
+
+    <!-- QR Code Image -->
+    <div class="p-4 bg-white rounded-2xl shadow-xl flex items-center justify-center">
+      <img src="/downloads_qr.png" alt="Scan QR Code" class="w-64 h-64 rounded-lg object-contain">
+    </div>
+
+    <!-- Direct URL -->
+    <div class="text-center w-full">
+      <p class="text-xs text-gray-400 font-mono mb-2">Or type this in Android Chrome:</p>
+      <div class="py-2.5 px-4 bg-black/60 border border-gray-800 rounded-xl font-mono text-sm text-red-400 font-bold select-all break-all">
+        http://192.168.1.60:5141/downloads
+      </div>
+    </div>
+
+    <!-- Status Note -->
+    <div class="text-xs text-gray-500 text-center">
+      ✓ Delivers <strong>9:16 Video Reel (.mp4)</strong> straight to Android Downloads & Gallery
+    </div>
+  </div>
+</body>
+</html>

@@ -234,6 +234,20 @@ class AmbientConfig(BaseModel):
     notify_hud: bool = True
 
 
+class WakeWordConfig(BaseModel):
+    enabled: bool = True
+    phrase: str = "Hey Viv"
+    aliases: list[str] = Field(
+        default_factory=lambda: ["hey viv", "viv", "hey vifi", "vifi", "hey antigravity", "antigravity"]
+    )
+    sensitivity: float = 0.6
+    chime: bool = True
+    target_engine: str = "antigravity"
+    source: Literal["mic", "default"] = "mic"
+    energy_threshold: float = 0.005
+    silence_duration: float = 0.7
+
+
 class STTBiasingConfig(BaseModel):
     enabled: bool = True
     auto_scan_repo: bool = True
@@ -299,7 +313,32 @@ def default_agents_catalog() -> dict[str, AgentVoiceProfile]:
             provider="edge_tts",
             description="Aria (Second Voice / Obsidian)",
         ),
+        "spark": AgentVoiceProfile(
+            voice="en-US-AvaNeural",
+            provider="edge_tts",
+            offline_voice="Ava (Premium)",
+            description="Gemini Spark Agent (Viv / Christopher)",
+        ),
     }
+
+
+class IPCConfig(BaseModel):
+    enabled: bool = True
+    socket_path: str = "/tmp/voicefi.sock"
+    ws_port: int = 8765
+    ws_host: str = "127.0.0.1"
+    enable_ws_fallback: bool = True
+    auto_reconnect: bool = True
+    reconnect_interval_seconds: float = 1.5
+
+
+class SparkConfig(BaseModel):
+    enabled: bool = True
+    persona: str = "Viv"  # Viv, Christopher, Ava, etc.
+    agent_name: str = "Spark"
+    enable_model_distillation: bool = True
+    max_spoken_words: int = 30
+    auto_submit_turn_complete: bool = True
 
 
 class ProActiveFeedbackLoopConfig(BaseModel):
@@ -356,6 +395,7 @@ class VoiceFiConfig(BaseModel):
     vad: VADConfig = Field(default_factory=VADConfig)
     proactive: ProActiveConfig = Field(default_factory=ProActiveConfig)
     ambient: AmbientConfig = Field(default_factory=AmbientConfig)
+    wakeword: WakeWordConfig = Field(default_factory=WakeWordConfig)
     audio_cues: AudioCuesConfig = Field(default_factory=AudioCuesConfig)
     antigravity: AntigravityConfig = Field(default_factory=AntigravityConfig)
     claude: ClaudeConfig = Field(default_factory=ClaudeConfig)
@@ -368,6 +408,8 @@ class VoiceFiConfig(BaseModel):
     hud: HUDConfig = Field(default_factory=HUDConfig)
     memo: MemoConfig = Field(default_factory=MemoConfig)
     gemini: GeminiConfig = Field(default_factory=GeminiConfig)
+    ipc: IPCConfig = Field(default_factory=IPCConfig)
+    spark: SparkConfig = Field(default_factory=SparkConfig)
     agents: dict[str, AgentVoiceProfile] = Field(default_factory=default_agents_catalog)
     subagents: dict[str, AgentVoiceProfile] = Field(default_factory=dict)
 

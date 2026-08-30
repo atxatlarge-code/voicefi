@@ -86,6 +86,7 @@ class EdgeTTS(BaseTTS):
     ):
         super().__init__()
         self.voice = voice or "en-US-AvaNeural"
+        self.rate = rate
         self.rate_str = normalize_edge_rate(rate)
         try:
             self.volume = float(volume) if volume is not None else 1.0
@@ -121,7 +122,8 @@ class EdgeTTS(BaseTTS):
             except Exception:
                 target_voice = "Samantha"
 
-            rate_arg = ["-r", str(normalize_mac_rate(self.rate))] if self.rate else []
+            rate_val = getattr(self, "rate", None)
+            rate_arg = ["-r", str(normalize_mac_rate(rate_val))] if rate_val else []
             cmd = ["say", "-v", target_voice] + rate_arg + [clean_text]
 
             try:

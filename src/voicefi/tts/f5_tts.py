@@ -1,7 +1,7 @@
 """
 F5-TTS Open-Source Zero-Shot Voice Cloning Provider for VoiceFi.
 Enables running local, open-weights voice cloning models directly on Apple Silicon (MPS)
-or CPU, synthesizing speech conditioned on a reference speaker sample (e.g. Angelica as Ava).
+or CPU, synthesizing speech conditioned on a reference speaker sample (e.g. Reference Speaker Sample as Ava).
 """
 
 import os
@@ -88,8 +88,8 @@ class F5TTS(BaseTTS):
         # Check default clones directory
         clones_dir = Path.home() / ".voicefi" / "cloned_voices"
         if clones_dir.exists():
-            # Check for ava or angelica or any trained profile
-            for name in ["ava", "angelica", "default", "custom"]:
+            # Check for ava or voice persona or any trained profile
+            for name in ["ava", "persona", "default", "custom"]:
                 p_dir = clones_dir / name
                 prof_file = p_dir / "profile.json"
                 if prof_file.is_file():

@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en" class="bg-black text-white">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>VoiceFi™ · Mobile Downloads</title>
+  <meta name="theme-color" content="#000000">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #080A0F;
+      color: #F8FAFC;
+    }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-between p-5 pb-8 safe-area">
+  <!-- Top Navigation & Brand Header -->
+  <header class="w-full max-w-md flex items-center justify-between py-3 border-b border-gray-800">
+    <div class="flex items-center gap-3">
+      <a href="/" class="px-2.5 py-1 rounded-lg bg-gray-900 border border-gray-800 text-xs font-bold text-gray-300 hover:text-white flex items-center gap-1 active:scale-95 transition-all" title="Back to Voice Screen">
+        <span>←</span> <span>Voice</span>
+      </a>
+      <div>
+        <h1 class="text-sm font-extrabold tracking-tight">Downloads</h1>
+        <p class="text-[10px] text-gray-400 font-medium">Reels & Master Media</p>
+      </div>
+    </div>
+    <span class="px-2.5 py-1 rounded-full bg-red-600/20 border border-red-500/40 text-red-400 font-mono text-[11px] font-bold uppercase">
+      🏆 Master
+    </span>
+  </header>
+
+  <!-- Main Card & Video Preview -->
+  <main class="w-full max-w-md my-auto flex flex-col items-center gap-4 py-3">
+    <!-- Reel Selector Pills -->
+    <div class="w-full flex items-center justify-center p-1 bg-zinc-900/90 border border-zinc-800 rounded-2xl gap-1 overflow-x-auto no-scrollbar">
+      <button id="btnReel4" onclick="selectReel('reel4')" class="flex-1 py-2 px-2.5 rounded-xl text-xs font-bold transition-all bg-rose-600 text-white shadow-lg flex items-center justify-center gap-1 shrink-0">
+        <span>🎙️</span> <span>Free Voice</span> <span class="text-[10px] px-1.5 py-0.2 rounded bg-black/40 text-rose-200">16s</span>
+      </button>
+      <button id="btnReel3" onclick="selectReel('reel3')" class="flex-1 py-2 px-2.5 rounded-xl text-xs font-bold transition-all text-zinc-400 hover:text-zinc-200 flex items-center justify-center gap-1 shrink-0">
+        <span>🎙️</span> <span>Making ViFi</span> <span class="text-[10px] px-1.5 py-0.2 rounded bg-zinc-800 text-zinc-400">50s</span>
+      </button>
+      <button id="btnReel2" onclick="selectReel('reel2')" class="flex-1 py-2 px-2.5 rounded-xl text-xs font-bold transition-all text-zinc-400 hover:text-zinc-200 flex items-center justify-center gap-1 shrink-0">
+        <span>🎤</span> <span>Rap Battle</span> <span class="text-[10px] px-1.5 py-0.2 rounded bg-zinc-800 text-zinc-400">77s</span>
+      </button>
+      <button id="btnReel1" onclick="selectReel('reel1')" class="flex-1 py-2 px-2.5 rounded-xl text-xs font-bold transition-all text-zinc-400 hover:text-zinc-200 flex items-center justify-center gap-1 shrink-0">
+        <span>🦇</span> <span>Vampire</span> <span class="text-[10px] px-1.5 py-0.2 rounded bg-zinc-800 text-zinc-400">31s</span>
+      </button>
+    </div>
+
+    <!-- Video Player Preview Container -->
+    <div class="relative w-full aspect-[9/16] max-w-[270px] bg-black rounded-3xl overflow-hidden border-2 border-purple-500/40 shadow-[0_0_40px_rgba(168,85,247,0.25)] flex items-center justify-center">
+      <video id="reelVideo" src="/downloads/free_your_voice_reel.mp4" playsinline controls loop class="w-full h-full object-cover"></video>
+    </div>
+
+    <!-- Title & Specs -->
+    <div class="text-center">
+      <h2 id="reelTitle" class="text-lg font-black tracking-tight text-white flex items-center justify-center gap-2">
+        🎙️ Free Your Voice · Studio Radio Master <span id="reelBadge" class="text-xs px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 mono font-bold">16s</span>
+      </h2>
+      <p id="reelDesc" class="text-xs text-zinc-400 mt-1">Spoken tagline with Booming Radio Announcer DSP & synced cards</p>
+    </div>
+
+    <!-- Download Buttons -->
+    <div class="w-full flex flex-col gap-2.5">
+      <!-- Primary: Save Reel to Photos / Downloads -->
+      <button id="btnSave916" onclick="downloadCurrent('9:16')" class="w-full py-3.5 px-5 rounded-2xl bg-purple-600 hover:bg-purple-500 active:scale-[0.98] text-white font-extrabold text-base flex items-center justify-center gap-3 shadow-[0_4px_20px_rgba(168,85,247,0.35)] transition-all">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+        </svg>
+        <span>Save 9:16 Video Reel (.mp4)</span>
+      </button>
+
+      <!-- Secondary: 1:1 Square Video -->
+      <button id="btnSave11" onclick="downloadCurrent('1:1')" class="w-full py-3 px-4 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 active:scale-[0.98] text-zinc-200 font-bold text-sm flex items-center justify-center gap-2 transition-all">
+        <span>⬛ Download 1:1 Square Post (.mp4)</span>
+      </button>
+
+      <!-- Tertiary: Master Audio Only -->
+      <button id="btnSaveAudio" onclick="downloadCurrent('audio')" class="w-full py-3 px-4 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 active:scale-[0.98] text-zinc-200 font-bold text-sm flex items-center justify-center gap-2 transition-all">
+        <span>🎵 Download Master Audio (.mp3)</span>
+      </button>
+    </div>
+  </main>
+
+  <!-- Footer Link back to Companion -->
+  <footer class="w-full max-w-md text-center pt-2">
+    <a href="/" class="text-xs text-zinc-500 hover:text-zinc-300 font-medium transition-colors">
+      ← Back to VoiceFi Companion Voice Loop
+    </a>
+  </footer>
+
+  <script>
+    const REELS_DATA = {
+      reel4: {
+        title: "🎙️ Free Your Voice · Studio Radio Master",
+        dur: "16s",
+        desc: "Spoken tagline with Booming Radio Announcer DSP & synced cards",
+        reel916: "/downloads/free_your_voice_reel.mp4",
+        reel11: "/downloads/free_your_voice_square.mp4",
+        audio: "/downloads/free_your_voice_master.mp3",
+        themeColor: "red"
+      },
+      reel3: {
+        title: "🎙️ How We Built VoiceFi · Multi-Agent Story",
+        dur: "50s",
+        desc: "Viv, Claude, Christopher & Emily on building the universal voice layer",
+        reel916: "/downloads/how_we_built_voicefi_reel_9_16.mp4",
+        reel11: "/downloads/how_we_built_voicefi_square_1_1.mp4",
+        audio: "/downloads/how_we_built_voicefi_dialogue.mp3",
+        themeColor: "purple"
+      },
+      reel2: {
+        title: "🎤 AI Rap Battle · Viv vs Claude",
+        dur: "77s",
+        desc: "Savage AI smack talk with 808 Boom-Bap Beat & Scratches",
+        reel916: "/downloads/ai_rap_battle_viv_claude_reel.mp4",
+        reel11: "/downloads/ai_rap_battle_viv_claude_square.mp4",
+        audio: "/downloads/rap_battle_dialogue.mp3",
+        themeColor: "red"
+      },
+      reel1: {
+        title: "🦇 ViFi Jokes · Vampire + Castlevania",
+        dur: "31s",
+        desc: "Multi-track comedy dialogue with Viv, Steffan & Emily",
+        reel916: "/downloads/vampire_vifi_joke_reel.mp4",
+        reel11: "/downloads/vampire_vifi_joke_square.mp4",
+        audio: "/downloads/vampire_vifi_joke_dialogue.mp3",
+        themeColor: "red"
+      }
+    };
+
+    let activeReelKey = "reel4";
+
+    function selectReel(key) {
+      activeReelKey = key;
+      const data = REELS_DATA[key];
+      const video = document.getElementById('reelVideo');
+      video.src = data.reel916;
+      video.load();
+
+      document.getElementById('reelTitle').innerHTML = `${data.title} <span id="reelBadge" class="text-xs px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 mono font-bold">${data.dur}</span>`;
+      document.getElementById('reelDesc').innerText = data.desc;
+
+      const btn3 = document.getElementById('btnReel3');
+      const btn2 = document.getElementById('btnReel2');
+      const btn1 = document.getElementById('btnReel1');
+      const btnSave916 = document.getElementById('btnSave916');
+
+      const inactiveClass = "flex-1 py-2 px-2.5 rounded-xl text-xs font-bold transition-all text-zinc-400 hover:text-zinc-200 flex items-center justify-center gap-1 shrink-0";
+      
+      btn3.className = inactiveClass;
+      btn2.className = inactiveClass;
+      btn1.className = inactiveClass;
+
+      if (key === 'reel3') {
+        btn3.className = "flex-1 py-2 px-2.5 rounded-xl text-xs font-bold transition-all bg-purple-600 text-white shadow-lg flex items-center justify-center gap-1 shrink-0";
+        btnSave916.className = "w-full py-3.5 px-5 rounded-2xl bg-purple-600 hover:bg-purple-500 active:scale-[0.98] text-white font-extrabold text-base flex items-center justify-center gap-3 shadow-[0_4px_20px_rgba(168,85,247,0.35)] transition-all";
+      } else if (key === 'reel2') {
+        btn2.className = "flex-1 py-2 px-2.5 rounded-xl text-xs font-bold transition-all bg-red-600 text-white shadow-lg flex items-center justify-center gap-1 shrink-0";
+        btnSave916.className = "w-full py-3.5 px-5 rounded-2xl bg-red-600 hover:bg-red-500 active:scale-[0.98] text-white font-extrabold text-base flex items-center justify-center gap-3 shadow-[0_4px_20px_rgba(255,42,42,0.35)] transition-all";
+      } else {
+        btn1.className = "flex-1 py-2 px-2.5 rounded-xl text-xs font-bold transition-all bg-red-600 text-white shadow-lg flex items-center justify-center gap-1 shrink-0";
+        btnSave916.className = "w-full py-3.5 px-5 rounded-2xl bg-red-600 hover:bg-red-500 active:scale-[0.98] text-white font-extrabold text-base flex items-center justify-center gap-3 shadow-[0_4px_20px_rgba(255,42,42,0.35)] transition-all";
+      }
+    }
+
+    function downloadCurrent(type) {
+      const data = REELS_DATA[activeReelKey];
+      if (type === '9:16') downloadOrShare(data.reel916, `${activeReelKey}_916.mp4`);
+      else if (type === '1:1') downloadOrShare(data.reel11, `${activeReelKey}_square.mp4`);
+      else downloadOrShare(data.audio, `${activeReelKey}_audio.mp3`);
+    }
+
+    async function downloadOrShare(url, filename) {
+      // If Web Share API with Files is supported (e.g. iOS Safari Camera Roll save)
+      if (navigator.canShare) {
+        try {
+          const res = await fetch(url);
+          const blob = await res.blob();
+          const file = new File([blob], filename, { type: blob.type });
+          if (navigator.canShare({ files: [file] })) {
+            await navigator.share({
+              files: [file],
+              title: filename,
+              text: 'VoiceFi Master Video Reel'
+            });
+            return;
+          }
+        } catch (e) {
+          console.log('Share canceled or fallback triggered:', e);
+        }
+      }
+
+      // Standard Download trigger
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  </script>
+</body>
+</html>

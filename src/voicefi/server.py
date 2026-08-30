@@ -303,6 +303,10 @@ def get_full_server_status() -> Dict[str, Any]:
             "claude": claude_cmd,
             "codex": codex_cmd,
         },
+        "wakeword": {
+            "enabled": True,
+            "phrase": "Hey Viv",
+        },
         "python_executable": sys.executable,
     }
 

@@ -319,6 +319,15 @@ class AudioRecorder:
                                         print(f"[VAD] ⚡ Barge-In detected ({mode_desc}, conf={speech_conf:.2f}, energy={smoothed_energy:.4f}, thresh={barge_in_threshold:.4f}) -> stopping agent speech")
                                         from voicefi.tts.base import stop_all_speech
                                         stop_all_speech()
+                                        try:
+                                            from voicefi.telemetry import capture_barge_in_event
+                                            capture_barge_in_event(
+                                                device_type="acoustic_safe_mode" if is_safe_mode else "headphones",
+                                                is_full_duplex=(not is_safe_mode),
+                                                ambient_energy_level=smoothed_energy,
+                                            )
+                                        except Exception:
+                                            pass
                                         if on_barge_in:
                                             try:
                                                 on_barge_in()

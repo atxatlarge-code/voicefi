@@ -268,3 +268,47 @@ class ActiveListeningEngine:
             routed_prompt=routed_text,
             target_metadata=metadata,
         )
+
+    @classmethod
+    def extract_wakeword_and_prompt(
+        cls,
+        text: str,
+        aliases: Optional[List[str]] = None,
+    ) -> tuple[Optional[str], str]:
+        """
+        Detect if spoken text begins with or contains a wake word (e.g. 'Hey Viv', 'Viv', 'Hey ViFi'),
+        and return (matched_phrase, clean_prompt).
+        If the utterance only contained the wake word, clean_prompt will be empty string.
+        """
+        if not text or not text.strip():
+            return None, ""
+
+        clean = text.strip()
+        default_names = [
+            "viv", "vive", "vifi", "vivi", "wifi", "wi-fi", "antigravity", "eve", "fifi",
+            "vim", "veev", "bib", "beb", "thief", "here's", "biff", "vee"
+        ]
+        prefixes = ["hey", "hi", "okay", "ok", "yo", "hello", "a", "eh"]
+
+        all_aliases = list(aliases or [])
+        for name in default_names:
+            all_aliases.append(name)
+            for p in prefixes:
+                all_aliases.append(f"{p} {name}")
+
+        # Sort aliases by length descending so longer phrases match first
+        sorted_aliases = sorted(list(set(all_aliases)), key=lambda a: len(a), reverse=True)
+
+        for alias in sorted_aliases:
+            words = alias.strip().split()
+            pattern_words = r"[\s,.:;!?-]+".join(re.escape(w) for w in words)
+            pattern = rf"^(?:{pattern_words})(?:[\s,.:;!?-]+(.*)|$)"
+            m = re.match(pattern, clean, re.IGNORECASE)
+            if m:
+                matched_phrase = alias.strip()
+                remainder = m.group(1) if m.group(1) else ""
+                # Strip leading punctuation and conjunctions
+                remainder = re.sub(r"^[\s,.:;!?-]+", "", remainder)
+                return matched_phrase, remainder.strip()
+
+        return None, clean

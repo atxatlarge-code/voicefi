@@ -108,7 +108,7 @@ class AnalyticsStore:
         error_type: Optional[str] = None,
     ) -> Optional[int]:
         """Insert a sanitized event record into the local SQLite database."""
-        props = dict(properties or {})
+        props = dict(properties) if isinstance(properties, dict) else {}
         # Extract properties if not passed directly
         dur = duration_ms or props.get("duration_ms", 0)
         succ = success if "success" not in props else bool(props.get("success", True))
@@ -132,7 +132,11 @@ class AnalyticsStore:
         }
 
         try:
-            meta_json = json.dumps(clean_props) if clean_props else None
+            meta_json = json.dumps(clean_props, default=str) if clean_props else None
+        except Exception:
+            meta_json = None
+
+        try:
             conn = self._get_connection()
             with conn:
                 cursor = conn.execute(
@@ -162,15 +166,25 @@ class AnalyticsStore:
             return None
 
     def prune_expired_events(self, days: int = 90) -> int:
-        """Prune event records older than the specified retention threshold."""
+        """Prune event records older than the specified retention threshold and reclaim disk space."""
         try:
+            safe_days = max(0, int(days)) if days is not None else 90
             conn = self._get_connection()
             with conn:
-                cursor = conn.execute(
-                    "DELETE FROM events WHERE timestamp < datetime('now', ?);",
-                    (f"-{max(1, int(days))} days",),
-                )
-                return cursor.rowcount
+                if safe_days == 0:
+                    cursor = conn.execute("DELETE FROM events WHERE timestamp <= datetime('now');")
+                else:
+                    cursor = conn.execute(
+                        "DELETE FROM events WHERE timestamp < datetime('now', ?);",
+                        (f"-{safe_days} days",),
+                    )
+                deleted = cursor.rowcount
+            if deleted > 0:
+                try:
+                    conn.execute("VACUUM;")
+                except Exception:
+                    pass
+            return deleted
         except Exception:
             return 0
 

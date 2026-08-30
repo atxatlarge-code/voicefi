@@ -9,6 +9,7 @@ import json
 from typing import Any, Dict, List, Optional
 
 from voicefi.analytics.store import AnalyticsStore, get_analytics_store
+from voicefi.analytics.queries import _normalize_days
 
 
 def export_events_json(days: int = 0, store: Optional[AnalyticsStore] = None) -> str:
@@ -16,7 +17,7 @@ def export_events_json(days: int = 0, store: Optional[AnalyticsStore] = None) ->
     db = store or get_analytics_store()
     conn = db._get_connection()
 
-    time_clause = f"-{max(1, int(days))} days" if days > 0 else "-100 years"
+    d, time_clause = _normalize_days(days, default_days=0)
 
     with conn:
         rows = conn.execute(
@@ -63,7 +64,7 @@ def export_events_csv(days: int = 0, store: Optional[AnalyticsStore] = None) -> 
     db = store or get_analytics_store()
     conn = db._get_connection()
 
-    time_clause = f"-{max(1, int(days))} days" if days > 0 else "-100 years"
+    d, time_clause = _normalize_days(days, default_days=0)
 
     output = io.StringIO()
     writer = csv.writer(output)
