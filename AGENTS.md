@@ -137,7 +137,7 @@ To debug how VoiceFi handles simultaneous speech output and microphone capture:
 ---
 
 ### 6. Cross-Agent Dispatch & Return Routing (Antigravity ↔ Claude Code)
-When Antigravity agents collaborate with Claude Code across projects:
+* **Mandatory Standard for Claude Requests:** Whenever the user asks to "ask Claude", delegate a task to Claude, or send a prompt/finding/joke to Claude, Antigravity **MUST ALWAYS** use `vifi send` (or the `voicefi_send` MCP tool) via the Cross-Agent Bridge. Antigravity **MUST NEVER** attempt synthetic mouse clicking, OS window focus hijacking, or direct clipboard pasting into Claude.app or terminal windows.
 * **Sending Task from Antigravity to Claude:**
   ```bash
   vifi send "Refactor the authentication middleware and test all endpoints." --to claude
