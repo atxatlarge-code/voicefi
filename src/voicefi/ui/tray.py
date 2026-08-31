@@ -218,7 +218,7 @@ class VoiceFiTrayApp(rumps.App):
             callback=self.trigger_new_conversation,
         )
         self.talk_to_agent_item = rumps.MenuItem(
-            "🎙️ Respond to Active Agent (Ctrl + R)",
+            "🎙️ Prompt Active Agent (⌥V / Ctrl + R)",
             callback=self.trigger_talk_to_antigravity,
         )
         self.focus_agent_item = rumps.MenuItem("💬 Switch to Agent Window (Ctrl + J)", callback=self.trigger_focus_antigravity)
@@ -1673,8 +1673,12 @@ class VoiceFiTrayApp(rumps.App):
                                 self.trigger_manual_listen(ptt_mode=is_ptt)
                             return
 
-                        # 7. Respond to Agent (Ctrl+R)
-                        if ctrl and not shift and (vk == 15 or char in ('r', 'R', '\x12')):
+                        # 7. Ambient Zero-Focus Voice Prompt to Antigravity (Option+V / ⌥V, Shift+Option+Space, or Ctrl+R)
+                        is_option_v = (alt and not cmd and not ctrl and (vk == 9 or char in ('v', 'V', '√')))
+                        is_shift_opt_space = (alt and shift and not cmd and not ctrl and (vk == 49 or key == Key.space))
+                        is_ctrl_r = (ctrl and not shift and not alt and (vk == 15 or char in ('r', 'R', '\x12')))
+
+                        if is_option_v or is_shift_opt_space or is_ctrl_r:
                             if self.config.global_hotkey.enabled and _debounce('respond'):
                                 self._key_down_times['respond'] = time.time()
                                 is_ptt = (self.config.vad.mode == "ptt")
@@ -1702,11 +1706,11 @@ class VoiceFiTrayApp(rumps.App):
                         vk = getattr(key, 'vk', None)
                         char = getattr(key, 'char', None)
 
-                        is_respond_key = (vk == 15 or char in ('r', 'R', '\x12'))
+                        is_respond_key = (vk in (15, 9) or char in ('r', 'R', '\x12', 'v', 'V', '√') or (is_alt and (vk == 49 or key == Key.space)))
                         is_dictate_key = (vk == 17 or char in ('t', 'T', '\x14'))
                         is_new_conv_key = (vk == 45 or char in ('n', 'N', '\x0e'))
                         is_action_key = is_respond_key or is_dictate_key or is_new_conv_key
-                        is_modifier_release = is_ctrl or is_cmd
+                        is_modifier_release = is_ctrl or is_cmd or is_alt
 
                         is_active_recording = (
                             self._current_status in ("listening", "hearing", "ptt_listening", "new_conversation")
@@ -1738,7 +1742,7 @@ class VoiceFiTrayApp(rumps.App):
                 listener = keyboard.Listener(on_press=on_press, on_release=on_release)
                 listener.daemon = True
                 listener.start()
-                print("[VoiceFi] ⌨️ Unified global hotkeys active: Cmd+Shift+N (New Conv), Ctrl+R (Respond), Ctrl+J / Cmd+J (Jump), Ctrl+T (Dictate), Ctrl+Shift+J (Hub)")
+                print("[VoiceFi] ⌨️ Unified global hotkeys active: ⌥V / Ctrl+R (Prompt Agent), Cmd+Shift+N (New Conv), Ctrl+J / Cmd+J (Jump), Ctrl+T (Dictate), Ctrl+Shift+J (Hub)")
             except Exception as e:
                 print(f"[Tray] Hotkey listener notice: {e}")
 

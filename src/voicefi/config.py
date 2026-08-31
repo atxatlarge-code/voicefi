@@ -182,6 +182,7 @@ class IntegrationsConfig(BaseModel):
 
 class GlobalHotkeyConfig(BaseModel):
     enabled: bool = True
+    talk_to_agent_hotkey: str = "<alt>+v"
     focus_and_talk_hotkey: str = "<ctrl>+r"
     jump_to_agent_hotkey: str = "<ctrl>+j"
     hub_hotkey: str = "<ctrl>+<shift>+j"
