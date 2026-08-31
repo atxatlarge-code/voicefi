@@ -52,22 +52,22 @@
     </div>
 
     <!-- Video Player Preview Container -->
-    <div class="relative w-full aspect-[9/16] max-w-[270px] bg-black rounded-3xl overflow-hidden border-2 border-purple-500/40 shadow-[0_0_40px_rgba(168,85,247,0.25)] flex items-center justify-center">
-      <video id="reelVideo" src="/downloads/free_your_voice_reel.mp4" playsinline controls loop class="w-full h-full object-cover"></video>
+    <div class="relative w-full aspect-[9/16] max-w-[270px] bg-black rounded-3xl overflow-hidden border-2 border-emerald-500/40 shadow-[0_0_40px_rgba(16,185,129,0.25)] flex items-center justify-center">
+      <video id="reelVideo" src="/downloads/hybrid_how_we_built_voicefi_reel_9_16.mp4" playsinline controls loop class="w-full h-full object-cover"></video>
     </div>
 
     <!-- Title & Specs -->
     <div class="text-center">
       <h2 id="reelTitle" class="text-lg font-black tracking-tight text-white flex items-center justify-center gap-2">
-        🎙️ Free Your Voice · Studio Radio Master <span id="reelBadge" class="text-xs px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 mono font-bold">16s</span>
+        🎬 How We Built VoiceFi · Hybrid Master <span id="reelBadge" class="text-xs px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 mono font-bold">50s</span>
       </h2>
-      <p id="reelDesc" class="text-xs text-zinc-400 mt-1">Spoken tagline with Booming Radio Announcer DSP & synced cards</p>
+      <p id="reelDesc" class="text-xs text-zinc-400 mt-1">Jake's real voice intro + Viv, Steffan, Christopher & Emily pencil flipbook</p>
     </div>
 
     <!-- Download Buttons -->
     <div class="w-full flex flex-col gap-2.5">
       <!-- Primary: Save Reel to Photos / Downloads -->
-      <button id="btnSave916" onclick="downloadCurrent('9:16')" class="w-full py-3.5 px-5 rounded-2xl bg-purple-600 hover:bg-purple-500 active:scale-[0.98] text-white font-extrabold text-base flex items-center justify-center gap-3 shadow-[0_4px_20px_rgba(168,85,247,0.35)] transition-all">
+      <button id="btnSave916" onclick="downloadCurrent('9:16')" class="w-full py-3.5 px-5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white font-extrabold text-base flex items-center justify-center gap-3 shadow-[0_4px_20px_rgba(16,185,129,0.35)] transition-all">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
         </svg>
@@ -96,21 +96,21 @@
   <script>
     const REELS_DATA = {
       reel4: {
+        title: "🎬 How We Built VoiceFi · Hybrid Master",
+        dur: "50s",
+        desc: "Jake's real voice intro + Viv, Steffan, Christopher & Emily pencil flipbook",
+        reel916: "/downloads/hybrid_how_we_built_voicefi_reel_9_16.mp4",
+        reel11: "/downloads/how_we_built_voicefi_square_1_1.mp4",
+        audio: "/downloads/hybrid_how_we_built_voicefi_master.mp3",
+        themeColor: "emerald"
+      },
+      reel3: {
         title: "🎙️ Free Your Voice · Studio Radio Master",
         dur: "16s",
         desc: "Spoken tagline with Booming Radio Announcer DSP & synced cards",
         reel916: "/downloads/free_your_voice_reel.mp4",
         reel11: "/downloads/free_your_voice_square.mp4",
         audio: "/downloads/free_your_voice_master.mp3",
-        themeColor: "red"
-      },
-      reel3: {
-        title: "🎙️ How We Built VoiceFi · Multi-Agent Story",
-        dur: "50s",
-        desc: "Viv, Claude, Christopher & Emily on building the universal voice layer",
-        reel916: "/downloads/how_we_built_voicefi_reel_9_16.mp4",
-        reel11: "/downloads/how_we_built_voicefi_square_1_1.mp4",
-        audio: "/downloads/how_we_built_voicefi_dialogue.mp3",
         themeColor: "purple"
       },
       reel2: {
