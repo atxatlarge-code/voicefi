@@ -1613,18 +1613,19 @@ class VoiceFiTrayApp(rumps.App):
 
                 def on_press(key):
                     try:
-                        # 0. Track modifier keys
-                        if key in (Key.ctrl, Key.ctrl_l, Key.ctrl_r):
-                            modifiers.add('ctrl')
-                        elif key in (Key.cmd, Key.cmd_l, Key.cmd_r):
-                            modifiers.add('cmd')
-                        elif key in (Key.shift, Key.shift_l, Key.shift_r):
-                            modifiers.add('shift')
-                        elif key in (Key.alt, Key.alt_l, Key.alt_r):
-                            modifiers.add('alt')
-
                         vk = getattr(key, 'vk', None)
                         char = getattr(key, 'char', None)
+
+                        # 0. Track modifier keys (both Enum and macOS virtual key codes)
+                        if key in (Key.ctrl, Key.ctrl_l, Key.ctrl_r) or vk in (59, 62):
+                            modifiers.add('ctrl')
+                        if key in (Key.cmd, Key.cmd_l, Key.cmd_r) or vk in (54, 55):
+                            modifiers.add('cmd')
+                        if key in (Key.shift, Key.shift_l, Key.shift_r) or vk in (56, 60):
+                            modifiers.add('shift')
+                        if key in (Key.alt, Key.alt_l, Key.alt_r, Key.alt_gr) or vk in (58, 61):
+                            modifiers.add('alt')
+
                         ctrl = 'ctrl' in modifiers
                         cmd = 'cmd' in modifiers
                         shift = 'shift' in modifiers
@@ -1674,12 +1675,13 @@ class VoiceFiTrayApp(rumps.App):
                                 self.trigger_manual_listen(ptt_mode=is_ptt)
                             return
 
-                        # 7. Ambient Zero-Focus Voice Prompt to Antigravity (Option+V / ⌥V, Shift+Option+Space, or Ctrl+R)
+                        # 7. Ambient Zero-Focus Voice Prompt to Antigravity (Option+V / ⌥V, Control+V, Shift+Option+Space, or Ctrl+R)
                         is_option_v = ((alt and (vk == 9 or char in ('v', 'V', '√'))) or char == '√')
+                        is_ctrl_v = (ctrl and not shift and not alt and (vk == 9 or char in ('v', 'V', '\x16')))
                         is_shift_opt_space = (alt and shift and not cmd and not ctrl and (vk == 49 or key == Key.space))
                         is_ctrl_r = (ctrl and not shift and not alt and (vk == 15 or char in ('r', 'R', '\x12')))
 
-                        if is_option_v or is_shift_opt_space or is_ctrl_r:
+                        if is_option_v or is_ctrl_v or is_shift_opt_space or is_ctrl_r:
                             if self.config.global_hotkey.enabled and _debounce('respond'):
                                 self._key_down_times['respond'] = time.time()
                                 is_ptt = (self.config.vad.mode == "ptt")
@@ -1690,24 +1692,24 @@ class VoiceFiTrayApp(rumps.App):
 
                 def on_release(key):
                     try:
-                        is_ctrl = key in (Key.ctrl, Key.ctrl_l, Key.ctrl_r)
-                        is_cmd = key in (Key.cmd, Key.cmd_l, Key.cmd_r)
-                        is_shift = key in (Key.shift, Key.shift_l, Key.shift_r)
-                        is_alt = key in (Key.alt, Key.alt_l, Key.alt_r)
-
-                        if is_ctrl:
-                            modifiers.discard('ctrl')
-                        elif is_cmd:
-                            modifiers.discard('cmd')
-                        elif is_shift:
-                            modifiers.discard('shift')
-                        elif is_alt:
-                            modifiers.discard('alt')
-
                         vk = getattr(key, 'vk', None)
                         char = getattr(key, 'char', None)
 
-                        is_respond_key = (vk in (15, 9) or char in ('r', 'R', '\x12', 'v', 'V', '√') or (is_alt and (vk == 49 or key == Key.space)))
+                        is_ctrl = key in (Key.ctrl, Key.ctrl_l, Key.ctrl_r) or vk in (59, 62)
+                        is_cmd = key in (Key.cmd, Key.cmd_l, Key.cmd_r) or vk in (54, 55)
+                        is_shift = key in (Key.shift, Key.shift_l, Key.shift_r) or vk in (56, 60)
+                        is_alt = key in (Key.alt, Key.alt_l, Key.alt_r, Key.alt_gr) or vk in (58, 61)
+
+                        if is_ctrl:
+                            modifiers.discard('ctrl')
+                        if is_cmd:
+                            modifiers.discard('cmd')
+                        if is_shift:
+                            modifiers.discard('shift')
+                        if is_alt:
+                            modifiers.discard('alt')
+
+                        is_respond_key = (vk in (15, 9) or char in ('r', 'R', '\x12', 'v', 'V', '√', '\x16') or (is_alt and (vk == 49 or key == Key.space)))
                         is_dictate_key = (vk == 17 or char in ('t', 'T', '\x14'))
                         is_new_conv_key = (vk == 45 or char in ('n', 'N', '\x0e'))
                         is_action_key = is_respond_key or is_dictate_key or is_new_conv_key
@@ -1743,7 +1745,7 @@ class VoiceFiTrayApp(rumps.App):
                 listener = keyboard.Listener(on_press=on_press, on_release=on_release)
                 listener.daemon = True
                 listener.start()
-                print("[VoiceFi] ⌨️ Unified global hotkeys active: ⌥V / Ctrl+R (Prompt Agent), Cmd+Shift+N (New Conv), Ctrl+J / Cmd+J (Jump), Ctrl+T (Dictate), Ctrl+Shift+J (Hub)")
+                print("[VoiceFi] ⌨️ Unified global hotkeys active: ⌥V / Ctrl+V / Ctrl+R (Prompt Agent), Cmd+Shift+N (New Conv), Ctrl+J / Cmd+J (Jump), Ctrl+T (Dictate), Ctrl+Shift+J (Hub)")
             except Exception as e:
                 print(f"[Tray] Hotkey listener notice: {e}")
 
