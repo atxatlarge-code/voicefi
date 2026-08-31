@@ -1628,6 +1628,7 @@ class VoiceFiTrayApp(rumps.App):
                         ctrl = 'ctrl' in modifiers
                         cmd = 'cmd' in modifiers
                         shift = 'shift' in modifiers
+                        alt = 'alt' in modifiers
                         mod = ctrl or cmd
 
                         # 1. Escape: stop speech (and open mic if auto_listen is ON) or cancel recording
@@ -1674,7 +1675,7 @@ class VoiceFiTrayApp(rumps.App):
                             return
 
                         # 7. Ambient Zero-Focus Voice Prompt to Antigravity (Option+V / ⌥V, Shift+Option+Space, or Ctrl+R)
-                        is_option_v = (alt and not cmd and not ctrl and (vk == 9 or char in ('v', 'V', '√')))
+                        is_option_v = ((alt and (vk == 9 or char in ('v', 'V', '√'))) or char == '√')
                         is_shift_opt_space = (alt and shift and not cmd and not ctrl and (vk == 49 or key == Key.space))
                         is_ctrl_r = (ctrl and not shift and not alt and (vk == 15 or char in ('r', 'R', '\x12')))
 

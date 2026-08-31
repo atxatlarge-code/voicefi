@@ -2491,8 +2491,52 @@ def cmd_feedback(args):
             agent_id=agent_id,
             include_diagnostics=not getattr(args, "no_diagnostics", False),
         )
-        print(f"✅ Feedback logged successfully with ID: {record['id']}")
         print("📁 Saved to ~/.voicefi/feedback.jsonl")
+
+
+def cmd_record(args):
+    """Record studio voice note directly from microphone."""
+    import time
+    import wave
+    import sounddevice as sd
+    from pathlib import Path
+
+    duration = float(getattr(args, "duration", 8.0) or 8.0)
+    out_file = getattr(args, "output", None) or getattr(args, "out", None) or "assets/jake_intro.wav"
+    out_path = Path(out_file).resolve()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    sample_rate = 48000
+
+    print("\n" + "=" * 60)
+    print("🎙️  VoiceFi™ Live Voice Note Recorder")
+    print("=" * 60)
+    print(f"👉 Target File: {out_path}")
+    print(f"👉 Duration: {duration}s (Press Ctrl+C to stop early)")
+    print("\nGet ready... Recording starts in:")
+    for i in range(3, 0, -1):
+        print(f"   {i}...", flush=True)
+        time.sleep(1)
+
+    print("\n🔴 RECORDING NOW! (Speak into your mic)...", flush=True)
+    try:
+        recording = sd.rec(int(duration * sample_rate), samplerate=sample_rate, channels=1, dtype='int16')
+        for elapsed in range(int(duration)):
+            time.sleep(1)
+            bar = "█" * (elapsed + 1) + "░" * (int(duration) - elapsed - 1)
+            print(f"\r[{bar}] {elapsed + 1}s / {int(duration)}s", end="", flush=True)
+        sd.wait()
+    except KeyboardInterrupt:
+        sd.stop()
+        print("\n\n⏹️  Stopped by user.")
+
+    with wave.open(str(out_path), 'wb') as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(sample_rate)
+        wf.writeframes(recording.tobytes())
+
+    print(f"\n\n💾 Saved voice track to: {out_path}")
+    print("=" * 60 + "\n")
 
 
 def cmd_memo(args):
@@ -4395,6 +4439,11 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
     spark_p.add_argument("-p", "--persona", type=str, default=None, help="Spoken persona (Viv, Christopher, etc.)")
     spark_p.add_argument("--socket", type=str, default=None, help="Path to Unix domain socket")
 
+    # record / voice note recorder
+    record_p = subparsers.add_parser("record", aliases=["voice-note", "mic-record"], help="Record clean studio voice note from microphone")
+    record_p.add_argument("-d", "--duration", type=float, default=8.0, help="Recording duration in seconds (default: 8.0)")
+    record_p.add_argument("-o", "--output", "--out", default="assets/jake_intro.wav", help="Output audio file path (.wav)")
+
     # help
     subparsers.add_parser("help", help="Display help and command usage")
 
@@ -4511,6 +4560,9 @@ def main():
         "kill": lambda a: cmd_server(argparse.Namespace(server_action="stop", config=getattr(a, "config", None))),
         "memo": cmd_memo,
         "buffer": cmd_memo,
+        "record": cmd_record,
+        "voice-note": cmd_record,
+        "mic-record": cmd_record,
         "wake": cmd_wake,
         "wakeword": cmd_wake,
         "hey-viv": cmd_wake,
