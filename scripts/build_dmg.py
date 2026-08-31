@@ -1,7 +1,7 @@
 """
 Standalone macOS .app Bundle & .dmg Disk Image Packaging Script.
-Builds a native drag-and-drop installer: dist/VoiceFi_v1.0.0_macOS.dmg.
-Supports optional Developer ID code signing & Apple notarization.
+Builds a native drag-and-drop installer: dist/VoiceFi_v{version}_macOS.dmg.
+Supports Developer ID code signing, Hardened Runtime, and Apple Notarization.
 """
 
 import argparse
@@ -15,12 +15,24 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 DIST_DIR = ROOT_DIR / "dist"
 BUILD_DIR = ROOT_DIR / "build"
 ASSETS_DIR = ROOT_DIR / "assets"
+SRC_DIR = ROOT_DIR / "src"
 ENTITLEMENTS_FILE = ROOT_DIR / "entitlements.plist"
 APP_NAME = "VoiceFi"
 APP_BUNDLE = DIST_DIR / f"{APP_NAME}.app"
-DMG_NAME = "VoiceFi_v1.0.0_macOS.dmg"
-DMG_PATH = DIST_DIR / DMG_NAME
 ICON_FILE = ASSETS_DIR / "VoiceFi.icns"
+MENU_BAR_ICON = ASSETS_DIR / "voicefi-menu-bar-icon.svg"
+
+
+def get_version(override: str = None) -> str:
+    if override:
+        return override.lstrip("v")
+    try:
+        sys.path.insert(0, str(SRC_DIR))
+        from voicefi import __version__
+
+        return str(__version__).lstrip("v")
+    except Exception:
+        return "0.1.0"
 
 
 def clean():
@@ -30,8 +42,24 @@ def clean():
     DIST_DIR.mkdir(exist_ok=True)
 
 
-def build_app_bundle():
-    print("📦 Building native VoiceFi.app bundle with PyInstaller...")
+def build_app_bundle(version: str = "0.1.0"):
+    print(f"📦 Building native VoiceFi.app bundle (v{version}) with PyInstaller...")
+
+    add_data = []
+    if ICON_FILE.is_file():
+        add_data.extend(["--add-data", f"{ICON_FILE}:assets"])
+    if MENU_BAR_ICON.is_file():
+        add_data.extend(["--add-data", f"{MENU_BAR_ICON}:assets"])
+
+    # Embed silero vad and other package assets if present
+    vad_asset = SRC_DIR / "voicefi" / "assets"
+    if vad_asset.is_dir():
+        add_data.extend(["--add-data", f"{vad_asset}:voicefi/assets"])
+
+    # Embed companion static PWA files
+    companion_static = SRC_DIR / "voicefi" / "companion" / "static"
+    if companion_static.is_dir():
+        add_data.extend(["--add-data", f"{companion_static}:voicefi/companion/static"])
 
     cmd = [
         sys.executable,
@@ -44,12 +72,11 @@ def build_app_bundle():
         APP_NAME,
         "--icon",
         str(ICON_FILE),
-        "--add-data",
-        f"{ICON_FILE}:assets",
         "--osx-bundle-identifier",
         "org.voicefi.app",
         "--paths",
         "src",
+        *add_data,
         "--collect-all",
         "sounddevice",
         "--collect-all",
@@ -90,7 +117,7 @@ def build_app_bundle():
         "requests",
         "--hidden-import",
         "numpy",
-        str(ROOT_DIR / "src" / "voicefi" / "cli.py"),
+        str(SRC_DIR / "voicefi" / "cli.py"),
     ]
 
     subprocess.run(cmd, check=True, cwd=ROOT_DIR)
@@ -114,6 +141,8 @@ def build_app_bundle():
         set_plist_val("bool", "LSUIElement", "true")
         set_plist_val("bool", "NSHighResolutionCapable", "true")
         set_plist_val("string", "CFBundleDisplayName", "'VoiceFi'")
+        set_plist_val("string", "CFBundleShortVersionString", f"'{version}'")
+        set_plist_val("string", "CFBundleVersion", f"'{version}'")
         set_plist_val(
             "string",
             "NSMicrophoneUsageDescription",
@@ -132,12 +161,28 @@ def build_app_bundle():
         set_plist_val(
             "string",
             "NSAccessibilityUsageDescription",
-            "'VoiceFi uses accessibility features to listen for global hotkeys and inject text into active applications.'",
+            "'VoiceFi uses accessibility features to listen for global hotkeys (Ctrl+T) and inject text into active applications.'",
         )
+
+        # Re-sign ad-hoc if not signed with identity to restore sealed resource signature
+        subprocess.run(["codesign", "--deep", "--force", "-s", "-", str(APP_BUNDLE)], stderr=subprocess.DEVNULL)
+
 
 
 def sign_app_bundle(identity: str):
     print(f"🔏 Signing VoiceFi.app with identity: '{identity}'...")
+
+    # Sign embedded binaries & dylibs inside the app bundle
+    frameworks_dir = APP_BUNDLE / "Contents" / "Frameworks"
+    if frameworks_dir.is_dir():
+        for item in frameworks_dir.rglob("*"):
+            if item.is_file() and (item.suffix in (".dylib", ".so") or os.access(item, os.X_OK)):
+                cmd = ["codesign", "--force", "--options", "runtime", "--sign", identity, str(item)]
+                if ENTITLEMENTS_FILE.is_file():
+                    cmd.extend(["--entitlements", str(ENTITLEMENTS_FILE)])
+                subprocess.run(cmd, stderr=subprocess.DEVNULL)
+
+    # Sign the top-level app bundle
     cmd = [
         "codesign",
         "--deep",
@@ -155,8 +200,11 @@ def sign_app_bundle(identity: str):
     print("✅ App bundle signed with hardened runtime.")
 
 
-def build_dmg(identity: str = None):
-    print(f"💿 Creating drag-and-drop macOS disk image: {DMG_NAME}...")
+def build_dmg(version: str, identity: str = None) -> Path:
+    dmg_name = f"VoiceFi_v{version}_macOS.dmg"
+    dmg_path = DIST_DIR / dmg_name
+    print(f"💿 Creating drag-and-drop macOS disk image: {dmg_name}...")
+
     dmg_staging = DIST_DIR / "dmg_staging"
     shutil.rmtree(dmg_staging, ignore_errors=True)
     dmg_staging.mkdir(exist_ok=True)
@@ -167,7 +215,7 @@ def build_dmg(identity: str = None):
     # 2. Create Applications folder shortcut
     os.symlink("/Applications", str(dmg_staging / "Applications"))
 
-    # 3. Copy License & Quickstart guide
+    # 3. Copy Quickstart guide
     quickstart = dmg_staging / "QUICKSTART.txt"
     quickstart.write_text(
         "VoiceFi™ — Universal Voice Layer for AI Agents & macOS\n\n"
@@ -176,8 +224,10 @@ def build_dmg(identity: str = None):
         "2. Launch VoiceFi from Applications or Spotlight.\n"
         "3. The 🎙️ icon will appear in your macOS menu bar.\n"
         "4. Press Control + T to dictate into any window or agent.\n\n"
+        "14-Day Free Pro Trial automatically active upon first launch.\n\n"
         "Documentation & Updates: https://voicefi.org\n"
-        "Support: team@voicefi.org\n"
+        "License Keys & Pro: https://voicefi.app\n"
+        "Support: talktome@voicefi.org\n"
     )
 
     # 4. Volume Icon
@@ -194,7 +244,7 @@ def build_dmg(identity: str = None):
     # 5. Create DMG using native hdiutil
     temp_dmg = DIST_DIR / "temp.dmg"
     temp_dmg.unlink(missing_ok=True)
-    DMG_PATH.unlink(missing_ok=True)
+    dmg_path.unlink(missing_ok=True)
 
     subprocess.run(
         [
@@ -223,7 +273,7 @@ def build_dmg(identity: str = None):
             "-imagekey",
             "zlib-level=9",
             "-o",
-            str(DMG_PATH),
+            str(dmg_path),
         ],
         check=True,
     )
@@ -231,35 +281,33 @@ def build_dmg(identity: str = None):
     temp_dmg.unlink(missing_ok=True)
     shutil.rmtree(dmg_staging, ignore_errors=True)
 
-    # Sign the DMG if identity provided
+    # Sign the DMG disk image if identity provided
     if identity:
-        print(f"🔏 Signing {DMG_NAME} with Developer ID...")
-        subprocess.run(["codesign", "--sign", identity, str(DMG_PATH)], check=True)
+        print(f"🔏 Signing {dmg_name} with Developer ID...")
+        subprocess.run(["codesign", "--sign", identity, str(dmg_path)], check=True)
 
-    print(f"🎉 SUCCESS: Generated {DMG_PATH} ({DMG_PATH.stat().st_size / (1024 * 1024):.1f} MB)")
+    print(f"🎉 SUCCESS: Generated {dmg_path} ({dmg_path.stat().st_size / (1024 * 1024):.1f} MB)")
+    return dmg_path
 
 
-def notarize_dmg(keychain_profile: str):
-    print(f"☁️ Submitting {DMG_NAME} to Apple Notary Service (profile: {keychain_profile})...")
-    subprocess.run(
-        [
-            "xcrun",
-            "notarytool",
-            "submit",
-            str(DMG_PATH),
-            "--keychain-profile",
-            keychain_profile,
-            "--wait",
-        ],
-        check=True,
-    )
+def notarize_dmg(dmg_path: Path, keychain_profile: str = None, apple_id: str = None, team_id: str = None, password: str = None):
+    print(f"☁️ Submitting {dmg_path.name} to Apple Notary Service...")
+    cmd = ["xcrun", "notarytool", "submit", str(dmg_path), "--wait"]
+    if keychain_profile:
+        cmd.extend(["--keychain-profile", keychain_profile])
+    elif apple_id and team_id and password:
+        cmd.extend(["--apple-id", apple_id, "--team-id", team_id, "--password", password])
+    else:
+        raise ValueError("Must provide either keychain_profile or apple_id/team_id/password for notarization")
+
+    subprocess.run(cmd, check=True)
     print("📎 Stapling notarization ticket to DMG...")
-    subprocess.run(["xcrun", "stapler", "staple", str(DMG_PATH)], check=True)
+    subprocess.run(["xcrun", "stapler", "staple", str(dmg_path)], check=True)
     print("🎉 Notarization and ticket stapling complete!")
 
 
-def verify_dmg():
-    print(f"🔍 Verifying disk image {DMG_NAME}...")
+def verify_dmg(dmg_path: Path):
+    print(f"🔍 Verifying disk image {dmg_path.name}...")
     mount_point = DIST_DIR / "verify_mount"
     shutil.rmtree(mount_point, ignore_errors=True)
     mount_point.mkdir(exist_ok=True)
@@ -269,7 +317,7 @@ def verify_dmg():
             [
                 "hdiutil",
                 "attach",
-                str(DMG_PATH),
+                str(dmg_path),
                 "-mountpoint",
                 str(mount_point),
                 "-nobrowse",
@@ -309,6 +357,12 @@ def verify_dmg():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Build, Sign, and Notarize VoiceFi macOS DMG")
     parser.add_argument(
+        "--version",
+        type=str,
+        default=None,
+        help="Release version string (defaults to voicefi.__version__)",
+    )
+    parser.add_argument(
         "--sign",
         type=str,
         default=None,
@@ -321,21 +375,48 @@ if __name__ == "__main__":
         help="Keychain profile for notarytool (e.g. 'voicefi-notary')",
     )
     parser.add_argument(
+        "--apple-id",
+        type=str,
+        default=None,
+        help="Apple ID email for notarytool",
+    )
+    parser.add_argument(
+        "--team-id",
+        type=str,
+        default=None,
+        help="Apple Developer Team ID for notarytool",
+    )
+    parser.add_argument(
+        "--password",
+        type=str,
+        default=None,
+        help="App-specific password for notarytool",
+    )
+    parser.add_argument(
         "--skip-app",
         action="store_true",
         help="Skip PyInstaller and rebuild DMG from existing dist/VoiceFi.app",
     )
     args = parser.parse_args()
 
+    ver = get_version(args.version)
+
     if not args.skip_app:
         clean()
-        build_app_bundle()
+        build_app_bundle(version=ver)
         if args.sign:
             sign_app_bundle(args.sign)
 
-    build_dmg(identity=args.sign)
+    dmg_file = build_dmg(version=ver, identity=args.sign)
 
-    if args.notarize:
-        notarize_dmg(args.notarize)
+    if args.notarize or (args.apple_id and args.team_id and args.password):
+        notarize_dmg(
+            dmg_file,
+            keychain_profile=args.notarize,
+            apple_id=args.apple_id,
+            team_id=args.team_id,
+            password=args.password,
+        )
 
-    verify_dmg()
+    verify_dmg(dmg_file)
+

@@ -113,6 +113,10 @@ class FeatureGate:
     PRO_ANNUAL_MONTHLY_EQUIVALENT_USD = 5.75
     TRIAL_DURATION_DAYS = 14
 
+    CHECKOUT_URL_MONTHLY = "https://buy.polar.sh/polar_cl_tuzY4BeC8xUOOBTihmRwU2HPzSdPlG2KHSwSC4RJND7"
+    CHECKOUT_URL_ANNUAL = "https://buy.polar.sh/polar_cl_CUG0WaMQ6H38cmU1hlwnmcyf63Oj9Js4N1myZ34MEcU"
+    UPGRADE_URL = "https://voicefi.org#pricing"
+
     PRO_PROVIDERS = {
         "elevenlabs",
         "openai_realtime",
@@ -323,7 +327,9 @@ class FeatureGate:
                 "annual_special_usd": cls.PRO_ANNUAL_SPECIAL_USD,
                 "annual_monthly_equivalent": cls.PRO_ANNUAL_MONTHLY_EQUIVALENT_USD,
                 "trial_duration_days": cls.TRIAL_DURATION_DAYS,
-                "upgrade_url": "https://voicefi.org#pricing",
+                "upgrade_url": cls.UPGRADE_URL,
+                "checkout_monthly": cls.CHECKOUT_URL_MONTHLY,
+                "checkout_annual": cls.CHECKOUT_URL_ANNUAL,
                 "app_url": "https://voicefi.app",
             },
             "license_valid": pro_active,

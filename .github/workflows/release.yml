@@ -72,9 +72,44 @@ jobs:
           python -m pip install --upgrade pip uv
           uv pip install --system -e ".[dev]" pyinstaller
 
-      - name: Build VoiceFi.app & VoiceFi.dmg
+      - name: Import Apple Developer Certificate (Optional)
+        id: apple-cert
+        if: env.APPLE_CERTIFICATE_BASE64 != ''
+        env:
+          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD || 'voicefi-ci-temp' }}
         run: |
-          python scripts/build_dmg.py
+          KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          CERT_PATH=$RUNNER_TEMP/certificate.p12
+          echo "$APPLE_CERTIFICATE_BASE64" | base64 --decode > "$CERT_PATH"
+          security import "$CERT_PATH" -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | tr -d '"')
+
+          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> $GITHUB_ENV
+          echo "CERT_LOADED=true" >> $GITHUB_OUTPUT
+
+      - name: Build VoiceFi.app & VoiceFi.dmg
+        env:
+          SIGN_IDENTITY: ${{ secrets.DEVELOPER_ID_APPLICATION }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: |
+          BUILD_CMD="python scripts/build_dmg.py"
+          if [ -n "$SIGN_IDENTITY" ]; then
+            BUILD_CMD="$BUILD_CMD --sign \"$SIGN_IDENTITY\""
+          fi
+          if [ -n "$APPLE_ID" ] && [ -n "$APPLE_TEAM_ID" ] && [ -n "$APPLE_APP_SPECIFIC_PASSWORD" ]; then
+            BUILD_CMD="$BUILD_CMD --apple-id \"$APPLE_ID\" --team-id \"$APPLE_TEAM_ID\" --password \"$APPLE_APP_SPECIFIC_PASSWORD\""
+          fi
+          echo "Executing: $BUILD_CMD"
+          eval $BUILD_CMD
 
       - name: Upload DMG to GitHub Release
         uses: softprops/action-gh-release@v2
@@ -82,3 +117,4 @@ jobs:
           files: dist/*.dmg
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
