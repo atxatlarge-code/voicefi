@@ -1408,7 +1408,25 @@ class VoiceFiTrayApp(rumps.App):
                     is_auto_send = getattr(getattr(self.config, "hud", None), "auto_send", True) and getattr(self.config.antigravity, "auto_send", True)
 
                     def _send_action(payload_text: str):
-                        send_message_to_agent(conv_id=conv_id, text=payload_text, sender_name=self.config.user_name)
+                        from voicefi.integrations.injector import get_frontmost_app_name, inject_text_to_active_app
+                        front_app = get_frontmost_app_name().lower()
+                        is_editor_focused = any(k in front_app for k in ("antigravity", "cursor", "code", "windsurf"))
+
+                        if is_editor_focused:
+                            # User is looking directly at an open conversation in Antigravity -> inject into focused tab!
+                            injected = inject_text_to_active_app(
+                                payload_text,
+                                submit_enter=True,
+                                preserve_clipboard=self.config.global_hotkey.preserve_clipboard,
+                            )
+                            if injected:
+                                print(f"[VoiceFi] 🎯 Injected prompt directly into active {front_app} conversation")
+                            else:
+                                send_message_to_agent(conv_id=conv_id, text=payload_text, sender_name=self.config.user_name)
+                        else:
+                            # User is in Chrome / background app -> deliver via zero-focus background agentapi IPC
+                            send_message_to_agent(conv_id=conv_id, text=payload_text, sender_name=self.config.user_name)
+
                         if self.config.audio_cues.enabled:
                             play_chime(self.config.audio_cues.sent_chime, block=False)
                         try:
