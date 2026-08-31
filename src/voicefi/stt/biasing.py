@@ -45,7 +45,13 @@ class ProjectContextExtractor:
         # 3. Top-level files and src directory components
         try:
             for item in self.root_dir.iterdir():
-                if item.name.startswith(".") or item.name in ("venv", "node_modules", "dist", "build", "__pycache__"):
+                if item.name.startswith(".") or item.name in (
+                    "venv",
+                    "node_modules",
+                    "dist",
+                    "build",
+                    "__pycache__",
+                ):
                     continue
                 name_clean = item.stem
                 if len(name_clean) >= 3:
@@ -94,7 +100,19 @@ class ProjectContextExtractor:
             symbols.extend(extra_words)
 
         # Standard technical glossary additions
-        dev_terms = ["pytest", "kubectl", "docker", "git", "PR", "FastAPI", "Next.js", "Whisper", "VAD", "STT", "TTS"]
+        dev_terms = [
+            "pytest",
+            "kubectl",
+            "docker",
+            "git",
+            "PR",
+            "FastAPI",
+            "Next.js",
+            "Whisper",
+            "VAD",
+            "STT",
+            "TTS",
+        ]
         all_terms = list(dict.fromkeys(dev_terms + symbols))
         prompt = f"Technical context and developer vocabulary: {', '.join(all_terms)}."
 
@@ -167,6 +185,7 @@ class PhoneticNormalizer:
         # 4. Apply recursive self-learned phonetic memory & project symbols
         try:
             from voicefi.learning.phonetic import PhoneticLearner
+
             result = PhoneticLearner.get_instance().normalize_stt(result)
         except Exception:
             pass
@@ -180,7 +199,7 @@ class PhoneticNormalizer:
             return ""
 
         # Collapse consecutive identical single words: "word word word" -> "word"
-        text = re.sub(r'\b([A-Za-z0-9_-]+)(?:\s+\1\b)+', r'\1', text, flags=re.IGNORECASE)
+        text = re.sub(r"\b([A-Za-z0-9_-]+)(?:\s+\1\b)+", r"\1", text, flags=re.IGNORECASE)
 
         # Collapse consecutive multi-word phrases (2 to 5 words)
         words = text.split()
@@ -194,7 +213,10 @@ class PhoneticNormalizer:
             for phrase_len in range(min(5, n // 2), 1, -1):
                 for i in range(n - 2 * phrase_len + 1):
                     p1 = [w.lower().strip(".,!?;:") for w in words[i : i + phrase_len]]
-                    p2 = [w.lower().strip(".,!?;:") for w in words[i + phrase_len : i + 2 * phrase_len]]
+                    p2 = [
+                        w.lower().strip(".,!?;:")
+                        for w in words[i + phrase_len : i + 2 * phrase_len]
+                    ]
                     if p1 == p2:
                         words = words[: i + phrase_len] + words[i + 2 * phrase_len :]
                         changed = True
@@ -207,14 +229,16 @@ class PhoneticNormalizer:
     @staticmethod
     def _apply_casing_directives(text: str) -> str:
         """Convert spoken case directives (camel case, snake case, kebab case)."""
-        stop_pattern = r"(?:\b(?:to|as|equal|equals|is|with|for|returns|return|in|and|of|from)\b|[.,!?;:]|$)"
+        stop_pattern = (
+            r"(?:\b(?:to|as|equal|equals|is|with|for|returns|return|in|and|of|from)\b|[.,!?;:]|$)"
+        )
 
         def _process_casing(raw_target: str, transform_fn: Callable[[List[str]], str]) -> str:
             # Check if there is a stop word or trailing clause
             match_stop = re.search(rf"(\s+{stop_pattern})", raw_target, flags=re.IGNORECASE)
             if match_stop:
-                target_str = raw_target[:match_stop.start()].strip()
-                remainder = raw_target[match_stop.start():]
+                target_str = raw_target[: match_stop.start()].strip()
+                remainder = raw_target[match_stop.start() :]
             else:
                 words = raw_target.strip().split()
                 # Limit target identifier to first 4 words max
@@ -233,23 +257,32 @@ class PhoneticNormalizer:
         def _to_camel(match):
             return _process_casing(
                 match.group(1),
-                lambda words: words[0].lower() + "".join(w.capitalize() for w in words[1:])
+                lambda words: words[0].lower() + "".join(w.capitalize() for w in words[1:]),
             )
 
         def _to_snake(match):
-            return _process_casing(
-                match.group(1),
-                lambda words: "_".join(w.lower() for w in words)
-            )
+            return _process_casing(match.group(1), lambda words: "_".join(w.lower() for w in words))
 
         def _to_kebab(match):
-            return _process_casing(
-                match.group(1),
-                lambda words: "-".join(w.lower() for w in words)
-            )
+            return _process_casing(match.group(1), lambda words: "-".join(w.lower() for w in words))
 
-        text = re.sub(r"\bcamel[_\s]*case\s+([a-zA-Z0-9\s.,!?;:]+?)(?=\b(?:camel|snake|kebab)[_\s]*case\b|$)", _to_camel, text, flags=re.IGNORECASE)
-        text = re.sub(r"\bsnake[_\s]*case\s+([a-zA-Z0-9\s.,!?;:]+?)(?=\b(?:camel|snake|kebab)[_\s]*case\b|$)", _to_snake, text, flags=re.IGNORECASE)
-        text = re.sub(r"\bkebab[_\s]*case\s+([a-zA-Z0-9\s.,!?;:]+?)(?=\b(?:camel|snake|kebab)[_\s]*case\b|$)", _to_kebab, text, flags=re.IGNORECASE)
+        text = re.sub(
+            r"\bcamel[_\s]*case\s+([a-zA-Z0-9\s.,!?;:]+?)(?=\b(?:camel|snake|kebab)[_\s]*case\b|$)",
+            _to_camel,
+            text,
+            flags=re.IGNORECASE,
+        )
+        text = re.sub(
+            r"\bsnake[_\s]*case\s+([a-zA-Z0-9\s.,!?;:]+?)(?=\b(?:camel|snake|kebab)[_\s]*case\b|$)",
+            _to_snake,
+            text,
+            flags=re.IGNORECASE,
+        )
+        text = re.sub(
+            r"\bkebab[_\s]*case\s+([a-zA-Z0-9\s.,!?;:]+?)(?=\b(?:camel|snake|kebab)[_\s]*case\b|$)",
+            _to_kebab,
+            text,
+            flags=re.IGNORECASE,
+        )
 
         return text

@@ -57,6 +57,7 @@ try:
     from Foundation import NSURL
     import objc
     from PyObjCTools import AppHelper
+
     HAS_APPKIT = True
 except Exception:
     HAS_APPKIT = False
@@ -77,6 +78,7 @@ if HAS_APPKIT:
     try:
         QuickControlsActionTarget = objc.lookUpClass("QuickControlsActionTarget")
     except objc.nosuchclass_error:
+
         class QuickControlsActionTarget(objc.lookUpClass("NSObject")):
             def initWithCallback_(self, callback):
                 self = objc.super(QuickControlsActionTarget, self).init()
@@ -172,7 +174,9 @@ class HUDQuickControlsPanel:
             NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 1.0, 1.0, 0.22).CGColor()
         )
 
-        def _make_lbl(text, x, y, width, height, font_size=11.5, bold=False, alpha=0.95, color=None):
+        def _make_lbl(
+            text, x, y, width, height, font_size=11.5, bold=False, alpha=0.95, color=None
+        ):
             lbl = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(x, y), NSSize(width, height)))
             lbl.setStringValue_(text)
             if bold:
@@ -211,7 +215,15 @@ class HUDQuickControlsPanel:
         # 2. ⚡ ProActive Listening
         # ---------------------------------------------------------------------
         _make_lbl("⚡ ProActive Listening", 18, cur_y + 12, 230, 18, font_size=11.5, bold=True)
-        _make_lbl("↳ Hands-free turn handoff when agent finishes speaking", 18, cur_y - 6, 290, 16, font_size=9.5, alpha=0.65)
+        _make_lbl(
+            "↳ Hands-free turn handoff when agent finishes speaking",
+            18,
+            cur_y - 6,
+            290,
+            16,
+            font_size=9.5,
+            alpha=0.65,
+        )
 
         self.seg_proactive = NSSegmentedControl.alloc().initWithFrame_(
             NSRect(NSPoint(310, cur_y), NSSize(152, 24))
@@ -236,7 +248,15 @@ class HUDQuickControlsPanel:
         # 3. ✋ Active Barge-In
         # ---------------------------------------------------------------------
         _make_lbl("✋ Active Barge-In", 18, cur_y + 12, 230, 18, font_size=11.5, bold=True)
-        _make_lbl("↳ Speak over the agent to interrupt immediately", 18, cur_y - 6, 290, 16, font_size=9.5, alpha=0.65)
+        _make_lbl(
+            "↳ Speak over the agent to interrupt immediately",
+            18,
+            cur_y - 6,
+            290,
+            16,
+            font_size=9.5,
+            alpha=0.65,
+        )
 
         self.seg_barge_in = NSSegmentedControl.alloc().initWithFrame_(
             NSRect(NSPoint(290, cur_y), NSSize(172, 24))
@@ -263,7 +283,15 @@ class HUDQuickControlsPanel:
         # 4. ⏱️ Pause Delay (Fibonacci Scale: 1s, 2s, 3s, 5s, 8s, 11s)
         # ---------------------------------------------------------------------
         _make_lbl("⏱️ Pause Delay", 18, cur_y + 12, 200, 18, font_size=11.5, bold=True)
-        _make_lbl("↳ Silence duration before finalizing prompt", 18, cur_y - 6, 240, 16, font_size=9.5, alpha=0.65)
+        _make_lbl(
+            "↳ Silence duration before finalizing prompt",
+            18,
+            cur_y - 6,
+            240,
+            16,
+            font_size=9.5,
+            alpha=0.65,
+        )
 
         self.seg_pause_delay = NSSegmentedControl.alloc().initWithFrame_(
             NSRect(NSPoint(220, cur_y), NSSize(242, 24))
@@ -293,7 +321,15 @@ class HUDQuickControlsPanel:
         # 5. 🚀 Auto-Send Mode
         # ---------------------------------------------------------------------
         _make_lbl("🚀 Auto-Send Mode", 18, cur_y + 12, 220, 18, font_size=11.5, bold=True)
-        _make_lbl("↳ Instant dispatch vs. review & edit capsule before sending", 18, cur_y - 6, 290, 16, font_size=9.5, alpha=0.65)
+        _make_lbl(
+            "↳ Instant dispatch vs. review & edit capsule before sending",
+            18,
+            cur_y - 6,
+            290,
+            16,
+            font_size=9.5,
+            alpha=0.65,
+        )
 
         self.seg_auto_send = NSSegmentedControl.alloc().initWithFrame_(
             NSRect(NSPoint(290, cur_y), NSSize(172, 24))
@@ -318,7 +354,15 @@ class HUDQuickControlsPanel:
         # 6. 🔊 Spoken Summaries
         # ---------------------------------------------------------------------
         _make_lbl("🔊 Spoken Summaries", 18, cur_y + 12, 230, 18, font_size=11.5, bold=True)
-        _make_lbl("↳ Agent speaks audible soundbites (Mute keeps visual HUD)", 18, cur_y - 6, 290, 16, font_size=9.5, alpha=0.65)
+        _make_lbl(
+            "↳ Agent speaks audible soundbites (Mute keeps visual HUD)",
+            18,
+            cur_y - 6,
+            290,
+            16,
+            font_size=9.5,
+            alpha=0.65,
+        )
 
         self.seg_spoken_summaries = NSSegmentedControl.alloc().initWithFrame_(
             NSRect(NSPoint(310, cur_y), NSSize(152, 24))
@@ -331,7 +375,9 @@ class HUDQuickControlsPanel:
         cur_spoken = getattr(getattr(self.config, "antigravity", None), "read_summary_aloud", True)
         self.seg_spoken_summaries.setSelectedSegment_(0 if cur_spoken else 1)
 
-        t_spoken = QuickControlsActionTarget.alloc().initWithCallback_(self._on_spoken_summaries_toggle)
+        t_spoken = QuickControlsActionTarget.alloc().initWithCallback_(
+            self._on_spoken_summaries_toggle
+        )
         self._targets.append(t_spoken)
         self.seg_spoken_summaries.setTarget_(t_spoken)
         self.seg_spoken_summaries.setAction_("actionHandler:")
@@ -343,7 +389,15 @@ class HUDQuickControlsPanel:
         # 7. 🎭 Voice Persona Dropdown
         # ---------------------------------------------------------------------
         _make_lbl("🎭 Voice Persona", 18, cur_y + 12, 230, 18, font_size=11.5, bold=True)
-        _make_lbl("↳ Agent acoustic persona / local offline vs. cloud voices", 18, cur_y - 6, 260, 16, font_size=9.5, alpha=0.65)
+        _make_lbl(
+            "↳ Agent acoustic persona / local offline vs. cloud voices",
+            18,
+            cur_y - 6,
+            260,
+            16,
+            font_size=9.5,
+            alpha=0.65,
+        )
 
         self.popup_persona = NSPopUpButton.alloc().initWithFrame_pullsDown_(
             NSRect(NSPoint(260, cur_y), NSSize(202, 24)), False
@@ -372,7 +426,15 @@ class HUDQuickControlsPanel:
         # 8. 🎚️ Mic & VAD Sensitivity + Calibrate
         # ---------------------------------------------------------------------
         _make_lbl("🎚️ Mic & VAD Sensitivity", 18, cur_y + 12, 230, 18, font_size=11.5, bold=True)
-        _make_lbl("↳ 1-click ambient noise sample for room adaptation", 18, cur_y - 6, 260, 16, font_size=9.5, alpha=0.65)
+        _make_lbl(
+            "↳ 1-click ambient noise sample for room adaptation",
+            18,
+            cur_y - 6,
+            260,
+            16,
+            font_size=9.5,
+            alpha=0.65,
+        )
 
         btn_cal = NSButton.alloc().initWithFrame_(NSRect(NSPoint(280, cur_y), NSSize(110, 24)))
         btn_cal.setTitle_("Calibrate 🎯")
@@ -384,8 +446,14 @@ class HUDQuickControlsPanel:
         root_view.addSubview_(btn_cal)
 
         self.lbl_mic_level = _make_lbl(
-            "||||| 58%", 396, cur_y + 2, 70, 20, font_size=11, bold=True,
-            color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.3, 0.9, 0.7, 0.95)
+            "||||| 58%",
+            396,
+            cur_y + 2,
+            70,
+            20,
+            font_size=11,
+            bold=True,
+            color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.3, 0.9, 0.7, 0.95),
         )
 
         cur_y -= 45
@@ -402,7 +470,9 @@ class HUDQuickControlsPanel:
         root_view.addSubview_(sep)
 
         # Persistent HUD Button
-        self.btn_persistent = NSButton.alloc().initWithFrame_(NSRect(NSPoint(14, cur_y + 4), NSSize(100, 24)))
+        self.btn_persistent = NSButton.alloc().initWithFrame_(
+            NSRect(NSPoint(14, cur_y + 4), NSSize(100, 24))
+        )
         is_pers = getattr(getattr(self.config, "hud", None), "persistent", True)
         self.btn_persistent.setTitle_(f"📌 HUD: {'ON' if is_pers else 'OFF'}")
         self.btn_persistent.setBezelStyle_(NSBezelStyleRounded)
@@ -413,7 +483,9 @@ class HUDQuickControlsPanel:
         root_view.addSubview_(self.btn_persistent)
 
         # Fullscreen Overlay Button
-        self.btn_fullscreen = NSButton.alloc().initWithFrame_(NSRect(NSPoint(118, cur_y + 4), NSSize(110, 24)))
+        self.btn_fullscreen = NSButton.alloc().initWithFrame_(
+            NSRect(NSPoint(118, cur_y + 4), NSSize(110, 24))
+        )
         is_fs = getattr(getattr(self.config, "hud", None), "fullscreen_overlay", True)
         self.btn_fullscreen.setTitle_(f"🎮 Overlay: {'ON' if is_fs else 'OFF'}")
         self.btn_fullscreen.setBezelStyle_(NSBezelStyleRounded)
@@ -434,7 +506,9 @@ class HUDQuickControlsPanel:
         root_view.addSubview_(btn_reset)
 
         # Web Panel Button
-        btn_panel = NSButton.alloc().initWithFrame_(NSRect(NSPoint(326, cur_y + 4), NSSize(140, 24)))
+        btn_panel = NSButton.alloc().initWithFrame_(
+            NSRect(NSPoint(326, cur_y + 4), NSSize(140, 24))
+        )
         btn_panel.setTitle_("🎛️ Control Panel...")
         btn_panel.setBezelStyle_(NSBezelStyleRounded)
         t_panel = QuickControlsActionTarget.alloc().initWithCallback_(self._on_open_control_panel)
@@ -451,10 +525,11 @@ class HUDQuickControlsPanel:
 
     def _on_proactive_toggle(self, sender):
         idx = sender.selectedSegment()
-        enabled = (idx == 0)
+        enabled = idx == 0
         self.config = load_config()
         if not hasattr(self.config, "proactive") or self.config.proactive is None:
             from voicefi.config import ProActiveConfig
+
             self.config.proactive = ProActiveConfig()
         self.config.proactive.feedback_loop.enabled = enabled
         if hasattr(self.config, "antigravity"):
@@ -483,7 +558,7 @@ class HUDQuickControlsPanel:
 
     def _on_auto_send_toggle(self, sender):
         idx = sender.selectedSegment()
-        auto_send = (idx == 0)
+        auto_send = idx == 0
         self.config = load_config()
         if hasattr(self.config, "hud") and self.config.hud:
             self.config.hud.auto_send = auto_send
@@ -492,6 +567,7 @@ class HUDQuickControlsPanel:
         save_config(self.config)
         try:
             from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
+
             UnifiedDynamicIslandHUD.get_instance().set_auto_send(auto_send)
         except Exception:
             pass
@@ -499,7 +575,7 @@ class HUDQuickControlsPanel:
 
     def _on_spoken_summaries_toggle(self, sender):
         idx = sender.selectedSegment()
-        spoken = (idx == 0)
+        spoken = idx == 0
         self.config = load_config()
         if hasattr(self.config, "antigravity"):
             self.config.antigravity.read_summary_aloud = spoken
@@ -535,17 +611,22 @@ class HUDQuickControlsPanel:
             self.lbl_mic_level.setStringValue_("Sampling...")
         try:
             from voicefi.troubleshoot import AudioTroubleshooter
+
             t = AudioTroubleshooter(self.config)
+
             def _cal():
                 res = t.test_microphone_loopback(duration_seconds=1.5, play_back=False)
                 if res.success:
                     suggested = max(min(res.rms_energy * 1.5, 0.02), 0.002)
+
                     def _update_ui():
                         self.config.vad.energy_threshold = round(suggested, 4)
                         save_config(self.config)
                         if self.lbl_mic_level:
                             self.lbl_mic_level.setStringValue_(f"RMS: {suggested:.4f}")
+
                     AppHelper.callAfter(_update_ui)
+
             threading.Thread(target=_cal, daemon=True).start()
         except Exception:
             pass
@@ -561,6 +642,7 @@ class HUDQuickControlsPanel:
             self.btn_persistent.setTitle_(f"📌 HUD: {'ON' if new_val else 'OFF'}")
         try:
             from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
+
             UnifiedDynamicIslandHUD.get_instance().set_persistent(new_val)
         except Exception:
             pass
@@ -576,6 +658,7 @@ class HUDQuickControlsPanel:
             self.btn_fullscreen.setTitle_(f"🎮 Overlay: {'ON' if new_val else 'OFF'}")
         try:
             from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
+
             UnifiedDynamicIslandHUD.get_instance().set_fullscreen_overlay(new_val)
         except Exception:
             pass
@@ -583,6 +666,7 @@ class HUDQuickControlsPanel:
     def _on_reset_position(self, sender):
         try:
             from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
+
             hud = UnifiedDynamicIslandHUD.get_instance()
             hud.reset_position()
             if self._panel and hud._panel:
@@ -611,7 +695,9 @@ class HUDQuickControlsPanel:
         try:
             self.config = load_config()
             if self.seg_proactive:
-                is_proactive = getattr(getattr(self.config, "proactive", None), "feedback_loop", None)
+                is_proactive = getattr(
+                    getattr(self.config, "proactive", None), "feedback_loop", None
+                )
                 is_on = getattr(is_proactive, "enabled", True) if is_proactive else True
                 self.seg_proactive.setSelectedSegment_(0 if is_on else 1)
 
@@ -636,7 +722,9 @@ class HUDQuickControlsPanel:
                 self.seg_auto_send.setSelectedSegment_(0 if cur_auto_send else 1)
 
             if self.seg_spoken_summaries:
-                ag_spoken = getattr(getattr(self.config, "antigravity", None), "read_summary_aloud", True)
+                ag_spoken = getattr(
+                    getattr(self.config, "antigravity", None), "read_summary_aloud", True
+                )
                 self.seg_spoken_summaries.setSelectedSegment_(0 if ag_spoken else 1)
 
             if self.btn_persistent:
@@ -663,7 +751,10 @@ class HUDQuickControlsPanel:
         def _do_show():
             self._refresh_values_from_config()
             if relative_to_rect:
-                x = relative_to_rect.origin.x + (relative_to_rect.size.width - self.PANEL_WIDTH) / 2.0
+                x = (
+                    relative_to_rect.origin.x
+                    + (relative_to_rect.size.width - self.PANEL_WIDTH) / 2.0
+                )
                 y = relative_to_rect.origin.y - self.PANEL_HEIGHT - 10.0
                 if y < 20.0:
                     y = relative_to_rect.origin.y + relative_to_rect.size.height + 10.0

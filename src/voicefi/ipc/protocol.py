@@ -137,6 +137,7 @@ def build_signal_interrupt_event(
 ) -> Dict[str, Any]:
     """Construct a vifi.signal.interrupt notification payload."""
     import time
+
     return {
         "jsonrpc": "2.0",
         "method": METHOD_SIGNAL_INTERRUPT,

@@ -262,9 +262,11 @@ When running `vifi listen` in the terminal, the user sees a simple text status l
    - Implement an RMS-to-block character mapper:
      ```python
      BARS = [" ", " ", "▂", "▃", "▄", "▅", "▆", "▇", "█"]
+
+
      def render_energy_meter(rms: float, max_bars: int = 15) -> str:
          level = min(int(rms * 100), max_bars)
-         return "".join(BARS[min(i, len(BARS)-1)] for i in range(level))
+         return "".join(BARS[min(i, len(BARS) - 1)] for i in range(level))
      ```
 2. **Hook into Recorder Callback**:
    - Pass an `on_energy_tick` callback to `AudioRecorder.listen()` in `cmd_listen()`.

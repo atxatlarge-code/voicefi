@@ -10,11 +10,14 @@ def get_default_audio_devices() -> Tuple[Optional[Dict[str, Any]], Optional[Dict
     """Retrieve default (input_device, output_device) metadata from sounddevice."""
     try:
         import sounddevice as sd
+
         devices = sd.query_devices()
         in_idx, out_idx = sd.default.device
-        
+
         in_dev = devices[in_idx] if (in_idx is not None and 0 <= in_idx < len(devices)) else None
-        out_dev = devices[out_idx] if (out_idx is not None and 0 <= out_idx < len(devices)) else None
+        out_dev = (
+            devices[out_idx] if (out_idx is not None and 0 <= out_idx < len(devices)) else None
+        )
         return in_dev, out_dev
     except Exception:
         return None, None
@@ -34,16 +37,22 @@ def is_using_builtin_speakers() -> bool:
 
         # Check for headphone/external overrides first
         headphone_markers = (
-            "headphone", "headset", "airpod", "buds", "ear",
-            "bluetooth", "wireless", "external", "dongle", "dac"
+            "headphone",
+            "headset",
+            "airpod",
+            "buds",
+            "ear",
+            "bluetooth",
+            "wireless",
+            "external",
+            "dongle",
+            "dac",
         )
         if any(marker in out_name for marker in headphone_markers):
             return False
 
         # Check for built-in laptop speaker markers
-        speaker_markers = (
-            "speaker", "built-in output", "internal", "macbook", "imac", "mac mini"
-        )
+        speaker_markers = ("speaker", "built-in output", "internal", "macbook", "imac", "mac mini")
         return any(marker in out_name for marker in speaker_markers)
     except Exception:
         return False
@@ -61,8 +70,13 @@ def is_headphone_or_headset_active() -> bool:
 
         out_name = str(out_dev.get("name", "")).lower()
         headphone_markers = (
-            "headphone", "headset", "airpod", "buds", "ear",
-            "bluetooth", "wireless"
+            "headphone",
+            "headset",
+            "airpod",
+            "buds",
+            "ear",
+            "bluetooth",
+            "wireless",
         )
         if any(marker in out_name for marker in headphone_markers):
             return True
@@ -80,6 +94,7 @@ def get_audio_device_profile() -> Dict[str, Any]:
     headphones = is_headphone_or_headset_active()
     try:
         from voicefi.audio.native_vpio import is_vpio_supported
+
         hardware_aec = is_vpio_supported()
     except Exception:
         hardware_aec = False
@@ -90,6 +105,8 @@ def get_audio_device_profile() -> Dict[str, Any]:
         "is_builtin_speakers": builtin_spk,
         "is_headphones_active": headphones,
         "hardware_aec_supported": hardware_aec,
-        "hardware_aec_backend": "Apple AUVoiceProcessing (VoiceProcessingIO)" if hardware_aec else "None",
+        "hardware_aec_backend": "Apple AUVoiceProcessing (VoiceProcessingIO)"
+        if hardware_aec
+        else "None",
         "acoustic_safe_mode_recommended": builtin_spk and not headphones and not hardware_aec,
     }

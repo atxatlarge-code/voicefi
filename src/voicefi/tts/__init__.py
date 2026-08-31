@@ -52,15 +52,23 @@ def get_tts_engine(
     voice_override: Optional[str] = None,
     provider_override: Optional[str] = None,
     rate_override: Optional[any] = None,
+    speed_override: Optional[any] = None,
     is_focused: bool = True,
+    project_name: Optional[str] = None,
+    workspace_path: Optional[str] = None,
 ) -> BaseTTS:
     """
     Instantiate the configured TTS engine.
-    Supports agent-specific voice resolution, custom cloned voices, dynamic overrides,
-    and distinct acoustic persona for unfocused/background agents.
+    Supports agent-specific voice resolution, project-level overrides, custom cloned voices, dynamic overrides,
+    speed talking multipliers, and distinct acoustic persona for unfocused/background agents.
     """
-    # 1. Resolve base provider, voice, rate from agent profile or global config
-    provider, voice, rate = config.resolve_voice(agent_name, is_focused=is_focused)
+    # 1. Resolve base provider, voice, rate from agent profile, project profile, or global config
+    provider, voice, rate = config.resolve_voice(
+        agent_name,
+        is_focused=is_focused,
+        project_name=project_name,
+        workspace_path=workspace_path,
+    )
 
     # 2. Apply manual overrides if provided
     if provider_override:
@@ -72,13 +80,26 @@ def get_tts_engine(
             voice = persona.id
             if not provider_override:
                 provider = persona.provider
-    if rate_override is not None:
-        rate = rate_override
+    if speed_override is not None:
+        from voicefi.audio.speed_talk import resolve_speed_multiplier, multiplier_to_wpm
+        mult = resolve_speed_multiplier(speed_override)
+        rate = multiplier_to_wpm(mult)
+    elif rate_override is not None:
+        from voicefi.audio.speed_talk import resolve_speed_multiplier, multiplier_to_wpm, SPEED_PRESETS
+        if isinstance(rate_override, str) and (
+            rate_override.lower().strip() in SPEED_PRESETS
+            or rate_override.lower().strip().endswith("x")
+        ):
+            mult = resolve_speed_multiplier(rate_override)
+            rate = multiplier_to_wpm(mult)
+        else:
+            rate = rate_override
 
     # 3. Resolve cloned voice profiles
     clone_prof = None
     try:
         from voicefi.tts.cloning import VoiceCloneManager
+
         clone_prof = VoiceCloneManager().get_cloned_voice(voice)
         if clone_prof:
             provider = clone_prof.provider
@@ -96,10 +117,14 @@ def get_tts_engine(
     provider = provider.lower()
 
     # If edge_tts provider is selected but voice is a mac_say voice, switch to Edge default (AvaNeural)
-    if provider == "edge_tts" and (voice in ("Samantha", "Ava (Premium)", "Ava (Enhanced)", "Nathan (Enhanced)", "Alex") or not voice):
+    if provider == "edge_tts" and (
+        voice in ("Samantha", "Ava (Premium)", "Ava (Enhanced)", "Nathan (Enhanced)", "Alex")
+        or not voice
+    ):
         voice = "en-US-AvaNeural"
     elif provider == "mac_say" and ("Neural" in str(voice) or not voice):
         from voicefi.tts.offline import is_voice_installed
+
         target_offline = None
         if agent_name:
             key = agent_name.lower().strip()
@@ -142,9 +167,8 @@ def get_tts_engine(
             voice_id=resolved_voice_id,
         )
     elif provider in ("gemini", "gemini_live"):
-        resolved_key = (
-            getattr(getattr(config, "gemini", None), "api_key", None)
-            or getattr(config.tts, "gemini_api_key", None)
+        resolved_key = getattr(getattr(config, "gemini", None), "api_key", None) or getattr(
+            config.tts, "gemini_api_key", None
         )
         live_model = (
             getattr(getattr(config, "gemini", None), "live_model", "gemini-2.0-flash-exp")
@@ -185,6 +209,17 @@ def get_tts_engine(
     return eng
 
 
+from voicefi.audio.speed_talk import (
+    SPEED_PRESETS,
+    resolve_speed_multiplier,
+    multiplier_to_wpm,
+    multiplier_to_edge_rate,
+    calculate_time_saved,
+    accelerate_audio,
+    compress_speech_silence,
+    dynamic_ramp_audio,
+)
+
 __all__ = [
     "BaseTTS",
     "MacSayTTS",
@@ -192,7 +227,6 @@ __all__ = [
     "ElevenLabsTTS",
     "F5TTS",
     "GeminiTTS",
-
     "normalize_edge_rate",
     "normalize_mac_rate",
     "VoicePersona",
@@ -222,6 +256,12 @@ __all__ = [
     "analyze_audio_acoustics",
     "generate_persona_prompt",
     "TRAINING_PROMPTS",
+    "SPEED_PRESETS",
+    "resolve_speed_multiplier",
+    "multiplier_to_wpm",
+    "multiplier_to_edge_rate",
+    "calculate_time_saved",
+    "accelerate_audio",
+    "compress_speech_silence",
+    "dynamic_ramp_audio",
 ]
-
-

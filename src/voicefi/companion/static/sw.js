@@ -1,5 +1,5 @@
 // Service Worker for VoiceFi Mobile Companion PWA
-const CACHE_NAME = 'voicefi-companion-v12';
+const CACHE_NAME = 'voicefi-companion-v13';
 const ASSETS_TO_CACHE = [
   '/',
   '/manifest.json',

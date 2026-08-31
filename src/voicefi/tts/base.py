@@ -12,10 +12,18 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 
 SPEECH_LOCK_FILE = Path(os.environ.get("VOICEFI_SPEECH_LOCK", "/tmp/voicefi_speech.lock"))
-AGENT_SPEAKING_STATUS_FILE = Path(os.environ.get("VOICEFI_SPEAKING_STATUS", "/tmp/voicefi_speaking.status"))
-AUDIO_PLAYING_STATUS_FILE = Path(os.environ.get("VOICEFI_AUDIO_PLAYING_STATUS", "/tmp/voicefi_audio_playing.status"))
-HUD_STATE_STATUS_FILE = Path(os.environ.get("VOICEFI_HUD_STATE_STATUS", "/tmp/voicefi_hud_state.json"))
-RECENT_SPEECH_FILE = Path(os.environ.get("VOICEFI_RECENT_SPEECH", "/tmp/voicefi_recent_speech.json"))
+AGENT_SPEAKING_STATUS_FILE = Path(
+    os.environ.get("VOICEFI_SPEAKING_STATUS", "/tmp/voicefi_speaking.status")
+)
+AUDIO_PLAYING_STATUS_FILE = Path(
+    os.environ.get("VOICEFI_AUDIO_PLAYING_STATUS", "/tmp/voicefi_audio_playing.status")
+)
+HUD_STATE_STATUS_FILE = Path(
+    os.environ.get("VOICEFI_HUD_STATE_STATUS", "/tmp/voicefi_hud_state.json")
+)
+RECENT_SPEECH_FILE = Path(
+    os.environ.get("VOICEFI_RECENT_SPEECH", "/tmp/voicefi_recent_speech.json")
+)
 _THREAD_LOCK = threading.RLock()
 _IN_PROCESS_SPEAKING = False
 _IN_PROCESS_AUDIO_PLAYING = False
@@ -24,6 +32,7 @@ _ACTIVE_TTS_ENGINES: weakref.WeakSet = weakref.WeakSet()
 
 class DuplicateSpeechSuppressed(Exception):
     """Raised when speech is suppressed because the exact text was recently spoken."""
+
     pass
 
 
@@ -173,6 +182,7 @@ def set_agent_speaking(
     if text and speaking:
         try:
             from voicefi.audio.echo_canceller import record_agent_spoken
+
             record_agent_spoken(text)
         except Exception:
             pass
@@ -327,16 +337,21 @@ def is_system_audio_playing() -> bool:
 
     try:
         from voicefi.audio.output_lock import is_audio_output_locked
+
         if is_audio_output_locked():
             return True
     except Exception:
         pass
 
     try:
-        res_af = subprocess.run(["pgrep", "-x", "afplay"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        res_af = subprocess.run(
+            ["pgrep", "-x", "afplay"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        )
         if res_af.returncode == 0:
             return True
-        res_say = subprocess.run(["pgrep", "-x", "say"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        res_say = subprocess.run(
+            ["pgrep", "-x", "say"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        )
         return res_say.returncode == 0
     except Exception:
         return False
@@ -351,6 +366,7 @@ def is_escape_key(key: Any) -> bool:
         return False
     try:
         from pynput.keyboard import Key
+
         if key == Key.esc:
             return True
     except Exception:
@@ -382,15 +398,19 @@ def is_speech_interrupted(turn_start_time: float = 0.0) -> bool:
     Check if speech playback has been interrupted, stopped, or cancelled across any thread or process.
     """
     global _IN_PROCESS_SPEAKING
-    if not _IN_PROCESS_SPEAKING:
+    stop_time = get_last_speech_stop_time()
+    now = time.time()
+
+    # If a stop was triggered within the last 3.0 seconds across any process, speech is interrupted
+    if stop_time > 0 and (now - stop_time) < 3.0:
         return True
-    if turn_start_time > 0:
-        stop_time = get_last_speech_stop_time()
-        if stop_time >= turn_start_time:
-            return True
-    if not AGENT_SPEAKING_STATUS_FILE.is_file():
+
+    if turn_start_time > 0 and stop_time >= turn_start_time:
         return True
+
     return False
+
+
 
 
 _LOCK_DEPTH = 0
@@ -416,6 +436,7 @@ def escape_to_stop_speech():
                     stop_all_speech()
                     try:
                         from voicefi.telemetry import capture_barge_in_event
+
                         capture_barge_in_event(device_type="keyboard_esc", is_full_duplex=False)
                     except Exception:
                         pass
@@ -472,14 +493,16 @@ def speech_turn_lock(
 
             # Check if this exact speech was already delivered by another process while waiting for lock
             if text and is_duplicate_speech(text, window_seconds=6.0):
-                print(f"[TTS] 🛡️ Suppressed duplicate speech: \"{text[:40]}...\" (already spoken within 6.0s)")
+                print(
+                    f'[TTS] 🛡️ Suppressed duplicate speech: "{text[:40]}..." (already spoken within 6.0s)'
+                )
                 raise DuplicateSpeechSuppressed(f"Duplicate speech: {text[:30]}")
 
             if text:
                 record_recent_speech(text)
 
             set_agent_speaking(True, text=text, agent_name=agent_name, persona_name=persona_name)
-            
+
             # If any previous audio is still playing out of speakers, wait until total silence
             max_wait = 150  # up to 15s
             while is_system_audio_playing() and max_wait > 0:
@@ -508,7 +531,6 @@ def speech_turn_lock(
             _LOCK_DEPTH -= 1
 
 
-
 # Legacy alias
 SPEECH_LOCK = _THREAD_LOCK
 
@@ -523,7 +545,7 @@ class BaseTTS(ABC):
     def speak(self, text: str, block: bool = True) -> None:
         """
         Synthesize and speak the provided text aloud.
-        
+
         Args:
             text: Text to speak.
             block: Whether to wait for audio playback to complete before returning.
@@ -553,6 +575,8 @@ class BaseTTS(ABC):
         """
         Asynchronously synthesize speech directly to an audio file without playing.
         """
+
+
 _LAST_SPEECH_STOP_FILE = Path("/tmp/voicefi_last_speech_stop.ts")
 
 
@@ -574,53 +598,83 @@ def get_last_speech_stop_time() -> float:
     return 0.0
 
 
-def stop_all_speech() -> None:
+_STOPPING_ALL_SPEECH = False
+
+
+def stop_all_speech(broadcast_web: bool = True) -> None:
     """
     Instantly stop any active speech synthesis and audio playback on macOS.
     Kills any running 'say' or 'afplay' processes, stops all registered TTS engines, and releases audio lock.
     """
-    record_speech_stopped()
-    set_agent_speaking(False)
-    set_agent_audio_playing(False)
-    try:
-        from voicefi.audio.output_lock import force_release_audio_lock
-        force_release_audio_lock()
-    except Exception:
-        pass
-    try:
-        AGENT_SPEAKING_STATUS_FILE.unlink(missing_ok=True)
-        AUDIO_PLAYING_STATUS_FILE.unlink(missing_ok=True)
-        HUD_STATE_STATUS_FILE.unlink(missing_ok=True)
-    except Exception:
-        pass
+    global _STOPPING_ALL_SPEECH
+    if _STOPPING_ALL_SPEECH:
+        return
 
-    for engine in list(_ACTIVE_TTS_ENGINES):
+    _STOPPING_ALL_SPEECH = True
+    try:
+        record_speech_stopped()
+        set_agent_speaking(False)
+        set_agent_audio_playing(False)
         try:
-            engine.stop()
+            from voicefi.audio.output_lock import force_release_audio_lock
+
+            force_release_audio_lock()
+        except Exception:
+            pass
+        try:
+            AGENT_SPEAKING_STATUS_FILE.unlink(missing_ok=True)
+            AUDIO_PLAYING_STATUS_FILE.unlink(missing_ok=True)
+            HUD_STATE_STATUS_FILE.unlink(missing_ok=True)
         except Exception:
             pass
 
-    if not os.environ.get("PYTEST_CURRENT_TEST"):
+        for engine in list(_ACTIVE_TTS_ENGINES):
+            try:
+                engine.stop()
+            except Exception:
+                pass
+
+        if not os.environ.get("PYTEST_CURRENT_TEST"):
+            try:
+                subprocess.run(
+                    ["killall", "-9", "say"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                )
+            except Exception:
+                pass
+
+            try:
+                subprocess.run(
+                    ["killall", "-9", "afplay"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                )
+            except Exception:
+                pass
+
         try:
-            subprocess.run(["killall", "-9", "say"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            from voicefi.ui.speech_hud import AgentSpeechHUD
+
+            if AgentSpeechHUD._instance:
+                AgentSpeechHUD._instance.hide()
+        except Exception:
+            pass
+        try:
+            from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
+
+            if UnifiedDynamicIslandHUD._instance:
+                UnifiedDynamicIslandHUD._instance.hide_speech()
         except Exception:
             pass
 
-        try:
-            subprocess.run(["killall", "-9", "afplay"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        except Exception:
-            pass
+        # Notify companion server non-blockingly to broadcast stop to all connected web clients
+        if broadcast_web and not os.environ.get("PYTEST_CURRENT_TEST"):
+            try:
+                import urllib.request
 
-    try:
-        from voicefi.ui.speech_hud import AgentSpeechHUD
-        if AgentSpeechHUD._instance:
-            AgentSpeechHUD._instance.hide()
-    except Exception:
-        pass
-    try:
-        from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
-        if UnifiedDynamicIslandHUD._instance:
-            UnifiedDynamicIslandHUD._instance.hide_speech()
-    except Exception:
-        pass
-
+                req = urllib.request.Request(
+                    "http://127.0.0.1:5141/api/stop", method="POST", data=b"{}"
+                )
+                req.add_header("Content-Type", "application/json")
+                urllib.request.urlopen(req, timeout=0.08)
+            except Exception:
+                pass
+    finally:
+        _STOPPING_ALL_SPEECH = False

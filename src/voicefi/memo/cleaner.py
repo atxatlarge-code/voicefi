@@ -81,7 +81,9 @@ class MemoCleaner:
             first_sent,
             flags=re.IGNORECASE,
         ).strip()
-        cleaned_intro = re.sub(r"^(?:an?\s+|the\s+)", "", cleaned_intro, flags=re.IGNORECASE).strip()
+        cleaned_intro = re.sub(
+            r"^(?:an?\s+|the\s+)", "", cleaned_intro, flags=re.IGNORECASE
+        ).strip()
         cleaned_intro = re.sub(r"[.,;:!?]+$", "", cleaned_intro).strip()
 
         words = cleaned_intro.split()
@@ -101,6 +103,7 @@ class MemoCleaner:
     ) -> CleanedMemo:
         """Process raw voice memo into a cleaned, uninterpreted memo record."""
         import uuid
+
         mid = memo_id or str(uuid.uuid4())[:8]
 
         cleaned_text = self.clean_transcript(raw_speech)

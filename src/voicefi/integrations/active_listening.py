@@ -61,7 +61,25 @@ class ActiveListeningEngine:
     ]
 
     # Stop words for word overlap comparison
-    STOP_WORDS = {"the", "a", "an", "is", "it", "to", "in", "on", "of", "and", "or", "for", "do", "you", "we", "i", "now"}
+    STOP_WORDS = {
+        "the",
+        "a",
+        "an",
+        "is",
+        "it",
+        "to",
+        "in",
+        "on",
+        "of",
+        "and",
+        "or",
+        "for",
+        "do",
+        "you",
+        "we",
+        "i",
+        "now",
+    }
 
     @classmethod
     def is_mic_check(cls, text: str) -> bool:
@@ -74,7 +92,9 @@ class ActiveListeningEngine:
                 return True
         # Check repeated check tokens like "check check check check"
         words = clean.split()
-        if len(words) >= 2 and all(w in ("check", "testing", "test", "one", "two", "three", "1", "2", "3") for w in words):
+        if len(words) >= 2 and all(
+            w in ("check", "testing", "test", "one", "two", "three", "1", "2", "3") for w in words
+        ):
             return True
         return False
 
@@ -244,7 +264,19 @@ class ActiveListeningEngine:
             # Check if there is an actionable command attached (e.g. "Looks great, deploy to staging now")
             has_action_verb = any(
                 re.search(rf"\b{verb}\b", normalized_text, re.IGNORECASE)
-                for verb in ["deploy", "build", "run", "ship", "push", "test", "fix", "add", "create", "delete", "stage"]
+                for verb in [
+                    "deploy",
+                    "build",
+                    "run",
+                    "ship",
+                    "push",
+                    "test",
+                    "fix",
+                    "add",
+                    "create",
+                    "delete",
+                    "stage",
+                ]
             )
             if not has_action_verb:
                 return ActiveListeningResult(
@@ -257,10 +289,12 @@ class ActiveListeningEngine:
 
         # 5. Check for Routed Intent vs Standard Actionable Command
         target_ch, routed_text, metadata = cls.resolve_target_channel(normalized_text)
-        is_routed = (target_ch != SpokenTargetChannel.ANTIGRAVITY)
+        is_routed = target_ch != SpokenTargetChannel.ANTIGRAVITY
 
         return ActiveListeningResult(
-            category=SpokenIntentCategory.ROUTED_COMMAND if is_routed else SpokenIntentCategory.ACTIONABLE_COMMAND,
+            category=SpokenIntentCategory.ROUTED_COMMAND
+            if is_routed
+            else SpokenIntentCategory.ACTIONABLE_COMMAND,
             raw_text=raw_text,
             normalized_text=normalized_text,
             is_actionable=True,
@@ -284,11 +318,8 @@ class ActiveListeningEngine:
             return None, ""
 
         clean = text.strip()
-        default_names = [
-            "viv", "vive", "vifi", "vivi", "wifi", "wi-fi", "antigravity", "eve", "fifi",
-            "vim", "veev", "bib", "beb", "thief", "here's", "biff", "vee"
-        ]
-        prefixes = ["hey", "hi", "okay", "ok", "yo", "hello", "a", "eh"]
+        default_names = ["viv", "vive", "vifi", "vivi", "wi-fi", "voicefi", "antigravity"]
+        prefixes = ["hey", "hi", "okay", "ok", "yo", "hello"]
 
         all_aliases = list(aliases or [])
         for name in default_names:

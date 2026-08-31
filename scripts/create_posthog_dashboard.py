@@ -14,6 +14,7 @@ import urllib.request
 
 try:
     import certifi
+
     ssl_context = ssl.create_default_context(cafile=certifi.where())
 except Exception:
     ssl_context = ssl._create_unverified_context()
@@ -27,7 +28,9 @@ def main():
     if not api_key:
         print("❌ Error: POSTHOG_PERSONAL_KEY environment variable is not set.")
         print("💡 Create a personal key at: https://us.posthog.com/me/settings/user-api-keys")
-        print("   Then run: export POSTHOG_PERSONAL_KEY='phx_...' && python3 scripts/create_posthog_dashboard.py")
+        print(
+            "   Then run: export POSTHOG_PERSONAL_KEY='phx_...' && python3 scripts/create_posthog_dashboard.py"
+        )
         sys.exit(1)
 
     headers = {
@@ -117,10 +120,26 @@ ORDER BY utterances DESC
             "query": {
                 "kind": "FunnelsQuery",
                 "series": [
-                    {"kind": "EventsNode", "event": "install_started", "name": "1. Install Started"},
-                    {"kind": "EventsNode", "event": "install_completed", "name": "2. Install Completed"},
-                    {"kind": "EventsNode", "event": "onboarding_started", "name": "3. Onboarding / First CLI"},
-                    {"kind": "EventsNode", "event": "voice_interaction", "name": "4. First Voice Turn"},
+                    {
+                        "kind": "EventsNode",
+                        "event": "install_started",
+                        "name": "1. Install Started",
+                    },
+                    {
+                        "kind": "EventsNode",
+                        "event": "install_completed",
+                        "name": "2. Install Completed",
+                    },
+                    {
+                        "kind": "EventsNode",
+                        "event": "onboarding_started",
+                        "name": "3. Onboarding / First CLI",
+                    },
+                    {
+                        "kind": "EventsNode",
+                        "event": "voice_interaction",
+                        "name": "4. First Voice Turn",
+                    },
                 ],
             },
         },
@@ -164,7 +183,9 @@ ORDER BY crash_count DESC
         except Exception as ex:
             print(f"  ⚠️ Could not add tile '{item['name']}': {ex}")
 
-    print(f"\n🎉 Dashboard complete! View it live at: {POSTHOG_HOST}/project/{PROJECT_ID}/dashboard/{dashboard_id}")
+    print(
+        f"\n🎉 Dashboard complete! View it live at: {POSTHOG_HOST}/project/{PROJECT_ID}/dashboard/{dashboard_id}"
+    )
 
 
 if __name__ == "__main__":

@@ -74,7 +74,7 @@ def calculate_time_saved_breakdown(
     typing_time_seconds = safe_user_chars / max(chars_per_sec, 1.0)
     speaking_time_seconds = safe_user_chars / max(speech_chars_per_sec, 1.0)
     speech_vs_typing_seconds = max(0.0, typing_time_seconds - speaking_time_seconds)
-    
+
     # Zero-Gaze Audio Triage: Eliminates 18s of idle lag / progress-bubble visual polling per turn
     babysitting_seconds = safe_turns * 18.0
 
@@ -262,7 +262,11 @@ def get_analytics_summary(days: int = 7, store: Optional[AnalyticsStore] = None)
                     if dur_v > 0:
                         ev = r["event_name"]
                         tl = r["tool_name"]
-                        if ev in ("ping_voice", "ping") or tl in ("voicefi_ping_voice", "ping_voice") or dur_v <= 800:
+                        if (
+                            ev in ("ping_voice", "ping")
+                            or tl in ("voicefi_ping_voice", "ping_voice")
+                            or dur_v <= 800
+                        ):
                             flt_lat = dur_v
                         else:
                             # Isolate TTS synthesis TTFB from blocking playback duration
@@ -327,7 +331,9 @@ def get_analytics_summary(days: int = 7, store: Optional[AnalyticsStore] = None)
         }
 
 
-def get_daily_turn_volume(days: int = 7, store: Optional[AnalyticsStore] = None) -> List[Dict[str, Any]]:
+def get_daily_turn_volume(
+    days: int = 7, store: Optional[AnalyticsStore] = None
+) -> List[Dict[str, Any]]:
     """Retrieve day-by-day turn counts for sparklines and volume charts."""
     db = store or get_analytics_store()
     conn = db._get_connection()
@@ -352,22 +358,31 @@ def get_daily_turn_volume(days: int = 7, store: Optional[AnalyticsStore] = None)
         ).fetchall()
 
         day_map = {
-            "0": "Sun", "1": "Mon", "2": "Tue", "3": "Wed",
-            "4": "Thu", "5": "Fri", "6": "Sat"
+            "0": "Sun",
+            "1": "Mon",
+            "2": "Tue",
+            "3": "Wed",
+            "4": "Thu",
+            "5": "Fri",
+            "6": "Sat",
         }
 
         results = []
         for r in rows:
-            results.append({
-                "date": r["day_date"],
-                "day_name": day_map.get(str(r["day_of_week"]), "Day"),
-                "turns": int(r["turn_count"] or 0),
-                "duration_ms": int(r["total_duration_ms"] or 0),
-            })
+            results.append(
+                {
+                    "date": r["day_date"],
+                    "day_name": day_map.get(str(r["day_of_week"]), "Day"),
+                    "turns": int(r["turn_count"] or 0),
+                    "duration_ms": int(r["total_duration_ms"] or 0),
+                }
+            )
         return results
 
 
-def get_tool_usage_breakdown(days: int = 7, store: Optional[AnalyticsStore] = None) -> List[Dict[str, Any]]:
+def get_tool_usage_breakdown(
+    days: int = 7, store: Optional[AnalyticsStore] = None
+) -> List[Dict[str, Any]]:
     """Retrieve call counts and percentages grouped by tool name."""
     db = store or get_analytics_store()
     conn = db._get_connection()
@@ -392,15 +407,19 @@ def get_tool_usage_breakdown(days: int = 7, store: Optional[AnalyticsStore] = No
         results = []
         for r in rows:
             c = int(r["count"])
-            results.append({
-                "tool": str(r["tool"]),
-                "count": c,
-                "percentage": round((c / total) * 100.0, 1),
-            })
+            results.append(
+                {
+                    "tool": str(r["tool"]),
+                    "count": c,
+                    "percentage": round((c / total) * 100.0, 1),
+                }
+            )
         return results
 
 
-def get_agent_distribution(days: int = 7, store: Optional[AnalyticsStore] = None) -> List[Dict[str, Any]]:
+def get_agent_distribution(
+    days: int = 7, store: Optional[AnalyticsStore] = None
+) -> List[Dict[str, Any]]:
     """Retrieve turns grouped by calling coding agent (e.g. antigravity, claude)."""
     db = store or get_analytics_store()
     conn = db._get_connection()
@@ -425,15 +444,19 @@ def get_agent_distribution(days: int = 7, store: Optional[AnalyticsStore] = None
         results = []
         for r in rows:
             c = int(r["count"])
-            results.append({
-                "agent": str(r["agent"]),
-                "count": c,
-                "percentage": round((c / total) * 100.0, 1),
-            })
+            results.append(
+                {
+                    "agent": str(r["agent"]),
+                    "count": c,
+                    "percentage": round((c / total) * 100.0, 1),
+                }
+            )
         return results
 
 
-def get_cognitive_flow_breakdown(days: int = 7, store: Optional[AnalyticsStore] = None) -> Dict[str, Any]:
+def get_cognitive_flow_breakdown(
+    days: int = 7, store: Optional[AnalyticsStore] = None
+) -> Dict[str, Any]:
     """
     Computes Cognitive Turnaround Latency (CTL) and Context Switching dynamics across the 4 HAI modalities:
     1. 🎙️ Pure Voice Hands-Free Coding (Zero-Gaze Flow)
@@ -478,7 +501,11 @@ def get_cognitive_flow_breakdown(days: int = 7, store: Optional[AnalyticsStore] 
         for r in rows:
             ename = r["event_name"]
             tool = r["tool_name"]
-            is_barge = bool(r["is_barge_in"] or ename in ("barge_in_event", "speech_interrupted") or tool in ("voicefi_stop", "stop"))
+            is_barge = bool(
+                r["is_barge_in"]
+                or ename in ("barge_in_event", "speech_interrupted")
+                or tool in ("voicefi_stop", "stop")
+            )
             chars = int(r["char_count"] or 0) if "char_count" in r.keys() else 0
             dur_ms = int(r["duration_ms"] or 0)
             meta = {}
@@ -518,17 +545,32 @@ def get_cognitive_flow_breakdown(days: int = 7, store: Optional[AnalyticsStore] 
                     substantive_delegated_turns += 1
                 else:
                     banter_delegated_turns += 1
-            elif (modality in ("voice_memo", "memo_synthesis", "memo", "spec_synthesis") or ename in ("memo", "voice_memo", "spec_synthesis") or tool in ("voice_memo", "spec_synthesis")) and (chars >= 100 or dur_ms >= 5000):
+            elif (
+                modality in ("voice_memo", "memo_synthesis", "memo", "spec_synthesis")
+                or ename in ("memo", "voice_memo", "spec_synthesis")
+                or tool in ("voice_memo", "spec_synthesis")
+            ) and (chars >= 100 or dur_ms >= 5000):
                 memo_turns += 1
                 memo_ctl_total += ctl_sec if ctl_sec is not None else 8.5
-            elif ename == "agent_dispatch" or tool in ("voicefi_send", "send") or meta.get("target") in ("claude", "antigravity", "codex") or meta.get("target_engine"):
+            elif (
+                ename == "agent_dispatch"
+                or tool in ("voicefi_send", "send")
+                or meta.get("target") in ("claude", "antigravity", "codex")
+                or meta.get("target_engine")
+            ):
                 delegated_turns += 1
                 if chars >= 80 or "refactor" in str(meta) or "task" in str(meta):
                     substantive_delegated_turns += 1
                 else:
                     banter_delegated_turns += 1
-            elif ename in ("voice_interaction", "agent_stop_hook") or (ename == "mcp_tool_call" and tool in ("voicefi_speak", "speak")):
-                if meta.get("trigger") in ("diff", "glance") or meta.get("has_diff") or meta.get("glance"):
+            elif ename in ("voice_interaction", "agent_stop_hook") or (
+                ename == "mcp_tool_call" and tool in ("voicefi_speak", "speak")
+            ):
+                if (
+                    meta.get("trigger") in ("diff", "glance")
+                    or meta.get("has_diff")
+                    or meta.get("glance")
+                ):
                     hybrid_turns += 1
                     hybrid_ctl_total += ctl_sec if ctl_sec is not None else 5.0
                 else:
@@ -587,7 +629,9 @@ def get_cognitive_flow_breakdown(days: int = 7, store: Optional[AnalyticsStore] 
                 ],
             }
 
-        avg_voice_ctl = round(pure_voice_ctl_total / max(pure_voice_turns, 1), 1) if pure_voice_turns else 2.2
+        avg_voice_ctl = (
+            round(pure_voice_ctl_total / max(pure_voice_turns, 1), 1) if pure_voice_turns else 2.2
+        )
         avg_hybrid_ctl = round(hybrid_ctl_total / max(hybrid_turns, 1), 1) if hybrid_turns else 5.0
         avg_memo_ctl = round(memo_ctl_total / max(memo_turns, 1), 1) if memo_turns else 8.5
 
@@ -711,3 +755,69 @@ def get_cognitive_flow_breakdown(days: int = 7, store: Optional[AnalyticsStore] 
             "modalities": modalities,
         }
 
+
+def get_speed_talking_analytics(
+    days: int = 30, store: Optional[AnalyticsStore] = None
+) -> Dict[str, Any]:
+    """
+    Query speed talking analytics across local events:
+    - total_speed_turns: Spoken turns played with speed talking
+    - avg_multiplier: Average speed multiplier (e.g. 1.5x, 1.75x)
+    - total_seconds_saved: Exact listening seconds saved compared to 1.0x baseline
+    - total_minutes_saved: Formatted minutes saved
+    """
+    store = store or get_analytics_store()
+    normalized_days, time_clause = _normalize_days(days, default_days=30)
+    conn = store._get_connection()
+
+    query = f"""
+        SELECT char_count, duration_ms, metadata_json
+        FROM events
+        WHERE event_name IN ('turn_spoken', 'speak', 'tts_playback', 'speed_talk')
+          AND timestamp >= datetime('now', '{time_clause}')
+    """
+    cursor = conn.execute(query)
+    rows = cursor.fetchall()
+
+    total_speed_turns = 0
+    total_seconds_saved = 0.0
+    multipliers = []
+
+    for r in rows:
+        meta_str = r["metadata_json"]
+        meta = {}
+        if meta_str:
+            try:
+                meta = json.loads(meta_str)
+            except Exception:
+                meta = {}
+
+        mult = meta.get("speed_multiplier") or meta.get("speed")
+        if mult is not None:
+            try:
+                m_val = float(mult)
+                if m_val > 1.05:
+                    total_speed_turns += 1
+                    multipliers.append(m_val)
+                    c_count = int(r["char_count"] or meta.get("char_count", 0))
+                    if c_count > 0:
+                        base_s = (c_count / 5.0 / 200.0) * 60.0
+                        saved_s = base_s - (base_s / m_val)
+                        total_seconds_saved += max(saved_s, 0.0)
+                    elif r["duration_ms"] and r["duration_ms"] > 0:
+                        dur_s = r["duration_ms"] / 1000.0
+                        saved_s = (dur_s * m_val) - dur_s
+                        total_seconds_saved += max(saved_s, 0.0)
+            except (ValueError, TypeError):
+                pass
+
+    avg_mult = round(sum(multipliers) / max(len(multipliers), 1), 2) if multipliers else 1.5
+
+    return {
+        "days": normalized_days,
+        "total_speed_turns": total_speed_turns,
+        "avg_multiplier": avg_mult,
+        "total_seconds_saved": round(total_seconds_saved, 1),
+        "total_minutes_saved": round(total_seconds_saved / 60.0, 1),
+        "total_hours_saved": round(total_seconds_saved / 3600.0, 2),
+    }

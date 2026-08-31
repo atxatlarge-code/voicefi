@@ -143,14 +143,15 @@ def normalize_stt_text(raw_text: str) -> str:
     using the recursive phonetic self-learning engine.
     """
     from voicefi.learning.phonetic import PhoneticLearner
+
     return PhoneticLearner.get_instance().normalize_stt(raw_text)
 
 
 class AppStyleContext(str, Enum):
-    CHAT = "chat"        # Slack, Discord, Microsoft Teams, Messages, Telegram, WhatsApp
-    EMAIL = "email"      # Apple Mail, Outlook, Gmail, Superhuman
-    CODE = "code"        # Cursor, VS Code, Antigravity, Windsurf, Xcode, Terminal, iTerm2, Warp, Ghostty
-    DOCS = "docs"        # Notion, Obsidian, Apple Notes, Google Docs, Confluence, Craft
+    CHAT = "chat"  # Slack, Discord, Microsoft Teams, Messages, Telegram, WhatsApp
+    EMAIL = "email"  # Apple Mail, Outlook, Gmail, Superhuman
+    CODE = "code"  # Cursor, VS Code, Antigravity, Windsurf, Xcode, Terminal, iTerm2, Warp, Ghostty
+    DOCS = "docs"  # Notion, Obsidian, Apple Notes, Google Docs, Confluence, Craft
     GENERAL = "general"  # Safari, Chrome, default desktop apps
 
 
@@ -159,13 +160,42 @@ def classify_app_context(app_name: str) -> AppStyleContext:
     if not app_name:
         return AppStyleContext.GENERAL
     low = app_name.lower().strip()
-    if any(k in low for k in ("slack", "discord", "teams", "messages", "telegram", "whatsapp", "signal")):
+    if any(
+        k in low
+        for k in ("slack", "discord", "teams", "messages", "telegram", "whatsapp", "signal")
+    ):
         return AppStyleContext.CHAT
-    if any(k in low for k in ("mail", "outlook", "gmail", "superhuman", "thunderbird", "spark", "airmail")):
+    if any(
+        k in low
+        for k in ("mail", "outlook", "gmail", "superhuman", "thunderbird", "spark", "airmail")
+    ):
         return AppStyleContext.EMAIL
-    if any(k in low for k in ("cursor", "code", "visual studio", "antigravity", "windsurf", "xcode", "terminal", "iterm", "warp", "ghostty", "alacritty", "kitty", "wezterm", "intellij", "pycharm", "webstorm")):
+    if any(
+        k in low
+        for k in (
+            "cursor",
+            "code",
+            "visual studio",
+            "antigravity",
+            "windsurf",
+            "xcode",
+            "terminal",
+            "iterm",
+            "warp",
+            "ghostty",
+            "alacritty",
+            "kitty",
+            "wezterm",
+            "intellij",
+            "pycharm",
+            "webstorm",
+        )
+    ):
         return AppStyleContext.CODE
-    if any(k in low for k in ("notion", "obsidian", "notes", "docs", "confluence", "craft", "bear", "pages")):
+    if any(
+        k in low
+        for k in ("notion", "obsidian", "notes", "docs", "confluence", "craft", "bear", "pages")
+    ):
         return AppStyleContext.DOCS
     return AppStyleContext.GENERAL
 
@@ -184,11 +214,21 @@ def strip_verbal_fillers(text: str) -> str:
     result = re.sub(r"(?i)(?:,\s*)?\b(?:um|uh|er|ah|eh|erm)\b[,.\s]*", " ", result)
 
     # 2. Filler phrases with commas or surrounding pauses
-    result = re.sub(r"(?i)\b(?:you know|i mean|(?:so\s+)?basically|like I said|to be honest)\b[,]*\s*", " ", result)
+    result = re.sub(
+        r"(?i)\b(?:you know|i mean|(?:so\s+)?basically|like I said|to be honest)\b[,]*\s*",
+        " ",
+        result,
+    )
 
     # 3. Filler 'like' conversational ticks
-    result = re.sub(r"(?i)\b(\w+)\s+like\s+(really|super|just|kinda|sorta|to|for|about|in|on|with|going|trying)\b", r"\1 \2", result)
-    result = re.sub(r"(?i)\b(is|was|are|were|be|been|have|had|would|could|should)\s+like\s+", r"\1 ", result)
+    result = re.sub(
+        r"(?i)\b(\w+)\s+like\s+(really|super|just|kinda|sorta|to|for|about|in|on|with|going|trying)\b",
+        r"\1 \2",
+        result,
+    )
+    result = re.sub(
+        r"(?i)\b(is|was|are|were|be|been|have|had|would|could|should)\s+like\s+", r"\1 ", result
+    )
 
     # 4. Repeated stutter duplicates ('the the', 'in in', 'that that', 'to to', 'we we', 'is is', 'and and')
     # Protect CLI flag words like 'dash dash', 'minus minus', 'plus plus'
@@ -206,7 +246,9 @@ def strip_verbal_fillers(text: str) -> str:
     return result
 
 
-def format_for_app_context(text: str, app_name: Optional[str] = None, context: Optional[AppStyleContext] = None) -> str:
+def format_for_app_context(
+    text: str, app_name: Optional[str] = None, context: Optional[AppStyleContext] = None
+) -> str:
     """
     Format and adapt speech transcription based on the frontmost application context:
     - Chat (Slack/Discord): conversational, concise, bullet points if listing items.
@@ -235,8 +277,14 @@ def format_for_app_context(text: str, app_name: Optional[str] = None, context: O
 
     elif ctx == AppStyleContext.CHAT:
         # Chat formatting: concise, multi-bullet points if listing items ("first... second...")
-        if re.search(r"(?i)\b(first|1st|one)\b.*?\b(second|third|2nd|3rd|two|three|next|then|finally|also)\b", cleaned):
-            parts = re.split(r"(?i)(?:\bfirst\b|\bsecond\b|\bthird\b|\bnext\b|\bthen\b|\bfinally\b|\balso\b)", cleaned)
+        if re.search(
+            r"(?i)\b(first|1st|one)\b.*?\b(second|third|2nd|3rd|two|three|next|then|finally|also)\b",
+            cleaned,
+        ):
+            parts = re.split(
+                r"(?i)(?:\bfirst\b|\bsecond\b|\bthird\b|\bnext\b|\bthen\b|\bfinally\b|\balso\b)",
+                cleaned,
+            )
             lines = [p.strip().strip(",.- ") for p in parts if p.strip()]
             if len(lines) >= 2:
                 return "\n".join([f"• {l.capitalize()}" for l in lines])

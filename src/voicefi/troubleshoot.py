@@ -33,16 +33,19 @@ from voicefi.tts import (
 @dataclass
 class VoicePingResult:
     """Result from a silent voice ping / speed / connection test."""
+
     voice: str
     provider: str
     persona_name: str
     success: bool
-    latency_ms: float = 0.0          # Roundtrip synthesis latency
-    chars_per_sec: float = 0.0       # Synthesis throughput (chars/sec)
-    words_per_min: float = 0.0       # Words per minute throughput
-    audio_bytes: int = 0             # Size of generated audio payload in bytes
+    latency_ms: float = 0.0  # Roundtrip synthesis latency
+    chars_per_sec: float = 0.0  # Synthesis throughput (chars/sec)
+    words_per_min: float = 0.0  # Words per minute throughput
+    audio_bytes: int = 0  # Size of generated audio payload in bytes
     sample_text: str = ""
-    status: str = "ok"               # "online", "offline_native", "rate_limited", "auth_error", "timeout", "error"
+    status: str = (
+        "ok"  # "online", "offline_native", "rate_limited", "auth_error", "timeout", "error"
+    )
     error: Optional[str] = None
     timestamp: float = field(default_factory=time.time)
 
@@ -66,6 +69,7 @@ class VoicePingResult:
 @dataclass
 class VoiceTestResult:
     """Result from a voice audition/test."""
+
     voice: str
     provider: str
     rate: int
@@ -91,6 +95,7 @@ class VoiceTestResult:
 @dataclass
 class MicLoopbackResult:
     """Result from microphone loopback capture & analysis."""
+
     success: bool
     duration_s: float
     sample_rate: int
@@ -119,6 +124,7 @@ class MicLoopbackResult:
 @dataclass
 class SpeechLoopbackVerification:
     """Result from acoustic voice output -> mic capture -> STT transcription verification."""
+
     voice: str
     sent_text: str
     heard_text: str
@@ -263,7 +269,12 @@ class AudioTroubleshooter:
         persona = find_persona(target_voice)
         if not persona:
             agent_prov, agent_voice, agent_rate = self.config.resolve_voice(target_voice)
-            if target_voice.lower() in self.config.agents or target_voice.lower() in self.config.subagents or target_voice.lower() in ("obsidian", "aria", "antigravity", "claude", "cursor", "openai"):
+            if (
+                target_voice.lower() in self.config.agents
+                or target_voice.lower() in self.config.subagents
+                or target_voice.lower()
+                in ("obsidian", "aria", "antigravity", "claude", "cursor", "openai")
+            ):
                 persona = find_persona(agent_voice)
                 resolved_voice = persona.id if persona else agent_voice
                 resolved_provider = provider or (persona.provider if persona else agent_prov)
@@ -303,7 +314,11 @@ class AudioTroubleshooter:
             latency_ms = duration_s * 1000.0
 
             if success:
-                audio_bytes = temp_path.stat().st_size if (temp_path.is_file() and temp_path.stat().st_size > 0) else 1024
+                audio_bytes = (
+                    temp_path.stat().st_size
+                    if (temp_path.is_file() and temp_path.stat().st_size > 0)
+                    else 1024
+                )
                 chars_per_sec = sample_chars / duration_s
                 words_per_min = (sample_words / duration_s) * 60.0
                 status_str = "offline_native" if resolved_provider == "mac_say" else "online"
@@ -425,9 +440,7 @@ class AudioTroubleshooter:
         """
         results = []
         target_personas = (
-            [find_persona(v) for v in voices if find_persona(v)]
-            if voices
-            else CURATED_PERSONAS
+            [find_persona(v) for v in voices if find_persona(v)] if voices else CURATED_PERSONAS
         )
 
         for p in target_personas:
@@ -439,18 +452,20 @@ class AudioTroubleshooter:
                     text=sample_text,
                     provider=p.provider,
                 )
-                results.append({
-                    "name": p.name,
-                    "id": p.id,
-                    "provider": p.provider,
-                    "style": p.style,
-                    "recommended_role": p.recommended_role,
-                    "status": ping_res.status,
-                    "latency_ms": round(ping_res.latency_ms, 1),
-                    "chars_per_sec": round(ping_res.chars_per_sec, 1),
-                    "audio_bytes": ping_res.audio_bytes,
-                    "error": ping_res.error,
-                })
+                results.append(
+                    {
+                        "name": p.name,
+                        "id": p.id,
+                        "provider": p.provider,
+                        "style": p.style,
+                        "recommended_role": p.recommended_role,
+                        "status": ping_res.status,
+                        "latency_ms": round(ping_res.latency_ms, 1),
+                        "chars_per_sec": round(ping_res.chars_per_sec, 1),
+                        "audio_bytes": ping_res.audio_bytes,
+                        "error": ping_res.error,
+                    }
+                )
             else:
                 start = time.perf_counter()
                 try:
@@ -461,31 +476,35 @@ class AudioTroubleshooter:
                     )
                     engine.speak(sample_text, block=False)
                     lat = (time.perf_counter() - start) * 1000.0
-                    results.append({
-                        "name": p.name,
-                        "id": p.id,
-                        "provider": p.provider,
-                        "style": p.style,
-                        "recommended_role": p.recommended_role,
-                        "status": "online",
-                        "latency_ms": round(lat, 1),
-                        "chars_per_sec": 0.0,
-                        "audio_bytes": 0,
-                        "error": None,
-                    })
+                    results.append(
+                        {
+                            "name": p.name,
+                            "id": p.id,
+                            "provider": p.provider,
+                            "style": p.style,
+                            "recommended_role": p.recommended_role,
+                            "status": "online",
+                            "latency_ms": round(lat, 1),
+                            "chars_per_sec": 0.0,
+                            "audio_bytes": 0,
+                            "error": None,
+                        }
+                    )
                 except Exception as e:
-                    results.append({
-                        "name": p.name,
-                        "id": p.id,
-                        "provider": p.provider,
-                        "style": p.style,
-                        "recommended_role": p.recommended_role,
-                        "status": "error",
-                        "error": str(e),
-                        "latency_ms": 0.0,
-                        "chars_per_sec": 0.0,
-                        "audio_bytes": 0,
-                    })
+                    results.append(
+                        {
+                            "name": p.name,
+                            "id": p.id,
+                            "provider": p.provider,
+                            "style": p.style,
+                            "recommended_role": p.recommended_role,
+                            "status": "error",
+                            "error": str(e),
+                            "latency_ms": 0.0,
+                            "chars_per_sec": 0.0,
+                            "audio_bytes": 0,
+                        }
+                    )
             time.sleep(0.05)
         return results
 
@@ -522,7 +541,7 @@ class AudioTroubleshooter:
             sd.wait()
 
             flat_data = audio_data.flatten()
-            rms = float(np.sqrt(np.mean(flat_data ** 2)))
+            rms = float(np.sqrt(np.mean(flat_data**2)))
             peak = float(np.max(np.abs(flat_data)))
 
             # Estimate noise floor vs speech
@@ -543,6 +562,7 @@ class AudioTroubleshooter:
 
             # Play back audio through speakers if requested
             if play_back:
+
                 def _playback_thread():
                     try:
                         sd.play(flat_data, samplerate=sample_rate)
@@ -596,7 +616,12 @@ class AudioTroubleshooter:
         import re
         import difflib
         from collections import Counter
-        from voicefi.tts import get_tts_engine, find_persona, set_cross_process_hud_state, clear_cross_process_hud_state
+        from voicefi.tts import (
+            get_tts_engine,
+            find_persona,
+            set_cross_process_hud_state,
+            clear_cross_process_hud_state,
+        )
         from voicefi.stt import get_stt_engine
 
         persona = find_persona(voice_name_or_id)
@@ -639,7 +664,7 @@ class AudioTroubleshooter:
             actual_frames = min(int((synth_duration + 0.45) * sample_rate), len(rec_audio))
             recorded_slice = rec_audio[:actual_frames] if actual_frames > 0 else rec_audio
             flat_data = np.nan_to_num(recorded_slice.flatten(), nan=0.0, posinf=0.0, neginf=0.0)
-            rms = float(np.sqrt(np.mean(flat_data ** 2))) if len(flat_data) > 0 else 0.0
+            rms = float(np.sqrt(np.mean(flat_data**2))) if len(flat_data) > 0 else 0.0
 
             if show_hud:
                 set_cross_process_hud_state("transcribing", text="Transcribing loopback audio...")
@@ -757,6 +782,7 @@ class AudioTroubleshooter:
         if verification.success and verification.heard_text and send_to_conversation:
             try:
                 from voicefi.integrations.injector import send_message_to_agent
+
                 sent_to_agent = send_message_to_agent(
                     conv_id=conv_id,
                     text=verification.heard_text,
@@ -766,6 +792,7 @@ class AudioTroubleshooter:
             except Exception as e:
                 try:
                     from voicefi.integrations.injector import send_message_to_antigravity
+
                     sent_to_agent = send_message_to_antigravity(
                         conv_id=conv_id,
                         text=verification.heard_text,
@@ -808,6 +835,7 @@ class AudioTroubleshooter:
         Inspect input & output audio devices, OS audio server status, and permissions.
         """
         from voicefi.audio.device import get_audio_device_profile
+
         audio_prof = get_audio_device_profile()
 
         effective_rate = self.config.tts.rate or 200
@@ -837,6 +865,7 @@ class AudioTroubleshooter:
 
         try:
             import sounddevice as sd
+
             devices = sd.query_devices()
 
             for idx, dev in enumerate(devices):
@@ -864,6 +893,7 @@ class AudioTroubleshooter:
         """
         try:
             from voicefi.audio.vad import VoiceActivityDetector
+
             detector = VoiceActivityDetector(
                 engine=getattr(self.config.vad, "engine", "auto"),
                 speech_threshold=getattr(self.config.vad, "speech_threshold", 0.5),
@@ -896,7 +926,9 @@ class AudioTroubleshooter:
         effective_rate = self.config.tts.rate or 200
         recommendations = []
         if effective_rate < 150:
-            recommendations.append(f"Voice speed is slowed down ({effective_rate} WPM / {int(round((effective_rate / 200.0) * 100))}%). To reset: vg voice speed reset")
+            recommendations.append(
+                f"Voice speed is slowed down ({effective_rate} WPM / {int(round((effective_rate / 200.0) * 100))}%). To reset: vg voice speed reset"
+            )
         elif effective_rate > 240:
             recommendations.append(f"Voice speed is fast ({effective_rate} WPM).")
 
@@ -907,10 +939,14 @@ class AudioTroubleshooter:
             recommendations.append("No default audio output detected. Check macOS Sound settings.")
 
         if hw.get("is_builtin_speakers") and self.config.vad.barge_in is True:
-            recommendations.append("Built-in laptop speakers in use with forced Barge-In. Recommendation: switch to 'auto' ('vg troubleshoot --fix auto_barge_in') to prevent speaker bleed cutoffs.")
+            recommendations.append(
+                "Built-in laptop speakers in use with forced Barge-In. Recommendation: switch to 'auto' ('vg troubleshoot --fix auto_barge_in') to prevent speaker bleed cutoffs."
+            )
 
         if voice_test.error:
-            recommendations.append(f"TTS Error encountered: {voice_test.error}. Consider falling back to offline macOS say: 'vg voice set antigravity Samantha'")
+            recommendations.append(
+                f"TTS Error encountered: {voice_test.error}. Consider falling back to offline macOS say: 'vg voice set antigravity Samantha'"
+            )
 
         return {
             "status": "healthy" if not voice_test.error else "degraded",
@@ -938,12 +974,16 @@ class AudioTroubleshooter:
                 self.config.agents["antigravity"].voice = "en-US-AvaNeural"
                 self.config.agents["antigravity"].provider = "edge_tts"
             save_config(self.config)
-            return {"success": True, "message": "Reset audio, TTS voice, speed, and VAD parameters to default."}
+            return {
+                "success": True,
+                "message": "Reset audio, TTS voice, speed, and VAD parameters to default.",
+            }
 
         if fix in ("auto_barge_in", "smart_barge_in", "safe_barge_in"):
             self.config.vad.barge_in = "auto"
             save_config(self.config)
             from voicefi.audio.device import is_headphone_or_headset_active
+
             msg = "Set barge-in to 'auto'."
             if not is_headphone_or_headset_active():
                 msg += " (⚠️ Headphones recommended: on built-in laptop speakers, safe-mode is active to avoid speech cutoffs)."
@@ -957,6 +997,7 @@ class AudioTroubleshooter:
         if fix in ("set_offline_fallback", "offline_say", "mac_say"):
             self.config.tts.provider = "mac_say"
             from voicefi.tts.offline import is_voice_installed
+
             has_ava, ava_name = is_voice_installed("Ava")
             offline_v = ava_name if (has_ava and ava_name) else "Samantha"
             self.config.tts.voice = offline_v
@@ -964,10 +1005,14 @@ class AudioTroubleshooter:
                 self.config.agents["antigravity"].voice = offline_v
                 self.config.agents["antigravity"].provider = "mac_say"
             save_config(self.config)
-            return {"success": True, "message": f"Switched default TTS to offline native macOS {offline_v} (zero-latency)."}
+            return {
+                "success": True,
+                "message": f"Switched default TTS to offline native macOS {offline_v} (zero-latency).",
+            }
 
         if fix in ("download_ava", "download-ava", "offline_ava", "setup_ava", "ava"):
             from voicefi.tts.offline import run_download_ava_workflow
+
             res = run_download_ava_workflow(auto_poll=True, timeout_seconds=120)
             return res
 
@@ -983,8 +1028,17 @@ class AudioTroubleshooter:
                 }
             return {"success": False, "message": f"Microphone calibration failed: {res.error}"}
 
-        if fix in ("stop_servers", "kill_servers", "free_port", "server_stop", "stop_daemons", "kill_daemons", "daemon_stop"):
+        if fix in (
+            "stop_servers",
+            "kill_servers",
+            "free_port",
+            "server_stop",
+            "stop_daemons",
+            "kill_daemons",
+            "daemon_stop",
+        ):
             from voicefi.server import stop_all_voicefi_servers
+
             res = stop_all_voicefi_servers()
             return {
                 "success": True,
@@ -993,6 +1047,7 @@ class AudioTroubleshooter:
 
         if fix in ("clean", "purge_caches", "clean_caches", "reset_caches"):
             from voicefi.server import clean_caches
+
             res = clean_caches(clean_pycache=True, clean_tmp_state=True, clean_update_cache=True)
             return {
                 "success": True,
@@ -1001,6 +1056,7 @@ class AudioTroubleshooter:
 
         if fix in ("link_dev", "setup_dev", "dev_mode"):
             from voicefi.server import link_dev_environment, stop_all_voicefi_servers, clean_caches
+
             stop_all_voicefi_servers()
             clean_caches()
             l_res = link_dev_environment()

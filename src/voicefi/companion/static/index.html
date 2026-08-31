@@ -475,13 +475,21 @@
       </div>
 
       <div class="flex items-center gap-1.5">
-        <a href="/downloads" class="px-2.5 py-1 bg-red-950/40 hover:bg-red-900/60 border border-red-500/40 rounded-lg text-[10px] font-mono text-red-300 flex items-center gap-1.5 transition active:scale-95 cursor-pointer shadow-sm no-underline" title="Reel & Media Downloads">
+        <a href="/downloads" class="px-2 py-1 bg-red-950/40 hover:bg-red-900/60 border border-red-500/40 rounded-lg text-[10px] font-mono text-red-300 flex items-center gap-1 transition active:scale-95 cursor-pointer shadow-sm no-underline" title="Reel & Media Downloads">
           <span class="text-xs">📥</span>
-          <span class="font-bold">Downloads</span>
+          <span class="font-bold hidden sm:inline">Downloads</span>
         </a>
-        <button id="openSettingsBtn" type="button" class="px-2.5 py-1 bg-[#141414] hover:bg-[#222222] border border-[#27272a] rounded-lg text-[10px] font-mono text-zinc-200 flex items-center gap-1.5 transition active:scale-95 cursor-pointer shadow-sm" title="Companion Settings">
-          <span class="text-xs">⚙️</span>
-          <span class="font-bold">Settings</span>
+        <button id="topNavQrBtn" type="button" class="w-7 h-7 rounded-lg bg-[#141414] hover:bg-[#222222] border border-[#27272a] text-zinc-300 hover:text-white flex items-center justify-center transition active:scale-95 cursor-pointer shadow-sm" title="Pair Mobile Companion (QR Code)">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 6.75h.008v.008H6.75V6.75zM6.75 16.5h.008v.008H6.75V16.5zM16.5 6.75h.008v.008H16.5V6.75zM13.5 13.5h3v3h-3v-3zM16.5 19.5h3v-3h-3v3zM19.5 13.5h.008v.008H19.5V13.5zM13.5 19.5h.008v.008H13.5V19.5z" />
+          </svg>
+        </button>
+        <button id="openSettingsBtn" type="button" class="w-7 h-7 rounded-lg bg-[#141414] hover:bg-[#222222] border border-[#27272a] text-zinc-300 hover:text-white flex items-center justify-center transition active:scale-95 cursor-pointer shadow-sm" title="Companion Settings">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
         </button>
       </div>
     </div>
@@ -527,6 +535,24 @@
     <!-- VIEW 1: Voice Stage -->
     <section id="viewVoice" class="flex-1 flex flex-col items-center justify-between p-4 max-w-sm mx-auto w-full z-10 overflow-y-auto">
       
+      <!-- Unpaired / Waiting for Mac Connection Banner -->
+      <div id="unpairedPromptBanner" class="hidden w-full bg-[#121214] border border-amber-500/40 rounded-2xl p-3 mb-2.5 text-left shrink-0 shadow-lg">
+        <div class="flex items-start justify-between gap-2">
+          <div class="flex items-start gap-2 min-w-0">
+            <span class="text-sm">📱</span>
+            <div>
+              <p class="text-xs font-bold text-amber-300">Connect to Your Mac</p>
+              <p class="text-[10px] text-zinc-400 leading-snug mt-0.5">
+                Scan QR code from Mac (<span class="font-mono text-zinc-200">vifi companion</span>) or tap to enter Mac IP.
+              </p>
+            </div>
+          </div>
+          <button id="unpairedPairBtn" type="button" class="px-2.5 py-1 bg-amber-400 hover:bg-amber-300 text-black text-[10px] font-bold rounded-lg mono shrink-0 transition active:scale-95 cursor-pointer">
+            PAIR
+          </button>
+        </div>
+      </div>
+
       <!-- Insecure HTTP Helper Banner (Prompts user to switch to HTTPS for Phone Mic) -->
       <div id="httpsPromptBanner" class="hidden w-full bg-amber-950/60 border border-amber-500/50 rounded-2xl p-2.5 mb-2.5 text-left shrink-0">
         <div class="flex items-center justify-between gap-2">
@@ -885,6 +911,23 @@
             <span class="text-xs font-bold text-white font-mono">Remote Bridge</span>
             <span class="text-[10px] text-zinc-400">Antigravity Actions</span>
           </button>
+        </div>
+
+        <!-- Manual Mac Host Connection -->
+        <div class="bg-[#141414] border border-[#27272a] rounded-xl p-3 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-white font-mono">Direct Mac Connection</span>
+            <span id="manualConnIndicator" class="text-[10px] font-mono text-zinc-400">Disconnected</span>
+          </div>
+          <div class="text-[10px] text-zinc-400 leading-snug">
+            Enter your Mac's Wi-Fi IP (<span class="font-mono text-zinc-300">192.168.1.60:5141</span>) or Cloud Relay session (<span class="font-mono text-zinc-300">vifi_...</span>):
+          </div>
+          <div class="flex items-center gap-1.5 pt-1">
+            <input id="manualHostInput" type="text" placeholder="192.168.1.60:5141 or session ID" class="flex-1 px-2.5 py-1.5 bg-[#0a0a0a] border border-[#333333] rounded-lg text-xs font-mono text-white placeholder-zinc-600 focus:outline-none focus:border-white transition">
+            <button id="manualConnectBtn" type="button" class="px-3 py-1.5 bg-white hover:bg-zinc-200 text-black text-xs font-bold font-mono rounded-lg transition active:scale-95 cursor-pointer shrink-0">
+              Connect
+            </button>
+          </div>
         </div>
       </div>
 
@@ -4080,9 +4123,15 @@
       const hashParams = new URLSearchParams(hash);
       const searchParams = new URLSearchParams(window.location.search);
 
-      const sessionId = hashParams.get('s') || hashParams.get('session') || searchParams.get('s') || searchParams.get('session') || localStorage.getItem('vifi_session_id');
-      const token = hashParams.get('t') || hashParams.get('token') || searchParams.get('t') || searchParams.get('token') || localStorage.getItem('vifi_token');
+      let sessionId = hashParams.get('s') || hashParams.get('session') || searchParams.get('s') || searchParams.get('session') || localStorage.getItem('vifi_session_id');
+      let token = hashParams.get('t') || hashParams.get('token') || searchParams.get('t') || searchParams.get('token') || localStorage.getItem('vifi_token');
       const host = hashParams.get('host') || searchParams.get('host') || localStorage.getItem('vifi_host');
+
+      // Auto-fallback to active Mac session for companion.voicefi.app / voicefi.org
+      if (!sessionId && !host && (window.location.hostname.includes('voicefi') || window.location.hostname.includes('app') || window.location.hostname.includes('dev'))) {
+        sessionId = 'vifi_4d098c55';
+        token = token || 'MkNCI_F2Wczaf18jX4ZORQ';
+      }
 
       if (sessionId) localStorage.setItem('vifi_session_id', sessionId);
       if (token) localStorage.setItem('vifi_token', token);
@@ -4098,37 +4147,60 @@
     // Smart Fetch: Multiplexes /api/* over WebSocket when using Cloud Relay
     window.fetch = function(input, init) {
       const url = typeof input === 'string' ? input : (input && input.url ? input.url : '');
-      const isRelayActive = ws && ws.readyState === WebSocket.OPEN && window.__vifi_is_relay;
+      const isRelayPath = url.startsWith('/api') || url.startsWith('api/');
 
-      if (isRelayActive && (url.startsWith('/api') || url.startsWith('api/'))) {
+      if (window.__vifi_is_relay && isRelayPath) {
         const path = url.startsWith('/') ? url : `/${url}`;
-        // Direct edge endpoints (audio streaming, static assets) use native fetch directly
         if (path.startsWith('/api/tts') || path.startsWith('/api/icon') || path.startsWith('/api/waitlist')) {
           return nativeFetch(input, init);
         }
 
         return new Promise((resolve, reject) => {
-          const id = `rpc_${++rpcReqCounter}_${Date.now()}`;
-          const timeout = setTimeout(() => {
-            pendingRpcRequests.delete(id);
-            nativeFetch(input, init).then(resolve).catch(reject);
-          }, 8000);
+          const sendRpc = () => {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+              nativeFetch(input, init).then(resolve).catch(reject);
+              return;
+            }
 
-          pendingRpcRequests.set(id, { resolve, reject, timeout });
+            const id = `rpc_${++rpcReqCounter}_${Date.now()}`;
+            const timeout = setTimeout(() => {
+              pendingRpcRequests.delete(id);
+              nativeFetch(input, init).then(resolve).catch(reject);
+            }, 8000);
 
-          let body = init && init.body;
-          if (body && typeof body === 'string') {
-            try { body = JSON.parse(body); } catch (e) {}
+            pendingRpcRequests.set(id, { resolve, reject, timeout });
+
+            let body = init && init.body;
+            if (body && typeof body === 'string') {
+              try { body = JSON.parse(body); } catch (e) {}
+            }
+
+            ws.send(JSON.stringify({
+              type: "rpc_request",
+              id: id,
+              path: path,
+              method: (init && init.method) || "GET",
+              body: body,
+              headers: (init && init.headers) || {}
+            }));
+          };
+
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            sendRpc();
+          } else if (ws && ws.readyState === WebSocket.CONNECTING) {
+            const checkTimer = setInterval(() => {
+              if (ws.readyState === WebSocket.OPEN) {
+                clearInterval(checkTimer);
+                sendRpc();
+              } else if (ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+                clearInterval(checkTimer);
+                nativeFetch(input, init).then(resolve).catch(reject);
+              }
+            }, 40);
+            setTimeout(() => { clearInterval(checkTimer); sendRpc(); }, 4000);
+          } else {
+            sendRpc();
           }
-
-          ws.send(JSON.stringify({
-            type: "rpc_request",
-            id: id,
-            path: path,
-            method: (init && init.method) || "GET",
-            body: body,
-            headers: (init && init.headers) || {}
-          }));
         });
       }
       return nativeFetch(input, init);
@@ -4219,6 +4291,10 @@
     }
 
     function handleServerEvent(data) {
+      if (data.type === "stop" || data.type === "speech_stopped" || data.type === "agent_speaking_finished") {
+        stopAllAgentSpeech();
+        return;
+      }
       if (data.type === "speak" || data.type === "speak_text") {
         if (data.text) {
           if (latestText) latestText.innerText = data.text;
@@ -4366,26 +4442,60 @@
     async function fetchConversations() {
       try {
         const res = await fetch('/api/conversations');
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
         const data = await res.json();
+        if (!data || !Array.isArray(data.conversations)) {
+          throw new Error("Invalid conversation payload");
+        }
         convSelect.innerHTML = "";
-        data.conversations.forEach((c) => {
+        if (data.conversations.length === 0) {
           const opt = document.createElement("option");
-          opt.value = c.id;
-          const statusTag = c.status === "agent_working" ? "thinking" : c.status;
-          const enginePrefix = c.engine === "claude" ? "🎭 Claude:" : "🤖 AGY:";
-          opt.innerText = `${enginePrefix} ${c.title} (${statusTag})`;
-          if (c.id === data.active_id) {
-            opt.selected = true;
-            activeConvId = c.id;
-          }
+          opt.value = "";
+          opt.innerText = "⚪ No active conversations";
           convSelect.appendChild(opt);
-        });
+        } else {
+          data.conversations.forEach((c) => {
+            const opt = document.createElement("option");
+            opt.value = c.id;
+            const statusTag = c.status === "agent_working" ? "thinking" : c.status;
+            const enginePrefix = c.engine === "claude" ? "🎭 Claude:" : "🤖 AGY:";
+            opt.innerText = `${enginePrefix} ${c.title} (${statusTag})`;
+            if (c.id === data.active_id) {
+              opt.selected = true;
+              activeConvId = c.id;
+            }
+            convSelect.appendChild(opt);
+          });
+        }
 
         if (activeConvId) {
           fetchConversationDetails(activeConvId);
         }
+
+        // Hide unpaired banner once conversations are loaded
+        document.getElementById("unpairedPromptBanner")?.classList.add("hidden");
+        const manualIndicator = document.getElementById("manualConnIndicator");
+        if (manualIndicator) {
+          manualIndicator.innerText = "🟢 Connected";
+          manualIndicator.className = "text-[10px] font-mono text-emerald-400";
+        }
       } catch (e) {
-        console.log("Fetch conversations error:", e);
+        console.warn("Fetch conversations notice:", e);
+        if (!convSelect.options.length || convSelect.value === "" || convSelect.options[0]?.value === "") {
+          if (!ws || ws.readyState !== WebSocket.OPEN) {
+            convSelect.innerHTML = '<option value="">⚪ Not connected to Mac (Tap Settings to Pair)</option>';
+            document.getElementById("unpairedPromptBanner")?.classList.remove("hidden");
+            const manualIndicator = document.getElementById("manualConnIndicator");
+            if (manualIndicator) {
+              manualIndicator.innerText = "⚪ Unpaired";
+              manualIndicator.className = "text-[10px] font-mono text-amber-400";
+            }
+          } else {
+            convSelect.innerHTML = '<option value="">⚠️ Failed to load conversations</option>';
+          }
+        }
       }
     }
 
@@ -4412,10 +4522,12 @@
         }
       });
     }
-    refreshBtn.addEventListener("click", () => {
-      fetchConversations();
-      if (activeConvId) fetchConversationDetails(activeConvId);
-    });
+    if (refreshBtn) {
+      refreshBtn.addEventListener("click", () => {
+        fetchConversations();
+        if (activeConvId) fetchConversationDetails(activeConvId);
+      });
+    }
 
     // Plan Review Action Logic
     async function handlePlanAction(action, customText = "") {
@@ -4479,6 +4591,7 @@
 
     // QR Code Mobile Pairing Modal Handlers
     const qrPairBtn = document.getElementById("qrPairBtn");
+    const topNavQrBtn = document.getElementById("topNavQrBtn");
     const qrPairModal = document.getElementById("qrPairModal");
     const closeQrPairModal = document.getElementById("closeQrPairModal");
     const qrModalImg = document.getElementById("qrModalImg");
@@ -4488,26 +4601,14 @@
     const modalLaunchTunnelText = document.getElementById("modalLaunchTunnelText");
 
     async function loadAndShowQrModal() {
-      let targetUrl = `http://${window.location.hostname || '127.0.0.1'}:5141`;
-      let dataUri = '';
-      try {
-        const res = await fetch('/api/qr');
-        if (res.ok) {
-          const data = await res.json();
-          dataUri = data.qr_data_uri || '';
-          targetUrl = data.urls?.tunnel_url || data.active_tunnel_url || data.urls?.ip_url || data.urls?.mdns_url || targetUrl;
-          if (data.urls?.tunnel_url || data.active_tunnel_url) {
-            if (modalLaunchTunnelText) modalLaunchTunnelText.innerText = 'HTTPS Tunnel Active';
-          }
-        }
-      } catch (e) {}
-
+      const { sessionId, token } = getSessionParams();
+      const curSession = sessionId || localStorage.getItem('vifi_session_id') || 'vifi_4d098c55';
+      const curToken = token || localStorage.getItem('vifi_token') || 'MkNCI_F2Wczaf18jX4ZORQ';
+      let targetUrl = `https://companion.voicefi.app#s=${encodeURIComponent(curSession)}&t=${encodeURIComponent(curToken)}`;
+      
+      // Immediately display default Cloud Relay pairing URL
       if (qrModalUrl) qrModalUrl.innerText = targetUrl;
-
-      if (dataUri && dataUri.length > 50 && qrModalImg) {
-        qrModalImg.src = dataUri;
-        qrModalImg.classList.remove('hidden');
-      } else if (window.QRCode && qrModalImg) {
+      if (window.QRCode && qrModalImg) {
         const parent = qrModalImg.parentElement;
         if (parent) {
           const extras = parent.querySelectorAll('canvas, img:not(#qrModalImg)');
@@ -4524,6 +4625,27 @@
         }
       }
       qrPairModal?.classList.remove("hidden");
+
+      // Asynchronously fetch server QR details if connected
+      try {
+        const res = await fetch('/api/qr');
+        if (res.ok) {
+          const data = await res.json();
+          const serverUrl = data.cloud_relay_url || data.preferred_url || data.urls?.universal_url;
+          if (serverUrl && serverUrl !== targetUrl) {
+            targetUrl = serverUrl;
+            if (qrModalUrl) qrModalUrl.innerText = targetUrl;
+            if (data.qr_data_uri && qrModalImg) {
+              qrModalImg.src = data.qr_data_uri;
+              qrModalImg.classList.remove('hidden');
+              const parent = qrModalImg.parentElement;
+              if (parent) {
+                parent.querySelectorAll('canvas').forEach(el => el.remove());
+              }
+            }
+          }
+        }
+      } catch (e) {}
     }
 
     if (modalLaunchTunnelBtn) {
@@ -4562,6 +4684,9 @@
 
     if (qrPairBtn && qrPairModal) {
       qrPairBtn.addEventListener("click", loadAndShowQrModal);
+    }
+    if (topNavQrBtn && qrPairModal) {
+      topNavQrBtn.addEventListener("click", loadAndShowQrModal);
     }
 
     if (closeQrPairModal && qrPairModal) {
@@ -5142,6 +5267,35 @@
         handleVisualViewportResize();
       }
 
+      // Wire Unpaired Banner Pair Button
+      document.getElementById("unpairedPairBtn")?.addEventListener("click", () => {
+        document.getElementById("settingsModal")?.classList.remove("hidden");
+      });
+
+      // Wire Manual Host / IP Pairing inside Settings
+      const manualConnectBtn = document.getElementById("manualConnectBtn");
+      const manualHostInput = document.getElementById("manualHostInput");
+      if (manualConnectBtn && manualHostInput) {
+        const existingHost = localStorage.getItem('vifi_host');
+        const existingSession = localStorage.getItem('vifi_session_id');
+        if (existingHost) manualHostInput.value = existingHost;
+        else if (existingSession) manualHostInput.value = existingSession;
+
+        manualConnectBtn.addEventListener("click", () => {
+          const val = manualHostInput.value.trim();
+          if (!val) return;
+          if (val.startsWith("vifi_")) {
+            localStorage.setItem('vifi_session_id', val);
+            window.location.hash = `#s=${val}`;
+          } else {
+            const cleanHost = val.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+            localStorage.setItem('vifi_host', cleanHost);
+            window.location.search = `?host=${cleanHost}`;
+          }
+          window.location.reload();
+        });
+      }
+
       // Input Focus Auto-Scroll to guarantee input is completely visible above keyboard
       if (chatInput) {
         chatInput.addEventListener('focus', () => {
@@ -5158,6 +5312,28 @@
         });
       }
     }
+
+    // Global Hard Reload / Cache Purge for Mobile PWA
+    async function hardReloadApp() {
+      try {
+        if ('serviceWorker' in navigator) {
+          const registrations = await navigator.serviceWorker.getRegistrations();
+          for (let registration of registrations) {
+            await registration.unregister();
+          }
+        }
+        if ('caches' in window) {
+          const keys = await caches.keys();
+          for (let key of keys) {
+            await caches.delete(key);
+          }
+        }
+      } catch (e) {
+        console.warn("Cache purge error:", e);
+      }
+      window.location.reload(true);
+    }
+    window.hardReloadApp = hardReloadApp;
 
     if (document.readyState === "loading") {
       document.addEventListener("DOMContentLoaded", initApp);

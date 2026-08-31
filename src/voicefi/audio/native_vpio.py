@@ -18,6 +18,7 @@ import numpy as np
 
 try:
     import objc
+
     if hasattr(objc, "ObjCPointerWarning"):
         warnings.filterwarnings("ignore", category=objc.ObjCPointerWarning)
 except Exception:
@@ -43,7 +44,12 @@ def is_vpio_supported() -> bool:
 
     try:
         import objc
-        objc.loadBundle("AVFoundation", globals(), bundle_path="/System/Library/Frameworks/AVFoundation.framework")
+
+        objc.loadBundle(
+            "AVFoundation",
+            globals(),
+            bundle_path="/System/Library/Frameworks/AVFoundation.framework",
+        )
         objc.registerMetaDataForSelector(
             b"AVAudioNode",
             b"installTapOnBus:bufferSize:format:block:",
@@ -161,10 +167,14 @@ class NativeVoiceProcessingStream:
                         processed = raw_arr[::3].copy()
                     elif native_sr == 44100 and target_sr == 16000:
                         import scipy.signal
+
                         processed = scipy.signal.resample_poly(raw_arr, 160, 441).astype(np.float32)
                     else:
                         import scipy.signal
-                        processed = scipy.signal.resample_poly(raw_arr, target_sr, native_sr).astype(np.float32)
+
+                        processed = scipy.signal.resample_poly(
+                            raw_arr, target_sr, native_sr
+                        ).astype(np.float32)
 
                     q.put(processed)
                 except Exception:

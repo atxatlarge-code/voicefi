@@ -63,7 +63,12 @@ from voicefi.memo.models import MemoStore, MemoRecording, CleanedMemo, Synthesiz
 from voicefi.memo.recorder import MemoBufferRecorder
 from voicefi.memo.cleaner import MemoCleaner
 from voicefi.memo.synthesizer import MemoSynthesizer
-from voicefi.companion.qr import get_local_ip, get_companion_urls, print_qr_code, generate_qr_base64_png
+from voicefi.companion.qr import (
+    get_local_ip,
+    get_companion_urls,
+    print_qr_code,
+    generate_qr_base64_png,
+)
 from voicefi.companion.relay_client import RelayClient, RelaySessionCredentials
 
 
@@ -118,6 +123,8 @@ class CompanionServer:
 
     def _setup_routes(self):
         self.app.router.add_get("/", self.handle_index)
+        self.app.router.add_get("/companion", self.handle_index)
+        self.app.router.add_get("/companion/", self.handle_index)
         self.app.router.add_get("/pair", self.handle_pair)
         self.app.router.add_get("/studio", self.handle_studio)
         self.app.router.add_get("/mock", self.handle_mock)
@@ -139,7 +146,9 @@ class CompanionServer:
         self.app.router.add_post("/api/ambient/start", self.handle_ambient_start)
         self.app.router.add_post("/api/ambient/stop", self.handle_ambient_stop)
         self.app.router.add_get("/api/ambient/tasks", self.handle_ambient_tasks)
-        self.app.router.add_post("/api/ambient/tasks/{task_id}/action", self.handle_ambient_task_action)
+        self.app.router.add_post(
+            "/api/ambient/tasks/{task_id}/action", self.handle_ambient_task_action
+        )
         self.app.router.add_get("/api/memos", self.handle_list_memos)
         self.app.router.add_get("/api/memos/{memo_id}", self.handle_get_memo)
         self.app.router.add_post("/api/memos/record", self.handle_record_memo)
@@ -151,16 +160,22 @@ class CompanionServer:
         self.app.router.add_post("/api/plan/action", self.handle_plan_action)
         self.app.router.add_get("/api/conversations", self.handle_conversations)
         self.app.router.add_get("/api/conversation/{conv_id}", self.handle_conversation_detail)
-        self.app.router.add_get("/api/conversation/{conv_id}/artifact/{filename}", self.handle_conversation_artifact)
+        self.app.router.add_get(
+            "/api/conversation/{conv_id}/artifact/{filename}", self.handle_conversation_artifact
+        )
         self.app.router.add_post("/api/conversation/new", self.handle_new_conversation)
         self.app.router.add_post("/api/switch", self.handle_switch)
         self.app.router.add_post("/api/send", self.handle_send)
         self.app.router.add_post("/api/speak", self.handle_speak)
         self.app.router.add_post("/api/sfx", self.handle_sfx)
         self.app.router.add_post("/api/stop", self.handle_stop)
-        self.app.router.add_post("/api/conversation/{conv_id}/artifact_review", self.handle_artifact_review)
+        self.app.router.add_post(
+            "/api/conversation/{conv_id}/artifact_review", self.handle_artifact_review
+        )
         self.app.router.add_post("/api/artifact_review", self.handle_artifact_review)
-        self.app.router.add_post("/api/conversation/{conv_id}/image_feedback", self.handle_image_feedback)
+        self.app.router.add_post(
+            "/api/conversation/{conv_id}/image_feedback", self.handle_image_feedback
+        )
         self.app.router.add_post("/api/image_feedback", self.handle_image_feedback)
         self.app.router.add_post("/api/screenshot", self.handle_screenshot)
         self.app.router.add_post("/api/upload_image", self.handle_upload_image)
@@ -168,10 +183,18 @@ class CompanionServer:
         self.app.router.add_post("/api/stop_mac_recording", self.handle_stop_mac_recording)
         self.app.router.add_post("/api/stt", self.handle_stt)
         self.app.router.add_post("/api/tts", self.handle_tts)
-        self.app.router.add_post("/api/troubleshoot/feedback_loop", self.handle_troubleshoot_feedback_loop)
-        self.app.router.add_post("/api/troubleshoot/feedback-loop", self.handle_troubleshoot_feedback_loop)
-        self.app.router.add_post("/api/troubleshoot/hearing_test", self.handle_troubleshoot_hearing_test)
-        self.app.router.add_post("/api/troubleshoot/hearing-test", self.handle_troubleshoot_hearing_test)
+        self.app.router.add_post(
+            "/api/troubleshoot/feedback_loop", self.handle_troubleshoot_feedback_loop
+        )
+        self.app.router.add_post(
+            "/api/troubleshoot/feedback-loop", self.handle_troubleshoot_feedback_loop
+        )
+        self.app.router.add_post(
+            "/api/troubleshoot/hearing_test", self.handle_troubleshoot_hearing_test
+        )
+        self.app.router.add_post(
+            "/api/troubleshoot/hearing-test", self.handle_troubleshoot_hearing_test
+        )
         self.app.router.add_post("/api/vault/query", self.handle_vault_query)
         self.app.router.add_get("/api/qr", self.handle_qr)
         self.app.router.add_get("/api/tunnel/status", self.handle_tunnel_status)
@@ -183,7 +206,9 @@ class CompanionServer:
         # Voice Recording Studio, Audio FX & Reel Generator APIs
         self.app.router.add_get("/api/studio/presets", self.handle_studio_presets)
         self.app.router.add_get("/api/studio/recordings", self.handle_studio_recordings)
-        self.app.router.add_get("/api/studio/recording/{rec_id}", self.handle_studio_recording_stream)
+        self.app.router.add_get(
+            "/api/studio/recording/{rec_id}", self.handle_studio_recording_stream
+        )
         self.app.router.add_post("/api/studio/upload", self.handle_studio_upload)
         self.app.router.add_post("/api/studio/record", self.handle_studio_record)
         self.app.router.add_post("/api/studio/trim", self.handle_studio_trim)
@@ -224,7 +249,19 @@ class CompanionServer:
         )
 
     async def handle_mock(self, request: web.Request) -> web.Response:
-        mock_path = STATIC_DIR / "mocks.html" if (STATIC_DIR / "mocks.html").is_file() else (STATIC_DIR / "mock.html" if (STATIC_DIR / "mock.html").is_file() else (MOCKS_DIR / "mocks.html" if (MOCKS_DIR / "mocks.html").is_file() else MOCKS_DIR / "mock.html"))
+        mock_path = (
+            STATIC_DIR / "mocks.html"
+            if (STATIC_DIR / "mocks.html").is_file()
+            else (
+                STATIC_DIR / "mock.html"
+                if (STATIC_DIR / "mock.html").is_file()
+                else (
+                    MOCKS_DIR / "mocks.html"
+                    if (MOCKS_DIR / "mocks.html").is_file()
+                    else MOCKS_DIR / "mock.html"
+                )
+            )
+        )
         if not mock_path.is_file():
             return web.Response(text="VoiceFi Mock Studio UI missing.", status=404)
         return web.Response(
@@ -234,7 +271,19 @@ class CompanionServer:
         )
 
     async def handle_mocks(self, request: web.Request) -> web.Response:
-        mock_path = STATIC_DIR / "mocks.html" if (STATIC_DIR / "mocks.html").is_file() else (STATIC_DIR / "mock.html" if (STATIC_DIR / "mock.html").is_file() else (MOCKS_DIR / "mocks.html" if (MOCKS_DIR / "mocks.html").is_file() else MOCKS_DIR / "mock.html"))
+        mock_path = (
+            STATIC_DIR / "mocks.html"
+            if (STATIC_DIR / "mocks.html").is_file()
+            else (
+                STATIC_DIR / "mock.html"
+                if (STATIC_DIR / "mock.html").is_file()
+                else (
+                    MOCKS_DIR / "mocks.html"
+                    if (MOCKS_DIR / "mocks.html").is_file()
+                    else MOCKS_DIR / "mock.html"
+                )
+            )
+        )
         if not mock_path.is_file():
             return web.Response(text="VoiceFi Mocks UI missing.", status=404)
         return web.Response(
@@ -244,7 +293,11 @@ class CompanionServer:
         )
 
     async def handle_hud_mocks(self, request: web.Request) -> web.Response:
-        hud_mock_path = STATIC_DIR / "hud_mocks.html" if (STATIC_DIR / "hud_mocks.html").is_file() else MOCKS_DIR / "hud_mocks.html"
+        hud_mock_path = (
+            STATIC_DIR / "hud_mocks.html"
+            if (STATIC_DIR / "hud_mocks.html").is_file()
+            else MOCKS_DIR / "hud_mocks.html"
+        )
         if not hud_mock_path.is_file():
             return web.Response(text="VoiceFi Dynamic Island HUD Mocks missing.", status=404)
         return web.Response(
@@ -254,7 +307,11 @@ class CompanionServer:
         )
 
     async def handle_logo_mock(self, request: web.Request) -> web.Response:
-        mock_path = STATIC_DIR / "voicefi_logo_mock.html" if (STATIC_DIR / "voicefi_logo_mock.html").is_file() else MOCKS_DIR / "voicefi_logo_mock.html"
+        mock_path = (
+            STATIC_DIR / "voicefi_logo_mock.html"
+            if (STATIC_DIR / "voicefi_logo_mock.html").is_file()
+            else MOCKS_DIR / "voicefi_logo_mock.html"
+        )
         if not mock_path.is_file():
             return web.Response(text="VoiceFi Reactive Logo Mock UI missing.", status=404)
         return web.Response(
@@ -280,7 +337,11 @@ class CompanionServer:
         file_path = STATIC_DIR / "downloads" / filename
         if not file_path.is_file():
             return web.Response(text=f"File {filename} not found.", status=404)
-        mime = "video/mp4" if filename.endswith(".mp4") else ("audio/mpeg" if filename.endswith(".mp3") else "application/octet-stream")
+        mime = (
+            "video/mp4"
+            if filename.endswith(".mp4")
+            else ("audio/mpeg" if filename.endswith(".mp3") else "application/octet-stream")
+        )
         return web.Response(
             body=file_path.read_bytes(),
             content_type=mime,
@@ -288,14 +349,16 @@ class CompanionServer:
                 "Content-Disposition": f'attachment; filename="{filename}"',
                 "Content-Length": str(file_path.stat().st_size),
                 "Access-Control-Allow-Origin": "*",
-            }
+            },
         )
 
     async def handle_manifest(self, request: web.Request) -> web.Response:
         manifest_path = STATIC_DIR / "manifest.json"
         if not manifest_path.is_file():
             return web.Response(text="{}", content_type="application/json")
-        return web.Response(text=manifest_path.read_text(encoding="utf-8"), content_type="application/manifest+json")
+        return web.Response(
+            text=manifest_path.read_text(encoding="utf-8"), content_type="application/manifest+json"
+        )
 
     async def handle_sw(self, request: web.Request) -> web.Response:
         sw_path = STATIC_DIR / "sw.js"
@@ -318,9 +381,21 @@ class CompanionServer:
         )
 
     async def handle_icon(self, request: web.Request) -> web.Response:
-        icon_path = Path(__file__).resolve().parent.parent.parent.parent / "assets" / "icon.png"
-        if icon_path.is_file():
-            return web.Response(body=icon_path.read_bytes(), content_type="image/png")
+        candidate_paths = [
+            Path(__file__).resolve().parent.parent.parent.parent
+            / "assets"
+            / "VoiceFi.iconset"
+            / "icon_512x512.png",
+            Path(__file__).resolve().parent.parent.parent.parent
+            / "assets"
+            / "VoiceFi.iconset"
+            / "icon_256x256.png",
+            Path(__file__).resolve().parent.parent.parent.parent / "assets" / "icon.png",
+            STATIC_DIR / "assets" / "icon.png",
+        ]
+        for icon_path in candidate_paths:
+            if icon_path.is_file():
+                return web.Response(body=icon_path.read_bytes(), content_type="image/png")
         # Minimal transparent 1x1 png fallback
         png_1x1 = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15c4\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
         return web.Response(body=png_1x1, content_type="image/png")
@@ -338,22 +413,29 @@ class CompanionServer:
                 "last_user_text": active.last_user_text,
             }
         tier_summary = FeatureGate.get_tier_summary(self.config)
-        return web.json_response({
-            "status": "online",
-            "active_conversation": active_data,
-            "connected_clients": len(self.active_websockets),
-            "audio_routing": getattr(getattr(self.config, "companion", None), "audio_routing", "smart"),
-            "mute_mac_when_companion_active": getattr(getattr(self.config, "companion", None), "mute_mac_when_companion_active", False),
-            "ambient_active": self._ambient_stream is not None and self._ambient_stream.is_running,
-            "memo_active": self._memo_recorder is not None,
-            "tier": tier_summary.get("tier"),
-            "status_text": tier_summary.get("status_text"),
-            "is_pro": tier_summary.get("is_pro"),
-            "is_trial": tier_summary.get("is_trial"),
-            "trial_days_remaining": tier_summary.get("trial_days_remaining"),
-            "trial_expires_at": tier_summary.get("trial_expires_at"),
-            "pricing": tier_summary.get("pricing"),
-        })
+        return web.json_response(
+            {
+                "status": "online",
+                "active_conversation": active_data,
+                "connected_clients": len(self.active_websockets),
+                "audio_routing": getattr(
+                    getattr(self.config, "companion", None), "audio_routing", "smart"
+                ),
+                "mute_mac_when_companion_active": getattr(
+                    getattr(self.config, "companion", None), "mute_mac_when_companion_active", False
+                ),
+                "ambient_active": self._ambient_stream is not None
+                and self._ambient_stream.is_running,
+                "memo_active": self._memo_recorder is not None,
+                "tier": tier_summary.get("tier"),
+                "status_text": tier_summary.get("status_text"),
+                "is_pro": tier_summary.get("is_pro"),
+                "is_trial": tier_summary.get("is_trial"),
+                "trial_days_remaining": tier_summary.get("trial_days_remaining"),
+                "trial_expires_at": tier_summary.get("trial_expires_at"),
+                "pricing": tier_summary.get("pricing"),
+            }
+        )
 
     async def handle_stats(self, request: web.Request) -> web.Response:
         """Return analytics summary, HAI cognitive flow breakdown, tool and agent distributions."""
@@ -365,6 +447,7 @@ class CompanionServer:
                 get_tool_usage_breakdown,
                 get_agent_distribution,
             )
+
             days_raw = str(request.query.get("days", "7")).strip().lower()
             if days_raw in ("today", "1"):
                 days = 1
@@ -382,20 +465,25 @@ class CompanionServer:
             tools = get_tool_usage_breakdown(days=days)
             agents = get_agent_distribution(days=days)
 
-            return web.json_response({
-                "status": "ok",
-                "days": days,
-                "summary": summary,
-                "cognitive_flow": flow,
-                "daily_volume": daily,
-                "tool_distribution": tools,
-                "agent_distribution": agents,
-            })
+            return web.json_response(
+                {
+                    "status": "ok",
+                    "days": days,
+                    "summary": summary,
+                    "cognitive_flow": flow,
+                    "daily_volume": daily,
+                    "tool_distribution": tools,
+                    "agent_distribution": agents,
+                }
+            )
         except Exception as e:
-            return web.json_response({
-                "status": "error",
-                "error": str(e),
-            }, status=500)
+            return web.json_response(
+                {
+                    "status": "error",
+                    "error": str(e),
+                },
+                status=500,
+            )
 
     async def handle_get_license(self, request: web.Request) -> web.Response:
         """Return comprehensive licensing, 14-day free trial, and pricing metadata."""
@@ -416,7 +504,9 @@ class CompanionServer:
             self.config.tier = "pro"
             save_config(self.config)
             summary = FeatureGate.get_tier_summary(self.config)
-            return web.json_response({"success": True, "message": "Pro license activated", "summary": summary})
+            return web.json_response(
+                {"success": True, "message": "Pro license activated", "summary": summary}
+            )
         except Exception as e:
             return web.json_response({"error": str(e)}, status=500)
 
@@ -426,20 +516,26 @@ class CompanionServer:
         tasks = []
         if self._ambient_dispatcher:
             for t in self._ambient_dispatcher.get_staged_tasks():
-                tasks.append({
-                    "id": t.id,
-                    "category": t.category.value,
-                    "summary": t.summary,
-                    "action_prompt": t.action_prompt,
-                    "suggested_workspace": t.suggested_workspace,
-                    "status": t.status,
-                    "created_at": t.created_at,
-                })
-        return web.json_response({
-            "is_running": is_running,
-            "noise_floor": getattr(self._ambient_stream, "current_noise_floor", 0.006) if self._ambient_stream else 0.006,
-            "staged_tasks": tasks,
-        })
+                tasks.append(
+                    {
+                        "id": t.id,
+                        "category": t.category.value,
+                        "summary": t.summary,
+                        "action_prompt": t.action_prompt,
+                        "suggested_workspace": t.suggested_workspace,
+                        "status": t.status,
+                        "created_at": t.created_at,
+                    }
+                )
+        return web.json_response(
+            {
+                "is_running": is_running,
+                "noise_floor": getattr(self._ambient_stream, "current_noise_floor", 0.006)
+                if self._ambient_stream
+                else 0.006,
+                "staged_tasks": tasks,
+            }
+        )
 
     async def handle_ambient_start(self, request: web.Request) -> web.Response:
         try:
@@ -466,15 +562,17 @@ class CompanionServer:
         tasks = []
         if self._ambient_dispatcher:
             for t in self._ambient_dispatcher.get_staged_tasks():
-                tasks.append({
-                    "id": t.id,
-                    "category": t.category.value,
-                    "summary": t.summary,
-                    "action_prompt": t.action_prompt,
-                    "suggested_workspace": t.suggested_workspace,
-                    "status": t.status,
-                    "created_at": t.created_at,
-                })
+                tasks.append(
+                    {
+                        "id": t.id,
+                        "category": t.category.value,
+                        "summary": t.summary,
+                        "action_prompt": t.action_prompt,
+                        "suggested_workspace": t.suggested_workspace,
+                        "status": t.status,
+                        "created_at": t.created_at,
+                    }
+                )
         return web.json_response({"tasks": tasks})
 
     async def handle_ambient_task_action(self, request: web.Request) -> web.Response:
@@ -483,16 +581,20 @@ class CompanionServer:
             data = await request.json()
             action = data.get("action", "dispatch")
             if not self._ambient_dispatcher:
-                return web.json_response({"error": "Ambient dispatcher not initialized"}, status=400)
+                return web.json_response(
+                    {"error": "Ambient dispatcher not initialized"}, status=400
+                )
 
             if action == "dismiss":
                 self._ambient_dispatcher.dismiss_task(task_id)
-                self.broadcast_event({
-                    "type": "ambient_task_updated",
-                    "task_id": task_id,
-                    "status": "dismissed",
-                    "timestamp": time.time(),
-                })
+                self.broadcast_event(
+                    {
+                        "type": "ambient_task_updated",
+                        "task_id": task_id,
+                        "status": "dismissed",
+                        "timestamp": time.time(),
+                    }
+                )
                 return web.json_response({"success": True, "status": "dismissed"})
             elif action == "dispatch":
                 tasks = {t.id: t for t in self._ambient_dispatcher.get_staged_tasks()}
@@ -503,15 +605,21 @@ class CompanionServer:
                 set_mobile_turn_origin(None)
                 prompt = f"[{task.category.value}] {task.action_prompt}"
                 delivered = send_message_to_antigravity(conv_id=None, text=prompt)
-                self._ambient_dispatcher.complete_task(task_id, result_summary="Dispatched to Antigravity")
-                self.broadcast_event({
-                    "type": "ambient_task_updated",
-                    "task_id": task_id,
-                    "status": "completed",
-                    "delivered": delivered,
-                    "timestamp": time.time(),
-                })
-                return web.json_response({"success": True, "status": "dispatched", "delivered": delivered})
+                self._ambient_dispatcher.complete_task(
+                    task_id, result_summary="Dispatched to Antigravity"
+                )
+                self.broadcast_event(
+                    {
+                        "type": "ambient_task_updated",
+                        "task_id": task_id,
+                        "status": "completed",
+                        "delivered": delivered,
+                        "timestamp": time.time(),
+                    }
+                )
+                return web.json_response(
+                    {"success": True, "status": "dispatched", "delivered": delivered}
+                )
             else:
                 return web.json_response({"error": f"Unknown action: {action}"}, status=400)
         except Exception as e:
@@ -529,11 +637,15 @@ class CompanionServer:
         if not res:
             return web.json_response({"error": "Memo not found"}, status=404)
         rec, synth = res
-        return web.json_response({
-            "recording": rec.model_dump() if hasattr(rec, "model_dump") else rec.dict(),
-            "synthesis": (synth.model_dump() if hasattr(synth, "model_dump") else synth.dict()) if synth else None,
-            "markdown": synth.to_markdown() if synth else rec.raw_transcript,
-        })
+        return web.json_response(
+            {
+                "recording": rec.model_dump() if hasattr(rec, "model_dump") else rec.dict(),
+                "synthesis": (synth.model_dump() if hasattr(synth, "model_dump") else synth.dict())
+                if synth
+                else None,
+                "markdown": synth.to_markdown() if synth else rec.raw_transcript,
+            }
+        )
 
     async def handle_record_memo(self, request: web.Request) -> web.Response:
         try:
@@ -574,11 +686,15 @@ class CompanionServer:
         cfg = load_config()
         self.config = cfg
         companion = getattr(cfg, "companion", None)
-        return web.json_response({
-            "audio_routing": getattr(companion, "audio_routing", "smart"),
-            "mute_mac_when_companion_active": getattr(companion, "mute_mac_when_companion_active", False),
-            "active_clients": len(self.active_websockets),
-        })
+        return web.json_response(
+            {
+                "audio_routing": getattr(companion, "audio_routing", "smart"),
+                "mute_mac_when_companion_active": getattr(
+                    companion, "mute_mac_when_companion_active", False
+                ),
+                "active_clients": len(self.active_websockets),
+            }
+        )
 
     async def handle_set_audio_routing(self, request: web.Request) -> web.Response:
         try:
@@ -592,16 +708,20 @@ class CompanionServer:
                 cfg.companion.mute_mac_when_companion_active = bool(mute_mac)
             save_config(cfg)
             self.config = cfg
-            self.broadcast_event({
-                "type": "config_updated",
-                "audio_routing": cfg.companion.audio_routing,
-                "mute_mac_when_companion_active": cfg.companion.mute_mac_when_companion_active,
-            })
-            return web.json_response({
-                "success": True,
-                "audio_routing": cfg.companion.audio_routing,
-                "mute_mac_when_companion_active": cfg.companion.mute_mac_when_companion_active,
-            })
+            self.broadcast_event(
+                {
+                    "type": "config_updated",
+                    "audio_routing": cfg.companion.audio_routing,
+                    "mute_mac_when_companion_active": cfg.companion.mute_mac_when_companion_active,
+                }
+            )
+            return web.json_response(
+                {
+                    "success": True,
+                    "audio_routing": cfg.companion.audio_routing,
+                    "mute_mac_when_companion_active": cfg.companion.mute_mac_when_companion_active,
+                }
+            )
         except Exception as e:
             return web.json_response({"error": str(e)}, status=400)
 
@@ -619,10 +739,12 @@ class CompanionServer:
             url_file = Path.home() / ".voicefi" / "ag_remote_url.txt"
             url_file.parent.mkdir(parents=True, exist_ok=True)
             url_file.write_text(url, encoding="utf-8")
-            self.broadcast_event({
-                "type": "ag_remote_updated",
-                "url": url,
-            })
+            self.broadcast_event(
+                {
+                    "type": "ag_remote_updated",
+                    "url": url,
+                }
+            )
             return web.json_response({"success": True, "url": url})
         except Exception as e:
             return web.json_response({"error": str(e)}, status=400)
@@ -638,25 +760,33 @@ class CompanionServer:
             if action == "approve":
                 prompt_text = "Approved. Please proceed with the implementation plan."
             elif action == "reject":
-                prompt_text = f"Plan rejected: {custom_feedback}" if custom_feedback else "Plan rejected. Please revise the approach."
+                prompt_text = (
+                    f"Plan rejected: {custom_feedback}"
+                    if custom_feedback
+                    else "Plan rejected. Please revise the approach."
+                )
             else:
                 prompt_text = custom_feedback or "Please review and adjust the implementation plan."
 
             set_mobile_turn_origin(conv_id)
             delivered = send_message_to_agent(conv_id=conv_id, text=prompt_text)
-            self.broadcast_event({
-                "type": "plan_action_dispatched",
-                "conv_id": conv_id or "active",
-                "action": action,
-                "text": prompt_text,
-                "delivered": delivered,
-            })
-            return web.json_response({
-                "success": True,
-                "action": action,
-                "prompt": prompt_text,
-                "delivered": delivered,
-            })
+            self.broadcast_event(
+                {
+                    "type": "plan_action_dispatched",
+                    "conv_id": conv_id or "active",
+                    "action": action,
+                    "text": prompt_text,
+                    "delivered": delivered,
+                }
+            )
+            return web.json_response(
+                {
+                    "success": True,
+                    "action": action,
+                    "prompt": prompt_text,
+                    "delivered": delivered,
+                }
+            )
         except Exception as e:
             return web.json_response({"error": str(e)}, status=500)
 
@@ -664,20 +794,22 @@ class CompanionServer:
         convs = self.tracker.get_all_conversations(limit=12)
         active = self.tracker.get_active_or_latest()
         active_id = active.id if active else ""
-        return web.json_response({
-            "conversations": [
-                {
-                    "id": c.id,
-                    "title": c.title,
-                    "status": c.status,
-                    "mtime": c.mtime,
-                    "engine": getattr(c, "engine", "antigravity"),
-                    "project_name": getattr(c, "project_name", None),
-                }
-                for c in convs
-            ],
-            "active_id": active_id,
-        })
+        return web.json_response(
+            {
+                "conversations": [
+                    {
+                        "id": c.id,
+                        "title": c.title,
+                        "status": c.status,
+                        "mtime": c.mtime,
+                        "engine": getattr(c, "engine", "antigravity"),
+                        "project_name": getattr(c, "project_name", None),
+                    }
+                    for c in convs
+                ],
+                "active_id": active_id,
+            }
+        )
 
     async def handle_conversation_detail(self, request: web.Request) -> web.Response:
         conv_id = request.match_info.get("conv_id")
@@ -718,36 +850,42 @@ class CompanionServer:
                 active = self.tracker.get_active_or_latest()
                 active_id = active.id if active else "claude_active"
             else:
-                new_id = create_new_antigravity_conversation(prompt=prompt, title=title, model=model)
+                new_id = create_new_antigravity_conversation(
+                    prompt=prompt, title=title, model=model
+                )
                 await asyncio.sleep(0.5)
                 active = self.tracker.get_active_or_latest()
                 active_id = new_id or (active.id if active else "")
 
             if active_id:
                 self.tracker.set_active_focus(active_id)
-                self.broadcast_event({
-                    "type": "conversation_created",
-                    "conv_id": active_id,
-                    "title": active.title if active else "New Conversation",
-                    "engine": engine,
-                })
+                self.broadcast_event(
+                    {
+                        "type": "conversation_created",
+                        "conv_id": active_id,
+                        "title": active.title if active else "New Conversation",
+                        "engine": engine,
+                    }
+                )
 
             convs = self.tracker.get_all_conversations(limit=12)
-            return web.json_response({
-                "success": True,
-                "conv_id": active_id,
-                "conversations": [
-                    {
-                        "id": c.id,
-                        "title": c.title,
-                        "status": c.status,
-                        "mtime": c.mtime,
-                        "engine": getattr(c, "engine", "antigravity"),
-                        "project_name": getattr(c, "project_name", None),
-                    }
-                    for c in convs
-                ],
-            })
+            return web.json_response(
+                {
+                    "success": True,
+                    "conv_id": active_id,
+                    "conversations": [
+                        {
+                            "id": c.id,
+                            "title": c.title,
+                            "status": c.status,
+                            "mtime": c.mtime,
+                            "engine": getattr(c, "engine", "antigravity"),
+                            "project_name": getattr(c, "project_name", None),
+                        }
+                        for c in convs
+                    ],
+                }
+            )
         except Exception as e:
             return web.json_response({"error": str(e)}, status=500)
 
@@ -757,10 +895,12 @@ class CompanionServer:
             conv_id = data.get("conv_id")
             if conv_id:
                 self.tracker.set_active_focus(conv_id)
-                self.broadcast_event({
-                    "type": "conversation_switched",
-                    "conv_id": conv_id,
-                })
+                self.broadcast_event(
+                    {
+                        "type": "conversation_switched",
+                        "conv_id": conv_id,
+                    }
+                )
                 return web.json_response({"success": True, "active_id": conv_id})
         except Exception as e:
             return web.json_response({"error": str(e)}, status=400)
@@ -771,32 +911,41 @@ class CompanionServer:
             try:
                 data = await request.json()
             except Exception:
-                return web.json_response({
-                    "error": "Invalid JSON payload",
-                    "success": False,
-                    "delivered": False,
-                    "delivered_ipc": False,
-                    "pasted_to_foreground": False,
-                }, status=400)
+                return web.json_response(
+                    {
+                        "error": "Invalid JSON payload",
+                        "success": False,
+                        "delivered": False,
+                        "delivered_ipc": False,
+                        "pasted_to_foreground": False,
+                    },
+                    status=400,
+                )
 
             if not isinstance(data, dict):
-                return web.json_response({
-                    "error": "JSON body must be an object",
-                    "success": False,
-                    "delivered": False,
-                    "delivered_ipc": False,
-                    "pasted_to_foreground": False,
-                }, status=400)
+                return web.json_response(
+                    {
+                        "error": "JSON body must be an object",
+                        "success": False,
+                        "delivered": False,
+                        "delivered_ipc": False,
+                        "pasted_to_foreground": False,
+                    },
+                    status=400,
+                )
 
             raw_text = data.get("text")
             if raw_text is None or not isinstance(raw_text, str) or not raw_text.strip():
-                return web.json_response({
-                    "error": "Empty text prompt",
-                    "success": False,
-                    "delivered": False,
-                    "delivered_ipc": False,
-                    "pasted_to_foreground": False,
-                }, status=400)
+                return web.json_response(
+                    {
+                        "error": "Empty text prompt",
+                        "success": False,
+                        "delivered": False,
+                        "delivered_ipc": False,
+                        "pasted_to_foreground": False,
+                    },
+                    status=400,
+                )
 
             text = raw_text.strip()
             conv_id = data.get("conv_id") or data.get("conversation_id")
@@ -808,7 +957,11 @@ class CompanionServer:
             target_engine = data.get("engine") or data.get("to_engine")
             from_conv_id = data.get("from_conv_id")
             from_engine = data.get("from_engine")
-            include_envelope = data.get("include_envelope", True) if (target_engine in ("claude", "claude_code")) else data.get("include_envelope", False)
+            include_envelope = (
+                data.get("include_envelope", True)
+                if (target_engine in ("claude", "claude_code"))
+                else data.get("include_envelope", False)
+            )
 
             set_mobile_turn_origin(conv_id)
             result = send_message_to_agent(
@@ -827,12 +980,14 @@ class CompanionServer:
             err_msg = getattr(result, "error", None)
             target_cid = getattr(result, "target_conv_id", conv_id) or conv_id
 
-            self.broadcast_event({
-                "type": "user_command_injected",
-                "conv_id": conv_id or target_cid or "active",
-                "text": text,
-                "delivered": is_success,
-            })
+            self.broadcast_event(
+                {
+                    "type": "user_command_injected",
+                    "conv_id": conv_id or target_cid or "active",
+                    "text": text,
+                    "delivered": is_success,
+                }
+            )
             resp_data = {
                 "success": is_success,
                 "delivered": is_success,
@@ -847,13 +1002,16 @@ class CompanionServer:
             status_code = 200 if is_success else 500
             return web.json_response(resp_data, status=status_code)
         except Exception as e:
-            return web.json_response({
-                "error": str(e),
-                "success": False,
-                "delivered": False,
-                "delivered_ipc": False,
-                "pasted_to_foreground": False,
-            }, status=500)
+            return web.json_response(
+                {
+                    "error": str(e),
+                    "success": False,
+                    "delivered": False,
+                    "delivered_ipc": False,
+                    "pasted_to_foreground": False,
+                },
+                status=500,
+            )
 
     async def handle_speak(self, request: web.Request) -> web.Response:
         """
@@ -865,14 +1023,20 @@ class CompanionServer:
             try:
                 data = await request.json()
             except Exception:
-                return web.json_response({"error": "Invalid JSON payload", "status": "error"}, status=400)
+                return web.json_response(
+                    {"error": "Invalid JSON payload", "status": "error"}, status=400
+                )
 
             if not isinstance(data, dict):
-                return web.json_response({"error": "JSON body must be an object", "status": "error"}, status=400)
+                return web.json_response(
+                    {"error": "JSON body must be an object", "status": "error"}, status=400
+                )
 
             raw_text = data.get("text")
             if raw_text is None or not isinstance(raw_text, str) or not raw_text.strip():
-                return web.json_response({"error": "Missing or empty 'text' field", "status": "error"}, status=400)
+                return web.json_response(
+                    {"error": "Missing or empty 'text' field", "status": "error"}, status=400
+                )
 
             clean_text = raw_text.strip()
             voice = data.get("voice")
@@ -884,23 +1048,28 @@ class CompanionServer:
             if conv_id:
                 try:
                     from voicefi.integrations.conversations import claim_active_conversation_turn
+
                     claim_active_conversation_turn(clean_text, conv_id=conv_id)
                 except Exception:
                     pass
 
-            self.broadcast_event({
-                "type": "speak",
-                "text": clean_text,
-                "conv_id": conv_id or "active",
-                "voice": voice or "Viv",
-                "agent_role": agent,
-            })
-            self.broadcast_event({
-                "type": "agent_speaking_started",
-                "text": clean_text,
-                "conv_id": conv_id or "active",
-                "voice": voice or "Viv",
-            })
+            self.broadcast_event(
+                {
+                    "type": "speak",
+                    "text": clean_text,
+                    "conv_id": conv_id or "active",
+                    "voice": voice or "Viv",
+                    "agent_role": agent,
+                }
+            )
+            self.broadcast_event(
+                {
+                    "type": "agent_speaking_started",
+                    "text": clean_text,
+                    "conv_id": conv_id or "active",
+                    "voice": voice or "Viv",
+                }
+            )
 
             target_device = (data.get("target") or data.get("device") or "").lower()
             speak_on_mac = target_device not in ("phone", "mobile", "companion")
@@ -918,7 +1087,11 @@ class CompanionServer:
                     except Exception:
                         pass
 
-                with speech_turn_lock(text=clean_text, agent_name=agent, persona_name=getattr(tts, "persona_name", None)):
+                with speech_turn_lock(
+                    text=clean_text,
+                    agent_name=agent,
+                    persona_name=getattr(tts, "persona_name", None),
+                ):
                     tts.speak(clean_text)
 
             if speak_on_mac:
@@ -927,26 +1100,33 @@ class CompanionServer:
                     try:
                         await loop.run_in_executor(None, _speak_sync)
                     finally:
-                        self.broadcast_event({
-                            "type": "agent_speaking_finished",
-                            "conv_id": conv_id or "active",
-                        })
+                        self.broadcast_event(
+                            {
+                                "type": "agent_speaking_finished",
+                                "conv_id": conv_id or "active",
+                            }
+                        )
                 else:
+
                     def _background_speak():
                         try:
                             _speak_sync()
                         finally:
-                            self.broadcast_event({
-                                "type": "agent_speaking_finished",
-                                "conv_id": conv_id or "active",
-                            })
+                            self.broadcast_event(
+                                {
+                                    "type": "agent_speaking_finished",
+                                    "conv_id": conv_id or "active",
+                                }
+                            )
 
                     threading.Thread(target=_background_speak, daemon=True).start()
 
-            return web.json_response({
-                "status": "ok",
-                "text": clean_text,
-            })
+            return web.json_response(
+                {
+                    "status": "ok",
+                    "text": clean_text,
+                }
+            )
         except Exception as e:
             return web.json_response({"error": str(e), "status": "error"}, status=500)
 
@@ -960,19 +1140,27 @@ class CompanionServer:
             try:
                 data = await request.json()
             except Exception:
-                return web.json_response({"error": "Invalid JSON payload", "status": "error"}, status=400)
+                return web.json_response(
+                    {"error": "Invalid JSON payload", "status": "error"}, status=400
+                )
 
             if not isinstance(data, dict):
-                return web.json_response({"error": "JSON body must be an object", "status": "error"}, status=400)
+                return web.json_response(
+                    {"error": "JSON body must be an object", "status": "error"}, status=400
+                )
 
             raw_name = data.get("name", "drum_smash")
             if raw_name is None or not isinstance(raw_name, str) or not raw_name.strip():
                 from voicefi.audio.sfx import list_available_sfx
-                return web.json_response({
-                    "error": "Missing or invalid 'name' parameter",
-                    "status": "error",
-                    "available": list_available_sfx(),
-                }, status=400)
+
+                return web.json_response(
+                    {
+                        "error": "Missing or invalid 'name' parameter",
+                        "status": "error",
+                        "available": list_available_sfx(),
+                    },
+                    status=400,
+                )
 
             clean_name = raw_name.strip()
             raw_volume = data.get("volume", 0.8)
@@ -980,10 +1168,13 @@ class CompanionServer:
                 volume = float(raw_volume)
                 volume = max(0.0, min(volume, 2.0))
             except (ValueError, TypeError):
-                return web.json_response({
-                    "error": "Invalid 'volume' parameter, expected number",
-                    "status": "error",
-                }, status=400)
+                return web.json_response(
+                    {
+                        "error": "Invalid 'volume' parameter, expected number",
+                        "status": "error",
+                    },
+                    status=400,
+                )
 
             block = bool(data.get("block", False))
 
@@ -991,21 +1182,28 @@ class CompanionServer:
 
             success = play_sfx(clean_name, block=block, volume=volume)
             if not success:
-                return web.json_response({
-                    "error": f"Unknown sound effect: '{clean_name}'",
-                    "status": "error",
-                    "available": list_available_sfx(),
-                }, status=400)
+                return web.json_response(
+                    {
+                        "error": f"Unknown sound effect: '{clean_name}'",
+                        "status": "error",
+                        "available": list_available_sfx(),
+                    },
+                    status=400,
+                )
 
-            self.broadcast_event({
-                "type": "sfx_played",
-                "name": clean_name,
-            })
+            self.broadcast_event(
+                {
+                    "type": "sfx_played",
+                    "name": clean_name,
+                }
+            )
 
-            return web.json_response({
-                "status": "ok",
-                "sfx": clean_name,
-            })
+            return web.json_response(
+                {
+                    "status": "ok",
+                    "sfx": clean_name,
+                }
+            )
         except Exception as e:
             return web.json_response({"error": str(e), "status": "error"}, status=500)
 
@@ -1016,7 +1214,8 @@ class CompanionServer:
         """
         try:
             from voicefi.tts.base import stop_all_speech
-            stop_all_speech()
+
+            stop_all_speech(broadcast_web=False)
 
             # Also stop any active Mac audio recording if in progress
             if hasattr(self, "_active_mac_recorder") and self._active_mac_recorder:
@@ -1025,19 +1224,21 @@ class CompanionServer:
                 except Exception:
                     pass
 
-            self.broadcast_event({
-                "type": "speech_stopped",
-                "timestamp": time.time(),
-            })
+            self.broadcast_event(
+                {
+                    "type": "speech_stopped",
+                    "timestamp": time.time(),
+                }
+            )
 
-            return web.json_response({
-                "status": "ok",
-                "stopped": True,
-            })
+            return web.json_response(
+                {
+                    "status": "ok",
+                    "stopped": True,
+                }
+            )
         except Exception as e:
             return web.json_response({"error": str(e), "status": "error"}, status=500)
-
-
 
     async def handle_hook_event(self, request: web.Request) -> web.Response:
         """
@@ -1055,19 +1256,22 @@ class CompanionServer:
         if request_id:
             # Clean entries older than 30s
             self._processed_hook_requests = {
-                k: v for k, v in self._processed_hook_requests.items()
-                if (now - v) < 30.0
+                k: v for k, v in self._processed_hook_requests.items() if (now - v) < 30.0
             }
             if request_id in self._processed_hook_requests:
-                return web.json_response({
-                    "success": True,
-                    "status": "duplicate",
-                    "request_id": request_id,
-                })
+                return web.json_response(
+                    {
+                        "success": True,
+                        "status": "duplicate",
+                        "request_id": request_id,
+                    }
+                )
             self._processed_hook_requests[request_id] = now
 
         target_agent = str(data.get("agent") or "antigravity").lower().strip()
-        conv_id = data.get("conversationId") or data.get("conversation_id") or data.get("conv_id") or ""
+        conv_id = (
+            data.get("conversationId") or data.get("conversation_id") or data.get("conv_id") or ""
+        )
         transcript_path_str = data.get("transcriptPath") or data.get("transcript_path") or ""
         workspace_paths = data.get("workspacePaths") or data.get("workspace_paths") or []
         workspace_path = workspace_paths[0] if workspace_paths else None
@@ -1087,12 +1291,15 @@ class CompanionServer:
                 fresh_config = load_config()
                 if target_agent in ("claude", "claude_code"):
                     from voicefi.integrations.claude import handle_claude_stop_hook
+
                     handle_claude_stop_hook(data, fresh_config)
                 elif target_agent in ("codex", "openai", "chatgpt"):
                     from voicefi.integrations.codex import handle_codex_stop_hook
+
                     handle_codex_stop_hook(data, fresh_config)
                 else:
                     from voicefi.integrations.antigravity import handle_antigravity_stop_hook
+
                     handle_antigravity_stop_hook(data, fresh_config)
             except Exception as e:
                 print(f"[CompanionServer] Error processing background hook turn: {e}")
@@ -1100,13 +1307,15 @@ class CompanionServer:
         turn_thread = threading.Thread(target=_process_hook_turn, daemon=True)
         turn_thread.start()
 
-        return web.json_response({
-            "success": True,
-            "status": "handled",
-            "agent": target_agent,
-            "conversationId": conv_id,
-            "request_id": request_id,
-        })
+        return web.json_response(
+            {
+                "success": True,
+                "status": "handled",
+                "agent": target_agent,
+                "conversationId": conv_id,
+                "request_id": request_id,
+            }
+        )
 
     async def handle_artifact_review(self, request: web.Request) -> web.Response:
         """Process structured markdown comments/review feedback from mobile companion."""
@@ -1152,22 +1361,26 @@ class CompanionServer:
                 title=f"Review on {filename}",
             )
 
-            self.broadcast_event({
-                "type": "artifact_reviewed",
-                "conv_id": conv_id,
-                "filename": filename,
-                "comments_count": len(comments),
-                "delivered": delivered,
-            })
+            self.broadcast_event(
+                {
+                    "type": "artifact_reviewed",
+                    "conv_id": conv_id,
+                    "filename": filename,
+                    "comments_count": len(comments),
+                    "delivered": delivered,
+                }
+            )
 
-            return web.json_response({
-                "success": True,
-                "conv_id": conv_id,
-                "filename": filename,
-                "comments_count": len(comments),
-                "delivered": delivered,
-                "message": formatted_prompt,
-            })
+            return web.json_response(
+                {
+                    "success": True,
+                    "conv_id": conv_id,
+                    "filename": filename,
+                    "comments_count": len(comments),
+                    "delivered": delivered,
+                    "message": formatted_prompt,
+                }
+            )
         except Exception as e:
             return web.json_response({"error": str(e)}, status=500)
 
@@ -1192,13 +1405,14 @@ class CompanionServer:
                 annotated_b64 = annotated_b64.split(",", 1)[1]
 
             import base64
+
             img_bytes = base64.b64decode(annotated_b64)
 
             bdir = self.tracker.brain_dir / conv_id
             bdir.mkdir(parents=True, exist_ok=True)
 
             orig_stem = Path(original_filename).stem
-            orig_stem_clean = re.sub(r'[^a-zA-Z0-9_\-]', '_', orig_stem)
+            orig_stem_clean = re.sub(r"[^a-zA-Z0-9_\-]", "_", orig_stem)
             ts_str = time.strftime("%Y%m%d_%H%M%S")
             unique_id = uuid.uuid4().hex[:6]
             filename = f"annotated_{orig_stem_clean}_{ts_str}_{unique_id}.jpg"
@@ -1209,10 +1423,14 @@ class CompanionServer:
 
             # Build feedback message
             lines = [f"### Visual Markup & Feedback on `{original_filename}`:\n"]
-            lines.append(f"I've circled and drawn notes directly on the image: [{filename}](file://{target_path})\n")
+            lines.append(
+                f"I've circled and drawn notes directly on the image: [{filename}](file://{target_path})\n"
+            )
             if feedback_text:
                 lines.append(f"**Notes / Instructions:**\n{feedback_text}\n")
-            lines.append("Please inspect the marked-up image and adjust the code/design accordingly.")
+            lines.append(
+                "Please inspect the marked-up image and adjust the code/design accordingly."
+            )
             formatted_prompt = "\n".join(lines)
 
             set_mobile_turn_origin(conv_id)
@@ -1223,22 +1441,26 @@ class CompanionServer:
                 title=f"Visual Feedback on {original_filename}",
             )
 
-            self.broadcast_event({
-                "type": "conversation_updated",
-                "conv_id": conv_id,
-            })
+            self.broadcast_event(
+                {
+                    "type": "conversation_updated",
+                    "conv_id": conv_id,
+                }
+            )
 
-            return web.json_response({
-                "success": True,
-                "conv_id": conv_id,
-                "original_filename": original_filename,
-                "filename": filename,
-                "path": str(target_path),
-                "url": f"/api/conversation/{conv_id}/artifact/{filename}",
-                "delivered": delivered,
-                "message": formatted_prompt,
-                "artifact": art,
-            })
+            return web.json_response(
+                {
+                    "success": True,
+                    "conv_id": conv_id,
+                    "original_filename": original_filename,
+                    "filename": filename,
+                    "path": str(target_path),
+                    "url": f"/api/conversation/{conv_id}/artifact/{filename}",
+                    "delivered": delivered,
+                    "message": formatted_prompt,
+                    "artifact": art,
+                }
+            )
         except Exception as e:
             return web.json_response({"error": str(e)}, status=500)
 
@@ -1257,6 +1479,7 @@ class CompanionServer:
         provider = data.get("provider")
 
         from voicefi.troubleshoot import AudioTroubleshooter
+
         loop = asyncio.get_running_loop()
         troubleshooter = AudioTroubleshooter(self.config)
 
@@ -1286,6 +1509,7 @@ class CompanionServer:
         provider = data.get("provider")
 
         from voicefi.troubleshoot import AudioTroubleshooter
+
         loop = asyncio.get_running_loop()
         troubleshooter = AudioTroubleshooter(self.config)
 
@@ -1310,16 +1534,22 @@ class CompanionServer:
             speak = data.get("speak", True)
 
             from voicefi.integrations.vault_agent import VaultAgent
+
             agent = VaultAgent(self.config)
-            result = agent.answer_vault_query(query=query, note_title=note_title, note_content=note_content)
+            result = agent.answer_vault_query(
+                query=query, note_title=note_title, note_content=note_content
+            )
             spoken = result.get("spoken_response", "")
 
             if speak and spoken:
                 # Notify connected Obsidian / web clients that agent is speaking
-                self.broadcast_event({
-                    "type": "agent_speaking_started",
-                    "text": spoken,
-                })
+                self.broadcast_event(
+                    {
+                        "type": "agent_speaking_started",
+                        "text": spoken,
+                    }
+                )
+
                 def _speak_worker():
                     try:
                         tts = get_tts_engine(self.config)
@@ -1366,22 +1596,32 @@ class CompanionServer:
             )
 
             if not target_path.is_file() or target_path.stat().st_size == 0:
-                return web.json_response({"error": "Failed to capture screenshot", "details": res.stderr.decode(errors="ignore")}, status=500)
+                return web.json_response(
+                    {
+                        "error": "Failed to capture screenshot",
+                        "details": res.stderr.decode(errors="ignore"),
+                    },
+                    status=500,
+                )
 
             art = self.tracker.get_artifact(conv_id, filename)
-            self.broadcast_event({
-                "type": "conversation_updated",
-                "conv_id": conv_id,
-            })
+            self.broadcast_event(
+                {
+                    "type": "conversation_updated",
+                    "conv_id": conv_id,
+                }
+            )
 
-            return web.json_response({
-                "success": True,
-                "conv_id": conv_id,
-                "filename": filename,
-                "path": str(target_path),
-                "url": f"/api/conversation/{conv_id}/artifact/{filename}",
-                "artifact": art,
-            })
+            return web.json_response(
+                {
+                    "success": True,
+                    "conv_id": conv_id,
+                    "filename": filename,
+                    "path": str(target_path),
+                    "url": f"/api/conversation/{conv_id}/artifact/{filename}",
+                    "artifact": art,
+                }
+            )
         except Exception as e:
             return web.json_response({"error": str(e)}, status=500)
 
@@ -1405,6 +1645,7 @@ class CompanionServer:
 
             import base64
             import uuid
+
             img_bytes = base64.b64decode(image_b64)
 
             bdir = self.tracker.brain_dir / conv_id
@@ -1414,7 +1655,7 @@ class CompanionServer:
             unique_id = uuid.uuid4().hex[:6]
             if raw_filename:
                 raw_p = Path(raw_filename)
-                clean_stem = re.sub(r'[^a-zA-Z0-9_\-]', '_', raw_p.stem)
+                clean_stem = re.sub(r"[^a-zA-Z0-9_\-]", "_", raw_p.stem)
                 ext = raw_p.suffix if raw_p.suffix else ".jpg"
                 filename = f"{clean_stem}_{ts_str}_{unique_id}{ext}"
             else:
@@ -1424,19 +1665,23 @@ class CompanionServer:
             target_path.write_bytes(img_bytes)
 
             art = self.tracker.get_artifact(conv_id, filename)
-            self.broadcast_event({
-                "type": "conversation_updated",
-                "conv_id": conv_id,
-            })
+            self.broadcast_event(
+                {
+                    "type": "conversation_updated",
+                    "conv_id": conv_id,
+                }
+            )
 
-            return web.json_response({
-                "success": True,
-                "conv_id": conv_id,
-                "filename": filename,
-                "path": str(target_path),
-                "url": f"/api/conversation/{conv_id}/artifact/{filename}",
-                "artifact": art,
-            })
+            return web.json_response(
+                {
+                    "success": True,
+                    "conv_id": conv_id,
+                    "filename": filename,
+                    "path": str(target_path),
+                    "url": f"/api/conversation/{conv_id}/artifact/{filename}",
+                    "artifact": art,
+                }
+            )
         except Exception as e:
             return web.json_response({"error": str(e)}, status=500)
 
@@ -1455,12 +1700,15 @@ class CompanionServer:
                 active = self.tracker.get_active_or_latest()
                 conv_id = active.id if active else "default"
 
-            self.broadcast_event({
-                "type": "mac_recording_started",
-                "conv_id": conv_id,
-            })
+            self.broadcast_event(
+                {
+                    "type": "mac_recording_started",
+                    "conv_id": conv_id,
+                }
+            )
 
             from voicefi.audio.recorder import AudioRecorder
+
             recorder = AudioRecorder(
                 energy_threshold=self.config.vad.energy_threshold,
                 silence_duration=self.config.vad.silence_duration,
@@ -1488,38 +1736,53 @@ class CompanionServer:
             if transcript and transcript.strip():
                 clean_t = transcript.strip()
                 from voicefi.audio.echo_canceller import is_acoustic_echo
+
                 if is_acoustic_echo(clean_t):
-                    print(f"[CompanionServer] 🛡️ Filtered acoustic self-echo from Mac mic: \"{clean_t}\"")
-                    self.broadcast_event({
-                        "type": "mac_recording_empty",
-                        "conv_id": conv_id,
-                        "reason": "acoustic_echo_filtered",
-                    })
-                    return web.json_response({
-                        "success": False,
-                        "transcript": "",
-                        "error": "Acoustic self-echo filtered",
-                    })
+                    print(
+                        f'[CompanionServer] 🛡️ Filtered acoustic self-echo from Mac mic: "{clean_t}"'
+                    )
+                    self.broadcast_event(
+                        {
+                            "type": "mac_recording_empty",
+                            "conv_id": conv_id,
+                            "reason": "acoustic_echo_filtered",
+                        }
+                    )
+                    return web.json_response(
+                        {
+                            "success": False,
+                            "transcript": "",
+                            "error": "Acoustic self-echo filtered",
+                        }
+                    )
 
                 set_mobile_turn_origin(conv_id)
                 delivered = send_message_to_agent(conv_id=conv_id, text=clean_t)
-                self.broadcast_event({
-                    "type": "user_command_injected",
-                    "conv_id": conv_id,
-                    "text": clean_t,
-                    "delivered": delivered,
-                })
-                return web.json_response({
-                    "success": True,
-                    "transcript": clean_t,
-                    "delivered": delivered,
-                })
+                self.broadcast_event(
+                    {
+                        "type": "user_command_injected",
+                        "conv_id": conv_id,
+                        "text": clean_t,
+                        "delivered": delivered,
+                    }
+                )
+                return web.json_response(
+                    {
+                        "success": True,
+                        "transcript": clean_t,
+                        "delivered": delivered,
+                    }
+                )
             else:
-                self.broadcast_event({
-                    "type": "mac_recording_empty",
-                    "conv_id": conv_id,
-                })
-                return web.json_response({"success": False, "transcript": "", "error": "No speech detected"})
+                self.broadcast_event(
+                    {
+                        "type": "mac_recording_empty",
+                        "conv_id": conv_id,
+                    }
+                )
+                return web.json_response(
+                    {"success": False, "transcript": "", "error": "No speech detected"}
+                )
 
         except Exception as e:
             return web.json_response({"error": str(e)}, status=500)
@@ -1538,7 +1801,15 @@ class CompanionServer:
         """Transcribe uploaded audio blob from phone via local Whisper."""
         try:
             content_type = request.headers.get("Content-Type", "").lower()
-            temp_ext = ".webm" if "webm" in content_type else (".mp4" if "mp4" in content_type or "m4a" in content_type or "aac" in content_type else ".wav")
+            temp_ext = (
+                ".webm"
+                if "webm" in content_type
+                else (
+                    ".mp4"
+                    if "mp4" in content_type or "m4a" in content_type or "aac" in content_type
+                    else ".wav"
+                )
+            )
             with tempfile.NamedTemporaryFile(suffix=temp_ext, delete=False) as tmp:
                 temp_path = Path(tmp.name)
                 if "multipart" in content_type:
@@ -1563,7 +1834,19 @@ class CompanionServer:
             if temp_path.suffix.lower() != ".wav":
                 try:
                     res = subprocess.run(
-                        ["ffmpeg", "-y", "-i", str(temp_path), "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le", str(wav_path)],
+                        [
+                            "ffmpeg",
+                            "-y",
+                            "-i",
+                            str(temp_path),
+                            "-ar",
+                            "16000",
+                            "-ac",
+                            "1",
+                            "-c:a",
+                            "pcm_s16le",
+                            str(wav_path),
+                        ],
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL,
                     )
@@ -1588,26 +1871,36 @@ class CompanionServer:
         try:
             data = await request.json()
             text = data.get("text", "").strip()
-            agent_role = data.get("agent_role") or data.get("agent") or request.query.get("agent") or "antigravity"
+            agent_role = (
+                data.get("agent_role")
+                or data.get("agent")
+                or request.query.get("agent")
+                or "antigravity"
+            )
             if not text:
                 return web.Response(text="Empty text", status=400)
 
             from voicefi.config import load_config
+
             cfg = load_config()
             self.config = cfg
             tts = get_tts_engine(cfg, agent_name=agent_role)
 
             # Determine appropriate temp format: mp3 for async neural engines, aiff for macOS say
             if hasattr(tts, "synthesize_to_file"):
-                temp_out = Path(tempfile.gettempdir()) / f"vg_tts_{int(time.time()*1000)}.mp3"
+                temp_out = Path(tempfile.gettempdir()) / f"vg_tts_{int(time.time() * 1000)}.mp3"
                 await tts.synthesize_to_file(text, temp_out)
             elif hasattr(tts, "speak_to_file"):
-                temp_out = Path(tempfile.gettempdir()) / f"vg_tts_{int(time.time()*1000)}.aiff"
+                temp_out = Path(tempfile.gettempdir()) / f"vg_tts_{int(time.time() * 1000)}.aiff"
                 tts.speak_to_file(text, temp_out)
             else:
                 # Fallback mac say to wav/aiff with safe argument passing
-                temp_out = Path(tempfile.gettempdir()) / f"vg_tts_{int(time.time()*1000)}.aiff"
-                subprocess.run(["say", "-o", str(temp_out), "--", text], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                temp_out = Path(tempfile.gettempdir()) / f"vg_tts_{int(time.time() * 1000)}.aiff"
+                subprocess.run(
+                    ["say", "-o", str(temp_out), "--", text],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
 
             if temp_out.is_file() and temp_out.suffix in (".aiff", ".wav"):
                 m4a_out = temp_out.with_suffix(".m4a")
@@ -1639,46 +1932,66 @@ class CompanionServer:
             return web.Response(text=f"TTS error: {e}", status=500)
 
     async def handle_qr(self, request: web.Request) -> web.Response:
+        from voicefi.companion.relay_client import RelaySessionCredentials
+
+        creds = RelaySessionCredentials.load_or_create()
+        cloud_url = creds.get_pairing_url("https://companion.voicefi.app")
+
         urls = get_companion_urls(self.port)
         active_tunnel = get_active_tunnel_url()
         if active_tunnel:
             urls["tunnel_url"] = active_tunnel
-        preferred_url = active_tunnel or urls["ip_url"]
+        urls["cloud_relay_url"] = cloud_url
+        urls["universal_url"] = cloud_url
+
+        # Always default preferred pairing URL to official companion.voicefi.app
+        preferred_url = cloud_url or urls.get("ip_url") or f"http://127.0.0.1:{self.port}"
         qr_b64 = generate_qr_base64_png(preferred_url)
-        return web.json_response({
-            "urls": urls,
-            "active_tunnel_url": active_tunnel,
-            "preferred_url": preferred_url,
-            "qr_data_uri": qr_b64,
-        })
+        return web.json_response(
+            {
+                "urls": urls,
+                "cloud_relay_url": cloud_url,
+                "active_tunnel_url": active_tunnel,
+                "preferred_url": preferred_url,
+                "qr_data_uri": qr_b64,
+            }
+        )
 
     async def handle_tunnel_status(self, request: web.Request) -> web.Response:
         active_tunnel = get_active_tunnel_url()
-        return web.json_response({
-            "active": bool(active_tunnel),
-            "tunnel_url": active_tunnel,
-        })
+        return web.json_response(
+            {
+                "active": bool(active_tunnel),
+                "tunnel_url": active_tunnel,
+            }
+        )
 
     async def handle_tunnel_start(self, request: web.Request) -> web.Response:
         import asyncio
+
         tunnel_url = get_active_tunnel_url()
         if not tunnel_url:
             tunnel_url = await asyncio.to_thread(start_cloudflared_tunnel, self.port)
-        
+
         if tunnel_url:
             urls = get_companion_urls(self.port)
             urls["tunnel_url"] = tunnel_url
             qr_b64 = generate_qr_base64_png(tunnel_url)
-            return web.json_response({
-                "status": "success",
-                "tunnel_url": tunnel_url,
-                "urls": urls,
-                "qr_data_uri": qr_b64,
-            })
-        return web.json_response({
-            "status": "error",
-            "message": "Could not create Cloudflare Tunnel. Verify cloudflared is installed."
-        }, status=500)
+            return web.json_response(
+                {
+                    "status": "success",
+                    "tunnel_url": tunnel_url,
+                    "urls": urls,
+                    "qr_data_uri": qr_b64,
+                }
+            )
+        return web.json_response(
+            {
+                "status": "error",
+                "message": "Could not create Cloudflare Tunnel. Verify cloudflared is installed.",
+            },
+            status=500,
+        )
 
     # =========================================================================
     # Voice Recording Studio, Audio FX Transformer & Reel Generator APIs
@@ -1690,13 +2003,15 @@ class CompanionServer:
         from voicefi.video.reel_builder import FORMAT_PRESETS, TYPOGRAPHY_PRESETS
         from voicefi.audio.sfx import list_available_sfx
 
-        return web.json_response({
-            "presets": VoiceFXEngine.list_presets(),
-            "formats": list(FORMAT_PRESETS.keys()),
-            "format_details": FORMAT_PRESETS,
-            "typography": list(TYPOGRAPHY_PRESETS.keys()),
-            "available_sfx": list_available_sfx(),
-        })
+        return web.json_response(
+            {
+                "presets": VoiceFXEngine.list_presets(),
+                "formats": list(FORMAT_PRESETS.keys()),
+                "format_details": FORMAT_PRESETS,
+                "typography": list(TYPOGRAPHY_PRESETS.keys()),
+                "available_sfx": list_available_sfx(),
+            }
+        )
 
     async def handle_studio_recordings(self, request: web.Request) -> web.Response:
         """List all recordings, uploaded audio files, voice memos, and master samples."""
@@ -1706,35 +2021,20 @@ class CompanionServer:
         items = []
         # 1. Scan ~/.voicefi/recordings/
         for p in sorted(RECORDINGS_DIR.glob("*"), key=lambda f: f.stat().st_mtime, reverse=True):
-            if p.is_file() and p.suffix.lower() in (".wav", ".mp3", ".m4a", ".ogg", ".webm", ".flac", ".aac"):
+            if p.is_file() and p.suffix.lower() in (
+                ".wav",
+                ".mp3",
+                ".m4a",
+                ".ogg",
+                ".webm",
+                ".flac",
+                ".aac",
+            ):
                 try:
                     info = VoiceFXEngine.get_audio_info(p)
-                    items.append({
-                        "id": p.name,
-                        "filename": p.name,
-                        "path": str(p),
-                        "duration": info["duration"],
-                        "size_formatted": info["size_formatted"],
-                        "size_bytes": info["size_bytes"],
-                        "sample_rate": info["sample_rate"],
-                        "peaks": info["peaks"],
-                        "url": f"/api/studio/recording/{p.name}",
-                        "created_at": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(p.stat().st_mtime)),
-                        "is_fx_master": "_fx_" in p.name or "_master" in p.name,
-                        "source": "recording"
-                    })
-                except Exception:
-                    pass
-
-        # 2. Check static/downloads for sample audio tracks
-        downloads_dir = STATIC_DIR / "downloads"
-        if downloads_dir.is_dir():
-            for p in sorted(downloads_dir.glob("*.mp3"), key=lambda f: f.stat().st_mtime, reverse=True):
-                if p.is_file():
-                    try:
-                        info = VoiceFXEngine.get_audio_info(p)
-                        items.append({
-                            "id": f"download_{p.name}",
+                    items.append(
+                        {
+                            "id": p.name,
                             "filename": p.name,
                             "path": str(p),
                             "duration": info["duration"],
@@ -1742,18 +2042,53 @@ class CompanionServer:
                             "size_bytes": info["size_bytes"],
                             "sample_rate": info["sample_rate"],
                             "peaks": info["peaks"],
-                            "url": f"/downloads/{p.name}",
-                            "created_at": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(p.stat().st_mtime)),
-                            "is_fx_master": True,
-                            "source": "downloads_sample"
-                        })
+                            "url": f"/api/studio/recording/{p.name}",
+                            "created_at": time.strftime(
+                                "%Y-%m-%d %H:%M:%S", time.localtime(p.stat().st_mtime)
+                            ),
+                            "is_fx_master": "_fx_" in p.name or "_master" in p.name,
+                            "source": "recording",
+                        }
+                    )
+                except Exception:
+                    pass
+
+        # 2. Check static/downloads for sample audio tracks
+        downloads_dir = STATIC_DIR / "downloads"
+        if downloads_dir.is_dir():
+            for p in sorted(
+                downloads_dir.glob("*.mp3"), key=lambda f: f.stat().st_mtime, reverse=True
+            ):
+                if p.is_file():
+                    try:
+                        info = VoiceFXEngine.get_audio_info(p)
+                        items.append(
+                            {
+                                "id": f"download_{p.name}",
+                                "filename": p.name,
+                                "path": str(p),
+                                "duration": info["duration"],
+                                "size_formatted": info["size_formatted"],
+                                "size_bytes": info["size_bytes"],
+                                "sample_rate": info["sample_rate"],
+                                "peaks": info["peaks"],
+                                "url": f"/downloads/{p.name}",
+                                "created_at": time.strftime(
+                                    "%Y-%m-%d %H:%M:%S", time.localtime(p.stat().st_mtime)
+                                ),
+                                "is_fx_master": True,
+                                "source": "downloads_sample",
+                            }
+                        )
                     except Exception:
                         pass
 
-        return web.json_response({
-            "recordings": items,
-            "count": len(items),
-        })
+        return web.json_response(
+            {
+                "recordings": items,
+                "count": len(items),
+            }
+        )
 
     async def handle_studio_recording_stream(self, request: web.Request) -> web.Response:
         """Stream an audio recording with HTTP range request support for waveform and browser playback."""
@@ -1774,11 +2109,14 @@ class CompanionServer:
         elif ext == ".webm":
             content_type = "audio/webm"
 
-        return web.FileResponse(target, headers={
-            "Accept-Ranges": "bytes",
-            "Content-Type": content_type,
-            "Access-Control-Allow-Origin": "*",
-        })
+        return web.FileResponse(
+            target,
+            headers={
+                "Accept-Ranges": "bytes",
+                "Content-Type": content_type,
+                "Access-Control-Allow-Origin": "*",
+            },
+        )
 
     async def handle_studio_upload(self, request: web.Request) -> web.Response:
         """Handle audio file upload from companion app or desktop."""
@@ -1793,7 +2131,9 @@ class CompanionServer:
                 post_data = await request.post()
                 field = post_data.get("file") or post_data.get("audio")
                 if field is not None:
-                    filename = getattr(field, "filename", None) or f"upload_{int(time.time()*1000)}.wav"
+                    filename = (
+                        getattr(field, "filename", None) or f"upload_{int(time.time() * 1000)}.wav"
+                    )
                     if hasattr(field, "file"):
                         raw_bytes = field.file.read()
                     elif isinstance(field, (bytes, bytearray)):
@@ -1804,23 +2144,26 @@ class CompanionServer:
                 except Exception:
                     data = {}
                 b64 = data.get("audio_base64") or data.get("audio") or ""
-                filename = data.get("filename") or f"upload_{int(time.time()*1000)}.wav"
+                filename = data.get("filename") or f"upload_{int(time.time() * 1000)}.wav"
                 if b64:
                     if "," in b64:
                         b64 = b64.split(",", 1)[1]
                     import base64
+
                     raw_bytes = base64.b64decode(b64)
 
             if not raw_bytes:
-                return web.json_response({"error": "No audio data received", "status": "error"}, status=400)
+                return web.json_response(
+                    {"error": "No audio data received", "status": "error"}, status=400
+                )
 
             p_raw = Path(filename)
-            stem = re.sub(r'[^a-zA-Z0-9_\-]', '_', p_raw.stem)
+            stem = re.sub(r"[^a-zA-Z0-9_\-]", "_", p_raw.stem)
             ext = p_raw.suffix.lower() if p_raw.suffix else ".wav"
             if ext not in (".wav", ".mp3", ".m4a", ".ogg", ".webm", ".flac", ".aac"):
                 ext = ".wav"
 
-            target_filename = f"{stem}_{int(time.time()*1000)}{ext}"
+            target_filename = f"{stem}_{int(time.time() * 1000)}{ext}"
             target_path = RECORDINGS_DIR / target_filename
             target_path.write_bytes(raw_bytes)
 
@@ -1829,7 +2172,12 @@ class CompanionServer:
                 wav_path = target_path.with_suffix(".wav")
                 try:
                     from voicefi.audio.effects import _get_bin
-                    subprocess.run([_get_bin("ffmpeg"), "-y", "-i", str(target_path), str(wav_path)], check=True, capture_output=True)
+
+                    subprocess.run(
+                        [_get_bin("ffmpeg"), "-y", "-i", str(target_path), str(wav_path)],
+                        check=True,
+                        capture_output=True,
+                    )
                     if wav_path.is_file():
                         target_path.unlink(missing_ok=True)
                         target_path = wav_path
@@ -1838,13 +2186,15 @@ class CompanionServer:
                     pass
 
             info = VoiceFXEngine.get_audio_info(target_path)
-            return web.json_response({
-                "success": True,
-                "id": target_filename,
-                "filename": target_filename,
-                "url": f"/api/studio/recording/{target_filename}",
-                "info": info
-            })
+            return web.json_response(
+                {
+                    "success": True,
+                    "id": target_filename,
+                    "filename": target_filename,
+                    "url": f"/api/studio/recording/{target_filename}",
+                    "info": info,
+                }
+            )
         except Exception as e:
             logger.exception(f"Studio upload error: {e}")
             return web.json_response({"error": str(e), "success": False}, status=500)
@@ -1883,29 +2233,30 @@ class CompanionServer:
             end_sec = None
 
         stem = in_file.stem
-        stem = re.sub(r'_trimmed_\d+', '', stem)
-        out_filename = f"{stem}_trimmed_{int(time.time()*1000)}.mp3"
+        stem = re.sub(r"_trimmed_\d+", "", stem)
+        out_filename = f"{stem}_trimmed_{int(time.time() * 1000)}.mp3"
         out_file = RECORDINGS_DIR / out_filename
 
         try:
             VoiceFXEngine.trim_audio(
-                input_audio=in_file,
-                output_audio=out_file,
-                start_sec=start_sec,
-                end_sec=end_sec
+                input_audio=in_file, output_audio=out_file, start_sec=start_sec, end_sec=end_sec
             )
             info = VoiceFXEngine.get_audio_info(out_file)
-            return web.json_response({
-                "success": True,
-                "trimmed_id": out_filename,
-                "filename": out_filename,
-                "url": f"/api/studio/recording/{out_filename}",
-                "duration": info["duration"],
-                "info": info
-            })
+            return web.json_response(
+                {
+                    "success": True,
+                    "trimmed_id": out_filename,
+                    "filename": out_filename,
+                    "url": f"/api/studio/recording/{out_filename}",
+                    "duration": info["duration"],
+                    "info": info,
+                }
+            )
         except Exception as e:
             logger.exception(f"Studio trim error: {e}")
-            return web.json_response({"error": f"Trim failed: {str(e)}", "success": False}, status=500)
+            return web.json_response(
+                {"error": f"Trim failed: {str(e)}", "success": False}, status=500
+            )
 
     async def handle_studio_apply_fx(self, request: web.Request) -> web.Response:
         """Apply selected voice FX preset (or custom DSP sliders) and SFX overlays."""
@@ -1926,11 +2277,13 @@ class CompanionServer:
             in_path = STATIC_DIR / "downloads" / rec_id.replace("download_", "")
 
         if not in_path.is_file():
-            return web.json_response({"error": f"Recording not found: {rec_id}", "status": "error"}, status=404)
+            return web.json_response(
+                {"error": f"Recording not found: {rec_id}", "status": "error"}, status=404
+            )
 
         from voicefi.audio.effects import VoiceFXEngine
 
-        stem = re.sub(r'[^a-zA-Z0-9_\-]', '_', in_path.stem)
+        stem = re.sub(r"[^a-zA-Z0-9_\-]", "_", in_path.stem)
         fx_slug = preset if preset else "custom"
         ts = int(time.time() * 1000)
         out_filename = f"{stem}_fx_{fx_slug}_{ts}.{out_ext}"
@@ -1944,18 +2297,20 @@ class CompanionServer:
             sfx_cues=sfx_cues,
             bg_music_path=bg_music,
             bg_music_volume=bg_volume,
-            normalize_loudness=True
+            normalize_loudness=True,
         )
 
         info = VoiceFXEngine.get_audio_info(out_path)
-        return web.json_response({
-            "success": True,
-            "master_id": out_filename,
-            "filename": out_filename,
-            "url": f"/api/studio/recording/{out_filename}",
-            "preset": preset,
-            "info": info
-        })
+        return web.json_response(
+            {
+                "success": True,
+                "master_id": out_filename,
+                "filename": out_filename,
+                "url": f"/api/studio/recording/{out_filename}",
+                "preset": preset,
+                "info": info,
+            }
+        )
 
     async def handle_studio_transcribe(self, request: web.Request) -> web.Response:
         """Transcribe an audio recording and auto-generate suggested slide cards."""
@@ -1969,7 +2324,9 @@ class CompanionServer:
             in_path = STATIC_DIR / "downloads" / rec_id.replace("download_", "")
 
         if not in_path.is_file():
-            return web.json_response({"error": f"Audio file not found: {rec_id}", "status": "error"}, status=404)
+            return web.json_response(
+                {"error": f"Audio file not found: {rec_id}", "status": "error"}, status=404
+            )
 
         from voicefi.audio.effects import VoiceFXEngine
         from voicefi.video.reel_builder import ReelBuilder
@@ -1979,16 +2336,16 @@ class CompanionServer:
         transcript = stt.transcribe(in_path)
 
         suggested_slides = ReelBuilder.auto_generate_slides_from_text(
-            transcript=transcript,
-            total_duration=info["duration"],
-            speaker=speaker
+            transcript=transcript, total_duration=info["duration"], speaker=speaker
         )
 
-        return web.json_response({
-            "transcript": transcript,
-            "duration": info["duration"],
-            "suggested_slides": suggested_slides,
-        })
+        return web.json_response(
+            {
+                "transcript": transcript,
+                "duration": info["duration"],
+                "suggested_slides": suggested_slides,
+            }
+        )
 
     async def handle_studio_generate_reel(self, request: web.Request) -> web.Response:
         """Compile a multi-format social video reel from transformed master audio and slides."""
@@ -2008,11 +2365,13 @@ class CompanionServer:
             in_path = STATIC_DIR / "downloads" / rec_id.replace("download_", "")
 
         if not in_path.is_file():
-            return web.json_response({"error": f"Audio file not found: {rec_id}", "status": "error"}, status=404)
+            return web.json_response(
+                {"error": f"Audio file not found: {rec_id}", "status": "error"}, status=404
+            )
 
         from voicefi.video.reel_builder import ReelBuilder
 
-        slug = re.sub(r'[^a-zA-Z0-9_\-]', '_', in_path.stem)
+        slug = re.sub(r"[^a-zA-Z0-9_\-]", "_", in_path.stem)
         fmt_clean = format_type.replace(":", "_")
         ts = int(time.time() * 1000)
         reel_filename = f"{slug}_{fmt_clean}_{ts}.mp4"
@@ -2029,17 +2388,19 @@ class CompanionServer:
             format_type=format_type,
             preset_name=preset_name,
             font_multiplier=font_multiplier,
-            speaker_name=speaker
+            speaker_name=speaker,
         )
 
-        return web.json_response({
-            "success": True,
-            "title": title,
-            "reel_filename": reel_filename,
-            "download_url": f"/downloads/{reel_filename}",
-            "format": format_type,
-            "size_mb": round(out_mp4.stat().st_size / (1024 * 1024), 2),
-        })
+        return web.json_response(
+            {
+                "success": True,
+                "title": title,
+                "reel_filename": reel_filename,
+                "download_url": f"/downloads/{reel_filename}",
+                "format": format_type,
+                "size_mb": round(out_mp4.stat().st_size / (1024 * 1024), 2),
+            }
+        )
 
     # WebSocket Real-Time Channel
     async def handle_ws(self, request: web.Request) -> web.WebSocketResponse:
@@ -2050,16 +2411,26 @@ class CompanionServer:
 
         # Send initial status handshake
         active = self.tracker.get_active_or_latest()
-        await ws.send_str(json.dumps({
-            "type": "status_update",
-            "active_conversation": {
-                "id": active.id if active else "",
-                "title": active.title if active else "",
-                "status": active.status if active else "idle",
-                "engine": getattr(active, "engine", "antigravity") if active else "antigravity",
-            } if active else None,
-            "audio_routing": getattr(getattr(self.config, "companion", None), "audio_routing", "smart"),
-        }))
+        await ws.send_str(
+            json.dumps(
+                {
+                    "type": "status_update",
+                    "active_conversation": {
+                        "id": active.id if active else "",
+                        "title": active.title if active else "",
+                        "status": active.status if active else "idle",
+                        "engine": getattr(active, "engine", "antigravity")
+                        if active
+                        else "antigravity",
+                    }
+                    if active
+                    else None,
+                    "audio_routing": getattr(
+                        getattr(self.config, "companion", None), "audio_routing", "smart"
+                    ),
+                }
+            )
+        )
 
         try:
             async for msg in ws:
@@ -2074,13 +2445,17 @@ class CompanionServer:
                             title = payload.get("title") or f"Message from {sender_name}"
                             if text:
                                 set_mobile_turn_origin(cid)
-                                send_message_to_agent(conv_id=cid, text=text, sender_name=sender_name, title=title)
-                                self.broadcast_event({
-                                    "type": "user_command_injected",
-                                    "conv_id": cid or "active",
-                                    "text": text,
-                                    "delivered": True,
-                                })
+                                send_message_to_agent(
+                                    conv_id=cid, text=text, sender_name=sender_name, title=title
+                                )
+                                self.broadcast_event(
+                                    {
+                                        "type": "user_command_injected",
+                                        "conv_id": cid or "active",
+                                        "text": text,
+                                        "delivered": True,
+                                    }
+                                )
                         elif msg_type == "ambient_start":
                             source = payload.get("source", "mic")
                             self.start_ambient(source=source)
@@ -2092,29 +2467,39 @@ class CompanionServer:
                             if self._ambient_dispatcher and tid:
                                 if action == "dismiss":
                                     self._ambient_dispatcher.dismiss_task(tid)
-                                    self.broadcast_event({
-                                        "type": "ambient_task_updated",
-                                        "task_id": tid,
-                                        "status": "dismissed",
-                                        "timestamp": time.time(),
-                                    })
+                                    self.broadcast_event(
+                                        {
+                                            "type": "ambient_task_updated",
+                                            "task_id": tid,
+                                            "status": "dismissed",
+                                            "timestamp": time.time(),
+                                        }
+                                    )
                                 elif action == "dispatch":
-                                    tasks = {t.id: t for t in self._ambient_dispatcher.get_staged_tasks()}
+                                    tasks = {
+                                        t.id: t for t in self._ambient_dispatcher.get_staged_tasks()
+                                    }
                                     task = tasks.get(tid)
                                     if task:
                                         set_mobile_turn_origin(None)
                                         prompt = f"[{task.category.value}] {task.action_prompt}"
                                         delivered = send_message_to_agent(conv_id=None, text=prompt)
-                                        self._ambient_dispatcher.complete_task(tid, result_summary="Dispatched to agent")
-                                        self.broadcast_event({
-                                            "type": "ambient_task_updated",
-                                            "task_id": tid,
-                                            "status": "completed",
-                                            "delivered": delivered,
-                                            "timestamp": time.time(),
-                                        })
+                                        self._ambient_dispatcher.complete_task(
+                                            tid, result_summary="Dispatched to agent"
+                                        )
+                                        self.broadcast_event(
+                                            {
+                                                "type": "ambient_task_updated",
+                                                "task_id": tid,
+                                                "status": "completed",
+                                                "delivered": delivered,
+                                                "timestamp": time.time(),
+                                            }
+                                        )
                         elif msg_type == "memo_start":
-                            dur = float(payload.get("duration", self.config.memo.default_duration_seconds))
+                            dur = float(
+                                payload.get("duration", self.config.memo.default_duration_seconds)
+                            )
                             ttl = payload.get("title", "Voice Memo")
                             self.start_memo_session(target_duration=dur, title=ttl)
                         elif msg_type == "memo_extend":
@@ -2126,16 +2511,19 @@ class CompanionServer:
                             self.stop_memo()
                         elif msg_type == "stop":
                             from voicefi.tts.base import stop_all_speech
+
                             stop_all_speech()
                             if hasattr(self, "_active_mac_recorder") and self._active_mac_recorder:
                                 try:
                                     self._active_mac_recorder.stop()
                                 except Exception:
                                     pass
-                            self.broadcast_event({
-                                "type": "speech_stopped",
-                                "timestamp": time.time(),
-                            })
+                            self.broadcast_event(
+                                {
+                                    "type": "speech_stopped",
+                                    "timestamp": time.time(),
+                                }
+                            )
                         elif msg_type == "ping":
                             record_companion_heartbeat(len(self.active_websockets))
                             await ws.send_str(json.dumps({"type": "pong"}))
@@ -2158,29 +2546,36 @@ class CompanionServer:
             self._ambient_dispatcher = ProactiveDispatcher()
 
         def _on_energy(energy: float, noise_floor: float, is_speech: bool):
-            self.broadcast_event({
-                "type": "ambient_energy",
-                "energy": energy,
-                "noise_floor": noise_floor,
-                "is_speech": is_speech,
-                "timestamp": time.time(),
-            })
+            self.broadcast_event(
+                {
+                    "type": "ambient_energy",
+                    "energy": energy,
+                    "noise_floor": noise_floor,
+                    "is_speech": is_speech,
+                    "timestamp": time.time(),
+                }
+            )
 
         def _on_state_change(state: str):
-            self.broadcast_event({
-                "type": "ambient_state",
-                "state": state,
-                "timestamp": time.time(),
-            })
+            self.broadcast_event(
+                {
+                    "type": "ambient_state",
+                    "state": state,
+                    "timestamp": time.time(),
+                }
+            )
 
         def _on_utterance_progress(duration: float):
-            self.broadcast_event({
-                "type": "ambient_utterance_progress",
-                "duration": duration,
-                "timestamp": time.time(),
-            })
+            self.broadcast_event(
+                {
+                    "type": "ambient_utterance_progress",
+                    "duration": duration,
+                    "timestamp": time.time(),
+                }
+            )
 
         from voicefi.stt.whisper_local import WhisperLocalSTT
+
         fast_stream_stt = WhisperLocalSTT(model_size="tiny.en")
         final_stt = get_stt_engine(self.config)
         _last_interim_text = [""]
@@ -2194,13 +2589,15 @@ class CompanionServer:
                     partial = fast_stream_stt.transcribe(audio_data, sample_rate=sample_rate)
                     if partial and partial.strip() and partial.strip() != _last_interim_text[0]:
                         _last_interim_text[0] = partial.strip()
-                        print(f"[CompanionServer] ✍️ Streaming Live: \"{partial.strip()}\"")
-                        self.broadcast_event({
-                            "type": "interim_transcript",
-                            "text": partial.strip(),
-                            "is_final": False,
-                            "timestamp": time.time(),
-                        })
+                        print(f'[CompanionServer] ✍️ Streaming Live: "{partial.strip()}"')
+                        self.broadcast_event(
+                            {
+                                "type": "interim_transcript",
+                                "text": partial.strip(),
+                                "is_final": False,
+                                "timestamp": time.time(),
+                            }
+                        )
                 except Exception:
                     pass
                 finally:
@@ -2214,33 +2611,42 @@ class CompanionServer:
                 text = final_stt.transcribe(audio_data, sample_rate=sample_rate)
                 if text and text.strip():
                     from voicefi.audio.echo_canceller import is_acoustic_echo
+
                     if is_acoustic_echo(text.strip()):
-                        print(f"[CompanionServer] 🛡️ Filtered ambient self-echo: \"{text.strip()}\"")
+                        print(f'[CompanionServer] 🛡️ Filtered ambient self-echo: "{text.strip()}"')
                         return
-                    print(f"[CompanionServer] 🎙️ Transcribed speech: \"{text.strip()}\"")
-                    task = self._ambient_dispatcher.process_utterance(text) if self._ambient_dispatcher else None
-                    self.broadcast_event({
-                        "type": "transcript",
-                        "text": text,
-                        "is_final": True,
-                        "timestamp": time.time(),
-                        "task_id": task.id if task else None,
-                    })
+                    print(f'[CompanionServer] 🎙️ Transcribed speech: "{text.strip()}"')
+                    task = (
+                        self._ambient_dispatcher.process_utterance(text)
+                        if self._ambient_dispatcher
+                        else None
+                    )
+                    self.broadcast_event(
+                        {
+                            "type": "transcript",
+                            "text": text,
+                            "is_final": True,
+                            "timestamp": time.time(),
+                            "task_id": task.id if task else None,
+                        }
+                    )
 
                     if task:
-                        self.broadcast_event({
-                            "type": "ambient_task_created",
-                            "task": {
-                                "id": task.id,
-                                "category": task.category.value,
-                                "summary": task.summary,
-                                "action_prompt": task.action_prompt,
-                                "suggested_workspace": task.suggested_workspace,
-                                "status": task.status,
-                                "created_at": task.created_at,
-                            },
-                            "timestamp": time.time(),
-                        })
+                        self.broadcast_event(
+                            {
+                                "type": "ambient_task_created",
+                                "task": {
+                                    "id": task.id,
+                                    "category": task.category.value,
+                                    "summary": task.summary,
+                                    "action_prompt": task.action_prompt,
+                                    "suggested_workspace": task.suggested_workspace,
+                                    "status": task.status,
+                                    "created_at": task.created_at,
+                                },
+                                "timestamp": time.time(),
+                            }
+                        )
             except Exception as e:
                 print(f"[CompanionServer] Error processing ambient utterance: {e}")
 
@@ -2256,11 +2662,13 @@ class CompanionServer:
             on_interim_audio=_on_interim_audio,
         )
         self._ambient_stream.start()
-        self.broadcast_event({
-            "type": "ambient_state",
-            "state": "listening",
-            "timestamp": time.time(),
-        })
+        self.broadcast_event(
+            {
+                "type": "ambient_state",
+                "state": "listening",
+                "timestamp": time.time(),
+            }
+        )
         return True
 
     def stop_ambient(self):
@@ -2268,15 +2676,18 @@ class CompanionServer:
         if self._ambient_stream:
             self._ambient_stream.stop()
             self._ambient_stream = None
-        self.broadcast_event({
-            "type": "ambient_state",
-            "state": "stopped",
-            "timestamp": time.time(),
-        })
+        self.broadcast_event(
+            {
+                "type": "ambient_state",
+                "state": "stopped",
+                "timestamp": time.time(),
+            }
+        )
 
     def start_memo_session(self, target_duration: float = 180.0, title: str = "Voice Memo") -> str:
         """Start a background voice memo buffer session with real-time WebSocket telemetry."""
         import uuid
+
         memo_id = f"memo_{int(time.time())}_{str(uuid.uuid4())[:4]}"
         self._active_memo_id = memo_id
 
@@ -2289,37 +2700,45 @@ class CompanionServer:
 
         def _recorder_worker():
             def _on_tick(elapsed: float, remaining: float, energy: float):
-                self.broadcast_event({
-                    "type": "memo_tick",
-                    "memo_id": memo_id,
-                    "elapsed": elapsed,
-                    "remaining": remaining,
-                    "total": elapsed + remaining,
-                    "energy": energy,
-                    "timestamp": time.time(),
-                })
+                self.broadcast_event(
+                    {
+                        "type": "memo_tick",
+                        "memo_id": memo_id,
+                        "elapsed": elapsed,
+                        "remaining": remaining,
+                        "total": elapsed + remaining,
+                        "energy": energy,
+                        "timestamp": time.time(),
+                    }
+                )
 
             def _on_state_change(state: str):
-                self.broadcast_event({
-                    "type": "memo_state",
-                    "memo_id": memo_id,
-                    "state": state,
-                    "timestamp": time.time(),
-                })
+                self.broadcast_event(
+                    {
+                        "type": "memo_state",
+                        "memo_id": memo_id,
+                        "state": state,
+                        "timestamp": time.time(),
+                    }
+                )
 
             def _on_extension_prompt():
-                self.broadcast_event({
-                    "type": "memo_extension_prompt",
-                    "memo_id": memo_id,
-                    "timestamp": time.time(),
-                })
+                self.broadcast_event(
+                    {
+                        "type": "memo_extension_prompt",
+                        "memo_id": memo_id,
+                        "timestamp": time.time(),
+                    }
+                )
 
-            self.broadcast_event({
-                "type": "memo_state",
-                "memo_id": memo_id,
-                "state": "recording",
-                "timestamp": time.time(),
-            })
+            self.broadcast_event(
+                {
+                    "type": "memo_state",
+                    "memo_id": memo_id,
+                    "state": "recording",
+                    "timestamp": time.time(),
+                }
+            )
 
             try:
                 audio_arr, wav_path, actual_duration = self._memo_recorder.record_memo_session(
@@ -2329,12 +2748,14 @@ class CompanionServer:
                     on_extension_prompt=_on_extension_prompt,
                 )
 
-                self.broadcast_event({
-                    "type": "memo_state",
-                    "memo_id": memo_id,
-                    "state": "transcribing",
-                    "timestamp": time.time(),
-                })
+                self.broadcast_event(
+                    {
+                        "type": "memo_state",
+                        "memo_id": memo_id,
+                        "state": "transcribing",
+                        "timestamp": time.time(),
+                    }
+                )
 
                 stt = get_stt_engine(self.config)
                 raw_transcript = ""
@@ -2343,29 +2764,35 @@ class CompanionServer:
                 except Exception as ex:
                     print(f"[CompanionServer] Memo STT error: {ex}")
 
-                self.broadcast_event({
-                    "type": "memo_transcript_chunk",
-                    "memo_id": memo_id,
-                    "text": raw_transcript,
-                    "cumulative_text": raw_transcript,
-                    "timestamp": time.time(),
-                })
+                self.broadcast_event(
+                    {
+                        "type": "memo_transcript_chunk",
+                        "memo_id": memo_id,
+                        "text": raw_transcript,
+                        "cumulative_text": raw_transcript,
+                        "timestamp": time.time(),
+                    }
+                )
 
                 if not raw_transcript.strip():
-                    self.broadcast_event({
-                        "type": "memo_state",
-                        "memo_id": memo_id,
-                        "state": "empty",
-                        "timestamp": time.time(),
-                    })
+                    self.broadcast_event(
+                        {
+                            "type": "memo_state",
+                            "memo_id": memo_id,
+                            "state": "empty",
+                            "timestamp": time.time(),
+                        }
+                    )
                     return
 
-                self.broadcast_event({
-                    "type": "memo_state",
-                    "memo_id": memo_id,
-                    "state": "formatting",
-                    "timestamp": time.time(),
-                })
+                self.broadcast_event(
+                    {
+                        "type": "memo_state",
+                        "memo_id": memo_id,
+                        "state": "formatting",
+                        "timestamp": time.time(),
+                    }
+                )
 
                 recording = MemoRecording(
                     id=memo_id,
@@ -2388,35 +2815,43 @@ class CompanionServer:
 
                 self._memo_store.save_memo(recording, cleaned_memo)
 
-                self.broadcast_event({
-                    "type": "memo_synthesis_complete",
-                    "memo_id": memo_id,
-                    "title": cleaned_memo.title,
-                    "cleaned_transcript": cleaned_memo.cleaned_transcript,
-                    "raw_transcript": cleaned_memo.raw_transcript,
-                    "plan_markdown": cleaned_memo.to_markdown(),
-                    "timestamp": time.time(),
-                })
-                self.broadcast_event({
-                    "type": "memo_state",
-                    "memo_id": memo_id,
-                    "state": "completed",
-                    "timestamp": time.time(),
-                })
+                self.broadcast_event(
+                    {
+                        "type": "memo_synthesis_complete",
+                        "memo_id": memo_id,
+                        "title": cleaned_memo.title,
+                        "cleaned_transcript": cleaned_memo.cleaned_transcript,
+                        "raw_transcript": cleaned_memo.raw_transcript,
+                        "plan_markdown": cleaned_memo.to_markdown(),
+                        "timestamp": time.time(),
+                    }
+                )
+                self.broadcast_event(
+                    {
+                        "type": "memo_state",
+                        "memo_id": memo_id,
+                        "state": "completed",
+                        "timestamp": time.time(),
+                    }
+                )
             except Exception as e:
                 print(f"[CompanionServer] Memo recording error: {e}")
-                self.broadcast_event({
-                    "type": "memo_state",
-                    "memo_id": memo_id,
-                    "state": "error",
-                    "error": str(e),
-                    "timestamp": time.time(),
-                })
+                self.broadcast_event(
+                    {
+                        "type": "memo_state",
+                        "memo_id": memo_id,
+                        "state": "error",
+                        "error": str(e),
+                        "timestamp": time.time(),
+                    }
+                )
             finally:
                 self._memo_recorder = None
                 self._active_memo_id = None
 
-        self._memo_thread = threading.Thread(target=_recorder_worker, daemon=True, name="MemoRecorderWorker")
+        self._memo_thread = threading.Thread(
+            target=_recorder_worker, daemon=True, name="MemoRecorderWorker"
+        )
         self._memo_thread.start()
         return memo_id
 
@@ -2461,17 +2896,20 @@ class CompanionServer:
         """Called when an Antigravity agent completes a turn."""
         if summary:
             from voicefi.audio.echo_canceller import record_agent_spoken
+
             record_agent_spoken(summary)
 
-        self.broadcast_event({
-            "type": "agent_turn_completed",
-            "summary": summary,
-            "full_response": full_response or summary,
-            "conv_id": conv_id,
-            "agent_role": agent_role,
-            "origin": origin,
-            "timestamp": time.time(),
-        })
+        self.broadcast_event(
+            {
+                "type": "agent_turn_completed",
+                "summary": summary,
+                "full_response": full_response or summary,
+                "conv_id": conv_id,
+                "agent_role": agent_role,
+                "origin": origin,
+                "timestamp": time.time(),
+            }
+        )
 
     # Background Watcher Loop
     def _start_watcher_thread(self):
@@ -2569,7 +3007,9 @@ class CompanionServer:
                 and content
             ):
                 role = step.get("role") or step.get("agent_role") or "antigravity"
-                summary = clean_markdown_for_speech(content, max_words=self.config.antigravity.max_spoken_words)
+                summary = clean_markdown_for_speech(
+                    content, max_words=self.config.antigravity.max_spoken_words
+                )
                 turn_sig = f"{cid}:{summary[:35]}"
                 claimed_origin = get_claimed_turn_origin(cid, turn_sig)
                 if claimed_origin:
@@ -2587,48 +3027,58 @@ class CompanionServer:
                 for tc in tool_calls:
                     t_desc, t_tag = format_tool_details(tc)
                     t_name = tc.get("name") or tc.get("tool_name") or "tool"
-                    self.broadcast_event({
-                        "type": "agent_working_step",
-                        "conv_id": cid,
-                        "step_index": idx,
-                        "tool_name": t_name,
-                        "summary": t_desc,
-                        "action": t_tag,
-                        "status": "running",
-                        "timestamp": time.time(),
-                    })
+                    self.broadcast_event(
+                        {
+                            "type": "agent_working_step",
+                            "conv_id": cid,
+                            "step_index": idx,
+                            "tool_name": t_name,
+                            "summary": t_desc,
+                            "action": t_tag,
+                            "status": "running",
+                            "timestamp": time.time(),
+                        }
+                    )
             elif step.get("thinking"):
                 from voicefi.integrations.watcher import extract_thought_summary
+
                 t_summary = extract_thought_summary(str(step.get("thinking", "")))
-                self.broadcast_event({
-                    "type": "agent_thinking_step",
-                    "conv_id": cid,
-                    "step_index": idx,
-                    "detail": t_summary or "Reasoning...",
-                    "timestamp": time.time(),
-                })
-            elif stype == "GENERIC" and content:
-                from voicefi.integrations.tool_formatter import extract_log_summary
-                l_summary = extract_log_summary(str(content))
-                if l_summary:
-                    self.broadcast_event({
-                        "type": "agent_working_step",
+                self.broadcast_event(
+                    {
+                        "type": "agent_thinking_step",
                         "conv_id": cid,
                         "step_index": idx,
-                        "tool_name": "command",
-                        "summary": l_summary,
-                        "action": "Ran Command",
-                        "status": "completed",
+                        "detail": t_summary or "Reasoning...",
                         "timestamp": time.time(),
-                    })
+                    }
+                )
+            elif stype == "GENERIC" and content:
+                from voicefi.integrations.tool_formatter import extract_log_summary
+
+                l_summary = extract_log_summary(str(content))
+                if l_summary:
+                    self.broadcast_event(
+                        {
+                            "type": "agent_working_step",
+                            "conv_id": cid,
+                            "step_index": idx,
+                            "tool_name": "command",
+                            "summary": l_summary,
+                            "action": "Ran Command",
+                            "status": "completed",
+                            "timestamp": time.time(),
+                        }
+                    )
             else:
-                self.broadcast_event({
-                    "type": "conversation_updated",
-                    "conv_id": cid,
-                    "step_index": idx,
-                    "step_type": stype,
-                    "timestamp": time.time(),
-                })
+                self.broadcast_event(
+                    {
+                        "type": "conversation_updated",
+                        "conv_id": cid,
+                        "step_index": idx,
+                        "step_type": stype,
+                        "timestamp": time.time(),
+                    }
+                )
 
     def _check_claude_session_turn(self, path: Path):
         p_str = str(path)
@@ -2678,13 +3128,21 @@ class CompanionServer:
 
                 if text_parts and not tool_calls:
                     full_resp = "\n\n".join(text_parts).strip()
-                    summary = clean_markdown_for_speech(full_resp, max_words=getattr(self.config.claude, "max_spoken_words", 60))
+                    summary = clean_markdown_for_speech(
+                        full_resp, max_words=getattr(self.config.claude, "max_spoken_words", 60)
+                    )
                     turn_sig = f"{cid}:{summary[:35]}"
-                    claimed_origin = get_claimed_turn_origin(cid, turn_sig) or get_claimed_turn_origin(path.stem, turn_sig)
+                    claimed_origin = get_claimed_turn_origin(
+                        cid, turn_sig
+                    ) or get_claimed_turn_origin(path.stem, turn_sig)
                     if claimed_origin:
                         origin_tag = claimed_origin
                     else:
-                        origin_tag = "mobile" if (pop_mobile_turn_origin(cid) or pop_mobile_turn_origin(path.stem)) else "desktop"
+                        origin_tag = (
+                            "mobile"
+                            if (pop_mobile_turn_origin(cid) or pop_mobile_turn_origin(path.stem))
+                            else "desktop"
+                        )
                     self.broadcast_turn_completion(
                         summary=summary,
                         conv_id=cid,
@@ -2696,35 +3154,41 @@ class CompanionServer:
                     for tc in tool_calls:
                         t_desc, t_tag = format_tool_details(tc)
                         t_name = tc.get("name", "tool")
-                        self.broadcast_event({
-                            "type": "agent_working_step",
-                            "conv_id": cid,
-                            "step_index": idx,
-                            "agent_role": "claude",
-                            "tool_name": t_name,
-                            "summary": t_desc,
-                            "action": t_tag,
-                            "status": "running",
-                            "timestamp": time.time(),
-                        })
+                        self.broadcast_event(
+                            {
+                                "type": "agent_working_step",
+                                "conv_id": cid,
+                                "step_index": idx,
+                                "agent_role": "claude",
+                                "tool_name": t_name,
+                                "summary": t_desc,
+                                "action": t_tag,
+                                "status": "running",
+                                "timestamp": time.time(),
+                            }
+                        )
             elif t == "attachment":
                 att = obj.get("attachment", {})
                 if att.get("type") == "hook_success":
-                    self.broadcast_event({
+                    self.broadcast_event(
+                        {
+                            "type": "conversation_updated",
+                            "conv_id": cid,
+                            "step_index": idx,
+                            "step_type": "hook_success",
+                            "timestamp": time.time(),
+                        }
+                    )
+            elif t == "user":
+                self.broadcast_event(
+                    {
                         "type": "conversation_updated",
                         "conv_id": cid,
                         "step_index": idx,
-                        "step_type": "hook_success",
+                        "step_type": "user",
                         "timestamp": time.time(),
-                    })
-            elif t == "user":
-                self.broadcast_event({
-                    "type": "conversation_updated",
-                    "conv_id": cid,
-                    "step_index": idx,
-                    "step_type": "user",
-                    "timestamp": time.time(),
-                })
+                    }
+                )
 
 
 def ensure_ssl_context() -> Optional[object]:
@@ -2732,17 +3196,34 @@ def ensure_ssl_context() -> Optional[object]:
     try:
         import ssl
         import subprocess
+
         voicefi_dir = Path.home() / ".voicefi"
         voicefi_dir.mkdir(parents=True, exist_ok=True)
         cert_path = voicefi_dir / "cert.pem"
         key_path = voicefi_dir / "key.pem"
 
         if not cert_path.is_file() or not key_path.is_file():
-            subprocess.run([
-                "openssl", "req", "-x509", "-newkey", "rsa:2048",
-                "-keyout", str(key_path), "-out", str(cert_path),
-                "-days", "365", "-nodes", "-subj", "/CN=VoiceFi"
-            ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+            subprocess.run(
+                [
+                    "openssl",
+                    "req",
+                    "-x509",
+                    "-newkey",
+                    "rsa:2048",
+                    "-keyout",
+                    str(key_path),
+                    "-out",
+                    str(cert_path),
+                    "-days",
+                    "365",
+                    "-nodes",
+                    "-subj",
+                    "/CN=VoiceFi",
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=True,
+            )
 
         if cert_path.is_file() and key_path.is_file():
             ssl_ctx = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
@@ -2770,7 +3251,10 @@ def get_active_tunnel_url() -> Optional[str]:
             url = tunnel_file.read_text(encoding="utf-8").strip()
             if url.startswith("https://") and "trycloudflare.com" in url:
                 import subprocess
-                res = subprocess.run(["pgrep", "-f", "cloudflared tunnel"], capture_output=True, text=True)
+
+                res = subprocess.run(
+                    ["pgrep", "-f", "cloudflared tunnel"], capture_output=True, text=True
+                )
                 if res.returncode == 0 and res.stdout.strip():
                     _ACTIVE_TUNNEL_URL = url
                     return url
@@ -2797,7 +3281,10 @@ def start_cloudflared_tunnel(port: int = 5141) -> Optional[str]:
             shutil.which("cloudflared")
             or (Path("/opt/homebrew/bin/cloudflared").is_file() and "/opt/homebrew/bin/cloudflared")
             or (Path("/usr/local/bin/cloudflared").is_file() and "/usr/local/bin/cloudflared")
-            or ((Path.home() / ".local/bin/cloudflared").is_file() and str(Path.home() / ".local/bin/cloudflared"))
+            or (
+                (Path.home() / ".local/bin/cloudflared").is_file()
+                and str(Path.home() / ".local/bin/cloudflared")
+            )
         )
         if not binary:
             return None
@@ -2851,6 +3338,7 @@ def _is_voicefi_running_on_port(port: int) -> bool:
     try:
         import urllib.request
         import json
+
         req = urllib.request.Request(
             f"http://127.0.0.1:{port}/api/status",
             headers={"User-Agent": "VoiceFi-CLI"},
@@ -2898,13 +3386,14 @@ def run_companion_server(
 
     if open_browser:
         import webbrowser
+
         webbrowser.open(target_url)
 
     # If VoiceFi background server is already active on this port, start RelayClient and attach
     if _is_voicefi_running_on_port(port):
         relay_client = RelayClient(credentials=creds, local_port=port)
         relay_loop = asyncio.new_event_loop()
-        
+
         def _run_relay_loop():
             asyncio.set_event_loop(relay_loop)
             relay_loop.run_until_complete(relay_client.start())
@@ -2945,7 +3434,7 @@ def run_companion_server(
 
     app_runner = web.AppRunner(server.app)
     loop.run_until_complete(app_runner.setup())
-    
+
     # HTTP Site (Default, e.g. 5141)
     site_http = web.TCPSite(app_runner, host, port)
     try:
@@ -2961,7 +3450,9 @@ def run_companion_server(
                     print("\n👋 Exiting companion view.")
                 return
             else:
-                print(f"⚠️ Port {port} is occupied by another application. Try `vifi clean --all` or specify `--port <number>`.")
+                print(
+                    f"⚠️ Port {port} is occupied by another application. Try `vifi clean --all` or specify `--port <number>`."
+                )
                 return
         raise
 

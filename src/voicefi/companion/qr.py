@@ -61,6 +61,7 @@ def generate_qr_ascii(data: str) -> str:
     """Generate ASCII art representation of QR code for terminal display."""
     try:
         import qrcode
+
         qr = qrcode.QRCode(
             version=1,
             error_correction=qrcode.constants.ERROR_CORRECT_L,
@@ -86,6 +87,7 @@ def generate_qr_base64_png(data: str) -> str:
     # Attempt 1: Pillow PNG export
     try:
         import qrcode
+
         qr = qrcode.QRCode(
             version=1,
             error_correction=qrcode.constants.ERROR_CORRECT_M,
@@ -107,6 +109,7 @@ def generate_qr_base64_png(data: str) -> str:
     try:
         import qrcode
         from qrcode.image.svg import SvgPathImage
+
         qr = qrcode.QRCode(
             version=1,
             error_correction=qrcode.constants.ERROR_CORRECT_M,

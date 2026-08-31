@@ -64,9 +64,13 @@ class MeetingQASuite:
             print(f"  {RED}✘ [FAIL]{RESET} {name} {f'- {details}' if details else ''}")
 
     def run_automated_simulation(self) -> bool:
-        print(f"\n{BOLD}{CYAN}======================================================================{RESET}")
+        print(
+            f"\n{BOLD}{CYAN}======================================================================{RESET}"
+        )
         print(f"{BOLD}{CYAN} 🧪 VoiceFi Meeting Note Taker QA Suite: Automated Simulation {RESET}")
-        print(f"{BOLD}{CYAN}======================================================================{RESET}\n")
+        print(
+            f"{BOLD}{CYAN}======================================================================{RESET}\n"
+        )
 
         with tempfile.TemporaryDirectory() as tmpdir:
             cfg = VoiceFiConfig()
@@ -80,9 +84,13 @@ class MeetingQASuite:
             print(f"{BOLD}▶ Step 1: Starting Live Meeting Session...{RESET}")
             session = taker.start_session(title=title)
             self.assert_check("Session Started", session is not None and session.status == "active")
-            self.assert_check("Disk File Created", os.path.exists(session.markdown_path), session.markdown_path)
+            self.assert_check(
+                "Disk File Created", os.path.exists(session.markdown_path), session.markdown_path
+            )
 
-            print(f"\n{BOLD}▶ Step 2: Streaming Multi-Speaker Utterances & Verifying Actions...{RESET}")
+            print(
+                f"\n{BOLD}▶ Step 2: Streaming Multi-Speaker Utterances & Verifying Actions...{RESET}"
+            )
             script_turns = [
                 {
                     "speaker": "Jake (Lead)",
@@ -129,13 +137,17 @@ class MeetingQASuite:
             for i, turn in enumerate(script_turns, 1):
                 spk = turn["speaker"]
                 txt = turn["text"]
-                print(f"\n  {YELLOW}[Turn {i}]{RESET} {BOLD}{spk}:{RESET} \"{txt}\"")
+                print(f'\n  {YELLOW}[Turn {i}]{RESET} {BOLD}{spk}:{RESET} "{txt}"')
 
                 utt = taker.record_utterance(txt, speaker_name=spk)
                 time.sleep(0.05)
 
                 if turn.get("expected_decision"):
-                    self.assert_check(f"Turn {i} Decision Detected", len(session.decisions) > 0, session.decisions[-1].decision)
+                    self.assert_check(
+                        f"Turn {i} Decision Detected",
+                        len(session.decisions) > 0,
+                        session.decisions[-1].decision,
+                    )
                 elif turn.get("expected_action"):
                     self.assert_check(f"Turn {i} Action Detected", utt.is_actionable is True)
                     latest_act = session.action_items[-1]
@@ -149,22 +161,36 @@ class MeetingQASuite:
                         latest_act.status == ActionStatus.COMPLETED,
                     )
                 else:
-                    self.assert_check(f"Turn {i} General Discussion Handled", utt.is_actionable is False)
+                    self.assert_check(
+                        f"Turn {i} General Discussion Handled", utt.is_actionable is False
+                    )
 
-            print(f"\n{BOLD}▶ Step 3: Validating Real-Time Disk Persistence & Granola Formatting...{RESET}")
+            print(
+                f"\n{BOLD}▶ Step 3: Validating Real-Time Disk Persistence & Granola Formatting...{RESET}"
+            )
             self.assert_check("File Exists on Disk", os.path.isfile(session.markdown_path))
             with open(session.markdown_path, "r", encoding="utf-8") as f:
                 md_content = f.read()
 
             self.assert_check("Contains Title Header", f"# 👥 Meeting Notes: {title}" in md_content)
-            self.assert_check("Contains Executive Summary Section", "## ⚡ Executive Summary" in md_content)
-            self.assert_check("Contains Key Decisions Section", "## 🏗️ Architectural & Product Decisions" in md_content)
+            self.assert_check(
+                "Contains Executive Summary Section", "## ⚡ Executive Summary" in md_content
+            )
+            self.assert_check(
+                "Contains Key Decisions Section",
+                "## 🏗️ Architectural & Product Decisions" in md_content,
+            )
             self.assert_check("Contains Redis Decision", "Redis" in md_content)
-            self.assert_check("Contains Actions Table", "## ⚡ Real-Time Actions Taken Along The Way" in md_content)
+            self.assert_check(
+                "Contains Actions Table",
+                "## ⚡ Real-Time Actions Taken Along The Way" in md_content,
+            )
             self.assert_check("Contains Linear Action", "LINEAR_TICKET" in md_content)
             self.assert_check("Contains Slack Action", "SLACK_MESSAGE" in md_content)
             self.assert_check("Contains Scaffold Action", "SUBAGENT_SCAFFOLD" in md_content)
-            self.assert_check("Contains Raw Transcript", "## 📝 Raw Conversation Transcript" in md_content)
+            self.assert_check(
+                "Contains Raw Transcript", "## 📝 Raw Conversation Transcript" in md_content
+            )
 
             print(f"\n{BOLD}▶ Step 4: Finalizing & Stopping Session...{RESET}")
             final_session = taker.stop_session()
@@ -189,7 +215,11 @@ class MeetingQASuite:
 
             mcp_res_act = mcp.execute_tool(
                 "voicefi_meeting_action",
-                {"action_type": "linear_ticket", "title": "MCP QA Linear Ticket Verification", "details": {"assignee": "Jake"}},
+                {
+                    "action_type": "linear_ticket",
+                    "title": "MCP QA Linear Ticket Verification",
+                    "details": {"assignee": "Jake"},
+                },
             )
             self.assert_check("MCP voicefi_meeting_action", mcp_res_act.get("isError") is False)
 
@@ -201,18 +231,26 @@ class MeetingQASuite:
         if self.failed_checks == 0:
             print(f"{BOLD}{GREEN}🎉 ALL {total} QA CHECKS PASSED PERFECTLY! (100% SUCCESS){RESET}")
         else:
-            print(f"{BOLD}{RED}❌ QA RUN FINISHED WITH {self.failed_checks} / {total} FAILING CHECKS.{RESET}")
+            print(
+                f"{BOLD}{RED}❌ QA RUN FINISHED WITH {self.failed_checks} / {total} FAILING CHECKS.{RESET}"
+            )
         print(f"{BOLD}{'=' * 70}{RESET}\n")
 
         return self.failed_checks == 0
 
     def run_interactive_tester(self):
         """Interactive console where developer speaks or types phrases to test triage and real-time execution."""
-        print(f"\n{BOLD}{CYAN}======================================================================{RESET}")
+        print(
+            f"\n{BOLD}{CYAN}======================================================================{RESET}"
+        )
         print(f"{BOLD}{CYAN} 🎙️ VoiceFi Meeting Note Taker: Interactive QA Tester {RESET}")
-        print(f"{BOLD}{CYAN}======================================================================{RESET}")
-        print(f"Type any meeting utterance below to test classification and real-time execution.")
-        print(f"Type {BOLD}'q'{RESET} or {BOLD}'exit'{RESET} to quit, or {BOLD}'show'{RESET} to view generated markdown.\n")
+        print(
+            f"{BOLD}{CYAN}======================================================================{RESET}"
+        )
+        print("Type any meeting utterance below to test classification and real-time execution.")
+        print(
+            f"Type {BOLD}'q'{RESET} or {BOLD}'exit'{RESET} to quit, or {BOLD}'show'{RESET} to view generated markdown.\n"
+        )
 
         with tempfile.TemporaryDirectory() as tmpdir:
             cfg = VoiceFiConfig()
@@ -244,10 +282,12 @@ class MeetingQASuite:
                     print(f"  🏛️  {GREEN}Decision Logged:{RESET} {session.decisions[-1].decision}")
                 if utt.is_actionable and session.action_items:
                     latest = session.action_items[-1]
-                    print(f"  ⚡ {GREEN}Action Triggered [{latest.category.value}]:{RESET} {latest.title}")
+                    print(
+                        f"  ⚡ {GREEN}Action Triggered [{latest.category.value}]:{RESET} {latest.title}"
+                    )
                     print(f"     👉 Result: {latest.result_summary}")
                 elif not utt.is_actionable:
-                    print(f"  💬 General Discussion (No immediate action trigger)")
+                    print("  💬 General Discussion (No immediate action trigger)")
                 print()
 
             final_session = taker.stop_session()
@@ -256,8 +296,12 @@ class MeetingQASuite:
 
 def main():
     parser = argparse.ArgumentParser(description="VoiceFi Meeting Note Taker QA Tool")
-    parser.add_argument("-i", "--interactive", action="store_true", help="Launch interactive utterance tester")
-    parser.add_argument("-v", "--verbose", action="store_true", default=True, help="Verbose logging")
+    parser.add_argument(
+        "-i", "--interactive", action="store_true", help="Launch interactive utterance tester"
+    )
+    parser.add_argument(
+        "-v", "--verbose", action="store_true", default=True, help="Verbose logging"
+    )
     args = parser.parse_args()
 
     suite = MeetingQASuite(verbose=args.verbose)

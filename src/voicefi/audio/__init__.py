@@ -26,6 +26,18 @@ from voicefi.audio.output_lock import (
     force_release_audio_lock,
 )
 
+from voicefi.audio.speed_talk import (
+    SPEED_PRESETS,
+    resolve_speed_multiplier,
+    multiplier_to_wpm,
+    multiplier_to_edge_rate,
+    calculate_time_saved,
+    accelerate_audio,
+    compress_speech_silence,
+    dynamic_ramp_audio,
+    build_intelligibility_filter_chain,
+)
+
 __all__ = [
     "play_chime",
     "AudioRecorder",
@@ -43,5 +55,13 @@ __all__ = [
     "is_using_builtin_speakers",
     "is_headphone_or_headset_active",
     "get_audio_device_profile",
+    "SPEED_PRESETS",
+    "resolve_speed_multiplier",
+    "multiplier_to_wpm",
+    "multiplier_to_edge_rate",
+    "calculate_time_saved",
+    "accelerate_audio",
+    "compress_speech_silence",
+    "dynamic_ramp_audio",
+    "build_intelligibility_filter_chain",
 ]
-

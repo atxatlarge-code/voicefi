@@ -29,6 +29,7 @@ Universal Voice Layer for AI Agents, MCP, and macOS.
 | `vifi troubleshoot` | Comprehensive automated diagnostic suite (devices, TTS latency, VAD). |
 | `vifi troubleshoot --json` | Machine-readable hardware and diagnostic profile (great for agent inspection). |
 | `vifi troubleshoot -i` | Interactive mic loopback recording & instant playback. |
+| `vifi speed-talk` / `vifi turbo` | **Speed Talking Productivity Engine**: Toggle 1.25x-3.0x velocity, pause compression, dynamic ramping, and time-saved metrics (`on`, `off`, `set`, `test`, `demo`, `stats`). |
 | `vifi ping [voice]` | **Silent Voice Connection & Speed Test**: Measures TTFB latency, throughput (chars/s), payload size, and rate limits silently without audio output. |
 | `vifi ping --all` | **Silent Multi-Voice Benchmark**: Runs silent connection and speed tests across all curated neural and local voices. |
 | `vifi feedback-loop` | **Simultaneous Speak + Listen Test**: Speaks over speakers while monitoring microphone. |
@@ -129,13 +130,63 @@ To debug how VoiceFi handles simultaneous speech output and microphone capture:
 
 ---
 
-### 5. Hands-Free Feedback Loop (Conversational Voice Loop)
+### 5. Spoken Turn Lifecycle & Component Execution Order
+
+```
+[Agent Turn Completes]
+        │
+        ▼
+[Turn Detection] ──────────► TranscriptWatcher & Antigravity Hook ('vifi hook')
+        │
+        ▼
+[Deduplication & Lock] ────► claim_turn(conv_id, sig, step_index) (3s debounce)
+        │                     └─► acquires speech_turn_lock() & exclusive_audio() mutex
+        ▼
+[Summary Extraction] ──────► extract_latest_agent_summary() -> clean_markdown_for_speech()
+        │
+        ▼
+[Synthesis & Streaming] ───► EdgeTTS sentence pipelining via afplay (or instant local voice)
+        │
+        ├─► [User Presses Esc] ──► stop_all_speech() kills afplay, purges sentence queue,
+        │                          records stop timestamp -> 3.0s silence lock.
+        │                          WakeWordListener drains PortAudio buffer to prevent echo loop.
+        ▼
+[Auto-Listen Handoff] ─────► play_chime("start") -> Dynamic Island HUD 'listening' ->
+                             AudioRecorder.record_speech_auto() captures developer prompt
+```
+
+#### Precise Execution Sequence:
+1. **Turn Claiming (`claim_turn`)**: When an agent turn finishes, both the CLI hook and the background `TranscriptWatcher` see the new `PLANNER_RESPONSE`. `claim_turn()` guarantees that exactly one process claims the turn using a 3.0s debounce and unique `step_index` signature in `/tmp/voicefi_active_turns.json`.
+2. **Audio Mutex (`exclusive_audio`)**: The claiming process acquires `/tmp/voicefi_audio_output.lock` to prevent CoreAudio device contention across subagents or terminal sessions.
+3. **Pipelined Playback**: `EdgeTTS` splits the text into sentences. Sentence 1 begins playing over `afplay` immediately while Sentence 2 is pre-fetched in the background.
+4. **Instant Escape Stop**: Pressing <kbd>Esc</kbd> at any point triggers `stop_all_speech()`, which kills active `afplay` processes (`SIGTERM`/`SIGKILL`), purges remaining sentence chunks from the queue, and sets a 3.0s global interruption guard.
+5. **PortAudio Stream Draining**: While speech is playing, `WakeWordListener` continuously reads and purges mic audio frames from PortAudio to prevent speaker audio from buffering in hardware ring buffers.
+6. **Sequential Handoff**: If speech was not interrupted, VoiceFi plays the start chime and opens the microphone for hands-free auto-listen.
+
+---
+
+### 6. Step-by-Step Diagnostic Troubleshooting Flow
+
+When diagnosing audio, turn completion speech, or stop behavior, run checks in this exact order:
+
+| Step | Diagnostic Command | What to Verify |
+| :--- | :--- | :--- |
+| **1. Server Health** | `vifi status` | Verify LaunchAgent is loaded and listening on **Port 5141**. |
+| **2. Live Event Log** | `vifi dev` | Monitor live VAD energy, hook triggers, and barge-in / stop events in real time. |
+| **3. Direct Audio Test**| `vifi voice test "Viv" -t "Hello"` | Verifies that TTS synthesis, `afplay`, and CoreAudio speaker routing are functional. |
+| **4. Check Lock Files** | `ls -l /tmp/voicefi*` | Check `/tmp/voicefi_active_turns.json` and `/tmp/voicefi_last_speech_stop.ts`. |
+| **5. Full Clean Reset** | `vifi clean --all && vifi restart` | Purges stale lock files, clears turn caches, and cleanly reloads the server daemon. |
+
+---
+
+### 7. Hands-Free Feedback Loop (Conversational Voice Loop)
 * **How It Works:** Autonomous turn handoff between developer and AI agents (Antigravity & Claude Code).
   - **Spoken Persona Feedback:** Agent turn completes -> VoiceFi speaks a concise soundbite in the agent's persona.
   - **Microphone Handoff:** AudioRecorder opens mic, streams live waveforms (`on_listening_tick`) and dictation previews (`on_live_transcript`) to the Dynamic Island HUD.
   - **Smart Injection Dispatch:**
     - **Antigravity:** Native `agentapi` background IPC (0 screen flicker, 0 clipboard hijacking).
     - **Claude Code & Desktop:** `inject_text_to_claude()` automatically handles terminal CLI focus and Claude Desktop (`Claude.app`) prompt textarea focus clicks before pasting and submitting.
+
 
 ---
 

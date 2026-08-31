@@ -27,6 +27,7 @@ def format_duration(seconds: float) -> str:
 
 class MemoChunk(BaseModel):
     """Timestamped audio or transcription chunk."""
+
     index: int
     start_seconds: float
     end_seconds: float
@@ -35,6 +36,7 @@ class MemoChunk(BaseModel):
 
 class MemoRecording(BaseModel):
     """Metadata for a raw voice memo recording session."""
+
     id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
     title: str = "Voice Memo"
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
@@ -84,6 +86,7 @@ class PRChecklist(BaseModel):
 
 class CleanedMemo(BaseModel):
     """Cleaned voice memo capturing developer stream of consciousness without interpretation."""
+
     memo_id: str
     title: str
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
@@ -97,7 +100,9 @@ class CleanedMemo(BaseModel):
         """Render clean, faithful developer memo document."""
         lines = []
         lines.append(f"# 🎙️ Voice Memo: {self.title}")
-        lines.append(f"*Captured: {self.created_at[:19].replace('T', ' ')} UTC* | *Duration: {format_duration(self.duration_seconds)}* | *Words: {self.word_count}* | *ID: `{self.memo_id}`*")
+        lines.append(
+            f"*Captured: {self.created_at[:19].replace('T', ' ')} UTC* | *Duration: {format_duration(self.duration_seconds)}* | *Words: {self.word_count}* | *ID: `{self.memo_id}`*"
+        )
         lines.append("")
         lines.append("## 📝 Cleaned Transcript")
         lines.append(self.cleaned_transcript or self.raw_transcript or "_No speech recorded._")
@@ -180,7 +185,11 @@ class MemoStore:
             with open(memo_path, "r", encoding="utf-8") as f:
                 memo_data = json.load(f)
             # Handle possible legacy structure gracefully
-            cleaned_t = memo_data.get("cleaned_transcript") or memo_data.get("executive_summary") or memo_data.get("raw_transcript", "")
+            cleaned_t = (
+                memo_data.get("cleaned_transcript")
+                or memo_data.get("executive_summary")
+                or memo_data.get("raw_transcript", "")
+            )
             memo = CleanedMemo(
                 memo_id=memo_data.get("memo_id", recording.id),
                 title=memo_data.get("title", recording.title),
@@ -205,17 +214,23 @@ class MemoStore:
                 try:
                     with open(rec_path, "r", encoding="utf-8") as f:
                         data = json.load(f)
-                    has_memo = (memo_dir / "memo.json").is_file() or (memo_dir / "synthesis.json").is_file()
-                    results.append({
-                        "id": data.get("id", memo_dir.name),
-                        "title": data.get("title", "Voice Memo"),
-                        "created_at": data.get("created_at", ""),
-                        "duration_seconds": data.get("duration_seconds", 0.0),
-                        "word_count": data.get("word_count", 0),
-                        "has_cleaned_memo": has_memo,
-                        "has_synthesis": has_memo,
-                        "raw_transcript_preview": (data.get("raw_transcript", "")[:120] + "...") if len(data.get("raw_transcript", "")) > 120 else data.get("raw_transcript", ""),
-                    })
+                    has_memo = (memo_dir / "memo.json").is_file() or (
+                        memo_dir / "synthesis.json"
+                    ).is_file()
+                    results.append(
+                        {
+                            "id": data.get("id", memo_dir.name),
+                            "title": data.get("title", "Voice Memo"),
+                            "created_at": data.get("created_at", ""),
+                            "duration_seconds": data.get("duration_seconds", 0.0),
+                            "word_count": data.get("word_count", 0),
+                            "has_cleaned_memo": has_memo,
+                            "has_synthesis": has_memo,
+                            "raw_transcript_preview": (data.get("raw_transcript", "")[:120] + "...")
+                            if len(data.get("raw_transcript", "")) > 120
+                            else data.get("raw_transcript", ""),
+                        }
+                    )
                 except Exception:
                     continue
 
@@ -233,5 +248,6 @@ class MemoStore:
                 return False
 
         import shutil
+
         shutil.rmtree(memo_dir)
         return True

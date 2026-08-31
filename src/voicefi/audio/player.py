@@ -53,7 +53,7 @@ class StreamingAudioPlayer:
                         chunk_to_write = self._leftover[:needed]
                         self._leftover = self._leftover[needed:]
                     n = len(chunk_to_write)
-                    outdata[written:written + n] = chunk_to_write.reshape(-1, self.channels)
+                    outdata[written : written + n] = chunk_to_write.reshape(-1, self.channels)
                     written += n
                     with self._samples_lock:
                         self._outstanding_samples = max(0, self._outstanding_samples - n)
@@ -64,10 +64,12 @@ class StreamingAudioPlayer:
                     data = data.reshape(-1, self.channels)
                     needed = frames - written
                     if len(data) <= needed:
-                        outdata[written:written + len(data)] = data
+                        outdata[written : written + len(data)] = data
                         written += len(data)
                         with self._samples_lock:
-                            self._outstanding_samples = max(0, self._outstanding_samples - len(data))
+                            self._outstanding_samples = max(
+                                0, self._outstanding_samples - len(data)
+                            )
                     else:
                         outdata[written:frames] = data[:needed]
                         self._leftover = data[needed:]
@@ -79,7 +81,11 @@ class StreamingAudioPlayer:
                     break
 
             with self._samples_lock:
-                if self._outstanding_samples == 0 and self.audio_queue.empty() and self._leftover is None:
+                if (
+                    self._outstanding_samples == 0
+                    and self.audio_queue.empty()
+                    and self._leftover is None
+                ):
                     self._drained_event.set()
 
         self._stream = sd.OutputStream(

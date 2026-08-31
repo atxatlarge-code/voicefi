@@ -119,7 +119,9 @@ class MeetingSession:
             "---",
             "",
             "## ⚡ Executive Summary",
-            self.executive_summary if self.executive_summary else "_Discussion in progress... Summary will synthesize continuously as topics evolve._",
+            self.executive_summary
+            if self.executive_summary
+            else "_Discussion in progress... Summary will synthesize continuously as topics evolve._",
             "",
             "---",
             "",
@@ -132,12 +134,14 @@ class MeetingSession:
         else:
             lines.append("- _Topics will be extracted and organized as they are discussed._")
 
-        lines.extend([
-            "",
-            "---",
-            "",
-            "## 🏗️ Architectural & Product Decisions",
-        ])
+        lines.extend(
+            [
+                "",
+                "---",
+                "",
+                "## 🏗️ Architectural & Product Decisions",
+            ]
+        )
 
         if self.decisions:
             for d in self.decisions:
@@ -146,18 +150,22 @@ class MeetingSession:
         else:
             lines.append("- _No binding architectural decisions recorded yet._")
 
-        lines.extend([
-            "",
-            "---",
-            "",
-            "## ⚡ Real-Time Actions Taken Along The Way",
-        ])
+        lines.extend(
+            [
+                "",
+                "---",
+                "",
+                "## ⚡ Real-Time Actions Taken Along The Way",
+            ]
+        )
 
         if self.action_items:
-            lines.extend([
-                "| # | Action / Task | Category | Target / Result | Status |",
-                "|:---|:---|:---|:---|:---|",
-            ])
+            lines.extend(
+                [
+                    "| # | Action / Task | Category | Target / Result | Status |",
+                    "|:---|:---|:---|:---|:---|",
+                ]
+            )
             for i, act in enumerate(self.action_items, 1):
                 status_badge = {
                     ActionStatus.COMPLETED: "✅ Executed",
@@ -166,7 +174,7 @@ class MeetingSession:
                     ActionStatus.FAILED: "❌ Failed",
                     ActionStatus.DISMISSED: "⚪ Dismissed",
                 }.get(act.status, "⏳ Staged")
-                
+
                 target_str = act.result_summary or act.target_channel_or_branch or "Local Workspace"
                 owner_str = f" (@{act.assignee})" if act.assignee else ""
                 lines.append(
@@ -175,14 +183,18 @@ class MeetingSession:
         else:
             lines.append("_No automated action triggers detected yet._")
 
-        lines.extend([
-            "",
-            "---",
-            "",
-            "## 📋 Pending Action Items & Next Steps",
-        ])
+        lines.extend(
+            [
+                "",
+                "---",
+                "",
+                "## 📋 Pending Action Items & Next Steps",
+            ]
+        )
 
-        pending_items = [a for a in self.action_items if a.status in (ActionStatus.STAGED, ActionStatus.RUNNING)]
+        pending_items = [
+            a for a in self.action_items if a.status in (ActionStatus.STAGED, ActionStatus.RUNNING)
+        ]
         if pending_items:
             for p in pending_items:
                 assignee_tag = f"**@{p.assignee}:** " if p.assignee else ""
@@ -190,15 +202,17 @@ class MeetingSession:
         else:
             lines.append("- [x] All real-time meeting actions executed or none pending.")
 
-        lines.extend([
-            "",
-            "---",
-            "",
-            "## 📝 Raw Conversation Transcript",
-            f"<details>",
-            f"<summary>Click to view timestamped transcript ({len(self.utterances)} turns)</summary>",
-            "",
-        ])
+        lines.extend(
+            [
+                "",
+                "---",
+                "",
+                "## 📝 Raw Conversation Transcript",
+                "<details>",
+                f"<summary>Click to view timestamped transcript ({len(self.utterances)} turns)</summary>",
+                "",
+            ]
+        )
 
         if self.utterances:
             for u in self.utterances:
@@ -207,13 +221,15 @@ class MeetingSession:
         else:
             lines.append("- _Awaiting first spoken utterance..._")
 
-        lines.extend([
-            "",
-            "</details>",
-            "",
-            "---",
-            f"*Generated autonomously by VoiceFi™ ProActive Meeting Assistant at {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*",
-        ])
+        lines.extend(
+            [
+                "",
+                "</details>",
+                "",
+                "---",
+                f"*Generated autonomously by VoiceFi™ ProActive Meeting Assistant at {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*",
+            ]
+        )
 
         return "\n".join(lines)
 
@@ -361,13 +377,29 @@ class MeetingActionExecutor:
         # 6. Extract potential topic candidate
         words = clean.split()
         if len(words) >= 4:
-            if any(k in clean.lower() for k in ["performance", "auth", "database", "redis", "lcp", "api", "migration", "design", "ui", "testing"]):
+            if any(
+                k in clean.lower()
+                for k in [
+                    "performance",
+                    "auth",
+                    "database",
+                    "redis",
+                    "lcp",
+                    "api",
+                    "migration",
+                    "design",
+                    "ui",
+                    "testing",
+                ]
+            ):
                 result["topic_candidate"] = clean[:60]
 
         return result
 
     @classmethod
-    def execute_action(cls, action_item: MeetingActionItem, config: Optional[VoiceFiConfig] = None) -> str:
+    def execute_action(
+        cls, action_item: MeetingActionItem, config: Optional[VoiceFiConfig] = None
+    ) -> str:
         """
         Execute an action item in real time.
         Dispatches Linear ticket creation, Slack message posting, branch subagent scaffolding, or research.
@@ -431,6 +463,7 @@ class MeetingActionExecutor:
         """Send a lightweight status card update to the Dynamic Island HUD."""
         try:
             from voicefi.integrations.antigravity import set_cross_process_hud_state
+
             set_cross_process_hud_state(
                 "done",
                 text=f"⚡ {tool_name}: {action_desc[:24]}",
@@ -478,8 +511,10 @@ class MeetingNoteTaker:
         if not hasattr(self, "_config") or self._config is None:
             self._config = load_config()
         speaker = speaker_name or self._config.user_name or "Speaker"
-        session_title = title or f"Brainstorming & Technical Review ({datetime.date.today().isoformat()})"
-        
+        session_title = (
+            title or f"Brainstorming & Technical Review ({datetime.date.today().isoformat()})"
+        )
+
         now = time.time()
         now_dt = datetime.datetime.fromtimestamp(now)
         session_id = now_dt.strftime("%Y-%m-%d_%H-%M-%S")
@@ -509,6 +544,7 @@ class MeetingNoteTaker:
         # Update HUD state
         try:
             from voicefi.integrations.antigravity import set_cross_process_hud_state
+
             set_cross_process_hud_state(
                 "meeting",
                 text=f"👥 {session_title[:32]}",
@@ -540,7 +576,10 @@ class MeetingNoteTaker:
             self.active_session.decisions.append(parse_res["decision"])
 
         # 2. Handle Topic Candidate
-        if parse_res["topic_candidate"] and parse_res["topic_candidate"] not in self.active_session.topics:
+        if (
+            parse_res["topic_candidate"]
+            and parse_res["topic_candidate"] not in self.active_session.topics
+        ):
             if len(self.active_session.topics) < 8:
                 self.active_session.topics.append(parse_res["topic_candidate"])
 
@@ -609,7 +648,7 @@ class MeetingNoteTaker:
         # Key theme extraction
         if len(utts) >= 3:
             first_topics = [u.text for u in utts[:3]]
-            summary_parts.append(f"Key themes opened with: \"{first_topics[0][:80]}...\"")
+            summary_parts.append(f'Key themes opened with: "{first_topics[0][:80]}..."')
 
         self.active_session.executive_summary = " ".join(summary_parts)
 
@@ -631,6 +670,7 @@ class MeetingNoteTaker:
         # Reset HUD state to idle
         try:
             from voicefi.integrations.antigravity import set_cross_process_hud_state
+
             set_cross_process_hud_state("idle", linger=2.0)
         except Exception:
             pass
@@ -639,7 +679,11 @@ class MeetingNoteTaker:
 
     def list_saved_sessions(self, directory: Optional[str] = None) -> List[Dict[str, Any]]:
         """List all meeting markdown files saved in the configured meetings directory."""
-        dir_path = directory or (self._config.proactive.meeting_assistant.notes_dir if self._config else "~/.voicefi/meetings")
+        dir_path = directory or (
+            self._config.proactive.meeting_assistant.notes_dir
+            if self._config
+            else "~/.voicefi/meetings"
+        )
         notes_dir = Path(os.path.expanduser(dir_path))
         if not notes_dir.exists():
             return []
@@ -650,15 +694,19 @@ class MeetingNoteTaker:
             first_line = ""
             try:
                 with open(file, "r", encoding="utf-8") as f:
-                    first_line = f.readline().strip().replace("# 👥 Meeting Notes: ", "").replace("# ", "")
+                    first_line = (
+                        f.readline().strip().replace("# 👥 Meeting Notes: ", "").replace("# ", "")
+                    )
             except Exception:
                 pass
 
-            results.append({
-                "filename": file.name,
-                "filepath": str(file),
-                "title": first_line or file.stem,
-                "modified_at": stat.st_mtime,
-                "size_bytes": stat.st_size,
-            })
+            results.append(
+                {
+                    "filename": file.name,
+                    "filepath": str(file),
+                    "title": first_line or file.stem,
+                    "modified_at": stat.st_mtime,
+                    "size_bytes": stat.st_size,
+                }
+            )
         return results

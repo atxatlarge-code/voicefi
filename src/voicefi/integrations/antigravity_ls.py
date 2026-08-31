@@ -82,12 +82,14 @@ def discover_antigravity_ls_credentials(
             elif "Antigravity IDE.app" in cmdline:
                 priority = 5
 
-            candidates.append({
-                "pid": pid,
-                "token": token,
-                "priority": priority,
-                "cmdline": cmdline,
-            })
+            candidates.append(
+                {
+                    "pid": pid,
+                    "token": token,
+                    "priority": priority,
+                    "cmdline": cmdline,
+                }
+            )
 
     if not candidates:
         return None
@@ -160,7 +162,9 @@ def get_agentapi_env(
     Get os.environ dictionary populated with discovered ANTIGRAVITY_LS_ADDRESS and ANTIGRAVITY_CSRF_TOKEN.
     """
     env = os.environ.copy()
-    creds = discover_antigravity_ls_credentials(target_conv_id=target_conv_id, force_refresh=force_refresh)
+    creds = discover_antigravity_ls_credentials(
+        target_conv_id=target_conv_id, force_refresh=force_refresh
+    )
     if creds:
         env["ANTIGRAVITY_LS_ADDRESS"] = creds[0]
         env["ANTIGRAVITY_CSRF_TOKEN"] = creds[1]

@@ -18,7 +18,11 @@ from typing import Dict, Any, Optional, Tuple
 
 from voicefi.config import VoiceFiConfig, load_config
 from voicefi.tts import get_tts_engine, stop_all_speech
-from voicefi.tts.base import set_cross_process_hud_state, clear_cross_process_hud_state, escape_to_stop_speech
+from voicefi.tts.base import (
+    set_cross_process_hud_state,
+    clear_cross_process_hud_state,
+    escape_to_stop_speech,
+)
 from voicefi.stt import get_stt_engine
 from voicefi.audio.recorder import AudioRecorder, resolve_barge_in_mode
 from voicefi.audio.chimes import play_chime
@@ -133,7 +137,11 @@ def handle_claude_stop_hook(
     cfg = config or load_config()
 
     # Guard 2: Instant pause kill-switch check
-    if not cfg.enabled or not getattr(cfg.hooks, "enabled", True) or not getattr(cfg.hooks, "claude", True):
+    if (
+        not cfg.enabled
+        or not getattr(cfg.hooks, "enabled", True)
+        or not getattr(cfg.hooks, "claude", True)
+    ):
         return {"status": "paused"}
     if not getattr(cfg.integrations, "claude_code", True):
         return {"status": "disabled"}
@@ -177,18 +185,21 @@ def handle_claude_stop_hook(
     if not claim_turn(conv_id, text_to_speak) and not claim_turn(cid_key, text_to_speak):
         return {"status": "skipped_duplicate"}
 
-    print(f"\n🎭 [Claude Hook] Turn complete: \"{text_to_speak}\"")
+    print(f'\n🎭 [Claude Hook] Turn complete: "{text_to_speak}"')
 
     if text_to_speak:
         try:
             from voicefi.audio.echo_canceller import record_agent_spoken
+
             record_agent_spoken(text_to_speak)
         except Exception:
             pass
 
     # Check Mobile Companion audio routing
     routing = getattr(getattr(cfg, "companion", None), "audio_routing", "smart")
-    mute_mac_active = getattr(getattr(cfg, "companion", None), "mute_mac_when_companion_active", False)
+    mute_mac_active = getattr(
+        getattr(cfg, "companion", None), "mute_mac_when_companion_active", False
+    )
     is_mobile = pop_mobile_turn_origin(conv_id) or pop_mobile_turn_origin(cid_key)
 
     if routing == "phone_only":
@@ -211,12 +222,19 @@ def handle_claude_stop_hook(
         except Exception as e:
             print(f"[Claude Hook] Speech error: {e}", file=sys.stderr)
 
+        from voicefi.tts.base import is_speech_interrupted
+
+        if is_speech_interrupted(hook_start_time):
+            clear_cross_process_hud_state()
+            return {"status": "interrupted", "agent": "claude"}
+
     # 3. If auto_listen is disabled, finish early
     if not cfg.claude.auto_listen:
         if cfg.claude.read_summary_aloud:
             dur_ms = int((time.time() - hook_start_time) * 1000)
             try:
                 from voicefi.telemetry import capture_voice_interaction
+
                 capture_voice_interaction(
                     trigger="hook",
                     duration_ms=dur_ms,
@@ -244,30 +262,43 @@ def handle_claude_stop_hook(
     )
 
     def _on_live(txt: str):
-        set_cross_process_hud_state("listening", text=txt, agent_name="claude", user_name=cfg.user_name, live_stream=True)
+        set_cross_process_hud_state(
+            "listening", text=txt, agent_name="claude", user_name=cfg.user_name, live_stream=True
+        )
         try:
             from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
-            UnifiedDynamicIslandHUD.get_instance().update_live_transcription(txt, user_name=cfg.user_name)
+
+            UnifiedDynamicIslandHUD.get_instance().update_live_transcription(
+                txt, user_name=cfg.user_name
+            )
         except Exception:
             pass
 
     def _on_tick(energy: float, conf: float = 0.0, is_spk: bool = False):
         try:
             from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
+
             UnifiedDynamicIslandHUD.get_instance().update_audio_level(energy, conf, is_spk)
         except Exception:
             pass
 
     try:
         audio_data, temp_wav = recorder.record_speech_auto(
-            on_speech_start=lambda: set_cross_process_hud_state("hearing", agent_name="claude", user_name=cfg.user_name),
+            on_speech_start=lambda: set_cross_process_hud_state(
+                "hearing", agent_name="claude", user_name=cfg.user_name
+            ),
             on_live_transcript=_on_live,
             on_listening_tick=_on_tick,
         )
     except Exception as e:
         print(f"[Claude Hook] Recording error: {e}", file=sys.stderr)
+    from voicefi.tts.base import is_speech_interrupted
+
+    if is_speech_interrupted(hook_start_time):
+        if temp_wav and Path(temp_wav).is_file():
+            Path(temp_wav).unlink(missing_ok=True)
         clear_cross_process_hud_state()
-        return {"status": "error", "error": str(e)}
+        return {"status": "cancelled"}
 
     # 6. Transcribe user speech
     set_cross_process_hud_state("transcribing", agent_name="claude")
@@ -275,7 +306,12 @@ def handle_claude_stop_hook(
     try:
         transcription = stt_engine.transcribe(temp_wav)
     finally:
-        temp_wav.unlink(missing_ok=True)
+        if temp_wav and Path(temp_wav).is_file():
+            Path(temp_wav).unlink(missing_ok=True)
+
+    if is_speech_interrupted(hook_start_time):
+        clear_cross_process_hud_state()
+        return {"status": "cancelled"}
 
     if not transcription or not transcription.strip():
         print("⚠️ No speech detected.")
@@ -301,6 +337,7 @@ def handle_claude_stop_hook(
         dur_ms = int((time.time() - hook_start_time) * 1000)
         try:
             from voicefi.telemetry import capture_voice_interaction
+
             capture_voice_interaction(
                 trigger="hook",
                 duration_ms=dur_ms,
@@ -325,6 +362,7 @@ def install_claude_hook(
     Creates .bak backup and writes atomically via os.replace.
     """
     import shutil
+
     target_path = settings_path or (Path.home() / ".claude" / "settings.json")
     target_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -335,9 +373,12 @@ def install_claude_hook(
         if not backup_path.exists():
             try:
                 import shutil
+
                 shutil.copy2(target_path, backup_path)
             except Exception as e:
-                print(f"[Claude Hook] Notice: could not write settings backup: {e}", file=sys.stderr)
+                print(
+                    f"[Claude Hook] Notice: could not write settings backup: {e}", file=sys.stderr
+                )
 
         try:
             with open(target_path, "r", encoding="utf-8") as f:
@@ -366,16 +407,18 @@ def install_claude_hook(
                 break
 
     if not already_installed:
-        stop_hooks.append({
-            "matcher": ".*",
-            "hooks": [
-                {
-                    "type": "command",
-                    "command": hook_command,
-                    "timeout": 60,
-                }
-            ],
-        })
+        stop_hooks.append(
+            {
+                "matcher": ".*",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": hook_command,
+                        "timeout": 60,
+                    }
+                ],
+            }
+        )
 
     settings_data["hooks"]["Stop"] = stop_hooks
 
@@ -435,7 +478,10 @@ def install_claude_desktop_mcp(
     Exposes voicefi_speak, voicefi_send, voicefi_sfx, voicefi_listen tools directly to Claude.
     """
     import shutil
-    target_path = config_path or (Path.home() / "Library" / "Application Support" / "Claude" / "claude_desktop_config.json")
+
+    target_path = config_path or (
+        Path.home() / "Library" / "Application Support" / "Claude" / "claude_desktop_config.json"
+    )
     target_path.parent.mkdir(parents=True, exist_ok=True)
 
     data: Dict[str, Any] = {}
@@ -463,4 +509,3 @@ def install_claude_desktop_mcp(
     os.replace(temp_file, target_path)
 
     return target_path
-

@@ -22,7 +22,11 @@ def ensure_binary() -> bool:
     swift_src = Path(__file__).resolve().parent / "apple_speech_stream.swift"
     if swift_src.is_file():
         try:
-            subprocess.run(["swiftc", str(swift_src), "-O", "-o", str(BIN_PATH)], check=True, capture_output=True)
+            subprocess.run(
+                ["swiftc", str(swift_src), "-O", "-o", str(BIN_PATH)],
+                check=True,
+                capture_output=True,
+            )
             return True
         except Exception:
             return False
@@ -55,7 +59,9 @@ class AppleSpeechStreamer:
                 text=True,
                 bufsize=1,
             )
-            self._thread = threading.Thread(target=self._read_loop, daemon=True, name="AppleSpeechReader")
+            self._thread = threading.Thread(
+                target=self._read_loop, daemon=True, name="AppleSpeechReader"
+            )
             self._thread.start()
         except Exception as e:
             print(f"[AppleSpeechStreamer] Failed to start native process: {e}")
@@ -111,6 +117,7 @@ class AppleSpeechSTT(BaseSTT):
         """Transcribe using Apple's speech recognition."""
         try:
             from voicefi.stt.whisper_local import WhisperLocalSTT
+
             fallback = WhisperLocalSTT(model_size="base.en")
             return fallback.transcribe(audio, sample_rate)
         except Exception as e:

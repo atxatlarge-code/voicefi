@@ -24,7 +24,7 @@ from voicefi.video.reel_builder import (
     CLAUDE_LOGO_SVG,
     VOICEFI_LOGO_SVG,
     RADIO_HOST_LOGO_SVG,
-    JAKE_LOGO_SVG
+    JAKE_LOGO_SVG,
 )
 
 # Canonical Speaker Profiles
@@ -32,57 +32,57 @@ SPEAKER_PALETTES = {
     "jake": {
         "name": "Jake",
         "role": "VoiceFi Creator · Developer",
-        "tag_color": "#8B9A46", # Olive Green
-        "avatar_svg": JAKE_LOGO_SVG
+        "tag_color": "#8B9A46",  # Olive Green
+        "avatar_svg": JAKE_LOGO_SVG,
     },
     "creator": {
         "name": "Jake",
         "role": "VoiceFi Creator · Developer",
         "tag_color": "#8B9A46",
-        "avatar_svg": JAKE_LOGO_SVG
+        "avatar_svg": JAKE_LOGO_SVG,
     },
     "viv": {
         "name": "Viv",
         "role": "Antigravity Main Planner",
-        "tag_color": "#3186FF", # Electric Blue
-        "avatar_svg": ANTIGRAVITY_LOGO_SVG
+        "tag_color": "#3186FF",  # Electric Blue
+        "avatar_svg": ANTIGRAVITY_LOGO_SVG,
     },
     "antigravity": {
         "name": "Viv",
         "role": "Antigravity Main Planner",
         "tag_color": "#3186FF",
-        "avatar_svg": ANTIGRAVITY_LOGO_SVG
+        "avatar_svg": ANTIGRAVITY_LOGO_SVG,
     },
     "steffan": {
         "name": "Steffan",
         "role": "Claude Code Architect",
-        "tag_color": "#D97757", # Claude Terracotta
-        "avatar_svg": CLAUDE_LOGO_SVG
+        "tag_color": "#D97757",  # Claude Terracotta
+        "avatar_svg": CLAUDE_LOGO_SVG,
     },
     "claude": {
         "name": "Steffan",
         "role": "Claude Code Architect",
         "tag_color": "#D97757",
-        "avatar_svg": CLAUDE_LOGO_SVG
+        "avatar_svg": CLAUDE_LOGO_SVG,
     },
     "christopher": {
         "name": "Christopher",
         "role": "Acoustic DSP Lead",
-        "tag_color": "#F59E0B", # Amber Gold
-        "avatar_svg": RADIO_HOST_LOGO_SVG
+        "tag_color": "#F59E0B",  # Amber Gold
+        "avatar_svg": RADIO_HOST_LOGO_SVG,
     },
     "emily": {
         "name": "Emily",
         "role": "VoiceFi Narrator",
-        "tag_color": "#10B981", # Emerald Green
-        "avatar_svg": VOICEFI_LOGO_SVG
+        "tag_color": "#10B981",  # Emerald Green
+        "avatar_svg": VOICEFI_LOGO_SVG,
     },
     "voicefi": {
         "name": "Emily",
         "role": "VoiceFi Narrator",
         "tag_color": "#10B981",
-        "avatar_svg": VOICEFI_LOGO_SVG
-    }
+        "avatar_svg": VOICEFI_LOGO_SVG,
+    },
 }
 
 
@@ -93,9 +93,10 @@ class KineticKaraokeEngine:
     def extract_word_timestamps(audio_path: Union[str, Path]) -> List[Tuple[str, float, float]]:
         """Extract millisecond word timestamps from any audio file using faster-whisper."""
         from faster_whisper import WhisperModel
+
         model = WhisperModel("base", device="cpu", compute_type="int8")
         segments, _ = model.transcribe(str(audio_path), word_timestamps=True)
-        
+
         words = []
         for s in segments:
             for w in s.words:
@@ -112,7 +113,7 @@ class KineticKaraokeEngine:
         words: List[Tuple[str, float, float]],
         active_word_idx: int,
         width: int = 1080,
-        height: int = 1920
+        height: int = 1920,
     ) -> str:
         """Render single transparent HTML frame with active word glowing."""
         tag_color = speaker_info.get("tag_color", "#8B9A46")
@@ -283,27 +284,38 @@ class KineticKaraokeEngine:
         out_mp4: Path,
         width: int = 1080,
         height: int = 1920,
-        fps: int = 24
+        fps: int = 24,
     ):
         """Composite video clip with transparent word overlay stream."""
         cmd = [
-            "ffmpeg", "-y",
-            "-i", str(clip_path),
-            "-f", "concat",
-            "-safe", "0",
-            "-i", str(overlay_plan_txt),
+            "ffmpeg",
+            "-y",
+            "-i",
+            str(clip_path),
+            "-f",
+            "concat",
+            "-safe",
+            "0",
+            "-i",
+            str(overlay_plan_txt),
             "-filter_complex",
             f"[0:v]scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height},fps={fps},tpad=stop_mode=clone:stop_duration=20,trim=0:{duration:.3f},setpts=PTS-STARTPTS[base];"
             f"[1:v]fps={fps},scale={width}:{height}[ovl];"
             f"[base][ovl]overlay=0:0:shortest=1[v_out]",
-            "-map", "[v_out]",
-            "-t", f"{duration:.3f}",
-            "-c:v", "libx264",
-            "-preset", "fast",
-            "-crf", "18",
-            "-pix_fmt", "yuv420p",
+            "-map",
+            "[v_out]",
+            "-t",
+            f"{duration:.3f}",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "fast",
+            "-crf",
+            "18",
+            "-pix_fmt",
+            "yuv420p",
             "-an",
-            str(out_mp4)
+            str(out_mp4),
         ]
         res = subprocess.run(cmd, capture_output=True, text=True)
         if res.returncode != 0:

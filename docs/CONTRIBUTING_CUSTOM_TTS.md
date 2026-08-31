@@ -48,6 +48,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Optional
 
+
 class BaseTTS(ABC):
     """Abstract interface for all VoiceFi TTS engines."""
 
@@ -59,7 +60,7 @@ class BaseTTS(ABC):
     def speak(self, text: str, block: bool = True) -> None:
         """
         Synthesize and speak the provided text aloud.
-        
+
         Args:
             text: Text string to speak.
             block: If True, blocks until audio finishes playing through speakers.
@@ -84,7 +85,7 @@ class BaseTTS(ABC):
         """
         Synthesize speech directly to an audio file (e.g. WAV/MP3) without speaker playback.
         Used for silent benchmarks (`vifi ping`), diagnostics, and test suites.
-        
+
         Returns:
             True if synthesis succeeded and file was created, False otherwise.
         """
@@ -236,8 +237,14 @@ class CustomNeuralTTS(BaseTTS):
 
                 try:
                     success = self.speak_to_file(clean_text, temp_audio_path)
-                    if not success or not temp_audio_path.is_file() or temp_audio_path.stat().st_size == 0:
-                        raise RuntimeError(f"Failed to synthesize audio for text: {clean_text[:30]}")
+                    if (
+                        not success
+                        or not temp_audio_path.is_file()
+                        or temp_audio_path.stat().st_size == 0
+                    ):
+                        raise RuntimeError(
+                            f"Failed to synthesize audio for text: {clean_text[:30]}"
+                        )
 
                     if self._stopped:
                         return
@@ -272,7 +279,7 @@ class CustomNeuralTTS(BaseTTS):
             # Replace with your actual REST request, Piper CLI call, or SDK invocation
             # Here we illustrate writing raw audio or calling an external tool:
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            
+
             # Example: Mocking or invoking custom synthesizer
             # In production, call your HTTP client or neural model inference here:
             self._synthesize_audio_payload(text, output_path)
@@ -308,7 +315,9 @@ class CustomNeuralTTS(BaseTTS):
         cmd = ["afplay", "-v", str(self.volume), str(audio_path)]
         set_agent_audio_playing(True)
         try:
-            self._current_proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            self._current_proc = subprocess.Popen(
+                cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
             if block:
                 self._current_proc.wait()
         finally:
@@ -325,6 +334,7 @@ Import your provider and register it in `get_tts_engine`:
 ```python
 # In src/voicefi/tts/__init__.py
 from voicefi.tts.custom_neural import CustomNeuralTTS
+
 
 def get_tts_engine(
     config: VoiceFiConfig,
@@ -405,15 +415,18 @@ Update `TTSConfig` to include your provider in the `Literal` type and define opt
 ```python
 # In src/voicefi/config.py
 
+
 class TTSConfig(BaseModel):
-    provider: Literal["mac_say", "edge_tts", "elevenlabs", "f5_tts", "local_clone", "custom_neural"] = "edge_tts"
+    provider: Literal[
+        "mac_say", "edge_tts", "elevenlabs", "f5_tts", "local_clone", "custom_neural"
+    ] = "edge_tts"
     voice: str = "en-US-AvaNeural"
     rate: Optional[int] = 200
     volume: float = 1.0
     streaming: bool = True
     elevenlabs_api_key: Optional[str] = ""
     elevenlabs_voice_id: Optional[str] = "21m00Tcm4TlvDq8ikWAM"
-    
+
     # Custom Neural Provider configuration options
     custom_api_key: Optional[str] = ""
     custom_endpoint_url: Optional[str] = "https://api.example.com/v1/audio/speech"

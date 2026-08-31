@@ -36,7 +36,9 @@ from voicefi.ipc.protocol import (
 logger = logging.getLogger("voicefi.ipc.bridge")
 if not logger.handlers:
     handler = logging.StreamHandler()
-    handler.setFormatter(logging.Formatter("[VoiceFi IPC Bridge] %(asctime)s [%(levelname)s] %(message)s"))
+    handler.setFormatter(
+        logging.Formatter("[VoiceFi IPC Bridge] %(asctime)s [%(levelname)s] %(message)s")
+    )
     logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
@@ -125,7 +127,9 @@ class VoiceFiIPCBridge:
 
         # Start persistent connection loop
         asyncio.create_task(self._connection_supervisor())
-        logger.info("VoiceFi IPC Bridge started (agent: %s, persona: %s)", self.agent_name, self.persona)
+        logger.info(
+            "VoiceFi IPC Bridge started (agent: %s, persona: %s)", self.agent_name, self.persona
+        )
 
     async def _connection_supervisor(self):
         """Maintains active socket connection with automatic fallback and reconnect."""
@@ -161,7 +165,9 @@ class VoiceFiIPCBridge:
                 self._unix_reader = reader
                 self._unix_writer = writer
                 self._active_transport = "unix"
-                logger.info("🔗 Connected to VoiceFi daemon via Unix domain socket (%s)", self.socket_path)
+                logger.info(
+                    "🔗 Connected to VoiceFi daemon via Unix domain socket (%s)", self.socket_path
+                )
                 return True
             except Exception as e:
                 logger.debug("Unix socket connection failed: %s", e)
@@ -212,7 +218,7 @@ class VoiceFiIPCBridge:
             transcript = params.get("transcript", "").strip()
             session_id = params.get("session_id")
             if transcript:
-                logger.info("🎙️ Received prompt dispatch: \"%s\"", transcript)
+                logger.info('🎙️ Received prompt dispatch: "%s"', transcript)
                 for cb in self._on_prompt_callbacks:
                     try:
                         res = cb(transcript, params)
@@ -227,7 +233,9 @@ class VoiceFiIPCBridge:
         elif method in (METHOD_SIGNAL_INTERRUPT, METHOD_VAD_SPEECH):
             reason = params.get("reason", "speech_detected")
             energy = params.get("energy", 0.0)
-            logger.info("⚡ Inbound interrupt signal received (reason: %s, energy: %.4f)", reason, energy)
+            logger.info(
+                "⚡ Inbound interrupt signal received (reason: %s, energy: %.4f)", reason, energy
+            )
             await self.interrupt_active_turn(reason=reason)
 
     async def interrupt_active_turn(self, reason: str = "speech_detected"):
@@ -262,7 +270,9 @@ class VoiceFiIPCBridge:
                     await asyncio.sleep(0.05)
 
                 if proc.poll() is None:
-                    logger.warning("Process %d did not terminate on SIGINT; escalating to SIGTERM", proc.pid)
+                    logger.warning(
+                        "Process %d did not terminate on SIGINT; escalating to SIGTERM", proc.pid
+                    )
                     os.killpg(pgid, signal.SIGTERM)
             except (ProcessLookupError, OSError) as e:
                 logger.debug("Process cleanup exception: %s", e)
@@ -321,7 +331,9 @@ class VoiceFiIPCBridge:
                 self._is_turn_active = False
                 self._current_task = None
 
-    async def _execute_runner(self, transcript: str, session_id: Optional[str], metadata: Dict[str, Any]):
+    async def _execute_runner(
+        self, transcript: str, session_id: Optional[str], metadata: Dict[str, Any]
+    ):
         if not self.prompt_runner:
             return
 
@@ -398,7 +410,11 @@ class VoiceFiIPCBridge:
         raw_bytes = (json.dumps(message) + "\n").encode("utf-8")
         raw_str = json.dumps(message)
 
-        if self._active_transport == "unix" and self._unix_writer and not self._unix_writer.is_closing():
+        if (
+            self._active_transport == "unix"
+            and self._unix_writer
+            and not self._unix_writer.is_closing()
+        ):
             try:
                 self._unix_writer.write(raw_bytes)
                 await self._unix_writer.drain()

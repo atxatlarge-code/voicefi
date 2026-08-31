@@ -66,9 +66,9 @@ $$\text{signal}(t) = \sum_{k=1}^{N} A_k \sin(2\pi \cdot (k \cdot f_0) \cdot t)$$
 ```python
 f0 = 440.0  # A4
 harmonics = (
-    0.60 * np.sin(2 * np.pi * f0 * t) +       # Fundamental
-    0.30 * np.sin(2 * np.pi * (2 * f0) * t) + # 2nd Harmonic (Octave)
-    0.10 * np.sin(2 * np.pi * (3 * f0) * t)   # 3rd Harmonic (Fifth)
+    0.60 * np.sin(2 * np.pi * f0 * t)  # Fundamental
+    + 0.30 * np.sin(2 * np.pi * (2 * f0) * t)  # 2nd Harmonic (Octave)
+    + 0.10 * np.sin(2 * np.pi * (3 * f0) * t)  # 3rd Harmonic (Fifth)
 )
 ```
 
@@ -125,9 +125,9 @@ def _generate_fanfare(sample_rate: int = SAMPLE_RATE) -> np.ndarray:
 
         # Rich brass harmonic composition
         harmonics = (
-            np.sin(2 * np.pi * freq * t_sub) * 0.60 +
-            np.sin(2 * np.pi * freq * 2 * t_sub) * 0.30 +
-            np.sin(2 * np.pi * freq * 3 * t_sub) * 0.15
+            np.sin(2 * np.pi * freq * t_sub) * 0.60
+            + np.sin(2 * np.pi * freq * 2 * t_sub) * 0.30
+            + np.sin(2 * np.pi * freq * 3 * t_sub) * 0.15
         )
 
         # ADSR Envelope: Fast attack, sustained body, exponential release
@@ -158,7 +158,6 @@ GENERATORS: Dict[str, Callable[[int], np.ndarray]] = {
     "applause": _generate_applause,
     "boing": _generate_boing,
     "crickets": _generate_crickets,
-    
     # --- Add your new generator ---
     "fanfare": _generate_fanfare,
     "level_up": _generate_fanfare,
@@ -171,7 +170,6 @@ ALIASES: Dict[str, str] = {
     "sad-trombone": "sad_trombone",
     "claps": "applause",
     "awkward": "crickets",
-    
     # --- Add aliases ---
     "tada": "fanfare",
     "triumph": "fanfare",
@@ -189,15 +187,21 @@ Ensure `list_available_sfx()` includes the new primary effect name:
 ```python
 def list_available_sfx() -> List[str]:
     """List distinct available sound effect names."""
-    return sorted(list(set([
-        "drum_smash",
-        "honk",
-        "sad_trombone",
-        "applause",
-        "boing",
-        "crickets",
-        "fanfare",
-    ])))
+    return sorted(
+        list(
+            set(
+                [
+                    "drum_smash",
+                    "honk",
+                    "sad_trombone",
+                    "applause",
+                    "boing",
+                    "crickets",
+                    "fanfare",
+                ]
+            )
+        )
+    )
 ```
 
 ---
@@ -232,6 +236,7 @@ SYSTEM_SOUNDS = {
     "error": "/System/Library/Sounds/Basso.aiff",
     "alert": "/System/Library/Sounds/Glass.aiff",
 }
+
 
 def play_chime(sound_key_or_path: str, block: bool = False) -> None:
     """Play a system audio cue using macOS afplay."""

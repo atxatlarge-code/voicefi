@@ -53,6 +53,7 @@ class F5TTS(BaseTTS):
         if target_device in (None, "auto"):
             try:
                 import torch
+
                 if torch.backends.mps.is_available():
                     target_device = "mps"
                 elif torch.cuda.is_available():
@@ -68,7 +69,10 @@ class F5TTS(BaseTTS):
 
         try:
             from f5_tts.api import F5TTS as F5TTSModel
-            print(f"[F5-TTS] Loading local open-source model '{model_name}' on device '{target_device}'...")
+
+            print(
+                f"[F5-TTS] Loading local open-source model '{model_name}' on device '{target_device}'..."
+            )
             inst = F5TTSModel(model=model_name, device=target_device)
             cls._model_cache[cache_key] = inst
             return inst
@@ -94,6 +98,7 @@ class F5TTS(BaseTTS):
                 prof_file = p_dir / "profile.json"
                 if prof_file.is_file():
                     import json
+
                     try:
                         with open(prof_file, "r", encoding="utf-8") as f:
                             data = json.load(f)
@@ -109,6 +114,7 @@ class F5TTS(BaseTTS):
         # Fallback to f5-tts bundled sample if available
         try:
             from importlib.resources import files
+
             bundled = str(files("f5_tts").joinpath("infer/examples/basic/basic_ref_en.wav"))
             if Path(bundled).exists():
                 return bundled, "Some call me nature, others call me mother nature."
@@ -126,7 +132,9 @@ class F5TTS(BaseTTS):
         ref_file, ref_text = self._resolve_reference_audio()
 
         if not ref_file:
-            print("[F5-TTS] Warning: No reference audio found. Record one with 'vifi clone record <name>'")
+            print(
+                "[F5-TTS] Warning: No reference audio found. Record one with 'vifi clone record <name>'"
+            )
             return False
 
         try:
@@ -162,6 +170,7 @@ class F5TTS(BaseTTS):
             persona_name=getattr(self, "persona_name", "Custom Clone"),
         ):
             from voicefi.tts.base import is_speech_interrupted
+
             if self._stop_requested or is_speech_interrupted(turn_start_time):
                 return
 
@@ -175,6 +184,7 @@ class F5TTS(BaseTTS):
                 if not success or not tmp_path.exists():
                     print("[F5-TTS] Failed to generate audio. Falling back to native macOS say.")
                     from voicefi.tts.mac_say import MacSayTTS
+
                     MacSayTTS().speak(text, block=block)
                     return
 

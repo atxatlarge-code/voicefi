@@ -84,7 +84,9 @@ def sync_hud_assets(web_dir: Path, skip_capture: bool = False) -> bool:
         if capture_script.exists():
             print("\n📸 [1/3] Generating native AppKit HUD state screenshots...")
             try:
-                subprocess.run([sys.executable, str(capture_script)], check=True, cwd=str(VOICEFI_ROOT))
+                subprocess.run(
+                    [sys.executable, str(capture_script)], check=True, cwd=str(VOICEFI_ROOT)
+                )
             except subprocess.CalledProcessError as e:
                 print(f"⚠️ Warning: HUD screenshot capture returned code {e.returncode}")
         else:
@@ -137,13 +139,17 @@ def sync_hud_assets(web_dir: Path, skip_capture: bool = False) -> bool:
         else:
             print(f"  ⚠️ Warning: Missing brand asset: {filename}")
 
-    print(f"  ✓ Synced {copied_count} explicit curated assets to {web_assets_dir.relative_to(web_dir.parent)}")
+    print(
+        f"  ✓ Synced {copied_count} explicit curated assets to {web_assets_dir.relative_to(web_dir.parent)}"
+    )
     print("\n✨ HUD & Web Assets Synchronization Complete (Explicit Allowlist)")
     return True
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Synchronize VoiceFi HUD components and assets to voicefi.org")
+    parser = argparse.ArgumentParser(
+        description="Synchronize VoiceFi HUD components and assets to voicefi.org"
+    )
     parser.add_argument(
         "--web-dir",
         type=Path,

@@ -37,7 +37,9 @@ class NativeAntigravityInputObserver:
         if not getattr(self.config.antigravity, "mirror_native_mic", False):
             return
         self._running = True
-        self._thread = threading.Thread(target=self._observe_loop, daemon=True, name="AntigravityInputObserver")
+        self._thread = threading.Thread(
+            target=self._observe_loop, daemon=True, name="AntigravityInputObserver"
+        )
         self._thread.start()
 
     def stop(self):
@@ -52,7 +54,7 @@ class NativeAntigravityInputObserver:
         Query the current text value of the focused input element in Antigravity via AppleScript Accessibility.
         Returns None if Antigravity is not frontmost or not focused.
         """
-        applescript = '''
+        applescript = """
         tell application "System Events"
             set frontApps to name of every application process whose frontmost is true
             if (count of frontApps) is 0 then return ""
@@ -70,7 +72,7 @@ class NativeAntigravityInputObserver:
             end if
             return ""
         end tell
-        '''
+        """
         try:
             res = subprocess.run(
                 ["osascript", "-e", applescript],
@@ -116,6 +118,7 @@ class NativeAntigravityInputObserver:
                                 self.on_dictation_update(text)
                             try:
                                 from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
+
                                 hud = UnifiedDynamicIslandHUD.get_instance()
                                 hud.set_listening(
                                     prompt_preview=text,

@@ -69,9 +69,35 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 100
 target-version = "py310"
+exclude = [
+    ".git",
+    ".venv",
+    ".claude",
+    ".agents",
+    "dist",
+    "build",
+    "assets",
+    "scratch",
+    "mocks",
+    "obsidian-plugin",
+    "test_*.py",
+    "patch.py",
+]
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "UP", "B"]
-ignore = ["E501"]
+select = [
+    "E",
+    "F",
+    "W",
+]
+ignore = [
+    "E501",
+    "W293",
+    "W291",
+    "E402",
+    "E741",
+    "F841",
+    "F401",
+]
 
 

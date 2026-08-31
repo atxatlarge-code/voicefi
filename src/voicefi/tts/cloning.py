@@ -84,7 +84,7 @@ def estimate_pitch_f0(audio_data: np.ndarray, sample_rate: int = 16000) -> float
     f0_estimates = []
 
     min_lag = int(sample_rate / 450)  # ~450 Hz
-    max_lag = int(sample_rate / 70)   # ~70 Hz
+    max_lag = int(sample_rate / 70)  # ~70 Hz
 
     for i in range(min(num_frames, 20)):
         start = i * frame_size
@@ -173,11 +173,15 @@ def analyze_audio_acoustics(audio_paths: List[Path]) -> Dict[str, Any]:
         "avg_rms_energy": round(avg_energy, 4),
         "suggested_neural_base": suggested_base,
         "suggested_pitch_offset": suggested_pitch,
-        "quality_score": "High" if total_duration >= 15.0 else ("Good" if total_duration >= 5.0 else "Fair"),
+        "quality_score": "High"
+        if total_duration >= 15.0
+        else ("Good" if total_duration >= 5.0 else "Fair"),
     }
 
 
-def generate_persona_prompt(voice_name: str, acoustic_info: Dict[str, Any], custom_traits: Optional[Dict[str, str]] = None) -> str:
+def generate_persona_prompt(
+    voice_name: str, acoustic_info: Dict[str, Any], custom_traits: Optional[Dict[str, str]] = None
+) -> str:
     """
     Generate an AI persona prompt reflecting the user's authentic voice,
     cadence, and conversational style so agents truly "talk like them".
@@ -259,7 +263,7 @@ class VoiceCloneManager:
             src_path = Path(src)
             if not src_path.exists():
                 continue
-            dest_name = f"sample_{i+1:02d}_{src_path.name}"
+            dest_name = f"sample_{i + 1:02d}_{src_path.name}"
             dest_path = samples_dir / dest_name
             try:
                 # Read with soundfile and rewrite to clean WAV format
@@ -320,7 +324,6 @@ class VoiceCloneManager:
         else:
             provider = "edge_tts"
 
-
         labels_dict = labels or {}
         labels_dict.setdefault("cloned_by", "voicefi")
         labels_dict.setdefault("vocal_range", acoustics.get("vocal_range", "Unknown"))
@@ -341,9 +344,12 @@ class VoiceCloneManager:
                 voice_id = resp.get("voice_id", voice_id)
                 provider = "elevenlabs"
             except Exception as e:
-                print(f"[VoiceCloneManager] ElevenLabs IVC failed ({e}), falling back to open-source F5-TTS/local profile.")
+                print(
+                    f"[VoiceCloneManager] ElevenLabs IVC failed ({e}), falling back to open-source F5-TTS/local profile."
+                )
                 try:
                     import f5_tts
+
                     provider = "f5_tts"
                 except ImportError:
                     provider = "edge_tts"
@@ -406,7 +412,9 @@ class VoiceCloneManager:
 
         target = target_agent.lower().strip()
         voice_profile = AgentVoiceProfile(
-            voice=profile.id if profile.provider in ("elevenlabs", "f5_tts", "local_clone") else (profile.calibrated_voice or "en-US-AvaNeural"),
+            voice=profile.id
+            if profile.provider in ("elevenlabs", "f5_tts", "local_clone")
+            else (profile.calibrated_voice or "en-US-AvaNeural"),
             provider=profile.provider,
             rate=profile.calibrated_rate or 200,
             pitch=profile.calibrated_pitch or "+0Hz",
@@ -441,4 +449,3 @@ class VoiceCloneManager:
 
         save_config(config)
         return target, profile.id
-

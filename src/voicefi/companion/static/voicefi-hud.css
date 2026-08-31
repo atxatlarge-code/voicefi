@@ -27,11 +27,31 @@
 .hud-state-speaking, .glow-speaking {
   border-color: #06B6D4 !important;
 }
-.hud-state-listening, .glow-listening {
+.hud-state-listening, .glow-listening,
+.hud-state-hearing, .glow-hearing {
   border-color: #FF2A2A !important;
 }
 .hud-state-working, .glow-working {
   border-color: #3B82F6 !important;
+}
+.hud-state-new_conversation, .glow-new_conversation,
+.hud-state-done, .glow-done {
+  border-color: #10B981 !important;
+}
+.hud-state-editing, .glow-editing {
+  border-color: #60A5FA !important;
+}
+.hud-state-meeting, .glow-meeting {
+  border-color: #6366F1 !important;
+}
+.hud-state-paused, .glow-paused {
+  border-color: #F59E0B !important;
+}
+.hud-state-transcribing, .glow-transcribing {
+  border-color: #FBBF24 !important;
+}
+.hud-state-user_prompt, .glow-user_prompt {
+  border-color: #38BDF8 !important;
 }
 
 /* Waveform Audio Bars (HUD Speaking State) */

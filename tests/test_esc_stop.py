@@ -120,8 +120,8 @@ def test_audio_recorder_space_does_not_cancel_recording():
                     temp_wav.unlink(missing_ok=True)
 
 
-def test_audio_recorder_esc_while_agent_speaking_stops_speech_without_cancelling_mic():
-    """Verify that pressing Esc while agent is speaking stops speech but preserves mic recording."""
+def test_audio_recorder_esc_while_agent_speaking_stops_speech_and_cancels_recording():
+    """Verify that pressing Esc while agent is speaking stops speech and cancels recording."""
     recorder = AudioRecorder(sample_rate=16000)
 
     with patch("voicefi.tts.base.stop_all_speech") as mock_stop, \
@@ -143,10 +143,8 @@ def test_audio_recorder_esc_while_agent_speaking_stops_speech_without_cancelling
                 from pynput.keyboard import Key
                 # Press Esc while agent is speaking
                 on_press_cb(Key.esc)
-                # Ensure stop_event was NOT set (mic remains active)
-                assert not recorder.stop_event.is_set()
-                # Now finish recording manually
-                recorder.stop_event.set()
+                # Ensure stop_event is set to immediately terminate recording
+                assert recorder.stop_event.is_set()
                 return dummy_chunk, False
 
             mock_stream_inst.read.side_effect = stream_read
@@ -156,12 +154,12 @@ def test_audio_recorder_esc_while_agent_speaking_stops_speech_without_cancelling
 
             # stop_all_speech called to stop the agent's voice
             mock_stop.assert_called_once()
-            if temp_wav:
-                temp_wav.unlink(missing_ok=True)
+            assert temp_wav is None
+            assert np.all(audio_data == 0)
 
 
 def test_tray_handle_escape_press_when_speaking_with_auto_listen():
-    """Verify tray app handle_escape_press stops speech and triggers mic when auto_listen is ON."""
+    """Verify tray app handle_escape_press stops speech and resets to idle without triggering mic."""
     from voicefi.ui.tray import VoiceFiTrayApp
     from voicefi.config import VoiceFiConfig
 
@@ -172,7 +170,8 @@ def test_tray_handle_escape_press_when_speaking_with_auto_listen():
     app.watcher._is_handling_turn = False
     app.speech_hud = MagicMock()
     app._listen_lock = threading.Lock()
-    app._current_status = "idle"
+    app._current_status = "speaking"
+    app.active_recorder = None
 
     with patch("voicefi.ui.tray.is_agent_speaking", return_value=True), \
          patch("voicefi.ui.tray.stop_all_speech") as mock_stop, \
@@ -182,7 +181,8 @@ def test_tray_handle_escape_press_when_speaking_with_auto_listen():
 
         mock_stop.assert_called_once()
         app.speech_hud.hide.assert_called_once()
-        mock_talk.assert_called_once()
+        mock_talk.assert_not_called()
+        assert app._current_status == "idle"
 
 
 def test_tray_handle_escape_press_when_speaking_without_auto_listen():
@@ -197,6 +197,7 @@ def test_tray_handle_escape_press_when_speaking_without_auto_listen():
     app.speech_hud = MagicMock()
     app._listen_lock = threading.Lock()
     app._current_status = "speaking"
+    app.active_recorder = None
 
     with patch("voicefi.ui.tray.is_agent_speaking", return_value=True), \
          patch("voicefi.ui.tray.stop_all_speech") as mock_stop, \
@@ -359,9 +360,9 @@ def test_edge_tts_no_fallback_on_interruption():
     from voicefi.tts.edge_tts import EdgeTTS
 
     tts = EdgeTTS(voice="en-US-AvaNeural")
-    tts._stop_requested = True
 
     with patch.object(tts, "_fallback_speak_direct") as mock_fallback, \
+         patch("voicefi.tts.base.is_speech_interrupted", return_value=True), \
          patch("voicefi.tts.edge_tts.is_user_on_call", return_value=False):
         tts.speak("Sentence one. Sentence two.", block=True)
         mock_fallback.assert_not_called()

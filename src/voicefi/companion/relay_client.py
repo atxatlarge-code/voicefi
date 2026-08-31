@@ -35,8 +35,11 @@ class RelaySessionCredentials:
         self.created_at = time.time()
 
     def get_pairing_url(self, base_url: str = DEFAULT_PUBLIC_PWA_URL) -> str:
-        """Construct universal pairing URL with URL hash for zero-knowledge privacy."""
-        return f"{base_url}#s={self.session_id}&t={self.token}"
+        """Construct universal pairing URL with query and hash parameters for full compatibility."""
+        clean_base = base_url.rstrip("/")
+        return (
+            f"{clean_base}/?s={self.session_id}&t={self.token}#s={self.session_id}&t={self.token}"
+        )
 
     def save_to_disk(self, path: Optional[Path] = None) -> None:
         p = path or (Path.home() / ".voicefi" / "relay_session.json")
@@ -54,9 +57,10 @@ class RelaySessionCredentials:
         if p.is_file():
             try:
                 data = json.loads(p.read_text(encoding="utf-8"))
-                # Reuse session if created within the last 24 hours
-                if time.time() - data.get("created_at", 0) < 24 * 3600:
-                    return cls(session_id=data.get("session_id"), token=data.get("token"))
+                s_id = data.get("session_id")
+                tok = data.get("token")
+                if s_id and tok:
+                    return cls(session_id=s_id, token=tok)
             except Exception:
                 pass
         creds = cls()
@@ -134,6 +138,7 @@ class RelayClient:
                 ssl_ctx = None
                 try:
                     import certifi
+
                     ssl_ctx = ssl.create_default_context(cafile=certifi.where())
                 except Exception:
                     ssl_ctx = ssl.create_default_context()
@@ -148,7 +153,10 @@ class RelayClient:
                 ) as ws:
                     self.ws = ws
                     reconnect_delay = 1.0
-                    print(f"[RelayClient] 🟢 Connected to VoiceFi Cloud Relay for session: {self.credentials.session_id}", flush=True)
+                    print(
+                        f"[RelayClient] 🟢 Connected to VoiceFi Cloud Relay for session: {self.credentials.session_id}",
+                        flush=True,
+                    )
 
                     async for msg in ws:
                         if msg.type == aiohttp.WSMsgType.TEXT:
@@ -202,12 +210,16 @@ class RelayClient:
         elif msg_type in ("user_voice_command", "send_prompt"):
             from voicefi.integrations.injector import send_message_to_agent
             from voicefi.integrations.conversations import set_mobile_turn_origin
+
             text_prompt = payload.get("text", "").strip()
             engine = payload.get("engine")
             conv_id = payload.get("conv_id")
             sender_name = payload.get("sender_name") or "Pixel Remote"
             title = payload.get("title") or f"Message from {sender_name}"
-            print(f"[RelayClient] 📥 Received voice/text command from phone: '{text_prompt}' (conv: {conv_id})", flush=True)
+            print(
+                f"[RelayClient] 📥 Received voice/text command from phone: '{text_prompt}' (conv: {conv_id})",
+                flush=True,
+            )
             if text_prompt:
                 try:
                     set_mobile_turn_origin(conv_id)
@@ -221,14 +233,19 @@ class RelayClient:
                     title=title,
                     include_envelope=True,
                 )
-                print(f"[RelayClient] 🚀 Injected to agent: success={getattr(res, 'success', True)}", flush=True)
-                await self.broadcast({
-                    "type": "user_command_injected",
-                    "conv_id": conv_id or "active",
-                    "success": getattr(res, "success", True),
-                    "delivered": getattr(res, "success", True),
-                    "text": text_prompt,
-                })
+                print(
+                    f"[RelayClient] 🚀 Injected to agent: success={getattr(res, 'success', True)}",
+                    flush=True,
+                )
+                await self.broadcast(
+                    {
+                        "type": "user_command_injected",
+                        "conv_id": conv_id or "active",
+                        "success": getattr(res, "success", True),
+                        "delivered": getattr(res, "success", True),
+                        "text": text_prompt,
+                    }
+                )
 
         elif msg_type == "ping":
             await self.broadcast({"type": "pong", "timestamp": time.time()})
@@ -251,6 +268,7 @@ class RelayClient:
             if body is not None:
                 if isinstance(body, str) and (body.startswith("data:") or ";base64," in body):
                     import base64
+
                     _, b64data = body.split(";base64,", 1) if ";base64," in body else ("", body)
                     req_kwargs["data"] = base64.b64decode(b64data)
                 elif isinstance(body, (dict, list)):
@@ -258,7 +276,9 @@ class RelayClient:
                 else:
                     req_kwargs["data"] = str(body)
 
-            async with self.session.request(method, url, timeout=aiohttp.ClientTimeout(total=10), **req_kwargs) as resp:
+            async with self.session.request(
+                method, url, timeout=aiohttp.ClientTimeout(total=10), **req_kwargs
+            ) as resp:
                 status = resp.status
                 content_type = resp.headers.get("Content-Type", "")
                 if "application/json" in content_type:
@@ -266,16 +286,20 @@ class RelayClient:
                 else:
                     data = await resp.text()
 
-                await self.broadcast({
+                await self.broadcast(
+                    {
+                        "type": "rpc_response",
+                        "id": req_id,
+                        "status": status,
+                        "data": data,
+                    }
+                )
+        except Exception as e:
+            await self.broadcast(
+                {
                     "type": "rpc_response",
                     "id": req_id,
-                    "status": status,
-                    "data": data,
-                })
-        except Exception as e:
-            await self.broadcast({
-                "type": "rpc_response",
-                "id": req_id,
-                "status": 500,
-                "error": str(e),
-            })
+                    "status": 500,
+                    "error": str(e),
+                }
+            )

@@ -37,7 +37,13 @@ class GeminiTTS(BaseTTS):
     Supports Aoede, Puck, Charon, Kore, Fenrir with instant offline fallback.
     """
 
-    VALID_VOICES = {"aoede": "Aoede", "puck": "Puck", "charon": "Charon", "kore": "Kore", "fenrir": "Fenrir"}
+    VALID_VOICES = {
+        "aoede": "Aoede",
+        "puck": "Puck",
+        "charon": "Charon",
+        "kore": "Kore",
+        "fenrir": "Fenrir",
+    }
 
     def __init__(
         self,
@@ -47,7 +53,9 @@ class GeminiTTS(BaseTTS):
         temperature: float = 0.3,
     ):
         super().__init__()
-        self.api_key = api_key or os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or ""
+        self.api_key = (
+            api_key or os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or ""
+        )
         self.voice = self._normalize_voice_name(voice)
         self.model = model or "gemini-2.0-flash-exp"
         self.temperature = temperature
@@ -74,25 +82,47 @@ class GeminiTTS(BaseTTS):
 
     def _fallback_speak_direct(self, clean_text: str, turn_start_time: float = 0.0) -> None:
         """Fallback speak directly using macOS say without re-acquiring lock."""
-        if not clean_text or not clean_text.strip() or self._stop_requested or is_speech_interrupted(turn_start_time):
+        if (
+            not clean_text
+            or not clean_text.strip()
+            or self._stop_requested
+            or is_speech_interrupted(turn_start_time)
+        ):
             return
         try:
             from voicefi.tts.offline import is_voice_installed
+
             try:
                 has_fb, exact_fb = is_voice_installed("Ava (Premium)")
-                target_voice = exact_fb if (has_fb and exact_fb) else ("Ava" if has_fb else "Samantha")
+                target_voice = (
+                    exact_fb if (has_fb and exact_fb) else ("Ava" if has_fb else "Samantha")
+                )
             except Exception:
                 target_voice = "Samantha"
-            print(f"[GeminiTTS] ⚠️ Online synthesis unavailable; falling back to offline voice '{target_voice}'")
+            print(
+                f"[GeminiTTS] ⚠️ Online synthesis unavailable; falling back to offline voice '{target_voice}'"
+            )
             cmd = ["say", "-v", target_voice, "--", clean_text]
-            if not self._stop_requested and not is_speech_interrupted(turn_start_time) and is_agent_speaking():
+            if (
+                not self._stop_requested
+                and not is_speech_interrupted(turn_start_time)
+                and is_agent_speaking()
+            ):
                 set_agent_audio_playing(True)
                 proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 self._current_process = proc
                 proc.wait()
-                was_interrupted = self._stop_requested or is_speech_interrupted(turn_start_time) or (proc.returncode in (-9, -15, 137, 143))
+                was_interrupted = (
+                    self._stop_requested
+                    or is_speech_interrupted(turn_start_time)
+                    or (proc.returncode in (-9, -15, 137, 143))
+                )
                 if not was_interrupted and proc.returncode != 0:
-                    fallback = subprocess.Popen(["say", "--", clean_text], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    fallback = subprocess.Popen(
+                        ["say", "--", clean_text],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
                     self._current_process = fallback
                     fallback.wait()
         except Exception as ex:
@@ -113,14 +143,8 @@ class GeminiTTS(BaseTTS):
             "contents": [{"parts": [{"text": text}]}],
             "generationConfig": {
                 "responseModalities": ["AUDIO"],
-                "speechConfig": {
-                    "voiceConfig": {
-                        "prebuiltVoiceConfig": {
-                            "voiceName": self.voice
-                        }
-                    }
-                }
-            }
+                "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": self.voice}}},
+            },
         }
 
         try:
@@ -132,10 +156,14 @@ class GeminiTTS(BaseTTS):
                     parts = candidates[0].get("content", {}).get("parts", [])
                     for part in parts:
                         inline_data = part.get("inlineData", {})
-                        if inline_data.get("mimeType", "").startswith("audio/") and inline_data.get("data"):
+                        if inline_data.get("mimeType", "").startswith("audio/") and inline_data.get(
+                            "data"
+                        ):
                             return base64.b64decode(inline_data["data"])
             else:
-                logger.debug("Gemini TTS non-200 response [%s]: %s", resp.status_code, resp.text[:200])
+                logger.debug(
+                    "Gemini TTS non-200 response [%s]: %s", resp.status_code, resp.text[:200]
+                )
         except Exception as e:
             logger.debug("Gemini TTS synthesis request failed: %s", e)
 
@@ -183,7 +211,11 @@ class GeminiTTS(BaseTTS):
                         return
 
                     audio_bytes = self._generate_audio_bytes(clean_text)
-                    if not audio_bytes or self._stop_requested or is_speech_interrupted(turn_start_time):
+                    if (
+                        not audio_bytes
+                        or self._stop_requested
+                        or is_speech_interrupted(turn_start_time)
+                    ):
                         if not self._stop_requested and not is_speech_interrupted(turn_start_time):
                             self._fallback_speak_direct(clean_text, turn_start_time=turn_start_time)
                         return
@@ -193,9 +225,17 @@ class GeminiTTS(BaseTTS):
                         temp_path.write_bytes(audio_bytes)
 
                     try:
-                        if not self._stop_requested and not is_speech_interrupted(turn_start_time) and is_agent_speaking():
+                        if (
+                            not self._stop_requested
+                            and not is_speech_interrupted(turn_start_time)
+                            and is_agent_speaking()
+                        ):
                             set_agent_audio_playing(True)
-                            proc = subprocess.Popen(["afplay", str(temp_path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                            proc = subprocess.Popen(
+                                ["afplay", str(temp_path)],
+                                stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL,
+                            )
                             self._current_process = proc
                             proc.wait()
                     finally:

@@ -2,6 +2,7 @@
 VoiceFi Robust Local Development & Neural TTS Server
 Serves static website assets and real-time 48kHz neural Edge TTS stream at http://localhost:8000
 """
+
 import io
 import os
 import sys
@@ -23,6 +24,7 @@ VOICE_MAP = {
     "guy": "en-US-GuyNeural",
 }
 
+
 async def generate_edge_tts(voice: str, text: str) -> bytes:
     communicate = edge_tts.Communicate(text, voice)
     audio_stream = io.BytesIO()
@@ -30,6 +32,7 @@ async def generate_edge_tts(voice: str, text: str) -> bytes:
         if chunk["type"] == "audio":
             audio_stream.write(chunk["data"])
     return audio_stream.getvalue()
+
 
 class VoiceFiHTTPHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
@@ -44,7 +47,7 @@ class VoiceFiHTTPHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
-        
+
         # Route: /api/tts
         if parsed.path == "/api/tts":
             query = urllib.parse.parse_qs(parsed.query)
@@ -75,7 +78,9 @@ class VoiceFiHTTPHandler(SimpleHTTPRequestHandler):
                 return
 
         # Route: /vifi.sh, /install.sh, or curl root request
-        if parsed.path in ["/vifi.sh", "/install.sh"] or (parsed.path == "/" and "curl" in self.headers.get("User-Agent", "").lower()):
+        if parsed.path in ["/vifi.sh", "/install.sh"] or (
+            parsed.path == "/" and "curl" in self.headers.get("User-Agent", "").lower()
+        ):
             install_script_path = os.path.join("website", "install.sh")
             if not os.path.exists(install_script_path):
                 install_script_path = "install.sh"
@@ -90,7 +95,7 @@ class VoiceFiHTTPHandler(SimpleHTTPRequestHandler):
 
         # Route: /assets/
         if parsed.path.startswith("/assets/"):
-            asset_subpath = parsed.path[len("/assets/"):]
+            asset_subpath = parsed.path[len("/assets/") :]
             local_asset_path = os.path.join("assets", asset_subpath)
             if os.path.exists(local_asset_path):
                 self.send_response(200)
@@ -107,10 +112,11 @@ class VoiceFiHTTPHandler(SimpleHTTPRequestHandler):
         # Default static file handler in website/
         super().do_GET()
 
+
 if __name__ == "__main__":
     PORT = 8000
     server = ThreadingHTTPServer(("0.0.0.0", PORT), VoiceFiHTTPHandler)
-    print(f"🚀 VoiceFi Neural Web Server running at:")
+    print("🚀 VoiceFi Neural Web Server running at:")
     print(f"   • Local:   http://localhost:{PORT}")
     print(f"   • Network: http://192.168.1.60:{PORT}")
     try:

@@ -28,17 +28,23 @@ def record_agent_spoken(text: str, duration: float = 0.0) -> None:
     _RECENT_SPOKEN_ENTRIES.append({"text": clean_text, "timestamp": now, "duration": duration})
 
     # Keep only last 15 entries within 90s
-    while len(_RECENT_SPOKEN_ENTRIES) > 15 or (_RECENT_SPOKEN_ENTRIES and (now - _RECENT_SPOKEN_ENTRIES[0]["timestamp"]) > 90.0):
+    while len(_RECENT_SPOKEN_ENTRIES) > 15 or (
+        _RECENT_SPOKEN_ENTRIES and (now - _RECENT_SPOKEN_ENTRIES[0]["timestamp"]) > 90.0
+    ):
         _RECENT_SPOKEN_ENTRIES.pop(0)
 
     # Persist across processes
     try:
-        LAST_SPOKEN_FILE.write_text(json.dumps({
-            "text": clean_text,
-            "timestamp": now,
-            "duration": duration,
-            "history": _RECENT_SPOKEN_ENTRIES[-5:]
-        }))
+        LAST_SPOKEN_FILE.write_text(
+            json.dumps(
+                {
+                    "text": clean_text,
+                    "timestamp": now,
+                    "duration": duration,
+                    "history": _RECENT_SPOKEN_ENTRIES[-5:],
+                }
+            )
+        )
     except Exception:
         pass
 
@@ -56,7 +62,9 @@ def clear_agent_spoken_history() -> None:
 def get_recent_spoken_texts(max_age_seconds: float = 60.0) -> List[str]:
     """Retrieve all recent agent spoken utterances within the time window."""
     now = time.time()
-    candidates = [e["text"] for e in _RECENT_SPOKEN_ENTRIES if (now - e["timestamp"]) <= max_age_seconds]
+    candidates = [
+        e["text"] for e in _RECENT_SPOKEN_ENTRIES if (now - e["timestamp"]) <= max_age_seconds
+    ]
 
     # Also check disk for cross-process entries
     try:
@@ -104,7 +112,24 @@ def is_acoustic_echo(
 
     trans_words = set(clean_trans.split())
     # Exclude common short noise words
-    stop_words = {"the", "a", "an", "is", "it", "to", "in", "on", "of", "and", "or", "for", "do", "you", "we", "i"}
+    stop_words = {
+        "the",
+        "a",
+        "an",
+        "is",
+        "it",
+        "to",
+        "in",
+        "on",
+        "of",
+        "and",
+        "or",
+        "for",
+        "do",
+        "you",
+        "we",
+        "i",
+    }
     trans_words_filtered = {w for w in trans_words if len(w) > 2 and w not in stop_words}
     if not trans_words_filtered:
         trans_words_filtered = trans_words
@@ -154,6 +179,7 @@ def is_hardware_aec_active() -> bool:
     """Return whether native Apple VoiceProcessingIO hardware echo cancellation is available."""
     try:
         from voicefi.audio.native_vpio import is_vpio_supported
+
         return is_vpio_supported()
     except Exception:
         return False
@@ -162,14 +188,19 @@ def is_hardware_aec_active() -> bool:
 def get_echo_cancellation_info() -> Dict[str, Any]:
     """Retrieve diagnostic and configuration profile for hardware/software echo cancellation."""
     from voicefi.audio.device import is_using_builtin_speakers, is_headphone_or_headset_active
+
     hardware_aec = is_hardware_aec_active()
     headphones = is_headphone_or_headset_active()
     builtin = is_using_builtin_speakers()
-    
+
     return {
         "hardware_aec_supported": hardware_aec,
-        "hardware_aec_backend": "Apple AUVoiceProcessing (VoiceProcessingIO)" if hardware_aec else "None",
+        "hardware_aec_backend": "Apple AUVoiceProcessing (VoiceProcessingIO)"
+        if hardware_aec
+        else "None",
         "headphones_connected": headphones,
         "using_builtin_speakers": builtin,
-        "active_isolation_mode": "Hardware VoiceProcessingIO DSP" if hardware_aec else ("Physical Headphone Isolation" if headphones else "Acoustic Safe Mode"),
+        "active_isolation_mode": "Hardware VoiceProcessingIO DSP"
+        if hardware_aec
+        else ("Physical Headphone Isolation" if headphones else "Acoustic Safe Mode"),
     }

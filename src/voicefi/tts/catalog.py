@@ -9,7 +9,6 @@ import re
 import subprocess
 
 
-
 @dataclass
 class VoicePersona:
     id: str
@@ -381,7 +380,7 @@ def find_persona(name_or_id: Optional[str]) -> Optional[VoicePersona]:
     target = name_or_id.lower().strip()
     if not target:
         return None
-    
+
     # 1. Explicit offline neural voice matches
     if target in ("ava premium", "ava-premium", "ava (premium)"):
         for cp in CURATED_PERSONAS:
@@ -453,11 +452,20 @@ def find_persona(name_or_id: Optional[str]) -> Optional[VoicePersona]:
     # Check custom cloned voices
     try:
         from voicefi.tts.cloning import VoiceCloneManager
+
         cloned = VoiceCloneManager().get_cloned_voice(target)
         if cloned:
-            v_style = cloned.acoustic_metrics.get("vocal_range") if cloned.acoustic_metrics else "Custom Cloned Voice"
+            v_style = (
+                cloned.acoustic_metrics.get("vocal_range")
+                if cloned.acoustic_metrics
+                else "Custom Cloned Voice"
+            )
             desc = f"Custom Clone ({v_style})" if v_style else "Custom Cloned Voice"
-            resolved_id = cloned.id if cloned.provider == "elevenlabs" else (cloned.calibrated_voice or cloned.id)
+            resolved_id = (
+                cloned.id
+                if cloned.provider == "elevenlabs"
+                else (cloned.calibrated_voice or cloned.id)
+            )
             return VoicePersona(
                 id=resolved_id,
                 name=cloned.name,
@@ -528,22 +536,26 @@ def list_system_mac_voices() -> List[Dict[str, str]]:
                 v_name = parts[0]
                 v_locale = parts[1] if len(parts) > 1 else ""
                 v_desc = " ".join(parts[2:]) if len(parts) > 2 else ""
-            voices.append({
-                "id": v_name,
-                "name": v_name,
-                "provider": "mac_say",
-                "locale": v_locale,
-                "description": v_desc,
-            })
+            voices.append(
+                {
+                    "id": v_name,
+                    "name": v_name,
+                    "provider": "mac_say",
+                    "locale": v_locale,
+                    "description": v_desc,
+                }
+            )
     except Exception:
         for v in ["Nathan (Enhanced)", "Samantha", "Alex", "Victoria", "Daniel", "Fred"]:
-            voices.append({
-                "id": v,
-                "name": v,
-                "provider": "mac_say",
-                "locale": "en_US",
-                "description": "macOS System Voice",
-            })
+            voices.append(
+                {
+                    "id": v,
+                    "name": v,
+                    "provider": "mac_say",
+                    "locale": "en_US",
+                    "description": "macOS System Voice",
+                }
+            )
     return voices
 
 
@@ -555,41 +567,47 @@ def list_all_available_voices(provider: Optional[str] = None) -> List[Dict[str, 
     # 1. Custom cloned voices first
     try:
         from voicefi.tts.cloning import VoiceCloneManager
+
         clones = VoiceCloneManager().list_cloned_voices()
         for cv in clones:
             if not p or cv.provider.lower() == p or p in ("cloned", "custom"):
-                catalog.append({
-                    "id": cv.id,
-                    "name": cv.name,
-                    "provider": cv.provider,
-                    "gender": "Custom",
-                    "locale": "en-US",
-                    "style": cv.description or f"Custom Cloned Voice ({cv.acoustic_metrics.get('vocal_range', 'Trained')})",
-                    "sample_text": f"Hey there! This is {cv.name}, speaking with my custom cloned voice.",
-                    "recommended_role": "Personal Voice Clone",
-                    "curated": False,
-                    "cloned": True,
-                    "metrics": cv.acoustic_metrics,
-                    "assigned_agents": cv.assigned_agents,
-                })
+                catalog.append(
+                    {
+                        "id": cv.id,
+                        "name": cv.name,
+                        "provider": cv.provider,
+                        "gender": "Custom",
+                        "locale": "en-US",
+                        "style": cv.description
+                        or f"Custom Cloned Voice ({cv.acoustic_metrics.get('vocal_range', 'Trained')})",
+                        "sample_text": f"Hey there! This is {cv.name}, speaking with my custom cloned voice.",
+                        "recommended_role": "Personal Voice Clone",
+                        "curated": False,
+                        "cloned": True,
+                        "metrics": cv.acoustic_metrics,
+                        "assigned_agents": cv.assigned_agents,
+                    }
+                )
     except Exception:
         pass
 
     # 2. Curated personas next
     for cp in CURATED_PERSONAS:
         if not p or cp.provider.lower() == p:
-            catalog.append({
-                "id": cp.id,
-                "name": cp.name,
-                "provider": cp.provider,
-                "gender": cp.gender,
-                "locale": cp.locale,
-                "style": cp.style,
-                "sample_text": cp.sample_text,
-                "recommended_role": cp.recommended_role,
-                "curated": True,
-                "cloned": False,
-            })
+            catalog.append(
+                {
+                    "id": cp.id,
+                    "name": cp.name,
+                    "provider": cp.provider,
+                    "gender": cp.gender,
+                    "locale": cp.locale,
+                    "style": cp.style,
+                    "sample_text": cp.sample_text,
+                    "recommended_role": cp.recommended_role,
+                    "curated": True,
+                    "cloned": False,
+                }
+            )
 
     # 3. System voices if requested or general
     if not p or p == "mac_say":
@@ -597,18 +615,20 @@ def list_all_available_voices(provider: Optional[str] = None) -> List[Dict[str, 
         curated_ids = {cp.id.lower() for cp in CURATED_PERSONAS}
         for sv in sys_voices:
             if sv["id"].lower() not in curated_ids:
-                catalog.append({
-                    "id": sv["id"],
-                    "name": sv["name"],
-                    "provider": "mac_say",
-                    "gender": "Unknown",
-                    "locale": sv.get("locale", "en_US"),
-                    "style": sv.get("description", "macOS voice"),
-                    "sample_text": f"This is the macOS system voice {sv['name']}.",
-                    "recommended_role": "General",
-                    "curated": False,
-                    "cloned": False,
-                })
+                catalog.append(
+                    {
+                        "id": sv["id"],
+                        "name": sv["name"],
+                        "provider": "mac_say",
+                        "gender": "Unknown",
+                        "locale": sv.get("locale", "en_US"),
+                        "style": sv.get("description", "macOS voice"),
+                        "sample_text": f"This is the macOS system voice {sv['name']}.",
+                        "recommended_role": "General",
+                        "curated": False,
+                        "cloned": False,
+                    }
+                )
 
     return catalog
 
@@ -1064,5 +1084,3 @@ def get_claude_contenders(active_voice_id: Optional[str] = None) -> List[Dict[st
         result.append(entry)
 
     return result
-
-

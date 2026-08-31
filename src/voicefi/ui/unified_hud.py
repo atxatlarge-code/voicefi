@@ -20,6 +20,7 @@ from typing import Optional, Callable, Dict, Any
 
 try:
     import objc
+
     if hasattr(objc, "ObjCPointerWarning"):
         warnings.filterwarnings("ignore", category=objc.ObjCPointerWarning)
 except Exception:
@@ -101,6 +102,7 @@ AVATAR_ICONS: Dict[str, str] = {
 try:
     HUDWindowDelegate = objc.lookUpClass("HUDWindowDelegate")
 except objc.nosuchclass_error:
+
     class HUDWindowDelegate(objc.lookUpClass("NSObject")):
         """Objective-C delegate for tracking user dragging and window position."""
 
@@ -120,6 +122,7 @@ except objc.nosuchclass_error:
 try:
     HUDActionDelegate = objc.lookUpClass("HUDActionDelegate")
 except objc.nosuchclass_error:
+
     class HUDActionDelegate(objc.lookUpClass("NSObject")):
         """Objective-C delegate wrapper for HUD edit mode Return key & button actions."""
 
@@ -152,6 +155,7 @@ except objc.nosuchclass_error:
 def is_headless() -> bool:
     """Return True if running in headless / testing mode where screen popups must be suppressed."""
     import os
+
     return bool(
         os.getenv("VOICEFI_HEADLESS") == "1"
         or os.getenv("HEADLESS") == "1"
@@ -163,6 +167,7 @@ def is_headless() -> bool:
 try:
     HUDCloseActionTarget = objc.lookUpClass("HUDCloseActionTarget")
 except objc.nosuchclass_error:
+
     class HUDCloseActionTarget(objc.lookUpClass("NSObject")):
         """Objective-C delegate wrapper for HUD button actions."""
 
@@ -184,6 +189,7 @@ except objc.nosuchclass_error:
 try:
     HUDQuickControlsButtonView = objc.lookUpClass("HUDQuickControlsButtonView")
 except objc.nosuchclass_error:
+
     class HUDQuickControlsButtonView(objc.lookUpClass("NSView")):
         """Interactive Gear button view that captures clicks and directly opens Quick Controls."""
 
@@ -192,9 +198,13 @@ except objc.nosuchclass_error:
             if self is not None:
                 self._hovered = False
                 try:
-                    options = 0x01 | 0x02 | 0x80  # NSTrackingMouseEnteredAndExited | NSTrackingMouseMoved | NSTrackingActiveAlways
-                    self.tracking_area = objc.lookUpClass("NSTrackingArea").alloc().initWithRect_options_owner_userInfo_(
-                        self.bounds(), options, self, None
+                    options = (
+                        0x01 | 0x02 | 0x80
+                    )  # NSTrackingMouseEnteredAndExited | NSTrackingMouseMoved | NSTrackingActiveAlways
+                    self.tracking_area = (
+                        objc.lookUpClass("NSTrackingArea")
+                        .alloc()
+                        .initWithRect_options_owner_userInfo_(self.bounds(), options, self, None)
                     )
                     self.addTrackingArea_(self.tracking_area)
                 except Exception:
@@ -226,7 +236,9 @@ except objc.nosuchclass_error:
 
         def resetCursorRects(self):
             try:
-                self.addCursorRect_cursor_(self.bounds(), objc.lookUpClass("NSCursor").pointingHandCursor())
+                self.addCursorRect_cursor_(
+                    self.bounds(), objc.lookUpClass("NSCursor").pointingHandCursor()
+                )
             except Exception:
                 pass
 
@@ -235,8 +247,9 @@ except objc.nosuchclass_error:
             try:
                 gear_str = objc.lookUpClass("NSString").stringWithString_("⚙️")
                 font = NSFont.systemFontOfSize_(13.0)
+                import AppKit
                 attrs = {
-                    objc.lookUpClass("NSAttributedString").fontAttributeName(): font,
+                    AppKit.NSFontAttributeName: font,
                 }
                 size = gear_str.sizeWithAttributes_(attrs)
                 b = self.bounds()
@@ -256,6 +269,7 @@ except objc.nosuchclass_error:
 try:
     VADAudioVisualizerView = objc.lookUpClass("VADAudioVisualizerView")
 except objc.nosuchclass_error:
+
     class VADAudioVisualizerView(objc.lookUpClass("NSView")):
         """
         High-fidelity reactive multi-bar audio volume & Silero VAD visualizer view.
@@ -272,11 +286,15 @@ except objc.nosuchclass_error:
                 self._multipliers = [0.65, 1.0, 1.45, 1.1, 0.75]
                 self._phase = 0.0
                 self._hovered = False
-                
+
                 # Tracking area for hover
-                options = 0x01 | 0x02 | 0x80  # NSTrackingMouseEnteredAndExited | NSTrackingMouseMoved | NSTrackingActiveAlways
-                self.tracking_area = objc.lookUpClass("NSTrackingArea").alloc().initWithRect_options_owner_userInfo_(
-                    self.bounds(), options, self, None
+                options = (
+                    0x01 | 0x02 | 0x80
+                )  # NSTrackingMouseEnteredAndExited | NSTrackingMouseMoved | NSTrackingActiveAlways
+                self.tracking_area = (
+                    objc.lookUpClass("NSTrackingArea")
+                    .alloc()
+                    .initWithRect_options_owner_userInfo_(self.bounds(), options, self, None)
                 )
                 self.addTrackingArea_(self.tracking_area)
             return self
@@ -286,24 +304,26 @@ except objc.nosuchclass_error:
 
         def mouseDownCanMoveWindow(self):
             return False
-            
+
         def hitTest_(self, point):
             converted = self.convertPoint_fromView_(point, None)
             if objc.lookUpClass("Foundation").NSPointInRect(converted, self.bounds()):
                 return self
             return objc.super(VADAudioVisualizerView, self).hitTest_(point)
-            
+
         def mouseEntered_(self, event):
             self._hovered = True
             self.setNeedsDisplay_(True)
-            
+
         def mouseExited_(self, event):
             self._hovered = False
             self.setNeedsDisplay_(True)
-            
+
         def resetCursorRects(self):
-            self.addCursorRect_cursor_(self.bounds(), objc.lookUpClass("NSCursor").pointingHandCursor())
-            
+            self.addCursorRect_cursor_(
+                self.bounds(), objc.lookUpClass("NSCursor").pointingHandCursor()
+            )
+
         def mouseDown_(self, event):
             try:
                 UnifiedDynamicIslandHUD.get_instance().toggle_expert_vad()
@@ -376,7 +396,9 @@ except objc.nosuchclass_error:
                 y = (h - bar_h) / 2.0
 
                 rect = NSRect(NSPoint(x, y), NSSize(bar_width, bar_h))
-                path = NSBezierPath.bezierPathWithRoundedRect_xRadius_yRadius_(rect, bar_width / 2.0, bar_width / 2.0)
+                path = NSBezierPath.bezierPathWithRoundedRect_xRadius_yRadius_(
+                    rect, bar_width / 2.0, bar_width / 2.0
+                )
                 path.fill()
 
 
@@ -515,7 +537,9 @@ class UnifiedDynamicIslandHUD:
     <line x1="190" y1="430" x2="322" y2="430" stroke="#FFFFFF" stroke-width="13" stroke-linecap="round" />
   </g>
 </svg>"""
-            data = NSData.dataWithBytes_length_(svg_xml.encode("utf-8"), len(svg_xml.encode("utf-8")))
+            data = NSData.dataWithBytes_length_(
+                svg_xml.encode("utf-8"), len(svg_xml.encode("utf-8"))
+            )
             img = NSImage.alloc().initWithData_(data)
             if img and hasattr(img, "isValid") and img.isValid():
                 self._vifi_state_icons[st] = img
@@ -542,7 +566,9 @@ class UnifiedDynamicIslandHUD:
 
             # 1. Check VoiceFi bundle assets
             if key in ("voicefi", "voicegency", "vf"):
-                base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+                base_dir = os.path.dirname(
+                    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                )
                 candidates = [
                     os.path.join(base_dir, "assets", "VoiceFi.icns"),
                     os.path.join(base_dir, "assets", "VoiceFi.iconset", "icon_32x32@2x.png"),
@@ -699,7 +725,9 @@ class UnifiedDynamicIslandHUD:
         self._avatar_box.layer().setBackgroundColor_(NSColor.clearColor().CGColor())
 
         try:
-            self._avatar_img = NSImageView.alloc().initWithFrame_(NSRect(NSPoint(2, 2), NSSize(34, 34)))
+            self._avatar_img = NSImageView.alloc().initWithFrame_(
+                NSRect(NSPoint(2, 2), NSSize(34, 34))
+            )
             if hasattr(self._avatar_img, "setImageScaling_"):
                 self._avatar_img.setImageScaling_(NSImageScaleProportionallyUpOrDown)
             self._avatar_img.setHidden_(True)
@@ -720,7 +748,9 @@ class UnifiedDynamicIslandHUD:
         self._root_view.addSubview_(self._avatar_box)
 
         # Title Label (Bold Agent/User/VoiceFi name)
-        self._title_lbl = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(60, 32), NSSize(130, 18)))
+        self._title_lbl = NSTextField.alloc().initWithFrame_(
+            NSRect(NSPoint(60, 32), NSSize(130, 18))
+        )
         self._title_lbl.setFont_(NSFont.boldSystemFontOfSize_(12.5))
         self._title_lbl.setTextColor_(NSColor.whiteColor())
         self._title_lbl.setStringValue_("VoiceFi")
@@ -731,7 +761,9 @@ class UnifiedDynamicIslandHUD:
         self._root_view.addSubview_(self._title_lbl)
 
         # Tag Label (Colored status accent / shortcut)
-        self._tag_lbl = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(195, 32), NSSize(142, 18)))
+        self._tag_lbl = NSTextField.alloc().initWithFrame_(
+            NSRect(NSPoint(195, 32), NSSize(142, 18))
+        )
         self._tag_lbl.setFont_(NSFont.systemFontOfSize_(11))
         self._tag_lbl.setStringValue_("Ready (⇧⌘N)")
         self._tag_lbl.setBezeled_(False)
@@ -755,7 +787,9 @@ class UnifiedDynamicIslandHUD:
         # Body Text Label (Subtitles, recognized speech, tool actions, hints)
         self._body_lbl = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(60, 8), NSSize(275, 22)))
         self._body_lbl.setFont_(NSFont.systemFontOfSize_(11.5))
-        self._body_lbl.setTextColor_(NSColor.colorWithCalibratedRed_green_blue_alpha_(0.9, 0.92, 0.96, 0.95))
+        self._body_lbl.setTextColor_(
+            NSColor.colorWithCalibratedRed_green_blue_alpha_(0.9, 0.92, 0.96, 0.95)
+        )
         self._body_lbl.setStringValue_("Standing by • Dictate (⌃T) or speak to agent (⌃R)")
         self._body_lbl.setBezeled_(False)
         self._body_lbl.setDrawsBackground_(False)
@@ -771,7 +805,9 @@ class UnifiedDynamicIslandHUD:
         self._app_box.layer().setBackgroundColor_(NSColor.clearColor().CGColor())
 
         try:
-            self._app_img = NSImageView.alloc().initWithFrame_(NSRect(NSPoint(2, 2), NSSize(28, 28)))
+            self._app_img = NSImageView.alloc().initWithFrame_(
+                NSRect(NSPoint(2, 2), NSSize(28, 28))
+            )
             if hasattr(self._app_img, "setImageScaling_"):
                 self._app_img.setImageScaling_(NSImageScaleProportionallyUpOrDown)
             self._app_img.setHidden_(True)
@@ -807,28 +843,38 @@ class UnifiedDynamicIslandHUD:
         self._edit_container = NSView.alloc().initWithFrame_(NSRect(NSPoint(0, 0), NSSize(w, h)))
         self._edit_container.setHidden_(True)
 
-        self._edit_header = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(14, 33), NSSize(270, 18)))
+        self._edit_header = NSTextField.alloc().initWithFrame_(
+            NSRect(NSPoint(14, 33), NSSize(270, 18))
+        )
         self._edit_header.setStringValue_("Review & Edit Prompt:")
         self._edit_header.setFont_(NSFont.boldSystemFontOfSize_(11.5))
-        self._edit_header.setTextColor_(NSColor.colorWithCalibratedRed_green_blue_alpha_(0.7, 0.85, 1.0, 0.95))
+        self._edit_header.setTextColor_(
+            NSColor.colorWithCalibratedRed_green_blue_alpha_(0.7, 0.85, 1.0, 0.95)
+        )
         self._edit_header.setBezeled_(False)
         self._edit_header.setDrawsBackground_(False)
         self._edit_header.setEditable_(False)
         self._edit_header.setSelectable_(False)
         self._edit_container.addSubview_(self._edit_header)
 
-        self._edit_hint = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(290, 33), NSSize(176, 18)))
+        self._edit_hint = NSTextField.alloc().initWithFrame_(
+            NSRect(NSPoint(290, 33), NSSize(176, 18))
+        )
         self._edit_hint.setStringValue_("[Enter] Send • [Esc] Cancel")
         self._edit_hint.setFont_(NSFont.systemFontOfSize_(10.5))
         self._edit_hint.setAlignment_(NSTextAlignmentRight)
-        self._edit_hint.setTextColor_(NSColor.colorWithCalibratedRed_green_blue_alpha_(0.6, 0.75, 0.9, 0.8))
+        self._edit_hint.setTextColor_(
+            NSColor.colorWithCalibratedRed_green_blue_alpha_(0.6, 0.75, 0.9, 0.8)
+        )
         self._edit_hint.setBezeled_(False)
         self._edit_hint.setDrawsBackground_(False)
         self._edit_hint.setEditable_(False)
         self._edit_hint.setSelectable_(False)
         self._edit_container.addSubview_(self._edit_hint)
 
-        self._edit_text_field = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(14, 7), NSSize(376, 24)))
+        self._edit_text_field = NSTextField.alloc().initWithFrame_(
+            NSRect(NSPoint(14, 7), NSSize(376, 24))
+        )
         self._edit_text_field.setFont_(NSFont.systemFontOfSize_(12.5))
         self._edit_text_field.setTextColor_(NSColor.whiteColor())
         self._edit_text_field.setBezeled_(True)
@@ -851,17 +897,25 @@ class UnifiedDynamicIslandHUD:
 
         self._root_view.addSubview_(self._edit_container)
         self._panel.setContentView_(self._root_view)
+
         # Link background LiveVADMonitor to the visualizer
         def _vad_listener(energy, prob, is_speech, raw_chunk, noise_floor, active_thresh):
             if getattr(self, "_visualizer", None) and not self._visualizer.isHidden():
                 try:
                     from PyObjCTools import AppHelper
-                    AppHelper.callAfter(self._visualizer.setAudioLevel_prob_speech_, float(energy), float(prob), bool(is_speech))
+
+                    AppHelper.callAfter(
+                        self._visualizer.setAudioLevel_prob_speech_,
+                        float(energy),
+                        float(prob),
+                        bool(is_speech),
+                    )
                 except Exception:
                     pass
-                    
+
         try:
             from voicefi.audio.monitor import LiveVADMonitor
+
             LiveVADMonitor.get_instance().add_listener(_vad_listener)
         except Exception as e:
             print(f"[HUD] Failed to bind LiveVADMonitor: {e}")
@@ -869,18 +923,28 @@ class UnifiedDynamicIslandHUD:
         # Native Cocoa Key Monitors: intercept Escape (key code 53) to stop speech instantly
         try:
             from AppKit import NSEvent, NSEventMaskKeyDown
+
             def _handle_cocoa_key(event):
                 try:
                     if event and hasattr(event, "keyCode") and event.keyCode() == 53:
-                        from voicefi.tts.base import is_agent_speaking, is_system_audio_playing, stop_all_speech
+                        from voicefi.tts.base import (
+                            is_agent_speaking,
+                            is_system_audio_playing,
+                            stop_all_speech,
+                        )
+
                         if is_agent_speaking() or is_system_audio_playing():
                             stop_all_speech()
                 except Exception:
                     pass
                 return event
 
-            NSEvent.addGlobalMonitorForEventsMatchingMask_handler_(NSEventMaskKeyDown, _handle_cocoa_key)
-            NSEvent.addLocalMonitorForEventsMatchingMask_handler_(NSEventMaskKeyDown, _handle_cocoa_key)
+            NSEvent.addGlobalMonitorForEventsMatchingMask_handler_(
+                NSEventMaskKeyDown, _handle_cocoa_key
+            )
+            NSEvent.addLocalMonitorForEventsMatchingMask_handler_(
+                NSEventMaskKeyDown, _handle_cocoa_key
+            )
         except Exception:
             pass
 
@@ -1024,7 +1088,7 @@ class UnifiedDynamicIslandHUD:
             if getattr(self, "_visualizer", None):
                 hud_cfg = getattr(self.config, "hud", None) if hasattr(self, "config") else None
                 always_on = getattr(hud_cfg, "always_on_vad", True)
-                
+
                 if always_on or state in ("listening", "new_conversation", "speaking"):
                     self._visualizer.setHidden_(False)
                     if getattr(self, "_vad_btn", None):
@@ -1039,7 +1103,11 @@ class UnifiedDynamicIslandHUD:
             if getattr(self, "_gear_btn", None):
                 self._gear_btn.setHidden_(False)
 
-            if self._panel and (not is_headless() or hasattr(self._panel, "assert_called") or type(self._panel).__name__ == "MagicMock"):
+            if self._panel and (
+                not is_headless()
+                or hasattr(self._panel, "assert_called")
+                or type(self._panel).__name__ == "MagicMock"
+            ):
                 self._panel.orderFrontRegardless()
                 self._is_visible = True
             else:
@@ -1096,7 +1164,11 @@ class UnifiedDynamicIslandHUD:
             if not self._panel.isVisible():
                 self._panel.setFrame_display_(target_rect, True)
 
-            if self._panel and (not is_headless() or hasattr(self._panel, "assert_called") or type(self._panel).__name__ == "MagicMock"):
+            if self._panel and (
+                not is_headless()
+                or hasattr(self._panel, "assert_called")
+                or type(self._panel).__name__ == "MagicMock"
+            ):
                 self._panel.orderFrontRegardless()
                 self._is_visible = True
             else:
@@ -1144,9 +1216,7 @@ class UnifiedDynamicIslandHUD:
             )
         else:
             self._panel.setLevel_(NSFloatingWindowLevel)
-            self._panel.setCollectionBehavior_(
-                NSWindowCollectionBehaviorCanJoinAllSpaces
-            )
+            self._panel.setCollectionBehavior_(NSWindowCollectionBehaviorCanJoinAllSpaces)
 
     def set_fullscreen_overlay(self, enabled: bool):
         """Toggle whether HUD stays on top of full-screen apps or allows full-screen overlap."""
@@ -1177,7 +1247,11 @@ class UnifiedDynamicIslandHUD:
             pass
 
         tag = "Ready (⇧⌘N • ⌃M)" if antigravity_mic else "Ready (⇧⌘N)"
-        body = "Standing by • Antigravity (⌃M) • VoiceFi (⇧⌘N)" if antigravity_mic else "Standing by • Dictate (⌃T) or speak to agent (⌃R)"
+        body = (
+            "Standing by • Antigravity (⌃M) • VoiceFi (⇧⌘N)"
+            if antigravity_mic
+            else "Standing by • Dictate (⌃T) or speak to agent (⌃R)"
+        )
 
         self._apply_rich_state(
             state="idle",
@@ -1240,7 +1314,10 @@ class UnifiedDynamicIslandHUD:
                 resolved_tag = "MCP Tool"
             elif dt_lower.startswith(("task:", "schedule:")):
                 resolved_tag = "Background Task"
-            elif any(k in dt_lower for k in ("passed", "failed", "tests", "pytest", "cargo", "npm", "build")):
+            elif any(
+                k in dt_lower
+                for k in ("passed", "failed", "tests", "pytest", "cargo", "npm", "build")
+            ):
                 resolved_tag = "Running Command"
             else:
                 resolved_tag = "Running Tool"
@@ -1322,7 +1399,11 @@ class UnifiedDynamicIslandHUD:
         user_name: str = "Jake",
     ):
         """Set to Hearing State with active voice energy detection indicator (fixed 480x58)."""
-        body = f'"{prompt_preview.strip()}"' if prompt_preview else "Speech detected... listening to your voice"
+        body = (
+            f'"{prompt_preview.strip()}"'
+            if prompt_preview
+            else "Speech detected... listening to your voice"
+        )
         self._apply_rich_state(
             state="listening",
             avatar_emoji="",
@@ -1420,7 +1501,9 @@ class UnifiedDynamicIslandHUD:
             target_name="New Conversation (Connected Tools)",
         )
 
-    def update_live_transcription(self, text: str, user_name: str = "Jake", is_new_conversation: bool = False):
+    def update_live_transcription(
+        self, text: str, user_name: str = "Jake", is_new_conversation: bool = False
+    ):
         """Update the listening state with live transcription tokens."""
         if is_new_conversation or self._current_state == "new_conversation":
             self.set_new_conversation(prompt_preview=text, user_name=user_name, live_stream=True)
@@ -1429,6 +1512,7 @@ class UnifiedDynamicIslandHUD:
 
     def update_live_text(self, text: str):
         """Update subtitle or transcription text dynamically without frame change."""
+
         def _update():
             if self._body_lbl and self._panel and self._panel.isVisible():
                 self._body_lbl.setStringValue_(text)
@@ -1455,13 +1539,20 @@ class UnifiedDynamicIslandHUD:
         High-fidelity reactive 5-bar equalizer with non-linear loudness curve, harmonic oscillation,
         and neural state glow.
         """
+
         def _do_update():
             if not self._panel or not self._panel.isVisible():
                 return
             if getattr(self, "_visualizer", None):
-                if self._visualizer.isHidden() and self._current_state in ("listening", "new_conversation", "speaking"):
+                if self._visualizer.isHidden() and self._current_state in (
+                    "listening",
+                    "new_conversation",
+                    "speaking",
+                ):
                     self._visualizer.setHidden_(False)
-                prob = speech_prob if speech_prob is not None else (0.85 if energy > 0.015 else 0.05)
+                prob = (
+                    speech_prob if speech_prob is not None else (0.85 if energy > 0.015 else 0.05)
+                )
                 spk = is_speech if is_speech is not None else (prob >= 0.45)
                 self._visualizer.setAudioLevel_prob_speech_(energy, prob, spk)
 
@@ -1700,6 +1791,7 @@ class UnifiedDynamicIslandHUD:
         """Toggle the Quick Controls panel relative to this HUD."""
         try:
             from voicefi.ui.quick_controls import HUDQuickControlsPanel
+
             panel = HUDQuickControlsPanel.get_instance()
             hud_rect = self._panel.frame() if self._panel else None
             panel.toggle(relative_to_rect=hud_rect)
@@ -1710,12 +1802,13 @@ class UnifiedDynamicIslandHUD:
         """Toggle the Expert VAD Inspector panel relative to this HUD."""
         try:
             from voicefi.ui.expert_vad import ExpertVADPanel
+
             panel = ExpertVADPanel.get_instance()
             hud_rect = self._panel.frame() if self._panel else None
             panel.toggle(relative_to_rect=hud_rect)
         except Exception as e:
             print(f"[HUD] Error toggling Expert VAD panel: {e}")
-            
+
     def show_done(self, preview_text: str = ""):
         """Compatibility bridge for DictationHUD.show_done."""
         disp = f"{preview_text[:25]}..." if preview_text else "Done"

@@ -20,12 +20,12 @@ class BaseSTT(ABC):
     ) -> str:
         """
         Transcribe audio file or numpy array to text.
-        
+
         Args:
             audio: Path to WAV audio file or numpy float32 audio array.
             sample_rate: Audio sample rate (default 16000).
             prompt: Optional context prompt / vocabulary hints for STT biasing.
-            
+
         Returns:
             Transcribed text string.
         """

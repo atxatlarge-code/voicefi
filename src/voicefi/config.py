@@ -10,7 +10,7 @@ import subprocess
 import getpass
 import re
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 def detect_system_user_name(prefer_first_name: bool = True) -> str:
@@ -24,7 +24,9 @@ def detect_system_user_name(prefer_first_name: bool = True) -> str:
     """
     # 1. Try macOS `id -F` (Full human name in macOS System Settings)
     try:
-        res = subprocess.run(["id", "-F"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=1)
+        res = subprocess.run(
+            ["id", "-F"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=1
+        )
         if res.returncode == 0 and res.stdout.strip():
             name = res.stdout.strip()
             if name and not name.lower().startswith("uid"):
@@ -34,7 +36,13 @@ def detect_system_user_name(prefer_first_name: bool = True) -> str:
 
     # 2. Try git config user.name
     try:
-        res = subprocess.run(["git", "config", "--get", "user.name"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=1)
+        res = subprocess.run(
+            ["git", "config", "--get", "user.name"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=1,
+        )
         if res.returncode == 0 and res.stdout.strip():
             name = res.stdout.strip()
             if name and not name.endswith("-code") and not name.endswith("-bot"):
@@ -45,9 +53,19 @@ def detect_system_user_name(prefer_first_name: bool = True) -> str:
     # 3. Try dscl Directory Service on macOS
     try:
         user = getpass.getuser()
-        res = subprocess.run(["dscl", ".", "-read", f"/Users/{user}", "RealName"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=1)
+        res = subprocess.run(
+            ["dscl", ".", "-read", f"/Users/{user}", "RealName"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=1,
+        )
         if res.returncode == 0 and res.stdout.strip():
-            lines = [l.strip() for l in res.stdout.splitlines() if l.strip() and not l.startswith("RealName:")]
+            lines = [
+                l.strip()
+                for l in res.stdout.splitlines()
+                if l.strip() and not l.startswith("RealName:")
+            ]
             if lines and lines[0]:
                 name = lines[0]
                 return name.split()[0].title() if prefer_first_name else name
@@ -57,7 +75,7 @@ def detect_system_user_name(prefer_first_name: bool = True) -> str:
     # 4. Fallback to cleaned $USER username
     try:
         user = getpass.getuser()
-        clean = re.sub(r'[\d._-]+', ' ', user).strip()
+        clean = re.sub(r"[\d._-]+", " ", user).strip()
         if clean:
             return clean.split()[0].title()
     except Exception:
@@ -67,7 +85,9 @@ def detect_system_user_name(prefer_first_name: bool = True) -> str:
 
 
 class TTSConfig(BaseModel):
-    provider: Literal["mac_say", "edge_tts", "elevenlabs", "f5_tts", "local_clone", "gemini", "gemini_live"] = "edge_tts"
+    provider: Literal[
+        "mac_say", "edge_tts", "elevenlabs", "f5_tts", "local_clone", "gemini", "gemini_live"
+    ] = "edge_tts"
     voice: str = "en-US-AvaNeural"
     rate: Optional[int] = 200
     volume: float = 1.0
@@ -79,7 +99,6 @@ class TTSConfig(BaseModel):
     f5_model_name: str = "F5-TTS"
     f5_ref_audio: Optional[str] = None
     f5_ref_text: Optional[str] = None
-
 
 
 class STTConfig(BaseModel):
@@ -147,8 +166,10 @@ class HUDConfig(BaseModel):
 
 class ClaudeConfig(BaseModel):
     auto_listen: bool = False
-    read_summary_aloud: bool = False
-    auto_submit: bool = False  # False = paste into terminal prompt for manual review; True = auto-press Enter
+    read_summary_aloud: bool = True
+    auto_submit: bool = (
+        False  # False = paste into terminal prompt for manual review; True = auto-press Enter
+    )
     max_spoken_words: int = 60
     inject_to_active_window: bool = True
     show_speech_popup: bool = True
@@ -156,8 +177,10 @@ class ClaudeConfig(BaseModel):
 
 class CodexConfig(BaseModel):
     auto_listen: bool = False
-    read_summary_aloud: bool = False
-    auto_submit: bool = False  # False = paste into prompt for manual review; True = auto-press Enter
+    read_summary_aloud: bool = True
+    auto_submit: bool = (
+        False  # False = paste into prompt for manual review; True = auto-press Enter
+    )
     max_spoken_words: int = 60
     inject_to_active_window: bool = True
     show_speech_popup: bool = True
@@ -193,7 +216,11 @@ class GlobalHotkeyConfig(BaseModel):
 
 
 class AgentVoiceProfile(BaseModel):
-    provider: Optional[Literal["mac_say", "edge_tts", "elevenlabs", "f5_tts", "local_clone", "gemini", "gemini_live"]] = None
+    provider: Optional[
+        Literal[
+            "mac_say", "edge_tts", "elevenlabs", "f5_tts", "local_clone", "gemini", "gemini_live"
+        ]
+    ] = None
     voice: str = "en-US-AvaNeural"
     rate: Optional[int] = None
     pitch: Optional[str] = "+0Hz"
@@ -239,7 +266,14 @@ class WakeWordConfig(BaseModel):
     enabled: bool = True
     phrase: str = "Hey Viv"
     aliases: list[str] = Field(
-        default_factory=lambda: ["hey viv", "viv", "hey vifi", "vifi", "hey antigravity", "antigravity"]
+        default_factory=lambda: [
+            "hey viv",
+            "viv",
+            "hey vifi",
+            "vifi",
+            "hey antigravity",
+            "antigravity",
+        ]
     )
     sensitivity: float = 0.6
     chime: bool = True
@@ -374,14 +408,40 @@ class ProActiveIntentRoutingConfig(BaseModel):
 
 class ProActiveConfig(BaseModel):
     feedback_loop: ProActiveFeedbackLoopConfig = Field(default_factory=ProActiveFeedbackLoopConfig)
-    meeting_assistant: ProActiveMeetingAssistantConfig = Field(default_factory=ProActiveMeetingAssistantConfig)
-    intent_routing: ProActiveIntentRoutingConfig = Field(default_factory=ProActiveIntentRoutingConfig)
+    meeting_assistant: ProActiveMeetingAssistantConfig = Field(
+        default_factory=ProActiveMeetingAssistantConfig
+    )
+    intent_routing: ProActiveIntentRoutingConfig = Field(
+        default_factory=ProActiveIntentRoutingConfig
+    )
+
+
+class SpeedTalkingConfig(BaseModel):
+    enabled: bool = False
+    preset: Literal[
+        "normal",
+        "breezy",
+        "fast",
+        "turbo",
+        "sonic",
+        "auctioneer",
+        "warp",
+        "ludicrous",
+        "supersonic",
+    ] = "fast"
+    multiplier: float = 1.5
+    compress_pauses: bool = True
+    max_pause_ms: int = 150
+    enhance_clarity: bool = True
+    dynamic_ramp: bool = False
 
 
 class VoiceFiConfig(BaseModel):
     version: int = 1
     enabled: bool = True  # Global pause/resume kill-switch
-    telemetry: bool = True  # Anonymous crash & diagnostic error reporting (opt-out with DO_NOT_TRACK=1)
+    telemetry: bool = (
+        True  # Anonymous crash & diagnostic error reporting (opt-out with DO_NOT_TRACK=1)
+    )
     auto_update: bool = False  # Silent background auto-updater for Pro tier
     tier: str = "community"
     license_key: str = ""
@@ -391,6 +451,7 @@ class VoiceFiConfig(BaseModel):
     posthog_api_key: str = ""
     user_name: str = Field(default_factory=detect_system_user_name)
     tts: TTSConfig = Field(default_factory=TTSConfig)
+    speed_talking: SpeedTalkingConfig = Field(default_factory=SpeedTalkingConfig)
     stt: STTConfig = Field(default_factory=STTConfig)
     stt_biasing: STTBiasingConfig = Field(default_factory=STTBiasingConfig)
     vad: VADConfig = Field(default_factory=VADConfig)
@@ -413,18 +474,62 @@ class VoiceFiConfig(BaseModel):
     spark: SparkConfig = Field(default_factory=SparkConfig)
     agents: dict[str, AgentVoiceProfile] = Field(default_factory=default_agents_catalog)
     subagents: dict[str, AgentVoiceProfile] = Field(default_factory=dict)
+    projects: dict[str, AgentVoiceProfile] = Field(default_factory=dict)
+
+    @field_validator("projects", "agents", "subagents", mode="before")
+    @classmethod
+    def _normalize_voice_profiles(cls, val):
+        if not isinstance(val, dict):
+            return val
+        normalized = {}
+        for k, v in val.items():
+            if isinstance(v, str):
+                from voicefi.tts.catalog import find_persona
+
+                p = find_persona(v)
+                if p:
+                    normalized[k] = AgentVoiceProfile(
+                        voice=p.id,
+                        provider=p.provider,
+                        description=f"{p.name} ({p.style})",
+                    )
+                else:
+                    normalized[k] = AgentVoiceProfile(voice=v)
+            elif isinstance(v, dict):
+                v_copy = dict(v)
+                v_str = v_copy.get("voice")
+                if v_str and isinstance(v_str, str):
+                    from voicefi.tts.catalog import find_persona
+
+                    p = find_persona(v_str)
+                    if p:
+                        v_copy["voice"] = p.id
+                        if not v_copy.get("provider"):
+                            v_copy["provider"] = p.provider
+                normalized[k] = AgentVoiceProfile(**v_copy)
+            else:
+                normalized[k] = v
+        return normalized
 
     def resolve_voice(
         self,
         agent_name: Optional[str] = None,
         is_focused: bool = True,
+        project_name: Optional[str] = None,
+        workspace_path: Optional[str] = None,
     ) -> tuple[str, str, int]:
         """
-        Resolve (provider, voice_id, rate_wpm) for a given agent or subagent.
+        Resolve (provider, voice_id, rate_wpm) for a given agent, subagent, or project.
         """
         default_provider = self.tts.provider
         default_voice = self.tts.voice
-        default_rate = self.tts.rate or 200
+        speed_mult = (
+            self.speed_talking.multiplier
+            if (hasattr(self, "speed_talking") and self.speed_talking.enabled)
+            else 1.0
+        )
+        base_default_rate = self.tts.rate or 200
+        default_rate = int(round(base_default_rate * speed_mult))
 
         # If not focused, check for unfocused voice override or dynamic contrast
         if not is_focused:
@@ -450,28 +555,116 @@ class VoiceFiConfig(BaseModel):
             else:
                 return default_provider, default_voice, default_rate
 
+        key = (agent_name or "antigravity").lower().strip()
+
+        def _extract_profile(prof) -> tuple[str, str, int]:
+            if isinstance(prof, str):
+                from voicefi.tts.catalog import find_persona
+
+                p = find_persona(prof)
+                return (
+                    p.provider if p else default_provider,
+                    p.id if p else prof,
+                    default_rate,
+                )
+            elif isinstance(prof, dict):
+                v_str = prof.get("voice", default_voice)
+                from voicefi.tts.catalog import find_persona
+
+                p = find_persona(str(v_str))
+                raw_rate = prof.get("rate")
+                scaled_rate = (
+                    int(round(raw_rate * speed_mult))
+                    if raw_rate is not None
+                    else default_rate
+                )
+                return (
+                    prof.get("provider") or (p.provider if p else default_provider),
+                    p.id if p else str(v_str),
+                    scaled_rate,
+                )
+            elif isinstance(prof, AgentVoiceProfile):
+                raw_rate = prof.rate
+                scaled_rate = (
+                    int(round(raw_rate * speed_mult))
+                    if raw_rate is not None
+                    else default_rate
+                )
+                return (
+                    prof.provider or default_provider,
+                    prof.voice or default_voice,
+                    scaled_rate,
+                )
+            return (default_provider, default_voice, default_rate)
+
+        # Check subagents map first if agent is a specialized subagent (e.g. researcher, debugger)
+        if agent_name and key in self.subagents and self.subagents[key]:
+            return _extract_profile(self.subagents[key])
+
+        # Check project-specific voice profiles if project_name or workspace_path is provided
+        matched_project_profile = None
+        if self.projects:
+            # 1. Match by project_name
+            if project_name:
+                p_clean = project_name.lower().strip()
+                if p_clean in self.projects and self.projects[p_clean]:
+                    matched_project_profile = self.projects[p_clean]
+                else:
+                    for pk, prof in self.projects.items():
+                        pk_clean = pk.lower().strip()
+                        if pk_clean and (pk_clean == p_clean or pk_clean in p_clean or p_clean in pk_clean):
+                            matched_project_profile = prof
+                            break
+
+            # 2. Match by workspace_path if still not found
+            if not matched_project_profile and workspace_path:
+                ws_path = Path(workspace_path)
+                ws_name = ws_path.name.lower().strip()
+                ws_full = str(workspace_path).lower()
+                if ws_name in self.projects and self.projects[ws_name]:
+                    matched_project_profile = self.projects[ws_name]
+                else:
+                    for pk, prof in self.projects.items():
+                        pk_clean = pk.lower().strip()
+                        if pk_clean and (pk_clean == ws_name or pk_clean in ws_full or ws_name in pk_clean):
+                            matched_project_profile = prof
+                            break
+
+        # Check local workspace .voicefi.yaml if workspace_path is given and exists
+        if not matched_project_profile and workspace_path:
+            try:
+                ws_p = Path(workspace_path)
+                if ws_p.is_dir():
+                    for cand_name in (".voicefi.yaml", ".voicefi.yml", "voicefi.yaml"):
+                        cand = ws_p / cand_name
+                        if cand.is_file():
+                            with open(cand, "r", encoding="utf-8") as f:
+                                ws_data = yaml.safe_load(f) or {}
+                            v_val = ws_data.get("voice") or ws_data.get("tts", {}).get("voice")
+                            if v_val:
+                                from voicefi.tts.catalog import find_persona
+
+                                p = find_persona(str(v_val))
+                                matched_project_profile = AgentVoiceProfile(
+                                    voice=p.id if p else str(v_val),
+                                    provider=p.provider if p else ws_data.get("provider", default_provider),
+                                    rate=ws_data.get("rate"),
+                                )
+                                break
+            except Exception:
+                pass
+
+        if matched_project_profile:
+            # If agent_name is antigravity, default, or not a specialized subagent, use project voice!
+            if key in ("antigravity", "default", "") or not agent_name:
+                return _extract_profile(matched_project_profile)
+
         if not agent_name:
             return default_provider, default_voice, default_rate
 
-        key = agent_name.lower().strip()
-
-        # Check subagents map
-        if key in self.subagents and self.subagents[key]:
-            profile = self.subagents[key]
-            return (
-                profile.provider or default_provider,
-                profile.voice or default_voice,
-                profile.rate if profile.rate is not None else default_rate,
-            )
-
         # Check agents map
         if key in self.agents and self.agents[key]:
-            profile = self.agents[key]
-            return (
-                profile.provider or default_provider,
-                profile.voice or default_voice,
-                profile.rate if profile.rate is not None else default_rate,
-            )
+            return _extract_profile(self.agents[key])
 
         # Built-in agent persona fallbacks
         if key in ("claude", "claude_code"):
@@ -480,7 +673,16 @@ class VoiceFiConfig(BaseModel):
             return "edge_tts", "en-US-AvaNeural", default_rate
         elif key == "cursor":
             return "edge_tts", "en-US-JennyNeural", default_rate
-        elif key in ("obsidian", "aria", "emma", "openai", "codex", "chatgpt", "debugger", "tester"):
+        elif key in (
+            "obsidian",
+            "aria",
+            "emma",
+            "openai",
+            "codex",
+            "chatgpt",
+            "debugger",
+            "tester",
+        ):
             return "edge_tts", "en-US-AvaNeural", default_rate
         elif key in ("researcher", "architect"):
             return "edge_tts", "en-GB-SoniaNeural", default_rate

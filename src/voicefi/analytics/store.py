@@ -122,12 +122,27 @@ class AnalyticsStore:
 
         # Exclude redundant keys from metadata_json to save space
         clean_props = {
-            k: v for k, v in props.items()
-            if k not in (
-                "duration_ms", "success", "agent", "caller_agent",
-                "tool_name", "tool", "provider", "persona", "voice",
-                "char_count", "chars_count", "is_barge_in", "error_type",
-                "prompt", "raw_text", "raw_speech", "text"
+            k: v
+            for k, v in props.items()
+            if k
+            not in (
+                "duration_ms",
+                "success",
+                "agent",
+                "caller_agent",
+                "tool_name",
+                "tool",
+                "provider",
+                "persona",
+                "voice",
+                "char_count",
+                "chars_count",
+                "is_barge_in",
+                "error_type",
+                "prompt",
+                "raw_text",
+                "raw_speech",
+                "text",
             )
         }
 

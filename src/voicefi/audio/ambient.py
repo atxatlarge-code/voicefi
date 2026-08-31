@@ -78,7 +78,9 @@ class AmbientAudioStream:
         self._paused = False
         self._stop_event.clear()
         self._set_state("listening")
-        self._thread = threading.Thread(target=self._stream_loop, daemon=True, name="AmbientAudioStream")
+        self._thread = threading.Thread(
+            target=self._stream_loop, daemon=True, name="AmbientAudioStream"
+        )
         self._thread.start()
 
     def stop(self):
@@ -152,7 +154,6 @@ class AmbientAudioStream:
                     if self._stop_event.is_set():
                         break
 
-
                     chunk_count += 1
                     audio_chunk = chunk.flatten()
                     vad_res = self.vad.process(audio_chunk)
@@ -165,7 +166,9 @@ class AmbientAudioStream:
                     # 10Hz throttled energy broadcast (every 2nd 50ms chunk)
                     if self.on_energy and (chunk_count % 2 == 0):
                         try:
-                            self.on_energy(energy, self.current_noise_floor, is_speech or speech_started)
+                            self.on_energy(
+                                energy, self.current_noise_floor, is_speech or speech_started
+                            )
                         except Exception as ex:
                             print(f"[AmbientAudioStream] Energy callback error: {ex}")
 
@@ -193,7 +196,11 @@ class AmbientAudioStream:
                             except Exception:
                                 pass
 
-                        if self.on_interim_audio and len(recorded_frames) >= 3 and (len(recorded_frames) % 2 == 0):
+                        if (
+                            self.on_interim_audio
+                            and len(recorded_frames) >= 3
+                            and (len(recorded_frames) % 2 == 0)
+                        ):
                             try:
                                 interim_audio = np.concatenate(recorded_frames, axis=0)
                                 self.on_interim_audio(interim_audio, self.sample_rate)
@@ -211,7 +218,11 @@ class AmbientAudioStream:
                             except Exception:
                                 pass
 
-                        if self.on_interim_audio and len(recorded_frames) >= 3 and (len(recorded_frames) % 2 == 0):
+                        if (
+                            self.on_interim_audio
+                            and len(recorded_frames) >= 3
+                            and (len(recorded_frames) % 2 == 0)
+                        ):
                             try:
                                 interim_audio = np.concatenate(recorded_frames, axis=0)
                                 self.on_interim_audio(interim_audio, self.sample_rate)
@@ -230,7 +241,9 @@ class AmbientAudioStream:
                                     try:
                                         self.on_utterance(utterance_audio, self.sample_rate)
                                     except Exception as ex:
-                                        print(f"[AmbientAudioStream] Error in utterance callback: {ex}")
+                                        print(
+                                            f"[AmbientAudioStream] Error in utterance callback: {ex}"
+                                        )
 
                             # Reset state for next utterance
                             recorded_frames.clear()

@@ -13,7 +13,7 @@ from typing import Dict, Any, Tuple, Optional
 def format_tool_details(tool_call: Dict[str, Any]) -> Tuple[str, str]:
     """
     Extract specific, human-readable description and tag badge from an agent tool call.
-    
+
     Returns:
         Tuple[str, str]: (detail_subtitle, tag_text)
         Example: ("pytest tests/test_hud.py -v", "Running Command")
@@ -28,7 +28,11 @@ def format_tool_details(tool_call: Dict[str, Any]) -> Tuple[str, str]:
     tool_name = (
         tool_call.get("name")
         or tool_call.get("tool_name")
-        or (tool_call.get("function", {}).get("name") if isinstance(tool_call.get("function"), dict) else "")
+        or (
+            tool_call.get("function", {}).get("name")
+            if isinstance(tool_call.get("function"), dict)
+            else ""
+        )
         or "tool"
     )
 
@@ -36,7 +40,11 @@ def format_tool_details(tool_call: Dict[str, Any]) -> Tuple[str, str]:
     raw_args = (
         tool_call.get("args")
         or tool_call.get("input")
-        or (tool_call.get("function", {}).get("arguments") if isinstance(tool_call.get("function"), dict) else {})
+        or (
+            tool_call.get("function", {}).get("arguments")
+            if isinstance(tool_call.get("function"), dict)
+            else {}
+        )
         or {}
     )
     if isinstance(raw_args, str):
@@ -64,7 +72,7 @@ def format_tool_details(tool_call: Dict[str, Any]) -> Tuple[str, str]:
         r"[\U00010000-\U0010ffff\u2600-\u27bf\u2300-\u23ff\ufe00-\ufe0f]",
         "",
         str(raw_action),
-    ).strip('\"\' ')
+    ).strip("\"' ")
 
     norm_name = tool_name.lower().replace("-", "_")
 
@@ -87,7 +95,16 @@ def format_tool_details(tool_call: Dict[str, Any]) -> Tuple[str, str]:
     # 3. Handle specific tool types
 
     # Case A: Shell / Terminal command execution
-    if norm_name in ("run_command", "bash", "terminal", "sh", "zsh", "execute_command", "command", "run_shell_command"):
+    if norm_name in (
+        "run_command",
+        "bash",
+        "terminal",
+        "sh",
+        "zsh",
+        "execute_command",
+        "command",
+        "run_shell_command",
+    ):
         cmd = (
             args.get("CommandLine")
             or args.get("command")
@@ -100,7 +117,13 @@ def format_tool_details(tool_call: Dict[str, Any]) -> Tuple[str, str]:
         if cmd:
             clean_cmd = _truncate(cmd, max_len=48)
             # If tool_action has a specific helpful note (like "Running test suite")
-            if tool_action and tool_action.lower() not in ("running command", "command execution", "running run_command", "run command", f"running {tool_name}"):
+            if tool_action and tool_action.lower() not in (
+                "running command",
+                "command execution",
+                "running run_command",
+                "run command",
+                f"running {tool_name}",
+            ):
                 combined = f"{tool_action}: {clean_cmd}"
                 if len(combined) <= 50:
                     return (combined, tag)
@@ -134,7 +157,15 @@ def format_tool_details(tool_call: Dict[str, Any]) -> Tuple[str, str]:
         return ("Reading file...", tag)
 
     # Case C: File editing / writing / creating
-    if norm_name in ("replace_file_content", "write_to_file", "edit_file", "fileedit", "write", "patch", "create_file"):
+    if norm_name in (
+        "replace_file_content",
+        "write_to_file",
+        "edit_file",
+        "fileedit",
+        "write",
+        "patch",
+        "create_file",
+    ):
         path_str = (
             args.get("TargetFile")
             or args.get("path")
@@ -146,15 +177,17 @@ def format_tool_details(tool_call: Dict[str, Any]) -> Tuple[str, str]:
         is_create = norm_name in ("write_to_file", "create_file", "write")
         tag = "Writing File" if is_create else "Editing File"
         fname = _clean_path(path_str)
-        desc = (
-            args.get("Description")
-            or args.get("Instruction")
-            or tool_action
-            or ""
-        )
-        desc = re.sub(r"[\U00010000-\U0010ffff\u2600-\u27bf\u2300-\u23ff\ufe00-\ufe0f]", "", str(desc)).strip('\"\' ')
+        desc = args.get("Description") or args.get("Instruction") or tool_action or ""
+        desc = re.sub(
+            r"[\U00010000-\U0010ffff\u2600-\u27bf\u2300-\u23ff\ufe00-\ufe0f]", "", str(desc)
+        ).strip("\"' ")
         if fname:
-            if desc and desc.lower() not in ("editing file", "file edit", "writing file", f"running {tool_name}"):
+            if desc and desc.lower() not in (
+                "editing file",
+                "file edit",
+                "writing file",
+                f"running {tool_name}",
+            ):
                 short_desc = _truncate(desc, max_len=28)
                 combined = f"{fname} — {short_desc}"
                 if len(combined) <= 48:
@@ -222,7 +255,9 @@ def format_tool_details(tool_call: Dict[str, Any]) -> Tuple[str, str]:
     # Case H: MCP Tools
     if norm_name in ("call_mcp_tool",) or norm_name.startswith("mcp_"):
         server = args.get("ServerName") or (norm_name.split("_")[1] if "_" in norm_name else "")
-        tool = args.get("ToolName") or (norm_name.split("_", 2)[2] if norm_name.count("_") >= 2 else norm_name)
+        tool = args.get("ToolName") or (
+            norm_name.split("_", 2)[2] if norm_name.count("_") >= 2 else norm_name
+        )
         tag = "MCP Tool"
         if server and tool:
             return (f"MCP: {server} -> {tool}", tag)
@@ -263,7 +298,11 @@ def format_tool_details(tool_call: Dict[str, Any]) -> Tuple[str, str]:
 
     # Case K: Fallback for any other custom tools
     tag = "Running Tool"
-    if tool_action and tool_action.lower() not in (f"running {tool_name}", f"running {norm_name}", "running tool"):
+    if tool_action and tool_action.lower() not in (
+        f"running {tool_name}",
+        f"running {norm_name}",
+        "running tool",
+    ):
         return (_truncate(tool_action, 48), tag)
 
     # Clean the tool name (e.g. generate_image -> Generate Image)
@@ -334,7 +373,11 @@ def extract_log_summary(content: str, max_chars: int = 50) -> Optional[str]:
 
     # 2. Build / Success / Status patterns
     for l in reversed(filtered_lines):
-        if re.search(r"\b(Build succeeded|Build complete|Finished\b|Successfully\b|Compiled\b|Generated\b|Created file\b|Updated file\b|Found\s+\d+\s+results?)\b", l, re.IGNORECASE):
+        if re.search(
+            r"\b(Build succeeded|Build complete|Finished\b|Successfully\b|Compiled\b|Generated\b|Created file\b|Updated file\b|Found\s+\d+\s+results?)\b",
+            l,
+            re.IGNORECASE,
+        ):
             clean_l = re.sub(r"^[=\-*_#\s]+", "", l).strip()
             return clean_l[:max_chars]
 

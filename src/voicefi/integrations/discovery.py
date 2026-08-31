@@ -22,22 +22,32 @@ class AgentToolDetector:
     def detect_claude_code() -> bool:
         """Check if Claude Code CLI is installed or configured."""
         claude_dir = Path.home() / ".claude"
-        return claude_dir.is_dir() or os.path.exists("/usr/local/bin/claude") or os.path.exists(str(Path.home() / ".local" / "bin" / "claude"))
+        return (
+            claude_dir.is_dir()
+            or os.path.exists("/usr/local/bin/claude")
+            or os.path.exists(str(Path.home() / ".local" / "bin" / "claude"))
+        )
 
     @staticmethod
     def detect_cursor() -> bool:
         """Check if Cursor editor is installed in /Applications."""
-        return os.path.exists("/Applications/Cursor.app") or os.path.exists(str(Path.home() / "Applications" / "Cursor.app"))
+        return os.path.exists("/Applications/Cursor.app") or os.path.exists(
+            str(Path.home() / "Applications" / "Cursor.app")
+        )
 
     @staticmethod
     def detect_windsurf() -> bool:
         """Check if Windsurf editor is installed."""
-        return os.path.exists("/Applications/Windsurf.app") or os.path.exists(str(Path.home() / "Applications" / "Windsurf.app"))
+        return os.path.exists("/Applications/Windsurf.app") or os.path.exists(
+            str(Path.home() / "Applications" / "Windsurf.app")
+        )
 
     @staticmethod
     def detect_chatgpt() -> bool:
         """Check if ChatGPT macOS desktop app is installed in /Applications."""
-        return os.path.exists("/Applications/ChatGPT.app") or os.path.exists(str(Path.home() / "Applications" / "ChatGPT.app"))
+        return os.path.exists("/Applications/ChatGPT.app") or os.path.exists(
+            str(Path.home() / "Applications" / "ChatGPT.app")
+        )
 
     @staticmethod
     def detect_codex() -> bool:

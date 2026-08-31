@@ -1,6 +1,6 @@
 """
 Expert VAD & Acoustic Inspector Panel.
-Provides an interactive, native macOS floating panel with real-time audio oscilloscope, 
+Provides an interactive, native macOS floating panel with real-time audio oscilloscope,
 neural speech confidence metrics, and fine-tuning sliders for Voice Activity Detection.
 """
 
@@ -54,6 +54,7 @@ from voicefi.audio.device import is_using_builtin_speakers
 try:
     ExpertActionTarget = objc.lookUpClass("ExpertActionTarget")
 except objc.nosuchclass_error:
+
     class ExpertActionTarget(objc.lookUpClass("NSObject")):
         def initWithCallback_(self, callback):
             self = objc.super(ExpertActionTarget, self).init()
@@ -69,6 +70,7 @@ except objc.nosuchclass_error:
 try:
     VADOscilloscopeView = objc.lookUpClass("VADOscilloscopeView")
 except objc.nosuchclass_error:
+
     class VADOscilloscopeView(objc.lookUpClass("NSView")):
         def initWithFrame_(self, frame):
             self = objc.super(VADOscilloscopeView, self).initWithFrame_(frame)
@@ -90,7 +92,7 @@ except objc.nosuchclass_error:
             self._trigger_thresh = thresh
             self._prob = prob
             self._is_speech = is_speech
-            
+
             # Request redraw on main thread
             self.setNeedsDisplay_(True)
 
@@ -151,13 +153,14 @@ except objc.nosuchclass_error:
                 NSColor.colorWithCalibratedRed_green_blue_alpha_(0.2, 0.9, 0.5, 1.0).setStroke()
             else:
                 NSColor.colorWithCalibratedRed_green_blue_alpha_(0.3, 0.7, 0.9, 1.0).setStroke()
-                
+
             path.setLineWidth_(2.0)
             path.stroke()
 
 
 class ExpertVADPanel:
     """Singleton Floating Expert VAD Inspector."""
+
     _instance: Optional["ExpertVADPanel"] = None
     _lock = threading.Lock()
 
@@ -173,17 +176,17 @@ class ExpertVADPanel:
         self._panel: Optional[NSPanel] = None
         self._targets = []
         self._is_visible = False
-        
+
         self.lbl_energy = None
         self.lbl_noise = None
         self.lbl_prob = None
         self.lbl_barge = None
-        
+
         self.slider_speech = None
         self.slider_energy = None
         self.slider_silence = None
         self.seg_engine = None
-        
+
         self.val_speech = None
         self.val_energy = None
         self.val_silence = None
@@ -206,7 +209,7 @@ class ExpertVADPanel:
         self._panel.setLevel_(NSFloatingWindowLevel)
         self._panel.setFloatingPanel_(True)
         self._panel.setCollectionBehavior_(NSWindowCollectionBehaviorCanJoinAllSpaces)
-        
+
         # Transparent background for Visual Effect
         self._panel.setOpaque_(False)
         self._panel.setBackgroundColor_(NSColor.clearColor())
@@ -216,7 +219,7 @@ class ExpertVADPanel:
         effect_view.setMaterial_(NSVisualEffectMaterialHUDWindow)
         effect_view.setBlendingMode_(NSVisualEffectBlendingModeBehindWindow)
         effect_view.setState_(1)
-        
+
         # Scope box
         scope_rect = NSRect(NSPoint(20, h - 140), NSSize(w - 40, 90))
         self.oscilloscope = VADOscilloscopeView.alloc().initWithFrame_(scope_rect)
@@ -224,11 +227,13 @@ class ExpertVADPanel:
         self.oscilloscope.layer().setCornerRadius_(8.0)
         self.oscilloscope.layer().setMasksToBounds_(True)
         effect_view.addSubview_(self.oscilloscope)
-        
+
         # Telemetry Text Labels
         def _make_lbl(x, y, w, h, size=11, bold=False):
             lbl = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(x, y), NSSize(w, h)))
-            lbl.setFont_(NSFont.boldSystemFontOfSize_(size) if bold else NSFont.systemFontOfSize_(size))
+            lbl.setFont_(
+                NSFont.boldSystemFontOfSize_(size) if bold else NSFont.systemFontOfSize_(size)
+            )
             lbl.setTextColor_(NSColor.whiteColor())
             lbl.setBezeled_(False)
             lbl.setDrawsBackground_(False)
@@ -247,39 +252,68 @@ class ExpertVADPanel:
 
         # Controls
         controls_y = h - 230
-        
+
         # Engine Selector
         engine_lbl = _make_lbl(20, controls_y, 100, 20)
         engine_lbl.setStringValue_("VAD Engine:")
         effect_view.addSubview_(engine_lbl)
-        
-        self.seg_engine = NSSegmentedControl.alloc().initWithFrame_(NSRect(NSPoint(120, controls_y), NSSize(340, 24)))
+
+        self.seg_engine = NSSegmentedControl.alloc().initWithFrame_(
+            NSRect(NSPoint(120, controls_y), NSSize(340, 24))
+        )
         self.seg_engine.setSegmentCount_(3)
         self.seg_engine.setLabel_forSegment_("Auto Hybrid", 0)
         self.seg_engine.setLabel_forSegment_("Silero AI", 1)
         self.seg_engine.setLabel_forSegment_("Energy", 2)
         self.seg_engine.setSegmentStyle_(NSSegmentStyleTexturedRounded)
-        
+
         current_eng = self.config.vad.engine
         idx = 0 if current_eng == "auto" else 1 if current_eng == "silero" else 2
         self.seg_engine.setSelectedSegment_(idx)
-        
+
         target_engine = ExpertActionTarget.alloc().initWithCallback_(self._on_engine_change)
         self._targets.append(target_engine)
         self.seg_engine.setTarget_(target_engine)
         self.seg_engine.setAction_("actionHandler:")
         effect_view.addSubview_(self.seg_engine)
-        
+
         # Sliders
         controls_y -= 40
-        self.slider_speech, self.val_speech = self._add_slider_row(effect_view, "Speech Prob:", 20, controls_y, 0.1, 0.9, self.config.vad.speech_threshold, self._on_speech_change)
-        
+        self.slider_speech, self.val_speech = self._add_slider_row(
+            effect_view,
+            "Speech Prob:",
+            20,
+            controls_y,
+            0.1,
+            0.9,
+            self.config.vad.speech_threshold,
+            self._on_speech_change,
+        )
+
         controls_y -= 30
-        self.slider_energy, self.val_energy = self._add_slider_row(effect_view, "Energy Thresh:", 20, controls_y, 0.001, 0.050, self.config.vad.energy_threshold, self._on_energy_change)
-        
+        self.slider_energy, self.val_energy = self._add_slider_row(
+            effect_view,
+            "Energy Thresh:",
+            20,
+            controls_y,
+            0.001,
+            0.050,
+            self.config.vad.energy_threshold,
+            self._on_energy_change,
+        )
+
         controls_y -= 30
-        self.slider_silence, self.val_silence = self._add_slider_row(effect_view, "Silence Cutoff:", 20, controls_y, 0.4, 3.0, self.config.vad.silence_duration, self._on_silence_change)
-        
+        self.slider_silence, self.val_silence = self._add_slider_row(
+            effect_view,
+            "Silence Cutoff:",
+            20,
+            controls_y,
+            0.4,
+            3.0,
+            self.config.vad.silence_duration,
+            self._on_silence_change,
+        )
+
         # Buttons
         controls_y -= 45
         btn_cal = NSButton.alloc().initWithFrame_(NSRect(NSPoint(20, controls_y), NSSize(160, 24)))
@@ -302,18 +336,18 @@ class ExpertVADPanel:
         lbl.setDrawsBackground_(False)
         lbl.setEditable_(False)
         view.addSubview_(lbl)
-        
+
         slider = NSSlider.alloc().initWithFrame_(NSRect(NSPoint(x + 100, y), NSSize(280, 20)))
         slider.setMinValue_(min_val)
         slider.setMaxValue_(max_val)
         slider.setFloatValue_(float(cur_val))
-        
+
         target = ExpertActionTarget.alloc().initWithCallback_(callback)
         self._targets.append(target)
         slider.setTarget_(target)
         slider.setAction_("actionHandler:")
         view.addSubview_(slider)
-        
+
         val_lbl = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(x + 390, y), NSSize(50, 20)))
         val_lbl.setStringValue_(f"{cur_val:.3f}")
         val_lbl.setFont_(NSFont.boldSystemFontOfSize_(11))
@@ -322,7 +356,7 @@ class ExpertVADPanel:
         val_lbl.setDrawsBackground_(False)
         val_lbl.setEditable_(False)
         view.addSubview_(val_lbl)
-        
+
         return slider, val_lbl
 
     def _on_engine_change(self, sender):
@@ -352,12 +386,15 @@ class ExpertVADPanel:
     def _on_calibrate(self, sender):
         try:
             from voicefi.troubleshoot import AudioTroubleshooter
+
             t = AudioTroubleshooter(self.config)
+
             def _cal():
                 res = t.test_microphone_loopback(duration_seconds=1.5, play_back=False)
                 if res.success:
                     suggested = max(min(res.rms_energy * 1.5, 0.02), 0.002)
                     AppHelper.callAfter(self._set_calibrated_energy, suggested)
+
             threading.Thread(target=_cal, daemon=True).start()
         except Exception:
             pass
@@ -376,39 +413,42 @@ class ExpertVADPanel:
     def _on_audio_data(self, energy, prob, is_speech, raw_chunk, noise_floor, active_thresh):
         if not self._is_visible:
             return
-            
+
         def _update():
             if self.oscilloscope:
                 self.oscilloscope.update_data(energy, noise_floor, active_thresh, prob, is_speech)
-            
+
             if self.lbl_energy:
                 self.lbl_energy.setStringValue_(f"RMS: {energy:.4f}")
             if self.lbl_noise:
                 self.lbl_noise.setStringValue_(f"Noise: {noise_floor:.4f}")
             if self.lbl_prob:
-                self.lbl_prob.setStringValue_(f"AI: {prob*100:.1f}%")
-                
+                self.lbl_prob.setStringValue_(f"AI: {prob * 100:.1f}%")
+
             if self.lbl_barge:
                 builtin = is_using_builtin_speakers()
                 safe = "Safe Mode" if builtin else "Full Duplex 0ms"
                 self.lbl_barge.setStringValue_(f"Barge-In: {safe}")
-                
+
         AppHelper.callAfter(_update)
 
     def show(self, relative_to_rect: Optional[NSRect] = None):
         if not self._panel:
             return
-            
+
         def _do_show():
             if relative_to_rect:
-                x = relative_to_rect.origin.x + (relative_to_rect.size.width - self._panel.frame().size.width) / 2
+                x = (
+                    relative_to_rect.origin.x
+                    + (relative_to_rect.size.width - self._panel.frame().size.width) / 2
+                )
                 y = relative_to_rect.origin.y - self._panel.frame().size.height - 10
                 self._panel.setFrameOrigin_(NSPoint(x, y))
-                
+
             LiveVADMonitor.get_instance().add_listener(self._on_audio_data)
             self._panel.orderFrontRegardless()
             self._is_visible = True
-            
+
         if threading.current_thread() is threading.main_thread():
             _do_show()
         else:
@@ -417,12 +457,12 @@ class ExpertVADPanel:
     def hide(self):
         if not self._panel:
             return
-            
+
         def _do_hide():
             self._panel.orderOut_(None)
             self._is_visible = False
             LiveVADMonitor.get_instance().remove_listener(self._on_audio_data)
-            
+
         if threading.current_thread() is threading.main_thread():
             _do_hide()
         else:

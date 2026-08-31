@@ -68,13 +68,15 @@ def find_obsidian_vaults() -> List[Dict[str, Any]]:
                 if vpath_str:
                     vp = Path(vpath_str)
                     if vp.is_dir():
-                        vaults.append({
-                            "id": vid,
-                            "path": vp,
-                            "name": vp.name,
-                            "open": bool(vinfo.get("open", False)),
-                            "ts": vinfo.get("ts", 0),
-                        })
+                        vaults.append(
+                            {
+                                "id": vid,
+                                "path": vp,
+                                "name": vp.name,
+                                "open": bool(vinfo.get("open", False)),
+                                "ts": vinfo.get("ts", 0),
+                            }
+                        )
         except Exception:
             pass
 

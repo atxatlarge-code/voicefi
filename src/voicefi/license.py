@@ -51,7 +51,9 @@ def compute_trial_hmac(started_at: float, hw_id: str, duration_days: int = 14) -
     Compute cryptographic HMAC-SHA256 seal for trial anchor.
     """
     secret_salt = b"voicefi-trial-v1-secure-mac-seal-2026"
-    payload = f"vifi-trial:{int(started_at)}:{hw_id.strip().lower()}:{duration_days}".encode("utf-8")
+    payload = f"vifi-trial:{int(started_at)}:{hw_id.strip().lower()}:{duration_days}".encode(
+        "utf-8"
+    )
     return hmac.new(secret_salt, payload, hashlib.sha256).hexdigest()[:32]
 
 
@@ -64,7 +66,9 @@ def get_secondary_receipt_path() -> Path:
     return app_support / ".trial_receipt"
 
 
-def save_secondary_receipt(started_at: float, seal: str, hw_id: str, duration_days: int = 14) -> None:
+def save_secondary_receipt(
+    started_at: float, seal: str, hw_id: str, duration_days: int = 14
+) -> None:
     """Save trial receipt to secondary location with restricted permissions."""
     try:
         receipt_path = get_secondary_receipt_path()
@@ -128,11 +132,16 @@ class FeatureGate:
         tier = getattr(config, "tier", "community").lower().strip()
         license_key = getattr(config, "license_key", "").strip()
         org_code = getattr(config, "org_code", "").strip() if hasattr(config, "org_code") else ""
-        is_licensed = tier in ("pro", "org", "enterprise") and (len(license_key) >= 6 or len(org_code) >= 4)
+        is_licensed = tier in ("pro", "org", "enterprise") and (
+            len(license_key) >= 6 or len(org_code) >= 4
+        )
 
         trial_started_at = getattr(config, "trial_started_at", None)
         trial_seal = getattr(config, "trial_seal", None)
-        trial_duration_days = getattr(config, "trial_duration_days", cls.TRIAL_DURATION_DAYS) or cls.TRIAL_DURATION_DAYS
+        trial_duration_days = (
+            getattr(config, "trial_duration_days", cls.TRIAL_DURATION_DAYS)
+            or cls.TRIAL_DURATION_DAYS
+        )
 
         now = time.time()
         hw_id = get_hardware_identifier()
@@ -149,7 +158,9 @@ class FeatureGate:
                 "hours_remaining": float(trial_duration_days * 24) if not is_licensed else 0.0,
                 "started_at_epoch": None,
                 "expires_at_epoch": expires_epoch,
-                "expires_at_iso": datetime.datetime.fromtimestamp(expires_epoch, tz=datetime.timezone.utc).isoformat(),
+                "expires_at_iso": datetime.datetime.fromtimestamp(
+                    expires_epoch, tz=datetime.timezone.utc
+                ).isoformat(),
                 "trial_duration_days": trial_duration_days,
                 "is_licensed": is_licensed,
                 "tampered": False,
@@ -185,7 +196,9 @@ class FeatureGate:
                 "hours_remaining": 0.0,
                 "started_at_epoch": float(trial_started_at),
                 "expires_at_epoch": now,
-                "expires_at_iso": datetime.datetime.fromtimestamp(now, tz=datetime.timezone.utc).isoformat(),
+                "expires_at_iso": datetime.datetime.fromtimestamp(
+                    now, tz=datetime.timezone.utc
+                ).isoformat(),
                 "trial_duration_days": trial_duration_days,
                 "is_licensed": False,
                 "tampered": True,
@@ -200,7 +213,9 @@ class FeatureGate:
         is_active = remaining_seconds > 0
         is_expired = not is_active
         expires_epoch = float(trial_started_at) + trial_seconds_total
-        expires_iso = datetime.datetime.fromtimestamp(expires_epoch, tz=datetime.timezone.utc).isoformat()
+        expires_iso = datetime.datetime.fromtimestamp(
+            expires_epoch, tz=datetime.timezone.utc
+        ).isoformat()
 
         return {
             "is_trial": not is_licensed,
@@ -267,7 +282,9 @@ class FeatureGate:
         tier = getattr(config, "tier", "community").lower().strip()
         license_key = getattr(config, "license_key", "").strip()
         org_code = getattr(config, "org_code", "").strip() if hasattr(config, "org_code") else ""
-        is_licensed = tier in ("pro", "org", "enterprise") and (len(license_key) >= 6 or len(org_code) >= 4)
+        is_licensed = tier in ("pro", "org", "enterprise") and (
+            len(license_key) >= 6 or len(org_code) >= 4
+        )
         pro_active = is_licensed or trial["is_active"]
 
         if is_licensed:
@@ -279,7 +296,11 @@ class FeatureGate:
         elif trial["is_active"]:
             days = trial["days_remaining"]
             tier_label = f"Pro Trial ({days}d left)" if days > 0 else "Pro Trial (Ends Today)"
-            status_text = f"Pro (14-Day Free Trial · {days} days remaining)" if days > 0 else "Pro (14-Day Free Trial · Ends Today)"
+            status_text = (
+                f"Pro (14-Day Free Trial · {days} days remaining)"
+                if days > 0
+                else "Pro (14-Day Free Trial · Ends Today)"
+            )
         elif trial["is_expired"]:
             tier_label = "Community (Trial Expired)"
             status_text = "Community ($0 / OSS · 14-Day Trial Expired)"
@@ -347,7 +368,9 @@ class FeatureGate:
             config.trial_started_at = now
             config.trial_duration_days = cls.TRIAL_DURATION_DAYS
             config.trial_seal = compute_trial_hmac(now, hw_id, config.trial_duration_days)
-            save_secondary_receipt(config.trial_started_at, config.trial_seal, hw_id, config.trial_duration_days)
+            save_secondary_receipt(
+                config.trial_started_at, config.trial_seal, hw_id, config.trial_duration_days
+            )
 
         if save:
             try:

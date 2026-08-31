@@ -116,7 +116,16 @@ def sanitize_telemetry_data(data: Any) -> Any:
             k_lower = str(k).lower()
             if any(k_lower.endswith(s) for s in ("_key", "_secret", "_token", "_password", "auth")):
                 continue
-            if k_lower in ("prompt", "user_prompt", "raw_text", "raw_speech", "transcript_content", "audio_data", "audio_bytes", "text"):
+            if k_lower in (
+                "prompt",
+                "user_prompt",
+                "raw_text",
+                "raw_speech",
+                "transcript_content",
+                "audio_data",
+                "audio_bytes",
+                "text",
+            ):
                 continue
             sanitized[k] = sanitize_telemetry_data(v)
         return sanitized
@@ -168,7 +177,9 @@ def init_telemetry():
         def global_exception_handler(exc_type, exc_value, exc_traceback):
             if _posthog_initialized:
                 try:
-                    error_msg = "".join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+                    error_msg = "".join(
+                        traceback.format_exception(exc_type, exc_value, exc_traceback)
+                    )
                     sanitized_msg = sanitize_telemetry_data(error_msg)
                     tb_hash = compute_traceback_hash(sanitized_msg)
                     posthog.capture(
@@ -204,6 +215,7 @@ def record_event(event_name: str, properties: Optional[Dict[str, Any]] = None):
     # 1. Always record to local SQLite store (100% offline, zero-network, local ownership)
     try:
         from voicefi.analytics.store import get_analytics_store
+
         store = get_analytics_store()
         store.record_local_event(
             event_name=event_name,
@@ -252,15 +264,21 @@ def capture_event(event_name: str, properties: Optional[Dict[str, Any]] = None):
 
     # Direct HTTPS fallback if PostHog Python package is not loaded
     try:
-        api_key = os.getenv("POSTHOG_API_KEY") or os.getenv("VOICEFI_POSTHOG_KEY") or DEFAULT_POSTHOG_API_KEY
+        api_key = (
+            os.getenv("POSTHOG_API_KEY")
+            or os.getenv("VOICEFI_POSTHOG_KEY")
+            or DEFAULT_POSTHOG_API_KEY
+        )
         host = os.getenv("POSTHOG_HOST") or "https://us.i.posthog.com"
         endpoint = f"{host.rstrip('/')}/capture/"
-        payload = json.dumps({
-            "api_key": api_key,
-            "event": event_name,
-            "distinct_id": user_id,
-            "properties": sanitized_props,
-        }).encode("utf-8")
+        payload = json.dumps(
+            {
+                "api_key": api_key,
+                "event": event_name,
+                "distinct_id": user_id,
+                "properties": sanitized_props,
+            }
+        ).encode("utf-8")
         req = urllib.request.Request(
             endpoint,
             data=payload,
@@ -390,6 +408,3 @@ def capture_agent_dispatch(
         "$is_server": True,
     }
     record_event("agent_dispatch", props)
-
-
-

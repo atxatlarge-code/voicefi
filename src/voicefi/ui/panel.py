@@ -35,9 +35,7 @@ from voicefi.tts import (
 )
 
 
-def parse_voice_command(
-    command_text: str, config: VoiceFiConfig
-) -> Dict[str, Any]:
+def parse_voice_command(command_text: str, config: VoiceFiConfig) -> Dict[str, Any]:
     """
     Parse natural language voice commands to control voice auditioning, selection,
     speed adjustment, filters, and playback.
@@ -75,7 +73,9 @@ def parse_voice_command(
     # Check explicit speed percentage or WPM (e.g. "75% speed", "75 percent", "speed to 75%", "rate 150", "make the voice 75% speed")
     pct_match = re.search(r"\b(\d+)\s*(?:%|percent)\s*(?:speed)?\b", text)
     if not pct_match:
-        pct_match = re.search(r"\b(?:speed|rate)\s*(?:to|at|is|set to)?\s*(\d+)\s*(?:%|percent)?\b", text)
+        pct_match = re.search(
+            r"\b(?:speed|rate)\s*(?:to|at|is|set to)?\s*(\d+)\s*(?:%|percent)?\b", text
+        )
     if pct_match:
         val = int(pct_match.group(1))
         if val <= 120:
@@ -183,9 +183,7 @@ def parse_voice_command(
         target_agent = "default"
 
     # 6. Assignment commands: "set voice to Christopher", "switch to Aria", "make my voice Sonia", "choose William"
-    assign_match = re.search(
-        r"\b(set|switch|change|make|choose|select|assign|use|pick)\b", text
-    )
+    assign_match = re.search(r"\b(set|switch|change|make|choose|select|assign|use|pick)\b", text)
     if assign_match and target_persona_name:
         p_id = target_persona_obj.id if target_persona_obj else target_persona_name
         provider = target_persona_obj.provider if target_persona_obj else "edge_tts"
@@ -229,9 +227,7 @@ def parse_voice_command(
         }
 
     # 7. Audition / Test commands: "audition Christopher", "test Aria", "play Sonia", "hear William"
-    audition_match = re.search(
-        r"\b(audition|test|play|hear|listen|preview|sample)\b", text
-    )
+    audition_match = re.search(r"\b(audition|test|play|hear|listen|preview|sample)\b", text)
     if (audition_match or "how does" in text) and target_persona_name:
         p_id = target_persona_obj.id if target_persona_obj else target_persona_name
         sample_text = (
@@ -258,7 +254,9 @@ def parse_voice_command(
             "voice": target_persona_name,
             "voice_id": target_persona_obj.id if target_persona_obj else target_persona_name,
             "provider": target_persona_obj.provider if target_persona_obj else "edge_tts",
-            "sample_text": target_persona_obj.sample_text if target_persona_obj else f"Hello, I am {target_persona_name}.",
+            "sample_text": target_persona_obj.sample_text
+            if target_persona_obj
+            else f"Hello, I am {target_persona_name}.",
             "message": f"Recognized persona {target_persona_name}. Playing sample.",
         }
 
@@ -276,8 +274,12 @@ def get_current_system_state(config: VoiceFiConfig) -> Dict[str, Any]:
     ag_name = None
     try:
         from voicefi.tts.cloning import VoiceCloneManager
+
         for c in VoiceCloneManager().list_cloned_voices():
-            if ag_voice in (c.id, c.name, c.calibrated_voice) and "antigravity" in c.assigned_agents:
+            if (
+                ag_voice in (c.id, c.name, c.calibrated_voice)
+                and "antigravity" in c.assigned_agents
+            ):
                 ag_name = c.name
                 break
     except Exception:
@@ -329,6 +331,7 @@ def get_current_system_state(config: VoiceFiConfig) -> Dict[str, Any]:
     # Cloned voices
     try:
         from voicefi.tts.cloning import VoiceCloneManager
+
         cloned_voices = [c.model_dump() for c in VoiceCloneManager().list_cloned_voices()]
     except Exception:
         cloned_voices = []
@@ -2394,7 +2397,9 @@ class VoicePanelRequestHandler(http.server.BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
+        self.send_header(
+            "Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With"
+        )
         self.send_header("Access-Control-Max-Age", "86400")
         self.end_headers()
 
@@ -2405,7 +2410,9 @@ class VoicePanelRequestHandler(http.server.BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
+        self.send_header(
+            "Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With"
+        )
         self.end_headers()
         self.wfile.write(body)
 
@@ -2459,6 +2466,7 @@ class VoicePanelRequestHandler(http.server.BaseHTTPRequestHandler):
         if path == "/api/clones":
             try:
                 from voicefi.tts.cloning import VoiceCloneManager
+
                 clones = [c.model_dump() for c in VoiceCloneManager().list_cloned_voices()]
                 self._send_json(clones)
             except Exception as e:
@@ -2467,61 +2475,79 @@ class VoicePanelRequestHandler(http.server.BaseHTTPRequestHandler):
 
         if path == "/api/prompts":
             from voicefi.tts.cloning import TRAINING_PROMPTS
+
             self._send_json(TRAINING_PROMPTS)
             return
 
         if path == "/api/troubleshoot/diagnostics":
             from voicefi.troubleshoot import AudioTroubleshooter
+
             report = AudioTroubleshooter(self.server.config).run_full_troubleshoot()
             self._send_json(report)
             return
 
         if path == "/api/troubleshoot/ping":
             from voicefi.troubleshoot import AudioTroubleshooter
+
             params = urllib.parse.parse_qs(parsed.query)
             voice = params.get("voice", [None])[0]
             count = int(params.get("count", ["1"])[0])
             if count > 1:
-                res = AudioTroubleshooter(self.server.config).ping_multiple_silently(voice_name_or_id=voice, count=count)
+                res = AudioTroubleshooter(self.server.config).ping_multiple_silently(
+                    voice_name_or_id=voice, count=count
+                )
             else:
-                res = AudioTroubleshooter(self.server.config).ping_voice_silently(voice_name_or_id=voice).to_dict()
+                res = (
+                    AudioTroubleshooter(self.server.config)
+                    .ping_voice_silently(voice_name_or_id=voice)
+                    .to_dict()
+                )
             self._send_json(res)
             return
         if path in ("/claude", "/claude/", "/claude.html"):
             from voicefi.ui.claude_panel import HTML_CLAUDE_DEMO
+
             self._send_html(HTML_CLAUDE_DEMO)
             return
 
         if path == "/api/claude/contenders":
             from voicefi.tts.catalog import get_claude_contenders, find_persona
+
             prov, voice, rate = self.server.config.resolve_voice("claude")
             persona = find_persona(voice)
             contenders = get_claude_contenders(active_voice_id=voice)
-            self._send_json({
-                "status": "success",
-                "active_voice": voice,
-                "active_provider": prov,
-                "active_rate": rate,
-                "active_voice_details": {
-                    "id": voice,
-                    "name": persona.name if persona else voice,
-                    "provider": prov,
-                    "vibe": persona.style if persona else f"Assigned to Claude ({prov})",
-                    "locale": persona.locale if persona else "en-US",
-                } if persona else None,
-                "contenders": contenders,
-            })
+            self._send_json(
+                {
+                    "status": "success",
+                    "active_voice": voice,
+                    "active_provider": prov,
+                    "active_rate": rate,
+                    "active_voice_details": {
+                        "id": voice,
+                        "name": persona.name if persona else voice,
+                        "provider": prov,
+                        "vibe": persona.style if persona else f"Assigned to Claude ({prov})",
+                        "locale": persona.locale if persona else "en-US",
+                    }
+                    if persona
+                    else None,
+                    "contenders": contenders,
+                }
+            )
             return
 
         if path == "/api/offline/status":
             from voicefi.tts.offline import is_voice_installed, list_installed_neural_voices
+
             installed, exact = is_voice_installed("Ava")
             neural_list = list_installed_neural_voices()
-            self._send_json({
-                "ava_installed": installed,
-                "ava_voice": exact,
-                "installed_neural_voices": neural_list,
-            })
+            self._send_json(
+                {
+                    "ava_installed": installed,
+                    "ava_voice": exact,
+                    "installed_neural_voices": neural_list,
+                }
+            )
         if path == "/api/synthesize":
             params = urllib.parse.parse_qs(parsed.query)
             voice = params.get("voice", ["en-GB-RyanNeural"])[0]
@@ -2535,9 +2561,12 @@ class VoicePanelRequestHandler(http.server.BaseHTTPRequestHandler):
 
             try:
                 if prov == "edge_tts":
-                    import asyncio, edge_tts
+                    import asyncio
+                    import edge_tts
                     from voicefi.tts.edge_tts import normalize_edge_rate
+
                     norm_rate = normalize_edge_rate(rate)
+
                     async def _synth():
                         communicate = edge_tts.Communicate(text, target_voice, rate=norm_rate)
                         audio_data = b""
@@ -2545,6 +2574,7 @@ class VoicePanelRequestHandler(http.server.BaseHTTPRequestHandler):
                             if chunk["type"] == "audio":
                                 audio_data += chunk["data"]
                         return audio_data
+
                     data = asyncio.run(_synth())
                     self.send_response(200)
                     self.send_header("Content-Type", "audio/mpeg")
@@ -2575,26 +2605,37 @@ class VoicePanelRequestHandler(http.server.BaseHTTPRequestHandler):
 
         if path == "/api/troubleshoot/ping":
             from voicefi.troubleshoot import AudioTroubleshooter
+
             voice = payload.get("voice")
             text = payload.get("text")
             provider = payload.get("provider")
             count = int(payload.get("count", 1))
             if count > 1:
-                res = AudioTroubleshooter(self.server.config).ping_multiple_silently(voice_name_or_id=voice, count=count, text=text, provider=provider)
+                res = AudioTroubleshooter(self.server.config).ping_multiple_silently(
+                    voice_name_or_id=voice, count=count, text=text, provider=provider
+                )
             else:
-                res = AudioTroubleshooter(self.server.config).ping_voice_silently(voice_name_or_id=voice, text=text, provider=provider).to_dict()
+                res = (
+                    AudioTroubleshooter(self.server.config)
+                    .ping_voice_silently(voice_name_or_id=voice, text=text, provider=provider)
+                    .to_dict()
+                )
             self._send_json(res)
             return
 
         if path == "/api/troubleshoot/test_chime":
             from voicefi.troubleshoot import AudioTroubleshooter
+
             chime = payload.get("chime", "start")
-            res = AudioTroubleshooter(self.server.config).test_speaker_output(chime=chime, block=True)
+            res = AudioTroubleshooter(self.server.config).test_speaker_output(
+                chime=chime, block=True
+            )
             self._send_json(res)
             return
 
         if path == "/api/troubleshoot/test_voice":
             from voicefi.troubleshoot import AudioTroubleshooter
+
             voice = payload.get("voice")
             text = payload.get("text")
             provider = payload.get("provider")
@@ -2612,26 +2653,32 @@ class VoicePanelRequestHandler(http.server.BaseHTTPRequestHandler):
 
         if path == "/api/troubleshoot/mic_loopback":
             from voicefi.troubleshoot import AudioTroubleshooter
+
             dur = float(payload.get("duration", 3.0))
             play_back = bool(payload.get("play_back", True))
-            res = AudioTroubleshooter(self.server.config).test_microphone_loopback(duration_seconds=dur, play_back=play_back)
+            res = AudioTroubleshooter(self.server.config).test_microphone_loopback(
+                duration_seconds=dur, play_back=play_back
+            )
             self._send_json(res.to_dict())
             return
 
         if path == "/api/troubleshoot/benchmark":
             from voicefi.troubleshoot import AudioTroubleshooter
+
             res = AudioTroubleshooter(self.server.config).benchmark_all_curated_voices()
             self._send_json({"status": "success", "benchmarks": res})
             return
 
         if path == "/api/troubleshoot/vad":
             from voicefi.troubleshoot import AudioTroubleshooter
+
             res = AudioTroubleshooter(self.server.config).test_vad()
             self._send_json({"status": "success", "vad": res})
             return
 
         if path == "/api/troubleshoot/fix":
             from voicefi.troubleshoot import AudioTroubleshooter
+
             fix_type = payload.get("fix_type", "reset_audio_defaults")
             res = AudioTroubleshooter(self.server.config).apply_fix(fix_type)
             self._send_json(res)
@@ -2639,12 +2686,16 @@ class VoicePanelRequestHandler(http.server.BaseHTTPRequestHandler):
 
         if path == "/api/offline/open_settings":
             from voicefi.tts.offline import open_spoken_content_settings
+
             success = open_spoken_content_settings()
-            self._send_json({"success": success, "message": "Opened macOS Spoken Content settings."})
+            self._send_json(
+                {"success": success, "message": "Opened macOS Spoken Content settings."}
+            )
             return
 
         if path == "/api/offline/configure_ava":
             from voicefi.tts.offline import configure_offline_voice, is_voice_installed
+
             installed, exact = is_voice_installed("Ava")
             target_v = exact or "Ava (Premium)"
             res = configure_offline_voice(target_v, config=self.server.config)
@@ -2652,19 +2703,29 @@ class VoicePanelRequestHandler(http.server.BaseHTTPRequestHandler):
             return
 
         if path == "/api/hud/preview":
-            text = payload.get("text", "I'm your active AI pairing agent. All tests passed and changes are ready to ship.")
+            text = payload.get(
+                "text",
+                "I'm your active AI pairing agent. All tests passed and changes are ready to ship.",
+            )
             agent = payload.get("agent", "Antigravity")
             persona = payload.get("persona", "Viv")
             try:
                 from voicefi.ui.speech_hud import AgentSpeechHUD
+
                 hud = AgentSpeechHUD.get_instance()
                 pos = getattr(self.server.config.antigravity, "speech_popup_position", "top_center")
-                hud.show_speech(text, agent_name=agent, persona_name=persona, is_speaking=True, position=pos)
+                hud.show_speech(
+                    text, agent_name=agent, persona_name=persona, is_speaking=True, position=pos
+                )
+
                 def _auto_finish():
                     time.sleep(3.5)
                     hud.finish_speech(linger_seconds=3.0)
+
                 threading.Thread(target=_auto_finish, daemon=True).start()
-                self._send_json({"status": "previewing", "text": text, "agent": agent, "persona": persona})
+                self._send_json(
+                    {"status": "previewing", "text": text, "agent": agent, "persona": persona}
+                )
             except Exception as e:
                 self._send_json({"error": str(e)}, status=500)
             return
@@ -2684,7 +2745,10 @@ class VoicePanelRequestHandler(http.server.BaseHTTPRequestHandler):
             if getattr(self.server.config.antigravity, "show_speech_popup", True):
                 try:
                     from voicefi.ui.speech_hud import AgentSpeechHUD
-                    pos = getattr(self.server.config.antigravity, "speech_popup_position", "top_center")
+
+                    pos = getattr(
+                        self.server.config.antigravity, "speech_popup_position", "top_center"
+                    )
                     AgentSpeechHUD.get_instance().show_speech(
                         text,
                         agent_name="Audition",
@@ -2710,7 +2774,10 @@ class VoicePanelRequestHandler(http.server.BaseHTTPRequestHandler):
                     if getattr(self.server.config.antigravity, "show_speech_popup", True):
                         try:
                             from voicefi.ui.speech_hud import AgentSpeechHUD
-                            linger = getattr(self.server.config.antigravity, "speech_popup_linger_seconds", 2.5)
+
+                            linger = getattr(
+                                self.server.config.antigravity, "speech_popup_linger_seconds", 2.5
+                            )
                             AgentSpeechHUD.get_instance().finish_speech(linger_seconds=linger)
                         except Exception:
                             pass
@@ -2723,6 +2790,7 @@ class VoicePanelRequestHandler(http.server.BaseHTTPRequestHandler):
             stop_all_speech()
             try:
                 from voicefi.ui.speech_hud import AgentSpeechHUD
+
                 AgentSpeechHUD.get_instance().hide()
             except Exception:
                 pass
@@ -2758,18 +2826,19 @@ class VoicePanelRequestHandler(http.server.BaseHTTPRequestHandler):
                 b64 = base64.b64encode(wav_bytes).decode("utf-8")
                 dur = round(len(audio_data) / 16000, 2)
                 clean_name = "".join(c if c.isalnum() else "_" for c in prompt_title.lower())
-                self._send_json({
-                    "status": "success",
-                    "filename": f"sample_{clean_name}_{int(time.time())}.wav",
-                    "data": f"data:audio/wav;base64,{b64}",
-                    "duration": dur,
-                })
+                self._send_json(
+                    {
+                        "status": "success",
+                        "filename": f"sample_{clean_name}_{int(time.time())}.wav",
+                        "data": f"data:audio/wav;base64,{b64}",
+                        "duration": dur,
+                    }
+                )
             except Exception as e:
                 self._send_json({"error": f"Microphone capture error: {str(e)}"}, status=500)
             return
 
         if path == "/api/clone/train":
-
             import base64
             import tempfile
             from voicefi.tts.cloning import VoiceCloneManager
@@ -2810,7 +2879,9 @@ class VoicePanelRequestHandler(http.server.BaseHTTPRequestHandler):
                         sample_paths.append(Path(tf.name))
 
                 if not sample_paths:
-                    self._send_json({"error": "At least one audio sample or recording is required."}, status=400)
+                    self._send_json(
+                        {"error": "At least one audio sample or recording is required."}, status=400
+                    )
                     return
 
                 manager = VoiceCloneManager()
@@ -2825,11 +2896,13 @@ class VoicePanelRequestHandler(http.server.BaseHTTPRequestHandler):
                 if target_agent:
                     manager.assign_to_agent(profile.name, target_agent, self.server.config)
 
-                self._send_json({
-                    "status": "success",
-                    "profile": profile.model_dump(),
-                    "assigned": target_agent,
-                })
+                self._send_json(
+                    {
+                        "status": "success",
+                        "profile": profile.model_dump(),
+                        "assigned": target_agent,
+                    }
+                )
             except Exception as e:
                 self._send_json({"error": str(e)}, status=500)
             finally:
@@ -2842,15 +2915,19 @@ class VoicePanelRequestHandler(http.server.BaseHTTPRequestHandler):
 
         if path == "/api/clone/delete":
             from voicefi.tts.cloning import VoiceCloneManager
+
             name = payload.get("name", "")
             from_provider = payload.get("from_provider", False)
             api_key = self.server.config.tts.elevenlabs_api_key
-            success = VoiceCloneManager().delete_cloned_voice(name, delete_from_elevenlabs=from_provider, api_key=api_key)
+            success = VoiceCloneManager().delete_cloned_voice(
+                name, delete_from_elevenlabs=from_provider, api_key=api_key
+            )
             self._send_json({"status": "success" if success else "not_found"})
             return
 
         if path == "/api/clone/assign":
             from voicefi.tts.cloning import VoiceCloneManager
+
             name = payload.get("name", "")
             target = payload.get("target", "antigravity")
             try:
@@ -2878,13 +2955,15 @@ class VoicePanelRequestHandler(http.server.BaseHTTPRequestHandler):
             self.server.config.agents["claude"] = profile
             save_config(self.server.config)
 
-            self._send_json({
-                "status": "success",
-                "target": "claude",
-                "voice": resolved_voice,
-                "provider": resolved_provider,
-                "name": persona.name if persona else resolved_voice,
-            })
+            self._send_json(
+                {
+                    "status": "success",
+                    "target": "claude",
+                    "voice": resolved_voice,
+                    "provider": resolved_provider,
+                    "name": persona.name if persona else resolved_voice,
+                }
+            )
             return
 
         if path == "/api/assign":
@@ -2895,12 +2974,15 @@ class VoicePanelRequestHandler(http.server.BaseHTTPRequestHandler):
 
             try:
                 from voicefi.tts.cloning import VoiceCloneManager
+
                 clone_mgr = VoiceCloneManager()
                 clone_prof = clone_mgr.get_cloned_voice(voice_id)
                 if clone_prof:
                     clone_mgr.assign_to_agent(clone_prof.name, target, self.server.config)
                     save_config(self.server.config)
-                    self._send_json({"status": "success", "target": target, "voice": clone_prof.name})
+                    self._send_json(
+                        {"status": "success", "target": target, "voice": clone_prof.name}
+                    )
                     return
             except Exception:
                 pass
@@ -2933,12 +3015,14 @@ class VoicePanelRequestHandler(http.server.BaseHTTPRequestHandler):
                 self.server.config.agents[target] = profile
 
             save_config(self.server.config)
-            self._send_json({
-                "status": "success",
-                "target": target,
-                "voice": resolved_voice,
-                "provider": resolved_provider,
-            })
+            self._send_json(
+                {
+                    "status": "success",
+                    "target": target,
+                    "voice": resolved_voice,
+                    "provider": resolved_provider,
+                }
+            )
             return
 
         if path == "/api/settings":
@@ -2968,7 +3052,9 @@ class VoicePanelRequestHandler(http.server.BaseHTTPRequestHandler):
 
                 def _audition():
                     try:
-                        eng = get_tts_engine(self.server.config, voice_override=vid, provider_override=prov)
+                        eng = get_tts_engine(
+                            self.server.config, voice_override=vid, provider_override=prov
+                        )
                         eng.speak(stext, block=True)
                     except Exception as e:
                         print(f"[Panel API] Audition voice command error: {e}")
@@ -2976,16 +3062,39 @@ class VoicePanelRequestHandler(http.server.BaseHTTPRequestHandler):
                 threading.Thread(target=_audition, daemon=True).start()
 
             elif result.get("action") == "showcase":
+
                 def _showcase():
                     cast = [
-                        ("Christopher", "en-US-ChristopherNeural", "edge_tts", "Hey! I'm Christopher. Calm and authoritative for planning."),
-                        ("Aria", "en-US-EmmaNeural", "edge_tts", "And I'm Aria! Energetic and crisp for test results."),
-                        ("Sonia", "en-GB-SoniaNeural", "edge_tts", "I am Sonia, analytical and focused for research."),
-                        ("Guy", "en-US-GuyNeural", "edge_tts", "Hey there! I'm Guy, ready for pair programming."),
+                        (
+                            "Christopher",
+                            "en-US-ChristopherNeural",
+                            "edge_tts",
+                            "Hey! I'm Christopher. Calm and authoritative for planning.",
+                        ),
+                        (
+                            "Aria",
+                            "en-US-EmmaNeural",
+                            "edge_tts",
+                            "And I'm Aria! Energetic and crisp for test results.",
+                        ),
+                        (
+                            "Sonia",
+                            "en-GB-SoniaNeural",
+                            "edge_tts",
+                            "I am Sonia, analytical and focused for research.",
+                        ),
+                        (
+                            "Guy",
+                            "en-US-GuyNeural",
+                            "edge_tts",
+                            "Hey there! I'm Guy, ready for pair programming.",
+                        ),
                     ]
                     for name, vid, prov, txt in cast:
                         try:
-                            eng = get_tts_engine(self.server.config, voice_override=vid, provider_override=prov)
+                            eng = get_tts_engine(
+                                self.server.config, voice_override=vid, provider_override=prov
+                            )
                             eng.speak(txt, block=True)
                         except Exception:
                             pass
@@ -3020,7 +3129,6 @@ class VoicePanelRequestHandler(http.server.BaseHTTPRequestHandler):
         self.send_error(404, "Endpoint not found")
 
 
-
 class VoicePanelServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     daemon_threads = True
     allow_reuse_address = True
@@ -3028,7 +3136,6 @@ class VoicePanelServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     def __init__(self, server_address, RequestHandlerClass, config: VoiceFiConfig):
         super().__init__(server_address, RequestHandlerClass)
         self.config = config
-
 
 
 _server_instance: Optional[VoicePanelServer] = None
@@ -3049,9 +3156,7 @@ def start_panel_server(
     # Try requested port or fallback
     for p in range(port, port + 20):
         try:
-            _server_instance = VoicePanelServer(
-                ("127.0.0.1", p), VoicePanelRequestHandler, cfg
-            )
+            _server_instance = VoicePanelServer(("127.0.0.1", p), VoicePanelRequestHandler, cfg)
             actual_port = p
             break
         except OSError:

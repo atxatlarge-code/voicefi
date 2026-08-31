@@ -16,10 +16,10 @@ from voicefi.config import load_config, save_config, VoiceFiConfig
 def is_voice_installed(target_name: str = "Ava") -> Tuple[bool, Optional[str]]:
     """
     Check if a specific macOS system voice is installed and available in `say -v ?`.
-    
+
     Checks for exact matches as well as Premium / Enhanced variants.
     e.g. 'Ava' matches 'Ava (Premium)', 'Ava (Enhanced)', or 'Ava'.
-    
+
     Returns:
         (is_installed, matched_voice_name)
     """
@@ -35,16 +35,16 @@ def is_voice_installed(target_name: str = "Ava") -> Tuple[bool, Optional[str]]:
             m = re.match(r"^([^\t#]+?)\s+([a-z]{2}_[A-Za-z0-9]+)\s+#", line)
             v_name = m.group(1).strip() if m else line.split()[0]
             v_name_lower = v_name.lower()
-            
+
             # 1. Exact match (e.g. 'Ava (Premium)')
             if v_name_lower == target_clean:
                 return True, v_name
-            
+
             # 2. Base name match (e.g. 'Ava' matches 'Ava (Premium)' or 'Ava (Enhanced)')
             # Ensure it matches as a distinct word prefix or base
             if v_name_lower.startswith(f"{target_clean} (") or v_name_lower == target_clean:
                 return True, v_name
-                
+
             # 3. Check if target is inside name (e.g. 'Ava' inside 'Ava (Premium)')
             if target_clean in v_name_lower.split():
                 return True, v_name
@@ -71,15 +71,17 @@ def list_installed_neural_voices() -> List[Dict[str, str]]:
                 v_name = parts[0]
                 v_locale = parts[1] if len(parts) > 1 else ""
                 v_desc = " ".join(parts[2:]) if len(parts) > 2 else ""
-            
+
             if "(premium)" in v_name.lower() or "(enhanced)" in v_name.lower():
-                neural_voices.append({
-                    "id": v_name,
-                    "name": v_name,
-                    "locale": v_locale,
-                    "description": v_desc,
-                    "is_premium": "(premium)" in v_name.lower(),
-                })
+                neural_voices.append(
+                    {
+                        "id": v_name,
+                        "name": v_name,
+                        "locale": v_locale,
+                        "description": v_desc,
+                        "is_premium": "(premium)" in v_name.lower(),
+                    }
+                )
     except Exception:
         pass
     return neural_voices
@@ -93,19 +95,22 @@ def open_spoken_content_settings() -> bool:
     try:
         # Standard macOS URL scheme for Spoken Content
         subprocess.run(
-            ["open", "x-apple.systempreferences:com.apple.preference.universalaccess?SpokenContent"],
+            [
+                "open",
+                "x-apple.systempreferences:com.apple.preference.universalaccess?SpokenContent",
+            ],
             check=True,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             timeout=5,
         )
-        
+
         # Best-effort AppleScript to bring System Settings frontmost
-        applescript = '''
+        applescript = """
         tell application "System Settings"
             activate
         end tell
-        '''
+        """
         subprocess.run(
             ["osascript", "-e", applescript],
             stdout=subprocess.DEVNULL,
@@ -154,8 +159,12 @@ def configure_offline_voice(
     if speak_confirmation:
         try:
             from voicefi.tts.mac_say import MacSayTTS
+
             engine = MacSayTTS(voice=voice_name, rate=config.tts.rate)
-            engine.speak(f"Hello! {voice_name} is active for instant zero-latency offline speech.", block=True)
+            engine.speak(
+                f"Hello! {voice_name} is active for instant zero-latency offline speech.",
+                block=True,
+            )
         except Exception:
             pass
 
@@ -175,19 +184,21 @@ def run_download_ava_workflow(
 ) -> Dict[str, Any]:
     """
     Run the interactive or automated workflow to detect or guide downloading Ava (Premium) on macOS.
-    
+
     1. Checks if Ava is already installed.
     2. If yes -> immediately configures VoiceFi and speaks confirmation.
     3. If no -> opens System Settings to Spoken Content, displays clear guidance, and polls until complete.
     """
     # 1. Check if Ava is already installed
     installed, exact_voice = is_voice_installed("Ava")
-    
+
     if check_only:
         return {
             "installed": installed,
             "voice": exact_voice,
-            "message": f"Ava is installed as '{exact_voice}'." if installed else "Ava is not currently installed.",
+            "message": f"Ava is installed as '{exact_voice}'."
+            if installed
+            else "Ava is not currently installed.",
         }
 
     if installed and exact_voice:
@@ -196,11 +207,15 @@ def run_download_ava_workflow(
             print(f" ✨ Detected Apple Neural Voice: \033[1;32m{exact_voice}\033[0m")
             print("=" * 65)
             print(" 🚀 Configuring VoiceFi for instant 0ms offline speech...")
-        
+
         result = configure_offline_voice(exact_voice, speak_confirmation=not silent)
         if not silent:
-            print(f" ✅ VoiceFi default voice is now set to: \033[1;36m{exact_voice}\033[0m (mac_say)")
-            print(" ⚡ Latency: ~0ms (Zero network roundtrip, runs 100% offline on Apple Silicon)\n")
+            print(
+                f" ✅ VoiceFi default voice is now set to: \033[1;36m{exact_voice}\033[0m (mac_say)"
+            )
+            print(
+                " ⚡ Latency: ~0ms (Zero network roundtrip, runs 100% offline on Apple Silicon)\n"
+            )
         return result
 
     # 2. Not installed yet — display guidance and open settings
@@ -208,14 +223,20 @@ def run_download_ava_workflow(
         print("\n" + "╭" + "─" * 68 + "╮")
         print("│ 🎙️  \033[1mVoiceFi • Download Ava (Premium) for 0ms Offline Speech\033[0m        │")
         print("╰" + "─" * 68 + "╯")
-        print("\nApple includes the ultra-realistic \033[1mAva (Premium)\033[0m neural voice directly")
+        print(
+            "\nApple includes the ultra-realistic \033[1mAva (Premium)\033[0m neural voice directly"
+        )
         print("in macOS for zero-latency, 100% private offline speech synthesis.\n")
         print("⚡ \033[1;36mOpening macOS Spoken Content settings for you now...\033[0m\n")
         print("👉 \033[1mQuick Steps in System Settings:\033[0m")
-        print("   1. Click the \033[1m\"System voice\"\033[0m dropdown")
-        print("   2. Select \033[1m\"Manage Voices...\"\033[0m")
-        print("   3. Find or search \033[1m\"Ava\"\033[0m under \033[1mEnglish (United States)\033[0m")
-        print("   4. Click the download icon \033[1;32m⬇️\033[0m next to \033[1mAva (Premium)\033[0m (or Ava Enhanced)")
+        print('   1. Click the \033[1m"System voice"\033[0m dropdown')
+        print('   2. Select \033[1m"Manage Voices..."\033[0m')
+        print(
+            '   3. Find or search \033[1m"Ava"\033[0m under \033[1mEnglish (United States)\033[0m'
+        )
+        print(
+            "   4. Click the download icon \033[1;32m⬇️\033[0m next to \033[1mAva (Premium)\033[0m (or Ava Enhanced)"
+        )
         print("   5. Click \033[1mOK\033[0m when the download finishes\n")
 
     opened = open_spoken_content_settings()
@@ -232,7 +253,9 @@ def run_download_ava_workflow(
 
     # 3. Live polling loop
     if not silent:
-        print("⏳ \033[1mWaiting for Ava download to finish...\033[0m (auto-detecting, press Ctrl+C to cancel)")
+        print(
+            "⏳ \033[1mWaiting for Ava download to finish...\033[0m (auto-detecting, press Ctrl+C to cancel)"
+        )
 
     start_time = time.time()
     spinner_chars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
@@ -245,23 +268,33 @@ def run_download_ava_workflow(
                 if not silent:
                     print(f"\r\033[K🎉 \033[1;32m{exact_voice} detected and ready!\033[0m")
                     print("⚡ Applying configuration...")
-                
+
                 result = configure_offline_voice(exact_voice, speak_confirmation=not silent)
                 if not silent:
-                    print(f"✅ VoiceFi is now configured for instant 0ms offline speech with \033[1;36m{exact_voice}\033[0m!\n")
+                    print(
+                        f"✅ VoiceFi is now configured for instant 0ms offline speech with \033[1;36m{exact_voice}\033[0m!\n"
+                    )
                 return result
 
             if not silent:
                 elapsed = int(time.time() - start_time)
                 spin = spinner_chars[idx % len(spinner_chars)]
-                print(f"\r\033[K{spin} Waiting for Ava download to complete... ({elapsed}s elapsed)", end="", flush=True)
+                print(
+                    f"\r\033[K{spin} Waiting for Ava download to complete... ({elapsed}s elapsed)",
+                    end="",
+                    flush=True,
+                )
                 idx += 1
 
             time.sleep(2.0)
         except KeyboardInterrupt:
             if not silent:
-                print("\n\n💡 Polling paused. Once Ava finishes downloading, activate it anytime with:")
-                print("   \033[1;36mvifi voice download-ava\033[0m or \033[1;36mvifi voice set antigravity \"Ava (Premium)\"\033[0m\n")
+                print(
+                    "\n\n💡 Polling paused. Once Ava finishes downloading, activate it anytime with:"
+                )
+                print(
+                    '   \033[1;36mvifi voice download-ava\033[0m or \033[1;36mvifi voice set antigravity "Ava (Premium)"\033[0m\n'
+                )
             return {
                 "success": False,
                 "installed": False,

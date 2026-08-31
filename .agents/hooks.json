@@ -1,12 +1,1 @@
-{
-  "voicefi-voice-layer": {
-    "enabled": true,
-    "Stop": [
-      {
-        "type": "command",
-        "command": "/Users/jaketrigg/Projects/VoiceFi/.venv/bin/voicefi hook",
-        "timeout": 60
-      }
-    ]
-  }
-}
+{}

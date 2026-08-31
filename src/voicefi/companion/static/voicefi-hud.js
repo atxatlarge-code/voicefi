@@ -2,7 +2,8 @@
  * VoiceFi Dynamic Island HUD Web Controller & Reactive SVG Engine
  * Shared between macOS Companion HUD, Web Mocks, and voicefi.org
  * 
- * Supports states: 'idle', 'thinking', 'speaking', 'listening', 'working'
+ * Supports states: 'idle', 'thinking', 'speaking', 'listening', 'working',
+ * 'hearing', 'new_conversation', 'editing', 'meeting', 'paused', 'transcribing', 'done', 'user_prompt'
  */
 
 (function (global) {
@@ -13,12 +14,16 @@
    * State dynamically shifts lighting across Wi-Fi hat, eyes/nose, mouth/jaw, and ear waves.
    */
   function getVoiceFiReactiveSVG(state = 'idle') {
-    const validStates = ['idle', 'thinking', 'speaking', 'listening', 'working'];
+    const validStates = [
+      'idle', 'thinking', 'speaking', 'listening', 'working',
+      'hearing', 'new_conversation', 'editing', 'meeting',
+      'paused', 'transcribing', 'done', 'user_prompt'
+    ];
     const safeState = validStates.includes(state) ? state : 'idle';
     const stateClass = `vifi-active-${safeState}`;
 
     return `
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="50 50 412 412" class="w-full h-full object-contain ${stateClass}" style="overflow: visible;" aria-label="VoiceFi Status: ${safeState}">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="40 50 432 412" class="w-full h-full object-contain ${stateClass}" style="overflow: visible;" aria-label="VoiceFi Status: ${safeState}">
         <g transform="translate(0, 15)">
           <g class="vifi-wifi-group" fill="none" stroke-linecap="round">
             <path class="vifi-wifi-crown" d="M 152 145 A 120 120 0 0 1 360 145" stroke="#FFFFFF" stroke-width="18" />
@@ -62,12 +67,17 @@
    * Updates a mounted Dynamic Island HUD container.
    */
   function updateVoiceFiHud(state, options = {}) {
-    const safeState = ['idle', 'speaking', 'thinking', 'working', 'listening'].includes(state) ? state : 'idle';
+    const validStates = [
+      'idle', 'thinking', 'speaking', 'listening', 'working',
+      'hearing', 'new_conversation', 'editing', 'meeting',
+      'paused', 'transcribing', 'done', 'user_prompt'
+    ];
+    const safeState = validStates.includes(state) ? state : 'idle';
     const title = options.title || 'VoiceFi';
     const tag = options.tag || '';
     const tagColor = options.tagColor || 'text-slate-300';
     const body = options.body || 'Standing by • Dictate (⌃T) or speak to agent (⌃R)';
-    const showAppIcon = options.showAppIcon !== undefined ? options.showAppIcon : true;
+    const showAppIcon = options.showAppIcon !== undefined ? options.showAppIcon : (state !== 'idle');
     const personaName = options.personaName || null;
 
     const capsule = document.getElementById('simLiveHudCapsule');
@@ -83,7 +93,7 @@
 
     // 1. Inject Reactive Vector SVG Mark
     if (logoHost) {
-      logoHost.innerHTML = getVoiceFiReactiveSVG(state);
+      logoHost.innerHTML = getVoiceFiReactiveSVG(safeState);
     }
 
     // 2. Update Titles & Status Tag
@@ -100,7 +110,13 @@
 
     // 4. Update Aura Halos & Right Visualizers
     if (capsule) {
-      capsule.classList.remove('glow-speaking', 'glow-thinking', 'glow-working', 'glow-listening', 'hud-state-idle', 'hud-state-listening', 'hud-state-speaking', 'hud-state-thinking', 'hud-state-working');
+      capsule.classList.remove(
+        'glow-speaking', 'glow-thinking', 'glow-working', 'glow-listening', 'glow-new_conversation',
+        'glow-editing', 'glow-hearing', 'glow-meeting', 'glow-paused', 'glow-transcribing', 'glow-done', 'glow-user_prompt',
+        'hud-state-idle', 'hud-state-listening', 'hud-state-speaking', 'hud-state-thinking', 'hud-state-working',
+        'hud-state-hearing', 'hud-state-new_conversation', 'hud-state-editing', 'hud-state-meeting',
+        'hud-state-paused', 'hud-state-transcribing', 'hud-state-done', 'hud-state-user_prompt'
+      );
       capsule.classList.add('hud-state-' + safeState);
     }
     if (waveBars) {
@@ -120,41 +136,47 @@
       vadVisualizer.classList.remove('flex');
     }
 
-    if (state === 'speaking') {
+    if (safeState === 'speaking') {
       if (waveBars) {
         waveBars.classList.remove('hidden');
         waveBars.classList.add('flex');
       }
-    } else if (state === 'thinking') {
+    } else if (safeState === 'thinking') {
       if (thinkingBadge) {
         thinkingBadge.classList.remove('hidden');
         thinkingBadge.classList.add('flex');
       }
-    } else if (state === 'working') {
+    } else if (safeState === 'working') {
       if (workingBadge) {
         workingBadge.classList.remove('hidden');
         workingBadge.classList.add('flex');
       }
-    } else if (state === 'listening') {
+    } else if (safeState === 'listening' || safeState === 'hearing' || safeState === 'new_conversation') {
       if (vadVisualizer) {
         vadVisualizer.classList.remove('hidden');
         vadVisualizer.classList.add('flex');
       }
     }
 
-    // 5. Update Connected App / Persona Logo Badge
+    // 5. Update Connected App / Persona Logo Badge (Hidden on idle)
     if (appBadge) {
-      if (showAppIcon) {
+      const isVisibleState = ['speaking', 'thinking', 'working', 'new_conversation', 'editing', 'user_prompt'].includes(safeState);
+      if (showAppIcon && isVisibleState) {
         appBadge.style.display = 'flex';
+        appBadge.classList.remove('hidden');
         const name = personaName || (typeof window !== 'undefined' && window.selectedVoiceKey && typeof voicePersonas !== 'undefined' && voicePersonas[window.selectedVoiceKey] ? voicePersonas[window.selectedVoiceKey].name : null);
-        if (state === 'speaking' && name) {
+        if (safeState === 'speaking' && name) {
           appBadge.innerText = (name === 'Christopher' ? '🧔' : (name === 'Viv' ? '✨' : (name === 'Aria' ? '⚡' : (name === 'Emily' ? '🍀' : (name === 'Sonia' ? '🔬' : '🤖')))));
+        } else if (safeState === 'new_conversation') {
+          appBadge.innerText = '⚡';
+        } else if (safeState === 'editing') {
+          appBadge.innerText = '✏️';
         } else {
           appBadge.innerText = '🤖';
         }
       } else {
-        appBadge.style.display = 'flex';
-        appBadge.innerText = '🎙️';
+        appBadge.style.display = 'none';
+        appBadge.classList.add('hidden');
       }
     }
   }

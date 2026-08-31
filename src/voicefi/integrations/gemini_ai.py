@@ -28,8 +28,16 @@ class GeminiIntelligenceEngine:
     def __init__(self, config: Optional[VoiceFiConfig] = None):
         self.config = config or load_config()
         self._api_key = self._resolve_api_key()
-        self.model = getattr(self.config.gemini, "model", "gemini-2.5-flash") if hasattr(self.config, "gemini") else "gemini-2.5-flash"
-        self.temperature = getattr(self.config.gemini, "temperature", 0.2) if hasattr(self.config, "gemini") else 0.2
+        self.model = (
+            getattr(self.config.gemini, "model", "gemini-2.5-flash")
+            if hasattr(self.config, "gemini")
+            else "gemini-2.5-flash"
+        )
+        self.temperature = (
+            getattr(self.config.gemini, "temperature", 0.2)
+            if hasattr(self.config, "gemini")
+            else 0.2
+        )
 
     def _resolve_api_key(self) -> str:
         """Resolve API key from VoiceFi config or standard environment variables."""
@@ -80,9 +88,7 @@ class GeminiIntelligenceEngine:
         }
 
         if system_instruction:
-            body["systemInstruction"] = {
-                "parts": [{"text": system_instruction}]
-            }
+            body["systemInstruction"] = {"parts": [{"text": system_instruction}]}
 
         try:
             resp = requests.post(url, headers=headers, json=body, timeout=timeout)
@@ -94,7 +100,9 @@ class GeminiIntelligenceEngine:
                     if parts and "text" in parts[0]:
                         return parts[0]["text"].strip()
             else:
-                logger.debug("Gemini API non-200 response [%s]: %s", resp.status_code, resp.text[:200])
+                logger.debug(
+                    "Gemini API non-200 response [%s]: %s", resp.status_code, resp.text[:200]
+                )
         except Exception as e:
             logger.debug("Gemini API request exception: %s", e)
 

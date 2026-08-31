@@ -132,7 +132,9 @@ class MemoBufferRecorder:
         # Visual banner for terminal
         if interactive:
             print("\n" + "─" * 68)
-            print(f"🎙️  VOICE MEMO BUFFER  │  Target: {self.format_time(total_target_duration)}  │  Speak freely & pace")
+            print(
+                f"🎙️  VOICE MEMO BUFFER  │  Target: {self.format_time(total_target_duration)}  │  Speak freely & pace"
+            )
             print("⌨️   [Enter] Finish & Save  │  [Space] Pause  │  [Ctrl+C] Cancel")
             print("─" * 68 + "\n")
 
@@ -159,7 +161,7 @@ class MemoBufferRecorder:
                     continue
                 else:
                     if last_pause_start > 0.0:
-                        paused_duration += (now - last_pause_start)
+                        paused_duration += now - last_pause_start
                         last_pause_start = 0.0
                         if on_state_change:
                             on_state_change("recording")
@@ -172,7 +174,7 @@ class MemoBufferRecorder:
                 recorded_frames.append(audio_chunk)
 
                 # Energy calculations
-                energy = float(np.sqrt(np.mean(audio_chunk ** 2)))
+                energy = float(np.sqrt(np.mean(audio_chunk**2)))
                 smoothed_energy = 0.3 * smoothed_energy + 0.7 * energy
 
                 elapsed = (now - start_time) - paused_duration
@@ -184,7 +186,11 @@ class MemoBufferRecorder:
                 # Render terminal timer line
                 if interactive:
                     meter = self.render_meter(smoothed_energy)
-                    pct = min(100, int((elapsed / total_target_duration) * 100)) if total_target_duration > 0 else 100
+                    pct = (
+                        min(100, int((elapsed / total_target_duration) * 100))
+                        if total_target_duration > 0
+                        else 100
+                    )
                     status_text = f"\r⏱️  [{self.format_time(elapsed)} / {self.format_time(total_target_duration)}] ({pct:2d}%)  Level: {meter}  "
                     sys.stdout.write(status_text)
                     sys.stdout.flush()
@@ -203,8 +209,12 @@ class MemoBufferRecorder:
 
                     if interactive:
                         sys.stdout.write("\n\n" + "─" * 68 + "\n")
-                        sys.stdout.write(f"⏰  TIMER REACHED ({self.format_time(total_target_duration)})!\n")
-                        sys.stdout.write("Extend recording?  [1] +1 min   [2] +2 min   [3] +5 min   [Enter] Wrap up\n")
+                        sys.stdout.write(
+                            f"⏰  TIMER REACHED ({self.format_time(total_target_duration)})!\n"
+                        )
+                        sys.stdout.write(
+                            "Extend recording?  [1] +1 min   [2] +2 min   [3] +5 min   [Enter] Wrap up\n"
+                        )
                         sys.stdout.write("─" * 68 + "\n")
                         sys.stdout.flush()
 
@@ -213,7 +223,9 @@ class MemoBufferRecorder:
                         if extended_sec > 0:
                             total_target_duration += extended_sec
                             timer_landed_handled = False
-                            sys.stdout.write(f"⏳ Extended by +{int(extended_sec//60)} min! Total target: {self.format_time(total_target_duration)}\n\n")
+                            sys.stdout.write(
+                                f"⏳ Extended by +{int(extended_sec // 60)} min! Total target: {self.format_time(total_target_duration)}\n\n"
+                            )
                             sys.stdout.flush()
                         else:
                             sys.stdout.write("✨ Finalizing voice memo...\n")
@@ -254,7 +266,9 @@ class MemoBufferRecorder:
         play_chime("done", block=False)
 
         if interactive:
-            print(f"\n\n🎉 Recording captured: {self.format_time(actual_duration)} ({len(audio_array)} samples)")
+            print(
+                f"\n\n🎉 Recording captured: {self.format_time(actual_duration)} ({len(audio_array)} samples)"
+            )
 
         return audio_array, wav_path, actual_duration
 
@@ -275,15 +289,15 @@ class MemoBufferRecorder:
                 r, _, _ = select.select([sys.stdin], [], [], 0.2)
                 if r:
                     ch = sys.stdin.read(1)
-                    if ch == '1':
+                    if ch == "1":
                         return 60.0
-                    elif ch == '2':
+                    elif ch == "2":
                         return 120.0
-                    elif ch == '3':
+                    elif ch == "3":
                         return 300.0
-                    elif ch in ('\n', '\r', ' '):
+                    elif ch in ("\n", "\r", " "):
                         return 0.0
-                    elif ch == 'q':
+                    elif ch == "q":
                         return 0.0
         except Exception:
             return 0.0

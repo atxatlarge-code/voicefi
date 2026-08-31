@@ -3,6 +3,7 @@ import pytest
 from pathlib import Path
 from voicefi.config import VoiceFiConfig, save_config
 
+
 @pytest.fixture(autouse=True)
 def isolate_test_config(tmp_path, monkeypatch):
     """Isolate tests so they never read or write ~/.voicefi/config.yaml or shared temp files."""
@@ -47,12 +48,14 @@ def isolate_test_config(tmp_path, monkeypatch):
     monkeypatch.setenv("VOICEFI_AUDIO_PLAYING_STATUS", str(test_audio_playing_file))
 
     import voicefi.tts.base as tts_base
+
     tts_base.set_agent_speaking(False)
     tts_base._IN_PROCESS_SPEAKING = False
     tts_base._IN_PROCESS_AUDIO_PLAYING = False
     tts_base._LOCK_DEPTH = 0
 
     from voicefi.audio.echo_canceller import clear_agent_spoken_history
+
     clear_agent_spoken_history()
 
     yield test_config_file
@@ -67,9 +70,11 @@ def isolate_test_config(tmp_path, monkeypatch):
 @pytest.fixture(autouse=True)
 def cleanup_ui_singletons():
     """Ensure all HUD, Activity Hub, VAD Monitor UI instances and temp files are cleaned up before and after each test."""
+
     def _do_cleanup():
         try:
             from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
+
             if UnifiedDynamicIslandHUD._instance is not None:
                 UnifiedDynamicIslandHUD._instance.force_hide()
                 UnifiedDynamicIslandHUD._instance = None
@@ -78,6 +83,7 @@ def cleanup_ui_singletons():
 
         try:
             from voicefi.ui.hub import ConversationHubWindow
+
             if ConversationHubWindow._instance is not None:
                 ConversationHubWindow._instance.hide()
                 ConversationHubWindow._instance = None
@@ -86,6 +92,7 @@ def cleanup_ui_singletons():
 
         try:
             from voicefi.audio.monitor import LiveVADMonitor
+
             if LiveVADMonitor._instance is not None:
                 LiveVADMonitor._instance.stop()
                 LiveVADMonitor._instance = None
@@ -114,6 +121,7 @@ def cleanup_ui_singletons():
 def prevent_real_audio_playback(monkeypatch):
     """Ensure automated tests never play real audio or trigger afplay/say subprocesses."""
     import subprocess
+
     orig_run = subprocess.run
 
     def safe_subprocess_run(args, *pargs, **kwargs):
@@ -121,12 +129,13 @@ def prevent_real_audio_playback(monkeypatch):
             cmd = str(args[0])
             if cmd in ("afplay", "say"):
                 from unittest.mock import MagicMock
+
                 return MagicMock(returncode=0, stdout=b"", stderr=b"")
         elif isinstance(args, str) and (args.startswith("afplay ") or args.startswith("say ")):
             from unittest.mock import MagicMock
+
             return MagicMock(returncode=0, stdout=b"", stderr=b"")
         return orig_run(args, *pargs, **kwargs)
 
     monkeypatch.setattr(subprocess, "run", safe_subprocess_run)
     yield
-

@@ -125,36 +125,100 @@ VOICEFI_MASTER_LOCKUP_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="
 TYPOGRAPHY_PRESETS = {
     "classic_ai": {
         "google_fonts_url": "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@700&family=Newsreader:ital,opsz,wght@0,6..72,600;1,6..72,600&family=Orbitron:wght@800;900&family=Space+Grotesk:wght@700;800&display=swap",
-        "viv": { "font_family": "'Space Grotesk', sans-serif", "font_weight": "700", "letter_spacing": "-0.5px", "font_style": "normal" },
-        "claude": { "font_family": "'Newsreader', serif", "font_weight": "600", "letter_spacing": "-0.2px", "font_style": "italic" },
-        "emily": { "font_family": "'Orbitron', sans-serif", "font_weight": "800", "letter_spacing": "1.5px", "font_style": "normal", "text_transform": "uppercase" },
+        "viv": {
+            "font_family": "'Space Grotesk', sans-serif",
+            "font_weight": "700",
+            "letter_spacing": "-0.5px",
+            "font_style": "normal",
+        },
+        "claude": {
+            "font_family": "'Newsreader', serif",
+            "font_weight": "600",
+            "letter_spacing": "-0.2px",
+            "font_style": "italic",
+        },
+        "emily": {
+            "font_family": "'Orbitron', sans-serif",
+            "font_weight": "800",
+            "letter_spacing": "1.5px",
+            "font_style": "normal",
+            "text_transform": "uppercase",
+        },
         "punchline_font": "'Space Grotesk', sans-serif",
-        "cackle_font": "'Newsreader', serif"
+        "cackle_font": "'Newsreader', serif",
     },
     "witty_comedy": {
         "google_fonts_url": "https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800;12..96,900&family=Fraunces:ital,opsz,wght@0,9..144,700;1,9..144,700;1,9..144,800&family=JetBrains+Mono:wght@700&family=Syncopate:wght@700&display=swap",
-        "viv": { "font_family": "'Bricolage Grotesque', sans-serif", "font_weight": "800", "letter_spacing": "-0.8px", "font_style": "normal" },
-        "claude": { "font_family": "'Fraunces', serif", "font_weight": "700", "letter_spacing": "-0.4px", "font_style": "italic" },
-        "emily": { "font_family": "'Syncopate', sans-serif", "font_weight": "700", "letter_spacing": "2.5px", "font_style": "normal", "text_transform": "uppercase" },
+        "viv": {
+            "font_family": "'Bricolage Grotesque', sans-serif",
+            "font_weight": "800",
+            "letter_spacing": "-0.8px",
+            "font_style": "normal",
+        },
+        "claude": {
+            "font_family": "'Fraunces', serif",
+            "font_weight": "700",
+            "letter_spacing": "-0.4px",
+            "font_style": "italic",
+        },
+        "emily": {
+            "font_family": "'Syncopate', sans-serif",
+            "font_weight": "700",
+            "letter_spacing": "2.5px",
+            "font_style": "normal",
+            "text_transform": "uppercase",
+        },
         "punchline_font": "'Bricolage Grotesque', sans-serif",
-        "cackle_font": "'Fraunces', serif"
+        "cackle_font": "'Fraunces', serif",
     },
     "dev_terminal": {
         "google_fonts_url": "https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@700;800&family=JetBrains+Mono:wght@700;800&family=Outfit:wght@700;800&family=Space+Mono:ital,wght@0,700;1,700&display=swap",
-        "viv": { "font_family": "'Outfit', sans-serif", "font_weight": "800", "letter_spacing": "-0.4px", "font_style": "normal" },
-        "claude": { "font_family": "'Space Mono', monospace", "font_weight": "700", "letter_spacing": "-0.5px", "font_style": "normal" },
-        "emily": { "font_family": "'Chakra Petch', sans-serif", "font_weight": "700", "letter_spacing": "1.2px", "font_style": "normal", "text_transform": "uppercase" },
+        "viv": {
+            "font_family": "'Outfit', sans-serif",
+            "font_weight": "800",
+            "letter_spacing": "-0.4px",
+            "font_style": "normal",
+        },
+        "claude": {
+            "font_family": "'Space Mono', monospace",
+            "font_weight": "700",
+            "letter_spacing": "-0.5px",
+            "font_style": "normal",
+        },
+        "emily": {
+            "font_family": "'Chakra Petch', sans-serif",
+            "font_weight": "700",
+            "letter_spacing": "1.2px",
+            "font_style": "normal",
+            "text_transform": "uppercase",
+        },
         "punchline_font": "'Outfit', sans-serif",
-        "cackle_font": "'Space Mono', monospace"
+        "cackle_font": "'Space Mono', monospace",
     },
     "clean_tech": {
         "google_fonts_url": "https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@700&family=Plus+Jakarta+Sans:wght@700;800;900&family=Syne:wght@700;800&display=swap",
-        "viv": { "font_family": "'Plus Jakarta Sans', sans-serif", "font_weight": "800", "letter_spacing": "-0.5px", "font_style": "normal" },
-        "claude": { "font_family": "'Instrument Serif', serif", "font_weight": "400", "letter_spacing": "0px", "font_style": "italic" },
-        "emily": { "font_family": "'Syne', sans-serif", "font_weight": "800", "letter_spacing": "1.0px", "font_style": "normal", "text_transform": "uppercase" },
+        "viv": {
+            "font_family": "'Plus Jakarta Sans', sans-serif",
+            "font_weight": "800",
+            "letter_spacing": "-0.5px",
+            "font_style": "normal",
+        },
+        "claude": {
+            "font_family": "'Instrument Serif', serif",
+            "font_weight": "400",
+            "letter_spacing": "0px",
+            "font_style": "italic",
+        },
+        "emily": {
+            "font_family": "'Syne', sans-serif",
+            "font_weight": "800",
+            "letter_spacing": "1.0px",
+            "font_style": "normal",
+            "text_transform": "uppercase",
+        },
         "punchline_font": "'Plus Jakarta Sans', sans-serif",
-        "cackle_font": "'Instrument Serif', serif"
-    }
+        "cackle_font": "'Instrument Serif', serif",
+    },
 }
 
 FORMAT_PRESETS = {
@@ -177,7 +241,7 @@ FORMAT_PRESETS = {
         "body_size": 28,
         "footer_width": 290,
         "footer_height": 58,
-        "card_gap": 32
+        "card_gap": 32,
     },
     "1:1": {
         "width": 1080,
@@ -198,7 +262,7 @@ FORMAT_PRESETS = {
         "body_size": 24,
         "footer_width": 260,
         "footer_height": 52,
-        "card_gap": 24
+        "card_gap": 24,
     },
     "4:5": {
         "width": 1080,
@@ -219,7 +283,7 @@ FORMAT_PRESETS = {
         "body_size": 26,
         "footer_width": 275,
         "footer_height": 55,
-        "card_gap": 28
+        "card_gap": 28,
     },
     "16:9": {
         "width": 1920,
@@ -240,8 +304,8 @@ FORMAT_PRESETS = {
         "body_size": 26,
         "footer_width": 290,
         "footer_height": 58,
-        "card_gap": 28
-    }
+        "card_gap": 28,
+    },
 }
 
 
@@ -272,7 +336,11 @@ class ReelBuilder:
             if speaker in ("Viv", "Google Antigravity"):
                 avatar_svg = ANTIGRAVITY_LOGO_SVG
                 avatar_border = "#FF2A2A" if slide_data.get("is_punchline") else "#3186FF"
-                avatar_bg = "rgba(255,42,42,0.15)" if slide_data.get("is_punchline") else "rgba(49,134,255,0.15)"
+                avatar_bg = (
+                    "rgba(255,42,42,0.15)"
+                    if slide_data.get("is_punchline")
+                    else "rgba(49,134,255,0.15)"
+                )
             elif speaker in ("Claude", "Steffan", "Anthropic Claude"):
                 avatar_svg = CLAUDE_LOGO_SVG
                 avatar_border = "#D97757"
@@ -285,7 +353,7 @@ class ReelBuilder:
                 avatar_svg = RADIO_HOST_LOGO_SVG
                 avatar_border = "#EF4444"
                 avatar_bg = "rgba(239,68,68,0.15)"
-            else: # VoiceFi Emily / Narrator
+            else:  # VoiceFi Emily / Narrator
                 avatar_svg = VOICEFI_LOGO_SVG
                 avatar_border = "#10B981"
                 avatar_bg = "rgba(16,185,129,0.15)"
@@ -295,11 +363,25 @@ class ReelBuilder:
         elif speaker in ("Claude", "Steffan", "Anthropic Claude"):
             cfg = preset_config.get("claude", preset_config.get("emily", {}))
         elif speaker in ("Jake", "Creator", "Developer"):
-            cfg = {"font_family": "'Plus Jakarta Sans', sans-serif", "font_weight": "800", "letter_spacing": "-0.5px", "font_style": "normal", "text_transform": "none"}
+            cfg = {
+                "font_family": "'Plus Jakarta Sans', sans-serif",
+                "font_weight": "800",
+                "letter_spacing": "-0.5px",
+                "font_style": "normal",
+                "text_transform": "none",
+            }
         elif speaker in ("Radio Host", "Announcer", "Host"):
-            cfg = {"font_family": "'Plus Jakarta Sans', sans-serif", "font_weight": "900", "letter_spacing": "-0.6px", "font_style": "normal", "text_transform": "none"}
+            cfg = {
+                "font_family": "'Plus Jakarta Sans', sans-serif",
+                "font_weight": "900",
+                "letter_spacing": "-0.6px",
+                "font_style": "normal",
+                "text_transform": "none",
+            }
         else:
-            cfg = preset_config.get("emily", {"font_family": "'Plus Jakarta Sans', sans-serif", "font_weight": "800"})
+            cfg = preset_config.get(
+                "emily", {"font_family": "'Plus Jakarta Sans', sans-serif", "font_weight": "800"}
+            )
 
         font_fam = cfg.get("font_family", "'Plus Jakarta Sans', sans-serif")
         font_wt = cfg.get("font_weight", "800")
@@ -322,28 +404,38 @@ class ReelBuilder:
             hook_color = "#10B981"
             base_hook_size = int(fmt["outro_size"] * font_multiplier)
 
-        body_html = f'<div class="body-text">{slide_data["body"]}</div>' if slide_data.get("body") else ""
+        body_html = (
+            f'<div class="body-text">{slide_data["body"]}</div>' if slide_data.get("body") else ""
+        )
         hide_footer = slide_data.get("hide_footer", False)
 
-        footer_css = "" if hide_footer else f"""
+        footer_css = (
+            ""
+            if hide_footer
+            else f"""
   .card-footer {{
     border-top: 2px solid #232838;
     padding-top: 32px;
     display: flex;
     align-items: center;
-    justify-content: {'center' if slide_data.get('is_outro') else 'flex-start'};
+    justify-content: {"center" if slide_data.get("is_outro") else "flex-start"};
   }}
   .footer-lockup {{
-    width: {fmt['footer_width']}px;
-    height: {fmt['footer_height']}px;
+    width: {fmt["footer_width"]}px;
+    height: {fmt["footer_height"]}px;
     display: flex;
     align-items: center;
   }}"""
+        )
 
-        footer_html = "" if hide_footer else f"""
+        footer_html = (
+            ""
+            if hide_footer
+            else f"""
     <div class="card-footer">
       <div class="footer-lockup">{VOICEFI_MASTER_LOCKUP_SVG}</div>
     </div>"""
+        )
 
         return f"""<!DOCTYPE html>
 <html>
@@ -351,7 +443,7 @@ class ReelBuilder:
 <meta charset="UTF-8">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="{preset_config.get('google_fonts_url', '')}" rel="stylesheet">
+<link href="{preset_config.get("google_fonts_url", "")}" rel="stylesheet">
 <style>
   * {{ margin: 0; padding: 0; box-sizing: border-box; }}
   body {{
@@ -367,16 +459,16 @@ class ReelBuilder:
     padding: 40px;
   }}
   .slide-card {{
-    width: {fmt['card_width']}px;
+    width: {fmt["card_width"]}px;
     background: #11141D;
     border: 2.5px solid #232838;
     border-radius: 44px;
-    padding: {fmt['card_padding']};
+    padding: {fmt["card_padding"]};
     box-shadow: 0 35px 90px rgba(0, 0, 0, 0.7), 0 0 50px rgba(255, 42, 42, 0.12);
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    min-height: {fmt['card_min_height']}px;
+    min-height: {fmt["card_min_height"]}px;
   }}
   .card-header {{
     display: flex;
@@ -389,12 +481,12 @@ class ReelBuilder:
     gap: 22px;
   }}
   .avatar {{
-    width: {fmt['avatar_size']}px;
-    height: {fmt['avatar_size']}px;
-    border-radius: {fmt['avatar_radius']}px;
+    width: {fmt["avatar_size"]}px;
+    height: {fmt["avatar_size"]}px;
+    border-radius: {fmt["avatar_radius"]}px;
     background: {avatar_bg};
     border: 2.5px solid {avatar_border};
-    padding: {fmt['avatar_padding']}px;
+    padding: {fmt["avatar_padding"]}px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -406,14 +498,14 @@ class ReelBuilder:
     justify-content: center;
   }}
   .speaker-name {{
-    font-size: {fmt['speaker_size']}px;
+    font-size: {fmt["speaker_size"]}px;
     font-weight: 800;
     color: #F8FAFC;
     letter-spacing: -0.4px;
     font-family: {font_fam};
   }}
   .counter {{
-    font-size: {fmt['counter_size']}px;
+    font-size: {fmt["counter_size"]}px;
     font-weight: 800;
     font-family: 'JetBrains Mono', monospace;
     color: #94A3B8;
@@ -422,9 +514,9 @@ class ReelBuilder:
     margin: auto 0;
     display: flex;
     flex-direction: column;
-    gap: {fmt['card_gap']}px;
+    gap: {fmt["card_gap"]}px;
     padding: 32px 0;
-    {'text-align: center; align-items: center; justify-content: center;' if slide_data.get('is_outro') else ''}
+    {"text-align: center; align-items: center; justify-content: center;" if slide_data.get("is_outro") else ""}
   }}
   .hook-text {{
     font-family: {font_fam};
@@ -435,14 +527,14 @@ class ReelBuilder:
     font-size: {base_hook_size}px;
     line-height: 1.32;
     color: {hook_color};
-    {'text-align: center; width: 100%;' if slide_data.get('is_outro') else ''}
+    {"text-align: center; width: 100%;" if slide_data.get("is_outro") else ""}
   }}
   .body-text {{
-    font-size: {fmt['body_size']}px;
+    font-size: {fmt["body_size"]}px;
     font-weight: 500;
     line-height: 1.55;
     color: #94A3B8;
-    {'text-align: center; max-width: 820px; margin: 16px auto 0 auto;' if slide_data.get('is_outro') else ''}
+    {"text-align: center; max-width: 820px; margin: 16px auto 0 auto;" if slide_data.get("is_outro") else ""}
   }}
   {footer_css}
 </style>
@@ -453,14 +545,14 @@ class ReelBuilder:
       <div class="speaker-group">
         <div class="avatar">{avatar_svg}</div>
         <div class="speaker-meta">
-          <span class="speaker-name">{slide_data.get('speaker', 'Radio Host')}</span>
+          <span class="speaker-name">{slide_data.get("speaker", "Radio Host")}</span>
         </div>
       </div>
-      <div class="counter">{slide_data.get('counter', '1/1')}</div>
+      <div class="counter">{slide_data.get("counter", "1/1")}</div>
     </div>
 
     <div class="card-body">
-      <div class="hook-text">{slide_data.get('hook', '')}</div>
+      <div class="hook-text">{slide_data.get("hook", "")}</div>
       {body_html}
     </div>
 
@@ -470,7 +562,9 @@ class ReelBuilder:
 </html>"""
 
     @classmethod
-    def auto_generate_slides_from_text(cls, transcript: str, total_duration: float, speaker: str = "Radio Host") -> List[Dict[str, Any]]:
+    def auto_generate_slides_from_text(
+        cls, transcript: str, total_duration: float, speaker: str = "Radio Host"
+    ) -> List[Dict[str, Any]]:
         """Split a raw spoken transcript into pacing-aligned slide cards."""
         sentences = [s.strip() for s in transcript.replace("\n", " ").split(".") if s.strip()]
         if not sentences:
@@ -493,16 +587,18 @@ class ReelBuilder:
 
         slides = []
         for idx, txt in enumerate(slides_text):
-            is_last = (idx == slide_count - 1)
-            slides.append({
-                "slide_idx": idx + 1,
-                "speaker": speaker,
-                "counter": f"{idx+1}/{slide_count}",
-                "hook": f"“{txt.strip()}”",
-                "body": "",
-                "is_outro": is_last and slide_count > 2,
-                "dur": round(dur_per_slide, 2)
-            })
+            is_last = idx == slide_count - 1
+            slides.append(
+                {
+                    "slide_idx": idx + 1,
+                    "speaker": speaker,
+                    "counter": f"{idx + 1}/{slide_count}",
+                    "hook": f"“{txt.strip()}”",
+                    "body": "",
+                    "is_outro": is_last and slide_count > 2,
+                    "dur": round(dur_per_slide, 2),
+                }
+            )
         return slides
 
     @classmethod
@@ -515,7 +611,7 @@ class ReelBuilder:
         format_type: str = "9:16",
         preset_name: str = "classic_ai",
         font_multiplier: float = 1.0,
-        speaker_name: str = "Radio Host"
+        speaker_name: str = "Radio Host",
     ) -> Path:
         """Compile MP4 video reel by rendering slide cards and muxing with audio."""
         out_path = Path(output_mp4).resolve()
@@ -527,6 +623,7 @@ class ReelBuilder:
 
         # Get audio duration
         from voicefi.audio.effects import VoiceFXEngine
+
         info = VoiceFXEngine.get_audio_info(audio_path)
         total_duration = info["duration"]
 
@@ -534,7 +631,7 @@ class ReelBuilder:
             slides = cls.auto_generate_slides_from_text(
                 transcript=transcript or "VoiceFi Studio Master Audio",
                 total_duration=total_duration,
-                speaker=speaker_name
+                speaker=speaker_name,
             )
 
         fmt = FORMAT_PRESETS.get(format_type, FORMAT_PRESETS["9:16"])
@@ -557,7 +654,7 @@ class ReelBuilder:
                     slide_data=s,
                     format_type=format_type,
                     preset_config=preset_cfg,
-                    font_multiplier=font_multiplier
+                    font_multiplier=font_multiplier,
                 )
                 html_file.write_text(html_content, encoding="utf-8")
 
@@ -567,7 +664,7 @@ class ReelBuilder:
                     "--disable-gpu",
                     f"--window-size={width},{height}",
                     f"--screenshot={str(png_file)}",
-                    f"file://{str(html_file)}"
+                    f"file://{str(html_file)}",
                 ]
                 res = subprocess.run(cmd, capture_output=True, text=True)
                 if res.returncode != 0 or not png_file.is_file():
@@ -584,20 +681,32 @@ class ReelBuilder:
 
             # 3. Compile MP4 with FFmpeg
             cmd_ffmpeg = [
-                "ffmpeg", "-y",
-                "-f", "concat",
-                "-safe", "0",
-                "-i", str(concat_file),
-                "-i", str(audio_path),
-                "-c:v", "libx264",
-                "-pix_fmt", "yuv420p",
-                "-preset", "medium",
-                "-crf", "19",
-                "-c:a", "aac",
-                "-b:a", "192k",
+                "ffmpeg",
+                "-y",
+                "-f",
+                "concat",
+                "-safe",
+                "0",
+                "-i",
+                str(concat_file),
+                "-i",
+                str(audio_path),
+                "-c:v",
+                "libx264",
+                "-pix_fmt",
+                "yuv420p",
+                "-preset",
+                "medium",
+                "-crf",
+                "19",
+                "-c:a",
+                "aac",
+                "-b:a",
+                "192k",
                 "-shortest",
-                "-movflags", "+faststart",
-                str(out_path)
+                "-movflags",
+                "+faststart",
+                str(out_path),
             ]
             res_ff = subprocess.run(cmd_ffmpeg, capture_output=True, text=True)
             if res_ff.returncode != 0 or not out_path.is_file():

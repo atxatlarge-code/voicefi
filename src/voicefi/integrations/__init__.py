@@ -15,4 +15,3 @@ __all__ = [
     "format_tool_details",
     "extract_log_summary",
 ]
-

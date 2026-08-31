@@ -17,6 +17,7 @@ from voicefi.audio.vad import VoiceActivityDetector
 
 class LiveVADMonitor:
     """Singleton background VAD monitor broadcasting live audio metrics."""
+
     _instance: Optional["LiveVADMonitor"] = None
     _lock = threading.Lock()
 
@@ -32,7 +33,7 @@ class LiveVADMonitor:
         self.sample_rate = self.config.vad.sample_rate
         self.chunk_duration = 0.05
         self.chunk_size = int(self.sample_rate * self.chunk_duration)
-        
+
         self.vad = VoiceActivityDetector(
             engine=self.config.vad.engine,
             speech_threshold=self.config.vad.speech_threshold,
@@ -60,9 +61,11 @@ class LiveVADMonitor:
                 sample_rate=self.sample_rate,
             )
 
-    def add_listener(self, callback: Callable[[float, float, bool, np.ndarray, float, float], None]):
+    def add_listener(
+        self, callback: Callable[[float, float, bool, np.ndarray, float, float], None]
+    ):
         """
-        Callback signature: 
+        Callback signature:
         (energy, speech_prob, is_speech, raw_chunk, noise_floor, active_threshold)
         """
         if callback not in self._listeners:
@@ -80,7 +83,9 @@ class LiveVADMonitor:
         self._paused = False
         self._stop_event.clear()
         self.vad.reset()
-        self._thread = threading.Thread(target=self._stream_loop, daemon=True, name="LiveVADMonitor")
+        self._thread = threading.Thread(
+            target=self._stream_loop, daemon=True, name="LiveVADMonitor"
+        )
         self._thread.start()
 
     def stop(self):
@@ -113,7 +118,9 @@ class LiveVADMonitor:
 
             try:
                 # Open short-lived stream to allow quick yielding if paused
-                with sd.InputStream(samplerate=self.sample_rate, channels=1, dtype="float32") as stream:
+                with sd.InputStream(
+                    samplerate=self.sample_rate, channels=1, dtype="float32"
+                ) as stream:
                     while not self._stop_event.is_set() and not self._paused and self._listeners:
                         chunk, overflowed = stream.read(self.chunk_size)
                         if self._stop_event.is_set() or self._paused:
@@ -121,7 +128,7 @@ class LiveVADMonitor:
 
                         audio_chunk = chunk.flatten()
                         vad_res = self.vad.process(audio_chunk)
-                        
+
                         energy = vad_res["energy"]
                         confidence = vad_res["confidence"]
                         is_speech = vad_res["is_speech"]
@@ -130,10 +137,17 @@ class LiveVADMonitor:
 
                         for listener in self._listeners:
                             try:
-                                listener(energy, confidence, is_speech, audio_chunk, noise_floor, active_threshold)
+                                listener(
+                                    energy,
+                                    confidence,
+                                    is_speech,
+                                    audio_chunk,
+                                    noise_floor,
+                                    active_threshold,
+                                )
                             except Exception as e:
                                 print(f"[LiveVADMonitor] Error in listener: {e}")
-                                
+
             except Exception as e:
                 # E.g. Device unavailable, wait before retrying
                 time.sleep(1.0)

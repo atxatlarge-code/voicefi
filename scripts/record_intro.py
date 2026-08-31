@@ -16,6 +16,7 @@ CHANNELS = 1
 OUT_FILE = Path(__file__).resolve().parent.parent / "assets" / "jake_intro.wav"
 OUT_FILE.parent.mkdir(parents=True, exist_ok=True)
 
+
 def record_audio(duration: float = 8.0):
     print("\n" + "=" * 60)
     print("🎙️  VoiceFi™ Live Voice Note Recorder")
@@ -26,15 +27,12 @@ def record_audio(duration: float = 8.0):
     for i in range(3, 0, -1):
         print(f"   {i}...", flush=True)
         time.sleep(1)
-    
+
     print("\n🔴 RECORDING NOW! (Speak into your mic)...", flush=True)
-    
+
     try:
         recording = sd.rec(
-            int(duration * SAMPLE_RATE),
-            samplerate=SAMPLE_RATE,
-            channels=CHANNELS,
-            dtype='int16'
+            int(duration * SAMPLE_RATE), samplerate=SAMPLE_RATE, channels=CHANNELS, dtype="int16"
         )
         for elapsed in range(int(duration)):
             time.sleep(1)
@@ -46,7 +44,7 @@ def record_audio(duration: float = 8.0):
         print("\n\n⏹️  Stopped by user.")
 
     print("\n\n💾 Saving audio...")
-    with wave.open(str(OUT_FILE), 'wb') as wf:
+    with wave.open(str(OUT_FILE), "wb") as wf:
         wf.setnchannels(CHANNELS)
         wf.setsampwidth(2)
         wf.setframerate(SAMPLE_RATE)
@@ -55,6 +53,7 @@ def record_audio(duration: float = 8.0):
     print(f"✅ Saved clean voice track to: {OUT_FILE}")
     print(f"   Duration: {len(recording) / SAMPLE_RATE:.2f}s")
     print("=" * 60 + "\n")
+
 
 if __name__ == "__main__":
     dur = float(sys.argv[1]) if len(sys.argv) > 1 else 8.0

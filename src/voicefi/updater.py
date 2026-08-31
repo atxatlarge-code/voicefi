@@ -91,7 +91,10 @@ def check_for_updates(force: bool = False) -> Tuple[bool, Optional[str], Optiona
         # 1. Try GitHub Releases API first
         req = Request(
             GITHUB_API_URL,
-            headers={"User-Agent": f"VoiceFi-Updater/{__version__}", "Accept": "application/vnd.github.v3+json"},
+            headers={
+                "User-Agent": f"VoiceFi-Updater/{__version__}",
+                "Accept": "application/vnd.github.v3+json",
+            },
         )
         with urlopen(req, timeout=3.5) as resp:
             if resp.status == 200:
@@ -109,7 +112,10 @@ def check_for_updates(force: bool = False) -> Tuple[bool, Optional[str], Optiona
         try:
             req_commit = Request(
                 GITHUB_COMMITS_URL,
-                headers={"User-Agent": f"VoiceFi-Updater/{__version__}", "Accept": "application/vnd.github.v3+json"},
+                headers={
+                    "User-Agent": f"VoiceFi-Updater/{__version__}",
+                    "Accept": "application/vnd.github.v3+json",
+                },
             )
             with urlopen(req_commit, timeout=3.0) as c_resp:
                 if c_resp.status == 200:
@@ -149,6 +155,7 @@ def perform_update(
     uv_bin = str(uv_path) if uv_path.is_file() else None
     if not uv_bin:
         import shutil
+
         uv_bin = shutil.which("uv")
 
     print(f"\n⚡ Upgrading VoiceFi from {target_repo}...")
@@ -168,9 +175,17 @@ def perform_update(
     else:
         # Verify pip exists or bootstrap with ensurepip
         try:
-            chk = subprocess.run([python_bin, "-m", "pip", "--version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            chk = subprocess.run(
+                [python_bin, "-m", "pip", "--version"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
             if chk.returncode != 0:
-                subprocess.run([python_bin, "-m", "ensurepip", "--upgrade"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                subprocess.run(
+                    [python_bin, "-m", "ensurepip", "--upgrade"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
         except Exception:
             pass
 
@@ -206,7 +221,12 @@ def perform_update(
         # Re-link hooks and write configuration
         if relink_hooks:
             try:
-                subprocess.run([python_bin, "-m", "voicefi.cli", "setup"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
+                subprocess.run(
+                    [python_bin, "-m", "voicefi.cli", "setup"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=10,
+                )
             except Exception:
                 pass
 
@@ -233,6 +253,7 @@ def perform_update(
         # Desktop notification
         try:
             import rumps
+
             rumps.notification(
                 "VoiceFi Upgraded 🎉",
                 f"Version {new_version} Active",
@@ -249,7 +270,11 @@ def perform_update(
             "message": f"Successfully updated VoiceFi ({old_version} -> {new_version}) in {duration_s}s!",
         }
     except subprocess.TimeoutExpired:
-        return {"success": False, "error": "Upgrade timed out (network slow)", "message": "Upgrade timed out"}
+        return {
+            "success": False,
+            "error": "Upgrade timed out (network slow)",
+            "message": "Upgrade timed out",
+        }
     except Exception as e:
         return {"success": False, "error": str(e), "message": f"Upgrade error: {e}"}
 
@@ -273,7 +298,9 @@ def run_auto_update_if_enabled(config: Optional[VoiceFiConfig] = None) -> None:
         try:
             is_avail, new_ver, _ = check_for_updates(force=False)
             if is_avail:
-                print(f"[VoiceFi] 🚀 Pro Auto-Updater: Found new version {new_ver}. Applying silent upgrade in background...")
+                print(
+                    f"[VoiceFi] 🚀 Pro Auto-Updater: Found new version {new_ver}. Applying silent upgrade in background..."
+                )
                 res = perform_update(relink_hooks=True)
                 if res.get("success"):
                     print(f"[VoiceFi] ✨ Pro Auto-Updater: {res.get('message')}")
@@ -287,6 +314,7 @@ def run_auto_update_if_enabled(config: Optional[VoiceFiConfig] = None) -> None:
 
 def trigger_background_update_check() -> None:
     """Trigger an asynchronous, non-blocking update check thread."""
+
     def _worker():
         try:
             check_for_updates(force=False)

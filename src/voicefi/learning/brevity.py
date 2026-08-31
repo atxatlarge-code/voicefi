@@ -127,7 +127,7 @@ class BrevityLearner:
             else:
                 if not soundbite_parts:
                     # Take first N words of first sentence
-                    soundbite_parts.append(" ".join(s_words[:self.learned_max_words]) + "...")
+                    soundbite_parts.append(" ".join(s_words[: self.learned_max_words]) + "...")
                 break
 
         return " ".join(soundbite_parts)

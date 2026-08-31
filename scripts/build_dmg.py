@@ -102,16 +102,38 @@ def build_app_bundle():
         plist_buddy = "/usr/libexec/PlistBuddy"
 
         def set_plist_val(key_type, key_name, value):
-            subprocess.run([plist_buddy, "-c", f"Delete :{key_name}", str(plist_path)], stderr=subprocess.DEVNULL)
-            subprocess.run([plist_buddy, "-c", f"Add :{key_name} {key_type} {value}", str(plist_path)], stderr=subprocess.DEVNULL)
+            subprocess.run(
+                [plist_buddy, "-c", f"Delete :{key_name}", str(plist_path)],
+                stderr=subprocess.DEVNULL,
+            )
+            subprocess.run(
+                [plist_buddy, "-c", f"Add :{key_name} {key_type} {value}", str(plist_path)],
+                stderr=subprocess.DEVNULL,
+            )
 
         set_plist_val("bool", "LSUIElement", "true")
         set_plist_val("bool", "NSHighResolutionCapable", "true")
         set_plist_val("string", "CFBundleDisplayName", "'VoiceFi'")
-        set_plist_val("string", "NSMicrophoneUsageDescription", "'VoiceFi requires microphone access to listen to your voice commands for AI agents.'")
-        set_plist_val("string", "NSSpeechRecognitionUsageDescription", "'VoiceFi uses speech recognition to convert your voice to text.'")
-        set_plist_val("string", "NSAppleEventsUsageDescription", "'VoiceFi needs AppleScript access to focus your AI agent and inject transcribed text.'")
-        set_plist_val("string", "NSAccessibilityUsageDescription", "'VoiceFi uses accessibility features to listen for global hotkeys and inject text into active applications.'")
+        set_plist_val(
+            "string",
+            "NSMicrophoneUsageDescription",
+            "'VoiceFi requires microphone access to listen to your voice commands for AI agents.'",
+        )
+        set_plist_val(
+            "string",
+            "NSSpeechRecognitionUsageDescription",
+            "'VoiceFi uses speech recognition to convert your voice to text.'",
+        )
+        set_plist_val(
+            "string",
+            "NSAppleEventsUsageDescription",
+            "'VoiceFi needs AppleScript access to focus your AI agent and inject transcribed text.'",
+        )
+        set_plist_val(
+            "string",
+            "NSAccessibilityUsageDescription",
+            "'VoiceFi uses accessibility features to listen for global hotkeys and inject text into active applications.'",
+        )
 
 
 def sign_app_bundle(identity: str):
@@ -164,7 +186,9 @@ def build_dmg(identity: str = None):
         shutil.copy(ICON_FILE, volume_icon)
         setfile_path = shutil.which("SetFile")
         if setfile_path:
-            subprocess.run([setfile_path, "-c", "icnC", str(volume_icon)], stderr=subprocess.DEVNULL)
+            subprocess.run(
+                [setfile_path, "-c", "icnC", str(volume_icon)], stderr=subprocess.DEVNULL
+            )
             subprocess.run([setfile_path, "-a", "C", str(dmg_staging)], stderr=subprocess.DEVNULL)
 
     # 5. Create DMG using native hdiutil
@@ -212,7 +236,7 @@ def build_dmg(identity: str = None):
         print(f"🔏 Signing {DMG_NAME} with Developer ID...")
         subprocess.run(["codesign", "--sign", identity, str(DMG_PATH)], check=True)
 
-    print(f"🎉 SUCCESS: Generated {DMG_PATH} ({DMG_PATH.stat().st_size / (1024*1024):.1f} MB)")
+    print(f"🎉 SUCCESS: Generated {DMG_PATH} ({DMG_PATH.stat().st_size / (1024 * 1024):.1f} MB)")
 
 
 def notarize_dmg(keychain_profile: str):
@@ -242,7 +266,15 @@ def verify_dmg():
 
     try:
         subprocess.run(
-            ["hdiutil", "attach", str(DMG_PATH), "-mountpoint", str(mount_point), "-nobrowse", "-quiet"],
+            [
+                "hdiutil",
+                "attach",
+                str(DMG_PATH),
+                "-mountpoint",
+                str(mount_point),
+                "-nobrowse",
+                "-quiet",
+            ],
             check=True,
         )
 
@@ -253,24 +285,46 @@ def verify_dmg():
         assert app_in_dmg.exists(), f"{APP_NAME}.app missing in DMG"
         assert app_symlink.is_symlink(), "Applications symlink missing in DMG"
         assert quickstart.exists(), "QUICKSTART.txt missing in DMG"
-        print("✅ Verified DMG contents: App bundle, Applications shortcut, and Quickstart guide present.")
+        print(
+            "✅ Verified DMG contents: App bundle, Applications shortcut, and Quickstart guide present."
+        )
 
         dmg_exe = app_in_dmg / "Contents" / "MacOS" / APP_NAME
         assert dmg_exe.is_file(), "Executable binary missing inside DMG .app"
-        result = subprocess.run([str(dmg_exe), "--help"], capture_output=True, text=True, timeout=30)
-        assert result.returncode == 0, f"Executable failed with code {result.returncode}: {result.stderr}"
+        result = subprocess.run(
+            [str(dmg_exe), "--help"], capture_output=True, text=True, timeout=30
+        )
+        assert result.returncode == 0, (
+            f"Executable failed with code {result.returncode}: {result.stderr}"
+        )
         print("✅ Verified binary execution from DMG volume.")
 
     finally:
-        subprocess.run(["hdiutil", "detach", str(mount_point), "-force", "-quiet"], stderr=subprocess.DEVNULL)
+        subprocess.run(
+            ["hdiutil", "detach", str(mount_point), "-force", "-quiet"], stderr=subprocess.DEVNULL
+        )
         shutil.rmtree(mount_point, ignore_errors=True)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Build, Sign, and Notarize VoiceFi macOS DMG")
-    parser.add_argument("--sign", type=str, default=None, help="Developer ID Application identity (e.g. 'Developer ID Application: ...')")
-    parser.add_argument("--notarize", type=str, default=None, help="Keychain profile for notarytool (e.g. 'voicefi-notary')")
-    parser.add_argument("--skip-app", action="store_true", help="Skip PyInstaller and rebuild DMG from existing dist/VoiceFi.app")
+    parser.add_argument(
+        "--sign",
+        type=str,
+        default=None,
+        help="Developer ID Application identity (e.g. 'Developer ID Application: ...')",
+    )
+    parser.add_argument(
+        "--notarize",
+        type=str,
+        default=None,
+        help="Keychain profile for notarytool (e.g. 'voicefi-notary')",
+    )
+    parser.add_argument(
+        "--skip-app",
+        action="store_true",
+        help="Skip PyInstaller and rebuild DMG from existing dist/VoiceFi.app",
+    )
     args = parser.parse_args()
 
     if not args.skip_app:

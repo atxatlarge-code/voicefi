@@ -37,7 +37,7 @@ def _get_bin(binary_name: str) -> str:
         f"/usr/local/bin/{binary_name}",
         f"{Path.home()}/.local/bin/{binary_name}",
         f"/usr/bin/{binary_name}",
-        f"/bin/{binary_name}"
+        f"/bin/{binary_name}",
     ]:
         if os.path.exists(candidate) and os.access(candidate, os.X_OK):
             return candidate
@@ -62,7 +62,7 @@ FX_PRESETS: Dict[str, Dict[str, Any]] = {
             "acompressor=threshold=-20dB:ratio=6:attack=8:release=100:makeup=7dB:knee=3dB,"
             "alimiter=limit=-0.5dB:attack=5:release=50,"
             "volume=1.15"
-        )
+        ),
     },
     "studio_podcast": {
         "id": "studio_podcast",
@@ -78,7 +78,7 @@ FX_PRESETS: Dict[str, Dict[str, Any]] = {
             "highshelf=f=12000:g=2.0,"
             "acompressor=threshold=-16dB:ratio=3.5:attack=15:release=180:makeup=4dB:knee=4dB,"
             "alimiter=limit=-1.0dB:attack=5:release=50"
-        )
+        ),
     },
     "stadium_announcer": {
         "id": "stadium_announcer",
@@ -93,7 +93,7 @@ FX_PRESETS: Dict[str, Dict[str, Any]] = {
             "acompressor=threshold=-18dB:ratio=5:attack=10:release=120:makeup=6dB,"
             "aecho=0.8:0.88:70|190:0.42|0.25,"
             "alimiter=limit=-0.5dB"
-        )
+        ),
     },
     "am_radio": {
         "id": "am_radio",
@@ -108,7 +108,7 @@ FX_PRESETS: Dict[str, Dict[str, Any]] = {
             "equalizer=f=2400:width_type=o:width=1.2:g=3.0,"
             "acompressor=threshold=-24dB:ratio=8:attack=4:release=60:makeup=9dB,"
             "volume=1.35"
-        )
+        ),
     },
     "cyber_robot": {
         "id": "cyber_robot",
@@ -122,7 +122,7 @@ FX_PRESETS: Dict[str, Dict[str, Any]] = {
             "equalizer=f=2000:width_type=q:width=4.0:g=6.0,"
             "equalizer=f=500:width_type=q:width=3.0:g=4.0,"
             "acompressor=threshold=-16dB:ratio=4:attack=10:release=100:makeup=5dB"
-        )
+        ),
     },
     "deep_monster": {
         "id": "deep_monster",
@@ -138,7 +138,7 @@ FX_PRESETS: Dict[str, Dict[str, Any]] = {
             "aecho=0.8:0.75:120:0.3,"
             "acompressor=threshold=-20dB:ratio=5:attack=12:release=140:makeup=6dB,"
             "alimiter=limit=-0.8dB"
-        )
+        ),
     },
     "helium_chipmunk": {
         "id": "helium_chipmunk",
@@ -152,7 +152,7 @@ FX_PRESETS: Dict[str, Dict[str, Any]] = {
             "highshelf=f=6000:g=4.0,"
             "highpass=f=200,"
             "acompressor=threshold=-15dB:ratio=3:attack=10:release=100:makeup=3dB"
-        )
+        ),
     },
     "ethereal_space": {
         "id": "ethereal_space",
@@ -165,8 +165,8 @@ FX_PRESETS: Dict[str, Dict[str, Any]] = {
             "aecho=0.8:0.8:280|560:0.32|0.18,"
             "highshelf=f=8000:g=3.0,"
             "acompressor=threshold=-16dB:ratio=3:attack=20:release=200:makeup=3dB"
-        )
-    }
+        ),
+    },
 }
 
 
@@ -182,7 +182,7 @@ class VoiceFXEngine:
                 "name": p["name"],
                 "icon": p["icon"],
                 "description": p["description"],
-                "category": p["category"]
+                "category": p["category"],
             }
             for p in FX_PRESETS.values()
         ]
@@ -196,10 +196,14 @@ class VoiceFXEngine:
 
         # Run ffprobe for metadata
         cmd = [
-            _get_bin("ffprobe"), "-v", "quiet",
-            "-print_format", "json",
-            "-show_format", "-show_streams",
-            str(p)
+            _get_bin("ffprobe"),
+            "-v",
+            "quiet",
+            "-print_format",
+            "json",
+            "-show_format",
+            "-show_streams",
+            str(p),
         ]
         res = subprocess.run(cmd, capture_output=True, text=True)
         meta = {}
@@ -214,7 +218,9 @@ class VoiceFXEngine:
         size_bytes = int(format_info.get("size", p.stat().st_size))
         bit_rate = int(format_info.get("bit_rate", 0))
 
-        audio_stream = next((s for s in meta.get("streams", []) if s.get("codec_type") == "audio"), {})
+        audio_stream = next(
+            (s for s in meta.get("streams", []) if s.get("codec_type") == "audio"), {}
+        )
         sample_rate = int(audio_stream.get("sample_rate", 44100))
         channels = int(audio_stream.get("channels", 2))
         codec_name = audio_stream.get("codec_name", p.suffix.lstrip("."))
@@ -227,11 +233,13 @@ class VoiceFXEngine:
             "filename": p.name,
             "duration": round(duration, 3),
             "size_bytes": size_bytes,
-            "size_formatted": f"{size_bytes / (1024 * 1024):.2f} MB" if size_bytes > 1024 * 1024 else f"{size_bytes / 1024:.1f} KB",
+            "size_formatted": f"{size_bytes / (1024 * 1024):.2f} MB"
+            if size_bytes > 1024 * 1024
+            else f"{size_bytes / 1024:.1f} KB",
             "sample_rate": sample_rate,
             "channels": channels,
             "codec": codec_name,
-            "peaks": peaks
+            "peaks": peaks,
         }
 
     @staticmethod
@@ -239,12 +247,18 @@ class VoiceFXEngine:
         """Extract RMS / peak envelope points using ffmpeg raw PCM decode."""
         try:
             cmd = [
-                _get_bin("ffmpeg"), "-v", "quiet",
-                "-i", str(file_path),
-                "-f", "s16le",
-                "-ac", "1",
-                "-ar", "8000",
-                "-"
+                _get_bin("ffmpeg"),
+                "-v",
+                "quiet",
+                "-i",
+                str(file_path),
+                "-f",
+                "s16le",
+                "-ac",
+                "1",
+                "-ar",
+                "8000",
+                "-",
             ]
             proc = subprocess.run(cmd, capture_output=True)
             if proc.returncode != 0 or len(proc.stdout) < 100:
@@ -263,7 +277,7 @@ class VoiceFXEngine:
                     peaks.append(0.0)
                 else:
                     chunk = samples[start:end]
-                    rms = float(np.sqrt(np.mean(chunk ** 2)))
+                    rms = float(np.sqrt(np.mean(chunk**2)))
                     peaks.append(round(min(1.0, rms * 3.5), 3))
             return peaks
         except Exception:
@@ -275,7 +289,7 @@ class VoiceFXEngine:
         output_audio: Union[str, Path],
         start_sec: float = 0.0,
         end_sec: Optional[float] = None,
-        fade_edges_sec: float = 0.05
+        fade_edges_sec: float = 0.05,
     ) -> Path:
         """
         Trim audio between start_sec and end_sec with optional boundary de-clicking fades.
@@ -290,10 +304,16 @@ class VoiceFXEngine:
         info = VoiceFXEngine.get_audio_info(in_p)
         total_dur = info["duration"]
         start = max(0.0, float(start_sec))
-        end = min(total_dur, float(end_sec)) if end_sec is not None and float(end_sec) > 0 else total_dur
+        end = (
+            min(total_dur, float(end_sec))
+            if end_sec is not None and float(end_sec) > 0
+            else total_dur
+        )
 
         if end <= start:
-            raise ValueError(f"Invalid trim range: start ({start:.2f}s) must be less than end ({end:.2f}s)")
+            raise ValueError(
+                f"Invalid trim range: start ({start:.2f}s) must be less than end ({end:.2f}s)"
+            )
 
         trimmed_dur = end - start
 
@@ -304,7 +324,16 @@ class VoiceFXEngine:
             fade_out = f"afade=t=out:st={trimmed_dur - fade_edges_sec:.3f}:d={fade_edges_sec:.3f}"
             filters.append(f"{fade_in},{fade_out}")
 
-        cmd = [_get_bin("ffmpeg"), "-y", "-ss", f"{start:.3f}", "-to", f"{end:.3f}", "-i", str(in_p)]
+        cmd = [
+            _get_bin("ffmpeg"),
+            "-y",
+            "-ss",
+            f"{start:.3f}",
+            "-to",
+            f"{end:.3f}",
+            "-i",
+            str(in_p),
+        ]
         if filters:
             cmd.extend(["-af", ",".join(filters)])
 
@@ -356,7 +385,9 @@ class VoiceFXEngine:
         if abs(bass_boost_db) > 0.1:
             filters.append(f"equalizer=f=85:width_type=o:width=1.5:g={bass_boost_db:.1f}")
             if bass_boost_db > 3.0:
-                filters.append(f"equalizer=f=200:width_type=o:width=1.2:g={(bass_boost_db * 0.4):.1f}")
+                filters.append(
+                    f"equalizer=f=200:width_type=o:width=1.2:g={(bass_boost_db * 0.4):.1f}"
+                )
 
         # 3. Treble / Presence Boost
         if abs(treble_boost_db) > 0.1:
@@ -365,10 +396,12 @@ class VoiceFXEngine:
 
         # 4. Compression (0.0 to 1.0)
         if compression > 0.05:
-            thresh_db = -12.0 - (compression * 16.0) # -12dB to -28dB
-            ratio = 2.0 + (compression * 6.0)       # 2:1 to 8:1
-            makeup_db = compression * 8.0           # 0 to 8dB
-            filters.append(f"acompressor=threshold={thresh_db:.1f}dB:ratio={ratio:.1f}:attack=8:release=120:makeup={makeup_db:.1f}dB:knee=3dB")
+            thresh_db = -12.0 - (compression * 16.0)  # -12dB to -28dB
+            ratio = 2.0 + (compression * 6.0)  # 2:1 to 8:1
+            makeup_db = compression * 8.0  # 0 to 8dB
+            filters.append(
+                f"acompressor=threshold={thresh_db:.1f}dB:ratio={ratio:.1f}:attack=8:release=120:makeup={makeup_db:.1f}dB:knee=3dB"
+            )
 
         # 5. Reverb / Echo (0.0 to 1.0)
         if reverb > 0.05:
@@ -434,12 +467,17 @@ class VoiceFXEngine:
             # 1. Apply primary voice effect to intermediate voice file
             fx_voice_wav = tmp_dir / "voice_fx.wav"
             cmd_voice = [
-                _get_bin("ffmpeg"), "-y",
-                "-i", str(in_path),
-                "-af", filter_str,
-                "-ar", "44100",
-                "-ac", "2",
-                str(fx_voice_wav)
+                _get_bin("ffmpeg"),
+                "-y",
+                "-i",
+                str(in_path),
+                "-af",
+                filter_str,
+                "-ar",
+                "44100",
+                "-ac",
+                "2",
+                str(fx_voice_wav),
             ]
             res = subprocess.run(cmd_voice, capture_output=True, text=True)
             if res.returncode != 0 or not fx_voice_wav.is_file():
@@ -447,7 +485,9 @@ class VoiceFXEngine:
 
             # 2. If no overlays, encode to final output format
             if not has_sfx and not has_bg_music:
-                cls._encode_final_audio(fx_voice_wav, out_path, normalize_loudness=normalize_loudness)
+                cls._encode_final_audio(
+                    fx_voice_wav, out_path, normalize_loudness=normalize_loudness
+                )
                 return out_path
 
             # 3. Handle SFX and background music mixing
@@ -457,7 +497,7 @@ class VoiceFXEngine:
                 output_wav=mixed_wav,
                 sfx_cues=sfx_cues or [],
                 bg_music_path=bg_music_path,
-                bg_music_volume=bg_music_volume
+                bg_music_volume=bg_music_volume,
             )
 
             # 4. Final encode with loudness mastering
@@ -474,7 +514,7 @@ class VoiceFXEngine:
         output_wav: Path,
         sfx_cues: List[Dict[str, Any]],
         bg_music_path: Optional[Union[str, Path]],
-        bg_music_volume: float = 0.15
+        bg_music_volume: float = 0.15,
     ):
         """Mix voice track with timed sound effects and ducked background music."""
         from voicefi.audio.sfx import get_sfx_path
@@ -489,13 +529,15 @@ class VoiceFXEngine:
             sfx_name = cue.get("name", "drum_smash")
             start_sec = max(0.0, float(cue.get("start_sec", 0.0)))
             vol = max(0.1, min(2.0, float(cue.get("volume", 0.9))))
-            
+
             sfx_file = get_sfx_path(sfx_name)
             if sfx_file and sfx_file.is_file():
                 inputs.extend(["-i", str(sfx_file)])
                 delay_ms = int(start_sec * 1000)
                 lbl = f"[sfx_{input_count}]"
-                filter_complex.append(f"[{input_count}:a]volume={vol:.2f},adelay={delay_ms}|{delay_ms}{lbl}")
+                filter_complex.append(
+                    f"[{input_count}:a]volume={vol:.2f},adelay={delay_ms}|{delay_ms}{lbl}"
+                )
                 sfx_labels.append(lbl)
                 input_count += 1
 
@@ -512,17 +554,25 @@ class VoiceFXEngine:
         if bg_label:
             mix_inputs.append(bg_label)
 
-        mix_filter = "".join(mix_inputs) + f"amix=inputs={len(mix_inputs)}:duration=first:dropout_transition=2[aout]"
+        mix_filter = (
+            "".join(mix_inputs)
+            + f"amix=inputs={len(mix_inputs)}:duration=first:dropout_transition=2[aout]"
+        )
         filter_complex.append(mix_filter)
 
         cmd = [
-            _get_bin("ffmpeg"), "-y",
+            _get_bin("ffmpeg"),
+            "-y",
             *inputs,
-            "-filter_complex", ";".join(filter_complex),
-            "-map", "[aout]",
-            "-ar", "44100",
-            "-ac", "2",
-            str(output_wav)
+            "-filter_complex",
+            ";".join(filter_complex),
+            "-map",
+            "[aout]",
+            "-ar",
+            "44100",
+            "-ac",
+            "2",
+            str(output_wav),
         ]
 
         res = subprocess.run(cmd, capture_output=True, text=True)
@@ -550,7 +600,7 @@ class VoiceFXEngine:
             cmd.extend(["-c:a", "libvorbis", "-q:a", "6"])
         elif ext == ".flac":
             cmd.extend(["-c:a", "flac"])
-        else: # .wav
+        else:  # .wav
             cmd.extend(["-c:a", "pcm_s16le", "-ar", "44100"])
 
         cmd.append(str(out_path))

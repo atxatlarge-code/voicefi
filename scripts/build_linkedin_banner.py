@@ -17,8 +17,8 @@ SCALE = 0.92
 # Position offsets from center (in pixels):
 # Positive OFFSET_X moves RIGHT, negative moves LEFT
 # Positive OFFSET_Y moves DOWN, negative moves UP
-OFFSET_X = 0      # e.g., 50 to shift right away from avatar
-OFFSET_Y = 0      # e.g., -10 to shift up slightly
+OFFSET_X = 0  # e.g., 50 to shift right away from avatar
+OFFSET_Y = 0  # e.g., -10 to shift up slightly
 
 # Canvas Dimensions (LinkedIn standard is 1128 x 191)
 CANVAS_WIDTH = 1128
@@ -32,13 +32,19 @@ RETINA_SCALE = 2  # 2x generates 2256 x 382 px
 OUTPUT_DIR = Path(__file__).resolve().parent.parent / "assets"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-LIGHT_LOGO = Path("/Users/jaketrigg/Projects/voicefi.org/assets/logo-voicefi-org-light.svg").read_text()
-DARK_LOGO = Path("/Users/jaketrigg/Projects/voicefi.org/assets/logo-voicefi-org-dark.svg").read_text()
+LIGHT_LOGO = Path(
+    "/Users/jaketrigg/Projects/voicefi.org/assets/logo-voicefi-org-light.svg"
+).read_text()
+DARK_LOGO = Path(
+    "/Users/jaketrigg/Projects/voicefi.org/assets/logo-voicefi-org-dark.svg"
+).read_text()
+
 
 def get_svg_inner(svg_str):
     start = svg_str.find(">", svg_str.find("<svg")) + 1
     end = svg_str.rfind("</svg>")
     return svg_str[start:end]
+
 
 light_inner = get_svg_inner(LIGHT_LOGO)
 dark_inner = get_svg_inner(DARK_LOGO)
@@ -64,6 +70,7 @@ dark_svg = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {CANVAS_WIDT
 (OUTPUT_DIR / "linkedin-banner-white.svg").write_text(white_svg)
 (OUTPUT_DIR / "linkedin-banner-dark.svg").write_text(dark_svg)
 
+
 def render_png(svg_path: Path, png_path: Path):
     html_content = f"""<!DOCTYPE html>
 <html>
@@ -79,10 +86,10 @@ def render_png(svg_path: Path, png_path: Path):
   <img src="{svg_path.resolve()}" />
 </body>
 </html>"""
-    
+
     html_file = svg_path.with_suffix(".html")
     html_file.write_text(html_content)
-    
+
     chrome_bin = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
     cmd = [
         chrome_bin,
@@ -92,11 +99,12 @@ def render_png(svg_path: Path, png_path: Path):
         f"--window-size={CANVAS_WIDTH},{CANVAS_HEIGHT}",
         f"--force-device-scale-factor={RETINA_SCALE}",
         f"--screenshot={png_path.resolve()}",
-        f"file://{html_file.resolve()}"
+        f"file://{html_file.resolve()}",
     ]
     subprocess.run(cmd, check=True)
     html_file.unlink(missing_ok=True)
     print(f"✅ Rendered: {png_path.name}")
+
 
 render_png(OUTPUT_DIR / "linkedin-banner-white.svg", OUTPUT_DIR / "linkedin-banner-white.png")
 render_png(OUTPUT_DIR / "linkedin-banner-dark.svg", OUTPUT_DIR / "linkedin-banner-dark.png")

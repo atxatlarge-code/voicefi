@@ -27,7 +27,9 @@ def get_stt_engine(config: VoiceFiConfig) -> BaseSTT:
         return AppleSpeechSTT(language=config.stt.language)
     else:
         # Local faster-whisper (streaming gated behind Pro/Org tier)
-        if getattr(config.stt, "streaming", False) and FeatureGate.can_use_feature("streaming_stt", config):
+        if getattr(config.stt, "streaming", False) and FeatureGate.can_use_feature(
+            "streaming_stt", config
+        ):
             return StreamingLocalSTT(
                 model_size=config.stt.model_size,
                 language=config.stt.language,

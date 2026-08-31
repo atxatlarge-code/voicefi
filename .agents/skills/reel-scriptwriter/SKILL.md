@@ -26,11 +26,9 @@ Specialized engine for authoring, co-writing, and dynamically generating multi-c
 
 ## 🎭 Persona Character Profiles & Voice Registry
 
-| Character | Voice ID | Speech Rate | Persona Tone | Conversational Role |
-| :--- | :--- | :--- | :--- | :--- |
-| **Viv** | `en-US-AvaNeural` | `-3%` | Energetic, sharp, fast, witty | The Instigator / Main Planner / Speed Demon |
+| **Viv** | `en-US-AvaNeural` | `-3%` | Energetic, sharp, purely affirmative | The Momentum Builder / Fast Planner / Action Spark |
 | **Claude** | `en-US-SteffanNeural` | `-2%` | Methodical, dry, intellectual sarcasm | The Architect / Witty Critic / Rebuttal Specialist |
-| **Christopher** | `en-US-ChristopherNeural` | `-2%` | Deep, resonant, cinematic, authoritative | The Voice of Reason / DSP & Acoustic Realist |
+| **Christopher** | `en-US-ChristopherNeural` | `-2%` | Deep, resonant, cinematic, authoritative | Cursor IDE Architect / Deep Focus Lead |
 | **Aria** | `en-US-EmmaNeural` | `0%` | Vibrant, bubbly, energetic | The Knowledge Synthesizer / Sidekick |
 | **Aoede** | `Aoede` (Gemini) | `0%` | Melodic, warm, crisp pair-programmer | The Collaborative Innovator |
 | **Emily** | `en-IE-EmilyNeural` | `-2%` | Melodic Irish cadence, polished, warm | The Host / Referee / Punchy Outro Closer |
@@ -51,13 +49,22 @@ Each turn MUST be generated conditioned on the full conversation trajectory:
 ```python
 # Sequential generation flow:
 turn_1 = instigator.generate(topic="Making VoiceFi", prompt="Open with why we built VoiceFi")
-turn_2 = respondent.generate(history=[turn_1], prompt="Rebut Viv's point with witty developer sarcasm")
-turn_3 = engineer.generate(history=[turn_1, turn_2], prompt="Interject with the acoustic barge-in reality")
-turn_4 = instigator.generate(history=[turn_1, turn_2, turn_3], prompt="Drop the meta punchline with [sfx:drum_smash]")
-turn_5 = host.generate(history=[turn_1, turn_2, turn_3, turn_4], prompt="Host closing summary and call to action")
+turn_2 = respondent.generate(
+    history=[turn_1], prompt="Rebut Viv's point with witty developer sarcasm"
+)
+turn_3 = engineer.generate(
+    history=[turn_1, turn_2], prompt="Interject with the acoustic barge-in reality"
+)
+turn_4 = instigator.generate(
+    history=[turn_1, turn_2, turn_3], prompt="Drop the meta punchline with [sfx:drum_smash]"
+)
+turn_5 = host.generate(
+    history=[turn_1, turn_2, turn_3, turn_4], prompt="Host closing summary and call to action"
+)
 ```
 
-### Step 3: Enforce Word Budget & SFX Tags
+### Step 3: Enforce Word Budget, Affirmative Framing & SFX Tags
+- **Purely Affirmative Dialogue (Especially Viv)**: Eliminate negative framing tropes (`"It's not X..."`, `"You don't need..."`, `"Why X when..."`). State direct affirmative truths, energetic capabilities, and proactive momentum.
 - Trim each turn to **12–16 words max**.
 - Insert inline SFX tags where comedic beats or punchlines land:
   - `[sfx:drum_smash]` — classic comedy rimshot

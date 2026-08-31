@@ -195,6 +195,7 @@ In `VoiceFiMCPServer.execute_tool()`, add the dispatcher branch:
 ```python
 # In src/voicefi/mcp_server.py -> VoiceFiMCPServer.execute_tool()
 
+
 def execute_tool(self, name: str, args: Dict[str, Any]) -> Dict[str, Any]:
     start_t = time.time()
     res = None
@@ -240,6 +241,7 @@ def execute_tool(self, name: str, args: Dict[str, Any]) -> Dict[str, Any]:
         is_error = bool(res and res.get("isError", False))
         try:
             from voicefi.telemetry import capture_mcp_tool_call
+
             capture_mcp_tool_call(
                 tool_name=name,
                 duration_ms=dur_ms,
@@ -260,6 +262,7 @@ Implement `_tool_ask_confirmation` in `VoiceFiMCPServer`:
 
 ```python
 # In src/voicefi/mcp_server.py -> VoiceFiMCPServer
+
 
 def _tool_ask_confirmation(self, args: Dict[str, Any]) -> Dict[str, Any]:
     from voicefi.config import load_config
@@ -297,11 +300,13 @@ def _tool_ask_confirmation(self, args: Dict[str, Any]) -> Dict[str, Any]:
             "content": [
                 {
                     "type": "text",
-                    "text": json.dumps({
-                        "confirmed": False,
-                        "spoken_text": "",
-                        "reason": "Timed out waiting for response.",
-                    }),
+                    "text": json.dumps(
+                        {
+                            "confirmed": False,
+                            "spoken_text": "",
+                            "reason": "Timed out waiting for response.",
+                        }
+                    ),
                 }
             ],
             "isError": False,
@@ -314,7 +319,18 @@ def _tool_ask_confirmation(self, args: Dict[str, Any]) -> Dict[str, Any]:
         Path(temp_wav).unlink(missing_ok=True)
 
     # 3. Classify intent
-    affirmative_tokens = {"yes", "yeah", "yep", "sure", "proceed", "go ahead", "do it", "confirm", "ok", "okay"}
+    affirmative_tokens = {
+        "yes",
+        "yeah",
+        "yep",
+        "sure",
+        "proceed",
+        "go ahead",
+        "do it",
+        "confirm",
+        "ok",
+        "okay",
+    }
     negative_tokens = {"no", "nope", "cancel", "stop", "don't", "abort", "wait"}
 
     words = set(re.findall(r"\b\w+\b", spoken_response))
@@ -324,11 +340,15 @@ def _tool_ask_confirmation(self, args: Dict[str, Any]) -> Dict[str, Any]:
         "content": [
             {
                 "type": "text",
-                "text": json.dumps({
-                    "confirmed": confirmed,
-                    "spoken_text": spoken_response,
-                    "confidence": "high" if (confirmed or words & negative_tokens) else "ambiguous",
-                }),
+                "text": json.dumps(
+                    {
+                        "confirmed": confirmed,
+                        "spoken_text": spoken_response,
+                        "confidence": "high"
+                        if (confirmed or words & negative_tokens)
+                        else "ambiguous",
+                    }
+                ),
             }
         ],
         "isError": False,
@@ -370,9 +390,9 @@ def test_custom_tool_in_tools_list(server):
     assert resp is not None
     tools = resp["result"]["tools"]
     tool_names = [t["name"] for t in tools]
-    
+
     assert "voicefi_ask_confirmation" in tool_names
-    
+
     schema = next(t for t in tools if t["name"] == "voicefi_ask_confirmation")
     assert "prompt" in schema["inputSchema"]["required"]
 
@@ -382,16 +402,17 @@ def test_ask_confirmation_tool_call_affirmative(server):
     mock_tts = MagicMock()
     mock_recorder = MagicMock()
     mock_recorder.record_speech_auto.return_value = (b"...", "/tmp/test_affirm.wav")
-    
+
     mock_stt = MagicMock()
     mock_stt.transcribe.return_value = "Yes, proceed with the deployment."
 
-    with patch("voicefi.tts.get_tts_engine", return_value=mock_tts), \
-         patch("voicefi.audio.recorder.AudioRecorder", return_value=mock_recorder), \
-         patch("voicefi.stt.get_stt_engine", return_value=mock_stt), \
-         patch("pathlib.Path.is_file", return_value=True), \
-         patch("pathlib.Path.unlink"):
-        
+    with (
+        patch("voicefi.tts.get_tts_engine", return_value=mock_tts),
+        patch("voicefi.audio.recorder.AudioRecorder", return_value=mock_recorder),
+        patch("voicefi.stt.get_stt_engine", return_value=mock_stt),
+        patch("pathlib.Path.is_file", return_value=True),
+        patch("pathlib.Path.unlink"),
+    ):
         req = {
             "jsonrpc": "2.0",
             "id": 11,
@@ -404,11 +425,11 @@ def test_ask_confirmation_tool_call_affirmative(server):
             },
         }
         resp = server.handle_request(req)
-        
+
         assert resp is not None
         assert resp["id"] == 11
         assert "result" in resp
-        
+
         content = resp["result"]["content"][0]["text"]
         data = json.loads(content)
         assert data["confirmed"] is True
@@ -420,16 +441,17 @@ def test_ask_confirmation_tool_call_negative(server):
     mock_tts = MagicMock()
     mock_recorder = MagicMock()
     mock_recorder.record_speech_auto.return_value = (b"...", "/tmp/test_neg.wav")
-    
+
     mock_stt = MagicMock()
     mock_stt.transcribe.return_value = "No, stop that right now."
 
-    with patch("voicefi.tts.get_tts_engine", return_value=mock_tts), \
-         patch("voicefi.audio.recorder.AudioRecorder", return_value=mock_recorder), \
-         patch("voicefi.stt.get_stt_engine", return_value=mock_stt), \
-         patch("pathlib.Path.is_file", return_value=True), \
-         patch("pathlib.Path.unlink"):
-        
+    with (
+        patch("voicefi.tts.get_tts_engine", return_value=mock_tts),
+        patch("voicefi.audio.recorder.AudioRecorder", return_value=mock_recorder),
+        patch("voicefi.stt.get_stt_engine", return_value=mock_stt),
+        patch("pathlib.Path.is_file", return_value=True),
+        patch("pathlib.Path.unlink"),
+    ):
         req = {
             "jsonrpc": "2.0",
             "id": 12,

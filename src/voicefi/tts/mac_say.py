@@ -36,13 +36,13 @@ def normalize_mac_rate(rate: any) -> int:
         elif (rate_str.startswith("+") or rate_str.startswith("-")) and rate_str.endswith("%"):
             try:
                 offset_pct = float(rate_str[:-1])
-                return max(min(int(round(200 * (1.0 + offset_pct / 100.0))), 400), 60)
+                return max(min(int(round(200 * (1.0 + offset_pct / 100.0))), 650), 60)
             except ValueError:
                 return 200
         elif rate_str.endswith("%"):
             try:
                 pct = float(rate_str[:-1])
-                return max(min(int(round(200 * (pct / 100.0))), 400), 60)
+                return max(min(int(round(200 * (pct / 100.0))), 650), 60)
             except ValueError:
                 return 200
         else:
@@ -57,13 +57,13 @@ def normalize_mac_rate(rate: any) -> int:
         if rate < -90:
             return 60
         if -90 <= rate < 0:
-            return max(min(int(round(200 * (1.0 + rate / 100.0))), 400), 60)
+            return max(min(int(round(200 * (1.0 + rate / 100.0))), 650), 60)
         if 1 <= rate <= 45:
-            return max(min(int(round(200 * (1.0 + rate / 100.0))), 400), 60)
+            return max(min(int(round(200 * (1.0 + rate / 100.0))), 650), 60)
         if 45 < rate <= 120:
-            return max(min(int(round(200 * (rate / 100.0))), 400), 60)
+            return max(min(int(round(200 * (rate / 100.0))), 650), 60)
         if rate > 120:
-            return max(min(int(round(rate)), 450), 60)
+            return max(min(int(round(rate)), 650), 60)
 
     return 200
 
@@ -93,7 +93,7 @@ class MacSayTTS(BaseTTS):
         """Speak text aloud using macOS say with cross-process turn queuing."""
         if not text or not text.strip():
             return
-            
+
         if is_user_on_call():
             print("[MacSayTTS] User is on a call. Skipping speech synthesis.")
             return
@@ -111,6 +111,7 @@ class MacSayTTS(BaseTTS):
                     persona_name=getattr(self, "persona_name", getattr(self, "voice", "Samantha")),
                 ):
                     from voicefi.tts.base import is_speech_interrupted, set_agent_audio_playing
+
                     if self._stop_requested or is_speech_interrupted(turn_start_time):
                         return
                     try:
@@ -120,10 +121,18 @@ class MacSayTTS(BaseTTS):
                         )
                         self._current_process = proc
                         proc.wait()
-                        was_interrupted = self._stop_requested or is_speech_interrupted(turn_start_time) or (proc.returncode in (-9, -15, 137, 143))
+                        was_interrupted = (
+                            self._stop_requested
+                            or is_speech_interrupted(turn_start_time)
+                            or (proc.returncode in (-9, -15, 137, 143))
+                        )
                         if not was_interrupted and proc.returncode != 0:
                             # Fallback to default system voice only on genuine error (not stop/interrupt)
-                            fallback = subprocess.Popen(["say", "--", clean_text], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                            fallback = subprocess.Popen(
+                                ["say", "--", clean_text],
+                                stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL,
+                            )
                             self._current_process = fallback
                             fallback.wait()
                     except Exception as e:
@@ -147,10 +156,24 @@ class MacSayTTS(BaseTTS):
         clean_text = normalize_tts_text(text)
         try:
             out_p = Path(output_path)
-            cmd = ["say", "-v", self.voice, "-r", str(self.rate), "-o", str(out_p), "--", clean_text]
+            cmd = [
+                "say",
+                "-v",
+                self.voice,
+                "-r",
+                str(self.rate),
+                "-o",
+                str(out_p),
+                "--",
+                clean_text,
+            ]
             res = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             if res.returncode != 0:
-                fallback = subprocess.run(["say", "-o", str(out_p), "--", clean_text], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                fallback = subprocess.run(
+                    ["say", "-o", str(out_p), "--", clean_text],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
                 return fallback.returncode == 0
             return out_p.is_file()
         except Exception as e:

@@ -28,6 +28,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 # Mode 1: HTTP REST API Client (Port 5141)
 # ============================================================================
 
+
 class VoiceFiRestClient:
     """
     Zero-dependency HTTP client for VoiceFi Companion Server (Port 5141).
@@ -67,7 +68,11 @@ class VoiceFiRestClient:
             body = he.read().decode("utf-8") if he.fp else ""
             try:
                 err_json = json.loads(body)
-                return {"error": err_json.get("error", str(he)), "http_code": he.code, "details": err_json}
+                return {
+                    "error": err_json.get("error", str(he)),
+                    "http_code": he.code,
+                    "details": err_json,
+                }
             except Exception:
                 return {"error": f"HTTP {he.code}: {he.reason}", "http_code": he.code, "raw": body}
         except urllib.error.URLError as ue:
@@ -89,7 +94,7 @@ class VoiceFiRestClient:
     ) -> Dict[str, Any]:
         """
         Synthesize and speak text aloud in active agent persona.
-        
+
         Args:
             text: Text to speak.
             voice: Optional voice name/persona (e.g. 'Ava (Premium)', 'Viv', 'Steffan').
@@ -114,7 +119,7 @@ class VoiceFiRestClient:
     ) -> Dict[str, Any]:
         """
         Play a procedural comedy or acoustic sound effect.
-        
+
         Args:
             name: Sound effect name (drum_smash, honk, sad_trombone, applause, boing, crickets).
             volume: Volume multiplier (0.0 to 2.0).
@@ -139,7 +144,7 @@ class VoiceFiRestClient:
     ) -> Dict[str, Any]:
         """
         Dispatch cross-agent task, message, or findings to Antigravity or Claude Code.
-        
+
         Args:
             text: Command or message text.
             to: Target engine ('antigravity' or 'claude').
@@ -167,6 +172,7 @@ class VoiceFiRestClient:
 # ============================================================================
 # Mode 2: Stdio MCP JSON-RPC 2.0 Client
 # ============================================================================
+
 
 class VoiceFiMCPClient:
     """
@@ -277,7 +283,9 @@ class VoiceFiMCPClient:
         while time.time() - start_t < self.timeout:
             if self.process.poll() is not None:
                 err_out = self.process.stderr.read() if self.process.stderr else ""
-                raise RuntimeError(f"MCP server terminated unexpectedly with code {self.process.returncode}: {err_out}")
+                raise RuntimeError(
+                    f"MCP server terminated unexpectedly with code {self.process.returncode}: {err_out}"
+                )
 
             out_line = self.process.stdout.readline()
             if not out_line:
@@ -377,7 +385,10 @@ class VoiceFiMCPClient:
 # Demo Routine
 # ============================================================================
 
-def run_integration_demo(mode: str = "rest", host: str = "localhost", port: int = 5141, mcp_cmd: Optional[str] = None) -> bool:
+
+def run_integration_demo(
+    mode: str = "rest", host: str = "localhost", port: int = 5141, mcp_cmd: Optional[str] = None
+) -> bool:
     """Run a comprehensive walkthrough of VoiceFi capabilities across the selected protocol."""
     print("=" * 70)
     print(f"🎙️  VoiceFi Standalone Integration Client Demo (Protocol Mode: {mode.upper()})")
@@ -393,7 +404,9 @@ def run_integration_demo(mode: str = "rest", host: str = "localhost", port: int 
             print(f"✅ Server Status: {json.dumps(st, indent=2)}")
 
         print("\n[2/5] Synthesizing Voice Speech (POST /api/speak)...")
-        sp_res = client.speak("Hello! This is a test from the VoiceFi standalone REST client.", block=True)
+        sp_res = client.speak(
+            "Hello! This is a test from the VoiceFi standalone REST client.", block=True
+        )
         print(f"Result: {json.dumps(sp_res)}")
 
         print("\n[3/5] Playing Algorithmic Sound Effect (POST /api/sfx 'drum_smash')...")
@@ -401,7 +414,11 @@ def run_integration_demo(mode: str = "rest", host: str = "localhost", port: int 
         print(f"Result: {json.dumps(sfx_res)}")
 
         print("\n[4/5] Testing Cross-Agent Task Dispatch (POST /api/send to Antigravity)...")
-        send_res = client.send("Echo test message from standalone REST client", to="antigravity", title="Integration Demo")
+        send_res = client.send(
+            "Echo test message from standalone REST client",
+            to="antigravity",
+            title="Integration Demo",
+        )
         print(f"Result: {json.dumps(send_res)}")
 
         print("\n[5/5] Testing Stop Audio Cancellation (POST /api/stop)...")
@@ -409,7 +426,7 @@ def run_integration_demo(mode: str = "rest", host: str = "localhost", port: int 
         print(f"Result: {json.dumps(stop_res)}")
 
     else:
-        print(f"\n[1/5] Initializing Stdio MCP Client...")
+        print("\n[1/5] Initializing Stdio MCP Client...")
         with VoiceFiMCPClient(command=mcp_cmd) as mcp:
             tools = mcp.list_tools()
             tool_names = [t.get("name") for t in tools]
@@ -420,7 +437,9 @@ def run_integration_demo(mode: str = "rest", host: str = "localhost", port: int 
             print(f"Result: {json.dumps(st_res, indent=2)}")
 
             print("\n[3/5] Synthesizing Voice Speech via MCP 'voicefi_speak'...")
-            sp_res = mcp.speak("Greetings! This is a test from the VoiceFi standalone MCP client.", block=True)
+            sp_res = mcp.speak(
+                "Greetings! This is a test from the VoiceFi standalone MCP client.", block=True
+            )
             print(f"Result: {json.dumps(sp_res)}")
 
             print("\n[4/5] Playing Sound Effect via MCP 'voicefi_sfx' ('applause')...")
@@ -428,7 +447,9 @@ def run_integration_demo(mode: str = "rest", host: str = "localhost", port: int 
             print(f"Result: {json.dumps(sfx_res)}")
 
             print("\n[5/5] Dispatching Cross-Agent Message via MCP 'voicefi_send'...")
-            send_res = mcp.send("Task dispatched via Stdio MCP client", to="antigravity", title="MCP Integration")
+            send_res = mcp.send(
+                "Task dispatched via Stdio MCP client", to="antigravity", title="MCP Integration"
+            )
             print(f"Result: {json.dumps(send_res)}")
 
     print("\n✨ Demo completed successfully!")
@@ -438,6 +459,7 @@ def run_integration_demo(mode: str = "rest", host: str = "localhost", port: int 
 # ============================================================================
 # CLI Entrypoint
 # ============================================================================
+
 
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(
@@ -465,31 +487,73 @@ Examples:
 """,
     )
 
-    parser.add_argument("--mode", choices=["rest", "mcp"], default="rest", help="Protocol mode: 'rest' (HTTP Port 5141) or 'mcp' (Stdio JSON-RPC 2.0). Default: rest")
+    parser.add_argument(
+        "--mode",
+        choices=["rest", "mcp"],
+        default="rest",
+        help="Protocol mode: 'rest' (HTTP Port 5141) or 'mcp' (Stdio JSON-RPC 2.0). Default: rest",
+    )
     parser.add_argument("--speak", type=str, metavar="TEXT", help="Synthesize and speak text aloud")
-    parser.add_argument("--sfx", type=str, metavar="NAME", help="Play sound effect (drum_smash, honk, sad_trombone, applause, boing, crickets)")
-    parser.add_argument("--send", type=str, metavar="TEXT", help="Dispatch task or message across agents")
-    parser.add_argument("--to", choices=["antigravity", "claude"], default="claude", help="Target agent engine for dispatch (default: claude)")
-    parser.add_argument("--reply", action="store_true", help="Resolve and reply to originating conversation route")
+    parser.add_argument(
+        "--sfx",
+        type=str,
+        metavar="NAME",
+        help="Play sound effect (drum_smash, honk, sad_trombone, applause, boing, crickets)",
+    )
+    parser.add_argument(
+        "--send", type=str, metavar="TEXT", help="Dispatch task or message across agents"
+    )
+    parser.add_argument(
+        "--to",
+        choices=["antigravity", "claude"],
+        default="claude",
+        help="Target agent engine for dispatch (default: claude)",
+    )
+    parser.add_argument(
+        "--reply", action="store_true", help="Resolve and reply to originating conversation route"
+    )
     parser.add_argument("--conv-id", type=str, metavar="ID", help="Explicit target conversation ID")
-    parser.add_argument("--sender", type=str, default="StandaloneClient", help="Sender attribution name")
+    parser.add_argument(
+        "--sender", type=str, default="StandaloneClient", help="Sender attribution name"
+    )
     parser.add_argument("--title", type=str, help="Message title header")
-    parser.add_argument("--voice", "--persona", type=str, dest="persona", help="Voice persona override")
+    parser.add_argument(
+        "--voice", "--persona", type=str, dest="persona", help="Voice persona override"
+    )
     parser.add_argument("--volume", type=float, default=1.0, help="SFX volume (0.0 to 2.0)")
-    parser.add_argument("--status", action="store_true", help="Query server status and audio devices")
+    parser.add_argument(
+        "--status", action="store_true", help="Query server status and audio devices"
+    )
     parser.add_argument("--stop", action="store_true", help="Stop active speech playback")
-    parser.add_argument("--host", type=str, default="localhost", help="VoiceFi REST server host (default: localhost)")
-    parser.add_argument("--port", type=int, default=5141, help="VoiceFi REST server port (default: 5141)")
-    parser.add_argument("--mcp-cmd", type=str, help="Custom MCP server command override (e.g. 'vifi mcp')")
-    parser.add_argument("--timeout", type=float, default=10.0, help="Request timeout in seconds (default: 10.0)")
-    parser.add_argument("--json", action="store_true", help="Output raw machine-readable JSON result")
-    parser.add_argument("--demo", action="store_true", help="Execute complete automated capabilities demo")
+    parser.add_argument(
+        "--host",
+        type=str,
+        default="localhost",
+        help="VoiceFi REST server host (default: localhost)",
+    )
+    parser.add_argument(
+        "--port", type=int, default=5141, help="VoiceFi REST server port (default: 5141)"
+    )
+    parser.add_argument(
+        "--mcp-cmd", type=str, help="Custom MCP server command override (e.g. 'vifi mcp')"
+    )
+    parser.add_argument(
+        "--timeout", type=float, default=10.0, help="Request timeout in seconds (default: 10.0)"
+    )
+    parser.add_argument(
+        "--json", action="store_true", help="Output raw machine-readable JSON result"
+    )
+    parser.add_argument(
+        "--demo", action="store_true", help="Execute complete automated capabilities demo"
+    )
 
     args = parser.parse_args(argv)
 
     if args.demo:
         try:
-            run_integration_demo(mode=args.mode, host=args.host, port=args.port, mcp_cmd=args.mcp_cmd)
+            run_integration_demo(
+                mode=args.mode, host=args.host, port=args.port, mcp_cmd=args.mcp_cmd
+            )
             return 0
         except Exception as e:
             print(f"❌ Demo execution error: {e}", file=sys.stderr)

@@ -43,14 +43,24 @@ class WakeWordListener:
         self.on_energy = on_energy
         self.on_state_change = on_state_change
 
-        self.aliases = list(getattr(self.config.wakeword, "aliases", ["hey viv", "viv", "hey vifi", "vifi", "hey antigravity"]))
-        if getattr(self.config.wakeword, "phrase", None) and self.config.wakeword.phrase.lower() not in [a.lower() for a in self.aliases]:
+        self.aliases = list(
+            getattr(
+                self.config.wakeword,
+                "aliases",
+                ["hey viv", "viv", "hey vifi", "vifi", "hey antigravity"],
+            )
+        )
+        if getattr(
+            self.config.wakeword, "phrase", None
+        ) and self.config.wakeword.phrase.lower() not in [a.lower() for a in self.aliases]:
             self.aliases.insert(0, self.config.wakeword.phrase.lower())
 
         self.vad = VoiceActivityDetector(
             engine="auto",
             speech_threshold=self.config.vad.speech_threshold,
-            energy_threshold=self.config.wakeword.energy_threshold if hasattr(self.config, "wakeword") else 0.005,
+            energy_threshold=self.config.wakeword.energy_threshold
+            if hasattr(self.config, "wakeword")
+            else 0.005,
             sample_rate=self.sample_rate,
         )
 
@@ -78,6 +88,7 @@ class WakeWordListener:
             with self._stt_lock:
                 if self._stt_instance is None:
                     from voicefi.stt import get_stt_engine
+
                     self._stt_instance = get_stt_engine(self.config)
         return self._stt_instance
 
@@ -89,9 +100,13 @@ class WakeWordListener:
         self._paused = False
         self._stop_event.clear()
         self._set_state("listening")
-        self._thread = threading.Thread(target=self._listener_loop, daemon=True, name="WakeWordListener")
+        self._thread = threading.Thread(
+            target=self._listener_loop, daemon=True, name="WakeWordListener"
+        )
         self._thread.start()
-        print(f"[WakeWord] 🎙️ Wake-word listener active (Triggers: {', '.join(self.aliases[:3])}...)")
+        print(
+            f"[WakeWord] 🎙️ Wake-word listener active (Triggers: {', '.join(self.aliases[:3])}...)"
+        )
 
     def stop(self):
         """Stop background listening."""
@@ -119,34 +134,53 @@ class WakeWordListener:
     def _listener_loop(self):
         """Background continuous stream monitoring for wake phrases."""
         from collections import deque
+
         pre_roll: deque = deque(maxlen=8)  # ~400ms pre-speech onset buffer
         recorded_frames: List[np.ndarray] = []
         speech_started = False
         silence_chunks = 0
-        silence_limit = int(0.95 / self.chunk_duration)  # ~950ms trailing silence for natural phrasing
+        silence_limit = int(
+            0.95 / self.chunk_duration
+        )  # ~950ms trailing silence for natural phrasing
         min_speech_chunks = int(0.20 / self.chunk_duration)  # ~200ms minimum speech
         max_chunks = int(7.0 / self.chunk_duration)  # 7.0s maximum candidate window
         chunk_count = 0
 
+        cooldown_chunks = 0
         while not self._stop_event.is_set():
             if self._paused or not getattr(self.config.wakeword, "enabled", True):
                 time.sleep(0.1)
                 continue
 
             try:
-                with sd.InputStream(samplerate=self.sample_rate, channels=1, dtype="float32") as stream:
+                with sd.InputStream(
+                    samplerate=self.sample_rate, channels=1, dtype="float32"
+                ) as stream:
                     while not self._stop_event.is_set() and not self._paused:
-                        # Suppress listening while agent is speaking to avoid self-activation
-                        if is_agent_speaking() or is_agent_audio_playing():
-                            time.sleep(0.08)
-                            recorded_frames.clear()
-                            pre_roll.clear()
-                            speech_started = False
-                            continue
-
+                        # Always read from stream to drain hardware buffer
                         chunk, overflowed = stream.read(self.chunk_size)
                         if self._stop_event.is_set() or self._paused:
                             break
+
+                        # Suppress listening while agent is speaking, audio is playing, or recently interrupted
+                        from voicefi.tts.base import is_speech_interrupted
+
+                        if is_agent_speaking() or is_agent_audio_playing() or is_speech_interrupted():
+                            recorded_frames.clear()
+                            pre_roll.clear()
+                            speech_started = False
+                            silence_chunks = 0
+                            cooldown_chunks = int(0.5 / self.chunk_duration)
+                            continue
+
+                        # Drain room decay & acoustic dissipation
+                        if cooldown_chunks > 0:
+                            cooldown_chunks -= 1
+                            recorded_frames.clear()
+                            pre_roll.clear()
+                            speech_started = False
+                            silence_chunks = 0
+                            continue
 
                         chunk_count += 1
                         audio_chunk = chunk.flatten()
@@ -157,7 +191,11 @@ class WakeWordListener:
                         # Broadcast energy telemetry at 10Hz
                         if self.on_energy and (chunk_count % 2 == 0):
                             try:
-                                self.on_energy(energy, self.vad.running_noise_floor, is_speech or speech_started)
+                                self.on_energy(
+                                    energy,
+                                    self.vad.running_noise_floor,
+                                    is_speech or speech_started,
+                                )
                             except Exception:
                                 pass
 
@@ -174,14 +212,17 @@ class WakeWordListener:
                             silence_chunks += 1
 
                             # End of candidate utterance detected (silence_limit reached or max window hit)
-                            if silence_chunks >= silence_limit or len(recorded_frames) >= max_chunks:
+                            if (
+                                silence_chunks >= silence_limit
+                                or len(recorded_frames) >= max_chunks
+                            ):
                                 if len(recorded_frames) >= min_speech_chunks:
                                     full_audio = np.concatenate(recorded_frames, axis=0)
                                     threading.Thread(
                                         target=self._process_candidate_audio,
                                         args=(full_audio,),
                                         daemon=True,
-                                        name="WakeWordSTT"
+                                        name="WakeWordSTT",
                                     ).start()
                                 recorded_frames.clear()
                                 pre_roll.clear()
@@ -203,6 +244,12 @@ class WakeWordListener:
         if time.time() - self._last_wake_time < 1.2:
             return
 
+        # Acoustic echo guard: ignore candidates if agent is speaking, audio is playing, or recently interrupted
+        from voicefi.tts.base import is_speech_interrupted
+
+        if is_agent_speaking() or is_agent_audio_playing() or is_speech_interrupted():
+            return
+
         try:
             stt = self._get_stt()
             transcript = stt.transcribe(audio_data, sample_rate=self.sample_rate)
@@ -214,6 +261,16 @@ class WakeWordListener:
             # print candidate transcript if debug or testing
             print(f"[WakeWord] Candidate ({dur:.2f}s) transcribed: {repr(clean_text)}", flush=True)
 
+            from voicefi.audio.echo_canceller import is_acoustic_echo
+
+            if is_acoustic_echo(clean_text):
+                print(
+                    f"[WakeWord] 🛡️ Suppressed acoustic self-echo: {repr(clean_text)}",
+                    flush=True,
+                )
+                return
+
+
             # Check for wake word prefix
             matched_phrase, prompt = ActiveListeningEngine.extract_wakeword_and_prompt(
                 clean_text, aliases=self.aliases
@@ -221,7 +278,10 @@ class WakeWordListener:
 
             if matched_phrase:
                 self._last_wake_time = time.time()
-                print(f"\n⚡ [WakeWord] WAKE WORD DETECTED: '{matched_phrase}' | Prompt: '{prompt}'", flush=True)
+                print(
+                    f"\n⚡ [WakeWord] WAKE WORD DETECTED: '{matched_phrase}' | Prompt: '{prompt}'",
+                    flush=True,
+                )
                 self._set_state("wake_triggered")
 
                 if getattr(self.config.wakeword, "chime", True):

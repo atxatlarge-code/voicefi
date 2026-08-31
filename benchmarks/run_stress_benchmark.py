@@ -84,7 +84,12 @@ MOCK_DISPATCH_RESULT = DispatchResult(
 )
 
 MOCK_SERVER_STATUS = {
-    "launchagent": {"is_loaded": False, "pid": None, "plist_exists": False, "plist_path": "/tmp/mock.plist"},
+    "launchagent": {
+        "is_loaded": False,
+        "pid": None,
+        "plist_exists": False,
+        "plist_path": "/tmp/mock.plist",
+    },
     "port_5141": None,
     "port_8765": None,
     "port_listener": None,
@@ -115,7 +120,7 @@ def calculate_percentiles(latencies: List[float]) -> Dict[str, float]:
         return {"min": 0.0, "mean": 0.0, "p50": 0.0, "p90": 0.0, "p95": 0.0, "p99": 0.0, "max": 0.0}
     s = sorted(latencies)
     n = len(s)
-    
+
     def _pct(p: float) -> float:
         idx = int(round((p / 100.0) * (n - 1)))
         return round(s[min(max(0, idx), n - 1)], 3)
@@ -167,18 +172,43 @@ class BenchmarkRunner:
             patch("voicefi.telemetry.record_event", return_value=None),
             patch("voicefi.tts.get_tts_engine", return_value=mock_tts),
             patch("voicefi.cli.get_tts_engine", return_value=mock_tts),
-            patch("voicefi.troubleshoot.AudioTroubleshooter.ping_voice_silently", return_value=MOCK_PING_RESULT),
-            patch("voicefi.audio.device.get_default_audio_devices", return_value=({"name": "Built-in Microphone"}, {"name": "Built-in Output"})),
-            patch("voicefi.integrations.conversations.claim_active_conversation_turn", return_value=True),
+            patch(
+                "voicefi.troubleshoot.AudioTroubleshooter.ping_voice_silently",
+                return_value=MOCK_PING_RESULT,
+            ),
+            patch(
+                "voicefi.audio.device.get_default_audio_devices",
+                return_value=({"name": "Built-in Microphone"}, {"name": "Built-in Output"}),
+            ),
+            patch(
+                "voicefi.integrations.conversations.claim_active_conversation_turn",
+                return_value=True,
+            ),
             patch("voicefi.server.get_full_server_status", return_value=MOCK_SERVER_STATUS),
             patch("voicefi.server.find_running_voicefi_processes", return_value=[]),
             patch("voicefi.server.get_port_listener", return_value=None),
-            patch("voicefi.integrations.injector.send_message_to_agent", return_value=MOCK_DISPATCH_RESULT),
-            patch("voicefi.integrations.injector.send_message_to_antigravity", return_value=MOCK_DISPATCH_RESULT),
-            patch("voicefi.integrations.injector.inject_text_to_claude", return_value=MOCK_DISPATCH_RESULT),
-            patch("voicefi.companion.server.send_message_to_agent", return_value=MOCK_DISPATCH_RESULT),
-            patch("voicefi.companion.server.send_message_to_antigravity", return_value=MOCK_DISPATCH_RESULT),
-            patch("voicefi.companion.server.inject_text_to_claude", return_value=MOCK_DISPATCH_RESULT),
+            patch(
+                "voicefi.integrations.injector.send_message_to_agent",
+                return_value=MOCK_DISPATCH_RESULT,
+            ),
+            patch(
+                "voicefi.integrations.injector.send_message_to_antigravity",
+                return_value=MOCK_DISPATCH_RESULT,
+            ),
+            patch(
+                "voicefi.integrations.injector.inject_text_to_claude",
+                return_value=MOCK_DISPATCH_RESULT,
+            ),
+            patch(
+                "voicefi.companion.server.send_message_to_agent", return_value=MOCK_DISPATCH_RESULT
+            ),
+            patch(
+                "voicefi.companion.server.send_message_to_antigravity",
+                return_value=MOCK_DISPATCH_RESULT,
+            ),
+            patch(
+                "voicefi.companion.server.inject_text_to_claude", return_value=MOCK_DISPATCH_RESULT
+            ),
         ]
         for p in self.patches:
             p.start()
@@ -198,7 +228,10 @@ class BenchmarkRunner:
             ("voicefi_ping_voice", {"voice": "Viv"}),
             ("voicefi_sfx", {"name": "drum_smash"}),
             ("voicefi_send", {"text": "Benchmark dispatch message", "to": "claude"}),
-            ("voicefi_speak", {"text": "Benchmark speech utterance across MCP", "conv_id": "bench-conv"}),
+            (
+                "voicefi_speak",
+                {"text": "Benchmark speech utterance across MCP", "conv_id": "bench-conv"},
+            ),
             ("voicefi_stop", {}),
         ]
 
@@ -278,7 +311,9 @@ class BenchmarkRunner:
                 "total_time_s": round(total_time_seq, 4),
                 "throughput_rps": round(50 / total_time_seq, 2),
                 "total_chars": total_chars_seq,
-                "synthesis_cps": round(total_chars_seq / total_time_seq, 2) if total_chars_seq else 0.0,
+                "synthesis_cps": round(total_chars_seq / total_time_seq, 2)
+                if total_chars_seq
+                else 0.0,
                 "latency_ms": calculate_percentiles(latencies_seq),
             },
             "concurrent_50_workers_20": {
@@ -289,7 +324,9 @@ class BenchmarkRunner:
                 "total_time_s": round(total_time_conc, 4),
                 "throughput_rps": round(50 / total_time_conc, 2),
                 "total_chars": total_chars_conc,
-                "synthesis_cps": round(total_chars_conc / total_time_conc, 2) if total_chars_conc else 0.0,
+                "synthesis_cps": round(total_chars_conc / total_time_conc, 2)
+                if total_chars_conc
+                else 0.0,
                 "latency_ms": calculate_percentiles(latencies_conc),
             },
         }
@@ -316,18 +353,28 @@ class BenchmarkRunner:
                     req = make_mocked_request("GET", "/api/status")
                     resp = loop.run_until_complete(companion_server.handle_status(req))
                 elif mode == 1:
-                    req = make_mocked_request("POST", "/api/sfx", headers={"Content-Type": "application/json"})
-                    req._read_bytes = json.dumps({"name": "drum_smash", "volume": 0.8}).encode("utf-8")
+                    req = make_mocked_request(
+                        "POST", "/api/sfx", headers={"Content-Type": "application/json"}
+                    )
+                    req._read_bytes = json.dumps({"name": "drum_smash", "volume": 0.8}).encode(
+                        "utf-8"
+                    )
                     resp = loop.run_until_complete(companion_server.handle_sfx(req))
                 elif mode == 2:
                     text = f"REST benchmark speech utterance #{i}"
                     total_chars_seq += len(text)
-                    req = make_mocked_request("POST", "/api/speak", headers={"Content-Type": "application/json"})
+                    req = make_mocked_request(
+                        "POST", "/api/speak", headers={"Content-Type": "application/json"}
+                    )
                     req._read_bytes = json.dumps({"text": text, "block": False}).encode("utf-8")
                     resp = loop.run_until_complete(companion_server.handle_speak(req))
                 elif mode == 3:
-                    req = make_mocked_request("POST", "/api/send", headers={"Content-Type": "application/json"})
-                    req._read_bytes = json.dumps({"text": f"REST send #{i}", "to": "claude"}).encode("utf-8")
+                    req = make_mocked_request(
+                        "POST", "/api/send", headers={"Content-Type": "application/json"}
+                    )
+                    req._read_bytes = json.dumps(
+                        {"text": f"REST send #{i}", "to": "claude"}
+                    ).encode("utf-8")
                     resp = loop.run_until_complete(companion_server.handle_send(req))
                 else:
                     req = make_mocked_request("POST", "/api/stop")
@@ -359,19 +406,29 @@ class BenchmarkRunner:
                     req = make_mocked_request("GET", "/api/status")
                     resp = cloop.run_until_complete(companion_server.handle_status(req))
                 elif mode == 1:
-                    req = make_mocked_request("POST", "/api/sfx", headers={"Content-Type": "application/json"})
-                    req._read_bytes = json.dumps({"name": "applause", "volume": 0.9}).encode("utf-8")
+                    req = make_mocked_request(
+                        "POST", "/api/sfx", headers={"Content-Type": "application/json"}
+                    )
+                    req._read_bytes = json.dumps({"name": "applause", "volume": 0.9}).encode(
+                        "utf-8"
+                    )
                     resp = cloop.run_until_complete(companion_server.handle_sfx(req))
                 elif mode == 2:
                     text = f"Concurrent REST turn #{idx}"
                     with lock:
                         total_chars_conc += len(text)
-                    req = make_mocked_request("POST", "/api/speak", headers={"Content-Type": "application/json"})
+                    req = make_mocked_request(
+                        "POST", "/api/speak", headers={"Content-Type": "application/json"}
+                    )
                     req._read_bytes = json.dumps({"text": text, "block": False}).encode("utf-8")
                     resp = cloop.run_until_complete(companion_server.handle_speak(req))
                 else:
-                    req = make_mocked_request("POST", "/api/send", headers={"Content-Type": "application/json"})
-                    req._read_bytes = json.dumps({"text": f"Concurrent send #{idx}", "to": "antigravity"}).encode("utf-8")
+                    req = make_mocked_request(
+                        "POST", "/api/send", headers={"Content-Type": "application/json"}
+                    )
+                    req._read_bytes = json.dumps(
+                        {"text": f"Concurrent send #{idx}", "to": "antigravity"}
+                    ).encode("utf-8")
                     resp = cloop.run_until_complete(companion_server.handle_send(req))
 
                 elapsed_ms = (time.perf_counter() - st) * 1000.0
@@ -397,7 +454,9 @@ class BenchmarkRunner:
                 "total_time_s": round(total_time_seq, 4),
                 "throughput_rps": round(50 / total_time_seq, 2),
                 "total_chars": total_chars_seq,
-                "synthesis_cps": round(total_chars_seq / total_time_seq, 2) if total_chars_seq else 0.0,
+                "synthesis_cps": round(total_chars_seq / total_time_seq, 2)
+                if total_chars_seq
+                else 0.0,
                 "latency_ms": calculate_percentiles(latencies_seq),
             },
             "concurrent_50_workers_20": {
@@ -408,7 +467,9 @@ class BenchmarkRunner:
                 "total_time_s": round(total_time_conc, 4),
                 "throughput_rps": round(50 / total_time_conc, 2),
                 "total_chars": total_chars_conc,
-                "synthesis_cps": round(total_chars_conc / total_time_conc, 2) if total_chars_conc else 0.0,
+                "synthesis_cps": round(total_chars_conc / total_time_conc, 2)
+                if total_chars_conc
+                else 0.0,
                 "latency_ms": calculate_percentiles(latencies_conc),
             },
         }
@@ -421,7 +482,10 @@ class BenchmarkRunner:
         total_chars_seq = 0
         t0 = time.perf_counter()
 
-        with patch("sys.stdout", new_callable=io.StringIO), patch("sys.stderr", new_callable=io.StringIO):
+        with (
+            patch("sys.stdout", new_callable=io.StringIO),
+            patch("sys.stderr", new_callable=io.StringIO),
+        ):
             for i in range(50):
                 mode = i % 5
                 st = time.perf_counter()
@@ -433,11 +497,44 @@ class BenchmarkRunner:
                     elif mode == 2:
                         txt = f"CLI benchmark utterance #{i}"
                         total_chars_seq += len(txt)
-                        cmd_speak(argparse.Namespace(text=[txt], config=None, agent="antigravity", voice=None, provider=None, rate=None))
+                        cmd_speak(
+                            argparse.Namespace(
+                                text=[txt],
+                                config=None,
+                                agent="antigravity",
+                                voice=None,
+                                provider=None,
+                                rate=None,
+                            )
+                        )
                     elif mode == 3:
-                        cmd_send(argparse.Namespace(text=[f"CLI dispatch #{i}"], to="claude", conv_id=None, reply=False, from_conv_id=None, from_engine="antigravity", sender_name=None, title=None, no_envelope=False))
+                        cmd_send(
+                            argparse.Namespace(
+                                text=[f"CLI dispatch #{i}"],
+                                to="claude",
+                                conv_id=None,
+                                reply=False,
+                                from_conv_id=None,
+                                from_engine="antigravity",
+                                sender_name=None,
+                                title=None,
+                                no_envelope=False,
+                            )
+                        )
                     else:
-                        cmd_ping(argparse.Namespace(voice_action="ping", config=None, json=True, all=False, text="Ping test", count=1, provider=None, rate=None, voice="Viv"))
+                        cmd_ping(
+                            argparse.Namespace(
+                                voice_action="ping",
+                                config=None,
+                                json=True,
+                                all=False,
+                                text="Ping test",
+                                count=1,
+                                provider=None,
+                                rate=None,
+                                voice="Viv",
+                            )
+                        )
                 except Exception:
                     errors_seq += 1
 
@@ -468,9 +565,30 @@ class BenchmarkRunner:
                         txt = f"Parallel CLI #{idx}"
                         with lock:
                             total_chars_conc += len(txt)
-                        cmd_speak(argparse.Namespace(text=[txt], config=None, agent="antigravity", voice=None, provider=None, rate=None))
+                        cmd_speak(
+                            argparse.Namespace(
+                                text=[txt],
+                                config=None,
+                                agent="antigravity",
+                                voice=None,
+                                provider=None,
+                                rate=None,
+                            )
+                        )
                     else:
-                        cmd_send(argparse.Namespace(text=[f"Parallel send #{idx}"], to="antigravity", conv_id=None, reply=False, from_conv_id=None, from_engine="claude", sender_name=None, title=None, no_envelope=False))
+                        cmd_send(
+                            argparse.Namespace(
+                                text=[f"Parallel send #{idx}"],
+                                to="antigravity",
+                                conv_id=None,
+                                reply=False,
+                                from_conv_id=None,
+                                from_engine="claude",
+                                sender_name=None,
+                                title=None,
+                                no_envelope=False,
+                            )
+                        )
             except Exception:
                 with lock:
                     errors_conc += 1
@@ -494,7 +612,9 @@ class BenchmarkRunner:
                 "total_time_s": round(total_time_seq, 4),
                 "throughput_rps": round(50 / total_time_seq, 2),
                 "total_chars": total_chars_seq,
-                "synthesis_cps": round(total_chars_seq / total_time_seq, 2) if total_chars_seq else 0.0,
+                "synthesis_cps": round(total_chars_seq / total_time_seq, 2)
+                if total_chars_seq
+                else 0.0,
                 "latency_ms": calculate_percentiles(latencies_seq),
             },
             "concurrent_50_workers_15": {
@@ -505,7 +625,9 @@ class BenchmarkRunner:
                 "total_time_s": round(total_time_conc, 4),
                 "throughput_rps": round(50 / total_time_conc, 2),
                 "total_chars": total_chars_conc,
-                "synthesis_cps": round(total_chars_conc / total_time_conc, 2) if total_chars_conc else 0.0,
+                "synthesis_cps": round(total_chars_conc / total_time_conc, 2)
+                if total_chars_conc
+                else 0.0,
                 "latency_ms": calculate_percentiles(latencies_conc),
             },
         }
@@ -577,7 +699,9 @@ class BenchmarkRunner:
                 "total_time_s": round(total_time_seq, 4),
                 "throughput_rps": round(50 / total_time_seq, 2),
                 "total_chars": total_chars_seq,
-                "synthesis_cps": round(total_chars_seq / total_time_seq, 2) if total_chars_seq else 0.0,
+                "synthesis_cps": round(total_chars_seq / total_time_seq, 2)
+                if total_chars_seq
+                else 0.0,
                 "latency_ms": calculate_percentiles(latencies_seq),
             },
             "concurrent_60_contenders_20": {
@@ -588,14 +712,19 @@ class BenchmarkRunner:
                 "total_time_s": round(total_time_conc, 4),
                 "throughput_rps": round(60 / total_time_conc, 2),
                 "total_chars": total_chars_conc,
-                "synthesis_cps": round(total_chars_conc / total_time_conc, 2) if total_chars_conc else 0.0,
+                "synthesis_cps": round(total_chars_conc / total_time_conc, 2)
+                if total_chars_conc
+                else 0.0,
                 "latency_ms": calculate_percentiles(latencies_conc),
             },
         }
 
     def run_universal_swarm_benchmark(self) -> Dict[str, Any]:
         """Benchmark 100 mixed requests across MCP, REST, CLI, and SDK simultaneously."""
-        print("  ▶ Running Universal Mixed Surface Swarm Benchmark (100 concurrent requests)...", flush=True)
+        print(
+            "  ▶ Running Universal Mixed Surface Swarm Benchmark (100 concurrent requests)...",
+            flush=True,
+        )
         mcp_server = VoiceFiMCPServer()
         cfg = VoiceFiConfig()
         companion_server = CompanionServer(config=cfg, port=5141)
@@ -612,12 +741,14 @@ class BenchmarkRunner:
             try:
                 if mode == 0:
                     # MCP
-                    resp = mcp_server.handle_request({
-                        "jsonrpc": "2.0",
-                        "id": idx,
-                        "method": "tools/call",
-                        "params": {"name": "voicefi_status", "arguments": {}},
-                    })
+                    resp = mcp_server.handle_request(
+                        {
+                            "jsonrpc": "2.0",
+                            "id": idx,
+                            "method": "tools/call",
+                            "params": {"name": "voicefi_status", "arguments": {}},
+                        }
+                    )
                     if not resp or "error" in resp or resp.get("result", {}).get("isError"):
                         with lock:
                             errors += 1
@@ -625,8 +756,12 @@ class BenchmarkRunner:
                     # REST
                     loop = asyncio.new_event_loop()
                     try:
-                        req = make_mocked_request("POST", "/api/sfx", headers={"Content-Type": "application/json"})
-                        req._read_bytes = json.dumps({"name": "drum_smash", "volume": 0.7}).encode("utf-8")
+                        req = make_mocked_request(
+                            "POST", "/api/sfx", headers={"Content-Type": "application/json"}
+                        )
+                        req._read_bytes = json.dumps({"name": "drum_smash", "volume": 0.7}).encode(
+                            "utf-8"
+                        )
                         resp = loop.run_until_complete(companion_server.handle_sfx(req))
                         if resp.status != 200:
                             with lock:
@@ -702,18 +837,26 @@ class BenchmarkRunner:
 
         # Compute aggregate overall statistics
         all_requests = (
-            mcp_metrics["sequential_50"]["requests"] + mcp_metrics["concurrent_50_workers_20"]["requests"] +
-            rest_metrics["sequential_50"]["requests"] + rest_metrics["concurrent_50_workers_20"]["requests"] +
-            cli_metrics["sequential_50"]["requests"] + cli_metrics["concurrent_50_workers_15"]["requests"] +
-            sdk_metrics["sequential_50"]["requests"] + sdk_metrics["concurrent_60_contenders_20"]["requests"] +
-            swarm_metrics["requests"]
+            mcp_metrics["sequential_50"]["requests"]
+            + mcp_metrics["concurrent_50_workers_20"]["requests"]
+            + rest_metrics["sequential_50"]["requests"]
+            + rest_metrics["concurrent_50_workers_20"]["requests"]
+            + cli_metrics["sequential_50"]["requests"]
+            + cli_metrics["concurrent_50_workers_15"]["requests"]
+            + sdk_metrics["sequential_50"]["requests"]
+            + sdk_metrics["concurrent_60_contenders_20"]["requests"]
+            + swarm_metrics["requests"]
         )
         all_errors = (
-            mcp_metrics["sequential_50"]["errors"] + mcp_metrics["concurrent_50_workers_20"]["errors"] +
-            rest_metrics["sequential_50"]["errors"] + rest_metrics["concurrent_50_workers_20"]["errors"] +
-            cli_metrics["sequential_50"]["errors"] + cli_metrics["concurrent_50_workers_15"]["errors"] +
-            sdk_metrics["sequential_50"]["errors"] + sdk_metrics["concurrent_60_contenders_20"]["errors"] +
-            swarm_metrics["errors"]
+            mcp_metrics["sequential_50"]["errors"]
+            + mcp_metrics["concurrent_50_workers_20"]["errors"]
+            + rest_metrics["sequential_50"]["errors"]
+            + rest_metrics["concurrent_50_workers_20"]["errors"]
+            + cli_metrics["sequential_50"]["errors"]
+            + cli_metrics["concurrent_50_workers_15"]["errors"]
+            + sdk_metrics["sequential_50"]["errors"]
+            + sdk_metrics["concurrent_60_contenders_20"]["errors"]
+            + swarm_metrics["errors"]
         )
 
         report = {
@@ -722,12 +865,14 @@ class BenchmarkRunner:
                 "platform": platform.platform(),
                 "python_version": platform.python_version(),
                 "cpu_count": psutil.cpu_count(logical=True),
-                "memory_total_gb": round(psutil.virtual_memory().total / (1024 ** 3), 2),
+                "memory_total_gb": round(psutil.virtual_memory().total / (1024**3), 2),
             },
             "summary": {
                 "total_requests_executed": all_requests,
                 "total_errors": all_errors,
-                "overall_error_rate_pct": round((all_errors / all_requests) * 100.0, 3) if all_requests else 0.0,
+                "overall_error_rate_pct": round((all_errors / all_requests) * 100.0, 3)
+                if all_requests
+                else 0.0,
                 "lock_depth_clean": bool(tts_base._LOCK_DEPTH == 0),
                 "agent_speaking_clean": bool(not is_agent_speaking()),
                 "initial_child_processes": initial_children,
@@ -757,8 +902,8 @@ def generate_markdown_report(report: Dict[str, Any]) -> str:
 
     md = f"""# 🚀 VoiceFi Universal Integration Stress Benchmark Report
 
-**Generated At:** `{report['timestamp']}`  
-**Host Environment:** `{env['platform']}` | Python `{env['python_version']}` | `{env['cpu_count']}` Cores | `{env['memory_total_gb']} GB RAM`
+**Generated At:** `{report["timestamp"]}`  
+**Host Environment:** `{env["platform"]}` | Python `{env["python_version"]}` | `{env["cpu_count"]}` Cores | `{env["memory_total_gb"]} GB RAM`
 
 ---
 
@@ -766,14 +911,14 @@ def generate_markdown_report(report: Dict[str, Any]) -> str:
 
 | Metric | Measured Value | Target / SLA | Status |
 | :--- | :--- | :--- | :--- |
-| **Total Operations Executed** | **{summary['total_requests_executed']}** | ≥ 500 requests | ✅ Pass |
-| **Overall Error Rate** | **{summary['overall_error_rate_pct']}%** ({summary['total_errors']} errors) | 0.0% | ✅ 100% Reliability |
-| **Universal Swarm Throughput** | **{bench['universal_swarm']['throughput_rps']} req/s** | ≥ 50.0 req/s | ✅ Ultra-Fast |
-| **Swarm TTFB Latency (p50 / p95)** | **{bench['universal_swarm']['latency_ms']['p50']} ms / {bench['universal_swarm']['latency_ms']['p95']} ms** | < 15.0 ms / < 30.0 ms | ✅ Real-Time |
+| **Total Operations Executed** | **{summary["total_requests_executed"]}** | ≥ 500 requests | ✅ Pass |
+| **Overall Error Rate** | **{summary["overall_error_rate_pct"]}%** ({summary["total_errors"]} errors) | 0.0% | ✅ 100% Reliability |
+| **Universal Swarm Throughput** | **{bench["universal_swarm"]["throughput_rps"]} req/s** | ≥ 50.0 req/s | ✅ Ultra-Fast |
+| **Swarm TTFB Latency (p50 / p95)** | **{bench["universal_swarm"]["latency_ms"]["p50"]} ms / {bench["universal_swarm"]["latency_ms"]["p95"]} ms** | < 15.0 ms / < 30.0 ms | ✅ Real-Time |
 | **Lock Depth Integrity** | **{tts_base._LOCK_DEPTH} (Clean release)** | 0 depth | ✅ Zero Deadlocks |
 | **Speech State Integrity** | **is_speaking = False** | False | ✅ Clean State |
-| **Process Orphanage** | **{summary['orphaned_child_processes']} orphaned processes** | 0 orphans | ✅ Zero Leaks |
-| **File Descriptor Stability** | **Δ FDs: +{summary['fd_growth']}** | < 20 FDs | ✅ Bounded FDs |
+| **Process Orphanage** | **{summary["orphaned_child_processes"]} orphaned processes** | 0 orphans | ✅ Zero Leaks |
+| **File Descriptor Stability** | **Δ FDs: +{summary["fd_growth"]}** | < 20 FDs | ✅ Bounded FDs |
 
 ---
 
@@ -784,8 +929,8 @@ def generate_markdown_report(report: Dict[str, Any]) -> str:
 
 | Workload | Requests | Concurrency | Throughput | Mean Latency | p50 (Median) | p90 | p95 | p99 | Max | Error Rate |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Rapid Sequential** | {bench['mcp_stdio']['sequential_50']['requests']} | 1 worker | **{bench['mcp_stdio']['sequential_50']['throughput_rps']} rps** | {bench['mcp_stdio']['sequential_50']['latency_ms']['mean']} ms | {bench['mcp_stdio']['sequential_50']['latency_ms']['p50']} ms | {bench['mcp_stdio']['sequential_50']['latency_ms']['p90']} ms | {bench['mcp_stdio']['sequential_50']['latency_ms']['p95']} ms | {bench['mcp_stdio']['sequential_50']['latency_ms']['p99']} ms | {bench['mcp_stdio']['sequential_50']['latency_ms']['max']} ms | {bench['mcp_stdio']['sequential_50']['error_rate_pct']}% |
-| **Concurrent Barrage** | {bench['mcp_stdio']['concurrent_50_workers_20']['requests']} | 20 workers | **{bench['mcp_stdio']['concurrent_50_workers_20']['throughput_rps']} rps** | {bench['mcp_stdio']['concurrent_50_workers_20']['latency_ms']['mean']} ms | {bench['mcp_stdio']['concurrent_50_workers_20']['latency_ms']['p50']} ms | {bench['mcp_stdio']['concurrent_50_workers_20']['latency_ms']['p90']} ms | {bench['mcp_stdio']['concurrent_50_workers_20']['latency_ms']['p95']} ms | {bench['mcp_stdio']['concurrent_50_workers_20']['latency_ms']['p99']} ms | {bench['mcp_stdio']['concurrent_50_workers_20']['latency_ms']['max']} ms | {bench['mcp_stdio']['concurrent_50_workers_20']['error_rate_pct']}% |
+| **Rapid Sequential** | {bench["mcp_stdio"]["sequential_50"]["requests"]} | 1 worker | **{bench["mcp_stdio"]["sequential_50"]["throughput_rps"]} rps** | {bench["mcp_stdio"]["sequential_50"]["latency_ms"]["mean"]} ms | {bench["mcp_stdio"]["sequential_50"]["latency_ms"]["p50"]} ms | {bench["mcp_stdio"]["sequential_50"]["latency_ms"]["p90"]} ms | {bench["mcp_stdio"]["sequential_50"]["latency_ms"]["p95"]} ms | {bench["mcp_stdio"]["sequential_50"]["latency_ms"]["p99"]} ms | {bench["mcp_stdio"]["sequential_50"]["latency_ms"]["max"]} ms | {bench["mcp_stdio"]["sequential_50"]["error_rate_pct"]}% |
+| **Concurrent Barrage** | {bench["mcp_stdio"]["concurrent_50_workers_20"]["requests"]} | 20 workers | **{bench["mcp_stdio"]["concurrent_50_workers_20"]["throughput_rps"]} rps** | {bench["mcp_stdio"]["concurrent_50_workers_20"]["latency_ms"]["mean"]} ms | {bench["mcp_stdio"]["concurrent_50_workers_20"]["latency_ms"]["p50"]} ms | {bench["mcp_stdio"]["concurrent_50_workers_20"]["latency_ms"]["p90"]} ms | {bench["mcp_stdio"]["concurrent_50_workers_20"]["latency_ms"]["p95"]} ms | {bench["mcp_stdio"]["concurrent_50_workers_20"]["latency_ms"]["p99"]} ms | {bench["mcp_stdio"]["concurrent_50_workers_20"]["latency_ms"]["max"]} ms | {bench["mcp_stdio"]["concurrent_50_workers_20"]["error_rate_pct"]}% |
 
 ---
 
@@ -794,8 +939,8 @@ def generate_markdown_report(report: Dict[str, Any]) -> str:
 
 | Workload | Requests | Concurrency | Throughput | Mean Latency | p50 (Median) | p90 | p95 | p99 | Max | Error Rate |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Rapid Sequential** | {bench['http_rest']['sequential_50']['requests']} | 1 client | **{bench['http_rest']['sequential_50']['throughput_rps']} rps** | {bench['http_rest']['sequential_50']['latency_ms']['mean']} ms | {bench['http_rest']['sequential_50']['latency_ms']['p50']} ms | {bench['http_rest']['sequential_50']['latency_ms']['p90']} ms | {bench['http_rest']['sequential_50']['latency_ms']['p95']} ms | {bench['http_rest']['sequential_50']['latency_ms']['p99']} ms | {bench['http_rest']['sequential_50']['latency_ms']['max']} ms | {bench['http_rest']['sequential_50']['error_rate_pct']}% |
-| **Concurrent Clients** | {bench['http_rest']['concurrent_50_workers_20']['requests']} | 20 clients | **{bench['http_rest']['concurrent_50_workers_20']['throughput_rps']} rps** | {bench['http_rest']['concurrent_50_workers_20']['latency_ms']['mean']} ms | {bench['http_rest']['concurrent_50_workers_20']['latency_ms']['p50']} ms | {bench['http_rest']['concurrent_50_workers_20']['latency_ms']['p90']} ms | {bench['http_rest']['concurrent_50_workers_20']['latency_ms']['p95']} ms | {bench['http_rest']['concurrent_50_workers_20']['latency_ms']['p99']} ms | {bench['http_rest']['concurrent_50_workers_20']['latency_ms']['max']} ms | {bench['http_rest']['concurrent_50_workers_20']['error_rate_pct']}% |
+| **Rapid Sequential** | {bench["http_rest"]["sequential_50"]["requests"]} | 1 client | **{bench["http_rest"]["sequential_50"]["throughput_rps"]} rps** | {bench["http_rest"]["sequential_50"]["latency_ms"]["mean"]} ms | {bench["http_rest"]["sequential_50"]["latency_ms"]["p50"]} ms | {bench["http_rest"]["sequential_50"]["latency_ms"]["p90"]} ms | {bench["http_rest"]["sequential_50"]["latency_ms"]["p95"]} ms | {bench["http_rest"]["sequential_50"]["latency_ms"]["p99"]} ms | {bench["http_rest"]["sequential_50"]["latency_ms"]["max"]} ms | {bench["http_rest"]["sequential_50"]["error_rate_pct"]}% |
+| **Concurrent Clients** | {bench["http_rest"]["concurrent_50_workers_20"]["requests"]} | 20 clients | **{bench["http_rest"]["concurrent_50_workers_20"]["throughput_rps"]} rps** | {bench["http_rest"]["concurrent_50_workers_20"]["latency_ms"]["mean"]} ms | {bench["http_rest"]["concurrent_50_workers_20"]["latency_ms"]["p50"]} ms | {bench["http_rest"]["concurrent_50_workers_20"]["latency_ms"]["p90"]} ms | {bench["http_rest"]["concurrent_50_workers_20"]["latency_ms"]["p95"]} ms | {bench["http_rest"]["concurrent_50_workers_20"]["latency_ms"]["p99"]} ms | {bench["http_rest"]["concurrent_50_workers_20"]["latency_ms"]["max"]} ms | {bench["http_rest"]["concurrent_50_workers_20"]["error_rate_pct"]}% |
 
 ---
 
@@ -804,8 +949,8 @@ def generate_markdown_report(report: Dict[str, Any]) -> str:
 
 | Workload | Requests | Concurrency | Throughput | Mean Latency | p50 (Median) | p90 | p95 | p99 | Max | Error Rate |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Rapid Sequential** | {bench['developer_cli']['sequential_50']['requests']} | 1 terminal | **{bench['developer_cli']['sequential_50']['throughput_rps']} rps** | {bench['developer_cli']['sequential_50']['latency_ms']['mean']} ms | {bench['developer_cli']['sequential_50']['latency_ms']['p50']} ms | {bench['developer_cli']['sequential_50']['latency_ms']['p90']} ms | {bench['developer_cli']['sequential_50']['latency_ms']['p95']} ms | {bench['developer_cli']['sequential_50']['latency_ms']['p99']} ms | {bench['developer_cli']['sequential_50']['latency_ms']['max']} ms | {bench['developer_cli']['sequential_50']['error_rate_pct']}% |
-| **Parallel Workers** | {bench['developer_cli']['concurrent_50_workers_15']['requests']} | 15 workers | **{bench['developer_cli']['concurrent_50_workers_15']['throughput_rps']} rps** | {bench['developer_cli']['concurrent_50_workers_15']['latency_ms']['mean']} ms | {bench['developer_cli']['concurrent_50_workers_15']['latency_ms']['p50']} ms | {bench['developer_cli']['concurrent_50_workers_15']['latency_ms']['p90']} ms | {bench['developer_cli']['concurrent_50_workers_15']['latency_ms']['p95']} ms | {bench['developer_cli']['concurrent_50_workers_15']['latency_ms']['p99']} ms | {bench['developer_cli']['concurrent_50_workers_15']['latency_ms']['max']} ms | {bench['developer_cli']['concurrent_50_workers_15']['error_rate_pct']}% |
+| **Rapid Sequential** | {bench["developer_cli"]["sequential_50"]["requests"]} | 1 terminal | **{bench["developer_cli"]["sequential_50"]["throughput_rps"]} rps** | {bench["developer_cli"]["sequential_50"]["latency_ms"]["mean"]} ms | {bench["developer_cli"]["sequential_50"]["latency_ms"]["p50"]} ms | {bench["developer_cli"]["sequential_50"]["latency_ms"]["p90"]} ms | {bench["developer_cli"]["sequential_50"]["latency_ms"]["p95"]} ms | {bench["developer_cli"]["sequential_50"]["latency_ms"]["p99"]} ms | {bench["developer_cli"]["sequential_50"]["latency_ms"]["max"]} ms | {bench["developer_cli"]["sequential_50"]["error_rate_pct"]}% |
+| **Parallel Workers** | {bench["developer_cli"]["concurrent_50_workers_15"]["requests"]} | 15 workers | **{bench["developer_cli"]["concurrent_50_workers_15"]["throughput_rps"]} rps** | {bench["developer_cli"]["concurrent_50_workers_15"]["latency_ms"]["mean"]} ms | {bench["developer_cli"]["concurrent_50_workers_15"]["latency_ms"]["p50"]} ms | {bench["developer_cli"]["concurrent_50_workers_15"]["latency_ms"]["p90"]} ms | {bench["developer_cli"]["concurrent_50_workers_15"]["latency_ms"]["p95"]} ms | {bench["developer_cli"]["concurrent_50_workers_15"]["latency_ms"]["p99"]} ms | {bench["developer_cli"]["concurrent_50_workers_15"]["latency_ms"]["max"]} ms | {bench["developer_cli"]["concurrent_50_workers_15"]["error_rate_pct"]}% |
 
 ---
 
@@ -814,8 +959,8 @@ def generate_markdown_report(report: Dict[str, Any]) -> str:
 
 | Workload | Requests | Concurrency | Throughput | Mean Latency | p50 (Median) | p90 | p95 | p99 | Max | Error Rate |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Direct Library Calls** | {bench['python_sdk']['sequential_50']['requests']} | 1 thread | **{bench['python_sdk']['sequential_50']['throughput_rps']} rps** | {bench['python_sdk']['sequential_50']['latency_ms']['mean']} ms | {bench['python_sdk']['sequential_50']['latency_ms']['p50']} ms | {bench['python_sdk']['sequential_50']['latency_ms']['p90']} ms | {bench['python_sdk']['sequential_50']['latency_ms']['p95']} ms | {bench['python_sdk']['sequential_50']['latency_ms']['p99']} ms | {bench['python_sdk']['sequential_50']['latency_ms']['max']} ms | {bench['python_sdk']['sequential_50']['error_rate_pct']}% |
-| **Lock Contention (20 Threads)** | {bench['python_sdk']['concurrent_60_contenders_20']['requests']} | 20 threads | **{bench['python_sdk']['concurrent_60_contenders_20']['throughput_rps']} rps** | {bench['python_sdk']['concurrent_60_contenders_20']['latency_ms']['mean']} ms | {bench['python_sdk']['concurrent_60_contenders_20']['latency_ms']['p50']} ms | {bench['python_sdk']['concurrent_60_contenders_20']['latency_ms']['p90']} ms | {bench['python_sdk']['concurrent_60_contenders_20']['latency_ms']['p95']} ms | {bench['python_sdk']['concurrent_60_contenders_20']['latency_ms']['p99']} ms | {bench['python_sdk']['concurrent_60_contenders_20']['latency_ms']['max']} ms | {bench['python_sdk']['concurrent_60_contenders_20']['error_rate_pct']}% |
+| **Direct Library Calls** | {bench["python_sdk"]["sequential_50"]["requests"]} | 1 thread | **{bench["python_sdk"]["sequential_50"]["throughput_rps"]} rps** | {bench["python_sdk"]["sequential_50"]["latency_ms"]["mean"]} ms | {bench["python_sdk"]["sequential_50"]["latency_ms"]["p50"]} ms | {bench["python_sdk"]["sequential_50"]["latency_ms"]["p90"]} ms | {bench["python_sdk"]["sequential_50"]["latency_ms"]["p95"]} ms | {bench["python_sdk"]["sequential_50"]["latency_ms"]["p99"]} ms | {bench["python_sdk"]["sequential_50"]["latency_ms"]["max"]} ms | {bench["python_sdk"]["sequential_50"]["error_rate_pct"]}% |
+| **Lock Contention (20 Threads)** | {bench["python_sdk"]["concurrent_60_contenders_20"]["requests"]} | 20 threads | **{bench["python_sdk"]["concurrent_60_contenders_20"]["throughput_rps"]} rps** | {bench["python_sdk"]["concurrent_60_contenders_20"]["latency_ms"]["mean"]} ms | {bench["python_sdk"]["concurrent_60_contenders_20"]["latency_ms"]["p50"]} ms | {bench["python_sdk"]["concurrent_60_contenders_20"]["latency_ms"]["p90"]} ms | {bench["python_sdk"]["concurrent_60_contenders_20"]["latency_ms"]["p95"]} ms | {bench["python_sdk"]["concurrent_60_contenders_20"]["latency_ms"]["p99"]} ms | {bench["python_sdk"]["concurrent_60_contenders_20"]["latency_ms"]["max"]} ms | {bench["python_sdk"]["concurrent_60_contenders_20"]["error_rate_pct"]}% |
 
 ---
 
@@ -826,14 +971,14 @@ def generate_markdown_report(report: Dict[str, Any]) -> str:
 | :--- | :--- | :--- |
 | **Total Requests** | **100 requests** | 100 |
 | **Concurrent Workers** | **20 workers** | 20 |
-| **Swarm Throughput** | **{bench['universal_swarm']['throughput_rps']} requests/sec** | ≥ 50 req/s |
+| **Swarm Throughput** | **{bench["universal_swarm"]["throughput_rps"]} requests/sec** | ≥ 50 req/s |
 | **Error Count / Rate** | **0 errors (0.0%)** | 0.0% |
-| **Mean Latency** | **{bench['universal_swarm']['latency_ms']['mean']} ms** | < 10.0 ms |
-| **p50 (Median Latency)** | **{bench['universal_swarm']['latency_ms']['p50']} ms** | < 10.0 ms |
-| **p90 Latency** | **{bench['universal_swarm']['latency_ms']['p90']} ms** | < 20.0 ms |
-| **p95 Latency** | **{bench['universal_swarm']['latency_ms']['p95']} ms** | < 25.0 ms |
-| **p99 Latency** | **{bench['universal_swarm']['latency_ms']['p99']} ms** | < 35.0 ms |
-| **Max Latency** | **{bench['universal_swarm']['latency_ms']['max']} ms** | < 50.0 ms |
+| **Mean Latency** | **{bench["universal_swarm"]["latency_ms"]["mean"]} ms** | < 10.0 ms |
+| **p50 (Median Latency)** | **{bench["universal_swarm"]["latency_ms"]["p50"]} ms** | < 10.0 ms |
+| **p90 Latency** | **{bench["universal_swarm"]["latency_ms"]["p90"]} ms** | < 20.0 ms |
+| **p95 Latency** | **{bench["universal_swarm"]["latency_ms"]["p95"]} ms** | < 25.0 ms |
+| **p99 Latency** | **{bench["universal_swarm"]["latency_ms"]["p99"]} ms** | < 35.0 ms |
+| **Max Latency** | **{bench["universal_swarm"]["latency_ms"]["max"]} ms** | < 50.0 ms |
 
 ---
 
@@ -869,11 +1014,19 @@ def main():
     print(f"✅ Human-Readable Markdown Report written to: {md_path}", flush=True)
 
     print("\n" + "=" * 70, flush=True)
-    print(f"🎉 Benchmark Completed Successfully!", flush=True)
+    print("🎉 Benchmark Completed Successfully!", flush=True)
     print(f"   • Total Operations: {report['summary']['total_requests_executed']}", flush=True)
-    print(f"   • Overall Errors:   {report['summary']['total_errors']} (0.0% error rate)", flush=True)
-    print(f"   • Swarm Throughput: {report['benchmarks']['universal_swarm']['throughput_rps']} req/s", flush=True)
-    print(f"   • Swarm p50 / p95:  {report['benchmarks']['universal_swarm']['latency_ms']['p50']}ms / {report['benchmarks']['universal_swarm']['latency_ms']['p95']}ms", flush=True)
+    print(
+        f"   • Overall Errors:   {report['summary']['total_errors']} (0.0% error rate)", flush=True
+    )
+    print(
+        f"   • Swarm Throughput: {report['benchmarks']['universal_swarm']['throughput_rps']} req/s",
+        flush=True,
+    )
+    print(
+        f"   • Swarm p50 / p95:  {report['benchmarks']['universal_swarm']['latency_ms']['p50']}ms / {report['benchmarks']['universal_swarm']['latency_ms']['p95']}ms",
+        flush=True,
+    )
     print("=" * 70, flush=True)
 
 

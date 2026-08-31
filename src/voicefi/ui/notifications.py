@@ -11,6 +11,7 @@ def show_notification(title: str, subtitle: str = "", message: str = "") -> bool
     # 1. Try rumps notification
     try:
         import rumps
+
         rumps.notification(title, subtitle, message)
         return True
     except Exception:
@@ -29,7 +30,9 @@ def show_notification(title: str, subtitle: str = "", message: str = "") -> bool
             parts.append(f'subtitle "{clean_sub}"')
 
         script = " ".join(parts)
-        res = subprocess.run(["osascript", "-e", script], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        res = subprocess.run(
+            ["osascript", "-e", script], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        )
         return res.returncode == 0
     except Exception:
         return False

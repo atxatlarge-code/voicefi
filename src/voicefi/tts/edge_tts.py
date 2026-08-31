@@ -95,7 +95,9 @@ class EdgeTTS(BaseTTS):
         self.afplay_vol = str(max(self.volume * 1.6, 1.5))
         self.streaming = streaming
         self.agent_name = agent_name
-        self.persona_name = persona_name or ("Viv" if ("Ava" in self.voice or "Viv" in self.voice) else self.voice)
+        self.persona_name = persona_name or (
+            "Viv" if ("Ava" in self.voice or "Viv" in self.voice) else self.voice
+        )
         self.offline_fallback_voice = offline_fallback_voice or "Ava (Premium)"
         self._current_process: Optional[subprocess.Popen] = None
         self._stop_requested = False
@@ -109,16 +111,29 @@ class EdgeTTS(BaseTTS):
 
     def _fallback_speak_direct(self, clean_text: str, turn_start_time: float = 0.0) -> None:
         """Fallback speak directly using macOS say without re-acquiring lock (already inside speech_turn_lock)."""
-        from voicefi.tts.base import is_speech_interrupted, set_agent_audio_playing, is_agent_speaking
-        if not clean_text or not clean_text.strip() or self._stop_requested or is_speech_interrupted(turn_start_time):
+        from voicefi.tts.base import (
+            is_speech_interrupted,
+            set_agent_audio_playing,
+            is_agent_speaking,
+        )
+
+        if (
+            not clean_text
+            or not clean_text.strip()
+            or self._stop_requested
+            or is_speech_interrupted(turn_start_time)
+        ):
             return
         try:
             from voicefi.tts.offline import is_voice_installed
             from voicefi.tts.mac_say import normalize_mac_rate
+
             fb_voice = self.offline_fallback_voice or "Ava (Premium)"
             try:
                 has_fb, exact_fb = is_voice_installed(fb_voice)
-                target_voice = exact_fb if (has_fb and exact_fb) else ("Ava" if has_fb else "Samantha")
+                target_voice = (
+                    exact_fb if (has_fb and exact_fb) else ("Ava" if has_fb else "Samantha")
+                )
             except Exception:
                 target_voice = "Samantha"
 
@@ -143,6 +158,7 @@ class EdgeTTS(BaseTTS):
 
     async def _generate_audio(self, text: str, output_path: str) -> None:
         import edge_tts
+
         communicate = edge_tts.Communicate(text, self.voice, rate=self.rate_str)
         await communicate.save(output_path)
 
@@ -166,12 +182,24 @@ class EdgeTTS(BaseTTS):
                     agent_name=getattr(self, "agent_name", "VoiceFi"),
                     persona_name=getattr(self, "persona_name", getattr(self, "voice", "EdgeTTS")),
                 ):
-                    from voicefi.tts.base import set_agent_audio_playing, is_agent_speaking, is_speech_interrupted
-                    if self._stop_requested or is_speech_interrupted(turn_start_time) or not is_agent_speaking():
+                    from voicefi.tts.base import (
+                        set_agent_audio_playing,
+                        is_agent_speaking,
+                        is_speech_interrupted,
+                    )
+
+                    if (
+                        self._stop_requested
+                        or is_speech_interrupted(turn_start_time)
+                        or not is_agent_speaking()
+                    ):
                         return
 
                     import re
-                    raw_sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", clean_text) if s.strip()]
+
+                    raw_sentences = [
+                        s.strip() for s in re.split(r"(?<=[.!?])\s+", clean_text) if s.strip()
+                    ]
                     sentences = [s for s in raw_sentences if any(c.isalnum() for c in s)]
                     if not sentences:
                         sentences = [clean_text] if any(c.isalnum() for c in clean_text) else []
@@ -185,7 +213,13 @@ class EdgeTTS(BaseTTS):
                         temp_mp3.close()
                         try:
                             asyncio.run(self._generate_audio(sentences[0], temp_path))
-                            if not self._stop_requested and not is_speech_interrupted(turn_start_time) and is_agent_speaking() and Path(temp_path).is_file() and Path(temp_path).stat().st_size > 0:
+                            if (
+                                not self._stop_requested
+                                and not is_speech_interrupted(turn_start_time)
+                                and is_agent_speaking()
+                                and Path(temp_path).is_file()
+                                and Path(temp_path).stat().st_size > 0
+                            ):
                                 set_agent_audio_playing(True)
                                 proc = subprocess.Popen(
                                     ["afplay", "-v", self.afplay_vol, temp_path],
@@ -194,14 +228,29 @@ class EdgeTTS(BaseTTS):
                                 )
                                 self._current_process = proc
                                 proc.wait()
-                                was_interrupted = self._stop_requested or is_speech_interrupted(turn_start_time) or (proc.returncode in (-9, -15, 137, 143))
+                                was_interrupted = (
+                                    self._stop_requested
+                                    or is_speech_interrupted(turn_start_time)
+                                    or (proc.returncode in (-9, -15, 137, 143))
+                                )
                                 if not was_interrupted and proc.returncode != 0:
                                     self._safe_fallback(clean_text, turn_start_time=turn_start_time)
-                            elif not self._stop_requested and not is_speech_interrupted(turn_start_time) and is_agent_speaking():
+                            elif (
+                                not self._stop_requested
+                                and not is_speech_interrupted(turn_start_time)
+                                and is_agent_speaking()
+                            ):
                                 self._safe_fallback(clean_text, turn_start_time=turn_start_time)
                         except Exception as e:
-                            print(f"[EdgeTTS] Error generating audio ({e}); falling back to offline voice", file=sys.stderr)
-                            if not self._stop_requested and not is_speech_interrupted(turn_start_time) and is_agent_speaking():
+                            print(
+                                f"[EdgeTTS] Error generating audio ({e}); falling back to offline voice",
+                                file=sys.stderr,
+                            )
+                            if (
+                                not self._stop_requested
+                                and not is_speech_interrupted(turn_start_time)
+                                and is_agent_speaking()
+                            ):
                                 self._safe_fallback(clean_text, turn_start_time=turn_start_time)
                         finally:
                             set_agent_audio_playing(False)
@@ -211,24 +260,37 @@ class EdgeTTS(BaseTTS):
 
                     # Sentence-pipelined streaming: pre-fetch next sentence while playing current
                     import queue
+
                     audio_queue: queue.Queue = queue.Queue(maxsize=3)
                     self._audio_queue = audio_queue
 
                     def _fetcher():
                         for s in sentences:
-                            if self._stop_requested or is_speech_interrupted(turn_start_time) or not is_agent_speaking():
+                            if (
+                                self._stop_requested
+                                or is_speech_interrupted(turn_start_time)
+                                or not is_agent_speaking()
+                            ):
                                 break
                             tf = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
                             tp = tf.name
                             tf.close()
                             try:
-                                asyncio.run(self._generate_audio(s, tp))
+                                async def _run_with_timeout(txt, out):
+                                    try:
+                                        await asyncio.wait_for(self._generate_audio(txt, out), timeout=15.0)
+                                    except asyncio.TimeoutError:
+                                        print(f"[EdgeTTS] Timeout generating chunk for '{txt}'", file=sys.stderr)
+                                asyncio.run(_run_with_timeout(s, tp))
                                 if Path(tp).is_file() and Path(tp).stat().st_size > 0:
                                     audio_queue.put(tp)
                                 else:
                                     Path(tp).unlink(missing_ok=True)
                             except Exception as e:
-                                print(f"[EdgeTTS] Chunk generation notice for '{s}': {e}", file=sys.stderr)
+                                print(
+                                    f"[EdgeTTS] Chunk generation notice for '{s}': {e}",
+                                    file=sys.stderr,
+                                )
                                 Path(tp).unlink(missing_ok=True)
                         audio_queue.put(None)
 
@@ -236,18 +298,35 @@ class EdgeTTS(BaseTTS):
                     fetcher_thread.start()
 
                     played_chunks = 0
+                    was_interrupted = False
                     try:
-                        while not self._stop_requested and not is_speech_interrupted(turn_start_time) and is_agent_speaking():
+                        while (
+                            not self._stop_requested
+                            and not is_speech_interrupted(turn_start_time)
+                            and is_agent_speaking()
+                        ):
                             try:
                                 chunk_path = audio_queue.get(timeout=10.0)
                             except Exception:
                                 break
-                            if chunk_path is None or self._stop_requested or is_speech_interrupted(turn_start_time) or not is_agent_speaking():
+                            if (
+                                chunk_path is None
+                                or self._stop_requested
+                                or is_speech_interrupted(turn_start_time)
+                                or not is_agent_speaking()
+                            ):
                                 if chunk_path and Path(chunk_path).is_file():
                                     Path(chunk_path).unlink(missing_ok=True)
+                                was_interrupted = True
                                 break
                             try:
-                                if not self._stop_requested and not is_speech_interrupted(turn_start_time) and is_agent_speaking() and Path(chunk_path).is_file() and Path(chunk_path).stat().st_size > 0:
+                                if (
+                                    not self._stop_requested
+                                    and not is_speech_interrupted(turn_start_time)
+                                    and is_agent_speaking()
+                                    and Path(chunk_path).is_file()
+                                    and Path(chunk_path).stat().st_size > 0
+                                ):
                                     set_agent_audio_playing(True)
                                     proc = subprocess.Popen(
                                         ["afplay", "-v", self.afplay_vol, chunk_path],
@@ -256,8 +335,12 @@ class EdgeTTS(BaseTTS):
                                     )
                                     self._current_process = proc
                                     proc.wait()
-                                    was_interrupted = self._stop_requested or is_speech_interrupted(turn_start_time) or (proc.returncode in (-9, -15, 137, 143))
-                                    if was_interrupted:
+                                    if (
+                                        self._stop_requested
+                                        or is_speech_interrupted(turn_start_time)
+                                        or (proc.returncode in (-9, -15, 137, 143))
+                                    ):
+                                        was_interrupted = True
                                         break
                                     played_chunks += 1
                             finally:
@@ -265,7 +348,10 @@ class EdgeTTS(BaseTTS):
                                 self._current_process = None
                                 Path(chunk_path).unlink(missing_ok=True)
 
-                        was_interrupted = self._stop_requested or is_speech_interrupted(turn_start_time)
+                        if not was_interrupted:
+                            was_interrupted = self._stop_requested or is_speech_interrupted(
+                                turn_start_time
+                            )
                         if not was_interrupted and is_agent_speaking():
                             if played_chunks == 0:
                                 self._safe_fallback(clean_text, turn_start_time=turn_start_time)
@@ -330,4 +416,3 @@ class EdgeTTS(BaseTTS):
                         Path(item).unlink(missing_ok=True)
                 except Exception:
                     break
-

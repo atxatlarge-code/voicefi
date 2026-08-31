@@ -43,25 +43,35 @@ SYSTEM_SOUNDS = {
 def play_chime(sound_key_or_path: str, block: bool = False) -> None:
     """
     Play a system audio cue using macOS afplay.
-    
+
     Args:
         sound_key_or_path: Key in SYSTEM_SOUNDS (e.g. 'start', 'sent', 'done') or absolute path to an audio file.
         block: Whether to block execution until the sound finishes.
     """
     sound_path = SYSTEM_SOUNDS.get(sound_key_or_path, sound_key_or_path)
-    
+
     # If the configured file does not exist, check fallback
     if not os.path.exists(sound_path):
-        if sound_key_or_path in ("done", "sent", "mail_sent", "swoosh") or "Mail Sent" in sound_key_or_path:
+        if (
+            sound_key_or_path in ("done", "sent", "mail_sent", "swoosh")
+            or "Mail Sent" in sound_key_or_path
+        ):
             sound_path = DEFAULT_SENT_SOUND
         if not os.path.exists(sound_path):
             return
 
     def _run():
-        if not block and (os.getenv("VOICEFI_TESTING") == "1" or os.getenv("VOICEFI_HEADLESS") == "1"):
+        if not block and (
+            os.getenv("VOICEFI_TESTING") == "1" or os.getenv("VOICEFI_HEADLESS") == "1"
+        ):
             return
         try:
-            subprocess.run(["afplay", sound_path], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(
+                ["afplay", sound_path],
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
         except Exception:
             pass
 

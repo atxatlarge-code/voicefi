@@ -110,7 +110,10 @@ $$\text{Pre-speech Silence} + \sum_{i=0}^{N-1} (\text{Word Active Span} + \text{
 from typing import List, Tuple
 from voicefi.video.kinetic_karaoke import KineticKaraokeEngine
 
-def build_gapless_timeline(words: List[Tuple[str, float, float]], total_turn_dur: float) -> List[Tuple[int, float]]:
+
+def build_gapless_timeline(
+    words: List[Tuple[str, float, float]], total_turn_dur: float
+) -> List[Tuple[int, float]]:
     timeline = []
 
     # 1. Pre-speech lead-in silence (State -1: all words upcoming)
@@ -122,7 +125,7 @@ def build_gapless_timeline(words: List[Tuple[str, float, float]], total_turn_dur
         w_start = words[i][1]
         w_end = words[i][2]
         if i < len(words) - 1:
-            next_start = words[i+1][1]
+            next_start = words[i + 1][1]
             span_dur = max(0.05, next_start - w_start)
         else:
             span_dur = max(0.05, w_end - w_start)

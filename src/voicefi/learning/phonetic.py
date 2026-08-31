@@ -72,7 +72,24 @@ class PhoneticLearner:
 
     def _load_memory(self):
         """Load persistent phonetic memory from JSON disk cache."""
-        COMMON_WORDS = {"run", "get", "set", "is", "has", "do", "make", "find", "test", "load", "save", "stop", "read", "write", "open", "close"}
+        COMMON_WORDS = {
+            "run",
+            "get",
+            "set",
+            "is",
+            "has",
+            "do",
+            "make",
+            "find",
+            "test",
+            "load",
+            "save",
+            "stop",
+            "read",
+            "write",
+            "open",
+            "close",
+        }
         if self.memory_path.is_file():
             try:
                 with open(self.memory_path, "r", encoding="utf-8") as f:
@@ -80,8 +97,11 @@ class PhoneticLearner:
                     self.learned_corrections = data.get("corrections", {})
                     raw_symbols = data.get("symbols", {})
                     self.project_symbols = {
-                        k: v for k, v in raw_symbols.items()
-                        if isinstance(v, str) and not v.startswith("_") and v.lower() not in COMMON_WORDS
+                        k: v
+                        for k, v in raw_symbols.items()
+                        if isinstance(v, str)
+                        and not v.startswith("_")
+                        and v.lower() not in COMMON_WORDS
                     }
             except Exception:
                 self.learned_corrections = {}
@@ -116,12 +136,15 @@ class PhoneticLearner:
             return
 
         pattern = r"\b" + re.escape(spoken_clean) + r"\b"
-        entry = self.learned_corrections.get(pattern, {
-            "canonical": canonical_clean,
-            "spoken": spoken_clean,
-            "count": 0,
-            "confidence": confidence,
-        })
+        entry = self.learned_corrections.get(
+            pattern,
+            {
+                "canonical": canonical_clean,
+                "spoken": spoken_clean,
+                "count": 0,
+                "confidence": confidence,
+            },
+        )
         entry["canonical"] = canonical_clean
         entry["count"] = entry.get("count", 0) + 1
         entry["confidence"] = min(1.0, entry.get("confidence", 0.8) + 0.05)
@@ -138,7 +161,24 @@ class PhoneticLearner:
             return
 
         # Skip common single English words from overriding dictionary
-        COMMON_WORDS = {"run", "get", "set", "is", "has", "do", "make", "find", "test", "load", "save", "stop", "read", "write", "open", "close"}
+        COMMON_WORDS = {
+            "run",
+            "get",
+            "set",
+            "is",
+            "has",
+            "do",
+            "make",
+            "find",
+            "test",
+            "load",
+            "save",
+            "stop",
+            "read",
+            "write",
+            "open",
+            "close",
+        }
         if sym_clean.lower() in COMMON_WORDS:
             return
 
@@ -188,7 +228,12 @@ class PhoneticLearner:
 
         for root, dirs, files in os.walk(workspace_path):
             # Skip hidden and vendor dirs
-            dirs[:] = [d for d in dirs if not d.startswith(".") and d not in ("node_modules", "venv", ".venv", "dist", "build")]
+            dirs[:] = [
+                d
+                for d in dirs
+                if not d.startswith(".")
+                and d not in ("node_modules", "venv", ".venv", "dist", "build")
+            ]
             for file in files:
                 ext = Path(file).suffix.lower()
                 if ext in file_exts:
@@ -200,8 +245,10 @@ class PhoneticLearner:
                             classes = re.findall(r"\bclass\s+([A-Za-z0-9_]+)", content)
                             functions = re.findall(r"\bdef\s+([A-Za-z0-9_]+)", content)
                             ts_funcs = re.findall(r"\bfunction\s+([A-Za-z0-9_]+)", content)
-                            ts_types = re.findall(r"\b(?:interface|type)\s+([A-Za-z0-9_]+)", content)
-                            
+                            ts_types = re.findall(
+                                r"\b(?:interface|type)\s+([A-Za-z0-9_]+)", content
+                            )
+
                             for sym in classes + functions + ts_funcs + ts_types:
                                 if len(sym) >= 4:
                                     self.record_symbol(sym)
@@ -221,8 +268,16 @@ class PhoneticLearner:
             "total_learned_corrections": len(self.learned_corrections),
             "total_project_symbols": len(self.project_symbols),
             "top_corrections": [
-                {"spoken": v.get("spoken", k), "canonical": v.get("canonical", ""), "count": v.get("count", 0)}
-                for k, v in sorted(self.learned_corrections.items(), key=lambda item: item[1].get("count", 0), reverse=True)[:10]
+                {
+                    "spoken": v.get("spoken", k),
+                    "canonical": v.get("canonical", ""),
+                    "count": v.get("count", 0),
+                }
+                for k, v in sorted(
+                    self.learned_corrections.items(),
+                    key=lambda item: item[1].get("count", 0),
+                    reverse=True,
+                )[:10]
             ],
             "memory_file": str(self.memory_path),
         }

@@ -13,7 +13,11 @@ from typing import Dict, Any, Optional
 
 from voicefi.config import VoiceFiConfig, load_config
 from voicefi.tts import get_tts_engine, stop_all_speech
-from voicefi.tts.base import set_cross_process_hud_state, clear_cross_process_hud_state, escape_to_stop_speech
+from voicefi.tts.base import (
+    set_cross_process_hud_state,
+    clear_cross_process_hud_state,
+    escape_to_stop_speech,
+)
 from voicefi.stt import get_stt_engine
 from voicefi.audio.recorder import AudioRecorder
 from voicefi.audio.chimes import play_chime
@@ -29,7 +33,11 @@ from voicefi.integrations.conversations import (
     resolve_pending_question,
     clear_pending_question,
 )
-from voicefi.integrations.active_listening import ActiveListeningEngine, SpokenIntentCategory, SpokenTargetChannel
+from voicefi.integrations.active_listening import (
+    ActiveListeningEngine,
+    SpokenIntentCategory,
+    SpokenTargetChannel,
+)
 from voicefi.tts.normalizer import normalize_tts_text
 
 
@@ -44,12 +52,14 @@ def clean_markdown_for_speech(text: str, max_words: int = 60) -> str:
     # 0. Check for Gemini Flash distillation if available and enabled
     try:
         from voicefi.integrations.gemini_ai import GeminiIntelligenceEngine
+
         gemini_engine = GeminiIntelligenceEngine()
-        if (
-            gemini_engine.is_available()
-            and getattr(getattr(gemini_engine.config, "gemini", None), "enable_soundbite_distillation", True)
+        if gemini_engine.is_available() and getattr(
+            getattr(gemini_engine.config, "gemini", None), "enable_soundbite_distillation", True
         ):
-            distilled = gemini_engine.distill_spoken_soundbite(text, max_words=max_words, timeout=0.6)
+            distilled = gemini_engine.distill_spoken_soundbite(
+                text, max_words=max_words, timeout=0.6
+            )
             if distilled and len(distilled.strip()) > 3:
                 return distilled
     except Exception:
@@ -100,9 +110,9 @@ def clean_markdown_for_speech(text: str, max_words: int = 60) -> str:
     text = " ".join(cleaned_lines)
 
     # Clean remaining inline Markdown markup
-    text = re.sub(r"`([^`]+)`", r"\1", text)             # Inline code
-    text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text) # Links -> text only
-    text = re.sub(r"[*_~]{1,3}", "", text)                # Bold/Italic
+    text = re.sub(r"`([^`]+)`", r"\1", text)  # Inline code
+    text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text)  # Links -> text only
+    text = re.sub(r"[*_~]{1,3}", "", text)  # Bold/Italic
 
     # 6. Strip emojis and decorative Unicode symbols
     text = re.sub(r"[\U00010000-\U0010ffff\u2600-\u27bf\u2300-\u23ff\ufe00-\ufe0f]", "", text)
@@ -123,7 +133,9 @@ def clean_markdown_for_speech(text: str, max_words: int = 60) -> str:
         if len(words) <= budget:
             return s
         truncated = " ".join(words[:budget])
-        last_punct = max(truncated.rfind("."), truncated.rfind("?"), truncated.rfind("!"), truncated.rfind(","))
+        last_punct = max(
+            truncated.rfind("."), truncated.rfind("?"), truncated.rfind("!"), truncated.rfind(",")
+        )
         if last_punct > len(truncated) // 2:
             return truncated[: last_punct + 1]
         return truncated + "..."
@@ -249,10 +261,12 @@ def extract_latest_agent_summary(
     return (cleaned, detected_role) if return_role else cleaned
 
 
-def handle_antigravity_stop_hook(payload: Dict[str, Any], config: Optional[VoiceFiConfig] = None) -> Dict[str, Any]:
+def handle_antigravity_stop_hook(
+    payload: Dict[str, Any], config: Optional[VoiceFiConfig] = None
+) -> Dict[str, Any]:
     """
     Execute the VoiceFi loop on Antigravity Stop event.
-    
+
     1. Summarize agent turn.
     2. Speak summary via TTS (using agent or subagent persona).
     3. Open mic, record speech with VAD.
@@ -262,14 +276,23 @@ def handle_antigravity_stop_hook(payload: Dict[str, Any], config: Optional[Voice
     cfg = config or load_config()
 
     # Guard: Return immediately if globally disabled, hooks disabled, or antigravity hooks disabled
-    if not cfg.enabled or not getattr(cfg.hooks, "enabled", True) or not getattr(cfg.hooks, "antigravity", True):
+    if (
+        not cfg.enabled
+        or not getattr(cfg.hooks, "enabled", True)
+        or not getattr(cfg.hooks, "antigravity", True)
+    ):
         return {}
     if not getattr(cfg.integrations, "antigravity", True):
         return {}
     if not cfg.antigravity.auto_listen and not cfg.antigravity.read_summary_aloud:
         return {}
 
-    conv_id = payload.get("conversationId") or payload.get("conversation_id") or payload.get("conv_id") or ""
+    conv_id = (
+        payload.get("conversationId")
+        or payload.get("conversation_id")
+        or payload.get("conv_id")
+        or ""
+    )
     transcript_path_str = payload.get("transcriptPath") or payload.get("transcript_path") or ""
     workspace_paths = payload.get("workspacePaths") or payload.get("workspace_paths") or []
     workspace_path = workspace_paths[0] if workspace_paths else None
@@ -278,11 +301,21 @@ def handle_antigravity_stop_hook(payload: Dict[str, Any], config: Optional[Voice
 
     if not transcript_path_str or not transcript_path.is_file():
         if conv_id:
-            cand = Path.home() / ".gemini" / "antigravity" / "brain" / conv_id / ".system_generated" / "logs" / "transcript.jsonl"
+            cand = (
+                Path.home()
+                / ".gemini"
+                / "antigravity"
+                / "brain"
+                / conv_id
+                / ".system_generated"
+                / "logs"
+                / "transcript.jsonl"
+            )
             if cand.is_file():
                 transcript_path = cand
         if not transcript_path or not transcript_path.is_file():
             from voicefi.integrations.watcher import find_latest_transcript_path
+
             cand = find_latest_transcript_path()
             if cand and cand.is_file():
                 transcript_path = cand
@@ -297,6 +330,7 @@ def handle_antigravity_stop_hook(payload: Dict[str, Any], config: Optional[Voice
 
     if not transcript_path or not transcript_path.is_file():
         from voicefi.integrations.conversations import ConversationTracker
+
         tracker = ConversationTracker()
         recent = tracker.get_recent_transcripts(limit=1)
         if recent:
@@ -309,6 +343,22 @@ def handle_antigravity_stop_hook(payload: Dict[str, Any], config: Optional[Voice
                         conv_id = cand
                 except Exception:
                     pass
+
+    if not workspace_path:
+        from voicefi.integrations.conversations import ConversationTracker, load_session_cookie
+
+        cookie = load_session_cookie()
+        if cookie and cookie.get("workspacePath"):
+            workspace_path = cookie.get("workspacePath")
+        elif transcript_path and transcript_path.is_file():
+            tracker = ConversationTracker()
+            c_info = tracker.parse_conversation(transcript_path)
+            if c_info and c_info.workspace_path:
+                workspace_path = c_info.workspace_path
+
+    project_name = payload.get("projectName") or payload.get("project_name")
+    if not project_name and workspace_path:
+        project_name = Path(workspace_path).name
 
     if conv_id:
         save_session_cookie(
@@ -356,11 +406,14 @@ def handle_antigravity_stop_hook(payload: Dict[str, Any], config: Optional[Voice
 
     if summary:
         from voicefi.audio.echo_canceller import record_agent_spoken
+
         record_agent_spoken(summary)
 
     routing = getattr(getattr(cfg, "companion", None), "audio_routing", "smart")
-    mute_mac_active = getattr(getattr(cfg, "companion", None), "mute_mac_when_companion_active", False)
-    is_mobile = (get_claimed_turn_origin(conv_id, turn_sig, step_index=step_index) == "mobile")
+    mute_mac_active = getattr(
+        getattr(cfg, "companion", None), "mute_mac_when_companion_active", False
+    )
+    is_mobile = get_claimed_turn_origin(conv_id, turn_sig, step_index=step_index) == "mobile"
 
     if routing == "phone_only":
         return {}
@@ -375,8 +428,9 @@ def handle_antigravity_stop_hook(payload: Dict[str, Any], config: Optional[Voice
     should_speak = bool(cfg.antigravity.read_summary_aloud and summary)
     should_listen = bool(cfg.antigravity.auto_listen and summary)
     hook_start_time = time.time()
-    
+
     from voicefi.audio.recorder import resolve_barge_in_mode
+
     is_barge_in_on, _ = resolve_barge_in_mode(getattr(cfg.vad, "barge_in", "auto"))
     barge_in_active = bool(should_speak and should_listen and is_barge_in_on)
 
@@ -384,7 +438,12 @@ def handle_antigravity_stop_hook(payload: Dict[str, Any], config: Optional[Voice
         try:
             from voicefi.ui.speech_hud import AgentSpeechHUD
             from voicefi.tts import find_persona
-            _, resolved_voice, _ = cfg.resolve_voice(active_agent)
+
+            _, resolved_voice, _ = cfg.resolve_voice(
+                active_agent,
+                project_name=project_name,
+                workspace_path=workspace_path,
+            )
             persona = find_persona(resolved_voice)
             pname = persona.name if persona else resolved_voice
             pos = getattr(cfg.antigravity, "speech_popup_position", "top_center")
@@ -404,19 +463,28 @@ def handle_antigravity_stop_hook(payload: Dict[str, Any], config: Optional[Voice
     if barge_in_active:
         # Active Barge-In: set speaking state immediately, start TTS in background thread, and listen on mic
         from voicefi.tts.base import set_agent_speaking
+
         set_agent_speaking(True, text=summary, agent_name=active_agent)
 
-        tts = get_tts_engine(cfg, agent_name=active_agent)
+        tts = get_tts_engine(
+            cfg,
+            agent_name=active_agent,
+            project_name=project_name,
+            workspace_path=workspace_path,
+        )
+
         def _speak_and_finish():
             try:
                 with escape_to_stop_speech():
                     tts.stream_speak(summary, block=True)
             finally:
                 from voicefi.tts.base import set_agent_speaking
+
                 set_agent_speaking(False)
                 if cfg.antigravity.show_speech_popup:
                     try:
                         from voicefi.ui.speech_hud import AgentSpeechHUD
+
                         linger = getattr(cfg.antigravity, "speech_popup_linger_seconds", 3.0)
                         AgentSpeechHUD.get_instance().finish_speech(linger_seconds=linger)
                     except Exception:
@@ -433,6 +501,7 @@ def handle_antigravity_stop_hook(payload: Dict[str, Any], config: Optional[Voice
             if cfg.antigravity.show_speech_popup:
                 try:
                     from voicefi.ui.speech_hud import AgentSpeechHUD
+
                     AgentSpeechHUD.get_instance().hide()
                 except Exception:
                     pass
@@ -447,35 +516,59 @@ def handle_antigravity_stop_hook(payload: Dict[str, Any], config: Optional[Voice
         )
 
         def _on_live(txt: str):
-            set_cross_process_hud_state("listening", text=txt, agent_name=active_agent, user_name=cfg.user_name, live_stream=True)
+            set_cross_process_hud_state(
+                "listening",
+                text=txt,
+                agent_name=active_agent,
+                user_name=cfg.user_name,
+                live_stream=True,
+            )
             try:
                 from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
-                UnifiedDynamicIslandHUD.get_instance().update_live_transcription(txt, user_name=cfg.user_name)
+
+                UnifiedDynamicIslandHUD.get_instance().update_live_transcription(
+                    txt, user_name=cfg.user_name
+                )
             except Exception:
                 pass
 
         def _on_tick(energy: float, conf: float = 0.0, is_spk: bool = False):
             try:
                 from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
+
                 UnifiedDynamicIslandHUD.get_instance().update_audio_level(energy, conf, is_spk)
             except Exception:
                 pass
 
         audio_data, temp_wav = recorder.record_speech_auto(
-            on_speech_start=lambda: set_cross_process_hud_state("hearing", agent_name=active_agent, user_name=cfg.user_name),
+            on_speech_start=lambda: set_cross_process_hud_state(
+                "hearing", agent_name=active_agent, user_name=cfg.user_name
+            ),
             on_barge_in=_on_barge_in,
             on_live_transcript=_on_live,
             on_listening_tick=_on_tick,
         )
     else:
         if should_speak:
-            tts = get_tts_engine(cfg, agent_name=active_agent)
+            tts = get_tts_engine(
+                cfg,
+                agent_name=active_agent,
+                project_name=project_name,
+                workspace_path=workspace_path,
+            )
             with escape_to_stop_speech():
                 tts.stream_speak(summary, block=True)
+
+        from voicefi.tts.base import is_speech_interrupted
+
+        if is_speech_interrupted(hook_start_time):
+            clear_cross_process_hud_state()
+            return {}
 
         if cfg.antigravity.show_speech_popup:
             try:
                 from voicefi.ui.speech_hud import AgentSpeechHUD
+
                 linger = getattr(cfg.antigravity, "speech_popup_linger_seconds", 3.0)
                 AgentSpeechHUD.get_instance().finish_speech(linger_seconds=linger)
             except Exception:
@@ -486,15 +579,35 @@ def handle_antigravity_stop_hook(payload: Dict[str, Any], config: Optional[Voice
                 play_chime("start", block=True)
                 time.sleep(0.1)
 
-            set_cross_process_hud_state("listening", agent_name=active_agent, user_name=cfg.user_name)
+            set_cross_process_hud_state(
+                "listening", agent_name=active_agent, user_name=cfg.user_name
+            )
 
             def _on_live(txt: str):
-                set_cross_process_hud_state("listening", text=txt, agent_name=active_agent, user_name=cfg.user_name, live_stream=True)
+                set_cross_process_hud_state(
+                    "listening",
+                    text=txt,
+                    agent_name=active_agent,
+                    user_name=cfg.user_name,
+                    live_stream=True,
+                )
                 try:
                     from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
-                    UnifiedDynamicIslandHUD.get_instance().update_live_transcription(txt, user_name=cfg.user_name)
+
+                    UnifiedDynamicIslandHUD.get_instance().update_live_transcription(
+                        txt, user_name=cfg.user_name
+                    )
                 except Exception:
                     pass
+
+            def _on_tick(energy: float, conf: float = 0.0, is_spk: bool = False):
+                try:
+                    from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
+
+                    UnifiedDynamicIslandHUD.get_instance().update_audio_level(energy, conf, is_spk)
+                except Exception:
+                    pass
+
 
             recorder = AudioRecorder(
                 sample_rate=cfg.vad.sample_rate,
@@ -505,9 +618,21 @@ def handle_antigravity_stop_hook(payload: Dict[str, Any], config: Optional[Voice
             )
 
             audio_data, temp_wav = recorder.record_speech_auto(
-                on_speech_start=lambda: set_cross_process_hud_state("hearing", agent_name=active_agent, user_name=cfg.user_name),
+                on_speech_start=lambda: set_cross_process_hud_state(
+                    "hearing", agent_name=active_agent, user_name=cfg.user_name
+                ),
                 on_live_transcript=_on_live,
+                on_listening_tick=_on_tick,
             )
+
+
+    from voicefi.tts.base import is_speech_interrupted
+
+    if is_speech_interrupted(hook_start_time):
+        if temp_wav and Path(temp_wav).is_file():
+            Path(temp_wav).unlink(missing_ok=True)
+        clear_cross_process_hud_state()
+        return {}
 
     if temp_wav and Path(temp_wav).is_file():
         set_cross_process_hud_state("transcribing", agent_name=active_agent)
@@ -517,55 +642,130 @@ def handle_antigravity_stop_hook(payload: Dict[str, Any], config: Optional[Voice
         finally:
             Path(temp_wav).unlink(missing_ok=True)
 
+        if is_speech_interrupted(hook_start_time):
+            clear_cross_process_hud_state()
+            return {}
+
         if transcription and transcription.strip():
             clean_t = transcription.strip()
-            print(f"[Antigravity] 🎙️ Transcribed speech: \"{clean_t}\"", flush=True)
+            print(f'[Antigravity] 🎙️ Transcribed speech: "{clean_t}"', flush=True)
             from voicefi.audio.echo_canceller import is_acoustic_echo
+
             if is_acoustic_echo(clean_t, reference_text=summary):
-                print(f"[Antigravity] 🛡️ Suppressed acoustic self-echo: \"{clean_t}\" (matched agent output)", flush=True)
+                print(
+                    f'[Antigravity] 🛡️ Suppressed acoustic self-echo: "{clean_t}" (matched agent output)',
+                    flush=True,
+                )
                 return {}
 
             pending_q = get_pending_question(conv_id)
-            eval_res = ActiveListeningEngine.evaluate(clean_t, pending_question=pending_q, is_ambient=False)
-            print(f"[ActiveListening] Intent evaluation: {eval_res.category.value} (is_actionable={eval_res.is_actionable})", flush=True)
+            eval_res = ActiveListeningEngine.evaluate(
+                clean_t, pending_question=pending_q, is_ambient=False
+            )
+            print(
+                f"[ActiveListening] Intent evaluation: {eval_res.category.value} (is_actionable={eval_res.is_actionable})",
+                flush=True,
+            )
 
             if eval_res.category == SpokenIntentCategory.PENDING_ANSWER:
-                print(f"[ActiveListening] 🎯 Matched pending choice: '{eval_res.selected_option}' (from '{clean_t}')", flush=True)
+                print(
+                    f"[ActiveListening] 🎯 Matched pending choice: '{eval_res.selected_option}' (from '{clean_t}')",
+                    flush=True,
+                )
                 resolve_pending_question(conv_id, selected_option=eval_res.selected_option)
                 text_to_send = eval_res.selected_option or eval_res.normalized_text
             else:
                 clear_pending_question(conv_id)
                 text_to_send = eval_res.normalized_text or clean_t
 
-            if cfg.antigravity.inject_to_active_window:
-                target_channel = getattr(eval_res, "target_channel", SpokenTargetChannel.ANTIGRAVITY)
-                routed_text = getattr(eval_res, "routed_prompt", None) or text_to_send
+            is_auto_send = getattr(getattr(cfg, "hud", None), "auto_send", True) and getattr(
+                cfg.antigravity, "auto_send", True
+            )
 
-                if target_channel == SpokenTargetChannel.CLAUDE and cfg.proactive.intent_routing.route_to_claude:
-                    set_cross_process_hud_state("done", text=f"Claude: {routed_text[:20]}", agent_name="Claude")
-                    print(f"[IntentRouter] 🔀 Routing spoken prompt to Claude Code: '{routed_text}'", flush=True)
-                    from voicefi.integrations.claude import inject_text_to_claude
-                    delivered = inject_text_to_claude(routed_text, submit_enter=True)
-                elif target_channel == SpokenTargetChannel.SLACK and cfg.proactive.intent_routing.route_to_slack:
-                    set_cross_process_hud_state("done", text=f"Slack: {routed_text[:20]}", agent_name="Slack")
-                    ch = (eval_res.target_metadata or {}).get("channel", "general")
-                    slack_prompt = f"Please post this to Slack (#{ch}): {routed_text}"
-                    print(f"[IntentRouter] 🔀 Routing spoken prompt to Slack via Antigravity: '{slack_prompt}'", flush=True)
-                    delivered = send_message_to_antigravity(conv_id=conv_id, text=slack_prompt, sender_name=cfg.user_name)
-                elif target_channel == SpokenTargetChannel.LINEAR and cfg.proactive.intent_routing.route_to_linear:
-                    set_cross_process_hud_state("done", text=f"Linear: {routed_text[:20]}", agent_name="Linear")
-                    linear_prompt = f"Please create a Linear issue for: {routed_text}"
-                    print(f"[IntentRouter] 🔀 Routing spoken prompt to Linear via Antigravity: '{linear_prompt}'", flush=True)
-                    delivered = send_message_to_antigravity(conv_id=conv_id, text=linear_prompt, sender_name=cfg.user_name)
-                else:
-                    set_cross_process_hud_state("done", text=text_to_send[:20], agent_name=active_agent)
-                    print(f"[Antigravity] 🚀 Dispatching prompt to conversation {str(conv_id)[:8]}: '{text_to_send}'", flush=True)
-                    delivered = send_message_to_antigravity(conv_id=conv_id, text=text_to_send, sender_name=cfg.user_name)
+            def _dispatch_prompt(final_text: str):
+                if cfg.antigravity.inject_to_active_window:
+                    target_channel = getattr(
+                        eval_res, "target_channel", SpokenTargetChannel.ANTIGRAVITY
+                    )
+                    routed_text = getattr(eval_res, "routed_prompt", None) or final_text
+
+                    if (
+                        target_channel == SpokenTargetChannel.CLAUDE
+                        and cfg.proactive.intent_routing.route_to_claude
+                    ):
+                        set_cross_process_hud_state(
+                            "done", text=f"Claude: {routed_text[:20]}", agent_name="Claude"
+                        )
+                        print(
+                            f"[IntentRouter] 🔀 Routing spoken prompt to Claude Code: '{routed_text}'",
+                            flush=True,
+                        )
+                        from voicefi.integrations.claude import inject_text_to_claude
+
+                        delivered = inject_text_to_claude(routed_text, submit_enter=True)
+                    elif (
+                        target_channel == SpokenTargetChannel.SLACK
+                        and cfg.proactive.intent_routing.route_to_slack
+                    ):
+                        set_cross_process_hud_state(
+                            "done", text=f"Slack: {routed_text[:20]}", agent_name="Slack"
+                        )
+                        ch = (eval_res.target_metadata or {}).get("channel", "general")
+                        slack_prompt = f"Please post this to Slack (#{ch}): {routed_text}"
+                        print(
+                            f"[IntentRouter] 🔀 Routing spoken prompt to Slack via Antigravity: '{slack_prompt}'",
+                            flush=True,
+                        )
+                        delivered = send_message_to_antigravity(
+                            conv_id=conv_id, text=slack_prompt, sender_name=cfg.user_name
+                        )
+                    elif (
+                        target_channel == SpokenTargetChannel.LINEAR
+                        and cfg.proactive.intent_routing.route_to_linear
+                    ):
+                        set_cross_process_hud_state(
+                            "done", text=f"Linear: {routed_text[:20]}", agent_name="Linear"
+                        )
+                        linear_prompt = f"Please create a Linear issue for: {routed_text}"
+                        print(
+                            f"[IntentRouter] 🔀 Routing spoken prompt to Linear via Antigravity: '{linear_prompt}'",
+                            flush=True,
+                        )
+                        delivered = send_message_to_antigravity(
+                            conv_id=conv_id, text=linear_prompt, sender_name=cfg.user_name
+                        )
+                    else:
+                        set_cross_process_hud_state(
+                            "done", text=final_text[:20], agent_name=active_agent
+                        )
+                        print(
+                            f"[Antigravity] 🚀 Dispatching prompt to conversation {str(conv_id)[:8]}: '{final_text}'",
+                            flush=True,
+                        )
+                        delivered = send_message_to_antigravity(
+                            conv_id=conv_id, text=final_text, sender_name=cfg.user_name
+                        )
+
+            if is_auto_send:
+                _dispatch_prompt(text_to_send)
+            else:
+                try:
+                    from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
+
+                    hud = UnifiedDynamicIslandHUD.get_instance()
+                    hud.set_editing(
+                        text_to_send, on_submit=_dispatch_prompt, target_name="Antigravity"
+                    )
+                except Exception:
+                    _dispatch_prompt(text_to_send)
 
                 if delivered:
-                    print(f"[Antigravity] ✅ Delivered successfully to {target_channel.value} ({str(conv_id)[:8]}).", flush=True)
+                    print(
+                        f"[Antigravity] ✅ Delivered successfully to {target_channel.value} ({str(conv_id)[:8]}).",
+                        flush=True,
+                    )
                 else:
-                    print(f"[Antigravity] ⚠️ Delivery failed — text left on clipboard.", flush=True)
+                    print("[Antigravity] ⚠️ Delivery failed — text left on clipboard.", flush=True)
 
             if cfg.audio_cues.enabled:
                 play_chime(cfg.audio_cues.sent_chime, block=False)
@@ -573,7 +773,12 @@ def handle_antigravity_stop_hook(payload: Dict[str, Any], config: Optional[Voice
         turn_dur_ms = int((time.time() - hook_start_time) * 1000)
         try:
             from voicefi.telemetry import capture_voice_interaction
-            _, resolved_voice, resolved_provider = cfg.resolve_voice(active_agent)
+
+            _, resolved_voice, resolved_provider = cfg.resolve_voice(
+                active_agent,
+                project_name=project_name,
+                workspace_path=workspace_path,
+            )
             capture_voice_interaction(
                 trigger="hook",
                 duration_ms=turn_dur_ms,
@@ -616,4 +821,3 @@ def remove_antigravity_hook(plugin_dir: Optional[Path] = None) -> bool:
         except Exception:
             pass
     return True
-

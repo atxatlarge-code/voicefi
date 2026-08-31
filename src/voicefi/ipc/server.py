@@ -33,7 +33,9 @@ from voicefi.tts.base import set_cross_process_hud_state
 logger = logging.getLogger("voicefi.ipc.server")
 if not logger.handlers:
     handler = logging.StreamHandler()
-    handler.setFormatter(logging.Formatter("[VoiceFi IPC Server] %(asctime)s [%(levelname)s] %(message)s"))
+    handler.setFormatter(
+        logging.Formatter("[VoiceFi IPC Server] %(asctime)s [%(levelname)s] %(message)s")
+    )
     logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
@@ -137,17 +139,21 @@ class VoiceFiIPCServer:
             await self._ws_site.start()
             logger.info("Bound WebSocket server at ws://%s:%d", self.ws_host, self.ws_port)
         except Exception as e:
-            logger.warning("Could not bind fallback WebSocket server on port %d: %s", self.ws_port, e)
+            logger.warning(
+                "Could not bind fallback WebSocket server on port %d: %s", self.ws_port, e
+            )
 
     async def _handle_http_status(self, request: web.Request) -> web.Response:
-        return web.json_response({
-            "status": "ok",
-            "server": "voicefi-daemon-ipc",
-            "socket_path": self.socket_path,
-            "connected_clients": self.connected_client_count,
-            "unix_clients": len(self._unix_clients),
-            "ws_clients": len(self._ws_clients),
-        })
+        return web.json_response(
+            {
+                "status": "ok",
+                "server": "voicefi-daemon-ipc",
+                "socket_path": self.socket_path,
+                "connected_clients": self.connected_client_count,
+                "unix_clients": len(self._unix_clients),
+                "ws_clients": len(self._ws_clients),
+            }
+        )
 
     async def _handle_unix_client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         self._unix_clients.add(writer)
@@ -202,8 +208,14 @@ class VoiceFiIPCServer:
         try:
             payload = parse_jsonrpc_message(data)
         except Exception as e:
-            logger.warning("Malformed JSON-RPC message received: %s (raw: %r)", e, data[:100] if data else "")
-            err_resp = {"jsonrpc": "2.0", "error": {"code": -32700, "message": "Parse error"}, "id": None}
+            logger.warning(
+                "Malformed JSON-RPC message received: %s (raw: %r)", e, data[:100] if data else ""
+            )
+            err_resp = {
+                "jsonrpc": "2.0",
+                "error": {"code": -32700, "message": "Parse error"},
+                "id": None,
+            }
             await self._send_to_single_client(err_resp, writer=writer, ws=ws)
             return
 
@@ -240,7 +252,7 @@ class VoiceFiIPCServer:
         status = params.get("status", "success")
 
         logger.info(
-            "📥 Inbound agent event [%s] from %s (persona: %s, status: %s): \"%s\"",
+            '📥 Inbound agent event [%s] from %s (persona: %s, status: %s): "%s"',
             event_type,
             agent_name,
             persona,
@@ -259,22 +271,33 @@ class VoiceFiIPCServer:
         # Handle speech synthesis for turn_complete
         if event_type == EVENT_TURN_COMPLETE and spoken_summary.strip():
             set_cross_process_hud_state("speaking", text=spoken_summary, agent_name=agent_name)
-            
+
             # Synthesize in background task so socket is not blocked
-            asyncio.create_task(self._synthesize_spoken_summary(spoken_summary, persona=persona, agent_name=agent_name))
+            asyncio.create_task(
+                self._synthesize_spoken_summary(
+                    spoken_summary, persona=persona, agent_name=agent_name
+                )
+            )
 
         elif event_type == EVENT_TURN_INTERRUPTED:
             set_cross_process_hud_state("idle", text="Interrupted", agent_name=agent_name)
             stop_all_speech()
 
         if msg_id is not None:
-            resp = {"jsonrpc": "2.0", "result": {"handled": True, "event_type": event_type}, "id": msg_id}
+            resp = {
+                "jsonrpc": "2.0",
+                "result": {"handled": True, "event_type": event_type},
+                "id": msg_id,
+            }
             await self._send_to_single_client(resp, writer=writer, ws=ws)
 
-    async def _synthesize_spoken_summary(self, summary: str, persona: str = "Viv", agent_name: str = "Spark"):
+    async def _synthesize_spoken_summary(
+        self, summary: str, persona: str = "Viv", agent_name: str = "Spark"
+    ):
         """Synthesize and stream audio in 48 kHz / high-quality neural voice."""
         try:
             loop = asyncio.get_running_loop()
+
             def _speak():
                 tts = get_tts_engine(self.config, agent_name=agent_name)
                 # If specific persona requested and supported, override
@@ -344,7 +367,7 @@ class VoiceFiIPCServer:
             confidence=confidence,
             metadata=metadata,
         )
-        logger.info("📢 Broadcasting vifi.prompt.dispatch: \"%s\"", transcript)
+        logger.info('📢 Broadcasting vifi.prompt.dispatch: "%s"', transcript)
         await self.broadcast_message(event)
 
     async def broadcast_interrupt(
@@ -354,7 +377,9 @@ class VoiceFiIPCServer:
     ):
         """Broadcast an instantaneous mid-turn barge-in interruption signal."""
         event = build_signal_interrupt_event(reason=reason, energy=energy)
-        logger.info("⚡ Broadcasting vifi.signal.interrupt (reason: %s, energy: %.4f)", reason, energy)
+        logger.info(
+            "⚡ Broadcasting vifi.signal.interrupt (reason: %s, energy: %.4f)", reason, energy
+        )
         await self.broadcast_message(event)
 
     async def stop(self):

@@ -30,15 +30,39 @@ class VaultAgent:
         lower_q = clean_query.lower()
 
         # Phonetic normalization for common STT phonetic slips
-        if any(w in lower_q for w in ["some racist", "some raise", "some race", "some race is", "summer eyes", "summerize", "summarise", "summarize"]):
+        if any(
+            w in lower_q
+            for w in [
+                "some racist",
+                "some raise",
+                "some race",
+                "some race is",
+                "summer eyes",
+                "summerize",
+                "summarise",
+                "summarize",
+            ]
+        ):
             lower_q = "summarize this note"
 
         # 1. Handle direct summarization requests
-        if any(w in lower_q for w in ["summarize", "summary", "give me a summary", "overview", "what is this note about"]):
+        if any(
+            w in lower_q
+            for w in [
+                "summarize",
+                "summary",
+                "give me a summary",
+                "overview",
+                "what is this note about",
+            ]
+        ):
             return self._summarize_note(note_title, note_content)
 
         # 2. Handle task / action item extraction
-        if any(w in lower_q for w in ["tasks", "action items", "todos", "what do i need to do", "blockers"]):
+        if any(
+            w in lower_q
+            for w in ["tasks", "action items", "todos", "what do i need to do", "blockers"]
+        ):
             return self._extract_action_items(note_title, note_content)
 
         # 3. Handle contextual question answering
@@ -53,7 +77,11 @@ class VaultAgent:
         # Extract headings and bullet points
         lines = [line.strip() for line in content.split("\n") if line.strip()]
         headings = [re.sub(r"^#+\s*", "", l) for l in lines if l.startswith("#")]
-        bullets = [re.sub(r"^[-*]\s*(\[[ xX]\]\s*)?", "", l) for l in lines if l.startswith("-") or l.startswith("*")]
+        bullets = [
+            re.sub(r"^[-*]\s*(\[[ xX]\]\s*)?", "", l)
+            for l in lines
+            if l.startswith("-") or l.startswith("*")
+        ]
 
         total_words = len(content.split())
         title_str = title if title else "active note"
@@ -64,7 +92,9 @@ class VaultAgent:
             spoken = f"Here is a summary of {title_str}. It focuses on {top_heading}, with key items including {bullet_sample}."
         elif headings:
             sections_str = ", ".join(headings[:3])
-            spoken = f"{title_str} contains {total_words} words across sections covering {sections_str}."
+            spoken = (
+                f"{title_str} contains {total_words} words across sections covering {sections_str}."
+            )
         elif bullets:
             spoken = f"{title_str} has {len(bullets)} items. The top points are: {', '.join(bullets[:3])}."
         else:

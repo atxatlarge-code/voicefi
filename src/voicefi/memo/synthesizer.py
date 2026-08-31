@@ -19,17 +19,19 @@ class MemoSynthesizer(MemoCleaner):
     def __init__(self, config: Optional[VoiceFiConfig] = None):
         super().__init__(config=config)
 
-    def synthesize_structured(self, raw_speech: str, timeout: float = 3.0) -> Optional[Dict[str, Any]]:
+    def synthesize_structured(
+        self, raw_speech: str, timeout: float = 3.0
+    ) -> Optional[Dict[str, Any]]:
         """
         Attempt structured architecture synthesis via Gemini Flash if configured.
         Returns parsed JSON dict with title, summary, decisions, action_items.
         """
         try:
             from voicefi.integrations.gemini_ai import GeminiIntelligenceEngine
+
             gemini_engine = GeminiIntelligenceEngine(self.config)
-            if (
-                gemini_engine.is_available()
-                and getattr(getattr(self.config, "gemini", None), "enable_memo_structuring", True)
+            if gemini_engine.is_available() and getattr(
+                getattr(self.config, "gemini", None), "enable_memo_structuring", True
             ):
                 return gemini_engine.structure_voice_memo(raw_speech, timeout=timeout)
         except Exception:

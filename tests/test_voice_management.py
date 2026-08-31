@@ -315,5 +315,63 @@ def test_find_persona_ava_viv_aliases():
     assert p_premium.provider == "mac_say"
 
 
+def test_project_specific_voice_resolution():
+    """Test VoiceFiConfig.resolve_voice() resolves project voices and workspace paths."""
+    from voicefi.config import VoiceFiConfig, AgentVoiceProfile
+
+    cfg = VoiceFiConfig()
+    cfg.tts.voice = "en-US-AvaNeural"
+    cfg.projects["lienlogic"] = AgentVoiceProfile(
+        voice="en-US-GuyNeural",
+        provider="edge_tts",
+    )
+
+    # 1. Default Antigravity resolution without project
+    prov, voice, _ = cfg.resolve_voice("antigravity")
+    assert voice == "en-US-AvaNeural"
+
+    # 2. Antigravity resolution with project_name="lienlogic"
+    prov, voice, _ = cfg.resolve_voice("antigravity", project_name="lienlogic")
+    assert voice == "en-US-GuyNeural"
+    assert prov == "edge_tts"
+
+    # 3. Case-insensitive / mixed-case project name
+    prov, voice, _ = cfg.resolve_voice("antigravity", project_name="LienLogic")
+    assert voice == "en-US-GuyNeural"
+
+    # 4. Workspace path matching project folder basename
+    prov, voice, _ = cfg.resolve_voice(
+        "antigravity", workspace_path="/Users/jaketrigg/Projects/LienLogic"
+    )
+    assert voice == "en-US-GuyNeural"
+
+    # 5. Non-matching workspace path falls back to default voice
+    prov, voice, _ = cfg.resolve_voice(
+        "antigravity", workspace_path="/Users/jaketrigg/Projects/VoiceFi"
+    )
+    assert voice == "en-US-AvaNeural"
+
+
+def test_cmd_voice_set_project(capsys):
+    """Test 'vifi voice set lienlogic Guy --project' CLI assignment."""
+    args = MagicMock()
+    args.voice_action = "set"
+    args.agent = "lienlogic"
+    args.voice = "Guy"
+    args.project = True
+    args.provider = None
+    args.rate = None
+    args.text = None
+    args.quiet = True
+    args.silent = False
+    args.config = None
+
+    with patch("voicefi.cli.save_config") as mock_save:
+        cmd_voice(args)
+        captured = capsys.readouterr()
+        assert "Successfully assigned project 'lienlogic' to voice: 'en-US-GuyNeural'" in captured.out
+
+
+
 
 

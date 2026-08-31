@@ -42,6 +42,7 @@ from AppKit import NSApp
 def is_headless() -> bool:
     """Return True if running in headless / testing mode where screen popups must be suppressed."""
     import os
+
     return bool(
         os.getenv("VOICEFI_HEADLESS") == "1"
         or os.getenv("HEADLESS") == "1"
@@ -53,6 +54,7 @@ def is_headless() -> bool:
 try:
     HubActionTarget = objc.lookUpClass("HubActionTarget")
 except objc.nosuchclass_error:
+
     class HubActionTarget(objc.lookUpClass("NSObject")):
         """Objective-C target wrapper for NSButton clicks."""
 
@@ -70,6 +72,7 @@ except objc.nosuchclass_error:
 try:
     HubWindowDelegate = objc.lookUpClass("HubWindowDelegate")
 except objc.nosuchclass_error:
+
     class HubWindowDelegate(objc.lookUpClass("NSObject")):
         """Window delegate for handling Activity Hub close and dismiss events."""
 
@@ -141,6 +144,7 @@ class ConversationHubWindow:
             panel_frame = self._panel.frame()
             try:
                 from voicefi.config import load_config
+
                 cfg = load_config()
                 hud_cfg = getattr(cfg, "hud", None)
                 margin_y = float(getattr(hud_cfg, "margin_y", 96.0)) if hud_cfg else 96.0
@@ -150,8 +154,20 @@ class ConversationHubWindow:
             hud_height = 58.0
             gap = 8.0
             margin_right = 0.0  # Fully right-aligned against screen edge, no gap
-            x = visible_frame.origin.x + visible_frame.size.width - panel_frame.size.width - margin_right
-            y = visible_frame.origin.y + visible_frame.size.height - panel_frame.size.height - margin_y - hud_height - gap
+            x = (
+                visible_frame.origin.x
+                + visible_frame.size.width
+                - panel_frame.size.width
+                - margin_right
+            )
+            y = (
+                visible_frame.origin.y
+                + visible_frame.size.height
+                - panel_frame.size.height
+                - margin_y
+                - hud_height
+                - gap
+            )
             self._panel.setFrameOrigin_(NSPoint(x, y))
 
     def _build_panel(self):
@@ -162,6 +178,7 @@ class ConversationHubWindow:
             visible_frame = screen.visibleFrame()
             try:
                 from voicefi.config import load_config
+
                 cfg = load_config()
                 hud_cfg = getattr(cfg, "hud", None)
                 margin_y = float(getattr(hud_cfg, "margin_y", 96.0)) if hud_cfg else 96.0
@@ -172,7 +189,14 @@ class ConversationHubWindow:
             gap = 8.0
             margin_right = 0.0  # Fully right-aligned against screen edge, no gap
             init_x = visible_frame.origin.x + visible_frame.size.width - width - margin_right
-            init_y = visible_frame.origin.y + visible_frame.size.height - height - margin_y - hud_height - gap
+            init_y = (
+                visible_frame.origin.y
+                + visible_frame.size.height
+                - height
+                - margin_y
+                - hud_height
+                - gap
+            )
         else:
             init_x, init_y = 1200, 700
 
@@ -226,12 +250,17 @@ class ConversationHubWindow:
 
     def show(self):
         """Refresh contents and display the panel persistently on screen (Main Thread safe)."""
+
         def _do_show():
             self._refresh_ui()
             if self._panel:
                 if not self._panel.isVisible():
                     self._position_top_right()
-                if not is_headless() or hasattr(self._panel, "assert_called_once") or type(self._panel).__name__ == "MagicMock":
+                if (
+                    not is_headless()
+                    or hasattr(self._panel, "assert_called_once")
+                    or type(self._panel).__name__ == "MagicMock"
+                ):
                     try:
                         NSApp.activateIgnoringOtherApps_(True)
                     except Exception:
@@ -247,6 +276,7 @@ class ConversationHubWindow:
 
     def hide(self):
         """Hide the hub panel (Main Thread safe)."""
+
         def _do_hide():
             self._stop_auto_refresh()
             if self._panel and self._panel.isVisible():
@@ -278,6 +308,7 @@ class ConversationHubWindow:
 
     def refresh(self, force: bool = False):
         """Trigger UI refresh (Main Thread safe)."""
+
         def _do_refresh():
             self._refresh_ui(force=force)
 
@@ -313,7 +344,9 @@ class ConversationHubWindow:
         root_view.setWantsLayer_(True)
 
         # Header Title
-        header = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(14, bounds.size.height - 40), NSSize(100, 26)))
+        header = NSTextField.alloc().initWithFrame_(
+            NSRect(NSPoint(14, bounds.size.height - 40), NSSize(100, 26))
+        )
         header.setStringValue_("Agent HUD")
         header.setFont_(NSFont.boldSystemFontOfSize_(13.5))
         header.setBezeled_(False)
@@ -329,12 +362,15 @@ class ConversationHubWindow:
                 self.on_new_conversation()
             else:
                 from voicefi.integrations.injector import create_new_antigravity_conversation
+
                 create_new_antigravity_conversation(prompt="Hello")
 
         new_conv_target = HubActionTarget.alloc().initWithCallback_(_new_conv)
         self._targets.append(new_conv_target)
 
-        new_conv_btn = NSButton.alloc().initWithFrame_(NSRect(NSPoint(118, bounds.size.height - 42), NSSize(74, 26)))
+        new_conv_btn = NSButton.alloc().initWithFrame_(
+            NSRect(NSPoint(118, bounds.size.height - 42), NSSize(74, 26))
+        )
         new_conv_btn.setTitle_("✨ + New")
         new_conv_btn.setBezelStyle_(NSBezelStyleRounded)
         new_conv_btn.setTarget_(new_conv_target)
@@ -349,7 +385,9 @@ class ConversationHubWindow:
         jump_ag_target = HubActionTarget.alloc().initWithCallback_(_jump_ag)
         self._targets.append(jump_ag_target)
 
-        jump_ag_btn = NSButton.alloc().initWithFrame_(NSRect(NSPoint(196, bounds.size.height - 42), NSSize(68, 26)))
+        jump_ag_btn = NSButton.alloc().initWithFrame_(
+            NSRect(NSPoint(196, bounds.size.height - 42), NSSize(68, 26))
+        )
         jump_ag_btn.setTitle_("💬 Focus")
         jump_ag_btn.setBezelStyle_(NSBezelStyleRounded)
         jump_ag_btn.setTarget_(jump_ag_target)
@@ -361,7 +399,9 @@ class ConversationHubWindow:
         refresh_target = HubActionTarget.alloc().initWithCallback_(self.refresh)
         self._targets.append(refresh_target)
 
-        refresh_btn = NSButton.alloc().initWithFrame_(NSRect(NSPoint(268, bounds.size.height - 42), NSSize(66, 26)))
+        refresh_btn = NSButton.alloc().initWithFrame_(
+            NSRect(NSPoint(268, bounds.size.height - 42), NSSize(66, 26))
+        )
         refresh_btn.setTitle_("🔄 Sync")
         refresh_btn.setBezelStyle_(NSBezelStyleRounded)
         refresh_btn.setTarget_(refresh_target)
@@ -372,12 +412,15 @@ class ConversationHubWindow:
         # Voice Control Panel Button
         def _open_panel():
             from voicefi.ui.panel import open_control_panel
+
             open_control_panel()
 
         panel_target = HubActionTarget.alloc().initWithCallback_(_open_panel)
         self._targets.append(panel_target)
 
-        panel_btn = NSButton.alloc().initWithFrame_(NSRect(NSPoint(338, bounds.size.height - 42), NSSize(72, 26)))
+        panel_btn = NSButton.alloc().initWithFrame_(
+            NSRect(NSPoint(338, bounds.size.height - 42), NSSize(72, 26))
+        )
         panel_btn.setTitle_("🎛️ Panel")
         panel_btn.setBezelStyle_(NSBezelStyleRounded)
         panel_btn.setTarget_(panel_target)
@@ -389,7 +432,9 @@ class ConversationHubWindow:
         close_target = HubActionTarget.alloc().initWithCallback_(self.hide)
         self._targets.append(close_target)
 
-        close_btn = NSButton.alloc().initWithFrame_(NSRect(NSPoint(414, bounds.size.height - 42), NSSize(90, 26)))
+        close_btn = NSButton.alloc().initWithFrame_(
+            NSRect(NSPoint(414, bounds.size.height - 42), NSSize(90, 26))
+        )
         close_btn.setTitle_("✕ Close")
         close_btn.setBezelStyle_(NSBezelStyleRounded)
         close_btn.setTarget_(close_target)
@@ -399,7 +444,9 @@ class ConversationHubWindow:
         root_view.addSubview_(close_btn)
 
         # Instructions / Shortcut note
-        hint = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(18, bounds.size.height - 66), NSSize(485, 18)))
+        hint = NSTextField.alloc().initWithFrame_(
+            NSRect(NSPoint(18, bounds.size.height - 66), NSSize(485, 18))
+        )
         hint.setStringValue_("⌘⇧N New Conversation • ⌃R Respond • ⌃J Focus • ⌃⇧J Hub • Esc Close")
         hint.setFont_(NSFont.systemFontOfSize_(11))
         hint.setTextColor_(NSColor.secondaryLabelColor())
@@ -418,7 +465,9 @@ class ConversationHubWindow:
         }
 
         if not convs:
-            empty_lbl = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(20, y_pos), NSSize(470, 24)))
+            empty_lbl = NSTextField.alloc().initWithFrame_(
+                NSRect(NSPoint(20, y_pos), NSSize(470, 24))
+            )
             empty_lbl.setStringValue_("No recent Antigravity conversations found.")
             empty_lbl.setFont_(NSFont.systemFontOfSize_(13))
             empty_lbl.setBezeled_(False)
@@ -428,26 +477,36 @@ class ConversationHubWindow:
             root_view.addSubview_(empty_lbl)
         else:
             for i, c in enumerate(convs[:6]):
-                is_active = (c.id == active_id)
+                is_active = c.id == active_id
                 status_text = status_icons.get(c.status, "⚪ Idle")
 
                 # Container card view for clean isolation
-                card_view = NSView.alloc().initWithFrame_(NSRect(NSPoint(16, y_pos - 8), NSSize(488, 44)))
+                card_view = NSView.alloc().initWithFrame_(
+                    NSRect(NSPoint(16, y_pos - 8), NSSize(488, 44))
+                )
                 card_view.setWantsLayer_(True)
                 card_view.layer().setCornerRadius_(6.0)
 
                 if is_active:
-                    card_view.layer().setBackgroundColor_(NSColor.systemGreenColor().colorWithAlphaComponent_(0.10).CGColor())
+                    card_view.layer().setBackgroundColor_(
+                        NSColor.systemGreenColor().colorWithAlphaComponent_(0.10).CGColor()
+                    )
                     card_view.layer().setBorderWidth_(1.2)
-                    card_view.layer().setBorderColor_(NSColor.systemGreenColor().colorWithAlphaComponent_(0.6).CGColor())
+                    card_view.layer().setBorderColor_(
+                        NSColor.systemGreenColor().colorWithAlphaComponent_(0.6).CGColor()
+                    )
                 else:
-                    card_view.layer().setBackgroundColor_(NSColor.controlBackgroundColor().colorWithAlphaComponent_(0.35).CGColor())
+                    card_view.layer().setBackgroundColor_(
+                        NSColor.controlBackgroundColor().colorWithAlphaComponent_(0.35).CGColor()
+                    )
                     card_view.layer().setBorderWidth_(0.5)
                     card_view.layer().setBorderColor_(NSColor.separatorColor().CGColor())
 
                 # Conversation Title Label
                 title_clean = c.title[:38] + ("..." if len(c.title) > 38 else "")
-                title_lbl = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(10, 20), NSSize(340, 20)))
+                title_lbl = NSTextField.alloc().initWithFrame_(
+                    NSRect(NSPoint(10, 20), NSSize(340, 20))
+                )
                 title_lbl.setStringValue_(title_clean)
                 if is_active:
                     title_lbl.setFont_(NSFont.boldSystemFontOfSize_(13))
@@ -463,7 +522,9 @@ class ConversationHubWindow:
                 card_view.addSubview_(title_lbl)
 
                 # Status Subtitle
-                status_lbl = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(10, 3), NSSize(340, 16)))
+                status_lbl = NSTextField.alloc().initWithFrame_(
+                    NSRect(NSPoint(10, 3), NSSize(340, 16))
+                )
                 status_lbl.setStringValue_(status_text)
                 status_lbl.setFont_(NSFont.systemFontOfSize_(11))
                 status_lbl.setTextColor_(NSColor.secondaryLabelColor())
@@ -475,7 +536,9 @@ class ConversationHubWindow:
                 card_view.addSubview_(status_lbl)
 
                 # Right Badge Label (Shows [ACTIVE] or [BACKGROUND])
-                badge_lbl = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(355, 12), NSSize(125, 20)))
+                badge_lbl = NSTextField.alloc().initWithFrame_(
+                    NSRect(NSPoint(355, 12), NSSize(125, 20))
+                )
                 if is_active:
                     badge_lbl.setStringValue_("🟢 ACTIVE")
                     badge_lbl.setFont_(NSFont.boldSystemFontOfSize_(11))
@@ -505,7 +568,9 @@ class ConversationHubWindow:
 
         # Footer tip
         footer_tip = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(20, 10), NSSize(475, 16)))
-        footer_tip.setStringValue_("💡 Click any conversation in Antigravity's sidebar to switch dialogue focus.")
+        footer_tip.setStringValue_(
+            "💡 Click any conversation in Antigravity's sidebar to switch dialogue focus."
+        )
         footer_tip.setFont_(NSFont.systemFontOfSize_(10))
         footer_tip.setTextColor_(NSColor.tertiaryLabelColor())
         footer_tip.setBezeled_(False)

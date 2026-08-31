@@ -25,9 +25,12 @@ class WhisperLocalSTT(BaseSTT):
     def _get_model(self):
         if self._model is None:
             from faster_whisper import WhisperModel
+
             # On Apple Silicon / macOS, 'auto' selects cpu or best available
             compute_type = "int8" if self.device in ("auto", "cpu") else "float16"
-            self._model = WhisperModel(self.model_size, device=self.device, compute_type=compute_type)
+            self._model = WhisperModel(
+                self.model_size, device=self.device, compute_type=compute_type
+            )
         return self._model
 
     def transcribe(

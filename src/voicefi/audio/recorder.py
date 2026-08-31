@@ -107,6 +107,7 @@ class AudioRecorder:
         # Pause background monitor to yield device
         try:
             from voicefi.audio.monitor import LiveVADMonitor
+
             LiveVADMonitor.get_instance().pause()
         except ImportError:
             pass
@@ -115,33 +116,39 @@ class AudioRecorder:
         try:
             from pynput import keyboard
             from voicefi.tts.base import is_escape_key
+
             def _on_key_press(k):
-                nonlocal cancelled_by_user, _last_speech_stop_time
+                nonlocal cancelled_by_user
                 if is_escape_key(k):
-                    from voicefi.tts.base import stop_all_speech, is_agent_speaking, is_system_audio_playing, get_last_speech_stop_time, record_speech_stopped
-                    now = time.time()
-                    last_stop = max(_last_speech_stop_time, get_last_speech_stop_time())
-                    if is_agent_speaking() or is_system_audio_playing():
-                        # Agent is speaking aloud: Esc stops agent speech immediately
-                        # while keeping the microphone active and listening for user response
-                        _last_speech_stop_time = now
-                        record_speech_stopped()
-                        stop_all_speech()
-                    elif (now - last_stop) < 1.5:
-                        # Debounce: Esc was just pressed to stop speech; ignore trailing key events
-                        pass
-                    else:
-                        # Microphone was capturing user: Esc cancels recording and discards audio
-                        cancelled_by_user = True
-                        stop_all_speech()
-                        self.stop_event.set()
+                    from voicefi.tts.base import stop_all_speech, record_speech_stopped
+
+                    cancelled_by_user = True
+                    record_speech_stopped()
+                    stop_all_speech()
+                    self.stop_event.set()
                 elif cancel_on_typing:
                     from voicefi.tts.base import is_agent_speaking, is_system_audio_playing
+
                     if not is_agent_speaking() and not is_system_audio_playing():
                         # Exclude modifier keys so shortcuts like Ctrl+R don't trigger typing cancel
                         is_mod = False
-                        for mod_attr in ('ctrl', 'ctrl_l', 'ctrl_r', 'shift', 'shift_l', 'shift_r', 'alt', 'alt_l', 'alt_r', 'cmd', 'cmd_l', 'cmd_r'):
-                            if hasattr(keyboard.Key, mod_attr) and k == getattr(keyboard.Key, mod_attr):
+                        for mod_attr in (
+                            "ctrl",
+                            "ctrl_l",
+                            "ctrl_r",
+                            "shift",
+                            "shift_l",
+                            "shift_r",
+                            "alt",
+                            "alt_l",
+                            "alt_r",
+                            "cmd",
+                            "cmd_l",
+                            "cmd_r",
+                        ):
+                            if hasattr(keyboard.Key, mod_attr) and k == getattr(
+                                keyboard.Key, mod_attr
+                            ):
                                 is_mod = True
                                 break
                         if not is_mod:
@@ -167,7 +174,9 @@ class AudioRecorder:
             speech_candidate_chunks = 0
             consecutive_silence_chunks = 0
             # Silence pause needed to finish (honors Fibonacci scale from 1s to 11s)
-            chunks_needed_for_silence = max(6, int(max(0.4, float(self.silence_duration)) / chunk_duration))
+            chunks_needed_for_silence = max(
+                6, int(max(0.4, float(self.silence_duration)) / chunk_duration)
+            )
             start_time = time.time()
 
             # Dynamic noise floor and speech detection tracking
@@ -201,6 +210,7 @@ class AudioRecorder:
                     if audio_to_transcribe is not None:
                         try:
                             from voicefi.stt.whisper_local import WhisperLocalSTT
+
                             stt = WhisperLocalSTT()
                             txt = stt.transcribe(audio_to_transcribe, sample_rate=self.sample_rate)
                             if txt and on_live_transcript:
@@ -220,12 +230,24 @@ class AudioRecorder:
             with self._create_input_stream() as stream:
                 chunk_count = 0
                 while True:
-                    # Check for manual instant stop (e.g. Enter, Space, Esc, or stop_event)
-                    if trigger_stop.is_set() or self.stop_event.is_set():
+                    # Check for manual instant stop (e.g. Enter, Space, Esc, stop_event, or cross-process Esc kill)
+                    from voicefi.tts.base import is_speech_interrupted
+
+                    if (
+                        trigger_stop.is_set()
+                        or self.stop_event.is_set()
+                        or is_speech_interrupted(start_time)
+                    ):
+                        cancelled_by_user = True
                         break
 
                     chunk, overflowed = stream.read(chunk_size)
-                    if trigger_stop.is_set() or self.stop_event.is_set():
+                    if (
+                        trigger_stop.is_set()
+                        or self.stop_event.is_set()
+                        or is_speech_interrupted(start_time)
+                    ):
+                        cancelled_by_user = True
                         break
 
                     audio_chunk = chunk.flatten()
@@ -257,7 +279,9 @@ class AudioRecorder:
                             # Dynamic acoustic threshold & grace window
                             if is_safe_mode:
                                 # Built-in laptop speakers: adapt against speaker bleed
-                                grace_chunks = max(10, int(1.0 / chunk_duration))  # 1.0s settling window from audio onset
+                                grace_chunks = max(
+                                    10, int(1.0 / chunk_duration)
+                                )  # 1.0s settling window from audio onset
                                 in_grace_period = agent_speaking_chunks < grace_chunks
                                 if in_grace_period:
                                     # During grace period, track peak speaker bleed floor
@@ -265,12 +289,17 @@ class AudioRecorder:
                                 else:
                                     # Post-grace: track baseline for low/moderate levels so human speech doesn't inflate floor
                                     if smoothed_energy < (speaker_bleed_floor * 1.35):
-                                        speaker_bleed_floor = 0.95 * speaker_bleed_floor + 0.05 * smoothed_energy
+                                        speaker_bleed_floor = (
+                                            0.95 * speaker_bleed_floor + 0.05 * smoothed_energy
+                                        )
 
-                                barge_in_threshold = max(
-                                    0.045,
-                                    speaker_bleed_floor * 1.30 + 0.010,
-                                ) / self.barge_in_sensitivity
+                                barge_in_threshold = (
+                                    max(
+                                        0.045,
+                                        speaker_bleed_floor * 1.30 + 0.010,
+                                    )
+                                    / self.barge_in_sensitivity
+                                )
                                 required_chunks = 2 if active_engine == "silero" else 3
                             else:
                                 # Headphones / AirPods: responsive threshold with robust floor against ambient noise
@@ -280,11 +309,14 @@ class AudioRecorder:
                                     self.energy_threshold * 1.5,
                                     self.vad.running_noise_floor * 1.5,
                                 )
-                                barge_in_threshold = max(
-                                    0.035,
-                                    self.energy_threshold * 2.2,
-                                    (self.vad.running_noise_floor * 2.0 + 0.012),
-                                ) / self.barge_in_sensitivity
+                                barge_in_threshold = (
+                                    max(
+                                        0.035,
+                                        self.energy_threshold * 2.2,
+                                        (self.vad.running_noise_floor * 2.0 + 0.012),
+                                    )
+                                    / self.barge_in_sensitivity
+                                )
                                 required_chunks = 2 if active_engine == "silero" else 3
                                 in_grace_period = agent_speaking_chunks < grace_chunks
 
@@ -304,25 +336,40 @@ class AudioRecorder:
                                 if active_engine == "silero":
                                     if is_safe_mode:
                                         # On built-in speakers, speaker audio has high speech_conf, so we require energy exceeding the bleed floor
-                                        is_barge_candidate = (smoothed_energy > barge_in_threshold and speech_conf >= 0.35)
+                                        is_barge_candidate = (
+                                            smoothed_energy > barge_in_threshold
+                                            and speech_conf >= 0.35
+                                        )
                                     else:
                                         # On headphones, require minimum energy floor AND speech confidence to prevent faint room noise / echo false positives
-                                        is_barge_candidate = (smoothed_energy > barge_in_threshold and speech_conf >= 0.25) or (smoothed_energy > min_barge_energy and speech_conf >= 0.75)
+                                        is_barge_candidate = (
+                                            smoothed_energy > barge_in_threshold
+                                            and speech_conf >= 0.25
+                                        ) or (
+                                            smoothed_energy > min_barge_energy
+                                            and speech_conf >= 0.75
+                                        )
                                 else:
-                                    is_barge_candidate = (smoothed_energy > barge_in_threshold)
+                                    is_barge_candidate = smoothed_energy > barge_in_threshold
 
                                 if is_barge_candidate:
                                     barge_in_candidate_chunks += 1
                                     if barge_in_candidate_chunks >= required_chunks:
                                         # User spoke over agent speech -> BARGE IN!
                                         mode_desc = f"{'acoustic safe-mode' if is_safe_mode else 'headphones'} [{active_engine}]"
-                                        print(f"[VAD] ⚡ Barge-In detected ({mode_desc}, conf={speech_conf:.2f}, energy={smoothed_energy:.4f}, thresh={barge_in_threshold:.4f}) -> stopping agent speech")
+                                        print(
+                                            f"[VAD] ⚡ Barge-In detected ({mode_desc}, conf={speech_conf:.2f}, energy={smoothed_energy:.4f}, thresh={barge_in_threshold:.4f}) -> stopping agent speech"
+                                        )
                                         from voicefi.tts.base import stop_all_speech
+
                                         stop_all_speech()
                                         try:
                                             from voicefi.telemetry import capture_barge_in_event
+
                                             capture_barge_in_event(
-                                                device_type="acoustic_safe_mode" if is_safe_mode else "headphones",
+                                                device_type="acoustic_safe_mode"
+                                                if is_safe_mode
+                                                else "headphones",
                                                 is_full_duplex=(not is_safe_mode),
                                                 ambient_energy_level=smoothed_energy,
                                             )
@@ -348,12 +395,16 @@ class AudioRecorder:
                                             speech_start_notified = True
                                         continue
                                 else:
-                                    barge_in_candidate_chunks = max(0, barge_in_candidate_chunks - 1)
+                                    barge_in_candidate_chunks = max(
+                                        0, barge_in_candidate_chunks - 1
+                                    )
 
                             if not is_paused:
                                 is_paused = True
                                 mode_info = f"{'acoustic safe-mode' if is_safe_mode else 'active listening'} [{active_engine}]"
-                                print(f"[VAD] Agent is speaking aloud -> barge-in monitoring ({mode_info})...")
+                                print(
+                                    f"[VAD] Agent is speaking aloud -> barge-in monitoring ({mode_info})..."
+                                )
                                 if on_pause_change:
                                     try:
                                         on_pause_change(True)
@@ -370,7 +421,9 @@ class AudioRecorder:
                             # Standard mute mode: pause and discard all frames
                             if not is_paused:
                                 is_paused = True
-                                print("[VAD] Agent is speaking aloud -> pausing mic capture & purging audio bleed")
+                                print(
+                                    "[VAD] Agent is speaking aloud -> pausing mic capture & purging audio bleed"
+                                )
                                 if on_pause_change:
                                     try:
                                         on_pause_change(True)
@@ -398,7 +451,9 @@ class AudioRecorder:
                         speaker_bleed_floor = 0.0
                         agent_speaking_pre_roll.clear()
                         recorded_frames.clear()
-                        print("[VAD] Agent finished speaking -> cooling down & resuming mic capture")
+                        print(
+                            "[VAD] Agent finished speaking -> cooling down & resuming mic capture"
+                        )
                         if on_pause_change:
                             try:
                                 on_pause_change(False)
@@ -409,7 +464,6 @@ class AudioRecorder:
                         cooldown_remaining_chunks -= 1
                         start_time += chunk_duration
                         continue
-
 
                     recorded_frames.append(audio_chunk)
 
@@ -445,7 +499,9 @@ class AudioRecorder:
                                 speech_started = True
                                 speech_start_time = now
                                 speech_candidate_chunks = 0
-                                print(f"[VAD] Speech started (engine={active_engine}, conf={speech_confidence:.2f}, energy={smoothed_energy:.4f})")
+                                print(
+                                    f"[VAD] Speech started (engine={active_engine}, conf={speech_confidence:.2f}, energy={smoothed_energy:.4f})"
+                                )
                                 if on_speech_start and not speech_start_notified:
                                     on_speech_start()
                                     speech_start_notified = True
@@ -459,7 +515,10 @@ class AudioRecorder:
                             if active_engine == "silero":
                                 is_silence = speech_confidence < 0.35
                             else:
-                                silence_cutoff = max(self.vad.running_noise_floor * 1.25, min(active_threshold * 0.85, peak_speech_energy * 0.3))
+                                silence_cutoff = max(
+                                    self.vad.running_noise_floor * 1.25,
+                                    min(active_threshold * 0.85, peak_speech_energy * 0.3),
+                                )
                                 is_silence = smoothed_energy <= silence_cutoff
 
                             if is_silence:
@@ -468,11 +527,17 @@ class AudioRecorder:
                                 consecutive_silence_chunks = max(0, consecutive_silence_chunks - 2)
 
                             if consecutive_silence_chunks >= chunks_needed_for_silence:
-                                print(f"[VAD] Natural silence detected ({consecutive_silence_chunks * chunk_duration:.2f}s, engine={active_engine}) -> finishing recording")
+                                print(
+                                    f"[VAD] Natural silence detected ({consecutive_silence_chunks * chunk_duration:.2f}s, engine={active_engine}) -> finishing recording"
+                                )
                                 break
 
                     # Stream partial live transcription to HUD while user speaks
-                    if on_live_transcript and speech_started and (chunk_count - last_stream_chunk_count) >= 6:
+                    if (
+                        on_live_transcript
+                        and speech_started
+                        and (chunk_count - last_stream_chunk_count) >= 6
+                    ):
                         last_stream_chunk_count = chunk_count
                         with streaming_lock:
                             if not is_transcribing and recorded_frames:
@@ -481,18 +546,24 @@ class AudioRecorder:
                     # Max speech burst cutoff (dynamically scaled for conversational flow or extended brain dumps)
                     max_burst_limit = max(30.0, float(self.silence_duration) * 3.0)
                     if speech_started and (now - speech_start_time) >= max_burst_limit:
-                        print(f"[VAD] Maximum continuous speech burst ({max_burst_limit:.1f}s) reached -> finishing")
+                        print(
+                            f"[VAD] Maximum continuous speech burst ({max_burst_limit:.1f}s) reached -> finishing"
+                        )
                         break
 
                     # Max total record duration safety cutoff
                     if elapsed >= self.max_record_seconds:
-                        print(f"[VAD] Maximum record duration ({self.max_record_seconds}s) reached -> finishing")
+                        print(
+                            f"[VAD] Maximum record duration ({self.max_record_seconds}s) reached -> finishing"
+                        )
                         break
 
                     # If no speech at all after timeout seconds, exit gracefully
                     speech_timeout = float(timeout) if timeout is not None else 12.0
                     if not speech_started and elapsed >= speech_timeout:
-                        print(f"[VAD] No speech detected within {speech_timeout:.1f}s -> closing mic")
+                        print(
+                            f"[VAD] No speech detected within {speech_timeout:.1f}s -> closing mic"
+                        )
                         break
 
             if cancelled_by_user or not recorded_frames or not speech_started:
@@ -517,6 +588,7 @@ class AudioRecorder:
             # Resume background monitor
             try:
                 from voicefi.audio.monitor import LiveVADMonitor
+
                 LiveVADMonitor.get_instance().resume()
             except ImportError:
                 pass
@@ -542,10 +614,11 @@ class AudioRecorder:
         self.stop_event.clear()
         trigger_stop = stop_event or self.stop_event
         cancelled_by_user = False
-        
+
         # Pause background monitor to yield device
         try:
             from voicefi.audio.monitor import LiveVADMonitor
+
             LiveVADMonitor.get_instance().pause()
         except ImportError:
             pass
@@ -554,17 +627,16 @@ class AudioRecorder:
         try:
             from pynput import keyboard
             from voicefi.tts.base import is_escape_key
+
             def _on_ptt_key(k):
                 nonlocal cancelled_by_user
                 if is_escape_key(k):
-                    from voicefi.tts.base import stop_all_speech, is_agent_speaking, is_system_audio_playing
-                    if is_agent_speaking() or is_system_audio_playing():
-                        # Agent is speaking aloud: Esc stops speech immediately while keeping PTT capture active
-                        stop_all_speech()
-                    else:
-                        cancelled_by_user = True
-                        stop_all_speech()
-                        self.stop_event.set()
+                    from voicefi.tts.base import stop_all_speech, record_speech_stopped
+
+                    cancelled_by_user = True
+                    record_speech_stopped()
+                    stop_all_speech()
+                    self.stop_event.set()
 
             kb_listener = keyboard.Listener(on_press=_on_ptt_key)
             kb_listener.daemon = True
@@ -605,6 +677,7 @@ class AudioRecorder:
                     if audio_to_transcribe is not None:
                         try:
                             from voicefi.stt.whisper_local import WhisperLocalSTT
+
                             stt = WhisperLocalSTT()
                             txt = stt.transcribe(audio_to_transcribe, sample_rate=self.sample_rate)
                             if txt and on_live_transcript:
@@ -633,6 +706,7 @@ class AudioRecorder:
                         is_barge_in_on, _ = resolve_barge_in_mode(self.barge_in)
                         if is_barge_in_on:
                             from voicefi.tts.base import stop_all_speech
+
                             stop_all_speech()
                             if on_barge_in:
                                 try:
@@ -649,7 +723,9 @@ class AudioRecorder:
                                     except Exception:
                                         pass
                                 if recorded_frames:
-                                    recorded_frames = recorded_frames[:-5] if len(recorded_frames) > 5 else []
+                                    recorded_frames = (
+                                        recorded_frames[:-5] if len(recorded_frames) > 5 else []
+                                    )
                             start_time += chunk_duration
                             continue
 
@@ -724,6 +800,7 @@ class AudioRecorder:
             # Resume background monitor
             try:
                 from voicefi.audio.monitor import LiveVADMonitor
+
                 LiveVADMonitor.get_instance().resume()
             except ImportError:
                 pass

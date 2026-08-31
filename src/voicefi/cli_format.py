@@ -17,6 +17,7 @@ from voicefi import __version__
 # ANSI Terminal Styling Helpers
 # ---------------------------------------------------------------------------
 
+
 def _use_color(stream=None) -> bool:
     """Determine if ANSI color codes should be enabled."""
     if os.environ.get("NO_COLOR"):
@@ -81,6 +82,7 @@ def c_magenta(text: str, stream=None) -> str:
 # ---------------------------------------------------------------------------
 # Program Name Resolution
 # ---------------------------------------------------------------------------
+
 
 def resolve_prog_name() -> str:
     """Resolve the invoked binary name (e.g. 'vifi' or 'voicefi')."""
@@ -169,36 +171,58 @@ COMMAND_CATEGORIES = [
 def render_categorized_help(prog: str = "vifi", stream=None) -> str:
     """Generate modern, structured, and categorized CLI help output."""
     lines: List[str] = []
-    
+
     # Header Banner
     title = f"🎙️  VoiceFi v{__version__}"
     tagline = "Universal Voice Layer for AI Agents, MCP & macOS"
     lines.append(f"{c_bold_cyan(title, stream)} {c_dim('— ' + tagline, stream)}")
     lines.append("")
-    
+
     # Usage
-    lines.append(f"{c_bold_yellow('Usage:', stream)} {c_bold(prog, stream)} {c_cyan('<command>', stream)} {c_dim('[options] [arguments]', stream)}")
+    lines.append(
+        f"{c_bold_yellow('Usage:', stream)} {c_bold(prog, stream)} {c_cyan('<command>', stream)} {c_dim('[options] [arguments]', stream)}"
+    )
     lines.append("")
 
     # Categories
     for cat_name, commands in COMMAND_CATEGORIES:
         lines.append(f"{c_bold(cat_name, stream)}:")
         for cmd_name, cmd_help in commands:
-            cmd_styled = f"  {c_bold_cyan(cmd_name):<28}" if _use_color(stream) else f"  {cmd_name:<18}"
+            cmd_styled = (
+                f"  {c_bold_cyan(cmd_name):<28}" if _use_color(stream) else f"  {cmd_name:<18}"
+            )
             lines.append(f"{cmd_styled} {cmd_help}")
         lines.append("")
 
     # Options
     lines.append(f"{c_bold('Options:', stream)}")
-    lines.append(f"  {c_bold_yellow('-h, --help', stream):<28} Show this help message and exit" if _use_color(stream) else "  -h, --help         Show this help message and exit")
-    lines.append(f"  {c_bold_yellow('--version', stream):<28} Show VoiceFi version" if _use_color(stream) else "  --version          Show VoiceFi version")
-    lines.append(f"  {c_bold_yellow('--config <path>', stream):<28} Path to custom config.yaml" if _use_color(stream) else "  --config <path>    Path to custom config.yaml")
+    lines.append(
+        f"  {c_bold_yellow('-h, --help', stream):<28} Show this help message and exit"
+        if _use_color(stream)
+        else "  -h, --help         Show this help message and exit"
+    )
+    lines.append(
+        f"  {c_bold_yellow('--version', stream):<28} Show VoiceFi version"
+        if _use_color(stream)
+        else "  --version          Show VoiceFi version"
+    )
+    lines.append(
+        f"  {c_bold_yellow('--config <path>', stream):<28} Path to custom config.yaml"
+        if _use_color(stream)
+        else "  --config <path>    Path to custom config.yaml"
+    )
     lines.append("")
 
     # Quick Examples
+    example_text = '"Hello world! Ready to pair program."'
+    example_voice = '"Ava (Premium)"'
     lines.append(f"{c_bold('💡 Quick Examples:', stream)}")
-    lines.append(f"  {c_dim('$', stream)} {c_bold(prog + ' speak', stream)} {c_green('\"Hello world! Ready to pair program.\"', stream)}")
-    lines.append(f"  {c_dim('$', stream)} {c_bold(prog + ' voice set antigravity', stream)} {c_green('\"Ava (Premium)\"', stream)}")
+    lines.append(
+        f"  {c_dim('$', stream)} {c_bold(prog + ' speak', stream)} {c_green(example_text, stream)}"
+    )
+    lines.append(
+        f"  {c_dim('$', stream)} {c_bold(prog + ' voice set antigravity', stream)} {c_green(example_voice, stream)}"
+    )
     lines.append(f"  {c_dim('$', stream)} {c_bold(prog + ' ping --all', stream)}")
     lines.append(f"  {c_dim('$', stream)} {c_bold(prog + ' troubleshoot', stream)}")
     lines.append(f"  {c_dim('$', stream)} {c_bold(prog + ' hud debug', stream)}")
@@ -211,7 +235,10 @@ def render_categorized_help(prog: str = "vifi", stream=None) -> str:
 # Fuzzy Typo Matching & Error Card Formatter
 # ---------------------------------------------------------------------------
 
-def find_closest_matches(query: str, possibilities: Sequence[str], n: int = 3, cutoff: float = 0.5) -> List[str]:
+
+def find_closest_matches(
+    query: str, possibilities: Sequence[str], n: int = 3, cutoff: float = 0.5
+) -> List[str]:
     """Find close matches for typos using prefix, substring, and scored fuzzy matching."""
     q = query.strip().lower()
     if not q:
@@ -259,10 +286,16 @@ def find_closest_matches(query: str, possibilities: Sequence[str], n: int = 3, c
     return unique[:n]
 
 
-def render_error_box(title: str, message: str, suggestions: Optional[List[str]] = None, prog: str = "vifi", stream=None) -> str:
+def render_error_box(
+    title: str,
+    message: str,
+    suggestions: Optional[List[str]] = None,
+    prog: str = "vifi",
+    stream=None,
+) -> str:
     """Render a clean, high-signal terminal error card."""
     lines: List[str] = []
-    
+
     # Calculate box width
     clean_msg = f"❌ {title}: {message}"
     box_width = max(len(clean_msg) + 4, 48)
@@ -273,7 +306,9 @@ def render_error_box(title: str, message: str, suggestions: Optional[List[str]] 
 
     lines.append("")
     lines.append(c_bold_red(top_border, stream))
-    lines.append(f"{c_bold_red('│', stream)} {c_bold_red('❌ ' + title + ':', stream)} {c_bold(message, stream):<{box_width - len(title) - 8}} {c_bold_red('│', stream)}")
+    lines.append(
+        f"{c_bold_red('│', stream)} {c_bold_red('❌ ' + title + ':', stream)} {c_bold(message, stream):<{box_width - len(title) - 8}} {c_bold_red('│', stream)}"
+    )
     lines.append(c_bold_red(bot_border, stream))
     lines.append("")
 
@@ -284,7 +319,9 @@ def render_error_box(title: str, message: str, suggestions: Optional[List[str]] 
             lines.append(f"   {c_bold_cyan('❯ ' + cmd_preview, stream)}")
         lines.append("")
 
-    lines.append(f"{c_dim('Run', stream)} {c_bold(prog + ' --help', stream)} {c_dim('or', stream)} {c_bold(prog + ' help', stream)} {c_dim('to view available commands.', stream)}")
+    lines.append(
+        f"{c_dim('Run', stream)} {c_bold(prog + ' --help', stream)} {c_dim('or', stream)} {c_bold(prog + ' help', stream)} {c_dim('to view available commands.', stream)}"
+    )
     lines.append("")
     return "\n".join(lines)
 
@@ -292,6 +329,7 @@ def render_error_box(title: str, message: str, suggestions: Optional[List[str]] 
 # ---------------------------------------------------------------------------
 # Custom VoiceFiArgumentParser
 # ---------------------------------------------------------------------------
+
 
 class VoiceFiArgumentParser(argparse.ArgumentParser):
     """
@@ -311,7 +349,9 @@ class VoiceFiArgumentParser(argparse.ArgumentParser):
     def format_help(self) -> str:
         """Format top-level help using our categorized layout, or fallback for sub-commands."""
         # If this is the root parser (has our dest="command" subparser)
-        if any(isinstance(a, argparse._SubParsersAction) and a.dest == "command" for a in self._actions):
+        if any(
+            isinstance(a, argparse._SubParsersAction) and a.dest == "command" for a in self._actions
+        ):
             return render_categorized_help(prog=self.prog, stream=sys.stdout)
         return super().format_help()
 
@@ -320,18 +360,21 @@ class VoiceFiArgumentParser(argparse.ArgumentParser):
         prog = self.prog or resolve_prog_name()
 
         # Case 1: Invalid choice (e.g. "argument <command>: invalid choice: 'onbaoarding' (choose from ...)")
-        choice_match = re.search(r"(?:argument\s+([<>\w\-]+):\s+)?invalid choice:\s+'([^']+)'(?:\s+\(choose from (.*?)\))?", message)
+        choice_match = re.search(
+            r"(?:argument\s+([<>\w\-]+):\s+)?invalid choice:\s+'([^']+)'(?:\s+\(choose from (.*?)\))?",
+            message,
+        )
         if choice_match:
             raw_arg = choice_match.group(1) or ""
             arg_name = raw_arg.strip("<>")
             bad_choice = choice_match.group(2)
             raw_choices = choice_match.group(3) or ""
-            
+
             # Extract choice list
             choices: List[str] = []
             if raw_choices:
                 choices = [c.strip(" '\"") for c in raw_choices.split(",") if c.strip(" '\"")]
-            
+
             # If choices not in message, collect from registered subparser actions
             if not choices:
                 for action in self._actions:
@@ -339,12 +382,27 @@ class VoiceFiArgumentParser(argparse.ArgumentParser):
                         choices.extend(action.choices.keys())
 
             suggestions = find_closest_matches(bad_choice, choices, n=3)
-            
-            is_sub_action = arg_name in ("voice_action", "hud_action", "memo_action", "clone_action", "ambient_action", "obsidian_action", "feedback_action", "action")
+
+            is_sub_action = arg_name in (
+                "voice_action",
+                "hud_action",
+                "memo_action",
+                "clone_action",
+                "ambient_action",
+                "obsidian_action",
+                "feedback_action",
+                "action",
+            )
             is_main_cmd = arg_name in ("command", "")
 
-            label = "Unknown action" if is_sub_action else ("Unknown command" if is_main_cmd else f"Invalid value for '{arg_name}'")
-            err_box = render_error_box(label, f"'{bad_choice}'", suggestions=suggestions, prog=prog, stream=sys.stderr)
+            label = (
+                "Unknown action"
+                if is_sub_action
+                else ("Unknown command" if is_main_cmd else f"Invalid value for '{arg_name}'")
+            )
+            err_box = render_error_box(
+                label, f"'{bad_choice}'", suggestions=suggestions, prog=prog, stream=sys.stderr
+            )
             sys.stderr.write(err_box + "\n")
             sys.exit(2)
 
@@ -361,7 +419,13 @@ class VoiceFiArgumentParser(argparse.ArgumentParser):
             for bad_arg in bad_args:
                 suggestions.extend(find_closest_matches(bad_arg, all_opts, n=2))
 
-            err_box = render_error_box("Unrecognized argument", bad_args_str, suggestions=suggestions, prog=prog, stream=sys.stderr)
+            err_box = render_error_box(
+                "Unrecognized argument",
+                bad_args_str,
+                suggestions=suggestions,
+                prog=prog,
+                stream=sys.stderr,
+            )
             sys.stderr.write(err_box + "\n")
             sys.exit(2)
 
@@ -369,11 +433,19 @@ class VoiceFiArgumentParser(argparse.ArgumentParser):
         req_match = re.search(r"the following arguments are required:\s+(.+)", message)
         if req_match:
             missing_arg = req_match.group(1)
-            err_box = render_error_box("Missing required argument", f"'{missing_arg}'", suggestions=None, prog=prog, stream=sys.stderr)
+            err_box = render_error_box(
+                "Missing required argument",
+                f"'{missing_arg}'",
+                suggestions=None,
+                prog=prog,
+                stream=sys.stderr,
+            )
             sys.stderr.write(err_box + "\n")
             sys.exit(2)
 
         # Generic fallback
-        err_box = render_error_box("Argument error", message, suggestions=None, prog=prog, stream=sys.stderr)
+        err_box = render_error_box(
+            "Argument error", message, suggestions=None, prog=prog, stream=sys.stderr
+        )
         sys.stderr.write(err_box + "\n")
         sys.exit(2)

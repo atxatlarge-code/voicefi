@@ -15,7 +15,11 @@ from typing import Dict, Any, Optional
 
 from voicefi.config import VoiceFiConfig, load_config
 from voicefi.tts import get_tts_engine
-from voicefi.tts.base import set_cross_process_hud_state, clear_cross_process_hud_state, escape_to_stop_speech
+from voicefi.tts.base import (
+    set_cross_process_hud_state,
+    clear_cross_process_hud_state,
+    escape_to_stop_speech,
+)
 from voicefi.stt import get_stt_engine
 from voicefi.audio.recorder import AudioRecorder
 from voicefi.audio.chimes import play_chime
@@ -123,15 +127,17 @@ def install_codex_hook(
                     has_voicefi = True
 
     if not has_voicefi:
-        stop_hooks.append({
-            "hooks": [
-                {
-                    "type": "command",
-                    "command": hook_command,
-                    "timeout": 60,
-                }
-            ]
-        })
+        stop_hooks.append(
+            {
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": hook_command,
+                        "timeout": 60,
+                    }
+                ]
+            }
+        )
 
     data["hooks"]["Stop"] = stop_hooks
 
@@ -146,8 +152,9 @@ def install_codex_hook(
             toml_text = target_config.read_text(encoding="utf-8")
             notify_entry = f'notify = [\n    "{executable}",\n    "hook",\n    "--agent",\n    "codex",\n    "turn-ended",\n]\n'
             import re
-            if re.search(r'notify\s*=\s*\[[^\]]*\]', toml_text):
-                toml_text = re.sub(r'notify\s*=\s*\[[^\]]*\]\s*', notify_entry, toml_text, count=1)
+
+            if re.search(r"notify\s*=\s*\[[^\]]*\]", toml_text):
+                toml_text = re.sub(r"notify\s*=\s*\[[^\]]*\]\s*", notify_entry, toml_text, count=1)
             else:
                 toml_text = notify_entry + toml_text
             target_config.write_text(toml_text, encoding="utf-8")
@@ -177,7 +184,8 @@ def remove_codex_hook(
                 for group in stop_hooks:
                     if isinstance(group, dict):
                         inner = [
-                            h for h in group.get("hooks", [])
+                            h
+                            for h in group.get("hooks", [])
                             if isinstance(h, dict) and "voicefi" not in h.get("command", "")
                         ]
                         if inner:
@@ -199,8 +207,9 @@ def remove_codex_hook(
         try:
             toml_text = target_config.read_text(encoding="utf-8")
             import re
+
             if "voicefi" in toml_text:
-                toml_text = re.sub(r'notify\s*=\s*\[[^\]]*voicefi[^\]]*\]\s*', '', toml_text)
+                toml_text = re.sub(r"notify\s*=\s*\[[^\]]*voicefi[^\]]*\]\s*", "", toml_text)
                 target_config.write_text(toml_text, encoding="utf-8")
         except Exception:
             pass
@@ -222,9 +231,15 @@ def handle_codex_stop_hook(
     cfg = config or load_config()
 
     # Guard: Instant kill-switch check
-    if not cfg.enabled or not getattr(cfg.hooks, "enabled", True) or not getattr(cfg.hooks, "codex", True):
+    if (
+        not cfg.enabled
+        or not getattr(cfg.hooks, "enabled", True)
+        or not getattr(cfg.hooks, "codex", True)
+    ):
         return {"status": "paused"}
-    if not getattr(cfg.integrations, "codex", True) and not getattr(cfg.integrations, "chatgpt", True):
+    if not getattr(cfg.integrations, "codex", True) and not getattr(
+        cfg.integrations, "chatgpt", True
+    ):
         return {"status": "disabled"}
 
     codex_cfg = getattr(cfg, "codex", None)
@@ -240,7 +255,12 @@ def handle_codex_stop_hook(
     thread_id = "codex_active"
 
     if isinstance(payload, dict):
-        thread_id = str(payload.get("thread-id") or payload.get("thread_id") or payload.get("conversationId") or "codex_active")
+        thread_id = str(
+            payload.get("thread-id")
+            or payload.get("thread_id")
+            or payload.get("conversationId")
+            or "codex_active"
+        )
         if payload.get("last-assistant-message"):
             text_to_speak = str(payload["last-assistant-message"])
         elif payload.get("message"):
@@ -271,17 +291,20 @@ def handle_codex_stop_hook(
         engine="codex",
     )
 
-    print(f"\n✳️ [Codex Hook] Turn complete: \"{cleaned}\"")
+    print(f'\n✳️ [Codex Hook] Turn complete: "{cleaned}"')
 
     try:
         from voicefi.audio.echo_canceller import record_agent_spoken
+
         record_agent_spoken(cleaned)
     except Exception:
         pass
 
     # Check Mobile Companion audio routing
     routing = getattr(getattr(cfg, "companion", None), "audio_routing", "smart")
-    mute_mac_active = getattr(getattr(cfg, "companion", None), "mute_mac_when_companion_active", False)
+    mute_mac_active = getattr(
+        getattr(cfg, "companion", None), "mute_mac_when_companion_active", False
+    )
     is_mobile = pop_mobile_turn_origin(thread_id) or pop_mobile_turn_origin(cid_key)
 
     if routing == "phone_only":
@@ -303,12 +326,19 @@ def handle_codex_stop_hook(
         except Exception as e:
             print(f"[Codex Hook] Speech error: {e}", file=sys.stderr)
 
+        from voicefi.tts.base import is_speech_interrupted
+
+        if is_speech_interrupted(hook_start_time):
+            clear_cross_process_hud_state()
+            return {"status": "interrupted", "agent": "codex"}
+
     # If auto_listen is disabled, finish early
     if not auto_listen:
         if read_aloud:
             dur_ms = int((time.time() - hook_start_time) * 1000)
             try:
                 from voicefi.telemetry import capture_voice_interaction
+
                 capture_voice_interaction(
                     trigger="hook",
                     duration_ms=dur_ms,
@@ -336,10 +366,15 @@ def handle_codex_stop_hook(
     )
 
     def _on_live(txt: str):
-        set_cross_process_hud_state("listening", text=txt, agent_name="codex", user_name=cfg.user_name, live_stream=True)
+        set_cross_process_hud_state(
+            "listening", text=txt, agent_name="codex", user_name=cfg.user_name, live_stream=True
+        )
         try:
             from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
-            UnifiedDynamicIslandHUD.get_instance().update_live_transcription(txt, user_name=cfg.user_name)
+
+            UnifiedDynamicIslandHUD.get_instance().update_live_transcription(
+                txt, user_name=cfg.user_name
+            )
         except Exception:
             pass
 
@@ -347,22 +382,36 @@ def handle_codex_stop_hook(
     audio_path = recorder.record()
     clear_cross_process_hud_state()
 
+    if is_speech_interrupted(hook_start_time):
+        if audio_path and audio_path.exists():
+            audio_path.unlink(missing_ok=True)
+        return {"status": "cancelled"}
+
     if not audio_path or not audio_path.exists():
         print("⚠️ No speech captured.")
         return {"status": "no_audio"}
 
     # Transcribe speech
     print("⏳ Transcribing speech...")
-    set_cross_process_hud_state("thinking", text="Transcribing...", agent_name="codex", user_name=cfg.user_name)
+    set_cross_process_hud_state(
+        "thinking", text="Transcribing...", agent_name="codex", user_name=cfg.user_name
+    )
     stt_engine = get_stt_engine(cfg)
-    transcribed_text = stt_engine.transcribe(audio_path)
+    try:
+        transcribed_text = stt_engine.transcribe(audio_path)
+    finally:
+        if audio_path and audio_path.exists():
+            audio_path.unlink(missing_ok=True)
     clear_cross_process_hud_state()
+
+    if is_speech_interrupted(hook_start_time):
+        return {"status": "cancelled"}
 
     if not transcribed_text or not transcribed_text.strip():
         print("⚠️ Empty transcription.")
         return {"status": "empty_transcript"}
 
-    print(f"🗣️ User: \"{transcribed_text}\"")
+    print(f'🗣️ User: "{transcribed_text}"')
 
     # Inject into ChatGPT / Codex Desktop
     auto_sub = getattr(codex_cfg, "auto_submit", False) if codex_cfg else False

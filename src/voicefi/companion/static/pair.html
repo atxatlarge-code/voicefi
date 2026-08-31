@@ -182,6 +182,7 @@
       networkSelect.innerHTML = '';
 
       const options = [
+        { label: '⚡ Cloud Relay (companion.voicefi.app)', key: 'cloud_relay_url' },
         { label: '🌐 Cloudflare HTTPS (Hotspot / Remote)', key: 'tunnel_url' },
         { label: 'Wi-Fi LAN', key: 'ip_url' },
         { label: 'mDNS (.local)', key: 'mdns_url' },
@@ -250,7 +251,7 @@
         const res = await fetch('/api/qr');
         if (res.ok) {
           const data = await res.json();
-          const targetUrl = data.urls?.tunnel_url || data.active_tunnel_url || data.urls?.ip_url || data.urls?.mdns_url || `http://${window.location.hostname}:5141`;
+          const targetUrl = data.preferred_url || data.cloud_relay_url || data.urls?.cloud_relay_url || data.urls?.tunnel_url || data.urls?.ip_url || data.urls?.mdns_url || `http://${window.location.hostname}:5141`;
           populateNetworkOptions(data.urls);
           
           if (data.urls?.tunnel_url || data.active_tunnel_url) {

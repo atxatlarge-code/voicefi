@@ -18,7 +18,9 @@ from typing import Dict, Any, Optional
 from voicefi.config import VoiceFiConfig, load_config
 
 
-def _raw_is_server_running(port: int = 5141, host: str = "127.0.0.1", timeout: float = 0.25) -> bool:
+def _raw_is_server_running(
+    port: int = 5141, host: str = "127.0.0.1", timeout: float = 0.25
+) -> bool:
     url = f"http://{host}:{port}/api/status"
     try:
         req = urllib.request.Request(url, method="GET")
@@ -35,7 +37,11 @@ def is_server_running(port: int = 5141, host: str = "127.0.0.1", timeout: float 
         if mod:
             for attr in ("is_daemon_running", "is_server_running"):
                 fn = getattr(mod, attr, None)
-                if fn is not None and fn is not is_server_running and fn is not _raw_is_server_running:
+                if (
+                    fn is not None
+                    and fn is not is_server_running
+                    and fn is not _raw_is_server_running
+                ):
                     return fn(port=port, host=host, timeout=timeout)
     return _raw_is_server_running(port=port, host=host, timeout=timeout)
 
@@ -44,7 +50,9 @@ def is_server_running(port: int = 5141, host: str = "127.0.0.1", timeout: float 
 is_daemon_running = is_server_running
 
 
-def _raw_ensure_server_running(config: Optional[VoiceFiConfig] = None, timeout: float = 1.5) -> bool:
+def _raw_ensure_server_running(
+    config: Optional[VoiceFiConfig] = None, timeout: float = 1.5
+) -> bool:
     cfg = config or load_config()
     companion_cfg = getattr(cfg, "companion", None)
     port = getattr(companion_cfg, "port", 5141) if companion_cfg else 5141
@@ -67,7 +75,11 @@ def _raw_ensure_server_running(config: Optional[VoiceFiConfig] = None, timeout: 
     if not bin_path:
         bin_path = shutil.which("voicefi") or sys.executable
 
-    cmd = [bin_path, "tray"] if bin_path.endswith("voicefi") else [bin_path, "-m", "voicefi.cli", "tray"]
+    cmd = (
+        [bin_path, "tray"]
+        if bin_path.endswith("voicefi")
+        else [bin_path, "-m", "voicefi.cli", "tray"]
+    )
     try:
         subprocess.Popen(
             cmd,
@@ -97,7 +109,11 @@ def ensure_server_running(config: Optional[VoiceFiConfig] = None, timeout: float
         if mod:
             for attr in ("ensure_daemon_running", "ensure_server_running"):
                 fn = getattr(mod, attr, None)
-                if fn is not None and fn is not ensure_server_running and fn is not _raw_ensure_server_running:
+                if (
+                    fn is not None
+                    and fn is not ensure_server_running
+                    and fn is not _raw_ensure_server_running
+                ):
                     return fn(config=config, timeout=timeout)
     return _raw_ensure_server_running(config=config, timeout=timeout)
 
@@ -157,7 +173,11 @@ def forward_hook_to_server(
         if mod:
             for attr in ("forward_hook_to_daemon", "forward_hook_to_server"):
                 fn = getattr(mod, attr, None)
-                if fn is not None and fn is not forward_hook_to_server and fn is not _raw_forward_hook_to_server:
+                if (
+                    fn is not None
+                    and fn is not forward_hook_to_server
+                    and fn is not _raw_forward_hook_to_server
+                ):
                     return fn(payload, config=config, timeout=timeout)
     return _raw_forward_hook_to_server(payload, config=config, timeout=timeout)
 

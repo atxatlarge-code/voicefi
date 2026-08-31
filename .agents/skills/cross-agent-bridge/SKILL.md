@@ -45,6 +45,7 @@ vifi speak "Hey Claude! Here's a [topic] joke for you: [Setup]... [Punchline]!" 
 - **Suppress Microphone During Agent-to-Agent Duels**: When conducting automated joke duels or agent exchanges, claim the turn immediately in VoiceFi's deduplication ledger:
   ```python
   from voicefi.integrations.conversations import claim_active_conversation_turn
+
   claim_active_conversation_turn("<joke text>")
   ```
   This guarantees that the developer's microphone does not open between turns, allowing the agents to trade dialogue seamlessly without ambient room noise interruption until the entire duel is complete.

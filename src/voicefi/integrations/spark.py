@@ -26,7 +26,9 @@ from voicefi.ipc.protocol import (
 logger = logging.getLogger("voicefi.integrations.spark")
 if not logger.handlers:
     handler = logging.StreamHandler()
-    handler.setFormatter(logging.Formatter("[Gemini Spark] %(asctime)s [%(levelname)s] %(message)s"))
+    handler.setFormatter(
+        logging.Formatter("[Gemini Spark] %(asctime)s [%(levelname)s] %(message)s")
+    )
     logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
@@ -64,7 +66,7 @@ class SparkTurnEndHook:
                     text, max_words=max_words, timeout=0.8
                 )
                 if distilled and len(distilled.strip()) > 3:
-                    logger.debug("✨ Model-distilled soundbite: \"%s\"", distilled)
+                    logger.debug('✨ Model-distilled soundbite: "%s"', distilled)
                     return distilled
             except Exception as e:
                 logger.debug("Gemini distillation fallback: %s", e)
@@ -77,7 +79,7 @@ class SparkTurnEndHook:
 
     async def on_turn_start(self, prompt: str, session_id: Optional[str] = None):
         """Emit turn_start lifecycle event."""
-        logger.info("🎬 Spark turn start: \"%s\"", prompt[:50])
+        logger.info('🎬 Spark turn start: "%s"', prompt[:50])
         if self.bridge and self.bridge.is_connected:
             await self.bridge.emit_agent_event(
                 event_type=EVENT_TURN_START,
@@ -101,7 +103,9 @@ class SparkTurnEndHook:
                 details={"tool_name": tool_name, "args": tool_args or {}},
             )
 
-    async def on_tool_complete(self, tool_name: str, tool_result: Optional[Any] = None, success: bool = True):
+    async def on_tool_complete(
+        self, tool_name: str, tool_result: Optional[Any] = None, success: bool = True
+    ):
         """Emit tool_complete lifecycle event."""
         logger.debug("✅ Spark tool complete: %s (success=%s)", tool_name, success)
         if self.bridge and self.bridge.is_connected:
@@ -136,7 +140,7 @@ class SparkTurnEndHook:
         resolved_persona = persona or self.default_persona
 
         logger.info(
-            "🏁 Spark turn end [%s] (%s persona): \"%s\"",
+            '🏁 Spark turn end [%s] (%s persona): "%s"',
             status,
             resolved_persona,
             spoken_summary,
@@ -155,14 +159,17 @@ class SparkTurnEndHook:
             # Standalone fallback: speak directly and update HUD
             from voicefi.tts import get_tts_engine
             from voicefi.tts.base import set_cross_process_hud_state
+
             set_cross_process_hud_state("speaking", text=spoken_summary, agent_name=self.agent_name)
             try:
                 loop = asyncio.get_running_loop()
+
                 def _speak():
                     tts = get_tts_engine(self.config, agent_name=self.agent_name)
                     if hasattr(tts, "persona_name") and resolved_persona:
                         tts.persona_name = resolved_persona
                     tts.stream_speak(spoken_summary, block=True)
+
                 await loop.run_in_executor(None, _speak)
             except Exception as e:
                 logger.debug("Standalone TTS playback exception: %s", e)

@@ -22,7 +22,9 @@ from typing import Any, Dict, List, Optional, Tuple
 LAUNCHAGENT_LABELS = ["com.voicefi.menubar", "com.voicefi.tray"]
 LAUNCHAGENT_LABEL = "com.voicefi.menubar"
 LAUNCHAGENT_PLIST = Path.home() / "Library" / "LaunchAgents" / f"{LAUNCHAGENT_LABEL}.plist"
-LAUNCHAGENT_PLISTS = [Path.home() / "Library" / "LaunchAgents" / f"{lbl}.plist" for lbl in LAUNCHAGENT_LABELS]
+LAUNCHAGENT_PLISTS = [
+    Path.home() / "Library" / "LaunchAgents" / f"{lbl}.plist" for lbl in LAUNCHAGENT_LABELS
+]
 LOCK_FILE = Path("/tmp/voicefi_tray.lock")
 PID_FILE = Path("/tmp/voicefi_tray.pid")
 
@@ -105,22 +107,33 @@ def find_running_voicefi_processes(include_mcp: bool = True) -> List[Dict[str, A
                 is_voicefi = False
                 if "voicefi" in cmd_lower or "vifi" in cmd_lower:
                     is_voicefi = True
-                elif any(kw in cmd_lower for kw in [
-                    "test_btn_crash", "test_hud", "unified_hud", "activity_hub",
-                    "capture_hud_states", "sync_hud_assets", "audition_server", "pytest"
-                ]):
+                elif any(
+                    kw in cmd_lower
+                    for kw in [
+                        "test_btn_crash",
+                        "test_hud",
+                        "unified_hud",
+                        "activity_hub",
+                        "capture_hud_states",
+                        "sync_hud_assets",
+                        "audition_server",
+                        "pytest",
+                    ]
+                ):
                     is_voicefi = True
 
                 if is_voicefi:
                     is_mcp = bool(" mcp" in cmd_lower or cmd_lower.endswith(" mcp"))
                     if not include_mcp and is_mcp:
                         continue
-                    results.append({
-                        "pid": pid,
-                        "ppid": ppid,
-                        "command": cmd,
-                        "is_mcp": is_mcp,
-                    })
+                    results.append(
+                        {
+                            "pid": pid,
+                            "ppid": ppid,
+                            "command": cmd,
+                            "is_mcp": is_mcp,
+                        }
+                    )
     except Exception:
         pass
     return results
@@ -233,7 +246,10 @@ def get_launchagent_status() -> Dict[str, Any]:
 
 def get_full_server_status() -> Dict[str, Any]:
     """Compile comprehensive status of VoiceFi server, processes, ports, and locks."""
-    if "get_full_daemon_status" in globals() and globals()["get_full_daemon_status"] is not get_full_server_status:
+    if (
+        "get_full_daemon_status" in globals()
+        and globals()["get_full_daemon_status"] is not get_full_server_status
+    ):
         try:
             return globals()["get_full_daemon_status"]()
         except TypeError:
@@ -257,13 +273,15 @@ def get_full_server_status() -> Dict[str, Any]:
     gemini_hook = Path.home() / ".gemini" / "config" / "hooks.json"
     plugin_hook = Path.home() / ".gemini" / "config" / "plugins" / "voicefi-plugin" / "hooks.json"
     claude_hook = Path.home() / ".claude" / "settings.json"
-    
+
     gemini_cmd = None
     for cand in (plugin_hook, gemini_hook):
         if cand.is_file():
             try:
                 gh_data = json.loads(cand.read_text(encoding="utf-8"))
-                gemini_cmd = gh_data.get("voicefi-voice-layer", {}).get("Stop", [{}])[0].get("command")
+                gemini_cmd = (
+                    gh_data.get("voicefi-voice-layer", {}).get("Stop", [{}])[0].get("command")
+                )
                 if gemini_cmd:
                     break
             except Exception:
@@ -325,7 +343,10 @@ def stop_all_voicefi_servers(
     Safely and comprehensively stop all running VoiceFi servers, background agents,
     and release locks and ports.
     """
-    if "stop_all_voicefi_daemons" in globals() and globals()["stop_all_voicefi_daemons"] is not stop_all_voicefi_servers:
+    if (
+        "stop_all_voicefi_daemons" in globals()
+        and globals()["stop_all_voicefi_daemons"] is not stop_all_voicefi_servers
+    ):
         try:
             return globals()["stop_all_voicefi_daemons"](
                 disable_launchagent=disable_launchagent,
@@ -338,6 +359,7 @@ def stop_all_voicefi_servers(
     # 0. Instantly stop any active speech synthesis and audio playback
     try:
         from voicefi.tts.base import stop_all_speech
+
         stop_all_speech()
     except Exception:
         pass
@@ -542,7 +564,7 @@ def clean_caches(
             roots_to_scan.append(workspace_root)
         else:
             roots_to_scan.append(Path(__file__).resolve().parent.parent.parent)
-        
+
         voicefi_home = Path.home() / ".voicefi"
         if voicefi_home.is_dir():
             roots_to_scan.append(voicefi_home)
@@ -641,13 +663,19 @@ def link_dev_environment(workspace_dir: Optional[Path] = None) -> Dict[str, Any]
     try:
         p_dir = Path.home() / ".gemini" / "config" / "plugins" / "voicefi-plugin"
         p_dir.mkdir(parents=True, exist_ok=True)
-        (p_dir / "plugin.json").write_text(json.dumps({
-            "name": "voicefi-plugin",
-            "version": "1.0.0",
-            "description": "VoiceFi Voice Layer lifecycle hooks for Antigravity AI coding agent.",
-            "author": {"name": "VoiceFi"},
-            "keywords": ["voice", "voicefi", "tts", "stt", "vad"],
-        }, indent=2), encoding="utf-8")
+        (p_dir / "plugin.json").write_text(
+            json.dumps(
+                {
+                    "name": "voicefi-plugin",
+                    "version": "1.0.0",
+                    "description": "VoiceFi Voice Layer lifecycle hooks for Antigravity AI coding agent.",
+                    "author": {"name": "VoiceFi"},
+                    "keywords": ["voice", "voicefi", "tts", "stt", "vad"],
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
         (p_dir / "hooks.json").write_text(json.dumps(hooks_data, indent=2), encoding="utf-8")
 
         g_cfg = Path.home() / ".gemini" / "config" / "config.json"

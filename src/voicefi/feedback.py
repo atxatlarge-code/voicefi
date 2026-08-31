@@ -28,6 +28,7 @@ def collect_system_diagnostics() -> Dict[str, Any]:
     """Collect non-sensitive environment diagnostics for troubleshooting."""
     config = load_config()
     from voicefi.audio.device import get_audio_device_profile
+
     audio_prof = get_audio_device_profile()
 
     diagnostics: Dict[str, Any] = {
@@ -64,7 +65,7 @@ def submit_feedback(
 ) -> Dict[str, Any]:
     """
     Submit and record a feedback / bug report item.
-    
+
     Args:
         title: Summary of the issue or feature request.
         details: Detailed explanation or reproduction steps.
@@ -110,6 +111,7 @@ def submit_feedback(
     # 3. Dispatch sanitized event to remote telemetry if enabled
     try:
         from voicefi.telemetry import capture_event
+
         capture_event("feedback_submitted", record)
     except Exception:
         pass

@@ -23,6 +23,7 @@ def find_silero_vad_model() -> Optional[Path]:
     # Try faster_whisper bundle
     try:
         import faster_whisper.vad as f_vad
+
         assets_dir = f_vad.get_assets_path()
         if assets_dir:
             candidates.append(Path(assets_dir) / "silero_vad_v6.onnx")
@@ -114,7 +115,7 @@ class SileroVAD:
             )
             self._h = hn
             self._c = cn
-            self._context = x[:, -self._context_size:]
+            self._context = x[:, -self._context_size :]
             return float(out[0])
         except Exception:
             return 0.0
@@ -208,7 +209,7 @@ class VoiceActivityDetector:
         if audio_chunk.ndim > 1:
             audio_chunk = audio_chunk.flatten()
 
-        energy = float(np.sqrt(np.mean(audio_chunk ** 2))) if len(audio_chunk) > 0 else 0.0
+        energy = float(np.sqrt(np.mean(audio_chunk**2))) if len(audio_chunk) > 0 else 0.0
         self.smoothed_energy = 0.4 * self.smoothed_energy + 0.6 * energy
 
         engine = self.active_engine
@@ -216,13 +217,19 @@ class VoiceActivityDetector:
             is_speech, prob = self._silero.process_chunk(audio_chunk)
             # Update running noise floor on low-probability chunks
             if prob < 0.2:
-                self.running_noise_floor = 0.88 * self.running_noise_floor + 0.12 * min(0.015, energy)
+                self.running_noise_floor = 0.88 * self.running_noise_floor + 0.12 * min(
+                    0.015, energy
+                )
 
             # Hybrid safeguard: if energy is significantly above active threshold (e.g. synthetic test audio, loud speech)
-            active_energy_thresh = max(self.energy_threshold, self.running_noise_floor * 1.5 + 0.0035)
+            active_energy_thresh = max(
+                self.energy_threshold, self.running_noise_floor * 1.5 + 0.0035
+            )
             if not is_speech and self.smoothed_energy > max(0.040, active_energy_thresh * 2.2):
                 is_speech = True
-                prob = max(prob, min(1.0, self.smoothed_energy / (active_energy_thresh * 2.0 + 1e-6)))
+                prob = max(
+                    prob, min(1.0, self.smoothed_energy / (active_energy_thresh * 2.0 + 1e-6))
+                )
 
             return {
                 "is_speech": is_speech,
@@ -236,7 +243,9 @@ class VoiceActivityDetector:
             active_threshold = max(self.energy_threshold, self.running_noise_floor * 1.5 + 0.0035)
             is_speech = self.smoothed_energy > active_threshold
             if not is_speech:
-                self.running_noise_floor = 0.88 * self.running_noise_floor + 0.12 * min(0.015, energy)
+                self.running_noise_floor = 0.88 * self.running_noise_floor + 0.12 * min(
+                    0.015, energy
+                )
             return {
                 "is_speech": is_speech,
                 "confidence": min(1.0, self.smoothed_energy / (active_threshold * 2.0 + 1e-6)),
