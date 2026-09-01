@@ -49,6 +49,9 @@ config.yaml
 *.pfx
 credentials.json
 token.json
+scripts/generate_license.py
+admin_keys/
+.admin_keys/
 
 # Documents & Patent filings
 *.pdf

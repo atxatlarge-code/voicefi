@@ -189,10 +189,41 @@ class PhoneticLearner:
             pattern = r"\b" + re.escape(spoken_form) + r"\b"
             self.project_symbols[pattern] = sym_clean
 
-    def normalize_stt(self, raw_text: str) -> str:
+    def get_all_symbols(self) -> List[str]:
+        """Return all unique indexed project symbols."""
+        return sorted(list(set(self.project_symbols.values())))
+
+    def get_symbol_candidates(self, text: str, limit: int = 30) -> List[str]:
+        """Return candidate project symbols based on token overlap or prefix matching."""
+        if not text:
+            return self.get_all_symbols()[:limit]
+
+        words = set(re.findall(r"\b[a-zA-Z0-9_-]+\b", text.lower()))
+        all_syms = self.get_all_symbols()
+        scored: List[Tuple[int, str]] = []
+
+        for sym in all_syms:
+            sym_lower = sym.lower()
+            score = 0
+            for w in words:
+                if len(w) >= 3:
+                    if w in sym_lower:
+                        score += 3
+                    elif sym_lower.startswith(w[:3]):
+                        score += 1
+            if score > 0:
+                scored.append((score, sym))
+
+        scored.sort(key=lambda x: x[0], reverse=True)
+        if scored:
+            return [s[1] for s in scored[:limit]]
+        return all_syms[:limit]
+
+    def normalize_stt(self, raw_text: str, enable_ai_fallback: bool = False) -> str:
         """
         Transform raw Whisper STT dictation into canonical code and syntax
         by recursively evaluating built-ins, learned corrections, and project symbols.
+        Optionally attempts AI phonetic disambiguation for ambiguous spoken phrases.
         """
         if not raw_text or not raw_text.strip():
             return ""
@@ -212,6 +243,23 @@ class PhoneticLearner:
         # 3. Project-specific symbols
         for pattern, canonical in self.project_symbols.items():
             result = re.sub(pattern, canonical, result, flags=re.IGNORECASE)
+
+        # 4. Optional AI disambiguation on ambiguous terms if configured
+        if enable_ai_fallback and self.project_symbols:
+            try:
+                from voicefi.integrations.gemini_ai import GeminiIntelligenceEngine
+
+                gem = GeminiIntelligenceEngine()
+                if gem.is_available() and getattr(
+                    getattr(gem.config, "gemini", None), "enable_phonetic_resolver", True
+                ):
+                    candidates = self.get_symbol_candidates(result, limit=25)
+                    if candidates:
+                        resolved = gem.resolve_phonetic_code(result, candidates, timeout=0.5)
+                        if resolved:
+                            result = resolved
+            except Exception:
+                pass
 
         return result
 

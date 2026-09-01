@@ -127,6 +127,12 @@ class AudioRecorder:
                     stop_all_speech()
                     self.stop_event.set()
                 elif cancel_on_typing:
+                    # Ignore typing cancellations during startup grace period (0.6s) so hotkey chords don't self-cancel
+                    if (time.time() - start_time) < 0.6:
+                        return
+                    if speech_started:
+                        return
+
                     from voicefi.tts.base import is_agent_speaking, is_system_audio_playing
 
                     if not is_agent_speaking() and not is_system_audio_playing():
@@ -145,6 +151,7 @@ class AudioRecorder:
                             "cmd",
                             "cmd_l",
                             "cmd_r",
+                            "caps_lock",
                         ):
                             if hasattr(keyboard.Key, mod_attr) and k == getattr(
                                 keyboard.Key, mod_attr
@@ -152,6 +159,12 @@ class AudioRecorder:
                                 is_mod = True
                                 break
                         if not is_mod:
+                            if hasattr(keyboard.Key, "enter") and k in (
+                                keyboard.Key.enter,
+                                keyboard.Key.space,
+                                keyboard.Key.tab,
+                            ):
+                                return
                             cancelled_by_user = True
                             self.stop_event.set()
 

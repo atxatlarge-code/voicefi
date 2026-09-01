@@ -399,13 +399,14 @@ def is_speech_interrupted(turn_start_time: float = 0.0) -> bool:
     """
     global _IN_PROCESS_SPEAKING
     stop_time = get_last_speech_stop_time()
+
+    # If turn_start_time is provided: ONLY consider stops that occurred strictly AFTER this turn started!
+    if turn_start_time > 0:
+        return stop_time > turn_start_time
+
+    # If no turn_start_time provided, check if recent stop occurred within last 1.5s
     now = time.time()
-
-    # If a stop was triggered within the last 3.0 seconds across any process, speech is interrupted
-    if stop_time > 0 and (now - stop_time) < 3.0:
-        return True
-
-    if turn_start_time > 0 and stop_time >= turn_start_time:
+    if stop_time > 0 and (now - stop_time) < 1.5:
         return True
 
     return False
@@ -625,6 +626,14 @@ def stop_all_speech(broadcast_web: bool = True) -> None:
             AGENT_SPEAKING_STATUS_FILE.unlink(missing_ok=True)
             AUDIO_PLAYING_STATUS_FILE.unlink(missing_ok=True)
             HUD_STATE_STATUS_FILE.unlink(missing_ok=True)
+        except Exception:
+            pass
+
+        # Record interruption to BrevityLearner for recursive cognitive brevity adaptation
+        try:
+            from voicefi.learning.brevity import BrevityLearner
+
+            BrevityLearner.get_instance().record_turn(word_count=0, was_interrupted=True)
         except Exception:
             pass
 

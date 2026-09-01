@@ -34,49 +34,49 @@ from voicefi.ui.speech_hud import AgentSpeechHUD
 from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
 
 VOICEFI_MENU_BAR_ICON_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="90 20 332 440" width="100%" height="100%">
-  <!-- VoiceFi Master Mark: macOS Menu Bar Template Icon -->
+  <!-- VoiceFi Master Mark: macOS Menu Bar White Icon -->
   <g transform="translate(0, 15)">
     <!-- 1. ELECTRIC WI-FI BROADCAST HAT -->
-    <g fill="none" stroke="#000000" stroke-linecap="round">
+    <g fill="none" stroke="#FFFFFF" stroke-linecap="round">
       <path d="M 152 145 A 120 120 0 0 1 360 145" stroke-width="22" />
       <path d="M 184 180 A 80 80 0 0 1 328 180" stroke-width="20" />
       <path d="M 216 215 A 42 42 0 0 1 296 215" stroke-width="18" />
     </g>
 
     <!-- 2. MINIMALIST CYBER FACE -->
-    <g stroke="#000000" stroke-linecap="round">
+    <g stroke="#FFFFFF" stroke-linecap="round">
       <line x1="202" y1="262" x2="234" y2="262" stroke-width="12" />
       <line x1="278" y1="262" x2="310" y2="262" stroke-width="12" />
     </g>
 
     <!-- 3. USB-C PORT NOSE -->
     <g>
-      <rect x="238" y="278" width="36" height="15" rx="7.5" fill="none" stroke="#000000" stroke-width="5" />
-      <line x1="246" y1="285.5" x2="266" y2="285.5" stroke="#000000" stroke-width="4.5" stroke-linecap="round" />
+      <rect x="238" y="278" width="36" height="15" rx="7.5" fill="none" stroke="#FFFFFF" stroke-width="5" />
+      <line x1="246" y1="285.5" x2="266" y2="285.5" stroke="#FFFFFF" stroke-width="4.5" stroke-linecap="round" />
     </g>
 
     <!-- WAVEFORM SMILE -->
-    <path d="M 230 320 Q 256 342 282 320" fill="none" stroke="#000000" stroke-width="8" stroke-linecap="round" />
+    <path d="M 230 320 Q 256 342 282 320" fill="none" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round" />
 
     <!-- 4. CRADLE & PLUG BASE -->
     <path d="M 124 220 C 124 350, 175 385, 256 385 C 337 385, 388 350, 388 220" 
           fill="none" 
-          stroke="#000000" 
+          stroke="#FFFFFF" 
           stroke-width="18" 
           stroke-linecap="round" />
 
     <!-- PLUG PRONGS -->
     <g>
-      <rect x="110" y="205" width="28" height="30" rx="6" fill="none" stroke="#000000" stroke-width="5" />
-      <circle cx="124" cy="220" r="4.5" fill="#000000" />
+      <rect x="110" y="205" width="28" height="30" rx="6" fill="none" stroke="#FFFFFF" stroke-width="5" />
+      <circle cx="124" cy="220" r="4.5" fill="#FFFFFF" />
 
-      <rect x="374" y="205" width="28" height="30" rx="6" fill="none" stroke="#000000" stroke-width="5" />
-      <circle cx="388" cy="220" r="4.5" fill="#000000" />
+      <rect x="374" y="205" width="28" height="30" rx="6" fill="none" stroke="#FFFFFF" stroke-width="5" />
+      <circle cx="388" cy="220" r="4.5" fill="#FFFFFF" />
     </g>
 
     <!-- STEM & FOOT BASE -->
-    <line x1="256" y1="385" x2="256" y2="430" stroke="#000000" stroke-width="18" stroke-linecap="round" />
-    <line x1="190" y1="430" x2="322" y2="430" stroke="#000000" stroke-width="18" stroke-linecap="round" />
+    <line x1="256" y1="385" x2="256" y2="430" stroke="#FFFFFF" stroke-width="18" stroke-linecap="round" />
+    <line x1="190" y1="430" x2="322" y2="430" stroke="#FFFFFF" stroke-width="18" stroke-linecap="round" />
   </g>
 </svg>"""
 
@@ -1614,6 +1614,7 @@ class VoiceFiTrayApp(rumps.App):
                         on_live_transcript=_on_live,
                         on_listening_tick=_on_tick,
                         stop_event=self._ptt_stop_event,
+                        cancel_on_typing=False,
                     )
 
                 self.active_recorder = None
@@ -1809,6 +1810,7 @@ class VoiceFiTrayApp(rumps.App):
                         on_live_transcript=_on_live,
                         on_listening_tick=_on_tick,
                         stop_event=self._ptt_stop_event,
+                        cancel_on_typing=False,
                     )
 
                 self.active_recorder = None
@@ -2053,10 +2055,10 @@ class VoiceFiTrayApp(rumps.App):
                                         down_time = self._key_down_times.get(act)
                                         break
 
-                                # If held down longer than 350ms (hold gesture), treat as PTT release
-                                if down_time and (time.time() - down_time) >= 0.35:
+                                # If held down longer than 650ms (hold gesture), treat as PTT release
+                                if down_time and (time.time() - down_time) >= 0.65:
                                     self.finish_active_recording()
-                                # If released quickly (<350ms), it's a tap -> leave Auto-VAD running!
+                                # If released quickly (<650ms), it's a tap -> leave Auto-VAD running!
 
                         if is_action_key or is_modifier_release:
                             self._key_down_times.clear()
@@ -2492,6 +2494,7 @@ class VoiceFiTrayApp(rumps.App):
                         on_live_transcript=_on_live,
                         on_listening_tick=_on_tick,
                         stop_event=self._ptt_stop_event,
+                        cancel_on_typing=False,
                     )
 
                 self.active_recorder = None

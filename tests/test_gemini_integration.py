@@ -119,6 +119,89 @@ def test_memo_synthesizer_structured():
     """Verify MemoSynthesizer can handle structured synthesis calls gracefully."""
     cfg = VoiceFiConfig()
     synth = MemoSynthesizer(cfg)
-    # When no API key is present, should return None cleanly
+    # When no API key is present and no local LLM, should return None cleanly
     structured = synth.synthesize_structured("We should add a database caching layer.")
     assert structured is None
+
+
+def test_ollama_local_llm_distillation():
+    """Verify local Ollama / OpenAI-compatible endpoint distillation."""
+    cfg = VoiceFiConfig()
+    cfg.gemini.provider = "ollama"
+    cfg.gemini.local_llm_url = "http://localhost:11434/v1"
+    cfg.gemini.local_llm_model = "qwen2.5:0.5b"
+    engine = GeminiIntelligenceEngine(cfg)
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "choices": [
+            {
+                "message": {
+                    "role": "assistant",
+                    "content": "I fixed the memory leak and all tests passed.",
+                }
+            }
+        ]
+    }
+
+    with patch("requests.post", return_value=mock_resp):
+        soundbite = engine.distill_spoken_soundbite("Detailed report on memory leak fix.")
+        assert soundbite == "I fixed the memory leak and all tests passed."
+
+
+def test_gemini_phonetic_auto_learning(tmp_path):
+    """Verify resolved phonetic symbols auto-save into PhoneticLearner."""
+    from voicefi.learning.phonetic import PhoneticLearner
+
+    mem_file = tmp_path / "phonetic_mem.json"
+    p_learner = PhoneticLearner(memory_path=mem_file)
+    PhoneticLearner._instance = p_learner
+
+    cfg = VoiceFiConfig()
+    cfg.gemini.api_key = "test_key"
+    cfg.gemini.enable_auto_learning = True
+    engine = GeminiIntelligenceEngine(cfg)
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "candidates": [{"content": {"parts": [{"text": "UnifiedDynamicIslandHUD"}]}}]
+    }
+
+    candidates = ["UnifiedDynamicIslandHUD", "FeatureGate", "AudioRecorder"]
+    with patch("requests.post", return_value=mock_resp):
+        resolved = engine.resolve_phonetic_code("dynamic island", candidates)
+        assert resolved == "UnifiedDynamicIslandHUD"
+        # Check that it auto-persisted to PhoneticLearner
+        assert p_learner.normalize_stt("show dynamic island please") == "show UnifiedDynamicIslandHUD please"
+
+
+def test_intent_classification():
+    """Verify classify_spoken_intent parses structured routing JSON."""
+    cfg = VoiceFiConfig()
+    cfg.gemini.api_key = "test_key"
+    engine = GeminiIntelligenceEngine(cfg)
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "candidates": [
+            {
+                "content": {
+                    "parts": [
+                        {
+                            "text": '{"target": "claude", "prompt": "Refactor the auth handler", "confidence": 0.95}'
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+
+    with patch("requests.post", return_value=mock_resp):
+        res = engine.classify_spoken_intent("Ask Claude to refactor the auth handler")
+        assert res is not None
+        assert res["target"] == "claude"
+        assert res["prompt"] == "Refactor the auth handler"
+

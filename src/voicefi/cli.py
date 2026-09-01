@@ -482,7 +482,7 @@ def cmd_new(args):
 
 
 def cmd_send(args):
-    """Send a message/task across agents (Antigravity ↔ Claude Code) with correlation tracking."""
+    """Send a message/task across agents (Antigravity ↔ Claude Code) or across peer Macs."""
     text = " ".join(args.text) if isinstance(args.text, list) else str(args.text or "")
     if not text.strip():
         print("❌ Error: message text cannot be empty.", file=sys.stderr)
@@ -499,6 +499,32 @@ def cmd_send(args):
     title = getattr(args, "title", None)
     include_envelope = not getattr(args, "no_envelope", False)
 
+    # 1. Check if target is a remote peer Mac on the local Wi-Fi / LAN
+    local_engines = {"claude", "antigravity", "gemini", "chatgpt", "codex"}
+    from voicefi.network.peers import PeerDiscoveryEngine, PeerClient
+
+    peer_match = None
+    if target_engine.lower() not in local_engines:
+        peer_match = PeerDiscoveryEngine.resolve_target(target_engine)
+
+    if peer_match:
+        print(f"🚀 Dispatching cross-machine task to {peer_match.friendly_name} ({peer_match.ip})...")
+        res = PeerClient.send_task(
+            peer=peer_match,
+            text=text.strip(),
+            target_engine=getattr(args, "engine", "auto") or "auto",
+            sender_name=sender_name,
+            reply=getattr(args, "reply", False),
+            from_conv_id=from_conv_id,
+        )
+        if res.get("success") or res.get("delivered"):
+            print(f"✅ Delivered successfully to {peer_match.friendly_name}!")
+            return
+        else:
+            print(f"❌ Could not deliver to {peer_match.friendly_name}: {res.get('error', 'unknown error')}", file=sys.stderr)
+            sys.exit(1)
+
+    # 2. Local Agent Dispatch
     from voicefi.integrations.injector import send_message_to_agent
 
     print(f"🚀 Dispatching message to {target_engine.capitalize()}...")
@@ -533,6 +559,139 @@ def cmd_send(args):
 
     if not success:
         sys.exit(1)
+
+
+def cmd_peers(args):
+    """Discover VoiceFi peers on local network."""
+    import asyncio
+    from voicefi.network.peers import PeerDiscoveryEngine
+
+    print("\n🔍 Scanning local Wi-Fi network for VoiceFi Macs...")
+    loop = asyncio.new_event_loop()
+    try:
+        peers = loop.run_until_complete(PeerDiscoveryEngine.discover_all(timeout=1.2))
+    finally:
+        loop.close()
+
+    print("\n" + "=" * 65)
+    print(" 📡 VoiceFi Local Network Peers & Vandelay Handoff")
+    print("=" * 65)
+
+    if not peers:
+        print("  ⚠️ No peer Macs found on local network yet.")
+        print("  💡 Start VoiceFi server on your other Mac with: vifi start")
+    else:
+        for p in peers:
+            local_badge = " (This Mac)" if p.is_local else ""
+            agents_str = ", ".join(a.capitalize() for a in p.agents) if p.agents else "Companion"
+            print(f" • \033[1;36m{p.friendly_name}\033[0m{local_badge}")
+            print(f"   ├─ Host:    {p.ip}:{p.port} ({p.hostname}) · {p.latency_ms}ms")
+            print(f"   ├─ OS/Tier: {p.os_info} · \033[1;32m{p.tier}\033[0m")
+            print(f"   └─ Agents:  {agents_str}")
+            print()
+
+    print("⚡ Quick Commands:")
+    print("  • Send task:      vifi send \"<prompt>\" --to <peer-name>")
+    print("  • Push clipboard: vifi clip push <peer-name>")
+    print("  • Pull clipboard: vifi clip pull <peer-name>")
+    print("  • Vandelay mode:  vifi vandelay")
+    print("=" * 65 + "\n")
+
+
+def cmd_vandelay(args):
+    """Vandelay Industries: Importers & Exporters of code, prompts & clipboards."""
+    subaction = getattr(args, "action", None)
+    if subaction in ["import", "in"]:
+        target = getattr(args, "target", None)
+        if target:
+            from voicefi.network.peers import PeerDiscoveryEngine, PeerClient
+            peer = PeerDiscoveryEngine.resolve_target(target)
+            if not peer:
+                print(f"❌ Error: Peer '{target}' not found on local network.", file=sys.stderr)
+                sys.exit(1)
+            print(f"📦 Vandelay Industries: Importing clipboard from {peer.friendly_name} ({peer.ip})...")
+            res = PeerClient.pull_clipboard(peer)
+            if res.get("success") and "text" in res:
+                import subprocess
+                p = subprocess.Popen(["pbcopy"], stdin=subprocess.PIPE, text=True)
+                p.communicate(input=res["text"])
+                print(f"✅ Imported {res.get('chars', len(res['text']))} chars into local clipboard!")
+            else:
+                print(f"⚠️ Failed to import: {res.get('error', 'unknown error')}", file=sys.stderr)
+                sys.exit(1)
+            return
+
+    elif subaction in ["export", "out"]:
+        target = getattr(args, "target", None)
+        if target:
+            from voicefi.network.peers import PeerDiscoveryEngine, PeerClient
+            import subprocess
+            res = subprocess.run(["pbpaste"], capture_output=True, text=True)
+            clip_text = res.stdout if res.returncode == 0 else ""
+            if not clip_text:
+                print("⚠️ Local clipboard is empty.", file=sys.stderr)
+                return
+            peer = PeerDiscoveryEngine.resolve_target(target)
+            if not peer:
+                print(f"❌ Error: Peer '{target}' not found on local network.", file=sys.stderr)
+                sys.exit(1)
+            print(f"📦 Vandelay Industries: Exporting clipboard to {peer.friendly_name} ({peer.ip})...")
+            res = PeerClient.push_clipboard(peer, clip_text)
+            if res.get("success"):
+                print(f"✅ Exported {len(clip_text)} chars to {peer.friendly_name} clipboard!")
+            else:
+                print(f"⚠️ Failed to export: {res.get('error')}", file=sys.stderr)
+                sys.exit(1)
+            return
+
+    print("\n" + "=" * 65)
+    print(" 🏢 Vandelay Industries — Importers & Exporters of Fine Code")
+    print("=" * 65)
+    cmd_peers(args)
+
+
+def cmd_clip(args):
+    """Push or pull clipboard snippets across peer Macs."""
+    action = getattr(args, "action", "push") or "push"
+    target = getattr(args, "target", None)
+    if not target:
+        print("❌ Error: Target peer name or IP required (e.g. 'vifi clip push mba' or 'vifi clip pull pro').", file=sys.stderr)
+        sys.exit(1)
+
+    from voicefi.network.peers import PeerDiscoveryEngine, PeerClient
+    peer = PeerDiscoveryEngine.resolve_target(target)
+    if not peer:
+        print(f"❌ Error: Could not find peer '{target}' on local Wi-Fi network.", file=sys.stderr)
+        print("💡 Run 'vifi peers' to scan and list available Macs.", file=sys.stderr)
+        sys.exit(1)
+
+    if action in ["push", "send", "set"]:
+        import subprocess
+        res = subprocess.run(["pbpaste"], capture_output=True, text=True)
+        clip_text = res.stdout if res.returncode == 0 else ""
+        if not clip_text:
+            print("⚠️ Local clipboard is empty.", file=sys.stderr)
+            return
+        print(f"📋 Pushing {len(clip_text)} chars to {peer.friendly_name} ({peer.ip})...")
+        resp = PeerClient.push_clipboard(peer, clip_text)
+        if resp.get("success"):
+            print(f"✅ Copied to {peer.friendly_name} clipboard successfully!")
+        else:
+            print(f"❌ Failed: {resp.get('error')}", file=sys.stderr)
+            sys.exit(1)
+
+    elif action in ["pull", "get", "fetch"]:
+        print(f"📋 Pulling clipboard from {peer.friendly_name} ({peer.ip})...")
+        resp = PeerClient.pull_clipboard(peer)
+        if resp.get("success") and "text" in resp:
+            import subprocess
+            p = subprocess.Popen(["pbcopy"], stdin=subprocess.PIPE, text=True)
+            p.communicate(input=resp["text"])
+            print(f"✅ Pulled {len(resp['text'])} chars into local clipboard!")
+        else:
+            print(f"❌ Failed: {resp.get('error')}", file=sys.stderr)
+            sys.exit(1)
+
 
 
 def cmd_duel(args):
@@ -3799,13 +3958,22 @@ def cmd_tier(args):
 
     print("\n================ VoiceFi Tier & Licensing ================")
     print(f"Status:        {summary['status_text']}")
-    print(f"Tier:          {summary['tier']}")
 
     if summary["is_licensed"]:
-        key_masked = (config.license_key[:4] + "****") if len(config.license_key) >= 4 else "****"
-        print(f"License Key:   {key_masked}")
-        print("Capabilities:  All Pro Features Unlocked (Perpetual / Active Subscription)")
+        lic_info = summary.get("license_info", {})
+        tag = f" ({lic_info['tag']})" if lic_info.get("tag") else ""
+        expires = lic_info.get("expires_at", "Perpetual")
+        masked_key = (
+            (config.license_key[:12] + "..." + config.license_key[-6:])
+            if len(config.license_key) >= 20
+            else (config.license_key[:4] + "****")
+        )
+        print(f"Tier:          {summary['tier']}{tag}")
+        print(f"Validity:      {expires}")
+        print(f"License Key:   {masked_key}")
+        print("Capabilities:  All Pro Features Unlocked")
     elif summary["is_trial"]:
+        print(f"Tier:          {summary['tier']}")
         days = summary["trial_days_remaining"]
         hours = summary["trial_hours_remaining"]
         print(f"Free Trial:    🟢 ACTIVE — {days} days remaining ({hours}h total)")
@@ -3824,6 +3992,7 @@ def cmd_tier(args):
         print("  • Upgrade URL:     https://voicefi.org#pricing")
         print("  • Activate Key:    vifi license activate <LICENSE_KEY>")
     elif summary["trial_expired"]:
+        print(f"Tier:          {summary['tier']}")
         print("Free Trial:    🔴 EXPIRED — Running in Community Mode ($0)")
         print("Features:      ✓ 100% Local Apple Silicon TTS (0ms)")
         print("               ✓ Local Whisper STT & Faster-Whisper")
@@ -3833,6 +4002,7 @@ def cmd_tier(args):
         print("  • Upgrade URL:     https://voicefi.org#pricing")
         print("  • Activate Key:    vifi license activate <LICENSE_KEY>")
     else:
+        print(f"Tier:          {summary['tier']}")
         print("Community:     $0 / Open-Source Tier")
         print("Upgrade URL:   https://voicefi.org#pricing")
 
@@ -3848,19 +4018,37 @@ def cmd_license(args):
         raw_key = (key or (args.key_args[0] if getattr(args, "key_args", None) else "")).strip()
         if not raw_key:
             print(
-                "❌ Error: Please provide a valid license key (e.g. vifi license activate PRO-1234-5678)"
+                "❌ Error: Please provide a valid license key (e.g. vifi license activate VF1-PRO-PERP-USER.<SIGNATURE>)"
             )
+            return
+
+        validation = FeatureGate.verify_key(raw_key)
+        if not validation["is_valid"]:
+            if validation.get("is_expired"):
+                print(f"\n❌ Error: This license key expired on {validation.get('expires_at')}.")
+            else:
+                print(f"\n❌ Error: {validation.get('error', 'Invalid license key signature.')}")
+                print("   Please check your license key or visit https://voicefi.org#pricing\n")
             return
 
         config = load_config(getattr(args, "config", None))
         config.license_key = raw_key
-        config.tier = "pro"
+        config.tier = validation.get("tier", "pro")
         save_config(config)
 
+        expires_desc = validation.get("expires_at", "Perpetual")
+        tag_desc = f" ({validation['tag']})" if validation.get("tag") else ""
+        masked_key = (
+            (raw_key[:12] + "..." + raw_key[-6:])
+            if len(raw_key) >= 20
+            else (raw_key[:4] + "****")
+        )
+
         print("\n🎉 VoiceFi Pro License Successfully Activated!")
-        print(f"🔑 License Key: {raw_key[:4]}****")
-        print("⚡ Tier:        Pro (Unlimited Neural Voices, Cloud Relay & Streaming STT)")
-        print("🚀 Thank you for supporting independent open developer tooling!\n")
+        print(f"🔑 License Key: {masked_key}")
+        print(f"⚡ Tier:        {config.tier.capitalize()}{tag_desc} · {expires_desc}")
+        print("🚀 All Pro features (Streaming STT, 20+ Neural Voices, Cloud Relay) are unlocked!")
+        print("   Thank you for supporting independent open developer tooling!\n")
         return
 
     # Default to showing status
@@ -3871,10 +4059,15 @@ def cmd_learn(args):
     """Inspect and manage recursive phonetic and brevity self-learning memory."""
     from voicefi.learning.phonetic import PhoneticLearner
     from voicefi.learning.brevity import BrevityLearner
+    from voicefi.integrations.gemini_ai import GeminiIntelligenceEngine
+    from voicefi.config import load_config
     from pathlib import Path
+    import time
 
     phonetic = PhoneticLearner.get_instance()
     brevity = BrevityLearner.get_instance()
+    cfg = load_config(getattr(args, "config", None))
+    gem = GeminiIntelligenceEngine(cfg)
     subaction = getattr(args, "learn_action", None) or "status"
 
     if subaction == "teach":
@@ -3897,6 +4090,30 @@ def cmd_learn(args):
         print(f"✅ Indexed {found} project symbols into phonetic self-learning memory.\n")
         return
 
+    elif subaction == "test":
+        raw_text = getattr(args, "text", "")
+        if not raw_text:
+            print('❌ Usage: vifi learn test "<agent output or markdown text>"')
+            return
+        target_words = brevity.get_optimal_max_words()
+        print(f"\n🧪 Distilling Spoken Soundbite (Target: <{target_words} words)...")
+        t0 = time.time()
+        distilled = gem.distill_spoken_soundbite(
+            raw_text, max_words=target_words, fallback_to_heuristics=True
+        )
+        elapsed_ms = round((time.time() - t0) * 1000, 1)
+        provider = gem.get_active_provider()
+        
+        print("\n================= Distillation Benchmark =================")
+        print(f"Provider:        {provider.upper()} ({gem.model if provider == 'gemini' else gem.local_llm_model})")
+        print(f"Latency:         {elapsed_ms}ms")
+        print(f"Raw Words:       {len(raw_text.split())} words")
+        print(f"Distilled Words: {len(distilled.split()) if distilled else 0} words")
+        print("---------------------------------------------------------")
+        print(f"Output: \"{distilled or 'No distillation produced'}\"")
+        print("=========================================================\n")
+        return
+
     elif subaction == "reset":
         phonetic.reset()
         brevity.reset()
@@ -3906,16 +4123,24 @@ def cmd_learn(args):
     # Default status view
     p_status = phonetic.get_status()
     b_status = brevity.get_status()
+    active_provider = gem.get_active_provider()
+    active_stt = getattr(cfg.stt, "provider", "whisper_local")
 
     print("\n============== VoiceFi Recursive Self-Learning ==============")
     print(
-        f"Phonetic Memory:    {p_status['total_learned_corrections']} learned rules, {p_status['total_project_symbols']} project symbols"
+        f"Intelligence Engine: {active_provider.upper()} ({'Gemini Free Tier' if active_provider == 'gemini' else 'Local Ollama' if active_provider == 'ollama' else 'Regex Heuristics (0ms)'})"
     )
     print(
-        f"Spoken Brevity:     {b_status['learned_max_words']} words/turn limit (Interruption rate: {b_status['interruption_rate_pct']}%)"
+        f"Speech Recognition:  {active_stt.upper()} ({getattr(cfg.stt, 'model_size', 'base.en') if active_stt == 'whisper_local' else 'Cloud'})"
     )
     print(
-        f"Turn Telemetry:     {b_status['total_turns']} total turns ({b_status['total_interruptions']} barge-in interruptions)"
+        f"Phonetic Memory:     {p_status['total_learned_corrections']} learned rules, {p_status['total_project_symbols']} project symbols"
+    )
+    print(
+        f"Spoken Brevity:      {b_status['learned_max_words']} words/turn limit (Interruption rate: {b_status['interruption_rate_pct']}%)"
+    )
+    print(
+        f"Turn Telemetry:      {b_status['total_turns']} total turns ({b_status['total_interruptions']} barge-in interruptions)"
     )
     print("-------------------------------------------------------------")
     if p_status.get("top_corrections"):
@@ -3926,9 +4151,10 @@ def cmd_learn(args):
         print("Top Learned Phonetic Mappings: (Built-ins active: pytest, vifi, kubectl, .tsx, .py)")
     print("-------------------------------------------------------------")
     print("Commands:")
-    print("  • Scan repository:  vifi learn scan [path]")
-    print('  • Teach mapping:    vifi learn teach "<spoken>" "<canonical>"')
-    print("  • Reset memory:     vifi learn reset")
+    print("  • Scan repository:   vifi learn scan [path]")
+    print('  • Test distillation: vifi learn test "<agent text>"')
+    print('  • Teach mapping:     vifi learn teach "<spoken>" "<canonical>"')
+    print("  • Reset memory:      vifi learn reset")
     print("=============================================================\n")
 
 
@@ -5069,6 +5295,10 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
     )
     l_teach.add_argument("spoken", type=str, help="Spoken phrase (e.g. 'wifi tier')")
     l_teach.add_argument("canonical", type=str, help="Canonical code / command (e.g. 'vifi tier')")
+    l_test = learn_sub.add_parser(
+        "test", help="Test and benchmark spoken turn summary distillation"
+    )
+    l_test.add_argument("text", type=str, help="Raw agent text or markdown output to distill")
     learn_sub.add_parser("reset", help="Reset learned phonetic and brevity memory files")
 
     # voice
@@ -6002,15 +6232,64 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
     send_p = subparsers.add_parser(
         "send",
         aliases=["dispatch"],
-        help="Send message/task across agents by Conversation ID (Antigravity ↔ Claude Code ↔ Gemini)",
+        help="Send message/task across agents or peer Macs on LAN (Antigravity ↔ Claude Code ↔ Peer Macs)",
     )
     send_p.add_argument("text", nargs="+", help="Message or prompt to send")
     send_p.add_argument(
         "--to",
         type=str,
         default="claude",
-        choices=["claude", "antigravity", "gemini", "chatgpt", "codex"],
-        help="Target agent engine (claude, antigravity, gemini, chatgpt, codex)",
+        help="Target agent engine (claude, antigravity, gemini) or peer Mac name/IP (e.g. mba, pro, 192.168.1.50)",
+    )
+    send_p.add_argument(
+        "--engine",
+        type=str,
+        default="auto",
+        choices=["auto", "antigravity", "claude", "gemini", "chatgpt"],
+        help="Target agent engine on remote peer Mac (default: auto)",
+    )
+
+    # peers / network discovery
+    peers_p = subparsers.add_parser(
+        "peers",
+        aliases=["peer", "discover"],
+        help="Discover VoiceFi instances and active AI coding agents across local Wi-Fi / LAN",
+    )
+    peers_p.add_argument("--port", type=int, default=5141, help="Peer discovery port (default: 5141)")
+
+    # vandelay industries / import export
+    vandelay_p = subparsers.add_parser(
+        "vandelay",
+        help="Vandelay Industries: Importers & Exporters of fine code, prompts & clipboards across Macs",
+    )
+    vandelay_p.add_argument(
+        "action",
+        nargs="?",
+        default="list",
+        choices=["list", "import", "in", "export", "out"],
+        help="Vandelay action (list, import, export)",
+    )
+    vandelay_p.add_argument(
+        "target",
+        nargs="?",
+        default=None,
+        help="Target peer Mac name or IP (e.g. 'mba', 'pro', '192.168.1.80')",
+    )
+
+    # clip / clipboard sync
+    clip_p = subparsers.add_parser(
+        "clip",
+        aliases=["clipboard"],
+        help="Push or pull clipboard snippets across peer Macs on local Wi-Fi",
+    )
+    clip_p.add_argument(
+        "action",
+        choices=["push", "pull", "get", "send", "set"],
+        help="Clipboard action: 'push' (send to remote Mac) or 'pull' (fetch from remote Mac)",
+    )
+    clip_p.add_argument(
+        "target",
+        help="Target peer Mac name or IP (e.g. 'mba', 'jakes-mbp', '192.168.1.80')",
     )
     send_p.add_argument(
         "--conv-id",
@@ -6249,6 +6528,12 @@ def main():
         "insights": cmd_stats,
         "send": cmd_send,
         "dispatch": cmd_send,
+        "peers": cmd_peers,
+        "peer": cmd_peers,
+        "discover": cmd_peers,
+        "vandelay": cmd_vandelay,
+        "clip": cmd_clip,
+        "clipboard": cmd_clip,
         "update": cmd_update,
         "upgrade": cmd_update,
         "download-ava": cmd_download_ava,

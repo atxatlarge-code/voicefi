@@ -61,8 +61,13 @@ def build_app_bundle(version: str = "0.1.0"):
     if companion_static.is_dir():
         add_data.extend(["--add-data", f"{companion_static}:voicefi/companion/static"])
 
+    py_exec = sys.executable
+    venv_py = ROOT_DIR / ".venv" / "bin" / "python3"
+    if venv_py.is_file():
+        py_exec = str(venv_py)
+
     cmd = [
-        sys.executable,
+        py_exec,
         "-m",
         "PyInstaller",
         "--noconfirm",
@@ -400,14 +405,32 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     ver = get_version(args.version)
+    sign_identity = args.sign
+    if not sign_identity:
+        try:
+            res = subprocess.run(
+                ["security", "find-identity", "-p", "codesigning", "-v"],
+                capture_output=True,
+                text=True,
+            )
+            for line in res.stdout.splitlines():
+                if "Developer ID Application:" in line:
+                    start = line.find('"')
+                    end = line.rfind('"')
+                    if start != -1 and end != -1:
+                        sign_identity = line[start + 1 : end]
+                        print(f"🔑 Auto-detected Developer ID identity: {sign_identity}")
+                        break
+        except Exception:
+            pass
 
     if not args.skip_app:
         clean()
         build_app_bundle(version=ver)
-        if args.sign:
-            sign_app_bundle(args.sign)
+        if sign_identity:
+            sign_app_bundle(sign_identity)
 
-    dmg_file = build_dmg(version=ver, identity=args.sign)
+    dmg_file = build_dmg(version=ver, identity=sign_identity)
 
     if args.notarize or (args.apple_id and args.team_id and args.password):
         notarize_dmg(

@@ -41,15 +41,26 @@ from voicefi.integrations.active_listening import (
 from voicefi.tts.normalizer import normalize_tts_text
 
 
-def clean_markdown_for_speech(text: str, max_words: int = 60) -> str:
+def clean_markdown_for_speech(text: str, max_words: Optional[int] = None) -> str:
     """
     Clean markdown formatting and extract punchy 1-2 sentence spoken updates/questions.
+    Dynamically constrained by BrevityLearner cognitive memory.
     Prioritizes trailing questions and status outcomes while stripping code/paths/tables/stacktraces.
     """
     if not text or not text.strip():
         return ""
 
-    # 0. Check for Gemini Flash distillation if available and enabled
+    # Dynamically resolve optimal word budget from BrevityLearner if not explicitly pinned
+    target_max_words = max_words
+    if target_max_words is None or target_max_words <= 0:
+        try:
+            from voicefi.learning.brevity import BrevityLearner
+
+            target_max_words = BrevityLearner.get_instance().get_optimal_max_words()
+        except Exception:
+            target_max_words = 24
+
+    # 0. Check for Gemini Flash / Local LLM distillation if available and enabled
     try:
         from voicefi.integrations.gemini_ai import GeminiIntelligenceEngine
 
@@ -58,7 +69,7 @@ def clean_markdown_for_speech(text: str, max_words: int = 60) -> str:
             getattr(gemini_engine.config, "gemini", None), "enable_soundbite_distillation", True
         ):
             distilled = gemini_engine.distill_spoken_soundbite(
-                text, max_words=max_words, timeout=0.6
+                text, max_words=target_max_words, timeout=0.8
             )
             if distilled and len(distilled.strip()) > 3:
                 return distilled
@@ -126,7 +137,7 @@ def clean_markdown_for_speech(text: str, max_words: int = 60) -> str:
     # 8. Extract sentences & assemble punchy natural spoken summary
     sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", text) if s.strip()]
     if not sentences:
-        return normalize_tts_text(text[: max_words * 6])
+        return normalize_tts_text(text[: target_max_words * 6])
 
     def _truncate_sentence(s: str, budget: int) -> str:
         words = s.split()
@@ -145,12 +156,12 @@ def clean_markdown_for_speech(text: str, max_words: int = 60) -> str:
         last_s = sentences[-1]
         last_words_count = len(last_s.split())
 
-        # If entire text up to question fits in max_words, assemble as many sentences as fit
+        # If entire text up to question fits in target_max_words, assemble as many sentences as fit
         candidate_sentences = []
         current_words = last_words_count
         for s in sentences[:-1]:
             count = len(s.split())
-            if current_words + count <= max_words:
+            if current_words + count <= target_max_words:
                 candidate_sentences.append(s)
                 current_words += count
             else:
@@ -162,25 +173,25 @@ def clean_markdown_for_speech(text: str, max_words: int = 60) -> str:
 
         # If not even first sentence fits with question, allocate budget to first sentence + question
         first_s = sentences[0]
-        first_budget = max_words - last_words_count
+        first_budget = target_max_words - last_words_count
         if first_budget >= 5:
             trunc_first = _truncate_sentence(first_s, first_budget)
             return normalize_tts_text(f"{trunc_first} {last_s}")
         return normalize_tts_text(last_s)
 
-    # Standard sentence assembly up to max_words
+    # Standard sentence assembly up to target_max_words
     result = []
     current_words = 0
     for i, s in enumerate(sentences):
         count = len(s.split())
-        if current_words + count <= max_words:
+        if current_words + count <= target_max_words:
             result.append(s)
             current_words += count
         else:
             # If we only have very few words so far (e.g. "Yes!", "Sure!", "Done!", total < 6 words),
             # don't stop prematurely — take the next sentence up to remaining budget!
-            if current_words < 6 and (max_words - current_words) >= 5:
-                trunc = _truncate_sentence(s, max_words - current_words)
+            if current_words < 6 and (target_max_words - current_words) >= 5:
+                trunc = _truncate_sentence(s, target_max_words - current_words)
                 if trunc:
                     result.append(trunc)
             break

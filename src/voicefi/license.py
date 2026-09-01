@@ -105,6 +105,205 @@ def load_secondary_receipt() -> Optional[Dict[str, Any]]:
     return None
 
 
+# Master Ed25519 Public Verification Key (Safe to commit to public open-source)
+PUBLIC_VERIFICATION_KEY_HEX = (
+    "964b998cb1d6721a9b674c820031454f8213d0a038aa18c792792d550ae66426"
+)
+
+
+def generate_license_key(
+    tier: str = "PRO",
+    expires: str = "PERP",
+    tag: str = "USER",
+    private_key_hex: Optional[str] = None,
+) -> str:
+    """
+    Generate an unforgeable, Ed25519 cryptographically signed VoiceFi license token.
+    Requires private signing key (from argument, env var VOICEFI_SIGNING_PRIVATE_KEY, or ~/.voicefi/admin_keys/).
+    
+    Format: VF1-<TIER>-<EXPIRATION>-<TAG>.<SIGNATURE_B64>
+    - TIER: PRO, ORG, ENTERPRISE, VIP, BETA
+    - EXPIRATION: PERP (perpetual) or YYYYMMDD
+    - TAG: alphanumeric recipient / promo identifier
+    - SIGNATURE_B64: 86-char URL-safe Base64 Ed25519 signature
+    """
+    import base64
+    from cryptography.hazmat.primitives.asymmetric import ed25519
+
+    tier_clean = tier.upper().strip()
+    expires_clean = expires.upper().strip()
+    tag_clean = "".join(
+        c for c in tag.upper().strip().replace(" ", "_") if c.isalnum() or c == "_"
+    )
+    if not tag_clean:
+        tag_clean = "GIFT"
+
+    priv_hex = private_key_hex or os.environ.get("VOICEFI_SIGNING_PRIVATE_KEY")
+    if not priv_hex:
+        key_path = Path.home() / ".voicefi" / "admin_keys" / "voicefi_ed25519_private.key"
+        if key_path.is_file():
+            priv_hex = key_path.read_text().strip()
+
+    if not priv_hex:
+        raise ValueError(
+            "Private signing key not found. Please set VOICEFI_SIGNING_PRIVATE_KEY or ensure ~/.voicefi/admin_keys/ is present."
+        )
+
+    priv_bytes = bytes.fromhex(priv_hex.strip())
+    priv_key = ed25519.Ed25519PrivateKey.from_private_bytes(priv_bytes)
+
+    prefix = f"VF1-{tier_clean}-{expires_clean}-{tag_clean}"
+    payload = prefix.encode("utf-8")
+    sig = priv_key.sign(payload)
+    sig_b64 = base64.urlsafe_b64encode(sig).decode("ascii").rstrip("=")
+
+    return f"{prefix}.{sig_b64}"
+
+
+def _ed25519_verify_pure(pub_bytes: bytes, msg_bytes: bytes, sig_bytes: bytes) -> bool:
+    """RFC 8032 pure-Python Ed25519 verification with zero external dependencies."""
+    if len(sig_bytes) != 64 or len(pub_bytes) != 32:
+        return False
+    q = 2**255 - 19
+    l = 2**252 + 27742317777372353535851937790883648493
+    d = -121665 * pow(121666, q - 2, q) % q
+    I = pow(2, (q - 1) // 4, q)
+
+    def inv(z):
+        return pow(z, q - 2, q)
+
+    def xrecover(y):
+        xx = (y * y - 1) * inv(d * y * y + 1)
+        x = pow(xx, (q + 3) // 8, q)
+        if (x * x - xx) % q != 0:
+            x = (x * I) % q
+        if x % 2 != 0:
+            x = q - x
+        return x
+
+    By = 4 * inv(5) % q
+    Bx = xrecover(By)
+    B = (Bx, By)
+
+    def edwards_add(P, Q):
+        x1, y1 = P
+        x2, y2 = Q
+        x3 = (x1 * y2 + x2 * y1) * inv(1 + d * x1 * x2 * y1 * y2) % q
+        y3 = (y1 * y2 + x1 * x2) * inv(1 - d * x1 * x2 * y1 * y2) % q
+        return (x3, y3)
+
+    def scalarmult(P, e):
+        if e == 0:
+            return (0, 1)
+        Q = scalarmult(P, e // 2)
+        Q = edwards_add(Q, Q)
+        if e & 1:
+            Q = edwards_add(Q, P)
+        return Q
+
+    def decodepoint(s):
+        y = sum(2 ** (i * 8) * b for i, b in enumerate(s[:31])) + sum(
+            2 ** (248 + i * 8) * (b & 0x7F) for i, b in enumerate(s[31:])
+        )
+        x = xrecover(y)
+        if (x & 1) != (s[31] >> 7):
+            x = q - x
+        return (x, y)
+
+    R_bytes, S_bytes = sig_bytes[:32], sig_bytes[32:]
+    S = int.from_bytes(S_bytes, "little")
+    if S >= l:
+        return False
+    try:
+        A = decodepoint(pub_bytes)
+        R = decodepoint(R_bytes)
+    except Exception:
+        return False
+    h = hashlib.sha512(R_bytes + pub_bytes + msg_bytes).digest()
+    k = int.from_bytes(h, "little") % l
+    SB = scalarmult(B, S)
+    RA = edwards_add(R, scalarmult(A, k))
+    return SB == RA
+
+
+def verify_license_key(key: str) -> Dict[str, Any]:
+    """
+    Verify asymmetric Ed25519 cryptographic signature and expiration of a VoiceFi license token.
+    Runs 100% offline in 0ms using the embedded public key with zero network requests.
+    """
+    import base64
+
+    if not key or not isinstance(key, str):
+        return {"is_valid": False, "error": "Empty license key"}
+
+    key_clean = key.strip()
+
+    # Split by dot (standard token format)
+    if "." in key_clean:
+        parts = key_clean.split(".", 1)
+        prefix = parts[0].upper()
+        sig_str = parts[1]
+    elif "-" in key_clean:
+        # Fallback for hyphen-delimited input
+        parts = key_clean.rsplit("-", 1)
+        prefix = parts[0].upper()
+        sig_str = parts[1]
+    else:
+        return {"is_valid": False, "error": "Invalid license format (must start with VF1-)"}
+
+    prefix_parts = prefix.split("-")
+    if len(prefix_parts) < 4 or prefix_parts[0] != "VF1":
+        return {"is_valid": False, "error": "Invalid license prefix (expected VF1-<TIER>-<EXP>-<TAG>)"}
+
+    tier = prefix_parts[1]
+    expires_str = prefix_parts[2]
+    tag = "-".join(prefix_parts[3:])
+
+    # Decode and verify Ed25519 signature
+    try:
+        sig_padded = sig_str + "=" * (-len(sig_str) % 4)
+        sig_bytes = base64.urlsafe_b64decode(sig_padded)
+        if len(sig_bytes) != 64:
+            return {"is_valid": False, "error": "Invalid signature length"}
+
+        pub_bytes = bytes.fromhex(PUBLIC_VERIFICATION_KEY_HEX)
+        try:
+            from cryptography.hazmat.primitives.asymmetric import ed25519
+
+            pub_key = ed25519.Ed25519PublicKey.from_public_bytes(pub_bytes)
+            pub_key.verify(sig_bytes, prefix.encode("utf-8"))
+        except ImportError:
+            if not _ed25519_verify_pure(pub_bytes, prefix.encode("utf-8"), sig_bytes):
+                return {"is_valid": False, "error": "Invalid cryptographic license signature"}
+    except Exception:
+        return {"is_valid": False, "error": "Invalid cryptographic license signature"}
+
+    # Expiration check
+    is_expired = False
+    expires_at = "Perpetual"
+    if expires_str != "PERP":
+        try:
+            exp_date = datetime.datetime.strptime(expires_str, "%Y%m%d").date()
+            exp_epoch = datetime.datetime.combine(
+                exp_date, datetime.time(23, 59, 59), tzinfo=datetime.timezone.utc
+            ).timestamp()
+            if time.time() > exp_epoch:
+                is_expired = True
+            expires_at = exp_date.isoformat()
+        except Exception:
+            return {"is_valid": False, "error": f"Invalid expiration date format: {expires_str}"}
+
+    return {
+        "is_valid": not is_expired,
+        "tier": tier.lower(),
+        "is_expired": is_expired,
+        "expires_at": expires_at,
+        "expires_str": expires_str,
+        "tag": tag,
+        "error": "License key has expired" if is_expired else None,
+    }
+
+
 class FeatureGate:
     """Controls availability of features based on active tier, org code, trial status, and license key."""
 
@@ -129,16 +328,47 @@ class FeatureGate:
     }
 
     @classmethod
+    def verify_key(cls, license_key: str) -> Dict[str, Any]:
+        """Verify license key signature and expiration."""
+        return verify_license_key(license_key)
+
+    @classmethod
+    def get_license_status(cls, config: VoiceFiConfig) -> Dict[str, Any]:
+        """Check stored license key or org code validity."""
+        license_key = getattr(config, "license_key", "").strip()
+        org_code = getattr(config, "org_code", "").strip() if hasattr(config, "org_code") else ""
+        tier = getattr(config, "tier", "community").lower().strip()
+
+        if org_code and len(org_code) >= 4 and tier in ("org", "enterprise"):
+            return {
+                "is_licensed": True,
+                "tier": tier,
+                "is_expired": False,
+                "expires_at": "Enterprise",
+                "tag": org_code,
+                "error": None,
+            }
+
+        if not license_key:
+            return {"is_licensed": False, "error": "No license key configured"}
+
+        v = verify_license_key(license_key)
+        return {
+            "is_licensed": v["is_valid"],
+            "tier": v.get("tier", tier),
+            "is_expired": v.get("is_expired", False),
+            "expires_at": v.get("expires_at"),
+            "tag": v.get("tag", ""),
+            "error": v.get("error"),
+        }
+
+    @classmethod
     def get_trial_status(cls, config: VoiceFiConfig) -> Dict[str, Any]:
         """
         Compute 14-day free trial status, remaining days/hours, and cryptographic seal integrity.
         """
-        tier = getattr(config, "tier", "community").lower().strip()
-        license_key = getattr(config, "license_key", "").strip()
-        org_code = getattr(config, "org_code", "").strip() if hasattr(config, "org_code") else ""
-        is_licensed = tier in ("pro", "org", "enterprise") and (
-            len(license_key) >= 6 or len(org_code) >= 4
-        )
+        lic_status = cls.get_license_status(config)
+        is_licensed = lic_status["is_licensed"]
 
         trial_started_at = getattr(config, "trial_started_at", None)
         trial_seal = getattr(config, "trial_seal", None)
@@ -239,11 +469,8 @@ class FeatureGate:
     @classmethod
     def is_pro(cls, config: VoiceFiConfig) -> bool:
         """Check if user has Pro or Org tier enabled with a valid license or active 14-day free trial."""
-        tier = getattr(config, "tier", "community").lower().strip()
-        license_key = getattr(config, "license_key", "").strip()
-        org_code = getattr(config, "org_code", "").strip() if hasattr(config, "org_code") else ""
-
-        if tier in ("pro", "org", "enterprise") and (len(license_key) >= 6 or len(org_code) >= 4):
+        lic_status = cls.get_license_status(config)
+        if lic_status.get("is_licensed"):
             return True
 
         trial = cls.get_trial_status(config)
@@ -282,18 +509,16 @@ class FeatureGate:
     @classmethod
     def get_tier_summary(cls, config: VoiceFiConfig) -> Dict[str, Any]:
         """Return human-readable tier status, trial countdown, pricing, and capabilities."""
+        lic_status = cls.get_license_status(config)
+        is_licensed = lic_status["is_licensed"]
         trial = cls.get_trial_status(config)
-        tier = getattr(config, "tier", "community").lower().strip()
-        license_key = getattr(config, "license_key", "").strip()
-        org_code = getattr(config, "org_code", "").strip() if hasattr(config, "org_code") else ""
-        is_licensed = tier in ("pro", "org", "enterprise") and (
-            len(license_key) >= 6 or len(org_code) >= 4
-        )
         pro_active = is_licensed or trial["is_active"]
 
         if is_licensed:
-            tier_label = tier.capitalize()
-            status_text = f"{tier_label} (Licensed)"
+            tier_val = lic_status.get("tier", "pro").capitalize()
+            expires_at = lic_status.get("expires_at", "Perpetual")
+            tier_label = tier_val
+            status_text = f"{tier_val} (Licensed · {expires_at})"
         elif trial["tampered"]:
             tier_label = "Community (Seal Tampered)"
             status_text = "Community ($0 / OSS · Trial Invalid)"
@@ -316,6 +541,7 @@ class FeatureGate:
             "tier": tier_label,
             "status_text": status_text,
             "is_licensed": is_licensed,
+            "license_info": lic_status,
             "is_pro": pro_active,
             "is_trial": trial["is_trial"] and trial["is_active"],
             "trial_expired": trial["is_expired"],

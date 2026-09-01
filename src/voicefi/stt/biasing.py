@@ -96,6 +96,15 @@ class ProjectContextExtractor:
             return self._cached_prompt
 
         symbols = self.extract_symbols()
+        try:
+            from voicefi.learning.phonetic import PhoneticLearner
+
+            learned_symbols = PhoneticLearner.get_instance().get_all_symbols()
+            if learned_symbols:
+                symbols.extend(learned_symbols[:15])
+        except Exception:
+            pass
+
         if extra_words:
             symbols.extend(extra_words)
 

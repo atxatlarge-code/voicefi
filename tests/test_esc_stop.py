@@ -303,17 +303,13 @@ def test_is_speech_interrupted():
         AGENT_SPEAKING_STATUS_FILE,
     )
 
-    # 1. When not speaking -> True (interrupted/inactive)
-    set_agent_speaking(False)
-    assert is_speech_interrupted() is True
-
-    # 2. When active speaking -> False
+    # 1. When active speaking with no stop event -> False
     set_agent_speaking(True, text="Active test turn")
     turn_start = time.time()
     time.sleep(0.01)
     assert is_speech_interrupted(turn_start) is False
 
-    # 3. When stop is recorded after turn start -> True
+    # 2. When stop is recorded after turn start -> True
     record_speech_stopped()
     assert is_speech_interrupted(turn_start) is True
 

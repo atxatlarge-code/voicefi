@@ -74,7 +74,7 @@ def find_latest_claude_session(base_dir: Optional[Path] = None) -> Optional[Path
 
 def extract_latest_claude_summary(
     session_path: Optional[Path] = None,
-    max_words: int = 25,
+    max_words: Optional[int] = None,
 ) -> str:
     """
     Extract the latest assistant response from a Claude Code session JSONL file.

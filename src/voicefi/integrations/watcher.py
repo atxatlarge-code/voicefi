@@ -367,6 +367,7 @@ class TranscriptWatcher:
         """Execute speech and microphone loop for the finished turn with Active Barge-In."""
         self._is_handling_turn = True
         self._interrupted = False
+        turn_start_time = time.time()
         try:
             cfg = load_config()
             self.config = cfg
@@ -589,7 +590,7 @@ class TranscriptWatcher:
 
                 from voicefi.tts.base import is_speech_interrupted
 
-                if self._interrupted or is_speech_interrupted():
+                if self._interrupted or is_speech_interrupted(turn_start_time):
                     return
 
                 # Wait for speaker audio playback to 100% stop and acoustic reverb to decay

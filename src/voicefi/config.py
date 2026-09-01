@@ -233,15 +233,19 @@ class AgentVoiceProfile(BaseModel):
 
 class GeminiConfig(BaseModel):
     enabled: bool = True
+    provider: Literal["auto", "gemini", "ollama", "heuristic"] = "auto"
     api_key: Optional[str] = ""
     model: str = "gemini-2.5-flash"
     live_model: str = "gemini-2.0-flash-exp"
     live_voice: str = "Aoede"  # Aoede, Puck, Charon, Kore, Fenrir
+    local_llm_url: str = "http://localhost:11434/v1"
+    local_llm_model: str = "qwen2.5:0.5b"
     temperature: float = 0.2
     max_tokens: int = 150
     enable_soundbite_distillation: bool = True
     enable_memo_structuring: bool = True
-    enable_phonetic_resolver: bool = False
+    enable_phonetic_resolver: bool = True
+    enable_auto_learning: bool = True
 
 
 class MemoConfig(BaseModel):
@@ -445,6 +449,7 @@ class VoiceFiConfig(BaseModel):
     auto_update: bool = False  # Silent background auto-updater for Pro tier
     tier: str = "community"
     license_key: str = ""
+    org_code: str = ""
     trial_started_at: Optional[float] = None  # Epoch timestamp when 14-day free trial started
     trial_seal: Optional[str] = None  # Cryptographic hardware-anchored HMAC seal against tampering
     trial_duration_days: int = 14  # 14-day trial duration
