@@ -28,17 +28,27 @@
         <p class="text-[10px] text-gray-400 font-medium">Reels & Master Media</p>
       </div>
     </div>
-    <span class="px-2.5 py-1 rounded-full bg-[#8B9A46]/20 border border-[#8B9A46]/50 text-[#A2B354] font-mono text-[11px] font-bold uppercase">
-      🏆 Master
-    </span>
+    <div class="flex items-center gap-2">
+      <button id="btnHardRefresh" onclick="forceHardRefresh()" type="button" class="w-7 h-7 rounded-lg bg-gray-900 hover:bg-gray-800 border border-gray-800 text-gray-300 hover:text-white flex items-center justify-center transition active:scale-95 cursor-pointer" title="Clear Cache & Hard Refresh">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+        </svg>
+      </button>
+      <span class="px-2.5 py-1 rounded-full bg-[#8B9A46]/20 border border-[#8B9A46]/50 text-[#A2B354] font-mono text-[11px] font-bold uppercase">
+        🏆 Master
+      </span>
+    </div>
   </header>
 
   <!-- Main Card & Video Preview -->
   <main class="w-full max-w-md my-auto flex flex-col items-center gap-4 py-3">
     <!-- Reel Selector Pills -->
-    <div class="w-full flex items-center justify-start p-1 bg-zinc-900/90 border border-zinc-800 rounded-2xl gap-1 overflow-x-auto no-scrollbar">
-      <button id="btnReel6" onclick="selectReel('reel6')" class="py-2 px-3 rounded-xl text-xs font-bold transition-all bg-[#8B9A46] text-black font-extrabold shadow-lg flex items-center justify-center gap-1 shrink-0">
-        <span>⚡</span> <span>Speed Listening</span> <span class="text-[10px] px-1.5 py-0.2 rounded bg-black/30 text-white">35s</span>
+    <div class="w-full flex items-center justify-start p-1.5 bg-zinc-900/90 border border-zinc-800 rounded-2xl gap-1.5 overflow-x-auto flex-nowrap" style="-webkit-overflow-scrolling: touch; touch-action: pan-x;">
+      <button id="btnReel8" onclick="selectReel('reel8')" class="py-2 px-3 rounded-xl text-xs font-bold transition-all bg-[#38BDF8] text-black font-extrabold shadow-lg flex items-center justify-center gap-1 shrink-0">
+        <span>🎵</span> <span>10.skills by vifi</span> <span class="text-[10px] px-1.5 py-0.2 rounded bg-black/30 text-white">2:25</span>
+      </button>
+      <button id="btnReel6" onclick="selectReel('reel6')" class="py-2 px-3 rounded-xl text-xs font-bold transition-all text-zinc-400 hover:text-zinc-200 flex items-center justify-center gap-1 shrink-0">
+        <span>⚡</span> <span>Speed Listening</span> <span class="text-[10px] px-1.5 py-0.2 rounded bg-zinc-800 text-zinc-400">35s</span>
       </button>
       <button id="btnReel4" onclick="selectReel('reel4')" class="py-2 px-3 rounded-xl text-xs font-bold transition-all text-zinc-400 hover:text-zinc-200 flex items-center justify-center gap-1 shrink-0">
         <span>🎬</span> <span>How We Built</span> <span class="text-[10px] px-1.5 py-0.2 rounded bg-zinc-800 text-zinc-400">50s</span>
@@ -52,16 +62,16 @@
     </div>
 
     <!-- Video Player Preview Container -->
-    <div id="videoBorder" class="relative w-full aspect-[9/16] max-w-[270px] bg-black rounded-3xl overflow-hidden border-2 border-[#8B9A46]/60 shadow-[0_0_40px_rgba(139,154,70,0.3)] flex items-center justify-center">
-      <video id="reelVideo" src="/downloads/reel_006_speed_listening_9_16.mp4" playsinline controls loop class="w-full h-full object-cover"></video>
+    <div id="videoBorder" class="relative w-full aspect-[9/16] max-w-[270px] bg-black rounded-3xl overflow-hidden border-2 border-[#38BDF8]/60 shadow-[0_0_40px_rgba(56,189,248,0.3)] flex items-center justify-center">
+      <video id="reelVideo" src="/downloads/reel_008_10_skills_9_16.mp4" playsinline controls loop class="w-full h-full object-cover"></video>
     </div>
 
     <!-- Title & Specs -->
     <div class="text-center px-2">
       <h2 id="reelTitle" class="text-base font-black tracking-tight text-white flex items-center justify-center gap-2">
-        ⚡ The Speed Listening Challenge <span id="reelBadge" class="text-xs px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 mono font-bold">35s</span>
+        🎵 10.skills by vifi · Master Track <span id="reelBadge" class="text-xs px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 mono font-bold">2:25</span>
       </h2>
-      <p id="reelDesc" class="text-xs text-zinc-400 mt-1">Jake's solo live take + 400 & 600 WPM acceleration + Google Veo 2D flipbook sketch animation</p>
+      <p id="reelDesc" class="text-xs text-zinc-400 mt-1">Jake's solo live performance + GarageBand master + 17-scene Texas Hill Country Spicewood visual storyboard</p>
     </div>
 
     <!-- Download Buttons -->
@@ -90,6 +100,14 @@
 
   <script>
     const REELS_DATA = {
+      reel8: {
+        title: "🎵 10.skills by vifi · Master Track",
+        dur: "2:25",
+        desc: "Jake's live solo performance + GarageBand master + 17-scene Texas Hill Country Spicewood visual storyboard with Claude & Antigravity",
+        reel916: "/downloads/reel_008_10_skills_9_16.mp4",
+        themeColor: "#38BDF8",
+        btnColorClass: "bg-[#38BDF8] text-black font-extrabold shadow-lg"
+      },
       reel6: {
         title: "⚡ The Speed Listening Challenge",
         dur: "35s",
@@ -124,7 +142,7 @@
       }
     };
 
-    let activeReelKey = "reel6";
+    let activeReelKey = "reel8";
 
     function selectReel(key) {
       activeReelKey = key;
@@ -140,7 +158,7 @@
       btnSave916.href = data.reel916;
       btnSave916.download = `${key}_master.mp4`;
 
-      const keys = ['reel6', 'reel4', 'reel3', 'reel2'];
+      const keys = ['reel8', 'reel6', 'reel4', 'reel3', 'reel2'];
       const inactiveClass = "py-2 px-3 rounded-xl text-xs font-bold transition-all text-zinc-400 hover:text-zinc-200 flex items-center justify-center gap-1 shrink-0";
       
       keys.forEach(k => {
@@ -170,6 +188,28 @@
       } catch (err) {
         window.location.href = data.reel916;
       }
+    }
+
+    async function forceHardRefresh() {
+      const btn = document.getElementById('btnHardRefresh');
+      if (btn) btn.classList.add('animate-spin');
+      if ('serviceWorker' in navigator) {
+        try {
+          const registrations = await navigator.serviceWorker.getRegistrations();
+          for (let registration of registrations) {
+            await registration.unregister();
+          }
+        } catch (e) {}
+      }
+      if ('caches' in window) {
+        try {
+          const keys = await caches.keys();
+          for (let key of keys) {
+            await caches.delete(key);
+          }
+        } catch (e) {}
+      }
+      window.location.href = window.location.pathname + '?reload=' + Date.now();
     }
   </script>
 </body>

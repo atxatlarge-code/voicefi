@@ -17,6 +17,7 @@ Universal Voice Layer for AI Agents, MCP, and macOS.
 | `vifi dev` | **Live Dev Mode**: Auto-takes over background servers, cleans caches, and streams live console logs. |
 | `vifi setup --dev` | **Link Dev Hooks & MCP**: Points Antigravity and Claude Code hooks & MCP servers directly to local `.venv`. |
 | `vifi mcp` | **Model Context Protocol Server**: Starts native Stdio JSON-RPC 2.0 MCP server exposing voice tools to AI agents. |
+| `vifi mcp --test` / `vifi mcp --check` | **PostHog MCP Analytics Diagnostic**: Validates live PostHog MCP event emission (`$mcp_initialize`, `$mcp_tools_list`, `$mcp_tool_call`), latency, and HTTP delivery. |
 | `vifi pause` / `vifi resume` | **Global Voice Toggle**: Instantly pauses/resumes all VoiceFi audio hooks, auto-listen, and handoffs globally. |
 | `vifi hook status` | **Hook Diagnostic**: Displays active status and configuration of Antigravity & Claude Code lifecycle hooks. |
 | `vifi hook disable` / `vifi hook enable` | **Hook Switch**: Disables or enables agent Stop hooks in `~/.voicefi/config.yaml` without editing files manually. |
@@ -150,6 +151,9 @@ To debug how VoiceFi handles simultaneous speech output and microphone capture:
         ├─► [User Presses Esc] ──► stop_all_speech() kills afplay, purges sentence queue,
         │                          records stop timestamp -> 3.0s silence lock.
         │                          WakeWordListener drains PortAudio buffer to prevent echo loop.
+        │
+        ├─► [User Presses Tab] ──► focus_speaking_agent_window() brings active agent window
+        │                          (Antigravity, Claude, ChatGPT, Cursor, Terminal) to front with input focus.
         ▼
 [Auto-Listen Handoff] ─────► play_chime("start") -> Dynamic Island HUD 'listening' ->
                              AudioRecorder.record_speech_auto() captures developer prompt
@@ -160,8 +164,9 @@ To debug how VoiceFi handles simultaneous speech output and microphone capture:
 2. **Audio Mutex (`exclusive_audio`)**: The claiming process acquires `/tmp/voicefi_audio_output.lock` to prevent CoreAudio device contention across subagents or terminal sessions.
 3. **Pipelined Playback**: `EdgeTTS` splits the text into sentences. Sentence 1 begins playing over `afplay` immediately while Sentence 2 is pre-fetched in the background.
 4. **Instant Escape Stop**: Pressing <kbd>Esc</kbd> at any point triggers `stop_all_speech()`, which kills active `afplay` processes (`SIGTERM`/`SIGKILL`), purges remaining sentence chunks from the queue, and sets a 3.0s global interruption guard.
-5. **PortAudio Stream Draining**: While speech is playing, `WakeWordListener` continuously reads and purges mic audio frames from PortAudio to prevent speaker audio from buffering in hardware ring buffers.
-6. **Sequential Handoff**: If speech was not interrupted, VoiceFi plays the start chime and opens the microphone for hands-free auto-listen.
+5. **Tab to Focus Speaking Window**: Pressing <kbd>Tab</kbd> during speech immediately activates and raises the window/application where the spoken turn originated (Antigravity, Claude Code, Terminal, etc.) and focuses its chat input box without interrupting speech playback.
+6. **PortAudio Stream Draining**: While speech is playing, `WakeWordListener` continuously reads and purges mic audio frames from PortAudio to prevent speaker audio from buffering in hardware ring buffers.
+7. **Sequential Handoff**: If speech was not interrupted, VoiceFi plays the start chime and opens the microphone for hands-free auto-listen.
 
 ---
 

@@ -30,11 +30,20 @@ def get_local_ip() -> str:
 
 
 def get_mdns_hostname() -> str:
-    """Return local mDNS hostname (e.g. jakes-mac.local)."""
+    """Return local mDNS hostname (e.g. MacBook-Pro.local)."""
+    try:
+        import subprocess
+        res = subprocess.run(["scutil", "--get", "LocalHostName"], capture_output=True, text=True, timeout=1)
+        if res.returncode == 0 and res.stdout.strip():
+            return f"{res.stdout.strip()}.local"
+    except Exception:
+        pass
     try:
         hostname = socket.gethostname()
         if not hostname.endswith(".local") and "." not in hostname:
             return f"{hostname}.local"
+        if hostname.endswith(".lan"):
+            return hostname.replace(".lan", ".local")
         return hostname
     except Exception:
         return "localhost"

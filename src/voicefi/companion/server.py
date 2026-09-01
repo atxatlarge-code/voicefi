@@ -1966,8 +1966,14 @@ class CompanionServer:
         urls["cloud_relay_url"] = cloud_url
         urls["universal_url"] = cloud_url
 
-        # Always default preferred pairing URL to official companion.voicefi.app
-        preferred_url = cloud_url or urls.get("ip_url") or f"http://127.0.0.1:{self.port}"
+        # Default preferred pairing URL to active tunnel or direct local Wi-Fi IP
+        preferred_url = (
+            active_tunnel
+            or urls.get("ip_url")
+            or urls.get("mdns_url")
+            or cloud_url
+            or f"http://127.0.0.1:{self.port}"
+        )
         qr_b64 = generate_qr_base64_png(preferred_url)
         return web.json_response(
             {

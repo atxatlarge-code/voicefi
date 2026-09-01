@@ -1,29 +1,15 @@
 // Service Worker for VoiceFi Mobile Companion PWA
-const CACHE_NAME = 'voicefi-companion-v13';
-const ASSETS_TO_CACHE = [
-  '/',
-  '/manifest.json',
-  '/antigravity-particles.js',
-];
+const CACHE_NAME = 'voicefi-companion-v15';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE);
-    })
-  );
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
       return Promise.all(
-        keys.map((key) => {
-          if (key !== CACHE_NAME) {
-            return caches.delete(key);
-          }
-        })
+        keys.map((key) => caches.delete(key))
       );
     })
   );
@@ -31,8 +17,14 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Pass WebSocket, API, and Downloads requests straight to live network
-  if (event.request.url.includes('/ws') || event.request.url.includes('/api/') || event.request.url.includes('/downloads')) {
+  // Pass WebSocket, API, Downloads, and Document navigation requests straight to live network
+  if (
+    event.request.mode === 'navigate' ||
+    event.request.destination === 'document' ||
+    event.request.url.includes('/ws') ||
+    event.request.url.includes('/api/') ||
+    event.request.url.includes('/downloads')
+  ) {
     return;
   }
 

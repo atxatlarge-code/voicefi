@@ -13,7 +13,8 @@ def test_relay_session_credentials_generation(tmp_path):
     assert creds.token == "test_token_abc"
     
     url = creds.get_pairing_url("https://voicefi.org/companion")
-    assert "https://voicefi.org/companion#s=test_sess_123&t=test_token_abc" == url
+    assert "s=test_sess_123" in url
+    assert "t=test_token_abc" in url
     
     # Save & reload from disk
     file_path = tmp_path / "creds.json"

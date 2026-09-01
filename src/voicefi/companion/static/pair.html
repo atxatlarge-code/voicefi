@@ -77,15 +77,14 @@
       </div>
     </div>
 
-    <!-- Direct URL Box with Copy Button -->
+    <!-- Direct URL Box with Connection Mode Selector -->
     <div class="space-y-2 text-left">
-      <div class="flex items-center justify-between">
-        <label class="text-[10px] font-mono text-zinc-400 uppercase tracking-wider">Direct Wi-Fi Link</label>
-        <select id="networkSelect" class="text-[10px] font-mono bg-[#18181b] border border-[#27272a] rounded px-1.5 py-0.5 text-zinc-300 focus:outline-none hidden">
-        </select>
-      </div>
+      <label class="text-[10px] font-mono text-zinc-400 uppercase tracking-wider block">Select Connection Mode</label>
+      <select id="networkSelect" class="w-full text-xs font-mono bg-[#141414] border border-[#27272a] rounded-xl px-3 py-2.5 text-zinc-200 focus:outline-none focus:border-white transition cursor-pointer shadow-inner">
+      </select>
+      
       <div class="bg-[#141414] border border-[#27272a] rounded-xl p-3 flex items-center justify-between gap-2 shadow-inner">
-        <span id="directUrlText" class="font-mono text-sm font-bold text-white truncate select-all">Loading...</span>
+        <span id="directUrlText" class="font-mono text-xs font-bold text-white truncate select-all">Loading...</span>
         <button id="copyBtn" class="px-3 py-1.5 bg-white hover:bg-zinc-200 text-black text-xs font-bold rounded-lg mono transition active:scale-95 cursor-pointer shrink-0">
           COPY
         </button>
@@ -162,25 +161,20 @@
       networkSelect.innerHTML = '';
 
       const options = [
-        { label: '⚡ Cloud Relay (companion.voicefi.app)', key: 'cloud_relay_url' },
-        { label: 'Wi-Fi LAN', key: 'ip_url' },
-        { label: 'mDNS (.local)', key: 'mdns_url' },
-        { label: 'HTTPS Wi-Fi', key: 'https_ip_url' },
-        { label: 'Localhost', key: 'localhost_url' },
+        { label: '⚡ Direct Wi-Fi (.local) · Fastest 0ms', key: 'mdns_url' },
+        { label: '📶 Direct IP Address · Local LAN', key: 'ip_url' },
+        { label: '🌐 Cloud Relay · 5G / Remote Everywhere', key: 'cloud_relay_url' },
       ];
 
       options.forEach(opt => {
         if (urls[opt.key]) {
           const el = document.createElement('option');
           el.value = urls[opt.key];
-          el.innerText = `${opt.label} (${urls[opt.key].replace(/^https?:\/\//, '').split('/')[0]})`;
+          const hostPart = urls[opt.key].replace(/^https?:\/\//, '').split('/')[0];
+          el.innerText = `${opt.label} (${hostPart})`;
           networkSelect.appendChild(el);
         }
       });
-
-      if (networkSelect.options.length > 1) {
-        networkSelect.classList.remove('hidden');
-      }
     }
 
     networkSelect.addEventListener('change', (e) => {
