@@ -75,6 +75,7 @@ hud:
 # Global Desktop Dictation Hotkeys
 global_hotkey:
   enabled: true
+  talk_to_agent_hotkey: "<alt>+v"         # Option + V / Alt + V to Prompt active agent
   focus_and_talk_hotkey: "<ctrl>+r"       # Control + R to Respond to active agent
   jump_to_agent_hotkey: "<ctrl>+j"        # Control + J to Jump/Focus Antigravity
   hub_hotkey: "<ctrl>+<shift>+j"          # Control + Shift + J to toggle Activity Hub
