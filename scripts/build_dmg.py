@@ -9,6 +9,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
@@ -235,7 +236,21 @@ def build_dmg(version: str, identity: str = None) -> Path:
         "Support: talktome@voicefi.org\n"
     )
 
-    # 4. Volume Icon
+    # 4. Copy High-DPI DMG Background
+    dmg_bg_file = ASSETS_DIR / "dmg_background.png"
+    if not dmg_bg_file.is_file():
+        try:
+            from scripts.render_dmg_background import render_dmg_background
+            render_dmg_background()
+        except Exception:
+            pass
+
+    bg_dir = dmg_staging / ".background"
+    bg_dir.mkdir(exist_ok=True)
+    if dmg_bg_file.is_file():
+        shutil.copy(dmg_bg_file, bg_dir / "background.png")
+
+    # 5. Volume Icon
     if ICON_FILE.is_file():
         volume_icon = dmg_staging / ".VolumeIcon.icns"
         shutil.copy(ICON_FILE, volume_icon)
@@ -245,8 +260,9 @@ def build_dmg(version: str, identity: str = None) -> Path:
                 [setfile_path, "-c", "icnC", str(volume_icon)], stderr=subprocess.DEVNULL
             )
             subprocess.run([setfile_path, "-a", "C", str(dmg_staging)], stderr=subprocess.DEVNULL)
+            subprocess.run([setfile_path, "-a", "V", str(bg_dir)], stderr=subprocess.DEVNULL)
 
-    # 5. Create DMG using native hdiutil
+    # 6. Create temporary read-write DMG using native hdiutil
     temp_dmg = DIST_DIR / "temp.dmg"
     temp_dmg.unlink(missing_ok=True)
     dmg_path.unlink(missing_ok=True)
@@ -267,7 +283,60 @@ def build_dmg(version: str, identity: str = None) -> Path:
         check=True,
     )
 
-    # Convert to compressed read-only DMG
+    # 7. Mount temporary DMG and configure Finder window layout & positions via AppleScript
+    print("🎨 Styling Finder drag-and-drop window layout...")
+    mount_output = subprocess.run(
+        ["hdiutil", "attach", str(temp_dmg), "-noautoopen", "-nobrowse"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    mount_point = None
+    for line in mount_output.stdout.splitlines():
+        if f"/Volumes/{APP_NAME}" in line:
+            mount_point = line.split()[-1]
+            break
+    if not mount_point:
+        mount_point = f"/Volumes/{APP_NAME}"
+
+    apple_script = f"""
+    tell application "Finder"
+        tell disk "{APP_NAME}"
+            open
+            set current view of container window to icon view
+            set toolbar visible of container window to false
+            set statusbar visible of container window to false
+            set the bounds of container window to {{280, 120, 940, 540}}
+            set theViewOptions to the icon view options of container window
+            set arrangement of theViewOptions to not arranged
+            set icon size of theViewOptions to 120
+            set text size of theViewOptions to 12
+            try
+                set background picture of theViewOptions to file ".background:background.png"
+            end try
+            set position of item "{APP_NAME}.app" of container window to {{170, 220}}
+            set position of item "Applications" of container window to {{490, 220}}
+            try
+                set position of item "QUICKSTART.txt" of container window to {{330, 365}}
+            end try
+            close
+            open
+            update without registering applications
+            delay 1
+        end tell
+    end tell
+    """
+    try:
+        subprocess.run(["osascript", "-e", apple_script], capture_output=True, text=True, timeout=12)
+        print("  ✓ Configured Finder window layout and icon positions.")
+    except Exception as e:
+        print(f"  ⚠️ Note on AppleScript Finder styling: {e}")
+    finally:
+        # Detach temporary volume
+        subprocess.run(["hdiutil", "detach", mount_point, "-force", "-quiet"], stderr=subprocess.DEVNULL)
+        time.sleep(1)
+
+    # 8. Convert to compressed read-only DMG
     subprocess.run(
         [
             "hdiutil",

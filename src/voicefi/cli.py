@@ -902,6 +902,19 @@ def cmd_tray(args):
     run_tray()
 
 
+def cmd_welcome(args):
+    """Launch native macOS Welcome & License Activation Window."""
+    import AppKit
+    from PyObjCTools import AppHelper
+    from voicefi.ui.welcome import VoiceFiWelcomeWindow
+
+    print("👋 Launching VoiceFi Welcome & License Activation Window...")
+    app = AppKit.NSApplication.sharedApplication()
+    AppKit.NSApp.setActivationPolicy_(AppKit.NSApplicationActivationPolicyRegular)
+    VoiceFiWelcomeWindow.show_window()
+    AppHelper.runEventLoop()
+
+
 def cmd_dev(args):
     """Launch VoiceFi in foreground development mode with live console logs and auto-takeover."""
     from voicefi.server import stop_all_voicefi_servers, clean_caches, get_launchagent_status
@@ -4048,8 +4061,24 @@ def cmd_license(args):
         print(f"🔑 License Key: {masked_key}")
         print(f"⚡ Tier:        {config.tier.capitalize()}{tag_desc} · {expires_desc}")
         print("🚀 All Pro features (Streaming STT, 20+ Neural Voices, Cloud Relay) are unlocked!")
-        print("   Thank you for supporting independent open developer tooling!\n")
-        return
+    if action in ("generate", "create", "mint", "new"):
+        from voicefi.license import generate_license_key
+        tier = getattr(args, "tier", "PRO") or "PRO"
+        expires = getattr(args, "expires", "PERP") or "PERP"
+        tag = getattr(args, "tag", "TESTER") or "TESTER"
+        try:
+            new_key = generate_license_key(tier=tier, expires=expires, tag=tag)
+            print("\n✨ VoiceFi License Key Generated Successfully:")
+            print(f"🔑 Key:    {new_key}")
+            print(f"⚡ Tier:   {tier.upper()}")
+            print(f"⏱️ Exp:    {expires.upper()}")
+            print(f"🏷️ Tag:    {tag.upper()}")
+            print(f"\n👉 To activate on any machine:")
+            print(f"   vifi license activate {new_key}\n")
+            return
+        except Exception as e:
+            print(f"\n❌ Error generating license key: {e}\n")
+            return
 
     # Default to showing status
     cmd_tier(args)
@@ -5267,7 +5296,15 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
     lic_act = lic_sub.add_parser(
         "activate", aliases=["set", "apply"], help="Activate a VoiceFi Pro license key"
     )
-    lic_act.add_argument("key", type=str, help="Pro license key (e.g. PRO-1234-5678)")
+    lic_act.add_argument("key", type=str, help="Pro license key (e.g. VF1-PRO-PERP-USER.<SIG>)")
+    lic_gen = lic_sub.add_parser(
+        "generate",
+        aliases=["create", "mint", "new"],
+        help="Generate an unforgeable VoiceFi license key (requires admin key)",
+    )
+    lic_gen.add_argument("--tier", default="PRO", help="License tier (PRO, ORG, ENTERPRISE, VIP)")
+    lic_gen.add_argument("--expires", default="PERP", help="Expiration (PERP or YYYYMMDD)")
+    lic_gen.add_argument("--tag", default="TESTER", help="Recipient tag or promo name")
 
     # learn / learning (recursive phonetic and brevity self-learning)
     learn_p = subparsers.add_parser(
@@ -6480,6 +6517,13 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
         help="Output audio file path (.wav)",
     )
 
+    # welcome / onboarding window
+    subparsers.add_parser(
+        "welcome",
+        aliases=["welcome-gui", "license-gui", "activate-gui"],
+        help="Launch native macOS Welcome & License Activation Window",
+    )
+
     # help
     subparsers.add_parser("help", help="Display help and command usage")
 
@@ -6623,6 +6667,10 @@ def main():
         "wake": cmd_wake,
         "wakeword": cmd_wake,
         "hey-viv": cmd_wake,
+        "welcome": cmd_welcome,
+        "welcome-gui": cmd_welcome,
+        "license-gui": cmd_welcome,
+        "activate-gui": cmd_welcome,
         "ambient": cmd_ambient,
         "meeting": cmd_meeting,
         "feedbackloop": cmd_feedback_loop,

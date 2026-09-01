@@ -32,6 +32,7 @@ from voicefi.ui.hub import ConversationHubWindow
 from voicefi.ui.dictation_hud import DictationHUD
 from voicefi.ui.speech_hud import AgentSpeechHUD
 from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
+from voicefi.ui.welcome import VoiceFiWelcomeWindow
 
 VOICEFI_MENU_BAR_ICON_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="90 20 332 440" width="100%" height="100%">
   <!-- VoiceFi Master Mark: macOS Menu Bar White Icon -->
@@ -326,22 +327,26 @@ class VoiceFiTrayApp(rumps.App):
         tier_info = FeatureGate.get_tier_summary(self.config)
         if tier_info.get("is_licensed"):
             self.tier_item = rumps.MenuItem(
-                "⚡ Tier: Pro (Licensed)", callback=self.open_pricing_page
+                "⚡ Tier: Pro (Licensed)", callback=self.open_welcome_window
             )
         elif tier_info.get("is_trial"):
             days = tier_info.get("trial_days_remaining", 14)
             self.tier_item = rumps.MenuItem(
-                f"✨ Pro Trial: {days}d left (Upgrade $9/mo · $69/yr)",
-                callback=self.open_pricing_page,
+                f"✨ Pro Trial: {days}d left (Activate Key...)",
+                callback=self.open_welcome_window,
             )
         elif tier_info.get("trial_expired"):
             self.tier_item = rumps.MenuItem(
-                "⚪ Tier: Community ($0) • Upgrade to Pro...", callback=self.open_pricing_page
+                "⚪ Tier: Community ($0) • Activate Pro Key...", callback=self.open_welcome_window
             )
         else:
             self.tier_item = rumps.MenuItem(
-                f"Tier: {tier_info['tier']}", callback=self.open_pricing_page
+                f"Tier: {tier_info['tier']} (Activate Key...)", callback=self.open_welcome_window
             )
+
+        self.welcome_item = rumps.MenuItem(
+            "👋 Welcome & License Setup...", callback=self.open_welcome_window
+        )
 
         # Self-updater item
         self.update_item = rumps.MenuItem(
@@ -350,6 +355,7 @@ class VoiceFiTrayApp(rumps.App):
 
         self.menu = [
             self.update_item,
+            self.welcome_item,
             self.stop_speaking_item,
             rumps.separator,
             self.new_conversation_item,
@@ -408,6 +414,12 @@ class VoiceFiTrayApp(rumps.App):
                 pass
 
         threading.Thread(target=_check, daemon=True).start()
+
+        # Check first-run onboarding & license activation
+        try:
+            VoiceFiWelcomeWindow.show_if_first_run()
+        except Exception:
+            pass
 
     def trigger_tray_update(self, _=None):
         """Execute 1-click update from Menu Bar."""
@@ -2418,6 +2430,21 @@ class VoiceFiTrayApp(rumps.App):
         if not path.is_file():
             save_config(self.config)
         subprocess.run(["open", str(path)])
+
+    def open_welcome_window(self, _=None):
+        """Open the native macOS Welcome & License Activation Window."""
+        VoiceFiWelcomeWindow.get_instance(on_activated=self._on_welcome_license_activated).show()
+
+    def _on_welcome_license_activated(self, key_or_mode: str):
+        """Callback when a license key or trial is activated from the welcome window."""
+        self.config = load_config()
+        tier_info = FeatureGate.get_tier_summary(self.config)
+        if tier_info.get("is_licensed"):
+            self.tier_item.title = "⚡ Tier: Pro (Licensed)"
+        elif tier_info.get("is_trial"):
+            days = tier_info.get("trial_days_remaining", 14)
+            self.tier_item.title = f"✨ Pro Trial: {days}d left (Activate Key...)"
+        print(f"[VoiceFi] License activated via Welcome Window: {key_or_mode}")
 
     def open_pricing_page(self, _=None):
         import webbrowser

@@ -188,3 +188,21 @@ def test_clock_rollback_detection():
     assert status["tampered"] is True
     assert status["is_active"] is False
 
+
+def test_cli_license_generate(capsys):
+    """Verify vifi license generate CLI command outputs valid key."""
+    from voicefi.cli import cmd_license
+    from unittest.mock import MagicMock
+
+    args = MagicMock()
+    args.license_action = "generate"
+    args.tier = "PRO"
+    args.expires = "PERP"
+    args.tag = "UNITTEST"
+    args.key = None
+
+    cmd_license(args)
+    captured = capsys.readouterr().out
+    assert "VoiceFi License Key Generated Successfully" in captured
+    assert "VF1-PRO-PERP-UNITTEST" in captured
+
