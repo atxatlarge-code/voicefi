@@ -38,6 +38,15 @@ def _normalize_turn_signature(signature: str) -> str:
     return clean[:30]
 
 
+def is_pid_alive(pid: int) -> bool:
+    """Check if process with given PID is currently active."""
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+
 def claim_turn(
     conv_id: Optional[str],
     signature: str,
@@ -48,6 +57,7 @@ def claim_turn(
     """
     Atomically claims a turn using cross-process file locks so only one worker
     (CLI Hook or Background Watcher) handles speech and mic capture.
+    Validates process liveness so crashed server threads never cause permanent turn lockouts.
     Returns True if this caller claimed the turn, False if already claimed recently.
     """
     turn_file = Path("/tmp/voicefi_active_turns.json")
@@ -94,6 +104,12 @@ def claim_turn(
 
                 # Check if this exact turn_id, step_index, signature, OR normalized text was already claimed
                 for e in valid_entries:
+                    e_pid = e.get("pid")
+                    e_status = e.get("status", "claimed")
+                    # If claiming process died mid-flight before completion, ignore stale lock
+                    if e_pid and e_status != "completed" and not is_pid_alive(int(e_pid)):
+                        continue
+
                     e_sig = e.get("signature", "")
                     e_norm = e.get("norm_sig") or _normalize_turn_signature(e_sig)
                     e_cid = e.get("conv_id", "")
@@ -138,7 +154,6 @@ def claim_turn(
                         ) < 3.0:
                             return False
 
-
                 # Claim this turn atomically
                 valid_entries.append(
                     {
@@ -149,6 +164,8 @@ def claim_turn(
                         "norm_sig": norm_sig,
                         "origin": resolved_origin,
                         "timestamp": now,
+                        "pid": os.getpid(),
+                        "status": "claimed",
                     }
                 )
                 # Keep up to 25 entries
@@ -164,6 +181,34 @@ def claim_turn(
     except Exception:
         # Fallback to permissive execution if locking fails
         return True
+
+
+def mark_turn_completed(turn_id: Optional[str] = None) -> None:
+    """Mark active turn as completed so its speech output is recorded."""
+    if not turn_id:
+        return
+    turn_file = Path("/tmp/voicefi_active_turns.json")
+    lock_file = Path("/tmp/voicefi_active_turns.lock")
+    try:
+        if not turn_file.is_file():
+            return
+        with open(lock_file, "a+") as lock_fp:
+            fcntl.flock(lock_fp, fcntl.LOCK_EX)
+            try:
+                entries = []
+                with open(turn_file, "r") as f:
+                    data = json.load(f)
+                    if isinstance(data, list):
+                        entries = data
+                for e in entries:
+                    if e.get("turn_id") == turn_id or e.get("signature") == turn_id:
+                        e["status"] = "completed"
+                with open(turn_file, "w") as f:
+                    json.dump(entries, f)
+            finally:
+                fcntl.flock(lock_fp, fcntl.LOCK_UN)
+    except Exception:
+        pass
 
 
 def claim_active_conversation_turn(
@@ -678,29 +723,54 @@ class ConversationTracker:
         self.brain_dir = brain_dir or (Path.home() / ".gemini" / "antigravity" / "brain")
         self.active_focus_id: Optional[str] = None
         self._cache: Dict[str, ConversationInfo] = {}
+        self._transcripts_cache: List[Path] = []
+        self._last_transcripts_scan: float = 0.0
 
-    def get_recent_transcripts(self, limit: int = 10) -> List[Path]:
-        """Find recently modified transcript.jsonl files in brain directory."""
+    def get_recent_transcripts(self, limit: int = 10, ttl: float = 2.0) -> List[Path]:
+        """Find recently modified transcript.jsonl files in brain directory with TTL caching."""
         if not self.brain_dir.is_dir():
             return []
 
-        pattern = str(self.brain_dir / "*" / ".system_generated" / "logs" / "transcript.jsonl")
-        files = glob.glob(pattern)
-        if not files:
-            return []
+        now = time.time()
+        if (now - self._last_transcripts_scan) < ttl and len(self._transcripts_cache) >= limit:
+            return self._transcripts_cache[:limit]
 
-        def _get_conv_mtime(f: str) -> float:
-            try:
+        candidates = []
+        try:
+            with os.scandir(self.brain_dir) as it:
+                subdirs = [e for e in it if e.is_dir()]
+            subdirs.sort(key=lambda e: e.stat().st_mtime, reverse=True)
+            for entry in subdirs[: max(limit * 3, 30)]:
+                p = Path(entry.path) / ".system_generated" / "logs" / "transcript.jsonl"
+                if p.is_file():
+                    mtime = p.stat().st_mtime
+                    try:
+                        full = p.parent / "transcript_full.jsonl"
+                        if full.is_file():
+                            mtime = max(mtime, full.stat().st_mtime)
+                    except Exception:
+                        pass
+                    candidates.append((mtime, p))
+        except Exception:
+            candidates = []
+
+        if not candidates:
+            pattern = str(self.brain_dir / "*" / ".system_generated" / "logs" / "transcript.jsonl")
+            files = glob.glob(pattern)
+            for f in files:
                 p = Path(f)
-                full = p.parent / "transcript_full.jsonl"
-                if full.is_file():
-                    return max(os.path.getmtime(f), os.path.getmtime(str(full)))
-                return os.path.getmtime(f)
-            except Exception:
-                return 0.0
+                try:
+                    full = p.parent / "transcript_full.jsonl"
+                    m = max(os.path.getmtime(f), os.path.getmtime(str(full))) if full.is_file() else os.path.getmtime(f)
+                except Exception:
+                    m = 0.0
+                candidates.append((m, p))
 
-        files.sort(key=_get_conv_mtime, reverse=True)
-        return [Path(f) for f in files[:limit]]
+        candidates.sort(key=lambda x: x[0], reverse=True)
+        res = [p for _, p in candidates]
+        self._transcripts_cache = res
+        self._last_transcripts_scan = now
+        return res[:limit]
 
     def _get_pb_titles(self) -> Dict[str, str]:
         """Extract genuine side-panel conversation titles from agyhub_summaries_proto.pb."""

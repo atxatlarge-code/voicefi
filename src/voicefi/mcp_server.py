@@ -6,6 +6,7 @@ Provides native stdio JSON-RPC 2.0 tool interface for AI agents (Antigravity, Cl
 import sys
 import os
 import json
+import uuid
 import logging
 import signal
 import time
@@ -21,22 +22,105 @@ if not logger.handlers:
     logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
-# PostHog MCP analytics — captures $mcp_* events for every tool call and initialize handshake.
-# Path P2: custom dispatcher (no SDK server object to wrap), so we use PostHogMCP directly.
+# PostHog MCP analytics — captures $mcp_* events for every tool call, tools/list, and initialize handshake.
+# Path P2: custom dispatcher (no SDK server object to wrap), so we use PostHogMCP directly with per-call flushing.
 _mcp_posthog = None
-try:
-    from posthog.mcp import PostHogMCP as _PostHogMCP
-    from voicefi.telemetry import DEFAULT_POSTHOG_API_KEY as _DEFAULT_PH_KEY
-    _ph_token = (
-        os.environ.get("POSTHOG_PROJECT_TOKEN")
-        or os.environ.get("POSTHOG_API_KEY")
-        or _DEFAULT_PH_KEY
-    )
-    _ph_host = os.environ.get("POSTHOG_HOST", "https://us.i.posthog.com")
-    if _ph_token:
-        _mcp_posthog = _PostHogMCP(_ph_token, host=_ph_host)
-except Exception:
-    pass
+_mcp_posthog_initialized = False
+
+
+def get_mcp_posthog() -> Optional[Any]:
+    """
+    Get or lazily initialize the PostHogMCP client instance.
+    Respects user telemetry configuration (~/.voicefi/config.yaml or env vars).
+    """
+    from voicefi.telemetry import is_telemetry_enabled
+
+    if not is_telemetry_enabled():
+        return None
+
+    global _mcp_posthog, _mcp_posthog_initialized
+    if _mcp_posthog_initialized:
+        return _mcp_posthog
+
+    _mcp_posthog_initialized = True
+    try:
+        from voicefi.telemetry import (
+            get_telemetry_id,
+            DEFAULT_POSTHOG_API_KEY,
+        )
+        from voicefi.config import load_config
+
+        if not is_telemetry_enabled():
+            logger.debug("Telemetry is disabled; skipping PostHog MCP analytics.")
+            return None
+
+        try:
+            cfg = load_config()
+        except Exception:
+            cfg = None
+
+        api_key = (
+            os.environ.get("POSTHOG_PROJECT_TOKEN")
+            or os.environ.get("POSTHOG_API_KEY")
+            or (
+                cfg.posthog_api_key
+                if cfg and hasattr(cfg, "posthog_api_key") and cfg.posthog_api_key
+                else ""
+            )
+            or os.environ.get("VOICEFI_POSTHOG_KEY", "")
+            or DEFAULT_POSTHOG_API_KEY
+        )
+
+        host = (
+            os.environ.get("POSTHOG_HOST")
+            or (
+                cfg.posthog_host
+                if cfg and hasattr(cfg, "posthog_host") and cfg.posthog_host
+                else ""
+            )
+            or "https://us.i.posthog.com"
+        )
+
+        if not api_key:
+            logger.debug("No PostHog API key available; skipping PostHog MCP analytics.")
+            return None
+
+        from posthog.mcp import PostHogMCP
+
+        _mcp_posthog = PostHogMCP(api_key, host=host)
+        _mcp_posthog.sync_mode = True
+        logger.debug("PostHogMCP analytics client initialized successfully.")
+    except Exception as e:
+        logger.debug("PostHogMCP initialization skipped or failed: %s", e)
+        _mcp_posthog = None
+
+    return _mcp_posthog
+
+
+def flush_mcp_posthog(timeout_seconds: float = 2.0) -> None:
+    """Flush pending events to PostHog."""
+    ph = get_mcp_posthog()
+    if ph is not None:
+        try:
+            ph.flush(timeout_seconds=timeout_seconds)
+        except Exception as e:
+            logger.debug("Error flushing PostHog MCP events: %s", e)
+
+
+def shutdown_mcp_posthog() -> None:
+    """Shutdown and flush PostHog MCP client."""
+    global _mcp_posthog
+    if _mcp_posthog is not None:
+        try:
+            _mcp_posthog.shutdown()
+        except Exception:
+            pass
+        _mcp_posthog = None
+
+
+import atexit
+
+atexit.register(shutdown_mcp_posthog)
 
 
 PROTOCOL_VERSION = "2024-11-05"
@@ -320,6 +404,9 @@ class VoiceFiMCPServer:
 
     def __init__(self):
         self._running = False
+        self.session_id = f"ses_{uuid.uuid4().hex}"
+        self.client_name = "unknown"
+        self.client_version = None
 
     def handle_request(self, req: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Process a single JSON-RPC request and return a response object (or None for notifications)."""
@@ -335,17 +422,29 @@ class VoiceFiMCPServer:
 
         # Standard RPC Methods
         if method == "initialize":
-            if _mcp_posthog is not None:
+            client_info = params.get("clientInfo", {}) or {}
+            self.client_name = client_info.get("name") or "unknown"
+            self.client_version = client_info.get("version")
+
+            ph = get_mcp_posthog()
+            if ph is not None:
                 try:
-                    client_info = params.get("clientInfo", {}) or {}
                     from voicefi.telemetry import get_telemetry_id
-                    _mcp_posthog.capture_initialize(
-                        client_name=client_info.get("name"),
-                        client_version=client_info.get("version"),
+
+                    ph.capture_initialize(
+                        client_name=self.client_name,
+                        client_version=self.client_version,
+                        protocol_version=params.get("protocolVersion") or PROTOCOL_VERSION,
                         distinct_id=get_telemetry_id(),
+                        session_id=self.session_id,
+                        properties={
+                            "$mcp_server_name": SERVER_NAME,
+                            "$mcp_server_version": SERVER_VERSION,
+                        },
                     )
-                except Exception:
-                    pass
+                    ph.flush(timeout_seconds=2.0)
+                except Exception as e:
+                    logger.debug("PostHogMCP capture_initialize error: %s", e)
             return {
                 "jsonrpc": "2.0",
                 "id": req_id,
@@ -371,18 +470,97 @@ class VoiceFiMCPServer:
             }
 
         elif method == "tools/list":
+            ph = get_mcp_posthog()
+            tools_to_return = MCP_TOOLS
+            if ph is not None:
+                try:
+                    from voicefi.telemetry import get_telemetry_id
+
+                    # Inject context parameter for agent intent capture
+                    tools_to_return = ph.prepare_tool_list(
+                        MCP_TOOLS, context=True, report_missing=True
+                    )
+                    tool_names = [
+                        t.get("name")
+                        for t in MCP_TOOLS
+                        if isinstance(t, dict) and t.get("name")
+                    ]
+                    ph.capture_tools_list(
+                        tool_names=tool_names,
+                        distinct_id=get_telemetry_id(),
+                        session_id=self.session_id,
+                        properties={
+                            "$mcp_server_name": SERVER_NAME,
+                            "$mcp_server_version": SERVER_VERSION,
+                            "$mcp_client_name": self.client_name,
+                            "$mcp_client_version": self.client_version,
+                        },
+                    )
+                    ph.flush(timeout_seconds=2.0)
+                except Exception as e:
+                    logger.debug("PostHogMCP capture_tools_list error: %s", e)
+                    tools_to_return = MCP_TOOLS
             return {
                 "jsonrpc": "2.0",
                 "id": req_id,
                 "result": {
-                    "tools": MCP_TOOLS,
+                    "tools": tools_to_return,
                 },
             }
 
         elif method == "tools/call":
             tool_name = params.get("name", "")
-            arguments = params.get("arguments", {}) or {}
-            result = self.execute_tool(tool_name, arguments)
+            raw_arguments = params.get("arguments", {}) or {}
+
+            ph = get_mcp_posthog()
+            call_info = None
+            arguments = raw_arguments
+            if ph is not None:
+                try:
+                    call_info = ph.prepare_tool_call(tool_name, raw_arguments)
+                    arguments = call_info.args or {}
+                except Exception as e:
+                    logger.debug("PostHogMCP prepare_tool_call error: %s", e)
+
+            # Handle virtual capability discovery tool if requested
+            if call_info and getattr(call_info, "is_missing_capability", False):
+                if ph is not None:
+                    try:
+                        from voicefi.telemetry import get_telemetry_id
+
+                        ph.capture_missing_capability(
+                            context=getattr(call_info, "intent", None)
+                            or str(raw_arguments.get("context", "")),
+                            parameters=raw_arguments,
+                            distinct_id=get_telemetry_id(),
+                            session_id=self.session_id,
+                            properties={
+                                "$mcp_server_name": SERVER_NAME,
+                                "$mcp_server_version": SERVER_VERSION,
+                                "$mcp_client_name": self.client_name,
+                                "$mcp_client_version": self.client_version,
+                            },
+                        )
+                        ph.flush(timeout_seconds=2.0)
+                    except Exception:
+                        pass
+                result = {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": (
+                                "VoiceFi provides native real-time voice, TTS, STT, VAD, Sound Effects, and Cross-Agent delegation tools: "
+                                "voicefi_speak, voicefi_listen, voicefi_stop, voicefi_status, voicefi_set_voice, "
+                                "voicefi_ping_voice, voicefi_send, voicefi_sfx, voicefi_speed_talk, "
+                                "voicefi_meeting_start, voicefi_meeting_stop, voicefi_meeting_status, voicefi_meeting_action."
+                            ),
+                        }
+                    ],
+                    "isError": False,
+                }
+            else:
+                result = self.execute_tool(tool_name, arguments, call_info=call_info)
+
             return {
                 "jsonrpc": "2.0",
                 "id": req_id,
@@ -442,11 +620,17 @@ class VoiceFiMCPServer:
                 },
             }
 
-    def execute_tool(self, name: str, args: Dict[str, Any]) -> Dict[str, Any]:
+    def execute_tool(
+        self,
+        name: str,
+        args: Dict[str, Any],
+        call_info: Optional[Any] = None,
+    ) -> Dict[str, Any]:
         """Execute a tool and format the response according to MCP specification."""
         start_t = time.time()
         res = None
         err_type = None
+        err_msg = None
         agent_name = args.get("agent_name") or args.get("agent") or "antigravity"
         persona = args.get("persona")
         text_arg = args.get("text", "")
@@ -502,7 +686,7 @@ class VoiceFiMCPServer:
                 res = self._tool_meeting_action(args)
             else:
                 res = {
-                    "content": [{"type": "text", "text": f"Tool '{name}' is not recognized."}],
+                    "content": [{"type": "text", "text": f"Unknown tool '{name}' (not recognized)."}],
                     "isError": True,
                 }
         except Exception as e:
@@ -512,9 +696,28 @@ class VoiceFiMCPServer:
                 "isError": True,
             }
             err_type = type(e).__name__
+            err_msg = str(e)
         finally:
             dur_ms = int((time.time() - start_t) * 1000)
             is_error = bool(res.get("isError", False)) if res else True
+            if is_error:
+                if err_msg is None and res and "content" in res and res["content"]:
+                    err_msg = res["content"][0].get("text", "")
+                if err_type is None:
+                    txt = (err_msg or "").lower()
+                    if "escape key" in txt or "interrupted" in txt or "stopping all speech" in txt:
+                        err_type = "user_interrupted"
+                    elif "no text provided" in txt or "required" in txt or "invalid" in txt or "empty message" in txt:
+                        err_type = "validation_error"
+                    elif "not recognized" in txt or "unknown" in txt:
+                        err_type = "not_found"
+                    elif "failed to dispatch" in txt or "refused" in txt:
+                        err_type = "dispatch_failure"
+                    elif "no active" in txt:
+                        err_type = "no_active_session"
+                    else:
+                        err_type = "tool_error"
+
             try:
                 from voicefi.analytics.store import get_analytics_store
 
@@ -524,6 +727,11 @@ class VoiceFiMCPServer:
                     "target_agent": agent_name,
                     "target_persona": persona,
                 }
+                if isinstance(args, dict):
+                    if "_tts_latency_ms" in args:
+                        props["tts_latency_ms"] = args["_tts_latency_ms"]
+                    if "_resolved_provider" in args:
+                        props["resolved_provider"] = args["_resolved_provider"]
                 store.record_local_event(
                     event_name="mcp_tool_call",
                     properties=props,
@@ -537,21 +745,42 @@ class VoiceFiMCPServer:
                 )
             except Exception:
                 pass
-            if _mcp_posthog is not None:
+
+            ph = get_mcp_posthog()
+            if ph is not None:
                 try:
                     from voicefi.telemetry import get_telemetry_id
 
-                    _mcp_posthog.capture_tool_call(
+                    intent = getattr(call_info, "intent", None) if call_info else None
+                    intent_source = (
+                        getattr(call_info, "intent_source", None) if call_info else None
+                    )
+                    props = {
+                        "$mcp_server_name": SERVER_NAME,
+                        "$mcp_server_version": SERVER_VERSION,
+                        "$mcp_client_name": getattr(self, "client_name", "unknown"),
+                        "$mcp_client_version": getattr(self, "client_version", None),
+                    }
+                    if args.get("conv_id"):
+                        props["$mcp_conversation_id"] = str(args.get("conv_id"))
+
+                    ph.capture_tool_call(
                         canonical_name,
+                        intent=intent,
+                        intent_source=intent_source,
                         parameters=args,
                         response=res,
                         duration_ms=dur_ms,
                         is_error=is_error,
-                        distinct_id=get_telemetry_id(),
+                        error=err_msg,
                         error_type=err_type,
+                        distinct_id=get_telemetry_id(),
+                        session_id=getattr(self, "session_id", None),
+                        properties=props,
                     )
-                except Exception:
-                    pass
+                    ph.flush(timeout_seconds=2.0)
+                except Exception as e:
+                    logger.debug("PostHogMCP capture_tool_call error: %s", e)
 
         return res
 
@@ -1318,60 +1547,201 @@ class VoiceFiMCPServer:
         logger.info("Starting VoiceFi MCP Server on stdio...")
         self._running = True
 
-        if _mcp_posthog is not None:
-            def _on_sigterm(signum, frame):
-                try:
-                    _mcp_posthog.shutdown()
-                except Exception:
-                    pass
-                sys.exit(0)
-            signal.signal(signal.SIGTERM, _on_sigterm)
+        def _on_signal(signum, frame):
+            logger.info(f"Received signal {signum}, shutting down MCP server...")
+            shutdown_mcp_posthog()
+            sys.exit(0)
+
+        try:
+            signal.signal(signal.SIGTERM, _on_signal)
+            signal.signal(signal.SIGINT, _on_signal)
+        except Exception:
+            pass
 
         raw_stdout = sys.stdout
         # Redirect global sys.stdout to sys.stderr so print statements from libraries or VAD do not corrupt JSON-RPC
         sys.stdout = sys.stderr
 
-        for line in sys.stdin:
-            line_str = line.strip()
-            if not line_str:
-                continue
+        try:
+            for line in sys.stdin:
+                line_str = line.strip()
+                if not line_str:
+                    continue
 
-            try:
-                req = json.loads(line_str)
-            except json.JSONDecodeError as e:
-                err_resp = {
-                    "jsonrpc": "2.0",
-                    "id": None,
-                    "error": {
-                        "code": -32700,
-                        "message": f"Parse error: {str(e)}",
-                    },
-                }
-                raw_stdout.write(json.dumps(err_resp) + "\n")
-                raw_stdout.flush()
-                continue
-
-            try:
-                resp = self.handle_request(req)
-            except Exception as e:
-                logger.exception("Unhandled error processing MCP request: %s", e)
-                req_id = req.get("id") if isinstance(req, dict) else None
-                resp = (
-                    {
+                try:
+                    req = json.loads(line_str)
+                except json.JSONDecodeError as e:
+                    err_resp = {
                         "jsonrpc": "2.0",
-                        "id": req_id,
+                        "id": None,
                         "error": {
-                            "code": -32603,
-                            "message": f"Internal error: {str(e)}",
+                            "code": -32700,
+                            "message": f"Parse error: {str(e)}",
                         },
                     }
-                    if req_id is not None
-                    else None
-                )
+                    raw_stdout.write(json.dumps(err_resp) + "\n")
+                    raw_stdout.flush()
+                    continue
 
-            if resp is not None:
-                raw_stdout.write(json.dumps(resp) + "\n")
-                raw_stdout.flush()
+                try:
+                    resp = self.handle_request(req)
+                except Exception as e:
+                    logger.exception("Unhandled error processing MCP request: %s", e)
+                    req_id = req.get("id") if isinstance(req, dict) else None
+                    resp = (
+                        {
+                            "jsonrpc": "2.0",
+                            "id": req_id,
+                            "error": {
+                                "code": -32603,
+                                "message": f"Internal error: {str(e)}",
+                            },
+                        }
+                        if req_id is not None
+                        else None
+                    )
+
+                if resp is not None:
+                    raw_stdout.write(json.dumps(resp) + "\n")
+                    raw_stdout.flush()
+        finally:
+            shutdown_mcp_posthog()
+
+
+def test_posthog_mcp_analytics() -> Dict[str, Any]:
+    """
+    Test and verify live PostHog MCP Analytics event emission.
+    Sends test initialize, tools_list, and tool_call events and validates immediate HTTP delivery.
+    """
+    import time
+    from voicefi.telemetry import (
+        is_telemetry_enabled,
+        get_telemetry_id,
+        DEFAULT_POSTHOG_API_KEY,
+    )
+    from voicefi.config import load_config
+
+    start_time = time.time()
+    distinct_id = get_telemetry_id()
+
+    cfg = None
+    try:
+        cfg = load_config()
+    except Exception:
+        pass
+
+    api_key = (
+        os.environ.get("POSTHOG_PROJECT_TOKEN")
+        or os.environ.get("POSTHOG_API_KEY")
+        or (
+            cfg.posthog_api_key
+            if cfg and hasattr(cfg, "posthog_api_key") and cfg.posthog_api_key
+            else ""
+        )
+        or os.environ.get("VOICEFI_POSTHOG_KEY", "")
+        or DEFAULT_POSTHOG_API_KEY
+    )
+
+    host = (
+        os.environ.get("POSTHOG_HOST")
+        or (
+            cfg.posthog_host
+            if cfg and hasattr(cfg, "posthog_host") and cfg.posthog_host
+            else ""
+        )
+        or "https://us.i.posthog.com"
+    )
+
+    ph = get_mcp_posthog()
+    if ph is None:
+        return {
+            "success": False,
+            "error": "PostHog MCP client could not be initialized. Check telemetry settings or API key.",
+            "distinct_id": distinct_id,
+            "host": host,
+            "api_key_set": bool(api_key),
+        }
+
+    try:
+        session_id = f"ses_{uuid.uuid4().hex}"
+        server_props = {
+            "$mcp_server_name": SERVER_NAME,
+            "$mcp_server_version": SERVER_VERSION,
+        }
+
+        # 1. Capture test initialize event
+        ph.capture_initialize(
+            client_name="Antigravity",
+            client_version="2.0.0",
+            protocol_version=PROTOCOL_VERSION,
+            distinct_id=distinct_id,
+            session_id=session_id,
+            properties=server_props,
+        )
+
+        # 2. Capture test tools list event
+        tool_names = [
+            t.get("name") for t in MCP_TOOLS if isinstance(t, dict) and t.get("name")
+        ]
+        ph.capture_tools_list(
+            tool_names=tool_names,
+            distinct_id=distinct_id,
+            session_id=session_id,
+            properties=server_props,
+        )
+
+        # 3. Capture test tool call event
+        ph.capture_tool_call(
+            "voicefi_speak",
+            intent="Auditioning VoiceFi speech persona in Antigravity",
+            intent_source="context_parameter",
+            parameters={"text": "Hello from VoiceFi MCP Analytics!", "persona": "Viv"},
+            response={
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Spoke text aloud in persona 'Viv' (latency: 120ms)",
+                    }
+                ],
+                "isError": False,
+            },
+            duration_ms=42.5,
+            is_error=False,
+            distinct_id=distinct_id,
+            session_id=session_id,
+            properties=server_props,
+        )
+
+        # 4. Flush immediately
+        ph.flush(timeout_seconds=5.0)
+        elapsed_ms = (time.time() - start_time) * 1000
+
+        masked_key = (
+            api_key[:8] + "..." + api_key[-4:]
+            if len(api_key) > 12
+            else (api_key[:4] + "...")
+        )
+
+        return {
+            "success": True,
+            "distinct_id": distinct_id,
+            "host": host,
+            "api_key_masked": masked_key,
+            "events_captured": [
+                "$mcp_initialize",
+                "$mcp_tools_list",
+                "$mcp_tool_call",
+            ],
+            "latency_ms": round(elapsed_ms, 1),
+            "status": "delivered",
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "distinct_id": distinct_id,
+            "host": host,
+        }
 
 
 def run_mcp_server():

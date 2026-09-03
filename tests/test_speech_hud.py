@@ -59,7 +59,7 @@ def test_speech_hud_show_and_update():
 
     hud._body_lbl.setStringValue_.assert_called_with(f'"{test_msg}"')
     hud._title_lbl.setStringValue_.assert_called_with("Antigravity")
-    hud._tag_lbl.setStringValue_.assert_called_with("Christopher [Speaking]")
+    hud._tag_lbl.setStringValue_.assert_called_with("Christopher [Speaking • ⇥ Tab to focus]")
     hud._panel.orderFrontRegardless.assert_called()
 
     # 2. Update text during streaming

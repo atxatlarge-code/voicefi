@@ -126,7 +126,7 @@ COMMAND_CATEGORIES = [
             ("hud", "Dynamic Island floating status pill and debug studio"),
             ("tray", "Launch macOS menu bar companion"),
             ("panel", "Launch interactive Web Voice Control Panel"),
-            ("companion", "Launch Web & Mobile Voice Companion (PWA & QR code)"),
+            ("companion / rc", "Launch Web & Mobile Voice Companion (PWA & QR code)"),
         ],
     ),
     (

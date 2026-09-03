@@ -24,7 +24,7 @@ from voicefi.ipc.protocol import (
 from voicefi.ipc.server import VoiceFiIPCServer
 
 
-def test_live_e2e_voice_prompt_to_turn_complete_loop():
+def test_live_e2e_voice_prompt_to_turn_complete_loop(monkeypatch):
     """
     Test full loop:
     1. STT transcribes speech -> daemon broadcasts vifi.prompt.dispatch
@@ -32,6 +32,11 @@ def test_live_e2e_voice_prompt_to_turn_complete_loop():
     3. Spark distill soundbite -> emits turn_complete back to daemon
     4. Daemon receives turn_complete with spoken_summary in Viv/Christopher persona
     """
+    monkeypatch.setattr(
+        "voicefi.ipc.server.get_tts_engine",
+        lambda *a, **kw: type("MockTTS", (), {"persona_name": "Viv", "stream_speak": lambda s, t, block=True: None})(),
+    )
+
     async def _run():
         sock_path = f"/tmp/test_e2e_voicefi_{os.getpid()}.sock"
         ws_port = 18780

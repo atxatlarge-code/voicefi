@@ -309,9 +309,10 @@ class EdgeTTS(BaseTTS):
                                 chunk_path = audio_queue.get(timeout=10.0)
                             except Exception:
                                 break
+                            if chunk_path is None:
+                                break
                             if (
-                                chunk_path is None
-                                or self._stop_requested
+                                self._stop_requested
                                 or is_speech_interrupted(turn_start_time)
                                 or not is_agent_speaking()
                             ):

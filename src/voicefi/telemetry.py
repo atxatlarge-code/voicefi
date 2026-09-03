@@ -139,6 +139,8 @@ def init_telemetry():
     global _posthog_initialized
     if not is_telemetry_enabled():
         return
+    if os.getenv("VOICEFI_TESTING", "").lower() in ("1", "true", "yes") or "PYTEST_CURRENT_TEST" in os.environ:
+        return
 
     try:
         config = load_config()
@@ -240,6 +242,8 @@ def record_event(event_name: str, properties: Optional[Dict[str, Any]] = None):
 def capture_event(event_name: str, properties: Optional[Dict[str, Any]] = None):
     """Capture a sanitized telemetry/diagnostic event if telemetry is enabled."""
     if not is_telemetry_enabled():
+        return
+    if os.getenv("VOICEFI_TESTING", "").lower() in ("1", "true", "yes") or "PYTEST_CURRENT_TEST" in os.environ:
         return
 
     if not _posthog_initialized:

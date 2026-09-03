@@ -86,6 +86,17 @@ def clean_markdown_for_speech(text: str, max_words: Optional[int] = None) -> str
         if err_match:
             return f"The agent encountered an error: {err_match.group(1)}."
 
+    # 2.5 Strip inline SFX tags and emojis early before markdown formatting alters them
+    try:
+        from voicefi.audio.sfx import strip_inline_sfx_tags
+
+        text = strip_inline_sfx_tags(text)
+    except Exception:
+        text = re.sub(r"[\[\(\{]\s*sfx:?\s*[\w-]+\s*[\]\)\}]", "", text, flags=re.IGNORECASE)
+
+    # Strip emojis and decorative Unicode symbols early so line endings have clean punctuation
+    text = re.sub(r"[\U00010000-\U0010ffff\u2600-\u27bf\u2300-\u23ff\ufe00-\ufe0f]", "", text)
+
     # 3. Strip code blocks and Markdown tables
     text = re.sub(r"```[\s\S]*?```", " ", text)
     text = re.sub(r"\|[^\n]+\|", " ", text)  # Tables
@@ -125,10 +136,11 @@ def clean_markdown_for_speech(text: str, max_words: Optional[int] = None) -> str
     text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text)  # Links -> text only
     text = re.sub(r"[*_~]{1,3}", "", text)  # Bold/Italic
 
-    # 6. Strip emojis and decorative Unicode symbols
-    text = re.sub(r"[\U00010000-\U0010ffff\u2600-\u27bf\u2300-\u23ff\ufe00-\ufe0f]", "", text)
+    # Strip any leftover bracketed/parenthesized SFX tags or punctuation artifacts
+    text = re.sub(r"[\[\(\{]\s*sfx:?\s*[\w-]+\s*[\]\)\}]", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"([!?.,;:])\s*[.]+", r"\1", text)  # Clean "! .", "? .", ". ."
 
-    # 7. Normalize whitespace
+    # 6. Normalize whitespace
     text = " ".join(text.split()).strip()
     text = re.sub(r"^[-—–\s]+", "", text).strip()
     if not text:
@@ -150,6 +162,36 @@ def clean_markdown_for_speech(text: str, max_words: Optional[int] = None) -> str
         if last_punct > len(truncated) // 2:
             return truncated[: last_punct + 1]
         return truncated + "..."
+
+    # Handle leading question + answer / joke setup + punchline pairing
+    if sentences[0].endswith("?") and len(sentences) >= 2:
+        first_s = sentences[0]
+        second_s = sentences[1]
+        first_cnt = len(first_s.split())
+        second_cnt = len(second_s.split())
+        pair_cnt = first_cnt + second_cnt
+
+        if pair_cnt <= max(int(target_max_words * 1.5), 38):
+            res_sentences = [first_s, second_s]
+            cur = pair_cnt
+            for extra_s in sentences[2:]:
+                extra_cnt = len(extra_s.split())
+                if cur + extra_cnt <= target_max_words:
+                    res_sentences.append(extra_s)
+                    cur += extra_cnt
+                else:
+                    break
+            return normalize_tts_text(" ".join(res_sentences))
+        else:
+            avail = max(target_max_words - first_cnt, 8)
+            trunc_second = _truncate_sentence(second_s, avail)
+            return normalize_tts_text(f"{first_s} {trunc_second}")
+
+    # Handle short 2-sentence responses to preserve complete context
+    if len(sentences) == 2:
+        total_pair = sum(len(s.split()) for s in sentences)
+        if total_pair <= max(int(target_max_words * 1.35), 36):
+            return normalize_tts_text(" ".join(sentences))
 
     # Handle trailing question pairing
     if sentences[-1].endswith("?") and len(sentences) > 1:
@@ -188,9 +230,9 @@ def clean_markdown_for_speech(text: str, max_words: Optional[int] = None) -> str
             result.append(s)
             current_words += count
         else:
-            # If we only have very few words so far (e.g. "Yes!", "Sure!", "Done!", total < 6 words),
+            # If we only have very few words so far or this is the second sentence,
             # don't stop prematurely — take the next sentence up to remaining budget!
-            if current_words < 6 and (target_max_words - current_words) >= 5:
+            if (current_words < 8 or i == 1) and (target_max_words - current_words) >= 5:
                 trunc = _truncate_sentence(s, target_max_words - current_words)
                 if trunc:
                     result.append(trunc)
@@ -200,7 +242,7 @@ def clean_markdown_for_speech(text: str, max_words: Optional[int] = None) -> str
         return normalize_tts_text(" ".join(result))
 
     # Fallback to truncated first sentence
-    return normalize_tts_text(_truncate_sentence(sentences[0], max_words))
+    return normalize_tts_text(_truncate_sentence(sentences[0], target_max_words or max_words or 32))
 
 
 def extract_latest_agent_summary(
@@ -208,10 +250,14 @@ def extract_latest_agent_summary(
     max_words: int = 60,
     return_role: bool = False,
     return_step_index: bool = False,
+    retries: int = 6,
+    retry_delay: float = 0.12,
 ):
     """
     Extract the latest assistant response or question from transcript.jsonl.
     Scans the transcript backwards to locate the latest turn's model response.
+    Includes rapid retry polling to eliminate race conditions while Antigravity
+    flushes the final PLANNER_RESPONSE chunk to disk.
     If return_role and return_step_index are True, returns (summary_text, agent_role, step_index).
     If return_role is True, returns (summary_text, agent_role).
     Else returns summary_text.
@@ -222,42 +268,47 @@ def extract_latest_agent_summary(
             return (default_msg, None, None)
         return (default_msg, None) if return_role else default_msg
 
-    lines = []
-    try:
-        with open(transcript_path, "r", encoding="utf-8") as f:
-            lines = [l.strip() for l in f if l.strip()]
-    except Exception as e:
-        print(f"[Antigravity] Error reading transcript: {e}", file=sys.stderr)
-        default_msg = "The process is complete and ready for your input."
-        if return_role and return_step_index:
-            return (default_msg, None, None)
-        return (default_msg, None) if return_role else default_msg
-
     last_model_content = ""
     detected_role: Optional[str] = None
     detected_step_index: Optional[int] = None
 
-    # Traverse backwards to find the latest turn's model message
-    for line in reversed(lines):
+    attempts_left = max(1, retries)
+    while attempts_left > 0:
+        lines = []
         try:
-            step = json.loads(line)
-            step_type = step.get("type", "")
-            step_source = step.get("source", "")
-            content = step.get("content", "")
-            role = step.get("role") or step.get("agent_role")
-            idx = step.get("step_index")
+            with open(transcript_path, "r", encoding="utf-8") as f:
+                lines = [l.strip() for l in f if l.strip()]
+        except Exception as e:
+            print(f"[Antigravity] Error reading transcript: {e}", file=sys.stderr)
 
-            if step_type == "PLANNER_RESPONSE" and content and not step.get("tool_calls"):
-                last_model_content = content
-                detected_step_index = idx
-                if role:
-                    detected_role = str(role).lower()
-                break
-            elif step_type == "USER_INPUT" or step_source == "USER_EXPLICIT":
-                # Reached turn boundary without model text
-                break
-        except json.JSONDecodeError:
-            continue
+        # Traverse backwards to find the latest turn's model message
+        for line in reversed(lines):
+            try:
+                step = json.loads(line)
+                step_type = step.get("type", "")
+                step_source = step.get("source", "")
+                content = step.get("content", "")
+                role = step.get("role") or step.get("agent_role")
+                idx = step.get("step_index")
+
+                if step_type == "PLANNER_RESPONSE" and content and not step.get("tool_calls"):
+                    last_model_content = content
+                    detected_step_index = idx
+                    if role:
+                        detected_role = str(role).lower()
+                    break
+                elif step_type == "USER_INPUT" or step_source == "USER_EXPLICIT":
+                    # Reached turn boundary without model text
+                    break
+            except json.JSONDecodeError:
+                continue
+
+        if last_model_content:
+            break
+
+        attempts_left -= 1
+        if attempts_left > 0:
+            time.sleep(retry_delay)
 
     if not last_model_content:
         # If the current turn does not have a completed model response yet (e.g. intermediate tool execution),
@@ -475,7 +526,14 @@ def handle_antigravity_stop_hook(
         # Active Barge-In: set speaking state immediately, start TTS in background thread, and listen on mic
         from voicefi.tts.base import set_agent_speaking
 
-        set_agent_speaking(True, text=summary, agent_name=active_agent)
+        set_agent_speaking(
+            True,
+            text=summary,
+            agent_name=active_agent,
+            app_name="Antigravity",
+            conv_id=conv_id,
+            workspace_path=workspace_path,
+        )
 
         tts = get_tts_engine(
             cfg,
@@ -486,7 +544,11 @@ def handle_antigravity_stop_hook(
 
         def _speak_and_finish():
             try:
-                with escape_to_stop_speech():
+                with escape_to_stop_speech(
+                    agent_name=active_agent,
+                    app_name="Antigravity",
+                    conv_id=conv_id,
+                ):
                     tts.stream_speak(summary, block=True)
             finally:
                 from voicefi.tts.base import set_agent_speaking
@@ -567,7 +629,11 @@ def handle_antigravity_stop_hook(
                 project_name=project_name,
                 workspace_path=workspace_path,
             )
-            with escape_to_stop_speech():
+            with escape_to_stop_speech(
+                agent_name=active_agent,
+                app_name="Antigravity",
+                conv_id=conv_id,
+            ):
                 tts.stream_speak(summary, block=True)
 
         from voicefi.tts.base import is_speech_interrupted

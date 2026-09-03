@@ -23,6 +23,12 @@ def isolate_test_config(tmp_path, monkeypatch):
     monkeypatch.setenv("NUMEXPR_NUM_THREADS", "1")
     monkeypatch.setenv("ORT_NUM_THREADS", "1")
 
+    # Ensure PostHog telemetry is never dispatched during test runs
+    import voicefi.mcp_server as mcp_mod
+    mcp_mod._mcp_posthog = None
+    mcp_mod._mcp_posthog_initialized = False
+    monkeypatch.setattr("voicefi.mcp_server.get_mcp_posthog", lambda: None)
+
     # Isolate speech dedup, turns, and spoken history per test
     test_speech_lock = tmp_path / "voicefi_speech.lock"
     monkeypatch.setattr("voicefi.tts.base.SPEECH_LOCK_FILE", test_speech_lock)
@@ -121,21 +127,75 @@ def cleanup_ui_singletons():
 def prevent_real_audio_playback(monkeypatch):
     """Ensure automated tests never play real audio or trigger afplay/say subprocesses."""
     import subprocess
+    from unittest.mock import MagicMock
+
+    AUDIO_COMMANDS = {"afplay", "say", "ffplay", "mpv", "paplay", "aplay"}
+
+    def is_audio_cmd(args):
+        if isinstance(args, (list, tuple)) and len(args) > 0:
+            cmd = str(args[0])
+            base_cmd = os.path.basename(cmd)
+            return base_cmd in AUDIO_COMMANDS
+        elif isinstance(args, str):
+            first_token = args.split()[0] if args.split() else ""
+            base_cmd = os.path.basename(first_token)
+            return base_cmd in AUDIO_COMMANDS
+        return False
 
     orig_run = subprocess.run
 
     def safe_subprocess_run(args, *pargs, **kwargs):
-        if isinstance(args, (list, tuple)) and len(args) > 0:
-            cmd = str(args[0])
-            if cmd in ("afplay", "say"):
-                from unittest.mock import MagicMock
-
-                return MagicMock(returncode=0, stdout=b"", stderr=b"")
-        elif isinstance(args, str) and (args.startswith("afplay ") or args.startswith("say ")):
-            from unittest.mock import MagicMock
-
+        if is_audio_cmd(args):
             return MagicMock(returncode=0, stdout=b"", stderr=b"")
         return orig_run(args, *pargs, **kwargs)
 
+    orig_call = subprocess.call
+
+    def safe_subprocess_call(args, *pargs, **kwargs):
+        if is_audio_cmd(args):
+            return 0
+        return orig_call(args, *pargs, **kwargs)
+
+    orig_check_call = subprocess.check_call
+
+    def safe_subprocess_check_call(args, *pargs, **kwargs):
+        if is_audio_cmd(args):
+            return 0
+        return orig_check_call(args, *pargs, **kwargs)
+
+    orig_popen = subprocess.Popen
+
+    def safe_subprocess_popen(args, *pargs, **kwargs):
+        if is_audio_cmd(args):
+            mock_proc = MagicMock()
+            mock_proc.returncode = 0
+            mock_proc.pid = 99999
+            mock_proc.args = args
+            mock_proc.wait.return_value = 0
+            mock_proc.poll.return_value = 0
+            mock_proc.communicate.return_value = (b"", b"")
+            mock_proc.terminate.return_value = None
+            mock_proc.kill.return_value = None
+            mock_proc.__enter__.return_value = mock_proc
+            mock_proc.__exit__.return_value = None
+            mock_proc.stdin = MagicMock()
+            mock_proc.stdout = MagicMock()
+            mock_proc.stderr = MagicMock()
+            return mock_proc
+        return orig_popen(args, *pargs, **kwargs)
+
     monkeypatch.setattr(subprocess, "run", safe_subprocess_run)
+    monkeypatch.setattr(subprocess, "call", safe_subprocess_call)
+    monkeypatch.setattr(subprocess, "check_call", safe_subprocess_check_call)
+    monkeypatch.setattr(subprocess, "Popen", safe_subprocess_popen)
+
+    try:
+        import sounddevice as sd
+        monkeypatch.setattr(sd, "play", lambda *a, **kw: None)
+        monkeypatch.setattr(sd, "stop", lambda *a, **kw: None)
+    except Exception:
+        pass
+
     yield
+
+

@@ -206,3 +206,48 @@ def test_cli_license_generate(capsys):
     assert "VoiceFi License Key Generated Successfully" in captured
     assert "VF1-PRO-PERP-UNITTEST" in captured
 
+
+def test_sync_license_with_cloud_perp():
+    """Verify perpetual licenses do not require cloud sync."""
+    from voicefi.license import generate_license_key, sync_license_with_cloud
+
+    perp_key = generate_license_key(tier="PRO", expires="PERP", tag="TEST_PERP")
+    config = VoiceFiConfig(tier="pro", license_key=perp_key)
+    res = sync_license_with_cloud(config)
+    assert res["synced"] is True
+    assert res["is_perp"] is True
+
+
+def test_sync_license_with_cloud_renewal(monkeypatch):
+    """Verify subscription renewal updates config license key."""
+    from voicefi.license import generate_license_key, sync_license_with_cloud
+    import json
+    import io
+
+    old_key = generate_license_key(tier="PRO", expires="20261001", tag="SUB_USER")
+    new_key = generate_license_key(tier="PRO", expires="20261101", tag="SUB_USER")
+    config = VoiceFiConfig(tier="pro", license_key=old_key)
+
+    class MockResponse:
+        status = 200
+        def read(self):
+            return json.dumps({
+                "status": "active",
+                "renewed": True,
+                "license_key": new_key,
+                "expires_at": "2026-11-01"
+            }).encode("utf-8")
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            pass
+
+    monkeypatch.setattr("urllib.request.urlopen", lambda req, timeout=3.0: MockResponse())
+    res = sync_license_with_cloud(config, force=True)
+
+    assert res["synced"] is True
+    assert res["renewed"] is True
+    assert config.license_key == new_key
+    assert "2026-11-01" in res["expires_at"]
+
+

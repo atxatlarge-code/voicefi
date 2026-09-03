@@ -526,3 +526,86 @@ def test_mcp_run_stdio_stream_isolation(server, monkeypatch):
     assert resp["result"] == {}
 
 
+def test_posthog_mcp_analytics_initialize_and_tools_list(server):
+    """Test that initialize and tools/list capture PostHog events and flush."""
+    from voicefi.mcp_server import get_mcp_posthog
+    mock_ph = MagicMock()
+    with patch("voicefi.mcp_server.get_mcp_posthog", return_value=mock_ph):
+        # 1. Initialize
+        init_req = {
+            "jsonrpc": "2.0",
+            "id": 101,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2024-11-05",
+                "clientInfo": {"name": "test_agent", "version": "1.2.3"},
+            },
+        }
+        resp = server.handle_request(init_req)
+        assert resp["id"] == 101
+        mock_ph.capture_initialize.assert_called_once()
+        mock_ph.flush.assert_called()
+
+        # 2. Tools list
+        list_req = {
+            "jsonrpc": "2.0",
+            "id": 102,
+            "method": "tools/list",
+            "params": {},
+        }
+        mock_ph.prepare_tool_list.return_value = MCP_TOOLS
+        resp_list = server.handle_request(list_req)
+        assert resp_list["id"] == 102
+        mock_ph.capture_tools_list.assert_called_once()
+        mock_ph.flush.assert_called()
+
+
+def test_posthog_mcp_analytics_tool_call_capture(server):
+    """Test that tool calls extract intent and capture PostHog tool call events."""
+    mock_ph = MagicMock()
+    mock_call_info = MagicMock()
+    mock_call_info.intent = "Checking system health"
+    mock_call_info.intent_source = "context_parameter"
+    mock_call_info.is_missing_capability = False
+    mock_call_info.args = {}
+    mock_ph.prepare_tool_call.return_value = mock_call_info
+
+    with patch("voicefi.mcp_server.get_mcp_posthog", return_value=mock_ph):
+        call_req = {
+            "jsonrpc": "2.0",
+            "id": 103,
+            "method": "tools/call",
+            "params": {
+                "name": "voicefi_status",
+                "arguments": {"context": "Checking system health"},
+            },
+        }
+        resp = server.handle_request(call_req)
+        assert resp["id"] == 103
+        assert resp["result"]["isError"] is False
+        mock_ph.prepare_tool_call.assert_called_once_with("voicefi_status", {"context": "Checking system health"})
+        mock_ph.capture_tool_call.assert_called_once()
+        kwargs = mock_ph.capture_tool_call.call_args[1]
+        assert kwargs["intent"] == "Checking system health"
+        assert kwargs["intent_source"] == "context_parameter"
+        assert kwargs["is_error"] is False
+        mock_ph.flush.assert_called()
+
+
+def test_posthog_mcp_analytics_diagnostic():
+    """Test test_posthog_mcp_analytics helper function."""
+    from voicefi.mcp_server import test_posthog_mcp_analytics
+    mock_ph = MagicMock()
+    with patch("voicefi.mcp_server.get_mcp_posthog", return_value=mock_ph):
+        res = test_posthog_mcp_analytics()
+        assert res["success"] is True
+        assert "$mcp_initialize" in res["events_captured"]
+        assert "$mcp_tools_list" in res["events_captured"]
+        assert "$mcp_tool_call" in res["events_captured"]
+        mock_ph.capture_initialize.assert_called_once()
+        mock_ph.capture_tools_list.assert_called_once()
+        mock_ph.capture_tool_call.assert_called_once()
+        mock_ph.flush.assert_called_once()
+
+
+

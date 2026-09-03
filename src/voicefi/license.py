@@ -611,3 +611,97 @@ class FeatureGate:
                 pass
 
         return config
+
+    @classmethod
+    def sync_cloud_license(
+        cls, config: VoiceFiConfig, force: bool = False, timeout: float = 3.0
+    ) -> Dict[str, Any]:
+        """Silently sync subscription license renewals with voicefi.org in background."""
+        return sync_license_with_cloud(config, force=force, timeout=timeout)
+
+
+def sync_license_with_cloud(
+    config: VoiceFiConfig, force: bool = False, timeout: float = 3.0
+) -> Dict[str, Any]:
+    """
+    Silently sync time-bound subscription license with voicefi.org in background.
+    If the subscription was renewed on Polar, updates config.license_key with the extended token.
+    Runs with 3.0s timeout and never raises exceptions.
+    """
+    import urllib.request
+    import urllib.error
+    from voicefi.config import save_config
+
+    license_key = getattr(config, "license_key", "").strip()
+    if not license_key:
+        return {"synced": False, "reason": "No license key configured"}
+
+    # Perpetual keys never need online renewal
+    if "-PERP-" in license_key:
+        return {"synced": True, "is_perp": True, "expires_at": "Perpetual"}
+
+    # Local verification
+    local_ver = verify_license_key(license_key)
+    if not local_ver["is_valid"] and local_ver.get("error") != "License key has expired":
+        return {"synced": False, "error": local_ver.get("error")}
+
+    # Rate limiting: only check once every 24 hours unless forced or expiring within 7 days
+    now = time.time()
+    last_sync = getattr(config, "last_license_sync", 0.0) or 0.0
+    is_expiring_soon = False
+
+    if local_ver.get("expires_at") and local_ver["expires_at"] != "Perpetual":
+        try:
+            exp_date = datetime.datetime.strptime(local_ver["expires_str"], "%Y%m%d").date()
+            days_left = (exp_date - datetime.date.today()).days
+            if days_left <= 7:
+                is_expiring_soon = True
+        except Exception:
+            pass
+
+    if not force and not is_expiring_soon and (now - last_sync) < 86400:
+        return {"synced": True, "cached": True, "expires_at": local_ver.get("expires_at")}
+
+    # Cloud sync request to voicefi.org
+    try:
+        hw_id = get_hardware_identifier()
+        payload = json.dumps({"license_key": license_key, "hw_id": hw_id}).encode("utf-8")
+        req = urllib.request.Request(
+            "https://voicefi.org/api/license/sync",
+            data=payload,
+            headers={"Content-Type": "application/json", "User-Agent": "VoiceFi-Mac/1.0"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            if resp.status == 200:
+                data = json.loads(resp.read().decode("utf-8"))
+                config.last_license_sync = now
+
+                if data.get("renewed") and data.get("license_key"):
+                    new_key = data["license_key"].strip()
+                    new_ver = verify_license_key(new_key)
+                    if new_ver["is_valid"]:
+                        config.license_key = new_key
+                        config.tier = "pro"
+                        save_config(config)
+                        return {
+                            "synced": True,
+                            "renewed": True,
+                            "license_key": new_key,
+                            "expires_at": new_ver.get("expires_at"),
+                        }
+
+                if data.get("status") == "canceled":
+                    return {"synced": True, "renewed": False, "status": "canceled"}
+
+                save_config(config)
+                return {
+                    "synced": True,
+                    "renewed": False,
+                    "expires_at": local_ver.get("expires_at"),
+                }
+    except Exception as e:
+        return {"synced": False, "offline": True, "error": str(e)}
+
+    return {"synced": True, "renewed": False}
+

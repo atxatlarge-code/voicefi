@@ -40,6 +40,7 @@ Universal Voice Layer for AI Agents, MCP, and macOS.
 | `vifi bridge` / `vifi bridge --server` | **Local Daemon IPC Bridge**: Manages bidirectional Unix domain socket (`/tmp/voicefi.sock`) & WebSocket connection to Gemini Spark / Antigravity agents. |
 | `vifi spark [prompt]` | **Gemini Spark Runner**: Executes prompts with spoken soundbite distillation, `SIGINT`/`SIGTERM` barge-in cancellation, and turn-end hooks. |
 | `vifi panel` | Launch interactive web control panel (`http://localhost:5141`). |
+| `vifi companion` / `vifi rc` | **Mobile & Web Remote Companion**: Starts full-duplex WebSocket hub, prints pairing QR code, and opens PWA / Spicewood lead sheet (`vifi rc sheet`). |
 | `vifi hud debug` | Interactive terminal Dynamic Island HUD Debug Studio. |
 | `vifi wake` / `vifi listen --wake` | **'Hey Viv' Wake Word Studio**: Runs interactive foreground wake word listener and Antigravity voice dispatcher. |
 | `python scripts/sync_hud_assets.py` | **HUD & Web Asset Synchronizer**: Captures AppKit HUD screenshots and syncs shared JS/CSS/SVGs to `voicefi.org`. |

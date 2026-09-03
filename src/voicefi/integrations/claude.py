@@ -217,7 +217,7 @@ def handle_claude_stop_hook(
     if cfg.claude.read_summary_aloud:
         tts_engine = get_tts_engine(cfg, agent_name="claude")
         try:
-            with escape_to_stop_speech():
+            with escape_to_stop_speech(agent_name="claude", app_name="Claude", conv_id=conv_id):
                 tts_engine.speak(text_to_speak, block=True)
         except Exception as e:
             print(f"[Claude Hook] Speech error: {e}", file=sys.stderr)

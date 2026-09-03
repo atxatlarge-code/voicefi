@@ -166,14 +166,23 @@ class TranscriptWatcher:
                 pass
 
     def _watch_loop(self):
-        """Continuous polling loop watching recent transcript.jsonl files."""
+        """Continuous polling loop watching recent transcript.jsonl files with cached paths."""
+        cached_paths: List[Path] = []
+        last_paths_refresh = 0.0
+
         while self._running:
             try:
                 if not self._is_handling_turn:
-                    recent_paths = get_recent_transcript_paths(limit=3)
-                    for path in recent_paths:
+                    now = time.time()
+                    if (now - last_paths_refresh) >= 2.0 or not cached_paths:
+                        cached_paths = get_recent_transcript_paths(limit=3)
+                        last_paths_refresh = now
+
+                    for path in cached_paths:
                         self._check_transcript_update(path)
                         if self._is_handling_turn:
+                            # Force refresh on next iteration after turn handling finishes
+                            last_paths_refresh = 0.0
                             break
             except Exception:
                 pass
@@ -480,10 +489,16 @@ class TranscriptWatcher:
 
             if barge_in_active:
                 # Active Barge-In: Start speech in background and monitor mic for user interruption
-                from voicefi.tts.base import set_agent_speaking
+                from voicefi.tts.base import set_agent_speaking, escape_to_stop_speech
 
                 set_agent_speaking(
-                    True, text=spoken_text, agent_name=target_agent, persona_name=pname
+                    True,
+                    text=spoken_text,
+                    agent_name=target_agent,
+                    persona_name=pname,
+                    app_name="Antigravity",
+                    conv_id=turn_cid,
+                    workspace_path=ws_path,
                 )
                 self._notify_state(
                     "speaking",
@@ -501,7 +516,12 @@ class TranscriptWatcher:
 
                 def _speak_and_finish_hud():
                     try:
-                        tts.stream_speak(spoken_text, block=True)
+                        with escape_to_stop_speech(
+                            agent_name=target_agent,
+                            app_name="Antigravity",
+                            conv_id=turn_cid,
+                        ):
+                            tts.stream_speak(spoken_text, block=True)
                     finally:
                         from voicefi.tts.base import set_agent_speaking
 
@@ -577,7 +597,14 @@ class TranscriptWatcher:
                         project_name=proj_name,
                         workspace_path=ws_path,
                     )
-                    tts.stream_speak(spoken_text, block=True)
+                    from voicefi.tts.base import escape_to_stop_speech
+
+                    with escape_to_stop_speech(
+                        agent_name=target_agent,
+                        app_name="Antigravity",
+                        conv_id=turn_cid,
+                    ):
+                        tts.stream_speak(spoken_text, block=True)
 
                 if cfg.antigravity.show_speech_popup:
                     try:

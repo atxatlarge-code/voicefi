@@ -73,3 +73,17 @@ def test_clean_markdown_for_speech_integration():
     clean = clean_markdown_for_speech(raw)
     assert "now lyve" in clean
     assert "koob control" in clean
+
+
+def test_strip_inline_sfx_tags_in_normalizer():
+    """Verify inline SFX cues are stripped from speech text."""
+    raw = "Because light attracts bugs! 🥁 [sfx:drum_smash]"
+    norm = normalize_tts_text(raw)
+    assert "[sfx:drum_smash]" not in norm
+    assert "drum_smash" not in norm
+
+    clean = clean_markdown_for_speech(raw)
+    assert "[sfx:drum_smash]" not in clean
+    assert "sfx" not in clean
+    assert clean == "Because light attracts bugs!"
+

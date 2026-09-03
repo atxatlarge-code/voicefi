@@ -75,6 +75,16 @@ def normalize_tts_text(text: str) -> str:
     result = text
 
     # =========================================================================
+    # 0. Strip inline SFX tags & audio cues (e.g. [sfx:drum_smash], [sfx:applause])
+    # =========================================================================
+    try:
+        from voicefi.audio.sfx import strip_inline_sfx_tags
+
+        result = strip_inline_sfx_tags(result)
+    except Exception:
+        result = re.sub(r"[\[\(\{]\s*sfx:?\s*[\w-]+\s*[\]\)\}]", "", result, flags=re.IGNORECASE)
+
+    # =========================================================================
     # 1. Heteronym Disambiguation: "live" (/laɪv/ vs /lɪv/)
     # =========================================================================
     # In English, "live" defaults to the verb /lɪv/ ("to live in Austin") in most TTS models.

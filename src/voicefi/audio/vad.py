@@ -214,6 +214,20 @@ class VoiceActivityDetector:
 
         engine = self.active_engine
         if engine == "silero":
+            # Zero-cost silence gate: skip ONNX neural network forward pass when energy is at or below ambient noise floor
+            silence_ceiling = max(0.002, min(self.energy_threshold * 0.6, self.running_noise_floor * 1.15))
+            if self.smoothed_energy < silence_ceiling:
+                self.running_noise_floor = 0.88 * self.running_noise_floor + 0.12 * min(
+                    0.015, energy
+                )
+                return {
+                    "is_speech": False,
+                    "confidence": 0.0,
+                    "energy": self.smoothed_energy,
+                    "engine": "silero",
+                    "active_threshold": self.speech_threshold,
+                }
+
             is_speech, prob = self._silero.process_chunk(audio_chunk)
             # Update running noise floor on low-probability chunks
             if prob < 0.2:

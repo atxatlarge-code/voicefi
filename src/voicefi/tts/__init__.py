@@ -13,6 +13,8 @@ from voicefi.tts.base import (
     get_cross_process_hud_state,
     clear_cross_process_hud_state,
     escape_to_stop_speech,
+    is_tab_key,
+    focus_speaking_window,
 )
 from voicefi.tts.mac_say import MacSayTTS, normalize_mac_rate
 from voicefi.tts.edge_tts import EdgeTTS, normalize_edge_rate
@@ -250,6 +252,8 @@ __all__ = [
     "get_cross_process_hud_state",
     "clear_cross_process_hud_state",
     "escape_to_stop_speech",
+    "is_tab_key",
+    "focus_speaking_window",
     "ClonedVoiceProfile",
     "VoiceCloneManager",
     "estimate_pitch_f0",

@@ -761,6 +761,9 @@
 
       <!-- Reel Selector Tabs -->
       <div class="w-full flex items-center justify-start p-1.5 bg-zinc-900/90 border border-zinc-800 rounded-xl gap-1.5 mb-2.5 shrink-0 overflow-x-auto flex-nowrap" style="-webkit-overflow-scrolling: touch; touch-action: pan-x;">
+        <button type="button" id="tabSpicewood" onclick="selectCompanionReel('spicewood')" class="py-1.5 px-3 rounded-lg text-[11px] font-bold transition-all text-zinc-400 hover:text-zinc-200 flex items-center justify-center gap-1 shrink-0">
+          <span>🤠</span> <span>Spicewood, TX</span> <span class="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-mono">85 BPM</span>
+        </button>
         <button type="button" id="tabReel8" onclick="selectCompanionReel('reel8')" class="py-1.5 px-3 rounded-lg text-[11px] font-bold transition-all bg-[#38BDF8] text-black shadow flex items-center justify-center gap-1 shrink-0">
           <span>🎵</span> <span>10.skills</span> <span class="text-[9px] px-1 py-0.2 rounded bg-black/30 text-white">2:25</span>
         </button>
@@ -776,8 +779,21 @@
       </div>
 
       <!-- Video Player Preview Container -->
-      <div class="relative w-full aspect-[9/16] max-w-[220px] mx-auto bg-black rounded-3xl overflow-hidden border-2 border-[#38BDF8]/40 shadow-[0_0_40px_rgba(56,189,248,0.25)] flex items-center justify-center mb-2.5 shrink-0">
+      <div id="companionVideoContainer" class="relative w-full aspect-[9/16] max-w-[220px] mx-auto bg-black rounded-3xl overflow-hidden border-2 border-[#38BDF8]/40 shadow-[0_0_40px_rgba(56,189,248,0.25)] flex items-center justify-center mb-2.5 shrink-0">
         <video id="companionReelVideo" src="/downloads/reel_008_10_skills_9_16.mp4" playsinline controls loop class="w-full h-full object-cover"></video>
+      </div>
+
+      <!-- Audio Turntable / Track Player Preview Container (Shown for audio-only tracks) -->
+      <div id="companionAudioContainer" class="hidden relative w-full aspect-square max-w-[220px] mx-auto bg-gradient-to-b from-zinc-900 to-black rounded-3xl p-3.5 border-2 border-amber-500/40 shadow-[0_0_40px_rgba(245,158,11,0.25)] flex flex-col items-center justify-between mb-2.5 shrink-0 text-center">
+        <div class="text-[10px] uppercase font-mono font-extrabold tracking-wider text-amber-400/80">Boom Bap 85 BPM</div>
+        <div class="w-24 h-24 rounded-full bg-gradient-to-tr from-zinc-950 via-zinc-800 to-zinc-950 border-4 border-zinc-700/80 shadow-2xl flex items-center justify-center relative mx-auto my-auto animate-[spin_12s_linear_infinite]" id="vinylDisc">
+          <div class="w-9 h-9 rounded-full bg-amber-500 flex items-center justify-center text-black font-black text-[8px] shadow-inner font-mono">
+            85 BPM
+          </div>
+        </div>
+        <div class="w-full mt-2">
+          <audio id="companionAudioPlayer" class="w-full h-8" controls preload="metadata"></audio>
+        </div>
       </div>
 
       <!-- Title & Specs -->
@@ -790,19 +806,29 @@
 
       <!-- Download Action Buttons -->
       <div class="w-full flex flex-col gap-2 pb-6 shrink-0">
-        <button type="button" onclick="downloadCurrentCompanion('9:16')" class="w-full py-3 px-4 rounded-xl bg-red-600 hover:bg-red-500 active:scale-[0.98] text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(255,42,42,0.35)] transition-all cursor-pointer">
+        <!-- Open Lead Sheet Button (Shown for Spicewood / tracks with lead sheets) -->
+        <button type="button" id="btnOpenLeadSheet" onclick="openCompanionLeadSheet()" class="hidden w-full py-3 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 active:scale-[0.98] text-black font-black text-xs flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(245,158,11,0.35)] transition-all cursor-pointer">
+          <span class="text-sm">📜</span>
+          <span>View Lead Sheet & Rhyme Grid (.md)</span>
+        </button>
+
+        <button type="button" id="btnSave916Comp" onclick="downloadCurrentCompanion('9:16')" class="w-full py-3 px-4 rounded-xl bg-red-600 hover:bg-red-500 active:scale-[0.98] text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(255,42,42,0.35)] transition-all cursor-pointer">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
           </svg>
           <span>Save 9:16 Video Reel (.mp4)</span>
         </button>
 
-        <button type="button" onclick="downloadCurrentCompanion('1:1')" class="w-full py-2.5 px-3.5 rounded-xl bg-[#141414] hover:bg-[#202020] border border-[#27272a] active:scale-[0.98] text-zinc-200 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer">
+        <button type="button" id="btnSave11Comp" onclick="downloadCurrentCompanion('1:1')" class="w-full py-2.5 px-3.5 rounded-xl bg-[#141414] hover:bg-[#202020] border border-[#27272a] active:scale-[0.98] text-zinc-200 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer">
           <span>⬛ Download 1:1 Square Post (.mp4)</span>
         </button>
 
-        <button type="button" onclick="downloadCurrentCompanion('audio')" class="w-full py-2.5 px-3.5 rounded-xl bg-[#141414] hover:bg-[#202020] border border-[#27272a] active:scale-[0.98] text-zinc-200 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer">
+        <button type="button" id="btnSaveAudioComp" onclick="downloadCurrentCompanion('audio')" class="w-full py-2.5 px-3.5 rounded-xl bg-[#141414] hover:bg-[#202020] border border-[#27272a] active:scale-[0.98] text-zinc-200 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer">
           <span>🎵 Download Master Audio (.mp3)</span>
+        </button>
+
+        <button type="button" id="btnSaveSheetComp" onclick="downloadCurrentCompanion('sheet')" class="hidden w-full py-2.5 px-3.5 rounded-xl bg-[#141414] hover:bg-[#202020] border border-[#27272a] active:scale-[0.98] text-zinc-200 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer">
+          <span>📄 Download Lead Sheet (.md)</span>
         </button>
       </div>
     </section>
@@ -1616,6 +1642,15 @@
 
     // Mobile Media Download & Native Share Helper
     const COMPANION_REELS = {
+      spicewood: {
+        title: "🤠 Spicewood, Texas · Studio Lead Sheet & Beat",
+        dur: "4:48",
+        desc: "85.0 BPM Boom Bap Beat (Prod. Shinra B) + Synchronized Master Lead Sheet & Measure Grid",
+        audio: "/downloads/spicewood_texas_beat_85bpm.mp3",
+        sheet: "/downloads/spicewood_texas_lead_sheet.md",
+        isAudioTrack: true,
+        themeColor: "#F59E0B"
+      },
       reel8: {
         title: "🎵 10.skills by vifi · Master Track",
         dur: "2:25",
@@ -1650,15 +1685,48 @@
       }
     };
 
-    let activeCompanionReel = "reel8";
+    let activeCompanionReel = "spicewood";
 
     window.selectCompanionReel = function(key) {
       activeCompanionReel = key;
       const data = COMPANION_REELS[key];
+      if (!data) return;
+
+      const videoContainer = document.getElementById('companionVideoContainer');
+      const audioContainer = document.getElementById('companionAudioContainer');
       const video = document.getElementById('companionReelVideo');
-      if (video) {
-        video.src = data.reel916;
-        video.load();
+      const audioPlayer = document.getElementById('companionAudioPlayer');
+      const btnOpenLeadSheet = document.getElementById('btnOpenLeadSheet');
+      const btnSave916Comp = document.getElementById('btnSave916Comp');
+      const btnSave11Comp = document.getElementById('btnSave11Comp');
+      const btnSaveSheetComp = document.getElementById('btnSaveSheetComp');
+
+      if (data.isAudioTrack) {
+        if (video) { video.pause(); }
+        if (videoContainer) videoContainer.classList.add('hidden');
+        if (audioContainer) {
+          audioContainer.classList.remove('hidden');
+          if (audioPlayer) {
+            audioPlayer.src = data.audio;
+            audioPlayer.load();
+          }
+        }
+        if (btnOpenLeadSheet) btnOpenLeadSheet.classList.remove('hidden');
+        if (btnSave916Comp) btnSave916Comp.classList.add('hidden');
+        if (btnSave11Comp) btnSave11Comp.classList.add('hidden');
+        if (btnSaveSheetComp) btnSaveSheetComp.classList.remove('hidden');
+      } else {
+        if (audioPlayer) { audioPlayer.pause(); }
+        if (audioContainer) audioContainer.classList.add('hidden');
+        if (videoContainer) videoContainer.classList.remove('hidden');
+        if (video) {
+          video.src = data.reel916;
+          video.load();
+        }
+        if (btnOpenLeadSheet) btnOpenLeadSheet.classList.add('hidden');
+        if (btnSave916Comp) btnSave916Comp.classList.remove('hidden');
+        if (btnSave11Comp) btnSave11Comp.classList.remove('hidden');
+        if (btnSaveSheetComp) btnSaveSheetComp.classList.add('hidden');
       }
 
       const titleEl = document.getElementById('compReelTitle');
@@ -1666,16 +1734,21 @@
       if (titleEl) titleEl.innerHTML = `${data.title} <span id="compReelBadge" class="text-[9px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300 mono font-bold">${data.dur}</span>`;
       if (descEl) descEl.innerText = data.desc;
 
-      const keys = ['reel8', 'reel6', 'reel4', 'reel2'];
+      const keys = ['spicewood', 'reel8', 'reel6', 'reel4', 'reel2'];
       const inactiveClass = "py-1.5 px-2.5 rounded-lg text-[11px] font-bold transition-all text-zinc-400 hover:text-zinc-200 flex items-center justify-center gap-1 shrink-0";
       
       keys.forEach(k => {
-        const btn = document.getElementById(`tab${k.charAt(0).toUpperCase() + k.slice(1)}`);
+        const btnId = k === 'spicewood' ? 'tabSpicewood' : `tab${k.charAt(0).toUpperCase() + k.slice(1)}`;
+        const btn = document.getElementById(btnId);
         if (btn) {
           if (k === key) {
-            btn.className = k === 'reel8' 
-              ? "py-1.5 px-2.5 rounded-lg text-[11px] font-bold transition-all bg-[#38BDF8] text-black shadow flex items-center justify-center gap-1 shrink-0"
-              : "py-1.5 px-2.5 rounded-lg text-[11px] font-bold transition-all bg-red-600 text-white shadow flex items-center justify-center gap-1 shrink-0";
+            if (k === 'spicewood') {
+              btn.className = "py-1.5 px-2.5 rounded-lg text-[11px] font-bold transition-all bg-amber-500 text-black shadow flex items-center justify-center gap-1 shrink-0";
+            } else if (k === 'reel8') {
+              btn.className = "py-1.5 px-2.5 rounded-lg text-[11px] font-bold transition-all bg-[#38BDF8] text-black shadow flex items-center justify-center gap-1 shrink-0";
+            } else {
+              btn.className = "py-1.5 px-2.5 rounded-lg text-[11px] font-bold transition-all bg-red-600 text-white shadow flex items-center justify-center gap-1 shrink-0";
+            }
           } else {
             btn.className = inactiveClass;
           }
@@ -1683,11 +1756,50 @@
       });
     };
 
+    window.openCompanionLeadSheet = async function() {
+      try {
+        const res = await fetch('/downloads/spicewood_texas_lead_sheet.md');
+        if (!res.ok) throw new Error('Failed to load lead sheet');
+        const mdText = await res.text();
+
+        currentArtifact = {
+          name: "spicewood_texas_lead_sheet.md",
+          content: mdText,
+          is_markdown: true,
+          is_image: false
+        };
+        artifactModalTitle.innerText = "Spicewood, Texas · Studio Lead Sheet (85 BPM)";
+        artifactModalTypeBadge.innerText = "[LEAD SHEET]";
+        toggleCommentModeBtn.classList.remove("hidden");
+        copyArtifactBtn.classList.remove("hidden");
+        imageMarkupStudio.classList.add("hidden");
+        artifactModalBody.classList.remove("hidden");
+
+        artifactModalBody.innerHTML = renderMarkdown(mdText);
+        attachMarkdownBlockListeners();
+        renderStagedReviewBar();
+
+        copyArtifactBtn.onclick = () => {
+          navigator.clipboard.writeText(mdText).then(() => {
+            copyArtifactBtn.innerText = "COPIED";
+            setTimeout(() => { copyArtifactBtn.innerText = "Copy"; }, 1500);
+          });
+        };
+
+        artifactModal.classList.remove("hidden");
+      } catch (err) {
+        console.error("Open lead sheet error:", err);
+        showToast("Error opening lead sheet: " + err.message, 3000);
+      }
+    };
+
     window.downloadCurrentCompanion = function(type) {
       const data = COMPANION_REELS[activeCompanionReel];
+      if (!data) return;
       if (type === '9:16') downloadOrShareMedia(data.reel916, `${activeCompanionReel}_916.mp4`);
       else if (type === '1:1') downloadOrShareMedia(data.reel11, `${activeCompanionReel}_square.mp4`);
-      else downloadOrShareMedia(data.audio, `${activeCompanionReel}_audio.mp3`);
+      else if (type === 'sheet') downloadOrShareMedia(data.sheet || '/downloads/spicewood_texas_lead_sheet.md', 'spicewood_texas_lead_sheet.md');
+      else downloadOrShareMedia(data.audio, `${activeCompanionReel === 'spicewood' ? 'spicewood_texas_beat_85bpm' : activeCompanionReel}_audio.mp3`);
     };
 
     window.downloadOrShareMedia = async function(url, filename) {
@@ -5135,7 +5247,16 @@
 
       updateAgThemeUI();
       updateMicSourceUI();
-      switchView('voice');
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('sheet') === 'spicewood' || urlParams.get('reel') === 'spicewood' || urlParams.get('tab') === 'downloads') {
+        switchView('downloads');
+        selectCompanionReel('spicewood');
+        if (urlParams.get('sheet') === 'spicewood' || urlParams.get('open_sheet') === '1') {
+          setTimeout(openCompanionLeadSheet, 250);
+        }
+      } else {
+        switchView('voice');
+      }
       connectWebSocket();
       initMarkdownCommenting();
       initImageMarkupStudio();

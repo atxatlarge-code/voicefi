@@ -22,7 +22,7 @@ def test_esc_key_triggers_stop_all_speech():
         mock_set_speaking.assert_called_with(False)
 
 
-def test_mac_say_stop_requested():
+def test_mac_say_stop_requested(tmp_path):
     """Verify MacSayTTS aborts speech and avoids fallback if stop is requested."""
     tts = MacSayTTS(voice="Samantha", rate=200)
 
@@ -31,21 +31,20 @@ def test_mac_say_stop_requested():
         mock_proc.returncode = -9  # Killed by SIGKILL / stop()
         mock_proc.poll.return_value = None
 
-        with patch("subprocess.Popen", return_value=mock_proc) as mock_popen:
-            def _stop_during_wait():
-                tts.stop()
-                return -9
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+            with patch("subprocess.Popen", return_value=mock_proc) as mock_popen:
+                def _stop_during_wait():
+                    tts.stop()
+                    return -9
 
-            mock_proc.wait.side_effect = _stop_during_wait
+                mock_proc.wait.side_effect = _stop_during_wait
 
-            tts.speak("Hello world", block=True)
-            say_calls = [c for c in mock_popen.call_args_list if c[0][0][0] == "say"]
-            assert len(say_calls) == 1
-            cmd_run = say_calls[0][0][0]
-            assert cmd_run[0] == "say"
-            assert "-v" in cmd_run
-            # Fallback should NOT have been called
-            assert len(say_calls) == 1
+                with patch("pathlib.Path.stat") as mock_stat, patch("pathlib.Path.is_file", return_value=True):
+                    mock_stat.return_value = MagicMock(st_size=1024)
+                    tts.speak("Hello world", block=True)
+                afplay_calls = [c for c in mock_popen.call_args_list if c[0][0][0] == "afplay"]
+                assert len(afplay_calls) == 1
 
 
 def test_audio_recorder_esc_cancels_recording():

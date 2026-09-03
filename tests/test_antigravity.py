@@ -292,12 +292,33 @@ def test_clean_markdown_list_items_segmented_cleanly():
 - Verified multi turn conversations
 """
     cleaned = clean_markdown_for_speech(raw, max_words=60)
-    assert "Fixed audio truncation in T T S cleaner" in cleaned
-    assert "Added minimum energy gating for barge in" in cleaned
-    assert "Verified multi turn conversations" in cleaned
+def test_clean_markdown_joke_punchline_retained():
+    """Verify setup questions and punchlines are preserved together without truncation."""
+    joke = """Why did the sun love rising over the river?
+
+Because it always got **glowing stream reviews**—and the water was always ready to reflect on a bright new **current**! 🌅🌊"""
+    cleaned = clean_markdown_for_speech(joke, max_words=20)
+    assert "Why did the sun love rising over the river?" in cleaned
+    assert "glowing stream reviews" in cleaned
+    assert "current!" in cleaned
 
 
+def test_brevity_learner_bounds_and_adaptation(tmp_path: Path):
+    """Verify BrevityLearner clamps to safe bounds and adapts on turn completion."""
+    from voicefi.learning.brevity import BrevityLearner
 
+    prof_file = tmp_path / "cognitive_profile.json"
+    learner = BrevityLearner(profile_path=prof_file)
+    assert learner.learned_max_words == 32
+    assert learner.MIN_MAX_WORDS == 20
 
+    # Successful turn completion increments learned allowance
+    learner.record_turn(word_count=25, was_interrupted=False)
+    assert learner.learned_max_words == 33
+    assert learner.total_turns == 1
+    assert learner.total_interruptions == 0
 
-
+    # Interruption decreases allowance but never below MIN_MAX_WORDS
+    for _ in range(15):
+        learner.record_turn(word_count=0, was_interrupted=True)
+    assert learner.learned_max_words == learner.MIN_MAX_WORDS

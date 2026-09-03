@@ -38,6 +38,8 @@ ENV/
 models/
 *.wav
 *.mp3
+*.mp4
+assets/reels/reel_*/
 .cache/
 
 # User config, credentials & secrets

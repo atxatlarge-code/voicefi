@@ -68,6 +68,40 @@ class CompanionServerTestCase(AioHTTPTestCase):
         assert "Hands-Free Loop" in text
         assert "convSelect" in text
 
+    async def test_get_rc_routes(self):
+        """Test GET /rc and /rc/ serve companion PWA HTML."""
+        resp1 = await self.client.get("/rc")
+        assert resp1.status == 200
+        text1 = await resp1.text()
+        assert "VoiceFi Companion" in text1
+
+        resp2 = await self.client.get("/rc/")
+        assert resp2.status == 200
+        text2 = await resp2.text()
+        assert "VoiceFi Companion" in text2
+
+    async def test_get_spicewood_sheet_api(self):
+        """Test GET /api/sheet/spicewood returns Spicewood lead sheet metadata and markdown."""
+        resp = await self.client.get("/api/sheet/spicewood")
+        assert resp.status == 200
+        data = await resp.json()
+        assert data.get("title") == "Spicewood, Texas"
+        assert data.get("bpm") == 85
+        assert "SPICEWOOD, TEXAS" in data.get("content")
+        assert "Shinra B" in data.get("content")
+
+    async def test_get_spicewood_downloads(self):
+        """Test downloading Spicewood lead sheet and audio beat."""
+        resp_md = await self.client.get("/downloads/spicewood_texas_lead_sheet.md")
+        assert resp_md.status == 200
+        text = await resp_md.text()
+        assert "SPICEWOOD, TEXAS" in text
+
+        resp_mp3 = await self.client.get("/downloads/spicewood_texas_beat_85bpm.mp3")
+        assert resp_mp3.status in (200, 206)
+        assert resp_mp3.content_type == "audio/mpeg"
+        assert resp_mp3.content_length > 1000000
+
     async def test_get_manifest(self):
         """Test GET /manifest.json serves PWA manifest."""
         resp = await self.client.get("/manifest.json")
@@ -326,3 +360,40 @@ def test_cli_companion_invocation():
         assert kwargs["host"] == "0.0.0.0"
         assert kwargs["print_qr"] is False
         assert kwargs["open_browser"] is False
+
+
+def test_cli_rc_alias_parsing():
+    """Test 'vifi rc' and 'vifi RC' CLI parsing."""
+    from voicefi.cli import build_parser
+
+    parser = build_parser()
+    args_rc = parser.parse_args(["rc"])
+    assert args_rc.command in ("companion", "rc")
+
+    args_rc_cap = parser.parse_args(["RC"])
+    assert args_rc_cap.command in ("companion", "RC")
+
+    args_sheet = parser.parse_args(["rc", "sheet"])
+    assert args_sheet.action == "sheet"
+
+    args_flag = parser.parse_args(["rc", "--sheet"])
+    assert args_flag.sheet is True
+
+
+def test_cli_companion_sheet_invocation():
+    """Test 'vifi rc sheet' triggers browser opening to Spicewood sheet."""
+    args = MagicMock()
+    args.port = 5141
+    args.host = "0.0.0.0"
+    args.no_qr = True
+    args.open = False
+    args.config = None
+    args.sheet = True
+    args.action = None
+
+    with patch("voicefi.companion.server.run_companion_server") as mock_run:
+        cmd_companion(args)
+        mock_run.assert_called_once()
+        kwargs = mock_run.call_args.kwargs
+        assert kwargs["open_browser"] is True
+        assert "spicewood" in kwargs["initial_path"]

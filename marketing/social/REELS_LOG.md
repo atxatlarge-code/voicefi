@@ -7,7 +7,7 @@ Master registry of compiled social reels, acoustic benchmarks, video canvas asse
 ## Master Catalog
 
 | ID | Title | Format | Runtime | Cast / Voices | Visual Canvas Style | Status | Master Output |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **REEL-065** | **Respect Your Elders (Retirement Age 65)** | **9:16 Vertical** | **40.0s** | **The Elder (Native Flow) + Viv (en-US-AvaNeural) + Emily (Outro)** | **Hybrid 2D Pencil Flipbook & Live Canvas + True-Sync Kinetic Karaoke** | **MASTERED & APPROVED** | `assets/reels/reel_065_respect_your_elders_9_16.mp4` |
 | **REEL-008** | **10.skills (Make It Known)** | **9:16 Vertical** | **145.5s (2:25.5)** | **Jake (Lead Vocals & Performance) + Claude (Terracotta Coral) + Antigravity (Electric Cyan)** | **Full-Bleed Edge-to-Edge Split Screen + 17-Scene Spicewood Colorado River Visual Storyboard** | **MASTERED & APPROVED** | `assets/reels/reel_008_10_skills_9_16.mp4` |
 | **REEL-006** | **The Speed Listening Challenge** | **9:16 Vertical** | **35.0s** | **Jake (Real Voice) + Viv (400 WPM & 600 WPM Turbo)** | **2D Pencil Flipbook + Live Speedometer Dial** | **MASTERED & APPROVED** | `assets/reels/reel_006_speed_listening_9_16.mp4` |
 | **REEL-005** | **The Glass Wall (400 WPM Brain)** | **9:16 Vertical** | **37.1s** | **Jake (Real Voice) + Viv + Stefan + Christopher + Emily** | **2D Pencil Flipbook + True-Sync Kinetic Karaoke** | **MASTERED & APPROVED** | `assets/reels/reel_005_the_glass_wall_9_16.mp4` |
@@ -15,6 +15,64 @@ Master registry of compiled social reels, acoustic benchmarks, video canvas asse
 | **REEL-003** | **How We Built VoiceFi (True Word Karaoke)** | 9:16 Vertical | 48.0s | Viv + Steffan + Christopher + Emily | 2D Hand-drawn Graphite Pencil Sketchbook | ARCHIVED | `assets/how_we_built_voicefi_true_karaoke_9_16.mp4` |
 | **REEL-002** | **How We Built VoiceFi (Flipbook Video)** | 9:16 Vertical | 48.0s | Viv + Steffan + Christopher + Emily | 2D Hand-drawn Graphite Pencil Animation | ARCHIVED | `assets/how_we_built_voicefi_flipbook_reel_9_16.mp4` |
 | **REEL-001** | **How We Built VoiceFi (Dynamic Island Audio)** | 9:16 Vertical | 48.0s | Viv + Steffan + Christopher + Emily | Dynamic Island Frosted Glass HUD Canvas | ARCHIVED | `assets/how_we_built_voicefi_reel_9_16.mp4` |
+
+---
+
+## REEL-065 Production Specification
+
+* **Title:** `Respect Your Elders · The Retirement Age Voice Revolution` (REEL-065)
+* **Concept:** Industry satire celebrating retirement age 65 and the power of spoken voice. The Seasoned Builder Eric (raised doing deals over the telephone without typing) discovers VoiceFi, realizing an entire generation of Boomers is about to run circles around tech because voice is 3x faster than typing. Viv demonstrates hands-free code execution, spreadsheets, and clicks, followed by Emily's closing call to action.
+* **Canvas Style:** Hybrid 2D architectural pencil sketch background + realistic characters inside mechanical floating orbs with glowing cyan waveforms, checkmarks, and floating spreadsheets.
+* **Aspect Ratio:** 9:16 Vertical Full HD (1080x1920) @ 24fps.
+* **Total Runtime:** 40.00 seconds (5 scenes × 8.0s).
+* **Audio Track:** 44.1kHz Stereo (Master Dialogue + Native Google Flow Dialogue + Procedural NumPy Lo-Fi Bed with -75% Live RMS Voice Ducking and 2.5s outro fade).
+* **Subtitle Engine:** Playwright transparent kinetic batch overlay with Faster-Whisper forced word-level alignment.
+* **Layout Standard:**
+  * Top Speaker Pill: `position: absolute; top: 130px; left: 50%; transform: translateX(-50%)`
+  * Bottom Quotes Card: `position: absolute; bottom: 160px; left: 60px; width: 960px; height: 320px`
+  * Zero-Jitter Text Spans: Words transition in-place from upcoming (low opacity) -> active (glow scale) -> spoken (solid white).
+  * Video Freeze-Hold: `tpad=stop_mode=clone:stop_duration=25` (smooth continuous playback).
+* **Optimization (Zero Mac Freezing):**
+  * `os.nice(15)` background priority keeps macOS UI, mouse, keyboard, and display 100% fluid.
+  * Fast-path rendering with `-threads 4` and `-preset ultrafast -crf 20`.
+* **Master Outputs:**
+  * `assets/reels/reel_065_respect_your_elders_9_16.mp4` (Master 1080x1920 video)
+  * `src/voicefi/companion/static/downloads/reel_065_respect_your_elders_9_16.mp4` (Companion Downloads Hub)
+  * `assets/reel_065_respect_your_elders_master.mp3` (Master mixed audio track)
+
+---
+
+### REEL-065 Turn Breakdown & Ground Truth Alignment
+
+1. **Turn 0 (0.00s – 8.00s): Eric (40 Years on the Phone)**
+   * **Voice:** Native Google Flow character audio (authentic laugh & rotary phone delivery).
+   * **Badge & Glow:** Amber Gold (`#F59E0B`).
+   * **Video Clip:** `clip_0_eric.mp4` (Eric gesturing with vintage telephone inside mechanical floating orb).
+   * **Spoken Quote:** *"Respect your elders. You know who was raised talking to people instead of typing? My generation."*
+
+2. **Turn 1 (8.00s – 16.00s): Viv (Antigravity Main Planner)**
+   * **Voice:** Native Google Flow character audio (100% frame-accurate lip sync, natural conversational pause & smile).
+   * **Badge & Glow:** Electric Blue (`#3186FF`).
+   * **Video Clip:** `clip_1_viv.mp4` (Viv inside glowing orb explaining VoiceFi giving AI agents ears).
+   * **Spoken Quote:** *"And you were right, Eric! VoiceFi gave us ears so you can talk to computers now."*
+
+3. **Turn 2 (16.00s – 24.00s): Eric (40 Years on the Phone)**
+   * **Voice:** Native Google Flow character audio (boisterous laughter & phone handset delivery).
+   * **Badge & Glow:** Amber Gold (`#F59E0B`).
+   * **Video Clip:** `clip_2_eric.mp4` (Eric laughing heartily about an army of Boomers running circles around tech).
+   * **Spoken Quote:** *"Wait until my friends get ahold of this. There's going to be a whole army of Boomers running circles around tech because they can just talk to it."*
+
+4. **Turn 3 (24.00s – 32.00s): Viv (Background AI Subagents)**
+   * **Voice:** Native Google Flow character audio (natural cadence matching code execution & spreadsheet gestures).
+   * **Badge & Glow:** Electric Blue (`#3186FF`).
+   * **Video Clip:** `clip_3_viv.mp4` (Viv gesturing at glowing cyan waveforms and floating spreadsheets).
+   * **Spoken Quote:** *"Tell me what to build, and I'll execute the code, export the spreadsheets, and handle the clicks silently."*
+
+5. **Turn 4 (32.00s – 40.00s): Emily (VoiceFi Closer)**
+   * **Voice:** `en-IE-EmilyNeural` (-2% rate, +0Hz pitch, 1.20s natural lead-in offset).
+   * **Badge & Glow:** Emerald Green (`#10B981`).
+   * **Video Clip:** `clip_4_emily.mp4` (Cute animated microphone robot mascot and illuminated smartphone).
+   * **Spoken Quote:** *"Talking is just faster. Free your voice at voicefi.org."*
 
 ---
 

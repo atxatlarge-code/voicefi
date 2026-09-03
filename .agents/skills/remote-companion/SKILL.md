@@ -28,8 +28,12 @@ Run the companion command from your project root:
 # Launch companion server and print pairing QR code:
 vifi companion
 
-# Or use the shortcut alias:
+# Or use the shortcut aliases:
+vifi rc
 vifi remote
+
+# Open companion directly to the Spicewood, Texas lead sheet & audio beat:
+vifi rc sheet
 ```
 
 This starts the background WebSocket hub on Port `5141` and prints an ASCII QR code directly into your terminal.

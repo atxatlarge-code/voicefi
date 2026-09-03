@@ -44,8 +44,11 @@
   <main class="w-full max-w-md my-auto flex flex-col items-center gap-4 py-3">
     <!-- Reel Selector Pills -->
     <div class="w-full flex items-center justify-start p-1.5 bg-zinc-900/90 border border-zinc-800 rounded-2xl gap-1.5 overflow-x-auto flex-nowrap" style="-webkit-overflow-scrolling: touch; touch-action: pan-x;">
-      <button id="btnReel8" onclick="selectReel('reel8')" class="py-2 px-3 rounded-xl text-xs font-bold transition-all bg-[#38BDF8] text-black font-extrabold shadow-lg flex items-center justify-center gap-1 shrink-0">
-        <span>🎵</span> <span>10.skills by vifi</span> <span class="text-[10px] px-1.5 py-0.2 rounded bg-black/30 text-white">2:25</span>
+      <button id="btnSpicewood" onclick="selectReel('spicewood')" class="py-2 px-3 rounded-xl text-xs font-bold transition-all bg-amber-500 text-black font-extrabold shadow-lg flex items-center justify-center gap-1 shrink-0">
+        <span>🤠</span> <span>Spicewood</span> <span class="text-[10px] px-1.5 py-0.2 rounded bg-black/30 text-white font-mono">85 BPM</span>
+      </button>
+      <button id="btnReel8" onclick="selectReel('reel8')" class="py-2 px-3 rounded-xl text-xs font-bold transition-all text-zinc-400 hover:text-zinc-200 flex items-center justify-center gap-1 shrink-0">
+        <span>🎵</span> <span>10.skills by vifi</span> <span class="text-[10px] px-1.5 py-0.2 rounded bg-zinc-800 text-zinc-400">2:25</span>
       </button>
       <button id="btnReel6" onclick="selectReel('reel6')" class="py-2 px-3 rounded-xl text-xs font-bold transition-all text-zinc-400 hover:text-zinc-200 flex items-center justify-center gap-1 shrink-0">
         <span>⚡</span> <span>Speed Listening</span> <span class="text-[10px] px-1.5 py-0.2 rounded bg-zinc-800 text-zinc-400">35s</span>
@@ -62,26 +65,45 @@
     </div>
 
     <!-- Video Player Preview Container -->
-    <div id="videoBorder" class="relative w-full aspect-[9/16] max-w-[270px] bg-black rounded-3xl overflow-hidden border-2 border-[#38BDF8]/60 shadow-[0_0_40px_rgba(56,189,248,0.3)] flex items-center justify-center">
+    <div id="videoBorder" class="hidden relative w-full aspect-[9/16] max-w-[270px] bg-black rounded-3xl overflow-hidden border-2 border-[#38BDF8]/60 shadow-[0_0_40px_rgba(56,189,248,0.3)] flex items-center justify-center">
       <video id="reelVideo" src="/downloads/reel_008_10_skills_9_16.mp4" playsinline controls loop class="w-full h-full object-cover"></video>
+    </div>
+
+    <!-- Audio Turntable Container -->
+    <div id="audioBorder" class="relative w-full aspect-square max-w-[270px] bg-gradient-to-b from-zinc-900 to-black rounded-3xl p-4 border-2 border-amber-500/60 shadow-[0_0_40px_rgba(245,158,11,0.3)] flex flex-col items-center justify-between text-center">
+      <div class="text-xs uppercase font-mono font-black tracking-wider text-amber-400">Boom Bap 85 BPM</div>
+      <div class="w-32 h-32 rounded-full bg-gradient-to-tr from-zinc-950 via-zinc-800 to-zinc-950 border-4 border-zinc-700/80 shadow-2xl flex items-center justify-center relative mx-auto my-auto animate-[spin_12s_linear_infinite]">
+        <div class="w-12 h-12 rounded-full bg-amber-500 flex items-center justify-center text-black font-black text-[10px] shadow-inner font-mono">
+          85 BPM
+        </div>
+      </div>
+      <div class="w-full mt-2">
+        <audio id="reelAudio" src="/downloads/spicewood_texas_beat_85bpm.mp3" class="w-full h-10" controls preload="metadata"></audio>
+      </div>
     </div>
 
     <!-- Title & Specs -->
     <div class="text-center px-2">
       <h2 id="reelTitle" class="text-base font-black tracking-tight text-white flex items-center justify-center gap-2">
-        🎵 10.skills by vifi · Master Track <span id="reelBadge" class="text-xs px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 mono font-bold">2:25</span>
+        🤠 Spicewood, Texas · Boom Bap Master <span id="reelBadge" class="text-xs px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 mono font-bold">4:48</span>
       </h2>
-      <p id="reelDesc" class="text-xs text-zinc-400 mt-1">Jake's solo live performance + GarageBand master + 17-scene Texas Hill Country Spicewood visual storyboard</p>
+      <p id="reelDesc" class="text-xs text-zinc-400 mt-1">85.0 BPM (Prod. Shinra B) boom bap type beat + complete synchronized lead sheet & measure grid</p>
     </div>
 
     <!-- Download Buttons -->
     <div class="w-full flex flex-col gap-2.5">
-      <!-- Primary: Save Reel to Photos / Downloads -->
-      <a id="btnSave916" href="/downloads/reel_006_speed_listening_9_16.mp4" download="reel_006_speed_listening_9_16.mp4" class="w-full py-3.5 px-5 rounded-2xl bg-[#8B9A46] hover:bg-[#9CB04F] active:scale-[0.98] text-black font-extrabold text-base flex items-center justify-center gap-3 shadow-[0_4px_25px_rgba(139,154,70,0.4)] transition-all">
+      <!-- Lead Sheet Button -->
+      <a id="btnLeadSheet" href="/downloads/spicewood_texas_lead_sheet.md" target="_blank" class="w-full py-3.5 px-5 rounded-2xl bg-amber-500 hover:bg-amber-400 active:scale-[0.98] text-black font-extrabold text-sm flex items-center justify-center gap-2 shadow-[0_4px_25px_rgba(245,158,11,0.4)] transition-all">
+        <span>📜</span>
+        <span>View Lead Sheet Markdown (.md)</span>
+      </a>
+
+      <!-- Primary: Save Reel / Audio to Photos / Downloads -->
+      <a id="btnSave916" href="/downloads/spicewood_texas_beat_85bpm.mp3" download="spicewood_texas_beat_85bpm.mp3" class="w-full py-3.5 px-5 rounded-2xl bg-[#8B9A46] hover:bg-[#9CB04F] active:scale-[0.98] text-black font-extrabold text-base flex items-center justify-center gap-3 shadow-[0_4px_25px_rgba(139,154,70,0.4)] transition-all">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
         </svg>
-        <span>Save 9:16 Video Reel (.mp4)</span>
+        <span id="btnSaveText">Save Master Beat (.mp3)</span>
       </a>
 
       <!-- Secondary: Direct Browser View / Share -->
@@ -100,6 +122,16 @@
 
   <script>
     const REELS_DATA = {
+      spicewood: {
+        title: "🤠 Spicewood, Texas · Boom Bap Master",
+        dur: "4:48",
+        desc: "85.0 BPM (Prod. Shinra B) boom bap type beat + complete synchronized lead sheet & measure grid",
+        audio: "/downloads/spicewood_texas_beat_85bpm.mp3",
+        sheet: "/downloads/spicewood_texas_lead_sheet.md",
+        isAudio: true,
+        themeColor: "#F59E0B",
+        btnColorClass: "bg-amber-500 text-black font-extrabold shadow-lg"
+      },
       reel8: {
         title: "🎵 10.skills by vifi · Master Track",
         dur: "2:25",
@@ -142,27 +174,54 @@
       }
     };
 
-    let activeReelKey = "reel8";
+    let activeReelKey = "spicewood";
 
     function selectReel(key) {
       activeReelKey = key;
       const data = REELS_DATA[key];
+      const videoBorder = document.getElementById('videoBorder');
+      const audioBorder = document.getElementById('audioBorder');
       const video = document.getElementById('reelVideo');
-      video.src = data.reel916;
-      video.load();
+      const audio = document.getElementById('reelAudio');
+      const btnLeadSheet = document.getElementById('btnLeadSheet');
+      const btnSaveText = document.getElementById('btnSaveText');
+      const btnSave916 = document.getElementById('btnSave916');
+
+      if (data.isAudio) {
+        if (video) video.pause();
+        videoBorder.classList.add('hidden');
+        audioBorder.classList.remove('hidden');
+        if (audio) {
+          audio.src = data.audio;
+          audio.load();
+        }
+        if (btnLeadSheet) btnLeadSheet.classList.remove('hidden');
+        if (btnSaveText) btnSaveText.innerText = "Save Master Beat (.mp3)";
+        btnSave916.href = data.audio;
+        btnSave916.download = "spicewood_texas_beat_85bpm.mp3";
+      } else {
+        if (audio) audio.pause();
+        audioBorder.classList.add('hidden');
+        videoBorder.classList.remove('hidden');
+        if (video) {
+          video.src = data.reel916;
+          video.load();
+        }
+        if (btnLeadSheet) btnLeadSheet.classList.add('hidden');
+        if (btnSaveText) btnSaveText.innerText = "Save 9:16 Video Reel (.mp4)";
+        btnSave916.href = data.reel916;
+        btnSave916.download = `${key}_master.mp4`;
+      }
 
       document.getElementById('reelTitle').innerHTML = `${data.title} <span id="reelBadge" class="text-xs px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 mono font-bold">${data.dur}</span>`;
       document.getElementById('reelDesc').innerText = data.desc;
 
-      const btnSave916 = document.getElementById('btnSave916');
-      btnSave916.href = data.reel916;
-      btnSave916.download = `${key}_master.mp4`;
-
-      const keys = ['reel8', 'reel6', 'reel4', 'reel3', 'reel2'];
+      const keys = ['spicewood', 'reel8', 'reel6', 'reel4', 'reel3', 'reel2'];
       const inactiveClass = "py-2 px-3 rounded-xl text-xs font-bold transition-all text-zinc-400 hover:text-zinc-200 flex items-center justify-center gap-1 shrink-0";
       
       keys.forEach(k => {
-        const btn = document.getElementById(`btn${k.charAt(0).toUpperCase() + k.slice(1)}`);
+        const btnId = k === 'spicewood' ? 'btnSpicewood' : `btn${k.charAt(0).toUpperCase() + k.slice(1)}`;
+        const btn = document.getElementById(btnId);
         if (btn) {
           if (k === key) {
             btn.className = `py-2 px-3 rounded-xl text-xs transition-all ${data.btnColorClass} flex items-center justify-center gap-1 shrink-0`;

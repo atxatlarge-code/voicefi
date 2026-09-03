@@ -24,9 +24,9 @@ class BrevityLearner:
 
     _instance: Optional["BrevityLearner"] = None
 
-    DEFAULT_MAX_WORDS = 24
-    MIN_MAX_WORDS = 10
-    MAX_MAX_WORDS = 40
+    DEFAULT_MAX_WORDS = 32
+    MIN_MAX_WORDS = 20
+    MAX_MAX_WORDS = 60
 
     def __init__(self, profile_path: Optional[Path] = None):
         self.profile_path = profile_path or get_cognitive_profile_path()
@@ -49,7 +49,8 @@ class BrevityLearner:
                     data = json.load(f)
                     self.total_turns = data.get("total_turns", 0)
                     self.total_interruptions = data.get("total_interruptions", 0)
-                    self.learned_max_words = data.get("learned_max_words", self.DEFAULT_MAX_WORDS)
+                    raw_words = data.get("learned_max_words", self.DEFAULT_MAX_WORDS)
+                    self.learned_max_words = max(self.MIN_MAX_WORDS, min(self.MAX_MAX_WORDS, raw_words))
             except Exception:
                 self.total_turns = 0
                 self.total_interruptions = 0
@@ -87,7 +88,7 @@ class BrevityLearner:
             self.learned_max_words = max(self.MIN_MAX_WORDS, self.learned_max_words - 2)
         else:
             # User listened through -> gently increase allowance if consistently completed
-            if self.total_turns % 5 == 0 and self.learned_max_words < self.DEFAULT_MAX_WORDS:
+            if self.learned_max_words < self.MAX_MAX_WORDS:
                 self.learned_max_words = min(self.MAX_MAX_WORDS, self.learned_max_words + 1)
 
         self._save_profile()

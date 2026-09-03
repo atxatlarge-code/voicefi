@@ -1352,7 +1352,7 @@ class UnifiedDynamicIslandHUD:
             avatar_bg=NSColor.clearColor(),
             avatar_image=app_icon,
             title=agent_name.capitalize(),
-            tag_text=f"{speaker} [Speaking]",
+            tag_text=f"{speaker} [Speaking • ⇥ Tab to focus]",
             tag_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.3, 0.9, 1.0, 0.95),
             body_text=f'"{clean}"',
             border_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.15, 0.85, 0.95, 0.8),
@@ -1378,9 +1378,6 @@ class UnifiedDynamicIslandHUD:
 
         if source:
             tag = f"{source} • {tag}"
-
-        if self._label:
-            self._label.setStringValue_("Listening... (Speak)")
 
         self._apply_rich_state(
             state="listening",
@@ -1759,8 +1756,6 @@ class UnifiedDynamicIslandHUD:
 
     def show_paused(self, message: str = "Agent Speaking (Paused)..."):
         """Compatibility bridge for DictationHUD.show_paused."""
-        if self._label:
-            self._label.setStringValue_(message)
         self._apply_rich_state(
             state="paused",
             avatar_emoji="",
@@ -1774,8 +1769,6 @@ class UnifiedDynamicIslandHUD:
 
     def show_transcribing(self):
         """Compatibility bridge for DictationHUD.show_transcribing."""
-        if self._label:
-            self._label.setStringValue_("Transcribing...")
         self._apply_rich_state(
             state="transcribing",
             avatar_emoji="",
@@ -1812,8 +1805,6 @@ class UnifiedDynamicIslandHUD:
     def show_done(self, preview_text: str = ""):
         """Compatibility bridge for DictationHUD.show_done."""
         disp = f"{preview_text[:25]}..." if preview_text else "Done"
-        if self._label:
-            self._label.setStringValue_(disp)
         self._apply_rich_state(
             state="done",
             avatar_emoji="",

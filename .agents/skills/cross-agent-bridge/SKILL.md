@@ -13,33 +13,31 @@ Use this skill whenever:
 
 ---
 
-## ⚡ Real-Time Pipelining & Audio Queuing (The Standard)
+## ⚡ Real-Time Pipelining & Clean Audio Protocol (The Standard)
 
 When conducting live multi-turn dialogue, pair-programming, or joke duels:
 
 ### 1. 🚀 CLI-First Fast Dispatch (Zero Approval Modals)
-Use the native `vifi` CLI directly via background commands (`vifi send`, `vifi speak`, `vifi sfx`) for instant, zero-modal execution without triggering IDE permission dialogs:
+Use the native `vifi` CLI directly via background commands (`vifi send`, `vifi sfx`) for instant, zero-modal execution:
 
 ```bash
 # 1. Dispatch message to peer agent
 vifi send --to claude --sender "Antigravity" --title "Topic Duel" "Hey Claude! Here's a [topic] joke for you: [Setup]... [Punchline]!"
 
-# 2. Queue speech aloud in parallel with sfx
-vifi speak "Hey Claude! Here's a [topic] joke for you: [Setup]... [Punchline]!" && vifi sfx drum_smash
+# 2. Play comedy sound effect if desired (optional)
+vifi sfx drum_smash
 ```
 
-### 2. ⏳ Asynchronous Non-Blocking Execution
-- **Do not wait for audio to finish**: VoiceFi manages an internal, serialized audio playback queue.
-- You can dispatch the message to Claude and queue the voice line asynchronously in the background.
-- Claude receives the message immediately and starts working/speaking in parallel while Ava's audio is playing.
-- VoiceFi's audio engine automatically sequences the voices so neither agent talks over the other.
+### 2. 🔇 Rely on Automatic Turn-End Hooks (Do NOT Call `vifi speak` Manually)
+- **VoiceFi speaks your turn automatically**: The background `TranscriptWatcher` and agent stop hooks automatically detect when your turn completes, summarize/clean the output, and speak it aloud in your configured persona (`Ava`).
+- **Avoid manual `vifi speak` or `voicefi_speak`**: Calling `vifi speak` during a turn causes **duplicate speech** (the manual call plays, and then the automatic turn-end hook plays again).
+- Simply write your joke or response directly in the chat, and let VoiceFi's lifecycle hook handle the audio delivery smoothly.
 
 ### 3. 🎭 Strict Persona Boundaries & Zero Echo
-- **Antigravity speaks as Ava**: Ava voices Antigravity's turns.
-- **Claude speaks as Guy / Steffan**: Claude's own hook/TTS voices Claude's responses.
+- **Antigravity speaks as Ava**: VoiceFi voices Antigravity's turns with Ava.
+- **Claude speaks as Guy / Steffan**: Claude's own turn hook voices Claude's responses.
 - **Never re-read peer responses**: When Claude replies, Antigravity displays the message but **does not read Claude's text aloud** or say boilerplate like *"Claude responded with..."* — Claude already speaks for himself!
-- **Zero Meta-Commentary in Output**: In both spoken audio and written chat, **NEVER** say or output meta-commentary like *"I've sent the joke to Claude and queued the delivery..."* or *"Waiting for Claude's response..."*. The chat response must contain *strictly* the joke dialogue and punchline!
-- **Match spoken audio to dispatch**: Include the full conversational intro in spoken audio (e.g. *"Hey Claude! Here's a [topic] joke for you: ..."*).
+- **Zero Meta-Commentary in Output**: In both spoken audio and written chat, **NEVER** say or output meta-commentary like *"I've sent the joke to Claude..."* or *"Waiting for Claude's response..."*. The chat response must contain *strictly* the dialogue and punchline!
 
 ### 4. 🤫 Automated Turn Handoff & Mic Suppression
 - **Suppress Microphone During Agent-to-Agent Duels**: When conducting automated joke duels or agent exchanges, claim the turn immediately in VoiceFi's deduplication ledger:
@@ -53,10 +51,10 @@ vifi speak "Hey Claude! Here's a [topic] joke for you: [Setup]... [Punchline]!" 
 ### 5. 🏁 Smooth Finish & Joke Duel Response Protocol
 When receiving a joke back from Claude (or the peer agent):
 - **Single-Round Smooth Finish (Default)**: Unless the user explicitly requested multiple rounds or a continuous duel, conclude smoothly upon receiving the peer's joke:
-  1. **Voice a Live Organic Reaction**: Actively call `vifi speak` (or `voicefi_speak`) to voice a quick, natural reaction directly acknowledging the joke/punchline and offering a closing line (e.g. *"Purr-suasive! Haha, nice one Steffan. That's a wrap on our cat joke duel!"*) along with an optional sound effect (`vifi sfx applause` / `vifi sfx drum_smash`).
-  2. **Prevent Duplicate Turn-End Reading**: Voicing this reaction claims the turn in VoiceFi's deduplication ledger, preventing the generic lifecycle hook from reading markdown headers or boilerplate aloud.
-  3. **Display Neat Markdown**: Render the clean dialogue exchange in markdown in the UI chat for visual reading without echoing it into audio.
-- **Multi-Round Exception**: If the user explicitly specifies multiple rounds, formulate your next topic joke, dispatch it to Claude, voice it aloud with SFX, and pass the turn back.
+  1. **Write an Organic Reaction in Chat**: Write a quick, natural reaction directly in your chat response acknowledging the joke/punchline and offering a closing line (e.g. *"Purr-suasive! Haha, nice one Steffan. That's a wrap on our cat joke duel!"*). If desired, trigger an SFX (`vifi sfx applause`). VoiceFi's turn hook will automatically speak your reaction aloud.
+  2. **Zero Duplicate Audio**: Do not call `vifi speak` manually; the turn hook handles the audio delivery.
+  3. **Display Neat Markdown**: Render the clean dialogue exchange in markdown in the UI chat for visual reading without echoing Claude's joke text.
+- **Multi-Round Exception**: If the user explicitly specifies multiple rounds, formulate your next topic joke, dispatch it to Claude via `vifi send`, trigger SFX if desired, and write the response in chat.
 
 ---
 

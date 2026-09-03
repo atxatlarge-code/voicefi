@@ -125,6 +125,8 @@ class CompanionServer:
         self.app.router.add_get("/", self.handle_index)
         self.app.router.add_get("/companion", self.handle_index)
         self.app.router.add_get("/companion/", self.handle_index)
+        self.app.router.add_get("/rc", self.handle_index)
+        self.app.router.add_get("/rc/", self.handle_index)
         self.app.router.add_get("/pair", self.handle_pair)
         self.app.router.add_get("/studio", self.handle_studio)
         self.app.router.add_get("/mock", self.handle_mock)
@@ -138,6 +140,7 @@ class CompanionServer:
         self.app.router.add_get("/sw.js", self.handle_sw)
         self.app.router.add_get("/antigravity-particles.js", self.handle_antigravity_js)
         self.app.router.add_get("/assets/antigravity-particles.js", self.handle_antigravity_js)
+        self.app.router.add_get("/api/sheet/spicewood", self.handle_spicewood_sheet)
         self.app.router.add_get("/api/icon", self.handle_icon)
         self.app.router.add_get("/api/status", self.handle_status)
         self.app.router.add_get("/api/stats", self.handle_stats)
@@ -337,27 +340,48 @@ class CompanionServer:
             headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
         )
 
-    async def handle_download_file(self, request: web.Request) -> web.Response:
+    async def handle_download_file(self, request: web.Request) -> web.StreamResponse:
         filename = request.match_info.get("filename")
         if not filename:
             return web.Response(text="Filename missing.", status=400)
-        file_path = STATIC_DIR / "downloads" / filename
+        import urllib.parse
+        decoded = urllib.parse.unquote(filename)
+        file_path = STATIC_DIR / "downloads" / decoded
         if not file_path.is_file():
-            return web.Response(text=f"File {filename} not found.", status=404)
-        mime = (
-            "video/mp4"
-            if filename.endswith(".mp4")
-            else ("audio/mpeg" if filename.endswith(".mp3") else "application/octet-stream")
-        )
-        return web.Response(
-            body=file_path.read_bytes(),
-            content_type=mime,
-            headers={
-                "Content-Disposition": f'attachment; filename="{filename}"',
-                "Content-Length": str(file_path.stat().st_size),
-                "Access-Control-Allow-Origin": "*",
-            },
-        )
+            file_path = STATIC_DIR / "downloads" / filename
+        if not file_path.is_file():
+            alt_path = Path(__file__).resolve().parents[3] / decoded
+            if alt_path.is_file():
+                file_path = alt_path
+            else:
+                return web.Response(text=f"File {filename} not found.", status=404)
+
+        headers = {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Headers": "Range",
+            "Accept-Ranges": "bytes",
+        }
+        if request.query.get("download") == "1":
+            headers["Content-Disposition"] = f'attachment; filename="{decoded}"'
+        else:
+            headers["Content-Disposition"] = f'inline; filename="{decoded}"'
+
+        return web.FileResponse(file_path, headers=headers)
+
+    async def handle_spicewood_sheet(self, request: web.Request) -> web.Response:
+        sheet_path = STATIC_DIR / "downloads" / "spicewood_texas_lead_sheet.md"
+        if not sheet_path.is_file():
+            sheet_path = Path(__file__).resolve().parents[3] / "spicewood_texas_lead_sheet.md"
+        if not sheet_path.is_file():
+            return web.json_response({"error": "Spicewood lead sheet not found"}, status=404)
+        content = sheet_path.read_text(encoding="utf-8")
+        return web.json_response({
+            "title": "Spicewood, Texas",
+            "bpm": 85,
+            "filename": "spicewood_texas_lead_sheet.md",
+            "audio_url": "/downloads/spicewood_texas_beat_85bpm.mp3",
+            "content": content,
+        })
 
     async def handle_manifest(self, request: web.Request) -> web.Response:
         manifest_path = STATIC_DIR / "manifest.json"
@@ -3475,6 +3499,7 @@ def run_companion_server(
     start_ambient_stream: bool = False,
     tunnel: bool = False,
     config: Optional[VoiceFiConfig] = None,
+    initial_path: Optional[str] = None,
 ):
     """Start and run the VoiceFi Companion Server with Universal Remote Relay."""
     urls = get_companion_urls(port)
@@ -3496,7 +3521,12 @@ def run_companion_server(
         if print_qr:
             print_qr_code(universal_url, title="VoiceFi Mobile Companion (5G & Local)")
 
-    target_url = urls["studio_localhost_url"] if open_studio else urls["localhost_url"]
+    if initial_path:
+        base = urls["localhost_url"].rstrip("/")
+        path = initial_path if initial_path.startswith("/") else f"/{initial_path}"
+        target_url = f"{base}{path}"
+    else:
+        target_url = urls["studio_localhost_url"] if open_studio else urls["localhost_url"]
 
     if open_browser:
         import webbrowser

@@ -116,6 +116,8 @@ def set_cross_process_hud_state(
     tool_action: Optional[str] = None,
     tag_text: Optional[str] = None,
     live_stream: bool = False,
+    app_name: Optional[str] = None,
+    conv_id: Optional[str] = None,
 ) -> None:
     """Set cross-process HUD lifecycle state for seamless multi-process dynamic island presentation."""
     try:
@@ -135,6 +137,8 @@ def set_cross_process_hud_state(
             "tool_action": tool_action or "",
             "tag_text": tag_text or "",
             "live_stream": live_stream,
+            "app_name": app_name or "",
+            "conv_id": conv_id or "",
         }
         HUD_STATE_STATUS_FILE.write_text(json.dumps(payload))
     except Exception:
@@ -175,6 +179,9 @@ def set_agent_speaking(
     text: Optional[str] = None,
     agent_name: Optional[str] = None,
     persona_name: Optional[str] = None,
+    app_name: Optional[str] = None,
+    conv_id: Optional[str] = None,
+    workspace_path: Optional[str] = None,
 ) -> None:
     """Set in-process and cross-process indicator that an AI agent is speaking aloud."""
     global _IN_PROCESS_SPEAKING
@@ -194,6 +201,9 @@ def set_agent_speaking(
                 "text": text or "",
                 "agent_name": agent_name or "VoiceFi",
                 "persona_name": persona_name or "Viv",
+                "app_name": app_name or "",
+                "conv_id": conv_id or "",
+                "workspace_path": workspace_path or "",
             }
             AGENT_SPEAKING_STATUS_FILE.write_text(json.dumps(payload))
             set_cross_process_hud_state(
@@ -201,6 +211,8 @@ def set_agent_speaking(
                 text=text or "",
                 agent_name=agent_name or "VoiceFi",
                 persona_name=persona_name or "Viv",
+                app_name=app_name or "",
+                conv_id=conv_id or "",
             )
         else:
             AGENT_SPEAKING_STATUS_FILE.unlink(missing_ok=True)
@@ -330,8 +342,14 @@ def is_agent_speaking() -> bool:
     return get_agent_speaking_info() is not None
 
 
+_LAST_SYSTEM_AUDIO_CHECK = 0.0
+_LAST_SYSTEM_AUDIO_STATE = False
+
+
 def is_system_audio_playing() -> bool:
     """Check if any macOS speech playback process (afplay/say) or streaming audio output is currently producing audio."""
+    global _LAST_SYSTEM_AUDIO_CHECK, _LAST_SYSTEM_AUDIO_STATE
+
     if os.environ.get("PYTEST_CURRENT_TEST"):
         return False
 
@@ -343,17 +361,25 @@ def is_system_audio_playing() -> bool:
     except Exception:
         pass
 
+    now = time.time()
+    if (now - _LAST_SYSTEM_AUDIO_CHECK) < 0.75:
+        return _LAST_SYSTEM_AUDIO_STATE
+
+    _LAST_SYSTEM_AUDIO_CHECK = now
     try:
         res_af = subprocess.run(
             ["pgrep", "-x", "afplay"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
         )
         if res_af.returncode == 0:
+            _LAST_SYSTEM_AUDIO_STATE = True
             return True
         res_say = subprocess.run(
             ["pgrep", "-x", "say"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
         )
-        return res_say.returncode == 0
+        _LAST_SYSTEM_AUDIO_STATE = res_say.returncode == 0
+        return _LAST_SYSTEM_AUDIO_STATE
     except Exception:
+        _LAST_SYSTEM_AUDIO_STATE = False
         return False
 
 
@@ -364,6 +390,12 @@ def is_escape_key(key: Any) -> bool:
     """
     if key is None:
         return False
+
+    # Fast path: macOS virtual key code 53 is Escape
+    vk = getattr(key, "vk", None)
+    if vk == 53:
+        return True
+
     try:
         from pynput.keyboard import Key
 
@@ -373,9 +405,6 @@ def is_escape_key(key: Any) -> bool:
         pass
 
     try:
-        vk = getattr(key, "vk", None)
-        if vk == 53:
-            return True
         name = getattr(key, "name", None)
         if name in ("esc", "escape"):
             return True
@@ -391,6 +420,65 @@ def is_escape_key(key: Any) -> bool:
     except Exception:
         pass
     return False
+
+
+def is_tab_key(key: Any) -> bool:
+    """
+    Universally check if a key event from pynput or Cocoa corresponds to the Tab key.
+    Handles Key.tab, KeyCode(char='\\t'), KeyCode(vk=48), name='tab', raw ASCII, and string representations.
+    """
+    if key is None:
+        return False
+
+    # Fast path: macOS virtual key code 48 is Tab
+    vk = getattr(key, "vk", None)
+    if vk == 48:
+        return True
+
+    try:
+        from pynput.keyboard import Key
+
+        if key == Key.tab:
+            return True
+    except Exception:
+        pass
+
+    try:
+        name = getattr(key, "name", None)
+        if name in ("tab",):
+            return True
+        char = getattr(key, "char", None)
+        if char in ("\t",):
+            return True
+        val = getattr(key, "value", None)
+        if val in (48, "tab"):
+            return True
+        s = str(key)
+        if s in ("Key.tab", "'\\t'", "<48>", "48", "tab"):
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def focus_speaking_window(
+    agent_name: Optional[str] = None,
+    app_name: Optional[str] = None,
+    conv_id: Optional[str] = None,
+) -> bool:
+    """
+    Focus the active application window for the speaking agent or origin.
+    Invoked when pressing Tab while speech is active.
+    """
+    try:
+        from voicefi.integrations.injector import focus_speaking_agent_window
+
+        return focus_speaking_agent_window(
+            agent_name=agent_name, app_name=app_name, conv_id=conv_id
+        )
+    except Exception as e:
+        print(f"[TTS] Notice focusing speaking window: {e}")
+        return False
 
 
 def is_speech_interrupted(turn_start_time: float = 0.0) -> bool:
@@ -418,16 +506,22 @@ _LOCK_DEPTH = 0
 
 
 @contextmanager
-def escape_to_stop_speech():
+def escape_to_stop_speech(
+    agent_name: Optional[str] = None,
+    app_name: Optional[str] = None,
+    conv_id: Optional[str] = None,
+):
     """
-    Spawns a lightweight global keyboard listener while active.
-    If the user presses Escape (Key.esc, vk=53, or char=\\x1b), immediately triggers stop_all_speech().
+    Spawns a lightweight global keyboard listener while speech is active.
+    - Escape (Key.esc, vk=53, or char=\\x1b): immediately triggers stop_all_speech().
+    - Tab (Key.tab, vk=48, or char=\\t): focuses the window/application of the speaking agent.
     """
     if os.environ.get("PYTEST_CURRENT_TEST"):
         yield
         return
 
     listener = None
+    last_tab_time = [0.0]
     try:
         from pynput import keyboard
 
@@ -441,6 +535,15 @@ def escape_to_stop_speech():
                         capture_barge_in_event(device_type="keyboard_esc", is_full_duplex=False)
                     except Exception:
                         pass
+                elif is_tab_key(key):
+                    now = time.time()
+                    if (now - last_tab_time[0]) >= 0.35:
+                        last_tab_time[0] = now
+                        focus_speaking_window(
+                            agent_name=agent_name,
+                            app_name=app_name,
+                            conv_id=conv_id,
+                        )
             except Exception:
                 pass
 
@@ -465,6 +568,9 @@ def speech_turn_lock(
     text: Optional[str] = None,
     agent_name: Optional[str] = None,
     persona_name: Optional[str] = None,
+    app_name: Optional[str] = None,
+    conv_id: Optional[str] = None,
+    workspace_path: Optional[str] = None,
 ):
     """
     Cross-process and cross-thread lock.
@@ -479,7 +585,9 @@ def speech_turn_lock(
         if _LOCK_DEPTH > 0:
             _LOCK_DEPTH += 1
             try:
-                with escape_to_stop_speech():
+                with escape_to_stop_speech(
+                    agent_name=agent_name, app_name=app_name, conv_id=conv_id
+                ):
                     yield
             finally:
                 _LOCK_DEPTH -= 1
@@ -502,7 +610,19 @@ def speech_turn_lock(
             if text:
                 record_recent_speech(text)
 
-            set_agent_speaking(True, text=text, agent_name=agent_name, persona_name=persona_name)
+            speak_kwargs = {
+                "text": text,
+                "agent_name": agent_name,
+                "persona_name": persona_name,
+            }
+            if app_name is not None:
+                speak_kwargs["app_name"] = app_name
+            if conv_id is not None:
+                speak_kwargs["conv_id"] = conv_id
+            if workspace_path is not None:
+                speak_kwargs["workspace_path"] = workspace_path
+
+            set_agent_speaking(True, **speak_kwargs)
 
             # If any previous audio is still playing out of speakers, wait until total silence
             max_wait = 150  # up to 15s
@@ -510,15 +630,28 @@ def speech_turn_lock(
                 time.sleep(0.1)
                 max_wait -= 1
 
+            lock_start_time = time.time()
             # Acquire physical audio output mutex across all OS processes
             owner_label = f"{agent_name or 'agent'}:{persona_name or 'tts'}"
             with exclusive_audio(timeout=30.0, owner=owner_label):
                 # Brief pause for natural conversational handoff between agents
                 if not os.environ.get("PYTEST_CURRENT_TEST"):
                     time.sleep(0.15)
-                with escape_to_stop_speech():
+                with escape_to_stop_speech(
+                    agent_name=agent_name, app_name=app_name, conv_id=conv_id
+                ):
                     yield
         finally:
+            # If speech completed cleanly without interruption, record successful turn in BrevityLearner
+            try:
+                if text and 'lock_start_time' in locals() and not is_speech_interrupted(lock_start_time):
+                    from voicefi.learning.brevity import BrevityLearner
+
+                    word_cnt = len(text.split())
+                    BrevityLearner.get_instance().record_turn(word_count=word_cnt, was_interrupted=False)
+            except Exception:
+                pass
+
             # Acoustic decay margin: allow room reverb / speaker decay to dissipate
             if not os.environ.get("PYTEST_CURRENT_TEST"):
                 time.sleep(0.25)

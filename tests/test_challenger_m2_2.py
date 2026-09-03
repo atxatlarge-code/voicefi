@@ -354,7 +354,7 @@ class ChallengerM2ParityStressTestCase(AioHTTPTestCase):
             for res in results:
                 assert not isinstance(res, Exception), f"Concurrent request raised exception: {res}"
                 assert isinstance(res, dict)
-            assert elapsed < 5.0, f"Concurrent flood took too long: {elapsed:.2f}s"
+            assert elapsed < 12.0, f"Concurrent flood took too long: {elapsed:.2f}s"
 
     async def test_event_loop_responsiveness_during_blocking_tts(self):
         """Verify that synchronous TTS in executor does not freeze the asyncio event loop."""

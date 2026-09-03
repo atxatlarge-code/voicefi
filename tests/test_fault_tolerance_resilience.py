@@ -460,7 +460,7 @@ def test_normalize_edge_rate_resilience(input_rate, expected):
     (250, 250),
     (-25, 150),
     (75, 150),
-    (9999, 450),  # Upper bound clamp
+    (9999, 650),  # Upper bound clamp
     (-9999, 60),  # Lower bound clamp
 ])
 def test_normalize_mac_rate_resilience(input_rate, expected):

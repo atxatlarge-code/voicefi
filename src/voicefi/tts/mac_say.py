@@ -68,13 +68,18 @@ def normalize_mac_rate(rate: any) -> int:
     return 200
 
 
-class MacSayTTS(BaseTTS):
-    """TTS engine powered by macOS native `say` command."""
+import tempfile
 
-    def __init__(self, voice: str = "Samantha", rate: any = 200):
+
+class MacSayTTS(BaseTTS):
+    """TTS engine powered by macOS native `say` command with amplified CoreAudio playback."""
+
+    def __init__(self, voice: str = "Samantha", rate: any = 200, volume: float = 1.0):
         super().__init__()
         self.voice = voice
         self.rate = normalize_mac_rate(rate)
+        self.volume = float(volume) if volume is not None else 1.0
+        self.afplay_vol = str(max(self.volume * 1.6, 1.5))
         self._current_process: Optional[subprocess.Popen] = None
         self._stop_requested = False
 
@@ -90,7 +95,7 @@ class MacSayTTS(BaseTTS):
             self._current_process = None
 
     def speak(self, text: str, block: bool = True) -> None:
-        """Speak text aloud using macOS say with cross-process turn queuing."""
+        """Speak text aloud using macOS say synthesized to AIFF and played via amplified afplay."""
         if not text or not text.strip():
             return
 
@@ -100,7 +105,6 @@ class MacSayTTS(BaseTTS):
 
         clean_text = normalize_tts_text(text)
         self._stop_requested = False
-        cmd = ["say", "-v", self.voice, "-r", str(self.rate), "--", clean_text]
         turn_start_time = time.time()
 
         def _run():
@@ -114,32 +118,56 @@ class MacSayTTS(BaseTTS):
 
                     if self._stop_requested or is_speech_interrupted(turn_start_time):
                         return
+
+                    temp_aiff = tempfile.NamedTemporaryFile(suffix=".aiff", delete=False)
+                    temp_path = Path(temp_aiff.name)
+                    temp_aiff.close()
+
                     try:
-                        set_agent_audio_playing(True)
-                        proc = subprocess.Popen(
-                            cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                        # 1. Synthesize to temporary AIFF file
+                        cmd_synth = [
+                            "say",
+                            "-v",
+                            self.voice,
+                            "-r",
+                            str(self.rate),
+                            "-o",
+                            str(temp_path),
+                            "--",
+                            clean_text,
+                        ]
+                        res = subprocess.run(
+                            cmd_synth, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
                         )
-                        self._current_process = proc
-                        proc.wait()
-                        was_interrupted = (
-                            self._stop_requested
-                            or is_speech_interrupted(turn_start_time)
-                            or (proc.returncode in (-9, -15, 137, 143))
-                        )
-                        if not was_interrupted and proc.returncode != 0:
-                            # Fallback to default system voice only on genuine error (not stop/interrupt)
-                            fallback = subprocess.Popen(
-                                ["say", "--", clean_text],
+                        if res.returncode != 0:
+                            # Fallback without voice flag
+                            subprocess.run(
+                                ["say", "-r", str(self.rate), "-o", str(temp_path), "--", clean_text],
                                 stdout=subprocess.DEVNULL,
                                 stderr=subprocess.DEVNULL,
                             )
-                            self._current_process = fallback
-                            fallback.wait()
+
+                        if (
+                            not self._stop_requested
+                            and not is_speech_interrupted(turn_start_time)
+                            and temp_path.is_file()
+                            and temp_path.stat().st_size > 0
+                        ):
+                            # 2. Play cleanly and loudly via afplay
+                            set_agent_audio_playing(True)
+                            proc = subprocess.Popen(
+                                ["afplay", "-v", self.afplay_vol, str(temp_path)],
+                                stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL,
+                            )
+                            self._current_process = proc
+                            proc.wait()
                     except Exception as e:
                         print(f"[MacSayTTS] Error speaking: {e}")
                     finally:
                         set_agent_audio_playing(False)
                         self._current_process = None
+                        temp_path.unlink(missing_ok=True)
             except DuplicateSpeechSuppressed:
                 return
 

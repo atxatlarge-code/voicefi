@@ -165,6 +165,14 @@ class BenchmarkRunner:
 
         time.sleep = self.fast_sleep
 
+        from voicefi.tts.base import clear_recent_speech_history
+
+        clear_recent_speech_history()
+
+        @contextlib.contextmanager
+        def _mock_null_cm(*args, **kwargs):
+            yield
+
         self.patches = [
             patch("voicefi.config.load_config", return_value=cached_config),
             patch("voicefi.audio.sfx.play_sfx", return_value=True),
@@ -172,6 +180,9 @@ class BenchmarkRunner:
             patch("voicefi.telemetry.record_event", return_value=None),
             patch("voicefi.tts.get_tts_engine", return_value=mock_tts),
             patch("voicefi.cli.get_tts_engine", return_value=mock_tts),
+            patch("voicefi.tts.base.is_duplicate_speech", return_value=False),
+            patch("voicefi.tts.base.speech_turn_lock", side_effect=_mock_null_cm),
+            patch("voicefi.audio.output_lock.exclusive_audio", side_effect=_mock_null_cm),
             patch(
                 "voicefi.troubleshoot.AudioTroubleshooter.ping_voice_silently",
                 return_value=MOCK_PING_RESULT,

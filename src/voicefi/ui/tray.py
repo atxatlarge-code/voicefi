@@ -1889,6 +1889,9 @@ class VoiceFiTrayApp(rumps.App):
 
     def _start_global_hotkey_listener(self):
         """Unified global hotkey listener using pynput with macOS virtual key codes and ASCII control support."""
+        if not getattr(self.config.global_hotkey, "enabled", True):
+            return
+
         try:
             import ApplicationServices
 
@@ -1904,6 +1907,8 @@ class VoiceFiTrayApp(rumps.App):
             try:
                 from pynput import keyboard
                 from pynput.keyboard import Key
+                from voicefi.tts.base import is_escape_key, is_tab_key, is_agent_speaking
+                from voicefi.integrations.injector import focus_speaking_agent_window
 
                 modifiers = set()
                 last_triggers = {}
@@ -1937,22 +1942,37 @@ class VoiceFiTrayApp(rumps.App):
                         alt = "alt" in modifiers
                         mod = ctrl or cmd
 
-                        # 1. Escape: stop speech (and open mic if auto_listen is ON) or cancel recording
-                        from voicefi.tts.base import is_escape_key
+                        # Instant Fast-Path: If no modifiers are held and key is not special (Esc, Tab, Enter),
+                        # early-exit in microseconds to guarantee zero typing latency on macOS WindowServer.
+                        if not (mod or alt or char == "√"):
+                            if vk not in (53, 48, 36, 76) and key not in (Key.esc, Key.tab, Key.enter):
+                                return
 
+                        # 1. Escape: stop speech (and open mic if auto_listen is ON) or cancel recording
                         if is_escape_key(key):
                             self.handle_escape_press()
                             return
 
-                        # 2. Enter while recording: finish active recording immediately
-                        is_recording = (
-                            self._current_status
-                            in ("listening", "hearing", "ptt_listening", "new_conversation")
-                            or self.active_recorder is not None
-                        )
-                        if is_recording and (key == Key.enter or vk in (36, 76)):
-                            self.finish_active_recording()
+                        # 1.5 Tab while speaking: focus the window where speech originated
+                        if is_tab_key(key):
+                            is_speaking = (
+                                self._current_status == "speaking"
+                                or is_agent_speaking()
+                            )
+                            if is_speaking and _debounce("tab_focus", interval=0.35):
+                                focus_speaking_agent_window()
                             return
+
+                        # 2. Enter while recording: finish active recording immediately
+                        if key == Key.enter or vk in (36, 76):
+                            is_recording = (
+                                self._current_status
+                                in ("listening", "hearing", "ptt_listening", "new_conversation")
+                                or self.active_recorder is not None
+                            )
+                            if is_recording:
+                                self.finish_active_recording()
+                                return
 
                         # 3. New Conversation with Connected Tools (Cmd+Shift+N or Ctrl+Shift+N)
                         if mod and shift and (vk == 45 or char in ("n", "N", "\x0e")):
@@ -2035,6 +2055,18 @@ class VoiceFiTrayApp(rumps.App):
                         if is_alt:
                             modifiers.discard("alt")
 
+                        is_modifier_release = is_ctrl or is_cmd or is_alt
+                        is_active_recording = (
+                            self._current_status
+                            in ("listening", "hearing", "ptt_listening", "new_conversation")
+                            or self.active_recorder is not None
+                        )
+
+                        # Instant Fast-Path: If not actively recording and not releasing a modifier,
+                        # exit immediately to prevent release event overhead.
+                        if not is_active_recording and not is_modifier_release:
+                            return
+
                         is_respond_key = (
                             vk in (15, 9)
                             or char in ("r", "R", "\x12", "v", "V", "√", "\x16")
@@ -2043,13 +2075,6 @@ class VoiceFiTrayApp(rumps.App):
                         is_dictate_key = vk == 17 or char in ("t", "T", "\x14")
                         is_new_conv_key = vk == 45 or char in ("n", "N", "\x0e")
                         is_action_key = is_respond_key or is_dictate_key or is_new_conv_key
-                        is_modifier_release = is_ctrl or is_cmd or is_alt
-
-                        is_active_recording = (
-                            self._current_status
-                            in ("listening", "hearing", "ptt_listening", "new_conversation")
-                            or self.active_recorder is not None
-                        )
 
                         if is_active_recording:
                             # If pure PTT mode: any release of the trigger key or modifier stops recording
@@ -2077,11 +2102,40 @@ class VoiceFiTrayApp(rumps.App):
                     except Exception as e:
                         print(f"[Tray] Hotkey release notice: {e}")
 
-                listener = keyboard.Listener(on_press=on_press, on_release=on_release)
+                def _darwin_intercept(event_type, event):
+                    try:
+                        import Quartz
+
+                        if event_type in (Quartz.kCGEventKeyDown, Quartz.kCGEventKeyUp):
+                            flags = Quartz.CGEventGetFlags(event)
+                            vk = Quartz.CGEventGetIntegerValueField(
+                                event, Quartz.kCGKeyboardEventKeycode
+                            )
+                            alt = bool(flags & Quartz.kCGEventFlagMaskAlternate)
+                            cmd = bool(flags & Quartz.kCGEventFlagMaskCommand)
+                            ctrl = bool(flags & Quartz.kCGEventFlagMaskControl)
+                            shift = bool(flags & Quartz.kCGEventFlagMaskShift)
+
+                            # 1. Suppress Option+V (vk 9 + Alt without Cmd/Ctrl) to prevent '√' symbol from being typed into active inputs
+                            if alt and not cmd and not ctrl and vk == 9:
+                                return None
+
+                            # 2. Suppress Shift+Option+Space (vk 49 + Alt + Shift without Cmd/Ctrl) to prevent non-breaking space '\u00A0'
+                            if alt and shift and not cmd and not ctrl and vk == 49:
+                                return None
+                    except Exception:
+                        pass
+                    return event
+
+                listener = keyboard.Listener(
+                    on_press=on_press,
+                    on_release=on_release,
+                    darwin_intercept=_darwin_intercept,
+                )
                 listener.daemon = True
                 listener.start()
                 print(
-                    "[VoiceFi] ⌨️ Unified global hotkeys active: ⌥V / Ctrl+V / Ctrl+R (Prompt Agent), Cmd+Shift+N (New Conv), Ctrl+J / Cmd+J (Jump), Ctrl+T (Dictate), Ctrl+Shift+J (Hub)"
+                    "[VoiceFi] ⌨️ Unified global hotkeys active: ⌥V (Suppressed √) / Ctrl+V / Ctrl+R (Prompt Agent), Cmd+Shift+N (New Conv), Ctrl+J / Cmd+J (Jump), Ctrl+T (Dictate), Ctrl+Shift+J (Hub)"
                 )
             except Exception as e:
                 print(f"[Tray] Hotkey listener notice: {e}")

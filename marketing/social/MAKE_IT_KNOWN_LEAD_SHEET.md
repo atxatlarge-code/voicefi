@@ -8,7 +8,7 @@
 ---
 
 ## ⏱️ Song Arrangement Timeline
-
+   
 ```text
 [0:00 - 0:15]  ──►  INTRO (Guitar solo + casual spoken ad-libs)
 [0:15 - 0:45]  ──►  CHORUS 1 (Drums drop, sing-song melodic hook)
@@ -127,18 +127,18 @@ Speak aloud, MAKE IT KNOWN!
 [1:16 - 1:47]  CHORUS 2 (Big Hook Replay — Layered Vocal Harmonies)
 =============================================================================
 
-Ooh, I don’t even touch the keys no MORE
-                                    💥
+Ooh, I don’t even touch the keyboarde no MORE
+                                         💥
 (Ad-lib Left: Yeah!)
 
-Got the agents talkin' back while I be walkin out the DOOR!
-                                                      💥
+Got the agents talkin' back while I be wal-king out the DOOR!
+                                                        💥
 (Ad-lib Right: Walk it out!)
 
 Hands-free, high-def, everything is SMOOTH
                                      💥
 
-Voice in the pocket, locked into the GROOVE
+Voices in my pocket, locked into the GROOVE
                                      💥
 
 Ooh, I don’t even type a word all DAY
@@ -150,9 +150,9 @@ Just a whisper in the room and it’s on the WAY!
 
 Zero-millisecond latency, clean sound DESIGN
                                       💥
-
-Lookin' like the future crossin' finish LINE!
-                                        💥
+ 
+Lookin' like the future crossin' the finish LINE!
+                                            💥
 ```
 
 ```text

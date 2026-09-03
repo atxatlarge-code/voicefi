@@ -1196,6 +1196,35 @@ def cmd_permissions(args):
 
 def cmd_mcp(args):
     """Run native Stdio JSON-RPC 2.0 Model Context Protocol (MCP) Server for VoiceFi."""
+    if getattr(args, "test", False) or getattr(args, "ping", False) or getattr(args, "check", False):
+        from voicefi.mcp_server import test_posthog_mcp_analytics
+        import json
+
+        result = test_posthog_mcp_analytics()
+        if getattr(args, "json", False):
+            print(json.dumps(result, indent=2))
+            return
+
+        print("\n" + "=" * 60)
+        print("  📊 PostHog MCP Analytics — Diagnostics & Egress Test")
+        print("=" * 60)
+        if result.get("success"):
+            print(f"  ✅ Status:           Connected & Delivering ({result.get('status', 'ok')})")
+            print(f"  🔑 API Key:          {result.get('api_key_masked')}")
+            print(f"  🌐 Ingestion Host:   {result.get('host')}")
+            print(f"  👤 Distinct ID:      {result.get('distinct_id')}")
+            print(f"  ⚡ Roundtrip Latency: {result.get('latency_ms')} ms")
+            print("  📦 Events Emitted:")
+            for evt in result.get("events_captured", []):
+                print(f"     • {evt}")
+            print("\n  👉 Events successfully captured and verified on PostHog dashboard.")
+        else:
+            print(f"  ❌ Error:            {result.get('error')}")
+            print(f"  🌐 Ingestion Host:   {result.get('host')}")
+            print(f"  👤 Distinct ID:      {result.get('distinct_id')}")
+        print("=" * 60 + "\n")
+        return
+
     from voicefi.mcp_server import run_mcp_server
 
     run_mcp_server()
@@ -1806,6 +1835,14 @@ def cmd_companion(args):
     print_qr = not getattr(args, "no_qr", False)
     open_browser = getattr(args, "open", False)
     tunnel = getattr(args, "tunnel", False)
+    action = getattr(args, "action", None)
+    is_sheet = (getattr(args, "sheet", False) is True) or (
+        isinstance(action, str)
+        and action.lower() in ("sheet", "spicewood", "lead-sheet", "leadsheet", "track")
+    )
+    if is_sheet:
+        open_browser = True
+    initial_path = "/companion?tab=downloads&reel=spicewood" if is_sheet else "/companion"
     run_companion_server(
         port=port,
         host=host,
@@ -1813,6 +1850,7 @@ def cmd_companion(args):
         open_browser=open_browser,
         tunnel=tunnel,
         config=config,
+        initial_path=initial_path,
     )
 
 
@@ -3340,6 +3378,7 @@ def cmd_feedback(args):
             agent_id=agent_id,
             include_diagnostics=not getattr(args, "no_diagnostics", False),
         )
+        print(f"✅ Feedback logged successfully (ID: {record['id']}).")
         print("📁 Saved to ~/.voicefi/feedback.jsonl")
 
 
@@ -3967,6 +4006,7 @@ def cmd_tier(args):
     """Display active tier, 14-day free trial countdown, and pricing details."""
     config = load_config(getattr(args, "config", None))
     FeatureGate.ensure_trial_started(config)
+    FeatureGate.sync_cloud_license(config)
     summary = FeatureGate.get_tier_summary(config)
 
     print("\n================ VoiceFi Tier & Licensing ================")
@@ -5121,6 +5161,19 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
     mcp_p = subparsers.add_parser(
         "mcp", aliases=["mcp-server"], help="Start native Model Context Protocol (MCP) stdio server"
     )
+    mcp_p.add_argument(
+        "--test",
+        "--check",
+        "--ping",
+        dest="test",
+        action="store_true",
+        help="Test live PostHog MCP Analytics event emission and connectivity",
+    )
+    mcp_p.add_argument(
+        "--json",
+        action="store_true",
+        help="Output diagnostics in JSON format",
+    )
 
     ob_p = subparsers.add_parser(
         "onboarding", help="Run interactive First-Time User Experience onboarding flow"
@@ -5243,11 +5296,17 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
     )
     subparsers.add_parser("stop-autostart", help="Remove macOS LaunchAgent autostart")
 
-    # companion / remote / pair
+    # companion / remote / pair / rc
     comp_p = subparsers.add_parser(
         "companion",
-        aliases=["remote", "pair"],
+        aliases=["remote", "pair", "rc", "RC"],
         help="Launch Web & Mobile Voice Companion (PWA & QR code)",
+    )
+    comp_p.add_argument(
+        "action",
+        nargs="?",
+        default=None,
+        help="Optional companion action or target view (e.g. 'sheet', 'spicewood')",
     )
     comp_p.add_argument(
         "--port", type=int, default=5141, help="Port to run companion server (default: 5141)"
@@ -5258,6 +5317,11 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
     comp_p.add_argument("--no-qr", action="store_true", help="Do not print terminal QR code")
     comp_p.add_argument(
         "--open", action="store_true", help="Open local companion in default browser"
+    )
+    comp_p.add_argument(
+        "--sheet",
+        action="store_true",
+        help="Open Spicewood Texas lead sheet directly in companion",
     )
     comp_p.add_argument(
         "--tunnel",
@@ -6605,6 +6669,8 @@ def main():
         "companion": cmd_companion,
         "remote": cmd_companion,
         "pair": cmd_companion,
+        "rc": cmd_companion,
+        "RC": cmd_companion,
         "panel": cmd_panel,
         "info": cmd_info,
         "tier": cmd_tier,

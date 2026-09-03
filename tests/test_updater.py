@@ -93,11 +93,18 @@ def test_perform_update_flow():
 
 def test_pro_auto_updater_feature_gate():
     """Verify auto-updater requires Pro tier license."""
-    community_cfg = VoiceFiConfig(tier="community", auto_update=True, trial_started_at=1000.0, trial_duration_days=14)
-    assert not FeatureGate.can_use_feature("auto_update", community_cfg)
+    from voicefi.license import compute_trial_hmac, get_hardware_identifier
 
-    pro_cfg = VoiceFiConfig(tier="pro", license_key="PRO-123456", auto_update=True)
-    assert FeatureGate.can_use_feature("auto_update", pro_cfg)
+    hw_id = get_hardware_identifier()
+    seal = compute_trial_hmac(1000.0, hw_id, 14)
+    with patch("voicefi.license.load_secondary_receipt", return_value=None):
+        community_cfg = VoiceFiConfig(
+            tier="community", auto_update=True, trial_started_at=1000.0, trial_seal=seal, trial_duration_days=14
+        )
+        assert not FeatureGate.can_use_feature("auto_update", community_cfg)
+
+        pro_cfg = VoiceFiConfig(tier="pro", license_key="PRO-123456", auto_update=True)
+        assert FeatureGate.can_use_feature("auto_update", pro_cfg)
 
 
 def test_cmd_update_cli_check_flag(capsys):

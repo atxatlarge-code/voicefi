@@ -1044,3 +1044,123 @@ def send_message_to_agent(
             from_conv_id=from_conv_id,
             allow_foreground_fallback=allow_foreground_fallback,
         )
+
+
+def focus_app_by_name(app_name: str) -> bool:
+    """
+    Bring any macOS application to the front by its localized name.
+    Uses AppKit NSWorkspace with NSApplicationActivateIgnoringOtherApps (1 << 1),
+    falling back to AppleScript.
+    """
+    if not app_name or not app_name.strip():
+        return False
+    target = app_name.strip()
+
+    # 1. Try native AppKit NSWorkspace
+    try:
+        from AppKit import NSWorkspace
+
+        ws = NSWorkspace.sharedWorkspace()
+        for app in ws.runningApplications():
+            loc_name = app.localizedName()
+            if loc_name and (
+                loc_name.lower() == target.lower() or target.lower() in loc_name.lower()
+            ):
+                app.activateWithOptions_(1 << 1)
+                return True
+    except Exception:
+        pass
+
+    # 2. Fallback to AppleScript
+    applescript = f'''
+    tell application "System Events"
+        if exists (process "{target}") then
+            tell application "{target}" to activate
+            return true
+        end if
+    end tell
+    try
+        tell application "{target}" to activate
+        return true
+    on error
+        return false
+    end try
+    '''
+    try:
+        res = subprocess.run(
+            ["osascript", "-e", applescript],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=2,
+        )
+        return "true" in res.stdout.lower()
+    except Exception:
+        return False
+
+
+def focus_speaking_agent_window(
+    agent_name: Optional[str] = None,
+    app_name: Optional[str] = None,
+    conv_id: Optional[str] = None,
+) -> bool:
+    """
+    Focus the window/application where the current or most recent speech turn originated.
+    Invoked when pressing Tab while an AI agent is speaking aloud.
+    Supports Antigravity, Claude Code, ChatGPT, IDEs, and custom app targets.
+    """
+    # 1. If arguments not provided, dynamically read from active speaking status or cross-process HUD state
+    if not agent_name and not app_name:
+        try:
+            from voicefi.tts.base import get_agent_speaking_info, get_cross_process_hud_state
+
+            info = get_agent_speaking_info() or get_cross_process_hud_state()
+            if info and isinstance(info, dict):
+                agent_name = agent_name or info.get("agent_name")
+                app_name = app_name or info.get("app_name")
+                conv_id = conv_id or info.get("conv_id")
+        except Exception:
+            pass
+
+    # Update active conversation tracking if conv_id is present
+    if conv_id:
+        try:
+            from voicefi.integrations.conversations import ConversationTracker
+
+            ConversationTracker().set_active_focus(conv_id)
+        except Exception:
+            pass
+
+    agent_lower = (agent_name or "").lower()
+    app_lower = (app_name or "").lower()
+
+    # 2. Route based on agent/app identity:
+    # 2a. Claude Code or Claude Desktop
+    if "claude" in agent_lower or "claude" in app_lower:
+        print("[Injector] 🎯 Tab to Focus: Focusing Claude / Terminal window...")
+        if focus_terminal_app():
+            return True
+        if _focus_and_click_claude_desktop():
+            return True
+        return focus_app_by_name("Claude")
+
+    # 2b. ChatGPT Desktop
+    if "chatgpt" in agent_lower or "openai" in agent_lower or "chatgpt" in app_lower:
+        print("[Injector] 🎯 Tab to Focus: Focusing ChatGPT window...")
+        return focus_chatgpt(focus_input=True)
+
+    # 2c. Specific app name provided (e.g. Ghostty, Cursor, Code, Terminal, Warp, Obsidian, etc.)
+    if app_name and app_lower not in ("antigravity", "antigravity ide", "voicefi", "viv", "agent"):
+        print(f"[Injector] 🎯 Tab to Focus: Focusing {app_name} window...")
+        if focus_app_by_name(app_name):
+            return True
+
+    # 2d. Antigravity / Subagents / Default
+    print(f"[Injector] 🎯 Tab to Focus: Focusing Antigravity window (agent: {agent_name or 'Antigravity'})...")
+    focused = focus_antigravity(focus_input=True)
+    if not focused and app_name:
+        focused = focus_app_by_name(app_name)
+    if not focused:
+        focused = bool(focus_terminal_app())
+    return focused
+

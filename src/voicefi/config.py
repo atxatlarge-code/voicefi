@@ -450,6 +450,7 @@ class VoiceFiConfig(BaseModel):
     tier: str = "community"
     license_key: str = ""
     org_code: str = ""
+    last_license_sync: Optional[float] = None  # Epoch timestamp of last cloud renewal sync
     trial_started_at: Optional[float] = None  # Epoch timestamp when 14-day free trial started
     trial_seal: Optional[str] = None  # Cryptographic hardware-anchored HMAC seal against tampering
     trial_duration_days: int = 14  # 14-day trial duration

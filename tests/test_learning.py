@@ -67,21 +67,21 @@ def test_brevity_learner_barge_in_adaptation(temp_learning_env):
     _, b_learner, _ = temp_learning_env
     
     initial_limit = b_learner.get_optimal_max_words()
-    assert initial_limit == 24
+    assert initial_limit == 32
 
     # Developer interrupted turn
     b_learner.record_turn(word_count=35, was_interrupted=True)
-    assert b_learner.get_optimal_max_words() == 22
+    assert b_learner.get_optimal_max_words() == 30
     assert b_learner.total_interruptions == 1
     assert b_learner.get_interruption_rate() == 1.0
 
     # Another interruption dials down further
     b_learner.record_turn(word_count=30, was_interrupted=True)
-    assert b_learner.get_optimal_max_words() == 20
+    assert b_learner.get_optimal_max_words() == 28
 
     long_text = "This is a very long response that explains every single detail of the architecture including all classes, functions, and endpoints without stopping."
     soundbite = b_learner.format_soundbite(long_text)
-    assert len(soundbite.split()) <= 20
+    assert len(soundbite.split()) <= 28
 
 
 def test_developer_normalizer_integration(temp_learning_env):

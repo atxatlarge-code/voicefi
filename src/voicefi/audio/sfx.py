@@ -313,12 +313,16 @@ def play_sfx(name: str, block: bool = False, volume: float = 1.0) -> bool:
 
 
 def strip_inline_sfx_tags(text: str) -> str:
-    """Remove inline SFX tags like [sfx:rimshot] or [rimshot] from spoken text."""
+    """Remove inline SFX tags like [sfx:rimshot], [sfx:drum_smash], or [rimshot] from spoken text."""
     if not text:
         return ""
-    # Strip [sfx:name] or [sfx name]
-    cleaned = re.sub(r"\[sfx:?\s*([a-zA-Z_-]+)\]", "", text, flags=re.IGNORECASE)
-    # Strip standalone [rimshot], [honk], [applause], [sad_trombone], [boing], [crickets]
-    known = "|".join(list_available_sfx() + list(ALIASES.keys()))
-    cleaned = re.sub(rf"\[({known})\]", "", cleaned, flags=re.IGNORECASE)
+    # Strip [sfx:name], [sfx name], (sfx:name), {sfx:name}
+    cleaned = re.sub(r"[\[\(\{]\s*sfx:?\s*([a-zA-Z0-9_-]+)\s*[\]\)\}]", "", text, flags=re.IGNORECASE)
+    # Strip standalone [rimshot], [honk], [applause], [sad_trombone], [boing], [crickets], [drum_smash], etc.
+    try:
+        known = "|".join(list_available_sfx() + list(ALIASES.keys()))
+        cleaned = re.sub(rf"\[({known})\]", "", cleaned, flags=re.IGNORECASE)
+    except Exception:
+        pass
     return " ".join(cleaned.split()).strip()
+
