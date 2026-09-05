@@ -6,7 +6,7 @@ its internal content across agent lifecycle states:
 - IDLE: "🎙️ VoiceFi • Ready (⇧⌘N)"
 - THINKING: Reasoning indicator ("🧠 Antigravity • Thinking...")
 - WORKING: Tool action card ("⚡ Antigravity • Running pytest...")
-- SPEAKING: Live speech subtitles ("🧔 Antigravity • Christopher 🔊 [Speaking]")
+- SPEAKING: Live speech subtitles ("Antigravity • Viv [Speaking • Esc to stop]")
 - LISTENING: Microphone VAD indicator with live typing stream ("🎙️ Listening (Jake) • Live Stream")
 - EDITING: Interactive review & edit capsule before prompt submission ("✏️ Review & Edit Prompt")
 - PAUSED / TRANSCRIBING / DONE: Acoustic state indicators
@@ -218,9 +218,11 @@ except objc.nosuchclass_error:
             return False
 
         def hitTest_(self, point):
+            if self.isHidden():
+                return None
             try:
-                converted = self.convertPoint_fromView_(point, None)
-                if objc.lookUpClass("Foundation").NSPointInRect(converted, self.bounds()):
+                from Foundation import NSPointInRect
+                if NSPointInRect(point, self.frame()):
                     return self
             except Exception:
                 pass
@@ -297,6 +299,10 @@ except objc.nosuchclass_error:
                     .initWithRect_options_owner_userInfo_(self.bounds(), options, self, None)
                 )
                 self.addTrackingArea_(self.tracking_area)
+                try:
+                    self.setToolTip_("Acoustic & VAD Inspector (Click to configure)")
+                except Exception:
+                    pass
             return self
 
         def acceptsFirstMouse_(self, event):
@@ -306,9 +312,14 @@ except objc.nosuchclass_error:
             return False
 
         def hitTest_(self, point):
-            converted = self.convertPoint_fromView_(point, None)
-            if objc.lookUpClass("Foundation").NSPointInRect(converted, self.bounds()):
-                return self
+            if self.isHidden():
+                return None
+            try:
+                from Foundation import NSPointInRect
+                if NSPointInRect(point, self.frame()):
+                    return self
+            except Exception:
+                pass
             return objc.super(VADAudioVisualizerView, self).hitTest_(point)
 
         def mouseEntered_(self, event):
@@ -320,9 +331,12 @@ except objc.nosuchclass_error:
             self.setNeedsDisplay_(True)
 
         def resetCursorRects(self):
-            self.addCursorRect_cursor_(
-                self.bounds(), objc.lookUpClass("NSCursor").pointingHandCursor()
-            )
+            try:
+                self.addCursorRect_cursor_(
+                    self.bounds(), objc.lookUpClass("NSCursor").pointingHandCursor()
+                )
+            except Exception:
+                pass
 
         def mouseDown_(self, event):
             try:
@@ -777,7 +791,7 @@ class UnifiedDynamicIslandHUD:
             self._visualizer = VADAudioVisualizerView.alloc().initWithFrame_(
                 NSRect(NSPoint(344, 29), NSSize(46, 22))
             )
-            self._visualizer.setHidden_(True)
+            self._visualizer.setHidden_(False)
             self._root_view.addSubview_(self._visualizer)
             self._vad_btn = None
         except Exception:
@@ -1070,14 +1084,38 @@ class UnifiedDynamicIslandHUD:
                     self._app_box.setHidden_(True)
 
             # Title & Tag (Top row)
+            title_w = 75.0
             if self._title_lbl:
                 self._title_lbl.setHidden_(False)
                 self._title_lbl.setStringValue_(title)
+                try:
+                    if hasattr(self._title_lbl, "sizeToFit"):
+                        self._title_lbl.sizeToFit()
+                        f = self._title_lbl.frame()
+                        if hasattr(f, "size") and hasattr(f.size, "width"):
+                            title_w = max(40.0, min(float(f.size.width), 130.0))
+                    if hasattr(self._title_lbl, "setFrame_"):
+                        self._title_lbl.setFrame_(NSRect(NSPoint(60, 32), NSSize(title_w, 18)))
+                except Exception:
+                    pass
 
             if self._tag_lbl:
                 self._tag_lbl.setHidden_(False)
                 self._tag_lbl.setStringValue_(tag_text)
                 self._tag_lbl.setTextColor_(tag_color)
+                tag_x = 60.0 + title_w + 8.0
+                tag_w = max(100.0, 340.0 - tag_x)
+                try:
+                    if hasattr(self._tag_lbl, "setFrame_"):
+                        self._tag_lbl.setFrame_(NSRect(NSPoint(tag_x, 32), NSSize(tag_w, 18)))
+                except Exception:
+                    pass
+
+            if hasattr(self, "_root_view") and self._root_view and hasattr(self._root_view, "setToolTip_"):
+                if state == "speaking":
+                    self._root_view.setToolTip_("Speaking • Press Esc to stop (or click HUD)")
+                else:
+                    self._root_view.setToolTip_("VoiceFi Dynamic Island HUD")
 
             # Body Text (Bottom row)
             if self._body_lbl:
@@ -1087,9 +1125,9 @@ class UnifiedDynamicIslandHUD:
             # VAD Real-Time Audio Visualizer
             if getattr(self, "_visualizer", None):
                 hud_cfg = getattr(self.config, "hud", None) if hasattr(self, "config") else None
-                always_on = getattr(hud_cfg, "always_on_vad", True)
+                always_on = getattr(hud_cfg, "always_on_vad", True) if hud_cfg is not None else True
 
-                if always_on or state in ("listening", "new_conversation", "speaking"):
+                if always_on or state in ("listening", "new_conversation", "speaking", "idle"):
                     self._visualizer.setHidden_(False)
                     if getattr(self, "_vad_btn", None):
                         self._vad_btn.setHidden_(False)
@@ -1352,7 +1390,7 @@ class UnifiedDynamicIslandHUD:
             avatar_bg=NSColor.clearColor(),
             avatar_image=app_icon,
             title=agent_name.capitalize(),
-            tag_text=f"{speaker} [Speaking • ⇥ Tab to focus]",
+            tag_text=f"{speaker} [Speaking • Esc to stop]",
             tag_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.3, 0.9, 1.0, 0.95),
             body_text=f'"{clean}"',
             border_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.15, 0.85, 0.95, 0.8),

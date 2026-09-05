@@ -28,6 +28,7 @@ from AppKit import (
     NSBezelStyleRounded,
     NSColor,
     NSFloatingWindowLevel,
+    NSStatusWindowLevel,
     NSFont,
     NSScreen,
     NSView,
@@ -42,13 +43,38 @@ from AppKit import (
     NSLayoutAttributeCenterX,
     NSLayoutAttributeCenterY,
     NSWindowCollectionBehaviorCanJoinAllSpaces,
+    NSWindowCollectionBehaviorFullScreenAuxiliary,
+    NSWindowCollectionBehaviorStationary,
 )
+from Foundation import NSPointInRect
 import objc
 from PyObjCTools import AppHelper
 
 from voicefi.config import load_config, save_config
 from voicefi.audio.monitor import LiveVADMonitor
 from voicefi.audio.device import is_using_builtin_speakers
+
+
+try:
+    ExpertVADWindowDelegate = objc.lookUpClass("ExpertVADWindowDelegate")
+except objc.nosuchclass_error:
+
+    class ExpertVADWindowDelegate(objc.lookUpClass("NSObject")):
+        """Window delegate for handling Expert VAD panel lifecycle."""
+
+        def initWithPanel_(self, panel):
+            self = objc.super(ExpertVADWindowDelegate, self).init()
+            if self is not None:
+                self.panel = panel
+            return self
+
+        def windowWillClose_(self, notification):
+            if self.panel:
+                self.panel._is_visible = False
+                try:
+                    LiveVADMonitor.get_instance().remove_listener(self.panel._on_audio_data)
+                except Exception:
+                    pass
 
 
 try:
@@ -164,6 +190,9 @@ class ExpertVADPanel:
     _instance: Optional["ExpertVADPanel"] = None
     _lock = threading.Lock()
 
+    PANEL_WIDTH: float = 480.0
+    PANEL_HEIGHT: float = 380.0
+
     @classmethod
     def get_instance(cls) -> "ExpertVADPanel":
         with cls._lock:
@@ -176,6 +205,7 @@ class ExpertVADPanel:
         self._panel: Optional[NSPanel] = None
         self._targets = []
         self._is_visible = False
+        self._delegate = None
 
         self.lbl_energy = None
         self.lbl_noise = None
@@ -194,8 +224,16 @@ class ExpertVADPanel:
         self._build_panel()
 
     def _build_panel(self):
-        w, h = 480, 380
-        rect = NSRect(NSPoint(1200, 500), NSSize(w, h))
+        w, h = self.PANEL_WIDTH, self.PANEL_HEIGHT
+        screen = NSScreen.mainScreen()
+        if screen:
+            screen_rect = screen.frame()
+            init_x = (screen_rect.size.width - w) / 2.0
+            init_y = screen_rect.size.height - h - 120.0
+        else:
+            init_x, init_y = 400.0, 400.0
+
+        rect = NSRect(NSPoint(init_x, init_y), NSSize(w, h))
         style_mask = (
             NSWindowStyleMaskTitled
             | NSWindowStyleMaskClosable
@@ -206,9 +244,23 @@ class ExpertVADPanel:
             rect, style_mask, NSBackingStoreBuffered, False
         )
         self._panel.setTitle_("🎙️ VoiceFi • Expert VAD & Acoustic Inspector")
-        self._panel.setLevel_(NSFloatingWindowLevel)
         self._panel.setFloatingPanel_(True)
-        self._panel.setCollectionBehavior_(NSWindowCollectionBehaviorCanJoinAllSpaces)
+        self._panel.setLevel_(NSStatusWindowLevel + 2)
+        self._panel.setHidesOnDeactivate_(False)
+        self._panel.setCanHide_(False)
+        self._panel.setWorksWhenModal_(True)
+        self._panel.setBecomesKeyOnlyIfNeeded_(True)
+        self._panel.setReleasedWhenClosed_(False)
+        self._panel.setMovableByWindowBackground_(True)
+        self._panel.setMovable_(True)
+        self._panel.setCollectionBehavior_(
+            NSWindowCollectionBehaviorCanJoinAllSpaces
+            | NSWindowCollectionBehaviorFullScreenAuxiliary
+            | NSWindowCollectionBehaviorStationary
+        )
+
+        self._delegate = ExpertVADWindowDelegate.alloc().initWithPanel_(self)
+        self._panel.setDelegate_(self._delegate)
 
         # Transparent background for Visual Effect
         self._panel.setOpaque_(False)
@@ -434,19 +486,37 @@ class ExpertVADPanel:
 
     def show(self, relative_to_rect: Optional[NSRect] = None):
         if not self._panel:
+            self._build_panel()
+
+        if not self._panel:
             return
 
         def _do_show():
+            w, h = self.PANEL_WIDTH, self.PANEL_HEIGHT
             if relative_to_rect:
                 x = (
                     relative_to_rect.origin.x
-                    + (relative_to_rect.size.width - self._panel.frame().size.width) / 2
+                    + (relative_to_rect.size.width - w) / 2.0
                 )
-                y = relative_to_rect.origin.y - self._panel.frame().size.height - 10
+                y = relative_to_rect.origin.y - h - 10.0
+                if y < 20.0:
+                    y = relative_to_rect.origin.y + relative_to_rect.size.height + 10.0
+                screen = NSScreen.mainScreen()
+                if screen:
+                    screen_w = screen.frame().size.width
+                    x = max(10.0, min(x, screen_w - w - 10.0))
                 self._panel.setFrameOrigin_(NSPoint(x, y))
+            else:
+                screen = NSScreen.mainScreen()
+                if screen:
+                    screen_rect = screen.frame()
+                    x = (screen_rect.size.width - w) / 2.0
+                    y = screen_rect.size.height - h - 120.0
+                    self._panel.setFrameOrigin_(NSPoint(x, y))
 
             LiveVADMonitor.get_instance().add_listener(self._on_audio_data)
             self._panel.orderFrontRegardless()
+            self._panel.makeKeyAndOrderFront_(None)
             self._is_visible = True
 
         if threading.current_thread() is threading.main_thread():
@@ -469,7 +539,7 @@ class ExpertVADPanel:
             AppHelper.callAfter(_do_hide)
 
     def toggle(self, relative_to_rect: Optional[NSRect] = None):
-        if self._is_visible:
+        if self._is_visible and self._panel and self._panel.isVisible():
             self.hide()
         else:
             self.show(relative_to_rect)
