@@ -72,3 +72,32 @@ Tap the VoiceFi complication on your Apple Watch or lock screen to trigger an im
 
 ### 3. Voice Memos & Architectural Brain Dumps
 Capture 2–5 minute stream-of-consciousness rambles directly from mobile. The transcript is buffered and automatically converted into an implementation plan and Mermaid diagram.
+
+---
+
+## 🛡️ Synchronization & Concurrency Invariants (Lessons Learned)
+
+*(Comprehensive architecture documentation: [`docs/COMPANION_VOICE_LOOP_LESSONS_LEARNED.md`](file:///Users/jaketrigg/Projects/VoiceFi/docs/COMPANION_VOICE_LOOP_LESSONS_LEARNED.md))*
+
+When extending, debugging, or operating the Remote Companion voice loop, all agents and developers must uphold these **6 architectural invariants**:
+
+1. **No "Stop Echo" on Telemetry Reception:**
+   - When the client receives `speech_stopped` or `stop` from the server, it must only run local audio/UI teardown: `stopAllAgentSpeech(broadcastServer = false)`.
+   - Never allow handling a server event to emit an outbound `POST /api/stop` or `{ type: "stop" }` back to the server, which creates an infinite 90ms cancellation ping-pong loop.
+
+2. **Concurrency Timestamps Bound Inside Mutexes:**
+   - In queued synthesis pipelines (`edge_tts.py`, `mac_say.py`, `gemini_tts.py`), `turn_start_time = time.time()` and `_stop_requested = False` must be re-initialized **inside** `with speech_turn_lock(...)`.
+   - Never sample the start timestamp prior to acquiring the mutex, or turns waiting in line will evaluate stale timestamps against previous stops.
+
+3. **Multi-Sentence Sentence Pipelining Canary:**
+   - Single-sentence responses may mask timing bugs. Multi-sentence structures (like jokes with a setup and punchline separated by punctuation) stream chunk-by-chunk through background fetcher threads and queue workers, exposing timestamp race conditions. Always validate with multi-sentence dialogue.
+
+4. **Server-Side Debouncing on Destructive Endpoints:**
+   - Endpoints modifying lifecycle state (`POST /api/stop`, WebSocket `stop`) must enforce a 500ms sliding debounce threshold on the server to absorb mobile network packet retry storms and rapid UI taps.
+
+5. **PWA & Service Worker Invalidation Protocol:**
+   - Any client-side patch requires an atomic cache version bump (`CACHE_NAME = 'voicefi-companion-vXX'`) in `sw.js` and an immediate Cloudflare edge deployment. Mobile Safari PWAs aggressively retain stale cached application code unless the cache version changes.
+
+6. **Dual-Acoustic Ground Truth Canary:**
+   - Retain `mute_mac_when_companion_active: false` in `~/.voicefi/config.yaml` during testing. Mac desktop speakers act as an independent physical canary, isolating audio delivery failures between server-side generation and mobile transport.
+

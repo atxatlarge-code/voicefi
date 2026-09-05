@@ -196,7 +196,18 @@ When diagnosing audio, turn completion speech, or stop behavior, run checks in t
 
 ---
 
-### 6. Cross-Agent Dispatch & Return Routing (Antigravity ↔ Claude Code)
+### 8. Remote Companion Voice Loop & State Synchronization Guidelines
+*(Full architectural breakdown in [`docs/COMPANION_VOICE_LOOP_LESSONS_LEARNED.md`](file:///Users/jaketrigg/Projects/VoiceFi/docs/COMPANION_VOICE_LOOP_LESSONS_LEARNED.md))*
+* **Prevent the "Stop Echo" Loop:** Web clients receiving server events (`speech_stopped`, `stop`) must perform strictly local teardown (`stopAllAgentSpeech(broadcastServer = false)`). They must **NEVER** broadcast `/api/stop` back to the server, which would cause an infinite 90ms cancellation ping-pong loop.
+* **Timestamp Evaluation Inside Mutexes:** In queued audio pipelines (`edge_tts.py`, `mac_say.py`, `gemini_tts.py`), `turn_start_time = time.time()` and `self._stop_requested = False` must be initialized **inside** the critical section (`with speech_turn_lock(...)`), not outside before acquiring the lock.
+* **Multi-Sentence Sentence Pipelining as Stress Test:** Sentence chunking across punctuation (`?`, `.`) exercises background prefetching threads and cancellation timestamps. Always validate with multi-sentence structures (jokes, setup + punchline).
+* **Defensive Server Debouncing:** All destructive lifecycle endpoints (`POST /api/stop`, WebSocket `stop`) must enforce a 500ms sliding debounce threshold to discard client retry storms.
+* **Mobile PWA Service Worker Invalidation:** When modifying companion client logic, always bump the cache name in `sw.js` (e.g. `v20`) and deploy to Cloudflare to invalidate aggressive iOS Safari PWA caching.
+* **Dual-Acoustic Ground Truth:** Keep `mute_mac_when_companion_active: false` during testing so the Mac desktop speakers act as a reliable physical canary.
+
+---
+
+### 9. Cross-Agent Dispatch & Return Routing (Antigravity ↔ Claude Code)
 * **Mandatory Standard for Claude Requests:** Whenever the user asks to "ask Claude", delegate a task to Claude, or send a prompt/finding/joke to Claude, Antigravity **MUST ALWAYS** use `vifi send` (or the `voicefi_send` MCP tool) via the Cross-Agent Bridge. Antigravity **MUST NEVER** attempt synthetic mouse clicking, OS window focus hijacking, or direct clipboard pasting into Claude.app or terminal windows.
 * **Sending Task from Antigravity to Claude:**
   ```bash
@@ -216,7 +227,7 @@ When diagnosing audio, turn completion speech, or stop behavior, run checks in t
 
 ---
 
-### 7. Agent Speech Protocol & MCP Tool Guardrails
+### 10. Agent Speech Protocol & MCP Tool Guardrails
 * **No Unsolicited Speech:** AI agents MUST NOT automatically invoke `voicefi_speak` or TTS audio tools on standard conversational replies, explanations, or code summaries.
 * **Zero Response Latency:** Keep text streaming immediately without blocking on audio playback.
 * **When to Invoke `voicefi_speak`:**
