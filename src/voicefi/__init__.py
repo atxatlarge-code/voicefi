@@ -4,3 +4,8 @@ VoiceFi - Giving your agents a voice, and your voice agency. Hands-free voice la
 
 __version__ = "0.1.0"
 __author__ = "Jake Trigg"
+
+from voicefi.compat import patch_pynput_darwin
+
+patch_pynput_darwin()
+

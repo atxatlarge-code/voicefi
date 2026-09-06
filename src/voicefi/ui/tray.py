@@ -1487,6 +1487,17 @@ class VoiceFiTrayApp(rumps.App):
         Instantly stops all speech synthesis, cancels any active recording/dictation,
         and resets VoiceFi to idle.
         """
+        is_speaking = (
+            self._current_status == "speaking"
+            or is_agent_speaking()
+        )
+        is_recording = (
+            self._current_status in ("listening", "hearing", "ptt_listening", "new_conversation")
+            or self.active_recorder is not None
+        )
+        if not is_speaking and not is_recording:
+            return
+
         print("[VoiceFi] ⏹️ Escape pressed: stopping all speech and cancelling active recording")
         self.stop_speaking_now()
 
@@ -1942,36 +1953,40 @@ class VoiceFiTrayApp(rumps.App):
                         alt = "alt" in modifiers
                         mod = ctrl or cmd
 
-                        # Instant Fast-Path: If no modifiers are held and key is not special (Esc, Tab, Enter),
-                        # early-exit in microseconds to guarantee zero typing latency on macOS WindowServer.
+                        is_speaking = (
+                            self._current_status == "speaking"
+                            or is_agent_speaking()
+                        )
+                        is_recording = (
+                            self._current_status
+                            in ("listening", "hearing", "ptt_listening", "new_conversation")
+                            or self.active_recorder is not None
+                        )
+
+                        # Instant Fast-Path: If no modifiers are held and VoiceFi is idle (not speaking/recording),
+                        # early-exit in microseconds so bare keys (Esc in games/vim, Tab, Enter, typing) have 0ms latency.
                         if not (mod or alt or char == "√"):
+                            if not (is_speaking or is_recording):
+                                return
                             if vk not in (53, 48, 36, 76) and key not in (Key.esc, Key.tab, Key.enter):
                                 return
 
-                        # 1. Escape: stop speech (and open mic if auto_listen is ON) or cancel recording
+                        # 1. Escape: stop speech or cancel recording (dispatched asynchronously off event tap thread)
                         if is_escape_key(key):
-                            self.handle_escape_press()
+                            if (is_speaking or is_recording) and _debounce("esc_stop", interval=0.2):
+                                threading.Thread(target=self.handle_escape_press, daemon=True).start()
                             return
 
                         # 1.5 Tab while speaking: focus the window where speech originated
                         if is_tab_key(key):
-                            is_speaking = (
-                                self._current_status == "speaking"
-                                or is_agent_speaking()
-                            )
                             if is_speaking and _debounce("tab_focus", interval=0.35):
-                                focus_speaking_agent_window()
+                                threading.Thread(target=focus_speaking_agent_window, daemon=True).start()
                             return
 
                         # 2. Enter while recording: finish active recording immediately
                         if key == Key.enter or vk in (36, 76):
-                            is_recording = (
-                                self._current_status
-                                in ("listening", "hearing", "ptt_listening", "new_conversation")
-                                or self.active_recorder is not None
-                            )
                             if is_recording:
-                                self.finish_active_recording()
+                                threading.Thread(target=self.finish_active_recording, daemon=True).start()
                                 return
 
                         # 3. New Conversation with Connected Tools (Cmd+Shift+N or Ctrl+Shift+N)
@@ -2102,26 +2117,42 @@ class VoiceFiTrayApp(rumps.App):
                     except Exception as e:
                         print(f"[Tray] Hotkey release notice: {e}")
 
+                try:
+                    import Quartz
+                    _k_key_down = Quartz.kCGEventKeyDown
+                    _k_key_up = Quartz.kCGEventKeyUp
+                    _k_keycode = Quartz.kCGKeyboardEventKeycode
+                    _mask_alt = Quartz.kCGEventFlagMaskAlternate
+                    _mask_cmd = Quartz.kCGEventFlagMaskCommand
+                    _mask_ctrl = Quartz.kCGEventFlagMaskControl
+                    _mask_shift = Quartz.kCGEventFlagMaskShift
+                    _cg_get_flags = Quartz.CGEventGetFlags
+                    _cg_get_int = Quartz.CGEventGetIntegerValueField
+                except Exception:
+                    Quartz = None
+
                 def _darwin_intercept(event_type, event):
+                    if Quartz is None:
+                        return event
                     try:
-                        import Quartz
+                        if event_type == _k_key_down or event_type == _k_key_up:
+                            flags = _cg_get_flags(event)
+                            # Instant Microsecond Fast-Path: If Option/Alt is not held, never intercept!
+                            # Guarantees 0ms typing latency on macOS WindowServer for 99.9% of keystrokes.
+                            if not (flags & _mask_alt):
+                                return event
 
-                        if event_type in (Quartz.kCGEventKeyDown, Quartz.kCGEventKeyUp):
-                            flags = Quartz.CGEventGetFlags(event)
-                            vk = Quartz.CGEventGetIntegerValueField(
-                                event, Quartz.kCGKeyboardEventKeycode
-                            )
-                            alt = bool(flags & Quartz.kCGEventFlagMaskAlternate)
-                            cmd = bool(flags & Quartz.kCGEventFlagMaskCommand)
-                            ctrl = bool(flags & Quartz.kCGEventFlagMaskControl)
-                            shift = bool(flags & Quartz.kCGEventFlagMaskShift)
+                            # If Cmd or Ctrl is held, do not intercept
+                            if (flags & _mask_cmd) or (flags & _mask_ctrl):
+                                return event
 
-                            # 1. Suppress Option+V (vk 9 + Alt without Cmd/Ctrl) to prevent '√' symbol from being typed into active inputs
-                            if alt and not cmd and not ctrl and vk == 9:
+                            vk = _cg_get_int(event, _k_keycode)
+                            # 1. Suppress Option+V (vk 9) to prevent '√' symbol from being typed into active inputs
+                            if vk == 9:
                                 return None
 
-                            # 2. Suppress Shift+Option+Space (vk 49 + Alt + Shift without Cmd/Ctrl) to prevent non-breaking space '\u00A0'
-                            if alt and shift and not cmd and not ctrl and vk == 49:
+                            # 2. Suppress Shift+Option+Space (vk 49 + Shift) to prevent non-breaking space '\u00A0'
+                            if vk == 49 and (flags & _mask_shift):
                                 return None
                     except Exception:
                         pass

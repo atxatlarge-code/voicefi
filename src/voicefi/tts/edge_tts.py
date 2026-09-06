@@ -92,7 +92,7 @@ class EdgeTTS(BaseTTS):
             self.volume = float(volume) if volume is not None else 1.0
         except (ValueError, TypeError):
             self.volume = 1.0
-        self.afplay_vol = str(max(self.volume * 1.6, 1.5))
+        self.afplay_vol = str(max(round(self.volume * 1.5, 2), 0.0))
         self.streaming = streaming
         self.agent_name = agent_name
         self.persona_name = persona_name or (
@@ -182,6 +182,10 @@ class EdgeTTS(BaseTTS):
                     agent_name=getattr(self, "agent_name", "VoiceFi"),
                     persona_name=getattr(self, "persona_name", getattr(self, "voice", "EdgeTTS")),
                 ):
+                    nonlocal turn_start_time
+                    turn_start_time = time.time()
+                    self._stop_requested = False
+
                     from voicefi.tts.base import (
                         set_agent_audio_playing,
                         is_agent_speaking,

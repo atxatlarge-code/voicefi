@@ -203,7 +203,9 @@ def get_tts_engine(
         )
     else:
         # Default to native macOS say
-        eng = MacSayTTS(voice=voice, rate=rate)
+        eng = MacSayTTS(
+            voice=voice, rate=rate, volume=getattr(config.tts, "volume", 1.0)
+        )
 
     persona = find_persona(voice)
     eng.agent_name = agent_name or "VoiceFi"
