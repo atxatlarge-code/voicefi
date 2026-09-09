@@ -7,6 +7,8 @@ Master registry of compiled social reels, acoustic benchmarks, video canvas asse
 ## Master Catalog
 
 | ID | Title | Format | Runtime | Cast / Voices | Visual Canvas Style | Status | Master Output |
+| **SPICEWOOD-916** | **Spicewood Outlaws™ (Full Master & Social Cutdowns)** | **9:16 Vertical** | **261.4s (4:21.4) [Master] / 55.4s [Shorts] / 95.1s [Act 2] / 110.8s [Act 3]** | **vifi (Lead Vocals) + Shinra B (Beat) + King Louie Samples** | **Full-Bleed Center-Crop & Ambient Blur + 2-Line Kinetic Karaoke + Glassmorphic Title Pill + Audited Hype Bubbles** | **MASTERED & APPROVED (PICTURE LOCK)** | `~/Desktop/spicewood_outlaws_full_master_9_16.mp4` |
+| **REEL-013** | **Ogygia · The Island of the Concealed** | **9:16 Vertical** | **122.2s (2:02.2)** | **The Odyssey Narrator (en-US-ChristopherNeural)** | **Minimalist Documentary Subtitles + Ken Burns Motion (Full-Bleed Photography)** | **MASTERED & APPROVED** | `assets/reels/the_odyssey/ogygia/ogygia_reel_9_16.mp4` |
 | **REEL-065** | **Respect Your Elders (Retirement Age 65)** | **9:16 Vertical** | **40.0s** | **The Elder (Native Flow) + Viv (en-US-AvaNeural) + Emily (Outro)** | **Hybrid 2D Pencil Flipbook & Live Canvas + True-Sync Kinetic Karaoke** | **MASTERED & APPROVED** | `assets/reels/reel_065_respect_your_elders_9_16.mp4` |
 | **REEL-008** | **10.skills (Make It Known)** | **9:16 Vertical** | **145.5s (2:25.5)** | **Jake (Lead Vocals & Performance) + Claude (Terracotta Coral) + Antigravity (Electric Cyan)** | **Full-Bleed Edge-to-Edge Split Screen + 17-Scene Spicewood Colorado River Visual Storyboard** | **MASTERED & APPROVED** | `assets/reels/reel_008_10_skills_9_16.mp4` |
 | **REEL-006** | **The Speed Listening Challenge** | **9:16 Vertical** | **35.0s** | **Jake (Real Voice) + Viv (400 WPM & 600 WPM Turbo)** | **2D Pencil Flipbook + Live Speedometer Dial** | **MASTERED & APPROVED** | `assets/reels/reel_006_speed_listening_9_16.mp4` |
@@ -15,6 +17,67 @@ Master registry of compiled social reels, acoustic benchmarks, video canvas asse
 | **REEL-003** | **How We Built VoiceFi (True Word Karaoke)** | 9:16 Vertical | 48.0s | Viv + Steffan + Christopher + Emily | 2D Hand-drawn Graphite Pencil Sketchbook | ARCHIVED | `assets/how_we_built_voicefi_true_karaoke_9_16.mp4` |
 | **REEL-002** | **How We Built VoiceFi (Flipbook Video)** | 9:16 Vertical | 48.0s | Viv + Steffan + Christopher + Emily | 2D Hand-drawn Graphite Pencil Animation | ARCHIVED | `assets/how_we_built_voicefi_flipbook_reel_9_16.mp4` |
 | **REEL-001** | **How We Built VoiceFi (Dynamic Island Audio)** | 9:16 Vertical | 48.0s | Viv + Steffan + Christopher + Emily | Dynamic Island Frosted Glass HUD Canvas | ARCHIVED | `assets/how_we_built_voicefi_reel_9_16.mp4` |
+
+---
+
+## SPICEWOOD-916 Production Specification
+
+* **Title:** `Spicewood Outlaws™ · The Cultural Anthem & Music Video (Full Master & Social Cutdowns)`
+* **Artist & Credits:** vifi (Lead Vocals) · Instrumental: *"Society"* (Prod. Shinra B) · 85.0 BPM Boom Bap.
+* **Canvas Style:** Dynamic 9:16 Vertical (1080x1920) adapting 16:9 widescreen footage using intelligent per-shot rules:
+  * **Center-Crop (`center`):** Close-ups, truck power slides, money fan, whittling, and action sequences.
+  * **Ambient Blur (`ambient_blur`):** Hill Country panoramas, Krause Springs waterfall, Pedernales rapids, and sunset vistas.
+* **Aspect Ratio:** 9:16 Vertical Full HD (`1080x1920`) @ 24fps, H.264 High Profile (`crf 18`, `g=24`, `faststart`).
+* **Total Runtime:** 
+  * Full Master: **261.39s (04:21.39)**
+  * YouTube Shorts Cutdown (Act 1): **55.38s** (<60s hard limit)
+  * TikTok / Reels Speedburst (Act 2): **95.08s**
+  * Bonfire Climax Finale (Act 3): **110.83s**
+* **Audio Engineering:** 
+  * Pristine 44.1kHz 320 kbps AAC mastered directly from uncompressed 24-bit PCM master vocal mix (`normalize=0`).
+  * **Instant 0.00s Zero-Black-Frame Start:** Extracted clean video-only streams before concatenation, stripping chapter markers (`-map_chapters -1`) and eliminating container priming offsets (mean brightness `101.1` at `0.00s`).
+  * **Frame-Accurate Diegetic Needle Drop (`t = 2.45s`):** `NeedleDrop02.mp3` delayed with `adelay=2100|2100` so the mechanical impact transient strikes with a punchy thump (`rms = 7295.2`, `peak = 22576`, `-0.6 dBTP`) matching the exact video frame (Frames 16–17, `y = 399`) where the stylus makes contact with the spinning vinyl grooves.
+* **Typography & Safe-Zone Graphics:**
+  * **Modern Floating Glassmorphic Title Pill (`y = 180`, `1.00s – 5.00s`):** Translucent frosted badge (`fill=(14, 16, 22, 215)`, Texas Amber border `(245, 158, 11, 90)`), micro-groove vinyl disc icon, bold title (`SPICEWOOD OUTLAWS`), and credits (`VIFI • BEAT: "SOCIETY" BY SHINRA B`).
+  * **2-Line Comma-Split Kinetic Subtitles (`y = 1380 – 1460`):** Subtitles cleanly break onto line 2 after commas before bold rhyming punchlines. Real-time spoken word highlighting in Texas Amber Gold (`#F59E0B`).
+  * **Audited Comic Hype Bubbles (`y = 460 – 540`):** Micro-calibrated acoustic speech alignment across all 11 ad-lib bursts:
+    * `...grotto...` (`15.15s – 15.55s`): Whispered echo only; clears before *"I'M SO HOT THOUGH"*.
+    * `Rarw` (`16.65s – 17.00s`): Slotted in the pocket between *"THOUGH"* and *"Cold spring water"*.
+    * `hubba hubba` (`19.30s – 19.85s`): Enters on female ad-lib; clears before *"Pedernales"*.
+    * `ding ding` (`20.60s – 21.15s`): Synchronized to chimes; clears before *"COLORADO"*.
+    * `Rio Grande!` (`22.35s – 22.95s`): Locked over shouted ad-lib (resolved previous premature cutoff).
+    * `Gold, baby!` (`27.58s – 28.20s`): Enters on *"Gold"* and holds through *"baby!"*.
+    * `Right now!` (`30.55s – 30.95s`): Slotted on Bar 11 turnaround cue.
+    * `Ride out!` (`33.15s – 33.55s`): Slotted on horse gallop reveal following *"LIKE TONTO"*.
+    * `Talk to 'em Louie` (`46.50s – 48.35s`): Spans King Louie brass swell to Bar 18 downbeat.
+    * `pew pew` (`Act 3, 13.80s – 14.45s`): Snare hit impact following *"GUNS ABLAZE!"*.
+    * `t-t-tik tok tik` (`Act 3, 26.60s – 27.94s`): Enters on stutter *"t-t-tik"* at 26.60s.
+* **Deliverables:**
+  * Full Master 9:16: `~/Desktop/spicewood_outlaws_full_master_9_16.mp4` (341.6 MB)
+  * YouTube Shorts Cutdown: `~/Desktop/spicewood_shorts_act1_55s.mp4` (57.1 MB)
+  * TikTok / Reels Speedburst: `~/Desktop/spicewood_reel_act2_speedburst.mp4` (99.0 MB)
+  * Bonfire Climax Finale: `~/Desktop/spicewood_reel_act3_finale.mp4` (185.4 MB)
+  * Companion PWA Downloads: `src/voicefi/companion/static/downloads/`
+
+---
+
+## REEL-013 Production Specification
+
+* **Title:** `Ogygia · The Island of the Concealed` (REEL-013)
+* **Concept:** Mythological documentary memoir tracing the synchronicity of Homer’s *Odyssey* in Jake Trigg’s 6-year transformation. On Aug 6, 2022, boarding a flight to his first plant medicine ceremony, the Austin Airport digital gate inexplicably displayed "Destination: Ogygia." The film traces the sanctuary of Ogygia—deep rites of passage, exploring spirituality, community, and the divine feminine following an undiagnosed 2020 car collision and silent TBI—and the bronze axe of manual labor (105° Texas heat, UPS midnight shifts, 300 job rejections) that grounded the spirit, leading to the triumphant homecoming through 1,375 commits and the founding of VoiceFi™.
+* **Canvas Style:** High-resolution documentary photography with Ken Burns dynamic motion (slow push-in, vertical glides, landscape blur-fill canvas) + clean minimalist documentary subtitles (Option A: centered, translucent pill backing, 1-2 lines max) letting personal photos breathe full-bleed.
+* **Aspect Ratio:** 9:16 Vertical Full HD (1080x1920) @ 30fps BT.709.
+* **Total Runtime:** 122.2 seconds (2:02.2 / 14 scenes).
+* **Audio Profile:** 44.1kHz Stereo (Master Narration via `en-US-ChristopherNeural` + Procedural NumPy Ambient Bed in D Minor with Sub-Bass Heartbeat Pulse, Ocean Foam Pink Noise, -75% Live RMS Voice Ducking, and 3.5s Outro Fade).
+* **Layout Standard:**
+  * Clean Minimalist Subtitles: `bottom: 180px`, `max-width: 900px`, 46px Arial Bold with sleek translucent dark pill backing (`rgba(0,0,0,0.55)`).
+  * Full-Bleed Imagery: Top Dynamic Island HUD, slide counter badges, and giant frosted quote boxes removed to prevent visual clutter and let original photos breathe.
+* **Master Outputs:**
+  * `assets/reels/the_odyssey/ogygia/ogygia_reel_9_16.mp4` (Master 1080x1920 vertical video)
+  * `src/voicefi/companion/static/downloads/ogygia_reel_9_16.mp4` (Mobile Companion Downloads Hub)
+  * `assets/reels/the_odyssey/ogygia/ogygia_reel_master_audio.mp3` (Master stereo audio track)
+  * `marketing/social/reels/013_ogygia_island_of_the_concealed.json` (Declarative manifest)
+  * `marketing/social/reels/ogygia_island_of_the_concealed.md` (Visual storyboard & script)
 
 ---
 

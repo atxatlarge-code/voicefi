@@ -110,23 +110,21 @@ Bar 16:
 We dammed up the Colorado,        JUST FOR SWIMMIN' SAKES
 [1]             [2 💥]            [3]              [4 💥]
 
-Bar 17:
-King of swing at Krause Springs,  WHERE THE WATER SHAKES
+Bar 17: 🎷 [Jungle Book Sample Drop: "Now I'm the king of the swingers..."]
+King of swing at Krause Springs,  
 [1]                      [2 💥]   [3]             [4 💥]
 
-Bar 18:
-Wake up early morning,            BEFORE THE SUN AWAKES
+Bar 18: 🎷 [King Louie Brass Swell: "...oh, the jungle VIP!"]
+WHERE THE WATER SHAKES
 [1]             [2 💥]            [3]            [4 💥]
 
-Bar 19:
-Hitchhike a ride on Trigger,      SEE WHAT MONEY MAKES
+Bar 19: 🎷 [Walking Bass & Swing Clarinet: "Reached the top and had to stop..."]
+Water so chilly,                  SPICEWOOD VILLY-AN
 [1]                       [2 💥]  [3]          [4 💥]
 
-Bar 20: 🛑 (Half-Time Brake-Check)
-Spicewood...                      VILLAIN!
-[1]             [2 💥]            [3]
+Bar 20: 🛑 (Half-Time Brake-Check & Jungle Book Dramatic Stop)
                                   WITH THE HIGHEST STAKES!
-                                           [4 💥]
+                                                   [4 💥]
 ```
 
 ---
@@ -177,42 +175,42 @@ Because we're not all...                   THERE!
 
 ### 📍 [Bars 29–44] ⏱️ [Verse 2: 1:19 – 2:04] (16 Bars = 16 Lines)
 
-#### 📍 [Bars 29–36] ⏱️ [1:19 – 1:42] 🔹 Rhyme Chain 4: The "-OKE / -OAK / -ROKE" (8 Bars)
-> **🪵 Delivery Cue: [SMOOTH CRUISING]**  
-> *Smooth, visual storytelling. Let the listener smell the post oak wood.*
+#### 📍 [Bars 29–36] ⏱️ [1:19 – 1:42] 🔹 Rhyme Chain 4: The "-AIR / -ARE" Extended Outlaw Chain (8 Bars)
+> **🪵 Delivery Cue: [EXTENDED -AIR OUTLAW FLOW]**  
+> *Smooth, visual storytelling with an extended 8-bar -AIR rhyme chain. Let the listener smell the smoke and feel the canyon breeze.*
 
 ```text
 Bar 29:
-Yeah, clear the air,              ROLLIN' IN THE SMOKE
+Yeah, clear the air,              PULL UP A CHAIR
 [1]            [2 💥]             [3]            [4 💥]
 
 Bar 30:
-Second verse villain,             NEVER WAS A JOKE
-[1]          [2 💥]               [3]        [4 💥]
+Second verse villain,             BRAIN BROKE BEYOND REPAIR
+[1]          [2 💥]               [3]                  [4 💥]
 
 Bar 31:
-Oak wood brisket,                 NEVER GOIN' BROKE
+Oak wood brisket,                 SMOKE UP IN THE FLARE
 [1]             [2 💥]            [3]         [4 💥]
 
 Bar 32:
-Listen to the master,             EVERY WORD I SPOKE
+Listen to the master,             NOTHIN' TO COMPARE
 [1]            [2 💥]             [3]          [4 💥]
 
 Bar 33:
-Pace Bend cliff dive,             JUMPIN' OFF THE OAK
-[1]            [2 💥]             [3]           [4 💥]
+Pace Bend cliff dive,             FALL THROUGH THE AIR
+[1]            [2 💥]             [3]             [4 💥]
 
 Bar 34:
-Cobalt lake water,                WRAPPED IN A CLOAK
+Cobalt lake water,                ICED-OUT MILLIONAIRE
 [1]          [2 💥]               [3]           [4 💥]
 
 Bar 35:
-Sun-baked sandstone,              KEEP THE FIRE STOKE
+Sun-baked sandstone,              SITTIN' IN THE GLARE
 [1]                [2 💥]         [3]        [4 💥]
 
 Bar 36:
-Tailgate party,                   TILL THE BOTTLE BROKE!
-[1]            [2 💥]             [3]             [4 💥]
+Better watch what you wear,       THERE'S OUTLAWS EVERYWHERE!
+[1]                        [2 💥] [3]                    [4 💥]
 ```
 
 #### 📍 [Bars 37–44] ⏱️ [1:42 – 2:04] 🔹 Rhyme Chain 5: The "-OWLIN' / -ILLION" 8-Bar Mega Speed Burst
@@ -221,7 +219,7 @@ Tailgate party,                   TILL THE BOTTLE BROKE!
 
 ```text
 Bar 37: ⚡ (Fast Double-Time Delivery)
-(Sippin'-on-that-bourbon-I'm-a)         PROWLER PROWLIN'
+(Sippin'-on-that-bourbon-I'm-a)         OUTLAW PROWLIN'
 [1]                            [2 💥]   [3]      [4 💥]
 
 Bar 38: ⚡ (Fast Double-Time Delivery)

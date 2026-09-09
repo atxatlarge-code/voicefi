@@ -1,5 +1,5 @@
-# 🎬 MASTER PRODUCTION BIBLE & STORYBOARD — "SPICEWOOD, TEXAS"
-**Track:** *"SPICEWOOD, TEXAS"* (Prod. Shinra B — MF DOOM x Joey Bada$$ 90s Boom-Bap Aesthetic)  
+# 🎬 MASTER PRODUCTION BIBLE & STORYBOARD — "SPICEWOOD OUTLAWS"
+**Track:** *"SPICEWOOD OUTLAWS"* (Prod. Shinra B — MF DOOM x Joey Bada$$ 90s Boom-Bap Aesthetic)  
 **Tempo:** 85.00 BPM | **Time Signature:** 4/4 | **Duration:** 4:48 (102 Measures / Bars)  
 **Temporal Metric:** 1 Bar = 2.8235s | 1 Beat = 0.7059s | Snare Cracks on Beats [2 💥] and [4 💥]  
 **Lead Sheet Reference:** `spicewood_texas_lead_sheet.md`  
@@ -30,6 +30,102 @@
   * Texas pitmasters with heavy leather aprons, white apron dusted in flour and black pepper rub.
   * Cliff divers at Pace Bend in vintage board shorts and cutoff tees.
   * Fiddlers and acoustic pickers in denim shirts on wooden porches.
+
+---
+
+
+---
+
+---
+
+## 🎭 1.5 MASTER CHARACTER & SCENE DNA PROMPT BANK
+
+To prevent characters or locations from morphing across shots in Google Flow, use these standardized **DNA Prompts**. 
+
+> **Workflow Options in Google Flow:**
+> 1. **Image-to-Video (Recommended):** Generate a hero keyframe image first using the prompts below. Upload that image into Google Flow as your starting frame seed, then input the 5s camera motion prompt!
+> 2. **Text-to-Video:** Copy the Character or Scene DNA block directly into your shot prompt to maintain visual consistency.
+
+---
+
+### 👤 The 4 Master Character DNA Prompts
+
+#### 1. Lead MC / Performer (The Spicewood Outlaw)
+```text
+A charismatic 30-year-old Texan hip-hop artist with sun-tanned skin, short textured buzz cut, and neatly trimmed stubble beard. He wears a distressed vintage 1990s Carhartt Detroit duck canvas brown work jacket with a dark brown corduroy collar over a faded grey henley shirt, classic vintage Levi's 501 jeans, a weathered silver-gray Stetson Open Road felt hat, and an engraved sterling silver turquoise ring on his right hand. Relaxed 90s boom-bap swagger combined with authentic Texas outlaw demeanor, confident smile, natural charisma.
+```
+
+#### 2. The Pitmaster (Opie's BBQ Master)
+```text
+A burly, bearded 45-year-old Texas pitmaster with weathered laugh lines and soot-dusted hands, wearing a heavy brown split-cowhide leather barbecue apron over a faded plaid western pearl-snap shirt, grease-stained denim, and thick suede welding gloves, holding long stainless steel tongs with seasoned veteran authority.
+```
+
+#### 3. The Weathered Elder Rancher (Porch Dialogue)
+```text
+A lean 70-year-old Texas Hill Country rancher with deeply creased leathery sun-tanned skin, silver-white mustache, and sharp squinting blue eyes, wearing a vintage denim chore vest over a washed-out indigo work shirt, silver-belly cowboy hat with a horsehair band, and an antique brass pocket watch chain hooked to his vest pocket.
+```
+
+#### 4. The Pace Bend Cliff Jumper
+```text
+An athletic, sun-bleached 24-year-old Texan swimmer in vintage 1990s retro striped boardshorts, wet tousled hair, water droplets beading on tanned skin, fearless adventurous expression, silhouetted against the bright Texas sun.
+```
+
+---
+
+### 🚚 Master Vehicle Cinematography Protocol (Fixing AI Vehicle Artifacts)
+> **⚠️ AI Video Model Guideline:** Diffusion models struggle with moving vehicle geometry (melting sheet metal, warping steering wheels, rubbery rotating tires). 
+> **The 3 Golden Fixes Applied Below:**
+> 1. **Parked Outlaw Setup:** Feature the truck parked on scenic limestone overlooks or tailgates. No wheel deformation; razor-sharp 35mm textures.
+> 2. **Distant Telephoto Silhouette:** When the truck is on the road, the camera is placed 200 yards away against the vast Hill Country horizon.
+> 3. **Tight Macro Inserts:** Scuffed boots on running boards, hands sliding cassette tapes, lighter flicks—eliminating full warped car bodies.
+
+* **Master Truck Signature:**
+  ```text
+  1978 two-tone Ford F-150 Ranger pickup truck, cream-white cab roof with copper-brown lower body, square front grille with dual square headlights, chrome front bumper, vintage round chrome side mirrors, weathered patina
+  ```
+
+
+### 🏞️ The 8 Master Scene / Location DNA Prompts
+
+#### Scene 1: Curvy Hill Country Highway & 1978 Ford F-150
+```text
+Winding two-lane Texas Hill Country backroad cutting through towering limestone bluffs and dense cedar trees at golden hour. A 1978 two-tone Ford F-150 Ranger pickup truck, cream-white cab roof with copper-brown lower body, square front grille with dual square headlights, chrome front bumper, vintage round chrome side mirrors, weathered patina, carving through sweeping asphalt curves with dynamic motion blur, sun flare glinting off windshield, glowing amber Texas sky.
+```
+
+#### Scene 2: Krause Springs Emerald Grotto & Waterfall
+```text
+Natural limestone grotto at Krause Springs in Spicewood Texas. Tiered pale-white limestone rock shelves covered in lush green maidenhair ferns, with a cascading fresh spring waterfall pouring into an expansive crystal-clear turquoise freshwater swimming basin. Colossal 500-year-old bald cypress trees with massive knotted root systems growing along the water edge, sunlight beams cutting through dangling Spanish moss.
+```
+
+#### Scene 3: Opie's BBQ Smokehouse & 1,000-Gallon Offset Smoker
+```text
+Rustic outdoor Texas barbecue smokehouse yard in Spicewood. A massive cylindrical 1,000-gallon black iron offset steel smoker on iron wagon wheels with twin counterweight lids, thick billowing white post-oak wood smoke pouring from the stack into the evening light. Stacks of seasoned split post-oak cordwood, limestone dirt ground, string lights hanging from cedar eaves.
+```
+
+#### Scene 4: Pace Bend Limestone Cliffs & Lake Travis
+```text
+Spectacular 45-foot pale ivory and beige tiered limestone bluffs overlooking the deep cobalt-blue water of Lake Travis at Pace Bend Park. Twisted live oak trees and prickly pear cacti clinging to the cliff rim, bright midday sun reflecting off the vast shimmering lake expanse with gentle boat wakes in the distance.
+```
+
+#### Scene 5: Luck, Texas Rustic Outlaw Town
+```text
+Authentic 1880s-style Texas western town of Luck Texas, weathered unpainted cedar boardwalks, rustic false-front wooden saloon buildings, hitching posts, dusty caliche dirt street, handmade painted wooden signs, vintage Texas lone star flags, dappled golden afternoon sunlight filtering through century-old live oak branches.
+```
+
+#### Scene 6: Outdoor Cedar Dancehall Pavilion
+```text
+Open-air Texas Hill Country dancehall pavilion built from rough-hewn cedar posts with a corrugated tin roof. Glowing incandescent yellow Edison string lights and paper lanterns strung across the timber rafters, smooth worn wooden plank dance floor, cedar picnic tables on the perimeter, surrounded by dark Texas live oaks at twilight.
+```
+
+#### Scene 7: Rustic Cabin Porch at Golden Hour (Trigger & Porch Swing)
+```text
+Weathered wooden front porch of a rustic Spicewood cedar cabin at golden sunset. A vintage wooden two-seater porch swing hangs from iron chains, an iconic pick-worn Martin nylon-string acoustic guitar with carved autographs rests against a wicker chair, mason jars on a cedar table, cicadas humming in the surrounding oak trees under a purple-orange sky.
+```
+
+#### Scene 8: Spicewood Night Bonfire & Tailgate Circle
+```text
+Nighttime in the Texas Hill Country on a high limestone plateau. Vintage pickup trucks parked in a wide semi-circle with their lowered tailgates and headlights pointing inward. In the center, a roaring 30-foot cedar bonfire erupts with thousands of glowing amber sparks swirling into a pitch-black starry Texas sky, casting warm flickering orange firelight across a celebrating crowd.
+```
 
 ---
 
@@ -64,12 +160,12 @@ Outro   │ Bars 80–102 │ 3:44 – 4:48  │ Porch Session, Crickets & Vinyl
   * **Lyric/Audio:** *"Yeah... leave that I-35 traffic behind us."*
 
 * **Bar 3 (0:06 – 0:08) | Shot 1.3 [Tracking Medium]:**
-  * **Visual:** Profile tracking shot alongside the driver door. Vintage chrome mirror reflecting the endless cedar brush. Rapper's left arm hangs out the window, resting on the sun-warmed metal door, hand riding the Texas wind currents.
+  * **Visual:** Profile tracking shot alongside the driver door. Vintage chrome mirror reflecting the endless cedar brush. The Outlaw's left arm hangs out the window, resting on the sun-warmed metal door, hand riding the Texas wind currents.
   * **Motion:** Parallel vehicle-to-vehicle tracking shot at 45 mph.
   * **Lyric/Audio:** *"Cruisin' West on 71... windows all the way down. Out in the 78669."*
 
 * **Bar 4 (0:08 – 0:11) | Shot 1.4 [Interior Medium Close-Up]:**
-  * **Visual:** Inside the truck cab. Worn leather bench seat, brass Zippo lighter flicks open with a sharp *CLINK*, flame illuminates the MC's grin under his hat brim. Rapper glances sideways into camera.
+  * **Visual:** Inside the truck cab. Worn leather bench seat, brass Zippo lighter flicks open with a sharp *CLINK*, flame illuminates the MC's grin under his hat brim. The Outlaw glances sideways into camera.
   * **Motion:** Slow push-in toward the dashboard tape deck.
   * **Lyric/Audio:** *"Yeah, welcome to Spicewood, man. Let it breathe..."*
   * **Transition:** On beat [4.5] (0:10.8), screen cuts to black for 0.2s before the massive kick & snare slam on Bar 5!
@@ -83,12 +179,12 @@ Outro   │ Bars 80–102 │ 3:44 – 4:48  │ Porch Session, Crickets & Vinyl
 
 * **Bar 5 (0:11 – 0:14) | Shot 1.5 [Action Cut]:**
   * **0:11 [1]:** Extreme close-up of a scuffed leather boot slamming down hard on the accelerator pedal.
-  * **0:12 [2 💥]:** Rapper leaning back against the truck hood, pointing directly into the camera lens with rhythm.
+  * **0:12 [2 💥]:** The Outlaw leaning back against the truck hood, pointing directly into the camera lens with rhythm.
   * **0:13 [3]:** Dual chrome exhaust pipes spitting a puff of post-combustion haze.
-  * **0:14 [4 💥]:** Rapper's hands snap out: *"COWBOY MOTTO"*.
+  * **0:14 [4 💥]:** The Outlaw's hands snap out: *"COWBOY MOTTO"*.
 
 * **Bar 6 (0:14 – 0:17) | Shot 1.6 [Aquatic Transition]:**
-  * **0:14 [1]:** Rapper walking barefoot on wet limestone shelves at Krause Springs.
+  * **0:14 [1]:** The Outlaw walking barefoot on wet limestone shelves at Krause Springs.
   * **0:15 [2 💥]:** Submerged camera looking up through crystal-clear cold spring water as waterfall spray breaks the surface.
   * **0:16 [3]:** Sunlight refracting underwater into dancing caustics.
   * **0:17 [4 💥]:** Rapid zoom-in on MC wiping water from his face: *"I'M SO HOT THOUGH"*.
@@ -96,7 +192,7 @@ Outro   │ Bars 80–102 │ 3:44 – 4:48  │ Porch Session, Crickets & Vinyl
 * **Bar 7 (0:17 – 0:20) | Shot 1.7 [Texture & Swagger]:**
   * **0:17 [1]:** Two hands cupping freezing turquoise spring water, lifting it upward.
   * **0:18 [2 💥]:** Water splashes directly toward the lens in 120fps super slow motion.
-  * **0:19 [3]:** Low-angle silhouette of rapper standing tall against towering limestone rock walls.
+  * **0:19 [3]:** Low-angle silhouette of the Outlaw standing tall against towering limestone rock walls.
   * **0:20 [4 💥]:** Flash cut to weathered sign: *"DESPERADO"*.
 
 * **Bar 8 (0:20 – 0:22) | Shot 1.8 [FPV Drone Dive]:**
@@ -115,7 +211,7 @@ Outro   │ Bars 80–102 │ 3:44 – 4:48  │ Porch Session, Crickets & Vinyl
   * **0:28 [4 💥]:** Golden sunbeams piercing Spanish moss: *"EL DORADO"*.
 
 * **Bar 11 (0:28 – 0:31) | Shot 1.11 [Old-School Hustle]:**
-  * **0:28 [1]:** Weathered cedar picnic table. Rapper sorting through a wooden milk crate packed with vintage vinyl records.
+  * **0:28 [1]:** Weathered cedar picnic table. The Outlaw sorting through a wooden milk crate packed with vintage vinyl records.
   * **0:29 [2 💥]:** Close-up thumb flipping through record sleeves: classic 90s hip-hop labels.
   * **0:31 [4 💥]:** MC looks up, snaps fingers: *"GET IT PRONTO"*.
 
@@ -145,22 +241,25 @@ Outro   │ Bars 80–102 │ 3:44 – 4:48  │ Porch Session, Crickets & Vinyl
   * **Visual:** A swimmer swinging out on a thick hemp rope tied to an overhanging cypress tree, releasing mid-air and silhouetted against the sun.
   * **Lyric:** *"We dammed up the Colorado, JUST FOR SWIMMIN' SAKES"*.
 
-* **Bar 17 (0:45 – 0:48) | Shot 1.17 [Krause Springs Grotto]:**
-  * **Visual:** The iconic cascading natural waterfall at Krause Springs pouring over moss-draped maidenhair ferns into the emerald plunge pool. Swimmers laughing in slow motion.
-  * **Lyric:** *"King of swing at Krause Springs, WHERE THE WATER SHAKES"*.
+* **Bar 17 (0:45 – 0:48) | Shot 1.17 [Krause Springs Grotto & Rope Swing Drop]:**
+  * **Visual:** Swimmer swinging out high over the crystal-clear pool on a massive hemp rope swing tied to a 500-year-old bald cypress tree, backlit by amber sunbeams.
+  * **Audio:** King Louie Dixieland swing sample kicks in: *"Now I'm the king of the swingers..."*
+  * **Lyric:** *"King of swing at Krause Springs,"* (Beats 1 & 2).
 
-* **Bar 18 (0:48 – 0:51) | Shot 1.18 [Dawn Mist Silhouette]:**
-  * **Visual:** Time-lapse dawn mist rolling across the Pedernales river basin as the golden-purple Texas sunrise breaks over the hills.
-  * **Lyric:** *"Wake up early morning, BEFORE THE SUN AWAKES"*.
+* **Bar 18 (0:48 – 0:51) | Shot 1.18 [The Emerald Water Shake]:**
+  * **Visual:** Swimmer releases rope mid-air and plunges into the emerald plunge pool, sending an explosive wall of turquoise spray towards the camera, shaking the lens in 35mm slow motion.
+  * **Audio:** King Louie brass swell: *"...oh, the jungle VIP!"*
+  * **Lyric:** *"WHERE THE WATER SHAKES"* (Shouted over the splash).
 
-* **Bar 19 (0:51 – 0:54) | Shot 1.19 [The Trigger Homage]:**
-  * **Visual:** Macro slow pan across a battle-worn Martin N-20 nylon-string acoustic guitar, showing the deep pick-worn hole in the spruce top, cracked lacquer, and etched signatures.
-  * **Lyric:** *"Hitchhike a ride on Trigger, SEE WHAT MONEY MAKES"*.
+* **Bar 19 (0:51 – 0:54) | Shot 1.19 [The Chilly Spring / Spicewood Villain]:**
+  * **Visual:** Performer steps onto the slick mossy limestone ledge, water dripping from Carhartt denim, raising an outlaw grin as mist rises from the 68° natural spring.
+  * **Audio:** Bouncing swing clarinet & walking bassline: *"I've reached the top and had to stop..."*
+  * **Lyric:** *"Water so chilly, spicewood villy-an"* (Beats 1 to 4).
 
-* **Bar 20 (0:54 – 0:56) | Shot 1.20 [🛑 The Half-Time Brake Check]:**
-  * **0:54 [1]:** MC stands solitary on the edge of the limestone cliff: *"Spicewood..."*
-  * **0:55 [3]:** Sudden visual freeze-frame on *"VILLAIN!"* with CRT scanline flicker and an MF DOOM metallic chrome reflection across his sunglasses!
-  * **0:56 [4 💥]:** Frame unfreezes with an explosive zoom-in as the snare cracks: *"WITH THE HIGHEST STAKES!"*.
+* **Bar 20 (0:54 – 0:56) | Shot 1.20 [🛑 The Half-Time Brake Check & Climax]:**
+  * **Visual:** Sudden dead-silent freeze frame across Beats 1–3 as camera locks tight on MC's sunglasses. On Beat 4 [4 💥], explosive zoom-in as the snare and bass drop heavy!
+  * **Audio:** Big dramatic silence / drum pause, then monstrous 4th beat snare crack!
+  * **Lyric:** *"...WITH THE HIGHEST STAKES!"* [4 💥].
 
 ---
 
@@ -188,36 +287,36 @@ Outro   │ Bars 80–102 │ 3:44 – 4:48  │ Porch Session, Crickets & Vinyl
 *Tone: Sensual, tactile Texas foodways meets wild Hill Country adrenaline.*
 
 * **Bar 29 (1:19 – 1:22) | Shot 2.1 [The Smoke Veil]:**
-  * MC steps forward straight through a rolling curtain of post-oak smoke, holding a stainless steel pair of pitmaster tongs like a stage mic.
-  * *Lyric: "Yeah, clear the air, ROLLIN' IN THE SMOKE"*
+  * MC steps forward straight through a rolling curtain of post-oak smoke, gesturing with outlaw confidence.
+  * *Lyric: "Yeah, clear the air, PULL UP A CHAIR"*
 
 * **Bar 30 (1:22 – 1:25) | Shot 2.2 [Shadows & Cedar]:**
-  * Low-angle 24mm framing inside the pit room. Smoked timbers, soot-stained walls, amber light bouncing off grease trays.
-  * *Lyric: "Second verse villain, NEVER WAS A JOKE"*
+  * Low-angle 24mm framing in the outdoor smoke yard. Smoked timbers, amber light bouncing off weathered wood.
+  * *Lyric: "Second verse villain, BRAIN BROKE BEYOND REPAIR"*
 
-* **Bar 31 (1:25 – 1:28) | Shot 2.3 [Oak Cordwood]:**
+* **Bar 31 (1:25 – 1:28) | Shot 2.3 [Oak Cordwood Sparks]:**
   * Pitmaster hurling a split log of cured post-oak into the blazing firebox. Orange sparks shower through the air in slow motion.
-  * *Lyric: "Oak wood brisket, NEVER GOIN' BROKE"*
+  * *Lyric: "Oak wood brisket, SMOKE UP IN THE FLARE"*
 
 * **Bar 32 (1:28 – 1:31) | Shot 2.4 [The Vintage Mic]:**
   * Extreme close-up on MC delivering vocals into a vintage Shure 55SH microphone mounted on an iron gear stand.
-  * *Lyric: "Listen to the master, EVERY WORD I SPOKE"*
+  * *Lyric: "Listen to the master, NOTHIN' TO COMPARE"*
 
-* **Bar 33 (1:31 – 1:33) | Shot 2.5 [Pace Bend Cliff Leap]:**
-  * Pale 45-foot limestone cliff at Pace Bend Park. A cliff jumper launches out into the blue sky with arms spread wide in 60fps slow motion.
-  * *Lyric: "Pace Bend cliff dive, JUMPIN' OFF THE OAK"*
+* **Bar 33 (1:31 – 1:33) | Shot 2.5 [Pace Bend Cliff Fall]:**
+  * Pale 45-foot limestone cliff at Pace Bend Park. A cliff jumper launches out into the blue sky, falling through the air in 60fps slow motion.
+  * *Lyric: "Pace Bend cliff dive, FALL THROUGH THE AIR"*
 
 * **Bar 34 (1:33 – 1:36) | Shot 2.6 [Aquatic Cavern]:**
   * Underwater camera captures the diver piercing the lake surface, a vortex of emerald bubbles churning around the lens.
-  * *Lyric: "Cobalt lake water, WRAPPED IN A CLOAK"*
+  * *Lyric: "Cobalt lake water, ICED-OUT MILLIONAIRE"*
 
 * **Bar 35 (1:36 – 1:39) | Shot 2.7 [Firebox Embers]:**
   * Close-up of glowing red-orange coals inside the firebox. Shovel turning the coals; heat ripples distorting the image.
-  * *Lyric: "Sun-baked sandstone, KEEP THE FIRE STOKE"*
+  * *Lyric: "Sun-baked sandstone, SITTIN' IN THE GLARE"*
 
 * **Bar 36 (1:39 – 1:42) | Shot 2.8 [Tailgate Bonfire]:**
-  * Tailgate of a vintage pickup drops down with a heavy metal thud. Glass bottles clink in a toast around an open limestone firepit.
-  * *Lyric: "Tailgate party, TILL THE BOTTLE BROKE!"*
+  * Tailgate of a vintage pickup drops down with a heavy metal thud. Glass bottles clink in a toast around an open limestone firepit with outlaws celebrating.
+  * *Lyric: "Better watch what you wear, THERE'S OUTLAWS EVERYWHERE!"*
 
 ---
 
@@ -226,7 +325,7 @@ Outro   │ Bars 80–102 │ 3:44 – 4:48  │ Porch Session, Crickets & Vinyl
 
 * **Bar 37 (1:42 – 1:45) | Shot 2.9 [The Prowler]:**
   * **Visual:** Blacked-out 1970 Chevelle rumbling low through dense cedar thickets at night. Twin headlights slice through the brush like predator eyes.
-  * **Typography:** `(Sippin'-on-that-bourbon-I'm-a)` rapidly scrolls horizontally, then **`PROWLER PROWLIN'`** slams into the center in heavy bold slab serif with amber glow!
+  * **Typography:** `(Sippin'-on-that-bourbon-I'm-a)` rapidly scrolls horizontally, then **`OUTLAW PROWLIN'`** slams into the center in heavy bold slab serif with amber glow!
 
 * **Bar 38 (1:45 – 1:48) | Shot 2.10 [Iron Wolf Howl]:**
   * **Visual:** Neon sign of Iron Wolf Ranch & Distilling humming in the dark; cut to an iron wolf sculpture silhouette against the moon. Engine revs with flame pops from exhaust!
@@ -407,357 +506,366 @@ Outro   │ Bars 80–102 │ 3:44 – 4:48  │ Porch Session, Crickets & Vinyl
 
 ## 🤖 3. GOOGLE FLOW VIDEO (VEO) COMPLETE SINGLE-PROMPT SUITE
 
-> **💡 How to use in Google Flow:**  
-> **Yes, each shot is exactly ONE prompt!** You copy-paste the single prompt string directly into Google Flow's prompt box. The camera motion is already engineered as the opening directive of each prompt, so you do not need separate settings.
+> **⏱️ Google Flow Duration Guide (4s / 6s / 8s):**
+> * **4s Setting (Fastest & Default for 1-Bar Shots):** 1 Bar = 2.82s. A **4s generation** provides the exact action plus **1.18s of trim handle padding** without wasting render credits.
+> * **6s Setting (For 2-Bar Sequences):** 2 Bars = 5.65s. A **6s generation** fits perfectly.
+> * **8s Setting (For Long Drone Glides, Hooks & Outros):** Use **8s** for continuous camera sweeps and multi-bar community scenes.
+
+> **💡 Model Selection Strategy:**
+> * **Veo (Quality Mode):** Mandatory for all **Lead MC / Human Characters** (preserves face likeness, prevents warping) and **Complex Physics** (post-oak smoke, waterfall turbulence, cliff jumps, bonfire explosion).
+> * **Veo Lite / Fast / Omni Flash:** Recommended for **B-Roll, Landscapes, Objects & Signs** (vinyl needle, highway signs, road drift, rapid prototyping) to save 80% render time and credits.
 
 ---
-
 ### 📍 Act I: The Rural Inception (Bars 1–20 / 0:00–0:56)
 
-* **Shot 1.1 (Bar 1 | 0:00 – 0:02.82) — Length: 2.82s (1 Bar) | Vinyl Needle Drop:**
+* **Shot 1.1 (Bar 1 | 0:00 – 0:02.82) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | ⚡ Model: Veo Lite / Fast / Omni Flash | Vinyl Needle Drop:**
   ```text
   Extreme macro slow push-in on a diamond stylus needle dropping into the groove of a dusty 12-inch vinyl record on a Technics SL-1200 turntable, afternoon sunbeams illuminating floating dust motes, warm analog crackle atmosphere, 35mm film texture, photorealistic, 24fps.
   ```
 
-* **Shot 1.2 (Bar 2 | 0:02.82 – 0:05.65) — Length: 2.82s (1 Bar) | Highway 71 Establishing Wide:**
+* **Shot 1.2 (Bar 2 | 0:02.82 – 0:05.65) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | ⚡ Model: Veo Lite / Fast / Omni Flash | Distant Ridge Silhouette:**
   ```text
-  Cinematic low-angle 24mm wide shot of a weathered vintage 1978 two-tone cream and copper Ford F-150 driving west on two-lane Texas Highway 71 at golden hour, rolling limestone hills of Spicewood in background, heat mirage shimmering off asphalt, 35mm Kodak Portra 400, 24fps.
+  Extreme wide telephoto cinematic shot, a 1978 two-tone Ford F-150 Ranger pickup truck, cream-white cab roof with copper-brown lower body, square front grille with dual square headlights, chrome front bumper, vintage round chrome side mirrors, weathered patina is a distant silhouette driving along a high limestone ridge road in the Texas Hill Country at golden hour. Vast glowing orange and violet sky, heat mirage, rolling cedar hills, crisp cinematic scale, 35mm film, 24fps.
   ```
 
-* **Shot 1.3 (Bar 3 | 0:05.65 – 0:08.47) — Length: 2.82s (1 Bar) | Truck Window Arm:**
+* **Shot 1.3 (Bar 3 | 0:05.65 – 0:08.47) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | 🎯 Model: Veo (Quality Mode) | Parked Overlook Leaning on Fender:**
   ```text
-  Parallel tracking shot moving at 45mph alongside the driver door of a vintage pickup truck, driver's sun-browned arm resting on the warm metal door with hand surfing the Texas wind, rolling cedar brush in background, 35mm film grain, golden hour flare, 24fps.
+  Cinematic 35mm film still, low-angle medium shot, a rugged Texas outlaw in a brown Carhartt jacket and silver-gray Stetson hat leaning back against the front fender of a parked 1978 two-tone Ford F-150 Ranger pickup truck, cream-white cab roof with copper-brown lower body, square front grille with dual square headlights, chrome front bumper, vintage round chrome side mirrors, weathered patina on a limestone overlook. Golden hour sunset flares through live oak trees, crisp focus, sharp textures, warm cinematic lighting, 24fps.
   ```
 
-* **Shot 1.4 (Bar 4 | 0:08.47 – 0:11.29) — Length: 2.82s (1 Bar) | Lighter Flick in Cab:**
+* **Shot 1.4 (Bar 4 | 0:08.47 – 0:11.29) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | ⚡ Model: Veo Lite / Fast / Omni Flash | Macro Cassette Tape on Dash:**
   ```text
-  Slow push-in inside a vintage truck cab, weathered leather bench seat, brass Zippo lighter flicks open with a bright flame illuminating the smiling face of a rapper under his Stetson brim, warm dashboard glow, 35mm Kodak Vision3 500T, photorealistic, 24fps.
+  Extreme macro slow push-in on a single vintage cassette tape resting on the sun-baked brown dashboard of a 1978 truck. The cassette tape has a clean handwritten label reading 'SPICEWOOD OUTLAWS'. Warm golden hour sunlight illuminating the plastic cassette shell, shallow depth of field, sharp analog texture, 35mm film grain, 24fps.
   ```
 
-* **Shot 1.5 (Bar 5 | 0:11.29 – 0:14.12) — Length: 2.82s (1 Bar) | Cowboy Motto:**
+* **Shot 1.5 (Bar 5 | 0:11.29 – 0:14.12) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | 🎯 Model: Veo (Quality Mode) | Cowboy Motto (Verse 1 Beat Drop):**
   ```text
-  Low-angle tracking shot of a scuffed leather boot slamming down on an accelerator pedal, cutting to a rapper in a brown Carhartt Detroit jacket leaning against the truck hood nodding to an 85 BPM beat, post-exhaust haze, 35mm film, 24fps.
+  Cinematic medium shot, as the boom-bap beat drops at golden hour, a charismatic Texas outlaw in a brown Carhartt jacket and silver-gray Stetson hat pushes off the hood of a parked vintage truck, stepping confidently forward directly toward the camera, rapping with sharp outlaw swagger, live oak trees and glowing sunset sun flare behind, 35mm film grain, 24fps.
   ```
 
-* **Shot 1.6 (Bar 6 | 0:14.12 – 0:16.94) — Length: 2.82s (1 Bar) | Limestone Grotto:**
+* **Shot 1.6 (Bar 6 | 0:14.12 – 0:16.94) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | 🎯 Model: Veo (Quality Mode) | Limestone Grotto:**
   ```text
   Underwater camera looking up through crystal-clear cold turquoise spring water as natural waterfall bubbles break the surface, sunlight caustics dancing on submerged limestone shelves at Krause Springs Spicewood, 35mm film texture, 24fps.
   ```
 
-* **Shot 1.7 (Bar 7 | 0:16.94 – 0:19.76) — Length: 2.82s (1 Bar) | Cold Spring Splash:**
+* **Shot 1.7 (Bar 7 | 0:16.94 – 0:19.76) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | 🎯 Model: Veo (Quality Mode) | Cold Spring Splash:**
   ```text
   Medium low-angle shot of two cupped hands lifting freezing spring water and splashing it upward toward the camera in 120fps super slow motion, glistening water droplets, towering limestone cliff walls behind, Kodak 500T, 24fps.
   ```
 
-* **Shot 1.8 (Bar 8 | 0:19.76 – 0:22.59) — Length: 2.82s (1 Bar) | Pedernales River Rapids:**
+* **Shot 1.8 (Bar 8 | 0:19.76 – 0:22.59) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | 🎯 Model: Veo (Quality Mode) | Pedernales River Rapids:**
   ```text
   FPV cinematic drone dive skimming inches above rushing white water rapids and massive pink granite boulders along the Pedernales River, banking sharply along the river gorge, golden hour lighting, 35mm film aesthetic, 24fps.
   ```
 
-* **Shot 1.9 (Bar 9 | 0:22.59 – 0:25.41) — Length: 2.82s (1 Bar) | Outlaw Barn:**
+* **Shot 1.9 (Bar 9 | 0:22.59 – 0:25.41) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | 🎯 Model: Veo (Quality Mode) | Outlaw Barn:**
   ```text
-  Slow camera pan past rusty barbed wire fence posts to reveal a weathered wooden barn with a faded Texas lone star flag painted on corrugated tin, rapper holding a microphone in the shade, warm cinematic lighting, 24fps.
+  Cinematic medium shot, the Outlaw in a brown Carhartt jacket and silver-gray Stetson hat stands before a rustic weathered cedar barn at golden hour. He looks directly into the camera with confident Texas outlaw swagger, nodding slowly to the beat, warm amber sun flare, sharp 35mm film grain, 24fps.
   ```
 
-* **Shot 1.10 (Bar 10 | 0:25.41 – 0:28.24) — Length: 2.82s (1 Bar) | Cypress Roots:**
+* **Shot 1.10 (Bar 10 | 0:25.41 – 0:28.24) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | ⚡ Model: Veo Lite / Fast / Omni Flash | Cypress Roots:**
   ```text
   Tilt-up shot starting on colossal 500-year-old bald cypress roots twisting along the riverbank into limestone water, ascending up the massive tree trunk draped in Spanish moss with sunlight rays cutting through, 35mm film, 24fps.
   ```
 
-* **Shot 1.11 (Bar 11 | 0:28.24 – 0:31.06) — Length: 2.82s (1 Bar) | Vinyl Crate on Picnic Table:**
+* **Shot 1.11 (Bar 11 | 0:28.24 – 0:31.06) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | ⚡ Model: Veo Lite / Fast / Omni Flash | Vinyl Crate on Picnic Table:**
   ```text
-  Top-down medium shot of hands flipping through a rustic wooden crate filled with vintage 1990s hip hop vinyl records on a weathered cedar picnic table under live oak shade, natural dappled sunlight, 35mm film, 24fps.
+  Cinematic macro camera glide across a rustic wooden crate filled with vintage vinyl records resting on a weathered cedar picnic table. Dappled golden sunlight filtering through live oak branches, tactile cardboard album sleeves, shallow depth of field, sharp 35mm film grain, 24fps.
   ```
 
-* **Shot 1.12 (Bar 12 | 0:31.06 – 0:33.88) — Length: 2.82s (1 Bar) | MPC on Tailgate & Gallop:**
+* **Shot 1.12 (Bar 12 | 0:31.06 – 0:33.88) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | ⚡ Model: Veo Lite / Fast / Omni Flash | MPC on Tailgate & Gallop:**
   ```text
-  Close-up camera push on an Akai MPC drum machine sitting on an open pickup truck tailgate with hands hitting drum pads in rhythm, cutting to a wild quarter horse galloping along a cedar ridge fence line, 35mm film, 24fps.
+  Close-up camera push on an Akai MPC drum machine sitting on the lowered tailgate of a 1978 two-tone Ford F-150 Ranger pickup truck, cream-white cab roof with copper-brown lower body, square front grille with dual square headlights, chrome front bumper, vintage round chrome side mirrors, weathered patina with hands hitting drum pads in rhythm, cutting to a wild quarter horse galloping along a cedar ridge fence line, 35mm film, 24fps.
   ```
 
-* **Shot 1.13 (Bar 13 | 0:33.88 – 0:36.71) — Length: 2.82s (1 Bar) | Luck Texas Boardwalk:**
+* **Shot 1.13 (Bar 13 | 0:33.88 – 0:36.71) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | 🎯 Model: Veo (Quality Mode) | Luck Texas Boardwalk:**
   ```text
-  Steadicam tracking backward in front of a rapper walking down the rustic dirt street of Luck Texas past weathered wooden saloon facades and cedar boardwalks, warm dusty sunlight, 35mm Kodak Portra, 24fps.
+  Steadicam tracking backward in front of the Outlaw walking down the rustic dirt street of Luck Texas past weathered wooden saloon facades and cedar boardwalks, warm dusty sunlight, 35mm Kodak Portra, 24fps.
   ```
 
-* **Shot 1.14 (Bar 14 | 0:36.71 – 0:39.53) — Length: 2.82s (1 Bar) | Lake Travis Bluff Reveal:**
+* **Shot 1.14 (Bar 14 | 0:36.71 – 0:39.53) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | ⚡ Model: Veo Lite / Fast / Omni Flash | Lake Travis Bluff Reveal:**
   ```text
   Cinematic crane shot rising up from behind a white limestone bluff to reveal the vast panoramic expanse of Lake Travis shimmering in deep turquoise and blue under the Texas afternoon sky, 35mm film, 24fps.
   ```
 
-* **Shot 1.15 (Bar 15 | 0:39.53 – 0:42.35) — Length: 2.82s (1 Bar) | Cedar Breaks Dust Turn:**
+* **Shot 1.15 (Bar 15 | 0:39.53 – 0:42.35) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | ⚡ Model: Veo Lite / Fast / Omni Flash | Cedar Breaks Dust Turn:**
   ```text
-  Low-angle ground camera as a vintage pickup truck turns hard onto a caliche dirt road, red brake lights flashing through a massive billowing rooster tail of chalk-white limestone dust, 35mm film, 24fps.
+  Low-angle ground camera as a 1978 two-tone Ford F-150 Ranger pickup truck, cream-white cab roof with copper-brown lower body, chrome bumper, weathered patina, swerves hard onto a winding caliche dirt road, red brake lights flashing through a massive billowing rooster tail of chalk-white limestone dust, 35mm film, 24fps.
   ```
 
-* **Shot 1.16 (Bar 16 | 0:42.35 – 0:45.18) — Length: 2.82s (1 Bar) | Rope Swing Leap:**
+* **Shot 1.16 (Bar 16 | 0:42.35 – 0:45.18) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | ⚡ Model: Veo Lite / Fast / Omni Flash | Rope Swing Leap:**
   ```text
   Slow-motion side tracking shot of a swimmer swinging out over the Colorado river on a thick hemp rope from a giant cypress branch, releasing mid-air silhouetted against the bright sun, 35mm film grain, 24fps.
   ```
 
-* **Shot 1.17 (Bar 17 | 0:45.18 – 0:48.00) — Length: 2.82s (1 Bar) | Krause Springs Waterfall:**
+* **Shot 1.17 (Bar 17 | 0:45.18 – 0:48.00) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | 🎯 Model: Veo (Quality Mode) | Krause Springs Waterfall [Lyric: "King of swing at Krause Springs,"]:*
   ```text
   Smooth camera glide in front of the iconic cascading natural spring waterfall at Krause Springs pouring over emerald ferns into a swimming grotto, water spray catching sunbeams, 35mm film, 24fps.
   ```
 
-* **Shot 1.18 (Bar 18 | 0:48.00 – 0:50.82) — Length: 2.82s (1 Bar) | Dawn Mist Horizon:**
+* **Shot 1.18 (Bar 18 | 0:48.00 – 0:50.82) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | ⚡ Model: Veo Lite / Fast / Omni Flash | Dawn Mist Horizon [Lyric: "WHERE THE WATER SHAKES"]:*
   ```text
   Cinematic wide time-lapse of morning mist hovering above the Pedernales river basin as the deep purple and orange Texas dawn horizon glows behind distant rolling hills, 35mm film, 24fps.
   ```
 
-* **Shot 1.19 (Bar 19 | 0:50.82 – 0:53.65) — Length: 2.82s (1 Bar) | Trigger Guitar Homage:**
+* **Shot 1.19 (Bar 19 | 0:50.82 – 0:53.65) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | 🎯 Model: Veo (Quality Mode) | Trigger Guitar Homage [Lyric: "Water so chilly, spicewood villy-an"]:*
   ```text
-  Macro camera dolly sliding slowly across the worn spruce soundboard of a vintage Martin N-20 nylon guitar showing the famous pick-worn hole and carved outlaw country signatures, resting on a cedar porch, 35mm film, 24fps.
+  Cinematic slow push-in on a weathered vintage acoustic guitar leaning against a rustic cedar porch railing at sunrise. Warm amber morning sunlight glowing across the honey-colored wood finish, soft morning mist and Hill Country trees in the background, 35mm film grain, 24fps.
   ```
 
-* **Shot 1.20 (Bar 20 | 0:53.65 – 0:56.47) — Length: 2.82s (1 Bar) | The Brake Check & Snap:**
+* **Shot 1.20 (Bar 20 | 0:53.65 – 0:56.47) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | 🎯 Model: Veo (Quality Mode) | The Brake Check & Snap [Lyric: "...WITH THE HIGHEST STAKES!"]:*
   ```text
-  Static camera shot of a rapper at the edge of a limestone cliff freezing abruptly on beat 3 with CRT scanline flicker, then explosive rapid snap-zoom punch into his face as the snare cracks on beat 4, 35mm film, 24fps.
+  Static camera shot of the Outlaw at the edge of a limestone cliff freezing abruptly on beat 3 with CRT scanline flicker, then explosive rapid snap-zoom punch into his face as the snare cracks on beat 4, 35mm film, 24fps.
   ```
 
 ---
 
 ### 📍 Act II: Outlaw Anthem & Mega Speed Burst (Bars 21–52 / 0:56–2:27)
 
-* **Shot 2.1 (Bar 21 | 0:56.47 – 0:59.29) — Length: 2.82s (1 Bar) | Outlaw Country:**
+* **Shot 2.1.a (Bar 21 | 0:56.47 – 0:59.29) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | 🎯 Model: Veo (Quality Mode) | Outlaw on the Outcrop:**
   ```text
-  Cinematic crane descending over live oak trees toward a rapper on a high limestone outcrop, cutting on beat 4 to three horseback riders silhouetted against the bright horizon, 35mm Kodak 500T, 24fps.
+  Cinematic crane shot descending toward the Outlaw in a brown Carhartt jacket and silver-gray Stetson hat standing on a high limestone outcrop at golden hour, looking out over the vast Texas Hill Country canyon with confident outlaw swagger, warm amber sun flare, 35mm film grain, 24fps.
   ```
 
-* **Shot 2.2 (Bar 22 | 0:59.29 – 1:02.12) — Length: 2.82s (1 Bar) | Bourbon on Limestone:**
+* **Shot 2.1.b (Bar 21.5 | Alternate / Cutaway) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | ⚡ Model: Veo Lite / Fast / Omni Flash | Horseback Riders on Ridge:**
+  ```text
+  Cinematic wide telephoto shot of three Texas horseback riders silhouetted as they trot along a high limestone ridge at golden hour. Long dramatic shadows stretching across the pale rock, dust kicking up softly behind the hooves, glowing orange sunset sky, 35mm film, 24fps.
+  ```
+
+* **Shot 2.2 (Bar 22 | 0:59.29 – 1:02.12) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | ⚡ Model: Veo Lite / Fast / Omni Flash | Bourbon on Limestone:**
   ```text
   Low-angle macro shot of amber Texas bourbon poured from a flask onto sun-baked white limestone rock, liquid sizzling into steam on the 4th beat snare, warm golden sunlight, 35mm film, 24fps.
   ```
 
-* **Shot 2.3 (Bar 23 | 1:02.12 – 1:04.94) — Length: 2.82s (1 Bar) | Smoker Door Billow:**
+* **Shot 2.3 (Bar 23 | 1:02.12 – 1:04.94) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | 🎯 Model: Veo (Quality Mode) | Outdoor Smoker Smoke Billow:**
   ```text
-  Dolly push toward a massive black 1,000-gallon steel offset smoker at Opie's BBQ, the pitmaster lifting the heavy counterweight door as a huge plume of fragrant white post-oak smoke erupts toward camera, 35mm film, 24fps.
+  Cinematic slow push-in on a massive black steel offset barbecue smoker situated outdoors in a Texas gravel yard beside stacks of split post-oak firewood. Thick white wood smoke billows heavily from the iron chimney into the open sky at golden hour, live oak trees in background, 35mm film grain, 24fps.
   ```
 
-* **Shot 2.4 (Bar 24 | 1:04.94 – 1:07.76) — Length: 2.82s (1 Bar) | Slicing the Brisket Flat:**
+* **Shot 2.4 (Bar 24 | 1:04.94 – 1:07.76) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | 🎯 Model: Veo (Quality Mode) | Slicing the Brisket Flat:**
   ```text
-  Top-down macro shot of a long Granton-edge slicing knife cutting through a 16-hour smoked beef brisket flat, revealing a deep pink smoke ring and glistening warm tallow juices pooling on the butcher block, 35mm film, 24fps.
+  Top-down macro shot of a freshly carved 16-hour smoked beef brisket flat resting on butcher paper on an outdoor wooden picnic table. Glistening peppery black bark, deep pink smoke ring, hot tallow juices bubbling in warm sunlight, 35mm film, 24fps.
   ```
 
-* **Shot 2.5 (Bar 25 | 1:07.76 – 1:10.59) — Length: 2.82s (1 Bar) | Texas Longhorn Steer:**
+* **Shot 2.5 (Bar 25 | 1:07.76 – 1:10.59) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | 🎯 Model: Veo (Quality Mode) | Texas Longhorn Steer:**
   ```text
-  Ground-level low-angle shot of a majestic Texas Longhorn steer with massive 7-foot horns standing in tall native grass, snorting warm breath into the golden morning air, 35mm film, 24fps.
+  Ground-level low-angle cinematic shot of a majestic Texas Longhorn steer with massive curved horns standing proudly in tall golden Hill Country grass. Soft morning breeze rustling the pasture, glowing sunrise light, sharp photorealistic animal texture, 35mm film grain, 24fps.
   ```
 
-* **Shot 2.6 (Bar 26 | 1:10.59 – 1:13.41) — Length: 2.82s (1 Bar) | Windmill & Stetson Tip:**
+* **Shot 2.6 (Bar 26 | 1:10.59 – 1:13.41) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | 🎯 Model: Veo (Quality Mode) | Windmill & Stetson Tip:**
   ```text
-  Medium shot of a rapper resting against the rusty iron leg of an Aermotor water windmill spinning slowly in the breeze, tipping his Stetson hat up to look directly into the camera lens, 35mm film, 24fps.
+  Medium shot of the Outlaw resting against the rusty iron leg of an Aermotor water windmill spinning slowly in the breeze, tipping his Stetson hat up to look directly into the camera lens, 35mm film, 24fps.
   ```
 
-* **Shot 2.7 (Bar 27 | 1:13.41 – 1:16.24) — Length: 2.82s (1 Bar) | 360° Ridge Orbit:**
+* **Shot 2.7 (Bar 27 | 1:13.41 – 1:16.24) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | 🎯 Model: Veo (Quality Mode) | 360° Ridge Orbit:**
   ```text
-  360-degree orbital drone shot revolving smoothly around a rapper standing at the highest peak overlooking the vast Spicewood river canyon under a massive Texas sky, 35mm film, 24fps.
+  360-degree orbital drone shot revolving smoothly around the Outlaw standing at the highest peak overlooking the vast Spicewood river canyon under a massive Texas sky, 35mm film, 24fps.
   ```
 
-* **Shot 2.8 (Bar 28 | 1:16.24 – 1:19.06) — Length: 2.82s (1 Bar) | Temple Tap & 78669 Sign:**
+* **Shot 2.8 (Bar 28 | 1:16.24 – 1:19.06) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | 🎯 Model: Veo (Quality Mode) | Temple Tap & 78669 Sign:**
   ```text
-  Tight medium shot of a rapper tapping his index finger to his temple with a knowing outlaw smirk, cutting on beat 4 to a green metal highway road sign reading 'SPICEWOOD 78669', 35mm film, 24fps.
+  Medium shot of the Outlaw standing beside a green metal highway sign reading 'SPICEWOOD 78669' at golden hour, tapping his index finger to his temple with a knowing outlaw smirk as the beat drops, 35mm film, 24fps.
   ```
 
-* **Shot 2.9 (Bar 29 | 1:19.06 – 1:21.88) — Length: 2.82s (1 Bar) | Rolling in the Smoke:**
+* **Shot 2.9 (Bar 29 | 1:19.06 – 1:21.88) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | 🎯 Model: Veo (Quality Mode) | Pull Up a Chair [Lyric: "Yeah, clear the air, PULL UP A CHAIR"]:**
   ```text
-  Slow-motion medium shot of a rapper stepping forward through a thick rolling curtain of aromatic post-oak barbecue smoke holding steel pitmaster tongs like a vintage microphone, 35mm film, 24fps.
+  Slow-motion medium shot of the Outlaw stepping forward outdoors through a thick rolling curtain of aromatic post-oak barbecue smoke beside an outdoor pit, warm golden sunlight, 35mm film, 24fps.
   ```
 
-* **Shot 2.10 (Bar 30 | 1:21.88 – 1:24.71) — Length: 2.82s (1 Bar) | Smokehouse Shadows:**
+* **Shot 2.10 (Bar 30 | 1:21.88 – 1:24.71) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | ⚡ Model: Veo Lite / Fast / Omni Flash | Smoke Yard & Villain [Lyric: "Second verse villain, BRAIN BROKE BEYOND REPAIR"]:**
   ```text
-  Low-angle 24mm wide shot inside a rustic Texas smokehouse, black soot-covered wooden walls, grease patina, amber light streaming through wall slats, 35mm Kodak 500T, 24fps.
+  Low-angle wide shot of an outdoor Texas barbecue smoke yard at sunset. Stacks of split post-oak cordwood, black steel offset smokers puffing aromatic white smoke under live oak trees, string lights, 35mm film, 24fps.
   ```
 
-* **Shot 2.11 (Bar 31 | 1:24.71 – 1:27.53) — Length: 2.82s (1 Bar) | Oak Firebox Sparks:**
+* **Shot 2.11 (Bar 31 | 1:24.71 – 1:27.53) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | 🎯 Model: Veo (Quality Mode) | Oak Firebox Sparks [Lyric: "Oak wood brisket, SMOKE UP IN THE FLARE"]:**
   ```text
-  Pitmaster tossing a seasoned split log of post-oak into an open glowing firebox, an explosion of bright orange sparks showering in slow motion through the dim smokehouse air, 35mm film, 24fps.
+  Pitmaster tossing a seasoned split log of post-oak into an open glowing firebox of an outdoor smoker, bright orange sparks showering in slow motion into the crisp evening air, 35mm film, 24fps.
   ```
 
-* **Shot 2.12 (Bar 32 | 1:27.53 – 1:30.35) — Length: 2.82s (1 Bar) | Vintage Shure 55SH Mic:**
+* **Shot 2.12 (Bar 32 | 1:27.53 – 1:30.35) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | 🎯 Model: Veo (Quality Mode) | Vintage Shure 55SH Mic [Lyric: "Listen to the master, NOTHIN' TO COMPARE"]:**
   ```text
   Extreme macro profile of a chrome vintage Shure 55SH microphone wrapped in a faded red paisley bandana, performer delivering punchy lyrics with rhythmic mouth movement, 35mm film, 24fps.
   ```
 
-* **Shot 2.13 (Bar 33 | 1:30.35 – 1:33.18) — Length: 2.82s (1 Bar) | Pace Bend Cliff Dive:**
+* **Shot 2.13 (Bar 33 | 1:30.35 – 1:33.18) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | 🎯 Model: Veo (Quality Mode) | Pace Bend Cliff Fall [Lyric: "Pace Bend cliff dive, FALL THROUGH THE AIR"]:**
   ```text
-  Wide low-angle action shot of an athletic cliff diver leaping off a 45-foot pale limestone bluff at Pace Bend into Lake Travis, arms outstretched silhouetted against golden hour sun, 35mm film, 24fps.
+  Wide low-angle action shot of an athletic cliff diver leaping off a 45-foot pale limestone bluff at Pace Bend into Lake Travis, falling through the air with arms outstretched silhouetted against golden hour sun, 35mm film, 24fps.
   ```
 
-* **Shot 2.14 (Bar 34 | 1:33.18 – 1:36.00) — Length: 2.82s (1 Bar) | Underwater Splashdown:**
+* **Shot 2.14 (Bar 34 | 1:33.18 – 1:36.00) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | 🎯 Model: Veo (Quality Mode) | Underwater Splashdown [Lyric: "Cobalt lake water, ICED-OUT MILLIONAIRE"]:**
   ```text
   Submerged underwater camera capturing the violent aquatic explosion as the cliff diver hits the cobalt lake surface, a vortex of emerald bubbles and water currents churning, 35mm film, 24fps.
   ```
 
-* **Shot 2.15 (Bar 35 | 1:36.00 – 1:38.82) — Length: 2.82s (1 Bar) | Sandstone & Red Embers:**
+* **Shot 2.15 (Bar 35 | 1:36.00 – 1:38.82) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | ⚡ Model: Veo Lite / Fast / Omni Flash | Sandstone & Red Embers [Lyric: "Sun-baked sandstone, SITTIN' IN THE GLARE"]:**
   ```text
   Close-up of glowing red-hot wood coals inside the smoker firebox being stirred with an iron poker, shimmering heat waves warping the background limestone rocks, 35mm film, 24fps.
   ```
 
-* **Shot 2.16 (Bar 36 | 1:38.82 – 1:41.65) — Length: 2.82s (1 Bar) | Tailgate Bonfire Toast:**
+* **Shot 2.16 (Bar 36 | 1:38.82 – 1:41.65) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | 🎯 Model: Veo (Quality Mode) | Tailgate Bonfire Toast [Lyric: "Better watch what you wear, THERE'S OUTLAWS EVERYWHERE!"]:**
   ```text
-  Tailgate of a classic pickup truck dropping down with a heavy metal clatter, friends clinking amber beer bottles in a toast around a roaring limestone firepit at twilight, 35mm film, 24fps.
+  Tailgate of a 1978 two-tone Ford F-150 Ranger pickup truck, cream-white cab roof with copper-brown lower body, chrome bumper, weathered patina, dropping down with a heavy metal clatter, friends clinking amber beer bottles in a toast around a roaring limestone firepit at twilight, 35mm film, 24fps.
   ```
 
-* **Shot 2.17 (Bar 37 | 1:41.65 – 1:44.47) — Length: 2.82s (1 Bar) | Prowler in the Brush:**
+* **Shot 2.17 (Bar 37 | 1:41.65 – 1:44.47) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | ⚡ Model: Veo Lite / Fast / Omni Flash | Prowler in the Brush [Lyric: "(Sippin'-on-that-bourbon-I'm-a) OUTLAW PROWLIN'"]:**
   ```text
   Low-angle tracking shot of a blacked-out vintage muscle car cruising slowly down an unpaved cedar brush trail, headlights slicing through the dark dusty trees, 35mm film, 24fps.
   ```
 
-* **Shot 2.18 (Bar 38 | 1:44.47 – 1:47.29) — Length: 2.82s (1 Bar) | Iron Wolf Howlin':**
+* **Shot 2.18 (Bar 38 | 1:44.47 – 1:47.29) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | ⚡ Model: Veo Lite / Fast / Omni Flash | Iron Wolf Howlin':**
   ```text
   Night shot of the glowing neon wolf sign of Iron Wolf Ranch & Distilling, cutting to twin chrome exhaust pipes revving hard and spitting blue-orange flame pops, 35mm film, 24fps.
   ```
 
-* **Shot 2.19 (Bar 39 | 1:47.29 – 1:50.12) — Length: 2.82s (1 Bar) | High-Speed River Drift:**
+* **Shot 2.19 (Bar 39 | 1:47.29 – 1:50.12) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | ⚡ Model: Veo Lite / Fast / Omni Flash | High-Speed River Drift:**
   ```text
   Fast tracking shot of a pickup truck drifting aggressively around a caliche gravel bend near the river, kicking up an enormous rooster tail of white dust into the air, 35mm film, 24fps.
   ```
 
-* **Shot 2.20 (Bar 40 | 1:50.12 – 1:52.94) — Length: 2.82s (1 Bar) | Valley Corridor Drone Scream:**
+* **Shot 2.20 (Bar 40 | 1:50.12  – 1:52.94) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | ⚡ Model: Veo Lite / Fast / Omni Flash | Valley Corridor Drone Scream:**
   ```text
   High-speed FPV drone screaming down the narrow limestone canyon of the Pedernales River, banking violently inches above the water surface at 50mph, 35mm film grain, 24fps.
   ```
 
-* **Shot 2.21 (Bar 41 | 1:52.94 – 1:55.76) — Length: 2.82s (1 Bar) | Spicewood in My Pocket:**
+* **Shot 2.21 (Bar 41 | 1:52.94 – 1:55.76) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | ⚡ Model: Veo Lite / Fast / Omni Flash | Spicewood in My Pocket:**
   ```text
-  Rapid whip-pan from a Highway 71 green road sign to a rapper holding up a fistful of vintage Texas paper currency and cassette tapes with an outlaw smile, 35mm film, 24fps.
+  Rapid whip-pan from a Highway 71 green road sign to the Outlaw holding up a fistful of vintage Texas paper currency and cassette tapes with an outlaw smile, 35mm film, 24fps.
   ```
 
-* **Shot 2.22 (Bar 42 | 1:55.76 – 1:58.59) — Length: 2.82s (1 Bar) | 📢 Hats on in the Pavilion:**
+* **Shot 2.22 (Bar 42 | 1:55.76 – 1:58.59) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | 🎯 Model: Veo (Quality Mode) | 📢 Hats on in the Pavilion:**
   ```text
   Sudden whip-pan into a packed outdoor cedar dancehall pavilion where 50 locals and ranchers in cowboy hats freeze and tip their Stetsons in unison toward the camera under string lights, 35mm film, 24fps.
   ```
 
-* **Shot 2.23 (Bar 43 | 1:58.59 – 2:01.41) — Length: 2.82s (1 Bar) | Strobe Cuts of Spicewood:**
+* **Shot 2.23 (Bar 43 | 1:58.59 – 2:01.41) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | ⚡ Model: Veo Lite / Fast / Omni Flash | Strobe Cuts of Spicewood:**
   ```text
-  Dynamic fast-cut sequence: spinning vinyl record on a turntable, glowing smoker coals, a swimmer flying off a rope swing, rapper laughing on truck tailgate, 35mm film, 24fps.
+  Dynamic fast-cut sequence: spinning vinyl record on a turntable, glowing smoker coals, a swimmer flying off a rope swing, the Outlaw laughing on truck tailgate, 35mm film, 24fps.
   ```
 
-* **Shot 2.24 (Bar 44 | 2:01.41 – 2:04.24) — Length: 2.82s (1 Bar) | One in a Trillion Gold Flare:**
+* **Shot 2.24 (Bar 44 | 2:01.41 – 2:04.24) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | 🎯 Model: Veo (Quality Mode) | One in a Trillion Gold Flare:**
   ```text
-  Rapper thrusting his fist straight into the center of the setting Texas sun, brilliant gold horizontal anamorphic lens flare striking across the frame, 35mm Kodak Portra, 24fps.
+  The Outlaw thrusting his fist straight into the center of the setting Texas sun, brilliant gold horizontal anamorphic lens flare striking across the frame, 35mm Kodak Portra, 24fps.
   ```
 
-* **Shot 2.25 (Bars 45–48 | 2:04.24 – 2:15.53) — Length: 11.29s (4 Bars) | Community Picnic Drone:**
+* **Shot 2.25 (Bars 45–48 | 2:04.24 – 2:15.53) — Length: 11.29s (4 Bars) | ⏱️ Flow: 8s + 4s | 🎯 Model: Veo (Quality Mode) | Community Picnic Drone:**
   ```text
   Cinematic drone skimming low over long cedar picnic tables covered with brisket platters, peach cobbler, and iced beer bottles as smiling locals raise their glasses to the camera, 35mm film, 24fps.
   ```
 
-* **Shot 2.26 (Bars 49–52 | 2:15.53 – 2:26.82) — Length: 11.29s (4 Bars) | Tailgate Chorus Singalong:**
+* **Shot 2.26 (Bars 49–52 | 2:15.53 – 2:26.82) — Length: 11.29s (4 Bars) | ⏱️ Flow: 8s + 4s | 🎯 Model: Veo (Quality Mode) | Tailgate Chorus Singalong:**
   ```text
-  Wide medium shot of a group of ranchers, musicians, and locals gathered on and around a pickup truck tailgate, singing the chorus with arms over shoulders as dusk settles, 35mm film, 24fps.
-  ```
+   ```
 
 ---
 
 ### 📍 Act III: Golden Hour, Outlaw Legacy & Heavy Drop (Bars 53–79 / 2:27–3:44)
 
-* **Shot 3.1 (Bar 53 | 2:26.82 – 2:29.65) — Length: 2.82s (1 Bar) | Scarlet Sunset Cedar Haze:**
+* **Shot 3.1 (Bar 53 | 2:26.82 – 2:29.65) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | 🎯 Model: Veo (Quality Mode) | Scarlet Sunset Cedar Haze:**
   ```text
   Cinematic telephoto shot of a giant scarlet Texas sun sinking into the cedar ridge horizon, purple and amber atmospheric smoke haze filling the valley, 35mm film, 24fps.
   ```
 
-* **Shot 3.2 (Bar 54 | 2:29.65 – 2:32.47) — Length: 2.82s (1 Bar) | Twilight Constellations:**
+* **Shot 3.2 (Bar 54 | 2:29.65 – 2:32.47) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | ⚡ Model: Veo Lite / Fast / Omni Flash | Twilight Constellations:**
   ```text
   Slow camera tilt up from the darkened hill silhouettes into a deep twilight sky transitioning from burnt orange to indigo with the first bright evening stars appearing, 35mm film, 24fps.
   ```
 
-* **Shot 3.3 (Bar 55 | 2:32.47 – 2:35.29) — Length: 2.82s (1 Bar) | Cicada on Oak Bark:**
+* **Shot 3.3 (Bar 55 | 2:32.47 – 2:35.29) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | ⚡ Model: Veo Lite / Fast / Omni Flash | Cicada on Oak Bark:**
   ```text
   Extreme macro shot of a single cicada clinging to rough live oak bark, translucent amber wings backlit like stained glass by the dying sunset rays, 35mm film, 24fps.
   ```
 
-* **Shot 3.4 (Bar 56 | 2:35.29 – 2:38.12) — Length: 2.82s (1 Bar) | Porch Pocket Watch:**
+* **Shot 3.4 (Bar 56 | 2:35.29 – 2:38.12) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | 🎯 Model: Veo (Quality Mode) | Porch Pocket Watch:**
   ```text
   Weathered leather boots propped on a rustic cedar porch railing, hands pulling an antique brass pocket watch from a denim vest and clicking open the latch, 35mm film, 24fps.
   ```
 
-* **Shot 3.5 (Bar 57 | 2:38.12 – 2:40.94) — Length: 2.82s (1 Bar) | Creaking Porch Swing:**
+* **Shot 3.5 (Bar 57 | 2:38.12 – 2:40.94) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | 🎯 Model: Veo (Quality Mode) | Creaking Porch Swing:**
   ```text
   Slow-motion shot of a wooden two-seater porch swing gently swaying in the evening breeze with an old acoustic guitar resting on the cedar deck beside it, 35mm film, 24fps.
   ```
 
-* **Shot 3.6 (Bar 58 | 2:40.94 – 2:43.76) — Length: 2.82s (1 Bar) | Vinyl Needle on the Porch:**
+* **Shot 3.6 (Bar 58 | 2:40.94 – 2:43.76) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | ⚡ Model: Veo Lite / Fast / Omni Flash | Vinyl Needle on the Porch:**
   ```text
   Close-up tracking shot of a portable vintage turntable on an outdoor wicker table, needle gliding in the spinning grooves as dry cedar leaves drift past, 35mm film, 24fps.
   ```
 
-* **Shot 3.7 (Bar 59 | 2:43.76 – 2:46.59) — Length: 2.82s (1 Bar) | Silhouette Picking Trigger:**
+* **Shot 3.7 (Bar 59 | 2:43.76 – 2:46.59) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | 🎯 Model: Veo (Quality Mode) | Silhouette Picking Trigger:**
   ```text
   Moody silhouette of a braided outlaw musician sitting on a stool inside the rustic Luck Texas chapel, picking acoustic arpeggios on a nylon guitar against a stained glass window, 35mm film, 24fps.
   ```
 
-* **Shot 3.8 (Bar 60 | 2:46.59 – 2:49.41) — Length: 2.82s (1 Bar) | Studer Reel-to-Reel Tape:**
+* **Shot 3.8 (Bar 60 | 2:46.59 – 2:49.41) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | ⚡ Model: Veo Lite / Fast / Omni Flash | Studer Reel-to-Reel Tape:**
   ```text
   Slow push-in on an antique 1/4-inch reel-to-reel tape recorder spinning slowly, glowing orange VU meters dancing to the music under warm vacuum tube light, 35mm film, 24fps.
   ```
 
-* **Shot 3.9 (Bar 61 | 2:49.41 – 2:52.24) — Length: 2.82s (1 Bar) | Swinging Roadhouse Bulb:**
+* **Shot 3.9 (Bar 61 | 2:49.41 – 2:52.24) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | 🎯 Model: Veo (Quality Mode) | Swinging Roadhouse Bulb:**
   ```text
   Atmospheric tracking shot inside a dim Spicewood roadhouse, a single bare light bulb gently swaying on a cloth wire over a slate pool table, casting moving golden shadows, 35mm film, 24fps.
   ```
 
-* **Shot 3.10 (Bar 62 | 2:52.24 – 2:55.06) — Length: 2.82s (1 Bar) | Bluebonnets on Limestone:**
+* **Shot 3.10 (Bar 62 | 2:52.24 – 2:55.06) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | ⚡ Model: Veo Lite / Fast / Omni Flash | Bluebonnets on Limestone:**
   ```text
   Low camera tracking smoothly inches above blooming Texas bluebonnets and prickly pear cacti growing along a limestone ledge, cedar thicket behind, 35mm film, 24fps.
   ```
 
-* **Shot 3.11 (Bar 63 | 2:55.06 – 2:57.88) — Length: 2.82s (1 Bar) | Morgan Silver Dollar Flip:**
+* **Shot 3.11 (Bar 63 | 2:55.06 – 2:57.88) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | 🎯 Model: Veo (Quality Mode) | Morgan Silver Dollar Flip:**
   ```text
-  Close-up slow-motion shot of a rapper expertly rolling a shiny 1921 silver Morgan dollar across his knuckles and flicking it into his denim jacket pocket, 35mm film, 24fps.
+  Close-up slow-motion shot of the Outlaw expertly rolling a shiny 1921 silver Morgan dollar across his knuckles and flicking it into his denim jacket pocket, 35mm film, 24fps.
   ```
 
-* **Shot 3.12 (Bar 64 | 2:57.88 – 3:00.71) — Length: 2.82s (1 Bar) | Clock Pendulum Tick:**
+* **Shot 3.12 (Bar 64 | 2:57.88 – 3:00.71) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | ⚡ Model: Veo Lite / Fast / Omni Flash | Clock Pendulum Tick:**
   ```text
   Antique wooden grandfather clock, pendulum swinging rhythmically in mechanical sync to an 85 BPM tempo, brass weights gleaming in lantern light, 35mm film, 24fps.
   ```
 
-* **Shot 3.13 (Bar 65 | 3:00.71 – 3:03.53) — Length: 2.82s (1 Bar) | Toast to 786:**
+* **Shot 3.13 (Bar 65 | 3:00.71 – 3:03.53) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | 🎯 Model: Veo (Quality Mode) | Toast to 786:**
   ```text
   A group of friends in a dark wood tavern raising heavy mason jars filled with golden Texas bourbon directly toward the lens in a hearty toast, 35mm film, 24fps.
   ```
 
-* **Shot 3.14 (Bar 66 | 3:03.53 – 3:06.35) — Length: 2.82s (1 Bar) | Neon Wurlitzer Jukebox:**
+* **Shot 3.14 (Bar 66 | 3:03.53 – 3:06.35) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | ⚡ Model: Veo Lite / Fast / Omni Flash | Neon Wurlitzer Jukebox:**
   ```text
   Medium shot of an authentic vintage Wurlitzer jukebox glowing with amber and magenta neon tubes in the corner of a rustic wooden honky-tonk, 35mm film, 24fps.
   ```
 
-* **Shot 3.15 (Bar 67 | 3:06.35 – 3:09.18) — Length: 2.82s (1 Bar) | Vintage Tractor Hayride:**
+* **Shot 3.15 (Bar 67 | 3:06.35 – 3:09.18) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | ⚡ Model: Veo Lite / Fast / Omni Flash | Vintage Tractor Hayride:**
   ```text
   Tracking shot alongside an antique John Deere tractor pulling a wooden wagon loaded with hay bales and laughing locals under string lights between live oak trees, 35mm film, 24fps.
   ```
 
-* **Shot 3.16 (Bar 68 | 3:09.18 – 3:12.00) — Length: 2.82s (1 Bar) | Hometown Legend Silhouette:**
+* **Shot 3.16 (Bar 68 | 3:09.18 – 3:12.00) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | 🎯 Model: Veo (Quality Mode) | Hometown Legend Silhouette:**
   ```text
-  Low-angle hero silhouette of a rapper standing atop a truck tailgate against the dark purple evening sky, microphone raised triumphantly to the heavens, 35mm film, 24fps.
+  Low-angle hero silhouette of the Outlaw standing atop the tailgate of a 1978 two-tone Ford F-150 Ranger pickup truck, cream-white cab roof with copper-brown lower body, square front grille with dual square headlights, chrome front bumper, vintage round chrome side mirrors, weathered patina against the dark purple evening sky, microphone raised triumphantly to the heavens, 35mm film, 24fps.
   ```
 
-* **Shot 3.17 (Bar 69 | 3:12.00 – 3:14.82) — Length: 2.82s (1 Bar) | Weathered Elder on Porch:**
+* **Shot 3.17 (Bar 69 | 3:12.00 – 3:14.82) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | 🎯 Model: Veo (Quality Mode) | Weathered Elder on Porch:**
   ```text
   Extreme close-up on the deeply lined, sun-weathered face of an elder Texas rancher sitting on wooden porch steps, speaking quietly as dusk settles, 35mm film, 24fps.
   ```
 
-* **Shot 3.18 (Bar 70 | 3:14.82 – 3:17.65) — Length: 2.82s (1 Bar) | MC Stepping onto Gravel:**
+* **Shot 3.18 (Bar 70 | 3:14.82 – 3:17.65) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | 🎯 Model: Veo (Quality Mode) | MC Stepping onto Gravel:**
   ```text
-  Medium shot of a rapper stepping off the porch onto white caliche gravel, pulling his jacket collar up and chuckling as ambient crickets chirp, 35mm film, 24fps.
+  Medium shot of the Outlaw stepping off the porch onto white caliche gravel, pulling his jacket collar up and chuckling as ambient crickets chirp, 35mm film, 24fps.
   ```
 
-* **Shot 3.19 (Bar 71 | 3:17.65 – 3:20.47) — Length: 2.82s (1 Bar) | Blinding Headlight Strobe:**
+* **Shot 3.19 (Bar 71 | 3:17.65 – 3:20.47) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | 🎯 Model: Veo (Quality Mode) | Blinding Headlight Strobe:**
   ```text
-  Static low shot as twin high-beam truck headlights flick on directly behind the rapper, blinding the camera lens in intense white and amber light as a military snare roll builds, 35mm film, 24fps.
+  Static low shot as the dual square high-beam headlights of a 1978 two-tone Ford F-150 Ranger pickup truck, cream-white cab roof with copper-brown lower body, square front grille with dual square headlights, chrome front bumper, vintage round chrome side mirrors, weathered patina flick on directly behind the Outlaw, blinding the camera lens in intense white and amber light as a military snare roll builds, 35mm film, 24fps.
   ```
 
-* **Shot 3.20 (Bar 72 | 3:20.47 – 3:23.29) — Length: 2.82s (1 Bar) | 💥 Heavy Beat Drop Bonfire Explosion:**
+* **Shot 3.20 (Bar 72 | 3:20.47 – 3:23.29) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | 🎯 Model: Veo (Quality Mode) | 💥 Heavy Beat Drop Bonfire Explosion:**
   ```text
   Rapid pull-back and camera shake as a massive 30-foot cedar bonfire erupts into the night sky, throwing thousands of swirling orange sparks as the heavy drums slam back in, 35mm film, 24fps.
   ```
 
-* **Shot 3.21 (Bars 73–78 | 3:23.29 – 3:40.24) — Length: 16.94s (6 Bars) | Triumphant Spicewood Montage:**
+* **Shot 3.21 (Bars 73–78 | 3:23.29 – 3:40.24) — Length: 16.94s (6 Bars) | ⏱️ Flow: 2x 8s | 🎯 Model: Veo (Quality Mode) | Triumphant Spicewood Montage:**
   ```text
   Rapid high-energy montage: swimmer diving backward into Krause Springs waterfall, Pace Bend cliff jump at sunset, knife slicing glistening brisket, truck spinning tires on asphalt, 35mm film, 24fps.
   ```
 
-* **Shot 3.22 (Bar 79 | 3:40.24 – 3:43.06) — Length: 2.82s (1 Bar) | Bluff Crowd Finale:**
+* **Shot 3.22 (Bar 79 | 3:40.24 – 3:43.06) — Length: 2.82s (1 Bar) | ⏱️ Flow: 4s | 🎯 Model: Veo (Quality Mode) | Bluff Crowd Finale:**
   ```text
   Wide cinematic shot of the entire cast standing atop the limestone cliff overlooking Lake Travis at night, raising their Stetson hats and drinks to the sky in celebration, 35mm film, 24fps.
   ```
@@ -766,17 +874,17 @@ Outro   │ Bars 80–102 │ 3:44 – 4:48  │ Porch Session, Crickets & Vinyl
 
 ### 📍 Outro: Porch Session, Crickets & Vinyl Dust (Bars 80–102 / 3:44–4:48)
 
-* **Shot 4.1 (Bars 80–88 | 3:43.06 – 4:08.47) — Length: 25.41s (9 Bars) | Tailgate Outro Jam:**
+* **Shot 4.1 (Bars 80–88 | 3:43.06 – 4:08.47) — Length: 25.41s (9 Bars) | ⏱️ Flow: 3x 8s | 🎯 Model: Veo (Quality Mode) | Tailgate Outro Jam:**
   ```text
-  Medium shot of a rapper sitting casually on a lowered truck tailgate with boots dangling, holding an acoustic guitar and talking smilingly to the camera as night settles, 35mm film, 24fps.
+  Medium shot of the Outlaw sitting casually on the lowered tailgate of a 1978 two-tone Ford F-150 Ranger pickup truck, cream-white cab roof with copper-brown lower body, square front grille with dual square headlights, chrome front bumper, vintage round chrome side mirrors, weathered patina with boots dangling, holding an acoustic guitar and talking smilingly to the camera as night settles, 35mm film, 24fps.
   ```
 
-* **Shot 4.2 (Bars 89–96 | 4:08.47 – 4:31.06) — Length: 22.59s (8 Bars) | Ascending Drone over Hill Country:**
+* **Shot 4.2 (Bars 89–96 | 4:08.47 – 4:31.06) — Length: 22.59s (8 Bars) | ⏱️ Flow: 3x 8s | 🎯 Model: Veo (Quality Mode) | Ascending Drone over Hill Country:**
   ```text
-  Drone camera slowly pulling backward and ascending high above the lonely pickup truck, revealing the vast dark silhouettes of the Texas Hill Country under a brilliant starry sky, 35mm film, 24fps.
+  Drone camera slowly pulling backward and ascending high above the lonely 1978 two-tone Ford F-150 Ranger pickup truck, cream-white cab roof with copper-brown lower body, square front grille with dual square headlights, chrome front bumper, vintage round chrome side mirrors, weathered patina, revealing the vast dark silhouettes of the Texas Hill Country under a brilliant starry sky, 35mm film, 24fps.
   ```
 
-* **Shot 4.3 (Bars 97–102 | 4:31.06 – 4:48.00) — Length: 16.94s (6 Bars) | Highway 71 Sign Fade to Black:**
+* **Shot 4.3 (Bars 97–102 | 4:31.06 – 4:48.00) — Length: 16.94s (6 Bars) | ⏱️ Flow: 2x 8s | ⚡ Model: Veo Lite / Fast / Omni Flash | Highway 71 Sign Fade to Black:**
   ```text
   Lingering shot of a rustic wooden sign beside Highway 71 reading 'SPICEWOOD 78669' lit by a lantern that slowly clicks off, fading into velvet black as vinyl needle clicks, 35mm film, 24fps.
   ```
@@ -838,11 +946,11 @@ Outro   │ Bars 80–102 │ 3:44 – 4:48  │ Porch Session, Crickets & Vinyl
 #### Scene 6: ⚡ The Double-Time Speed Burst (Verse 2 / Bars 37–44)
 * **Midjourney v6.1 Prompt:**
   ```text
-  90s hip hop music video still, wide low-angle dynamic shot, charismatic rapper in vintage brown Carhartt Detroit jacket and Stetson hat rapping aggressively with microphone, standing in front of a rustic wooden pavilion dancehall filled with Texas locals under yellow glowing string lights, motion blur in background, high contrast, warm film grain, East Coast boom-bap energy meets Texas outlaw grit --ar 16:9 --style raw --v 6.1
+  90s hip hop music video still, wide low-angle dynamic shot, charismatic the Outlaw in vintage brown Carhartt Detroit jacket and Stetson hat rapping aggressively with microphone, standing in front of a rustic wooden pavilion dancehall filled with Texas locals under yellow glowing string lights, motion blur in background, high contrast, warm film grain, East Coast boom-bap energy meets Texas outlaw grit --ar 16:9 --style raw --v 6.1
   ```
 * **Runway Gen-3 Alpha / Kling Video Prompt:**
   ```text
-  Dynamic rapid camera whip-pan sweeping into a low-angle medium shot of a rapper delivering high-speed lyrics into a vintage chrome microphone. The background shows an outdoor Texas dancehall packed with people tipping their cowboy hats in unison. Rapid lighting pulses, energetic camera handheld motion, high shutter angle, 24fps.
+  Dynamic rapid camera whip-pan sweeping into a low-angle medium shot of the Outlaw delivering high-speed lyrics into a vintage chrome microphone. The background shows an outdoor Texas dancehall packed with people tipping their cowboy hats in unison. Rapid lighting pulses, energetic camera handheld motion, high shutter angle, 24fps.
   ```
 
 #### Scene 7: Twilight Roadhouse & Single Swinging Bulb (Verse 3 / Bars 61–65)
@@ -858,7 +966,7 @@ Outro   │ Bars 80–102 │ 3:44 – 4:48  │ Porch Session, Crickets & Vinyl
 #### Scene 8: The Bonfire Finale & Drop (Bars 71–79)
 * **Midjourney v6.1 Prompt:**
   ```text
-  Cinematic 35mm wide shot, night time in the Texas Hill Country, massive outdoor cedar bonfire erupting with millions of bright orange sparks drifting up into the starry dark sky, vintage pickup trucks parked in a semi-circle with headlights illuminating a cheering crowd of locals, rapper holding microphone on truck bed, triumphant hometown celebration, Kodak 500T night film --ar 16:9 --style raw --v 6.1
+  Cinematic 35mm wide shot, night time in the Texas Hill Country, massive outdoor cedar bonfire erupting with millions of bright orange sparks drifting up into the starry dark sky, vintage pickup trucks parked in a semi-circle with headlights illuminating a cheering crowd of locals, the Outlaw holding microphone on truck bed, triumphant hometown celebration, Kodak 500T night film --ar 16:9 --style raw --v 6.1
   ```
 * **Runway Gen-3 Alpha / Kling Video Prompt:**
   ```text
@@ -888,7 +996,7 @@ Measure / Bar  │ Audio Event                   │ Visual Motion Graphic / FX 
 ───────────────┼───────────────────────────────┼─────────────────────────────────────────────────────────────
 Bar 1 [0:00]   │ Needle drops on vinyl         │ VHS OSD overlay boots: "PLAY [▶] SP  00:00:00:00"
 Bar 4 [0:10]   │ "Let it breathe..."           │ 4-frame tape glitch line scans bottom-to-top; black cut.
-Bar 5 [0:11]   │ 💥 First Kick & Snare Drop    │ Title Card slams center: "SPICEWOOD, TEXAS" in Cooper Black.
+Bar 5 [0:11]   │ 💥 First Kick & Snare Drop    │ Title Card slams center: "SPICEWOOD OUTLAWS" in Cooper Black.
                │                               │ 2-pixel camera shake on kick [1], CRT flash on snare [2].
 Bar 20 [0:54]  │ "VILLAIN!" (Brake Check)      │ Time-freeze: video holds on MC frame; chromatic aberration
                │                               │ splits RGB channels by 6px; metallic glint on sunglasses.
