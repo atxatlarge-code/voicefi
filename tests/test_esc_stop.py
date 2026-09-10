@@ -41,7 +41,7 @@ def test_mac_say_stop_requested(tmp_path):
                 mock_proc.wait.side_effect = _stop_during_wait
 
                 with patch("pathlib.Path.stat") as mock_stat, patch("pathlib.Path.is_file", return_value=True):
-                    mock_stat.return_value = MagicMock(st_size=1024)
+                    mock_stat.return_value = MagicMock(st_size=1024, st_mode=0o040755)
                     tts.speak("Hello world", block=True)
                 afplay_calls = [c for c in mock_popen.call_args_list if c[0][0][0] == "afplay"]
                 assert len(afplay_calls) == 1

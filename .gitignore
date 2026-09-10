@@ -39,7 +39,16 @@ models/
 *.wav
 *.mp3
 *.mp4
-assets/reels/reel_*/
+assets/reels/
+assets/audio/
+*odyssey*
+*the_odyssey*
+*spicewood*
+*.MP.jpg
+*.PORTRAIT.jpg
+PXL_*
+IMG_*
+Screenshot_*
 .cache/
 
 # User config, credentials & secrets

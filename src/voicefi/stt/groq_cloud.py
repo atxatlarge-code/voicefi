@@ -30,7 +30,15 @@ class GroqSTT(BaseSTT):
         sample_rate: int = 16000,
         prompt: Optional[str] = None,
     ) -> str:
-        """Transcribe audio using Groq API with developer biasing."""
+        if audio is None:
+            return ""
+        if isinstance(audio, np.ndarray) and len(audio) == 0:
+            return ""
+        if isinstance(audio, (str, Path)):
+            p = Path(audio)
+            if not p.exists() or p.stat().st_size == 0:
+                return ""
+
         if not self.api_key:
             raise ValueError("Groq API key is not configured in ~/.voicefi/config.yaml")
 

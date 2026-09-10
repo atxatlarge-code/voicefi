@@ -3,21 +3,38 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VoiceFi • Pair Mobile Companion</title>
+  <title>VoiceFi • Companion & Downloads Hub</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800;900&display=swap" rel="stylesheet">
   <style>
-    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
-    #qrCodeDiv img, #qrCodeDiv canvas { margin: 0 auto; display: block; }
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #080A0F;
+      color: #F8FAFC;
+    }
+    .mono { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    #qrCodeDiv img, #qrCodeDiv canvas { margin: 0 auto; }
+    #qrCodeDiv .hidden { display: none !important; }
+    .drop-active {
+      border-color: #FF2A2A !important;
+      background: rgba(255, 42, 42, 0.08) !important;
+    }
+    dialog::backdrop {
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(8px);
+    }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
   </style>
 </head>
-<body class="h-full flex flex-col items-center justify-center p-6 bg-black text-white relative overflow-auto">
-  
-  <div class="max-w-md w-full bg-[#0d0d0d] border border-[#222222] rounded-3xl p-8 shadow-2xl space-y-6 text-center">
-    
-    <!-- Logo & Header -->
-    <div class="flex items-center justify-center gap-3">
-      <div class="w-10 h-10 flex items-center justify-center">
+<body class="min-h-screen flex flex-col items-center justify-start p-4 sm:p-6 bg-[#080A0F] text-white relative overflow-x-hidden">
+
+  <!-- Top Global Header & Navigation Tabs -->
+  <header class="w-full max-w-5xl flex flex-col sm:flex-row items-center justify-between gap-4 py-3 mb-4 border-b border-zinc-800/80">
+    <!-- Brand Title -->
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 flex items-center justify-center shrink-0">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="68 68 376 388" class="w-full h-full object-contain">
           <defs>
             <linearGradient id="vfPairLogoRed" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -51,72 +68,457 @@
           </g>
         </svg>
       </div>
-      <h1 class="text-xl font-extrabold tracking-tight font-sans">
-        Voice<span class="text-[#FF2A2A]">Fi</span> Mobile Companion
-      </h1>
+      <div>
+        <h1 class="text-base font-extrabold tracking-tight">
+          Voice<span class="text-[#FF2A2A]">Fi</span> Companion Hub
+        </h1>
+        <p class="text-[11px] text-zinc-400 font-mono">Universal Voice & Media Layer</p>
+      </div>
     </div>
 
-    <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#18181b] border border-[#27272a] text-[11px] font-mono text-zinc-300">
-      <span>🎭 Claude Code</span>
-      <span class="text-zinc-600">•</span>
-      <span>🤖 Antigravity</span>
+    <!-- Segmented Navigation Pills -->
+    <div class="flex items-center p-1 bg-zinc-900 border border-zinc-800 rounded-2xl gap-1">
+      <button id="tabBtnPair" onclick="switchMainTab('pair')" type="button" class="py-2 px-4 rounded-xl text-xs font-bold transition-all flex items-center gap-2 bg-white text-black shadow cursor-pointer">
+        <span>📱</span>
+        <span>Mobile Pairing</span>
+      </button>
+      <button id="tabBtnDownloads" onclick="switchMainTab('downloads')" type="button" class="py-2 px-4 rounded-xl text-xs font-bold transition-all flex items-center gap-2 text-zinc-400 hover:text-white cursor-pointer">
+        <span>📂</span>
+        <span>Companion Downloads</span>
+        <span id="navDownloadsCount" class="text-[10px] px-1.5 py-0.2 rounded-full bg-red-950/80 border border-red-500/40 text-red-300 font-mono font-bold">...</span>
+      </button>
     </div>
 
-    <p class="text-xs text-zinc-400">
-      Point your iPhone or Android camera at the QR code below to connect hands-free voice to your Mac:
-    </p>
+    <!-- Shortcuts -->
+    <div class="flex items-center gap-2">
+      <a href="/" class="py-1.5 px-3 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-xl text-xs font-bold text-zinc-300 hover:text-white transition flex items-center gap-1.5">
+        <span>🖥️</span> <span>Voice App</span>
+      </a>
+      <a href="/studio" class="py-1.5 px-3 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-xl text-xs font-bold text-zinc-300 hover:text-white transition flex items-center gap-1.5">
+        <span>🎙️</span> <span>Studio</span>
+      </a>
+    </div>
+  </header>
 
-    <!-- QR Code Container -->
-    <div class="flex justify-center p-3 bg-white rounded-2xl shadow-xl max-w-[240px] mx-auto border-4 border-[#1c1c1c] min-h-[232px] items-center">
-      <div id="qrCodeDiv" class="w-52 h-52 flex items-center justify-center">
-        <img id="qrCodeImg" src="" alt="Pairing QR Code" class="w-52 h-52 object-contain hidden">
-        <div id="qrSpinner" class="flex flex-col items-center justify-center gap-2 text-zinc-400">
-          <div class="w-8 h-8 border-2 border-zinc-300 border-t-zinc-800 rounded-full animate-spin"></div>
-          <span class="text-[10px] font-mono text-zinc-600">Generating QR...</span>
+  <!-- ================================================================= -->
+  <!-- TAB 1: Mobile Pairing View -->
+  <!-- ================================================================= -->
+  <main id="viewPair" class="w-full max-w-md my-auto flex flex-col items-center">
+    <div class="w-full bg-[#0d0d0d] border border-[#222222] rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6 text-center">
+      
+      <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#18181b] border border-[#27272a] text-[11px] font-mono text-zinc-300">
+        <span>🎭 Claude Code</span>
+        <span class="text-zinc-600">•</span>
+        <span>🤖 Antigravity</span>
+      </div>
+
+      <p class="text-xs text-zinc-400">
+        Point your iPhone or Android camera at the QR code below to connect hands-free voice to your Mac:
+      </p>
+
+      <!-- QR Code Container -->
+      <div class="flex justify-center p-3 bg-white rounded-2xl shadow-xl max-w-[240px] mx-auto border-4 border-[#1c1c1c] min-h-[232px] items-center">
+        <div id="qrCodeDiv" class="w-52 h-52 flex items-center justify-center">
+          <img id="qrCodeImg" src="" alt="Pairing QR Code" class="w-52 h-52 object-contain hidden">
+          <div id="qrSpinner" class="flex flex-col items-center justify-center gap-2 text-zinc-400">
+            <div class="w-8 h-8 border-2 border-zinc-300 border-t-zinc-800 rounded-full animate-spin"></div>
+            <span class="text-[10px] font-mono text-zinc-600">Generating QR...</span>
+          </div>
         </div>
       </div>
+
+      <!-- Direct URL Box with Connection Mode Selector -->
+      <div class="space-y-2 text-left">
+        <label class="text-[10px] font-mono text-zinc-400 uppercase tracking-wider block">Select Connection Mode</label>
+        <select id="networkSelect" class="w-full text-xs font-mono bg-[#141414] border border-[#27272a] rounded-xl px-3 py-2.5 text-zinc-200 focus:outline-none focus:border-white transition cursor-pointer shadow-inner">
+        </select>
+        
+        <div class="bg-[#141414] border border-[#27272a] rounded-xl p-3 flex items-center justify-between gap-2 shadow-inner">
+          <span id="directUrlText" class="font-mono text-xs font-bold text-white truncate select-all">Loading...</span>
+          <button id="copyBtn" type="button" class="px-3 py-1.5 bg-white hover:bg-zinc-200 text-black text-xs font-bold rounded-lg mono transition active:scale-95 cursor-pointer shrink-0">
+            COPY
+          </button>
+        </div>
+      </div>
+
+      <!-- Live Connection Status Pill -->
+      <div id="connStatusBox" class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#141414] border border-[#27272a] text-xs font-mono text-zinc-400">
+        <span id="connDot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+        <span id="connLabel">Waiting for mobile device...</span>
+      </div>
+
+      <!-- Jump to Downloads Banner -->
+      <div onclick="switchMainTab('downloads')" class="p-3 bg-gradient-to-r from-red-950/40 via-[#141414] to-black border border-red-500/30 rounded-2xl flex items-center justify-between gap-3 cursor-pointer hover:border-red-500/60 active:scale-[0.99] transition-all shadow-sm text-left">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl bg-red-600/20 border border-red-500/40 flex items-center justify-center text-base shrink-0">
+            🎬
+          </div>
+          <div>
+            <div class="text-xs font-bold text-white tracking-tight">Companion Downloads & Media Hub</div>
+            <div class="text-[10px] text-zinc-400 font-mono">View & upload video reels, beats & lead sheets</div>
+          </div>
+        </div>
+        <span class="text-xs font-bold text-red-400">&rarr;</span>
+      </div>
+
+      <!-- PWA Install Tip -->
+      <div class="text-[11px] text-zinc-400 text-left bg-[#121214] p-3 rounded-xl border border-[#202024] space-y-1">
+        <p class="font-semibold text-zinc-300">💡 Mobile Tip:</p>
+        <p>• <strong>iOS Safari:</strong> Tap the <em>Share</em> button &rarr; <em>Add to Home Screen</em>.</p>
+        <p>• <strong>Android Chrome:</strong> Tap the <em>Three Dots</em> &rarr; <em>Install App</em>.</p>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- ================================================================= -->
+  <!-- TAB 2: Companion Downloads (Organized Similar to Companion UI) -->
+  <!-- ================================================================= -->
+  <main id="viewDownloads" class="hidden w-full max-w-5xl flex flex-col lg:flex-row items-start justify-center gap-6 my-2">
+    
+    <!-- LEFT COLUMN: The Iconic Companion Showcase Media Player Card -->
+    <div class="max-w-md w-full mx-auto bg-[#0d0d0d] border border-[#222222] rounded-3xl p-5 sm:p-7 shadow-2xl flex flex-col shrink-0">
+      
+      <!-- Top Title & Badge (Matches Companion Header) -->
+      <div class="flex items-center justify-between mb-3 shrink-0">
+        <div class="flex items-center gap-2">
+          <span class="text-base">🎬</span>
+          <div>
+            <h2 class="font-bold text-xs text-white uppercase tracking-wider">Reel & Media Exports</h2>
+            <p class="text-[10px] text-zinc-400 font-mono">Companion Master Player</p>
+          </div>
+        </div>
+        <span class="px-2 py-0.5 rounded bg-red-950/60 border border-red-500/40 text-[10px] font-mono font-bold text-red-400 uppercase">
+          🏆 Master 1080p
+        </span>
+      </div>
+
+      <!-- Reel Selector Tabs (Matches Companion Horizontal Pills Bar) -->
+      <div class="w-full flex items-center justify-start p-1.5 bg-zinc-900/90 border border-zinc-800 rounded-xl gap-1.5 mb-3.5 shrink-0 overflow-x-auto flex-nowrap no-scrollbar" style="-webkit-overflow-scrolling: touch; touch-action: pan-x;">
+        <button type="button" id="tabSpicewoodFull" onclick="selectCompanionReel('spicewood_full')" class="py-1.5 px-3 rounded-lg text-[11px] font-bold transition-all bg-amber-500 text-black shadow flex items-center justify-center gap-1 shrink-0">
+          <span>🤠</span> <span>Spicewood Master (Acts 1–3)</span> <span class="text-[9px] px-1.5 py-0.2 rounded bg-black/30 text-white font-mono">4:21</span>
+        </button>
+        <button type="button" id="tabSpicewoodAudio" onclick="selectCompanionReel('spicewood_audio')" class="py-1.5 px-3 rounded-lg text-[11px] font-bold transition-all text-zinc-400 hover:text-zinc-200 flex items-center justify-center gap-1 shrink-0">
+          <span>🎵</span> <span>Full Master Audio</span> <span class="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-mono">320k</span>
+        </button>
+        <button type="button" id="tabSpicewoodAct1" onclick="selectCompanionReel('spicewood_act1')" class="py-1.5 px-3 rounded-lg text-[11px] font-bold transition-all text-zinc-400 hover:text-zinc-200 flex items-center justify-center gap-1 shrink-0">
+          <span>🎬</span> <span>Act 1</span> <span class="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-mono">41M</span>
+        </button>
+        <button type="button" id="tabSpicewoodAct2" onclick="selectCompanionReel('spicewood_act2')" class="py-1.5 px-3 rounded-lg text-[11px] font-bold transition-all text-zinc-400 hover:text-zinc-200 flex items-center justify-center gap-1 shrink-0">
+          <span>🎬</span> <span>Act 2</span> <span class="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-mono">66M</span>
+        </button>
+        <button type="button" id="tabSpicewoodAct3" onclick="selectCompanionReel('spicewood_act3')" class="py-1.5 px-3 rounded-lg text-[11px] font-bold transition-all text-zinc-400 hover:text-zinc-200 flex items-center justify-center gap-1 shrink-0">
+          <span>🎬</span> <span>Act 3</span> <span class="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-mono">71M</span>
+        </button>
+        <button type="button" id="tabSpicewood" onclick="selectCompanionReel('spicewood')" class="py-1.5 px-3 rounded-lg text-[11px] font-bold transition-all text-zinc-400 hover:text-zinc-200 flex items-center justify-center gap-1 shrink-0">
+          <span>🥁</span> <span>85 BPM Beat</span> <span class="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-mono">4:48</span>
+        </button>
+        <button type="button" id="tabReel8" onclick="selectCompanionReel('reel8')" class="py-1.5 px-3 rounded-lg text-[11px] font-bold transition-all text-zinc-400 hover:text-zinc-200 flex items-center justify-center gap-1 shrink-0">
+          <span>🎵</span> <span>10.skills</span> <span class="text-[9px] px-1 py-0.2 rounded bg-zinc-800 text-zinc-400">2:25</span>
+        </button>
+        <button type="button" id="tabReel6" onclick="selectCompanionReel('reel6')" class="py-1.5 px-3 rounded-lg text-[11px] font-bold transition-all text-zinc-400 hover:text-zinc-200 flex items-center justify-center gap-1 shrink-0">
+          <span>⚡</span> <span>Speed Listen</span> <span class="text-[9px] px-1 py-0.2 rounded bg-zinc-800 text-zinc-400">35s</span>
+        </button>
+        <button type="button" id="tabReel4" onclick="selectCompanionReel('reel4')" class="py-1.5 px-3 rounded-lg text-[11px] font-bold transition-all text-zinc-400 hover:text-zinc-200 flex items-center justify-center gap-1 shrink-0">
+          <span>🎬</span> <span>How We Built</span> <span class="text-[9px] px-1 py-0.2 rounded bg-zinc-800 text-zinc-400">50s</span>
+        </button>
+        <button type="button" id="tabReel2" onclick="selectCompanionReel('reel2')" class="py-1.5 px-3 rounded-lg text-[11px] font-bold transition-all text-zinc-400 hover:text-zinc-200 flex items-center justify-center gap-1 shrink-0">
+          <span>🎤</span> <span>Rap Battle</span> <span class="text-[9px] px-1 py-0.2 rounded bg-zinc-800 text-zinc-400">77s</span>
+        </button>
+      </div>
+
+      <!-- Video Player Preview Container (9:16 aspect with neon glow border) -->
+      <div id="companionVideoContainer" class="hidden relative w-full aspect-[9/16] max-w-[240px] mx-auto bg-black rounded-3xl overflow-hidden border-2 border-[#38BDF8]/50 shadow-[0_0_40px_rgba(56,189,248,0.25)] flex items-center justify-center mb-3 shrink-0">
+        <video id="companionReelVideo" src="/downloads/spicewood_outlaws_full_master_9_16.mp4" playsinline controls loop class="w-full h-full object-cover"></video>
+      </div>
+
+      <!-- Audio Turntable Container (Square aspect with spinning vinyl disc) -->
+      <div id="companionAudioContainer" class="relative w-full aspect-square max-w-[240px] mx-auto bg-gradient-to-b from-zinc-900 to-black rounded-3xl p-4 border-2 border-amber-500/50 shadow-[0_0_40px_rgba(245,158,11,0.25)] flex flex-col items-center justify-between mb-3 shrink-0 text-center">
+        <div id="turntableGenre" class="text-[11px] uppercase font-mono font-extrabold tracking-wider text-amber-400/90">Boom Bap 85 BPM</div>
+        <div class="w-28 h-28 rounded-full bg-gradient-to-tr from-zinc-950 via-zinc-800 to-zinc-950 border-4 border-zinc-700/80 shadow-2xl flex items-center justify-center relative mx-auto my-auto animate-[spin_12s_linear_infinite]" id="vinylDisc">
+          <div id="turntableCenterLabel" class="w-10 h-10 rounded-full bg-amber-500 flex items-center justify-center text-black font-black text-[9px] shadow-inner font-mono">
+            85 BPM
+          </div>
+        </div>
+        <div class="w-full mt-2">
+          <audio id="companionAudioPlayer" src="/downloads/spicewood_texas_beat_85bpm.mp3" class="w-full h-8" controls preload="metadata"></audio>
+        </div>
+      </div>
+
+      <!-- Title & Specs -->
+      <div class="text-center mb-3 shrink-0 px-2">
+        <h3 id="compReelTitle" class="text-sm font-black tracking-tight text-white flex items-center justify-center gap-1.5">
+          🤠 Spicewood, Texas · Boom Bap Master <span id="compReelBadge" class="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300 mono font-bold">4:48</span>
+        </h3>
+        <p id="compReelDesc" class="text-[11px] text-zinc-400 mt-1 font-mono leading-tight">
+          85.0 BPM (Prod. Shinra B) boom bap type beat + complete synchronized lead sheet & measure grid
+        </p>
+      </div>
+
+      <!-- Action Buttons Stack (Exact Companion Actions) -->
+      <div class="w-full flex flex-col gap-2 shrink-0">
+        <!-- Edit / View Lead Sheet Button -->
+        <button type="button" id="btnOpenLeadSheet" onclick="openLeadSheetEditor()" class="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 active:scale-[0.98] text-black font-black text-xs flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(245,158,11,0.35)] transition-all cursor-pointer">
+          <span class="text-sm">📜</span>
+          <span>View & Edit Lead Sheet (.md)</span>
+        </button>
+
+        <!-- Primary Save / Download Button -->
+        <a id="btnPrimarySave" href="/downloads/spicewood_texas_beat_85bpm.mp3" download="spicewood_texas_beat_85bpm.mp3" class="w-full py-3 px-4 rounded-xl bg-[#8B9A46] hover:bg-[#9CB04F] active:scale-[0.98] text-black font-black text-xs flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(139,154,70,0.35)] transition-all text-center">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+          </svg>
+          <span id="btnPrimarySaveText">Save Master Beat (.mp3)</span>
+        </a>
+
+        <!-- Secondary Download Options -->
+        <div class="grid grid-cols-2 gap-2">
+          <a id="btnSecondaryAudio" href="/downloads/spicewood_texas_beat_85bpm.mp3" download class="py-2.5 px-3 rounded-xl bg-[#141414] hover:bg-[#202020] border border-[#27272a] active:scale-[0.98] text-zinc-300 font-bold text-[11px] flex items-center justify-center gap-1.5 transition-all text-center">
+            <span>🎵 Beat (.mp3)</span>
+          </a>
+          <a id="btnSecondarySheet" href="/downloads/spicewood_texas_lead_sheet.md" download class="py-2.5 px-3 rounded-xl bg-[#141414] hover:bg-[#202020] border border-[#27272a] active:scale-[0.98] text-zinc-300 font-bold text-[11px] flex items-center justify-center gap-1.5 transition-all text-center">
+            <span>📄 Sheet (.md)</span>
+          </a>
+        </div>
+      </div>
+
     </div>
 
-    <!-- Direct URL Box with Connection Mode Selector -->
-    <div class="space-y-2 text-left">
-      <label class="text-[10px] font-mono text-zinc-400 uppercase tracking-wider block">Select Connection Mode</label>
-      <select id="networkSelect" class="w-full text-xs font-mono bg-[#141414] border border-[#27272a] rounded-xl px-3 py-2.5 text-zinc-200 focus:outline-none focus:border-white transition cursor-pointer shadow-inner">
-      </select>
+    <!-- RIGHT COLUMN: Upload & Companion File Management Studio -->
+    <div class="max-w-md w-full mx-auto flex flex-col gap-4">
       
-      <div class="bg-[#141414] border border-[#27272a] rounded-xl p-3 flex items-center justify-between gap-2 shadow-inner">
-        <span id="directUrlText" class="font-mono text-xs font-bold text-white truncate select-all">Loading...</span>
-        <button id="copyBtn" class="px-3 py-1.5 bg-white hover:bg-zinc-200 text-black text-xs font-bold rounded-lg mono transition active:scale-95 cursor-pointer shrink-0">
-          COPY
-        </button>
+      <!-- Upload Dropzone Card -->
+      <div class="w-full bg-[#0d0d0d] border border-[#222222] rounded-3xl p-5 shadow-2xl flex flex-col gap-3">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="text-sm">☁️</span>
+            <h3 class="text-xs font-bold text-white uppercase tracking-wider">Upload to Companion</h3>
+          </div>
+          <button onclick="document.getElementById('fileUploadInput').click()" type="button" class="py-1.5 px-3 rounded-lg bg-red-600 hover:bg-red-500 active:scale-95 text-white font-bold text-xs flex items-center gap-1.5 transition cursor-pointer">
+            <span>+ Upload</span>
+          </button>
+        </div>
+
+        <div id="dropZone" class="w-full border-2 border-dashed border-zinc-800 hover:border-red-500/50 rounded-2xl p-4 bg-zinc-950/70 transition-all text-center flex flex-col items-center justify-center gap-1 cursor-pointer" onclick="document.getElementById('fileUploadInput').click()">
+          <p class="text-xs font-bold text-zinc-200">
+            Drop reels, videos, beats, or lead sheets here
+          </p>
+          <p class="text-[10px] text-zinc-500 font-mono">
+            Auto-syncs with Companion · up to 500 MB
+          </p>
+          <div id="uploadProgressBarContainer" class="hidden w-full max-w-xs mt-2">
+            <div class="w-full bg-zinc-800 rounded-full h-1.5 overflow-hidden">
+              <div id="uploadProgressBar" class="bg-red-500 h-1.5 rounded-full transition-all duration-200" style="width: 0%"></div>
+            </div>
+            <p id="uploadStatusText" class="text-[10px] font-mono text-zinc-400 mt-1">Uploading...</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Hidden Multi-File Upload Input -->
+      <input type="file" id="fileUploadInput" multiple class="hidden" onchange="handleFileInput(event)">
+
+      <!-- Files Catalog & Quick-Switch Studio Card -->
+      <div class="w-full bg-[#0d0d0d] border border-[#222222] rounded-3xl p-5 shadow-2xl flex flex-col gap-3">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+              <span>📁</span> <span>Downloads Repository</span>
+            </h3>
+            <p id="statsTotalSize" class="text-[10px] font-mono text-zinc-400">Loading catalog...</p>
+          </div>
+          <button onclick="loadDownloads()" type="button" class="p-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-white transition" title="Refresh files">
+            🔄
+          </button>
+        </div>
+
+        <!-- Search & Filter Controls -->
+        <div class="flex flex-col gap-2">
+          <input id="searchInput" type="text" placeholder="Search filenames..." oninput="filterFiles()" class="w-full py-1.5 px-3 bg-zinc-900/90 border border-zinc-800 rounded-xl text-xs font-mono text-white placeholder-zinc-500 focus:outline-none focus:border-red-500 transition">
+          
+          <div class="flex items-center gap-1 overflow-x-auto pb-1 font-mono text-[11px] no-scrollbar">
+            <button id="filterAll" onclick="setCategoryFilter('all')" class="py-1 px-2.5 rounded-lg font-bold bg-white text-black shadow transition cursor-pointer">
+              All (<span id="countAll">0</span>)
+            </button>
+            <button id="filterVideo" onclick="setCategoryFilter('video')" class="py-1 px-2.5 rounded-lg font-bold bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800 transition cursor-pointer">
+              🎬 Video (<span id="countVideo">0</span>)
+            </button>
+            <button id="filterAudio" onclick="setCategoryFilter('audio')" class="py-1 px-2.5 rounded-lg font-bold bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800 transition cursor-pointer">
+              🎵 Audio (<span id="countAudio">0</span>)
+            </button>
+            <button id="filterDocument" onclick="setCategoryFilter('document')" class="py-1 px-2.5 rounded-lg font-bold bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800 transition cursor-pointer">
+              📜 Sheets (<span id="countDocument">0</span>)
+            </button>
+          </div>
+        </div>
+
+        <!-- Scrollable Files List -->
+        <div id="filesGrid" class="flex flex-col gap-2 max-h-[460px] overflow-y-auto pr-1">
+          <!-- Injected dynamically by renderFilesList() -->
+          <div class="p-6 text-center text-zinc-500 font-mono text-xs flex flex-col items-center gap-2">
+            <div class="w-5 h-5 border-2 border-zinc-600 border-t-red-500 rounded-full animate-spin"></div>
+            <span>Loading companion catalog...</span>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- ================================================================= -->
+  <!-- MODAL: Media Player (Video & Audio Modal Fallback) -->
+  <!-- ================================================================= -->
+  <dialog id="mediaModal" class="p-0 rounded-3xl bg-[#0d0d0d] border border-zinc-800 text-white max-w-2xl w-[95vw] shadow-2xl backdrop:bg-black/85 backdrop:backdrop-blur-md">
+    <div class="p-4 border-b border-zinc-800 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <span id="mediaModalIcon" class="text-lg">🎬</span>
+        <h3 id="mediaModalTitle" class="text-sm font-bold truncate max-w-md">Media Preview</h3>
+      </div>
+      <button onclick="closeMediaModal()" class="w-7 h-7 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 hover:text-white flex items-center justify-center text-xs transition cursor-pointer">✕</button>
+    </div>
+    
+    <div class="p-4 flex flex-col items-center justify-center bg-black min-h-[300px]">
+      <video id="mediaModalVideo" controls playsinline class="hidden max-h-[70vh] w-full rounded-xl object-contain bg-black shadow-lg"></video>
+      <div id="mediaModalAudioContainer" class="hidden w-full flex flex-col items-center justify-center p-6 gap-4">
+        <div class="w-24 h-24 rounded-full bg-gradient-to-tr from-zinc-950 via-zinc-800 to-zinc-950 border-4 border-amber-500/50 shadow-2xl flex items-center justify-center animate-[spin_10s_linear_infinite]">
+          <span class="text-2xl">🎵</span>
+        </div>
+        <audio id="mediaModalAudio" controls class="w-full max-w-md"></audio>
       </div>
     </div>
 
-    <!-- Live Connection Status Pill -->
-    <div id="connStatusBox" class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#141414] border border-[#27272a] text-xs font-mono text-zinc-400">
-      <span id="connDot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
-      <span id="connLabel">Waiting for mobile device...</span>
-    </div>
-
-    <!-- Action Shortcuts -->
-    <div class="grid grid-cols-2 gap-2 pt-2 border-t border-[#1c1c1c]">
-      <a href="/" class="py-2.5 px-3 bg-[#18181b] hover:bg-[#222222] border border-[#27272a] rounded-xl text-xs font-bold text-zinc-200 transition text-center flex items-center justify-center gap-1.5">
-        <span>🖥️</span> <span>Open on Mac</span>
-      </a>
-      <a href="/studio" class="py-2.5 px-3 bg-[#18181b] hover:bg-[#222222] border border-[#27272a] rounded-xl text-xs font-bold text-zinc-200 transition text-center flex items-center justify-center gap-1.5">
-        <span>🎙️</span> <span>Ambient Studio</span>
+    <div class="p-4 border-t border-zinc-800 flex items-center justify-between text-xs font-mono text-zinc-400">
+      <span id="mediaModalMeta">--</span>
+      <a id="mediaModalDownloadBtn" href="#" download class="px-3 py-1.5 bg-white text-black font-bold rounded-lg hover:bg-zinc-200 transition">
+        Download
       </a>
     </div>
+  </dialog>
 
-    <!-- PWA Install Tip -->
-    <div class="text-[11px] text-zinc-400 text-left bg-[#121214] p-3 rounded-xl border border-[#202024] space-y-1">
-      <p class="font-semibold text-zinc-300">💡 Mobile Tip:</p>
-      <p>• <strong>iOS Safari:</strong> Tap the <em>Share</em> button &rarr; <em>Add to Home Screen</em>.</p>
-      <p>• <strong>Android Chrome:</strong> Tap the <em>Three Dots</em> &rarr; <em>Install App</em>.</p>
+  <!-- ================================================================= -->
+  <!-- MODAL: File Editor (Markdown / Lead Sheet / Text) -->
+  <!-- ================================================================= -->
+  <dialog id="editorModal" class="p-0 rounded-3xl bg-[#0d0d0d] border border-zinc-800 text-white max-w-3xl w-[95vw] shadow-2xl backdrop:bg-black/85 backdrop:backdrop-blur-md">
+    <div class="p-4 border-b border-zinc-800 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <span class="text-base">✏️</span>
+        <div>
+          <h3 id="editorModalTitle" class="text-sm font-bold truncate max-w-md">Edit File</h3>
+          <p id="editorModalStatus" class="text-[10px] font-mono text-zinc-400">Lead Sheet & Document Editor</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button onclick="saveEditorContent()" id="btnSaveEditor" type="button" class="py-1.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold text-xs flex items-center gap-1.5 transition cursor-pointer">
+          <span>💾</span>
+          <span>Save Changes</span>
+        </button>
+        <button onclick="closeEditorModal()" class="w-7 h-7 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 hover:text-white flex items-center justify-center text-xs transition cursor-pointer">✕</button>
+      </div>
     </div>
 
+    <div class="p-4 bg-zinc-950 flex flex-col">
+      <textarea id="editorTextarea" spellcheck="false" class="w-full h-[60vh] bg-black border border-zinc-800 rounded-xl p-4 font-mono text-xs text-zinc-200 focus:outline-none focus:border-red-500/80 resize-none leading-relaxed select-text" placeholder="Type content here..."></textarea>
+    </div>
+
+    <div class="p-3 border-t border-zinc-800 flex items-center justify-between text-[11px] font-mono text-zinc-500">
+      <span>Tip: Press <kbd class="px-1.5 py-0.5 bg-zinc-800 rounded text-zinc-300">⌘+S</kbd> or <kbd class="px-1.5 py-0.5 bg-zinc-800 rounded text-zinc-300">Ctrl+S</kbd> to save immediately</span>
+      <span id="editorCharCount">0 characters</span>
+    </div>
+  </dialog>
+
+  <!-- ================================================================= -->
+  <!-- MODAL: Rename File -->
+  <!-- ================================================================= -->
+  <dialog id="renameModal" class="p-0 rounded-2xl bg-[#0d0d0d] border border-zinc-800 text-white max-w-md w-[90vw] shadow-2xl backdrop:bg-black/85">
+    <div class="p-4 border-b border-zinc-800 flex items-center justify-between">
+      <h3 class="text-sm font-bold">Rename File</h3>
+      <button onclick="closeRenameModal()" class="text-zinc-400 hover:text-white">✕</button>
+    </div>
+    <div class="p-4 space-y-3">
+      <label class="text-xs text-zinc-400 block font-mono">New Filename:</label>
+      <input type="text" id="renameInput" class="w-full py-2 px-3 bg-zinc-900 border border-zinc-700 rounded-xl text-xs font-mono text-white focus:outline-none focus:border-red-500">
+    </div>
+    <div class="p-3 border-t border-zinc-800 flex justify-end gap-2">
+      <button onclick="closeRenameModal()" class="px-3 py-1.5 bg-zinc-800 text-zinc-300 hover:text-white rounded-lg text-xs font-bold transition">Cancel</button>
+      <button onclick="submitRename()" class="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-lg text-xs font-bold transition">Rename</button>
+    </div>
+  </dialog>
+
+  <!-- Toast Notification Pill -->
+  <div id="toastNotification" class="fixed bottom-6 right-6 z-50 transform translate-y-16 opacity-0 transition-all duration-300 pointer-events-none py-2 px-4 rounded-xl bg-zinc-900 border border-zinc-700 text-white text-xs font-mono shadow-2xl flex items-center gap-2">
+    <span id="toastIcon">✨</span>
+    <span id="toastMsg">Action completed</span>
   </div>
 
   <script>
+    // =================================================================
+    // Tab Navigation & Routing
+    // =================================================================
+    let currentTab = 'pair';
+
+    function switchMainTab(tab) {
+      currentTab = tab;
+      const viewPair = document.getElementById('viewPair');
+      const viewDownloads = document.getElementById('viewDownloads');
+      const tabBtnPair = document.getElementById('tabBtnPair');
+      const tabBtnDownloads = document.getElementById('tabBtnDownloads');
+
+      const activeClass = "py-2 px-4 rounded-xl text-xs font-bold transition-all flex items-center gap-2 bg-white text-black shadow cursor-pointer";
+      const inactiveClass = "py-2 px-4 rounded-xl text-xs font-bold transition-all flex items-center gap-2 text-zinc-400 hover:text-white cursor-pointer";
+
+      if (tab === 'downloads') {
+        viewPair.classList.add('hidden');
+        viewDownloads.classList.remove('hidden');
+        tabBtnPair.className = inactiveClass;
+        tabBtnDownloads.className = activeClass;
+        loadDownloads();
+        history.replaceState(null, '', '#downloads');
+      } else {
+        viewDownloads.classList.add('hidden');
+        viewPair.classList.remove('hidden');
+        tabBtnPair.className = activeClass;
+        tabBtnDownloads.className = inactiveClass;
+        history.replaceState(null, '', '#pair');
+      }
+    }
+
+    // Check query params or hash on load
+    window.addEventListener('DOMContentLoaded', () => {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('tab') === 'downloads' || window.location.hash === '#downloads') {
+        switchMainTab('downloads');
+      } else {
+        switchMainTab('pair');
+      }
+      loadQrInfo();
+      checkStatus();
+      setInterval(checkStatus, 2500);
+      loadDownloads();
+      selectCompanionReel('spicewood');
+    });
+
+    // =================================================================
+    // Toast Notification Utility
+    // =================================================================
+    let toastTimeout = null;
+    function showToast(msg, icon = '✨') {
+      const toast = document.getElementById('toastNotification');
+      document.getElementById('toastIcon').innerText = icon;
+      document.getElementById('toastMsg').innerText = msg;
+      toast.classList.remove('translate-y-16', 'opacity-0');
+      toast.classList.add('translate-y-0', 'opacity-100');
+      if (toastTimeout) clearTimeout(toastTimeout);
+      toastTimeout = setTimeout(() => {
+        toast.classList.add('translate-y-16', 'opacity-0');
+        toast.classList.remove('translate-y-0', 'opacity-100');
+      }, 3000);
+    }
+
+    // =================================================================
+    // Mobile QR & Connection Logic
+    // =================================================================
     const qrCodeDiv = document.getElementById('qrCodeDiv');
     const qrCodeImg = document.getElementById('qrCodeImg');
     const qrSpinner = document.getElementById('qrSpinner');
@@ -127,23 +529,38 @@
     const networkSelect = document.getElementById('networkSelect');
 
     let allUrls = {};
+    let cachedInitialDataUri = null;
+    let cachedInitialUrl = null;
 
     function renderQr(url, dataUri) {
       if (qrSpinner) qrSpinner.classList.add('hidden');
-      directUrlText.innerText = url;
+      if (directUrlText) directUrlText.innerText = url;
+
+      // Clean up any previously generated dynamic canvases or extra images
+      const extras = qrCodeDiv.querySelectorAll('canvas, img:not(#qrCodeImg)');
+      extras.forEach(el => el.remove());
 
       if (dataUri && dataUri.length > 50) {
         qrCodeImg.src = dataUri;
         qrCodeImg.classList.remove('hidden');
-        const extras = qrCodeDiv.querySelectorAll('canvas, img:not(#qrCodeImg)');
-        extras.forEach(el => el.remove());
+        qrCodeImg.style.display = 'block';
         return;
       }
 
+      // If the selected URL matches the initial server data URI, reuse it
+      if (cachedInitialDataUri && url === cachedInitialUrl) {
+        qrCodeImg.src = cachedInitialDataUri;
+        qrCodeImg.classList.remove('hidden');
+        qrCodeImg.style.display = 'block';
+        return;
+      }
+
+      // Hide and blank out the pre-rendered image so it disappears completely
+      qrCodeImg.classList.add('hidden');
+      qrCodeImg.style.display = 'none';
+      qrCodeImg.removeAttribute('src');
+
       if (window.QRCode) {
-        qrCodeImg.classList.add('hidden');
-        const extras = qrCodeDiv.querySelectorAll('canvas, img:not(#qrCodeImg)');
-        extras.forEach(el => el.remove());
         new QRCode(qrCodeDiv, {
           text: url,
           width: 208,
@@ -161,10 +578,13 @@
       networkSelect.innerHTML = '';
 
       const options = [
+        { label: '🌐 Cloud Relay · 5G / Remote Everywhere', key: 'cloud_relay_url' },
         { label: '⚡ Direct Wi-Fi (.local) · Fastest 0ms', key: 'mdns_url' },
         { label: '📶 Direct IP Address · Local LAN', key: 'ip_url' },
-        { label: '🌐 Cloud Relay · 5G / Remote Everywhere', key: 'cloud_relay_url' },
       ];
+      if (urls.tunnel_url) {
+        options.push({ label: '🔒 Cloudflare HTTPS Tunnel', key: 'tunnel_url' });
+      }
 
       options.forEach(opt => {
         if (urls[opt.key]) {
@@ -177,39 +597,51 @@
       });
     }
 
-    networkSelect.addEventListener('change', (e) => {
-      const selectedUrl = e.target.value;
-      if (selectedUrl) {
-        renderQr(selectedUrl, null);
-      }
-    });
+    if (networkSelect) {
+      networkSelect.addEventListener('change', (e) => {
+        const selectedUrl = e.target.value;
+        if (selectedUrl) {
+          renderQr(selectedUrl, null);
+        }
+      });
+    }
 
     async function loadQrInfo() {
       try {
         const res = await fetch('/api/qr');
         if (res.ok) {
           const data = await res.json();
-          const targetUrl = data.preferred_url || data.cloud_relay_url || data.urls?.cloud_relay_url || data.urls?.ip_url || data.urls?.mdns_url || `http://${window.location.hostname}:5141`;
+          const targetUrl = data.cloud_relay_url || data.preferred_url || data.urls?.cloud_relay_url || data.urls?.ip_url || data.urls?.mdns_url || `http://${window.location.hostname}:5141`;
+          cachedInitialDataUri = data.qr_data_uri || null;
+          cachedInitialUrl = targetUrl;
           populateNetworkOptions(data.urls);
+          if (networkSelect) {
+            for (let i = 0; i < networkSelect.options.length; i++) {
+              if (networkSelect.options[i].value === targetUrl) {
+                networkSelect.selectedIndex = i;
+                break;
+              }
+            }
+          }
           renderQr(targetUrl, data.qr_data_uri);
           return;
         }
       } catch (e) {}
 
-      // Robust fallback
-      const fallbackUrl = `http://${window.location.hostname || '127.0.0.1'}:5141`;
+      const fallbackUrl = 'https://companion.voicefi.app';
       renderQr(fallbackUrl, null);
     }
 
-    copyBtn.addEventListener('click', () => {
-      const text = directUrlText.innerText;
-      navigator.clipboard?.writeText(text).then(() => {
-        copyBtn.innerText = 'COPIED!';
-        setTimeout(() => copyBtn.innerText = 'COPY', 2000);
+    if (copyBtn) {
+      copyBtn.addEventListener('click', () => {
+        const text = directUrlText.innerText;
+        navigator.clipboard?.writeText(text).then(() => {
+          copyBtn.innerText = 'COPIED!';
+          setTimeout(() => copyBtn.innerText = 'COPY', 2000);
+        });
       });
-    });
+    }
 
-    // Check status periodically for phone connection
     async function checkStatus() {
       try {
         const res = await fetch('/api/status');
@@ -228,9 +660,687 @@
       } catch (e) {}
     }
 
-    loadQrInfo();
-    checkStatus();
-    setInterval(checkStatus, 2000);
+    // =================================================================
+    // Companion Showcase Player Logic (Exact Companion UX)
+    // =================================================================
+    // =================================================================
+    // Companion Showcase Player Logic (Exact Companion UX)
+    // =================================================================
+    const COMPANION_REELS = {
+      spicewood_full: {
+        title: "🤠 Spicewood Outlaws · Full Master Cut (9:16 Vertical)",
+        dur: "4:21",
+        desc: "Complete 3-Act Spicewood Outlaws Film & Music Video Master (341.6 MB · 1080x1920 Vertical)",
+        reel916: "/downloads/spicewood_outlaws_full_master_9_16.mp4",
+        audio: "/downloads/spicewood_outlaws_full_master_audio.mp3",
+        sheet: "/downloads/spicewood_texas_lead_sheet.md",
+        isAudio: false,
+        badge: "9:16 Master",
+        btnColorClass: "bg-amber-500 text-black font-extrabold shadow-lg"
+      },
+      spicewood_audio: {
+        title: "🎵 Spicewood Outlaws · Full Master Audio",
+        dur: "4:21",
+        desc: "Full Master Soundtrack & Vocal Performance · 320 kbps Studio Master (Acts 1–3)",
+        audio: "/downloads/spicewood_outlaws_full_master_audio.mp3",
+        sheet: "/downloads/spicewood_texas_lead_sheet.md",
+        isAudio: true,
+        badge: "320k MP3",
+        btnColorClass: "bg-amber-500 text-black font-extrabold shadow-lg"
+      },
+      spicewood_act1: {
+        title: "🎬 Spicewood Act 1 · 9:16 Vertical (Shorts Cut)",
+        dur: "55s",
+        desc: "Official Spicewood Act 1 Vertical 9:16 Master Cut · YouTube Shorts Ready (<60s)",
+        reel916: "/downloads/spicewood_act1_vertical_9_16.mp4",
+        audio: "/downloads/spicewood_outlaws_full_master_audio.mp3",
+        sheet: "/downloads/spicewood_texas_lead_sheet.md",
+        isAudio: false,
+        badge: "Shorts 55s",
+        btnColorClass: "bg-amber-500 text-black font-extrabold shadow-lg"
+      },
+      spicewood_act2: {
+        title: "🎬 Spicewood Act 2 · 9:16 Vertical (Speedburst)",
+        dur: "1:35",
+        desc: "Official Spicewood Act 2 Vertical 9:16 Master Cut · TikTok & IG Reels Speedburst",
+        reel916: "/downloads/spicewood_act2_vertical_9_16.mp4",
+        audio: "/downloads/spicewood_outlaws_full_master_audio.mp3",
+        sheet: "/downloads/spicewood_texas_lead_sheet.md",
+        isAudio: false,
+        badge: "Reels 95s",
+        btnColorClass: "bg-amber-500 text-black font-extrabold shadow-lg"
+      },
+      spicewood_act3: {
+        title: "🎬 Spicewood Act 3 · 9:16 Vertical (Bonfire Finale)",
+        dur: "1:51",
+        desc: "Official Spicewood Act 3 Vertical 9:16 Master Cut · Climax & Grand Outlaw Anthem Finale",
+        reel916: "/downloads/spicewood_act3_vertical_9_16.mp4",
+        audio: "/downloads/spicewood_outlaws_full_master_audio.mp3",
+        sheet: "/downloads/spicewood_texas_lead_sheet.md",
+        isAudio: false,
+        badge: "Finale 110s",
+        btnColorClass: "bg-amber-500 text-black font-extrabold shadow-lg"
+      },
+      spicewood: {
+        title: "🥁 Spicewood Beat · Boom Bap Master",
+        dur: "4:48",
+        desc: "85.0 BPM (Prod. Shinra B) boom bap type beat + complete synchronized lead sheet & measure grid",
+        audio: "/downloads/spicewood_texas_beat_85bpm.mp3",
+        sheet: "/downloads/spicewood_texas_lead_sheet.md",
+        isAudio: true,
+        badge: "85 BPM",
+        btnColorClass: "bg-amber-500 text-black font-extrabold shadow-lg"
+      },
+      reel8: {
+        title: "🎵 10.skills by vifi · Master Track",
+        dur: "2:25",
+        desc: "Jake's live solo rap + GarageBand master + 17-scene Texas Hill Country visual storyboard",
+        reel916: "/downloads/reel_008_10_skills_9_16.mp4",
+        audio: "/downloads/10_skills_bounce.wav",
+        isAudio: false,
+        badge: "2:25",
+        btnColorClass: "bg-[#38BDF8] text-black font-extrabold shadow-lg"
+      },
+      reel6: {
+        title: "⚡ The Speed Listening Challenge",
+        dur: "35s",
+        desc: "Jake's solo live take + 400 & 600 WPM acceleration + Google Veo 2D flipbook sketch",
+        reel916: "/downloads/reel_006_speed_listening_9_16.mp4",
+        audio: "/downloads/reel_006_speed_listening_9_16.mp4",
+        isAudio: false,
+        badge: "35s",
+        btnColorClass: "bg-[#8B9A46] text-black font-extrabold shadow-lg"
+      },
+      reel4: {
+        title: "🎬 How We Built VoiceFi · Multi-Agent Story",
+        dur: "50s",
+        desc: "Viv, Claude, Christopher & Emily on building the voice layer",
+        reel916: "/downloads/hybrid_how_we_built_voicefi_reel_9_16.mp4",
+        audio: "/downloads/hybrid_how_we_built_voicefi_master.mp3",
+        isAudio: false,
+        badge: "50s",
+        btnColorClass: "bg-emerald-600 text-white font-bold shadow-lg"
+      },
+      reel2: {
+        title: "🎤 AI Rap Battle · Viv vs Claude",
+        dur: "77s",
+        desc: "Savage AI Smack Talk • 808 Boom-Bap & Scratches",
+        reel916: "/downloads/ai_rap_battle_viv_claude_reel.mp4",
+        audio: "/downloads/rap_battle_dialogue.mp3",
+        isAudio: false,
+        badge: "77s",
+        btnColorClass: "bg-red-600 text-white font-bold shadow-lg"
+      }
+    };
+
+    let activeReelKey = "spicewood_full";
+
+    function selectCompanionReel(key) {
+      activeReelKey = key;
+      const data = COMPANION_REELS[key];
+      if (!data) return;
+
+      const videoContainer = document.getElementById('companionVideoContainer');
+      const audioContainer = document.getElementById('companionAudioContainer');
+      const video = document.getElementById('companionReelVideo');
+      const audio = document.getElementById('companionAudioPlayer');
+      const btnOpenLeadSheet = document.getElementById('btnOpenLeadSheet');
+      const btnPrimarySave = document.getElementById('btnPrimarySave');
+      const btnPrimarySaveText = document.getElementById('btnPrimarySaveText');
+      const btnSecondaryAudio = document.getElementById('btnSecondaryAudio');
+      const btnSecondarySheet = document.getElementById('btnSecondarySheet');
+
+      if (data.isAudio) {
+        if (video) video.pause();
+        videoContainer.classList.add('hidden');
+        audioContainer.classList.remove('hidden');
+        if (audio) {
+          audio.src = data.audio;
+          audio.load();
+        }
+        btnPrimarySave.href = data.audio;
+        btnPrimarySave.download = data.audio.split('/').pop();
+        btnPrimarySaveText.innerText = "Save Audio Master (" + (data.audio.endsWith('.m4a') ? '.m4a' : '.mp3') + ")";
+        btnSecondaryAudio.classList.add('hidden');
+      } else {
+        if (audio) audio.pause();
+        audioContainer.classList.add('hidden');
+        videoContainer.classList.remove('hidden');
+        if (video) {
+          video.src = data.reel916;
+          video.load();
+        }
+        btnPrimarySave.href = data.reel916;
+        btnPrimarySave.download = data.reel916.split('/').pop();
+        btnPrimarySaveText.innerText = "Save Video Master (.mp4)";
+        if (data.audio) {
+          btnSecondaryAudio.href = data.audio;
+          btnSecondaryAudio.download = data.audio.split('/').pop();
+          btnSecondaryAudio.classList.remove('hidden');
+        } else {
+          btnSecondaryAudio.classList.add('hidden');
+        }
+      }
+
+      if (data.sheet) {
+        btnOpenLeadSheet.classList.remove('hidden');
+        btnSecondarySheet.classList.remove('hidden');
+        btnSecondarySheet.href = data.sheet;
+      } else {
+        btnOpenLeadSheet.classList.add('hidden');
+        btnSecondarySheet.classList.add('hidden');
+      }
+
+      document.getElementById('compReelTitle').innerHTML = `${data.title} <span id="compReelBadge" class="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300 mono font-bold">${data.dur}</span>`;
+      document.getElementById('compReelDesc').innerText = data.desc;
+
+      const keys = ['spicewood_full', 'spicewood_audio', 'spicewood_act1', 'spicewood_act2', 'spicewood_act3', 'spicewood', 'reel8', 'reel6', 'reel4', 'reel2'];
+      const inactiveClass = "py-1.5 px-3 rounded-lg text-[11px] font-bold transition-all text-zinc-400 hover:text-zinc-200 flex items-center justify-center gap-1 shrink-0";
+
+      keys.forEach(k => {
+        const btnId = k === 'spicewood_full' ? 'tabSpicewoodFull'
+          : (k === 'spicewood_audio' ? 'tabSpicewoodAudio'
+          : (k === 'spicewood_act1' ? 'tabSpicewoodAct1'
+          : (k === 'spicewood_act2' ? 'tabSpicewoodAct2'
+          : (k === 'spicewood_act3' ? 'tabSpicewoodAct3'
+          : (k === 'spicewood' ? 'tabSpicewood'
+          : `tab${k.charAt(0).toUpperCase() + k.slice(1)}`)))));
+        const btn = document.getElementById(btnId);
+        if (btn) {
+          if (k === key) {
+            btn.className = `py-1.5 px-3 rounded-lg text-[11px] transition-all ${data.btnColorClass} flex items-center justify-center gap-1 shrink-0`;
+          } else {
+            btn.className = inactiveClass;
+          }
+        }
+      });
+    }
+
+    function openLeadSheetEditor() {
+      openFileEditor('spicewood_texas_lead_sheet.md');
+    }
+
+    function playFileInCompanionShowcase(name, category, url) {
+      const videoContainer = document.getElementById('companionVideoContainer');
+      const audioContainer = document.getElementById('companionAudioContainer');
+      const video = document.getElementById('companionReelVideo');
+      const audio = document.getElementById('companionAudioPlayer');
+      const btnPrimarySave = document.getElementById('btnPrimarySave');
+      const btnPrimarySaveText = document.getElementById('btnPrimarySaveText');
+
+      if (category === 'video') {
+        if (audio) audio.pause();
+        audioContainer.classList.add('hidden');
+        videoContainer.classList.remove('hidden');
+        video.src = url;
+        video.load();
+        video.play().catch(() => {});
+        btnPrimarySave.href = url;
+        btnPrimarySave.download = name;
+        btnPrimarySaveText.innerText = `Save Video (${name.split('.').pop().toUpperCase()})`;
+      } else if (category === 'audio') {
+        if (video) video.pause();
+        videoContainer.classList.add('hidden');
+        audioContainer.classList.remove('hidden');
+        audio.src = url;
+        audio.load();
+        audio.play().catch(() => {});
+        btnPrimarySave.href = url;
+        btnPrimarySave.download = name;
+        btnPrimarySaveText.innerText = `Save Audio (${name.split('.').pop().toUpperCase()})`;
+      }
+
+      document.getElementById('compReelTitle').innerHTML = `<span>▶️</span> <span>${name}</span>`;
+      document.getElementById('compReelDesc').innerText = `Active media stream from Companion Downloads Repository (${category.toUpperCase()})`;
+      showToast(`Loaded ${name} into Companion Player`, '🎵');
+    }
+
+    // =================================================================
+    // Downloads Catalog & File Management Logic
+    // =================================================================
+    let allDownloads = [];
+    let currentCategoryFilter = 'all';
+
+    async function loadDownloads() {
+      try {
+        const res = await fetch('/api/downloads');
+        if (!res.ok) throw new Error('Failed to load downloads');
+        const data = await res.json();
+        allDownloads = data.files || [];
+        
+        const navCount = document.getElementById('navDownloadsCount');
+        if (navCount) navCount.innerText = data.total_count || '0';
+        
+        const statsTotal = document.getElementById('statsTotalSize');
+        if (statsTotal) statsTotal.innerText = `${data.total_count} files (${data.total_size_formatted})`;
+
+        updateCategoryCounts();
+        filterFiles();
+      } catch (err) {
+        console.error("Error loading downloads:", err);
+        const grid = document.getElementById('filesGrid');
+        if (grid) {
+          grid.innerHTML = `<div class="p-6 text-center text-red-400 font-mono text-xs">Failed to load downloads: ${err.message}</div>`;
+        }
+      }
+    }
+
+    function updateCategoryCounts() {
+      let vCount = 0, aCount = 0, dCount = 0;
+      allDownloads.forEach(f => {
+        if (f.category === 'video') vCount++;
+        else if (f.category === 'audio') aCount++;
+        else if (f.category === 'document') dCount++;
+      });
+      document.getElementById('countAll').innerText = allDownloads.length;
+      document.getElementById('countVideo').innerText = vCount;
+      document.getElementById('countAudio').innerText = aCount;
+      document.getElementById('countDocument').innerText = dCount;
+    }
+
+    function setCategoryFilter(cat) {
+      currentCategoryFilter = cat;
+      const pills = ['All', 'Video', 'Audio', 'Document'];
+      const activeClass = "py-1 px-2.5 rounded-lg font-bold bg-white text-black shadow transition cursor-pointer";
+      const inactiveClass = "py-1 px-2.5 rounded-lg font-bold bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800 transition cursor-pointer";
+      
+      pills.forEach(p => {
+        const btn = document.getElementById(`filter${p}`);
+        if (btn) {
+          if (p.toLowerCase() === cat) {
+            btn.className = activeClass;
+          } else {
+            btn.className = inactiveClass;
+          }
+        }
+      });
+      filterFiles();
+    }
+
+    function filterFiles() {
+      const q = (document.getElementById('searchInput')?.value || '').toLowerCase().trim();
+      let filtered = allDownloads;
+
+      if (currentCategoryFilter !== 'all') {
+        filtered = filtered.filter(f => f.category === currentCategoryFilter);
+      }
+
+      if (q) {
+        filtered = filtered.filter(f => f.name.toLowerCase().includes(q));
+      }
+
+      renderFilesList(filtered);
+    }
+
+    function renderFilesList(files) {
+      const grid = document.getElementById('filesGrid');
+      if (!grid) return;
+
+      if (files.length === 0) {
+        grid.innerHTML = `
+          <div class="p-8 text-center text-zinc-500 font-mono text-xs flex flex-col items-center gap-1.5">
+            <span class="text-xl">🔍</span>
+            <span>No files match your search.</span>
+          </div>`;
+        return;
+      }
+
+      grid.innerHTML = files.map(f => {
+        let badgeColor = "bg-zinc-800 text-zinc-300";
+        let icon = "📄";
+        if (f.category === "video") {
+          badgeColor = "bg-sky-950/80 text-sky-400 border border-sky-500/30";
+          icon = "🎬";
+        } else if (f.category === "audio") {
+          badgeColor = "bg-amber-950/80 text-amber-400 border border-amber-500/30";
+          icon = "🎵";
+        } else if (f.category === "document") {
+          badgeColor = "bg-emerald-950/80 text-emerald-400 border border-emerald-500/30";
+          icon = "📜";
+        }
+
+        const isSpicewood = f.name.includes("spicewood");
+        const cardHighlight = isSpicewood 
+          ? "border-amber-500/50 bg-amber-950/20" 
+          : "border-zinc-800/80 bg-[#121214] hover:border-zinc-700";
+
+        let customTag = "";
+        if (f.name === "spicewood_outlaws_full_master.mp4") customTag = '<span class="text-[8px] px-1 py-0.2 rounded bg-amber-500 text-black font-extrabold font-mono">MASTER</span>';
+        else if (f.name.includes("full_master_audio")) customTag = '<span class="text-[8px] px-1 py-0.2 rounded bg-amber-500 text-black font-extrabold font-mono">AUDIO</span>';
+        else if (f.name === "spicewood_act1_picture_lock.mp4") customTag = '<span class="text-[8px] px-1 py-0.2 rounded bg-amber-500 text-black font-extrabold font-mono">ACT 1</span>';
+        else if (f.name === "spicewood_act2_picture_lock.mp4") customTag = '<span class="text-[8px] px-1 py-0.2 rounded bg-amber-500 text-black font-extrabold font-mono">ACT 2</span>';
+        else if (f.name === "spicewood_act3_picture_lock.mp4") customTag = '<span class="text-[8px] px-1 py-0.2 rounded bg-amber-500 text-black font-extrabold font-mono">ACT 3</span>';
+
+        return `
+          <div class="p-3 rounded-2xl border ${cardHighlight} transition-all flex items-center justify-between gap-2.5 group">
+            <div class="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer" onclick="${f.playable ? `playFileInCompanionShowcase('${encodeURIComponent(f.name)}', '${f.category}', '${f.url}')` : (f.editable ? `openFileEditor('${encodeURIComponent(f.name)}')` : '')}">
+              <div class="w-8 h-8 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-sm shrink-0">
+                ${icon}
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <h4 class="text-xs font-bold text-white truncate max-w-[190px] sm:max-w-[220px]" title="${f.name}">
+                    ${f.name}
+                  </h4>
+                  ${customTag}
+                </div>
+                <div class="flex items-center gap-2 text-[10px] font-mono text-zinc-400">
+                  <span class="px-1 rounded text-[9px] font-bold ${badgeColor}">${f.ext.toUpperCase().replace('.', '')}</span>
+                  <span>${f.formatted_size}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Action Controls -->
+            <div class="flex items-center gap-1 shrink-0">
+              ${f.playable ? `
+                <button onclick="playFileInCompanionShowcase('${encodeURIComponent(f.name)}', '${f.category}', '${f.url}')" type="button" class="p-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-white text-xs transition cursor-pointer" title="Play in Companion Showcase">
+                  ▶️
+                </button>
+              ` : ''}
+
+              ${f.editable ? `
+                <button onclick="openFileEditor('${encodeURIComponent(f.name)}')" type="button" class="p-1.5 rounded-lg bg-emerald-950/40 hover:bg-emerald-600 border border-emerald-500/40 text-emerald-300 hover:text-white text-xs transition cursor-pointer" title="Edit File">
+                  ✏️
+                </button>
+              ` : ''}
+
+              <a href="${f.url}?download=1" download="${f.name}" class="p-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-white text-xs transition" title="Save File">
+                📥
+              </a>
+              <button onclick="promptRename('${encodeURIComponent(f.name)}')" type="button" class="p-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-white text-xs transition cursor-pointer" title="Rename">
+                🏷️
+              </button>
+              <button onclick="deleteFile('${encodeURIComponent(f.name)}')" type="button" class="p-1.5 rounded-lg bg-zinc-900 hover:bg-red-950 border border-zinc-800 hover:border-red-600 text-zinc-400 hover:text-red-400 text-xs transition cursor-pointer" title="Delete">
+                🗑️
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // =================================================================
+    // File Upload (Drag & Drop & Input)
+    // =================================================================
+    const dropZone = document.getElementById('dropZone');
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+      dropZone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropZone.classList.add('drop-active');
+      }, false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+      dropZone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropZone.classList.remove('drop-active');
+      }, false);
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+      const dt = e.dataTransfer;
+      const files = dt.files;
+      if (files && files.length > 0) {
+        uploadFiles(files);
+      }
+    });
+
+    function handleFileInput(e) {
+      const files = e.target.files;
+      if (files && files.length > 0) {
+        uploadFiles(files);
+      }
+    }
+
+    async function uploadFiles(fileList) {
+      const pContainer = document.getElementById('uploadProgressBarContainer');
+      const pBar = document.getElementById('uploadProgressBar');
+      const statusText = document.getElementById('uploadStatusText');
+
+      pContainer.classList.remove('hidden');
+      pBar.style.width = '20%';
+      statusText.innerText = `Uploading ${fileList.length} file(s)...`;
+
+      const formData = new FormData();
+      for (let i = 0; i < fileList.length; i++) {
+        formData.append(`file_${i}`, fileList[i]);
+      }
+
+      try {
+        pBar.style.width = '60%';
+        const res = await fetch('/api/downloads/upload', {
+          method: 'POST',
+          body: formData,
+        });
+
+        pBar.style.width = '95%';
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.error || 'Upload failed');
+        }
+
+        const data = await res.json();
+        pBar.style.width = '100%';
+        statusText.innerText = `Successfully uploaded ${data.uploaded?.length || 1} file(s)!`;
+        showToast(`Uploaded ${data.uploaded?.length || 1} file(s) to downloads`, '🚀');
+
+        setTimeout(() => {
+          pContainer.classList.add('hidden');
+          pBar.style.width = '0%';
+        }, 1500);
+
+        await loadDownloads();
+      } catch (err) {
+        pBar.style.width = '100%';
+        pBar.classList.remove('bg-red-500');
+        pBar.classList.add('bg-red-800');
+        statusText.innerText = `Upload failed: ${err.message}`;
+        showToast(`Upload failed: ${err.message}`, '⚠️');
+      }
+    }
+
+    // =================================================================
+    // Media Player Modal (Video & Audio Modal Fallback)
+    // =================================================================
+    const mediaModal = document.getElementById('mediaModal');
+    const mediaModalVideo = document.getElementById('mediaModalVideo');
+    const mediaModalAudio = document.getElementById('mediaModalAudio');
+    const mediaModalAudioContainer = document.getElementById('mediaModalAudioContainer');
+
+    function openMediaPreview(encodedName, category) {
+      const filename = decodeURIComponent(encodedName);
+      const url = `/downloads/${filename}`;
+
+      document.getElementById('mediaModalTitle').innerText = filename;
+      document.getElementById('mediaModalMeta').innerText = `${category.toUpperCase()} PREVIEW`;
+      const dlBtn = document.getElementById('mediaModalDownloadBtn');
+      dlBtn.href = `${url}?download=1`;
+      dlBtn.download = filename;
+
+      if (category === 'video') {
+        document.getElementById('mediaModalIcon').innerText = '🎬';
+        mediaModalAudio.pause();
+        mediaModalAudioContainer.classList.add('hidden');
+        mediaModalVideo.classList.remove('hidden');
+        mediaModalVideo.src = url;
+        mediaModalVideo.play().catch(() => {});
+      } else {
+        document.getElementById('mediaModalIcon').innerText = '🎵';
+        mediaModalVideo.pause();
+        mediaModalVideo.classList.add('hidden');
+        mediaModalAudioContainer.classList.remove('hidden');
+        mediaModalAudio.src = url;
+        mediaModalAudio.play().catch(() => {});
+      }
+
+      mediaModal.showModal();
+    }
+
+    function closeMediaModal() {
+      mediaModalVideo.pause();
+      mediaModalAudio.pause();
+      mediaModalVideo.src = '';
+      mediaModalAudio.src = '';
+      mediaModal.close();
+    }
+
+    mediaModal.addEventListener('click', (e) => {
+      const rect = mediaModal.getBoundingClientRect();
+      const isInDialog = (rect.top <= e.clientY && e.clientY <= rect.top + rect.height
+        && rect.left <= e.clientX && e.clientX <= rect.left + rect.width);
+      if (!isInDialog) {
+        closeMediaModal();
+      }
+    });
+
+    // =================================================================
+    // Text / Markdown / Lead Sheet Editor Modal
+    // =================================================================
+    const editorModal = document.getElementById('editorModal');
+    const editorTextarea = document.getElementById('editorTextarea');
+    let activeEditingFilename = '';
+
+    async function openFileEditor(encodedName) {
+      const filename = decodeURIComponent(encodedName);
+      activeEditingFilename = filename;
+
+      document.getElementById('editorModalTitle').innerText = filename;
+      document.getElementById('editorModalStatus').innerText = 'Loading content...';
+      editorTextarea.value = '';
+
+      editorModal.showModal();
+
+      try {
+        const res = await fetch(`/api/downloads/${encodedName}/content`);
+        if (!res.ok) throw new Error('Failed to load file content');
+        const data = await res.json();
+        editorTextarea.value = data.content || '';
+        document.getElementById('editorModalStatus').innerText = `Editing · ${data.info?.formatted_size || ''}`;
+        updateEditorCharCount();
+      } catch (err) {
+        document.getElementById('editorModalStatus').innerText = `Error: ${err.message}`;
+      }
+    }
+
+    function updateEditorCharCount() {
+      const len = editorTextarea.value.length;
+      const lines = editorTextarea.value.split('\n').length;
+      document.getElementById('editorCharCount').innerText = `${lines} lines · ${len} chars`;
+    }
+
+    editorTextarea.addEventListener('input', updateEditorCharCount);
+
+    editorTextarea.addEventListener('keydown', (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+        e.preventDefault();
+        saveEditorContent();
+      }
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        const start = editorTextarea.selectionStart;
+        const end = editorTextarea.selectionEnd;
+        editorTextarea.value = editorTextarea.value.substring(0, start) + "  " + editorTextarea.value.substring(end);
+        editorTextarea.selectionStart = editorTextarea.selectionEnd = start + 2;
+      }
+    });
+
+    async function saveEditorContent() {
+      if (!activeEditingFilename) return;
+      const btn = document.getElementById('btnSaveEditor');
+      const originalText = btn.innerHTML;
+      btn.innerHTML = '<span>⏳</span><span>Saving...</span>';
+
+      try {
+        const res = await fetch(`/api/downloads/${encodeURIComponent(activeEditingFilename)}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: editorTextarea.value }),
+        });
+        if (!res.ok) throw new Error('Failed to save');
+        const data = await res.json();
+        btn.innerHTML = '<span>✅</span><span>Saved!</span>';
+        showToast(`Saved ${activeEditingFilename}`, '💾');
+        document.getElementById('editorModalStatus').innerText = `Saved · ${data.info?.formatted_size || ''}`;
+        setTimeout(() => btn.innerHTML = originalText, 1500);
+        await loadDownloads();
+      } catch (err) {
+        btn.innerHTML = '<span>⚠️</span><span>Failed</span>';
+        showToast(`Save error: ${err.message}`, '⚠️');
+        setTimeout(() => btn.innerHTML = originalText, 2000);
+      }
+    }
+
+    function closeEditorModal() {
+      editorModal.close();
+      activeEditingFilename = '';
+    }
+
+    // =================================================================
+    // Rename & Delete File Actions
+    // =================================================================
+    const renameModal = document.getElementById('renameModal');
+    let fileToRename = '';
+
+    function promptRename(encodedName) {
+      fileToRename = decodeURIComponent(encodedName);
+      document.getElementById('renameInput').value = fileToRename;
+      renameModal.showModal();
+    }
+
+    function closeRenameModal() {
+      renameModal.close();
+      fileToRename = '';
+    }
+
+    async function submitRename() {
+      const newName = document.getElementById('renameInput').value.trim();
+      if (!newName || newName === fileToRename) {
+        closeRenameModal();
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/downloads/rename', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ old_name: fileToRename, new_name: newName }),
+        });
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.error || 'Rename failed');
+        }
+        showToast(`Renamed to ${newName}`, '🏷️');
+        closeRenameModal();
+        await loadDownloads();
+      } catch (err) {
+        alert(`Rename failed: ${err.message}`);
+      }
+    }
+
+    async function deleteFile(encodedName) {
+      const filename = decodeURIComponent(encodedName);
+      if (!confirm(`Are you sure you want to delete "${filename}"? This action cannot be undone.`)) {
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/downloads/${encodedName}`, {
+          method: 'DELETE',
+        });
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.error || 'Delete failed');
+        }
+        showToast(`Deleted ${filename}`, '🗑️');
+        await loadDownloads();
+      } catch (err) {
+        alert(`Delete failed: ${err.message}`);
+      }
+    }
   </script>
 </body>
 </html>

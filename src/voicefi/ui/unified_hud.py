@@ -1,8 +1,8 @@
 """
 Native macOS Pure Apple-Style Unified Dynamic Island HUD.
 Provides a clean, borderless, frosted-glass fixed-size (480x58) capsule HUD anchored
-at the top-right of the screen with a 20px margin or user-dragged position, smoothly updating
-its internal content across agent lifecycle states:
+at the lower-right of the screen just above the lower dock/bar (or configured position)
+or user-dragged position, smoothly updating its internal content across agent lifecycle states:
 - IDLE: "🎙️ VoiceFi • Ready (⇧⌘N)"
 - THINKING: Reasoning indicator ("🧠 Antigravity • Thinking...")
 - WORKING: Tool action card ("⚡ Antigravity • Running pytest...")
@@ -58,6 +58,7 @@ from AppKit import (
     NSWindowCollectionBehaviorFullScreenAuxiliary,
     NSAnimationContext,
     NSBezierPath,
+    NSLineBreakByTruncatingTail,
 )
 from Foundation import NSData
 import objc
@@ -626,7 +627,7 @@ class UnifiedDynamicIslandHUD:
         return icon
 
     def reset_position(self):
-        """Reset user-dragged position back to top-right of the screen with standard margin."""
+        """Reset user-dragged position back to default anchor position with standard margin."""
         self._user_dragged_center_x = None
         self._user_dragged_top_y = None
         if self._panel:
@@ -724,10 +725,9 @@ class UnifiedDynamicIslandHUD:
         # Quick Controls Settings button (⚙️)
         try:
             self._gear_btn = HUDQuickControlsButtonView.alloc().initWithFrame_(
-                NSRect(NSPoint(394, 28), NSSize(28, 24))
+                NSRect(NSPoint(392, 26), NSSize(32, 26))
             )
             self._gear_btn.setToolTip_("VoiceFi Quick Controls")
-            self._root_view.addSubview_(self._gear_btn)
         except Exception:
             self._gear_btn = None
 
@@ -792,14 +792,14 @@ class UnifiedDynamicIslandHUD:
                 NSRect(NSPoint(344, 29), NSSize(46, 22))
             )
             self._visualizer.setHidden_(False)
-            self._root_view.addSubview_(self._visualizer)
             self._vad_btn = None
         except Exception:
             self._visualizer = None
             self._vad_btn = None
 
         # Body Text Label (Subtitles, recognized speech, tool actions, hints)
-        self._body_lbl = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(60, 8), NSSize(275, 22)))
+        # Allocate full available width between avatar (x=60) and app badge (x=432) -> 365px
+        self._body_lbl = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(60, 7), NSSize(365, 19)))
         self._body_lbl.setFont_(NSFont.systemFontOfSize_(11.5))
         self._body_lbl.setTextColor_(
             NSColor.colorWithCalibratedRed_green_blue_alpha_(0.9, 0.92, 0.96, 0.95)
@@ -809,6 +809,13 @@ class UnifiedDynamicIslandHUD:
         self._body_lbl.setDrawsBackground_(False)
         self._body_lbl.setEditable_(False)
         self._body_lbl.setSelectable_(False)
+        if hasattr(self._body_lbl, "setUsesSingleLineMode_"):
+            self._body_lbl.setUsesSingleLineMode_(True)
+        if hasattr(self._body_lbl, "cell") and hasattr(self._body_lbl.cell(), "setLineBreakMode_"):
+            try:
+                self._body_lbl.cell().setLineBreakMode_(NSLineBreakByTruncatingTail)
+            except Exception:
+                pass
         self._root_view.addSubview_(self._body_lbl)
 
         # App / Agent badge view (right side at x=432, y=13, w=32, h=32)
@@ -840,6 +847,12 @@ class UnifiedDynamicIslandHUD:
         self._app_lbl.setHidden_(True)
         self._app_box.addSubview_(self._app_lbl)
         self._root_view.addSubview_(self._app_box)
+
+        # Layer Visualizer meter and Quick Controls Gear button on top
+        if self._visualizer:
+            self._root_view.addSubview_(self._visualizer)
+        if self._gear_btn:
+            self._root_view.addSubview_(self._gear_btn)
 
         # Single-line Compact Fallback Label (if specifically used)
         self._label = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(14, 18), NSSize(452, 22)))
@@ -962,8 +975,50 @@ class UnifiedDynamicIslandHUD:
         except Exception:
             pass
 
+    _dock_height_cache: Optional[float] = None
+    _dock_orientation_cache: Optional[str] = None
+
+    @classmethod
+    def _get_dock_height(cls) -> float:
+        """Estimate macOS dock height in points based on dock tilesize or fallback."""
+        if cls._dock_height_cache is not None:
+            return cls._dock_height_cache
+        try:
+            import subprocess
+
+            out = subprocess.check_output(
+                ["defaults", "read", "com.apple.dock", "tilesize"],
+                stderr=subprocess.DEVNULL,
+                timeout=0.5,
+            ).decode().strip()
+            tilesize = float(out)
+            cls._dock_height_cache = max(50.0, min(140.0, tilesize + 18.0))
+        except Exception:
+            cls._dock_height_cache = 66.0
+        return cls._dock_height_cache
+
+    @classmethod
+    def _is_dock_on_bottom(cls) -> bool:
+        """Check whether the macOS Dock is oriented along the bottom edge."""
+        if cls._dock_orientation_cache is not None:
+            return cls._dock_orientation_cache == "bottom"
+        try:
+            import subprocess
+
+            out = subprocess.check_output(
+                ["defaults", "read", "com.apple.dock", "orientation"],
+                stderr=subprocess.DEVNULL,
+                timeout=0.5,
+            ).decode().strip().lower()
+            cls._dock_orientation_cache = out
+            return out == "bottom"
+        except Exception:
+            # Default orientation on macOS is bottom
+            cls._dock_orientation_cache = "bottom"
+            return True
+
     def _get_target_frame(self, width: float = 480.0, height: float = 58.0) -> NSRect:
-        """Calculate screen positioning based on preset anchor (top_right, top_center, bottom_right) or user-dragged position."""
+        """Calculate screen positioning based on preset anchor (bottom_right, top_right, top_center) or user-dragged position."""
         screen = NSScreen.mainScreen()
         if self._user_dragged_center_x is not None and self._user_dragged_top_y is not None:
             x = self._user_dragged_center_x - (width / 2.0)
@@ -973,29 +1028,54 @@ class UnifiedDynamicIslandHUD:
             hud_cfg = getattr(self.config, "hud", None) if hasattr(self, "config") else None
             margin_x = float(getattr(hud_cfg, "margin_x", 20.0)) if hud_cfg else 20.0
             margin_y = float(getattr(hud_cfg, "margin_y", 96.0)) if hud_cfg else 96.0
-            pos = getattr(hud_cfg, "position", "top_right") if hud_cfg else "top_right"
+            margin_b = float(getattr(hud_cfg, "margin_bottom", 14.0)) if hud_cfg else 14.0
+            pos = getattr(hud_cfg, "position", "bottom_right") if hud_cfg else "bottom_right"
+
+            try:
+                vis_x = float(visible.origin.x)
+            except Exception:
+                vis_x = 0.0
+            try:
+                vis_y = float(visible.origin.y)
+            except Exception:
+                vis_y = 0.0
+            try:
+                vis_w = float(visible.size.width)
+            except Exception:
+                vis_w = 1920.0
+            try:
+                vis_h = float(visible.size.height)
+            except Exception:
+                vis_h = 1080.0
+
             if pos == "top_center":
-                x = visible.origin.x + (visible.size.width - width) / 2.0
-                y = visible.origin.y + visible.size.height - height - 12.0
-            elif pos == "bottom_right":
-                x = visible.origin.x + visible.size.width - width - margin_x
-                y = visible.origin.y + 40.0
-            else:  # top_right (default: anchored top right clearing browser tabs)
-                x = visible.origin.x + visible.size.width - width - margin_x
-                y = visible.origin.y + visible.size.height - height - margin_y
+                x = vis_x + (vis_w - width) / 2.0
+                y = vis_y + vis_h - height - 12.0
+            elif pos == "top_right":
+                x = vis_x + vis_w - width - margin_x
+                y = vis_y + vis_h - height - margin_y
+            else:  # bottom_right (default: anchored lower right just above the macOS dock / lower bar)
+                x = vis_x + vis_w - width - margin_x
+                # If dock is pinned at bottom (vis_y > 20), vis_y is exact dock height.
+                # If dock is autohidden (vis_y <= 20), account for dock height so HUD sits cleanly above lower bar.
+                if self._is_dock_on_bottom():
+                    dock_offset = vis_y if vis_y > 20.0 else self._get_dock_height()
+                else:
+                    dock_offset = vis_y
+                y = dock_offset + margin_b
         else:
-            x, y = 1200, 800
+            x, y = 1200, 80
         return NSRect(NSPoint(x, y), NSSize(width, height))
 
     def _position_top_right(self):
-        """Ensure HUD is positioned at top-right of the screen with standard margin."""
+        """Ensure HUD is positioned according to configured anchor with standard margin."""
         if not self._panel:
             return
         target_rect = self._get_target_frame(self.STANDARD_WIDTH, self.STANDARD_HEIGHT)
         self._panel.setFrameOrigin_(target_rect.origin)
 
     def _position_top_center(self):
-        """Ensure HUD is positioned (compatibility wrapper for _position_top_right)."""
+        """Ensure HUD is positioned (compatibility wrapper)."""
         self._position_top_right()
 
     def _apply_rich_state(

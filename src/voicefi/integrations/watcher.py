@@ -28,6 +28,7 @@ from voicefi.integrations.conversations import (
     ConversationTracker,
     ConversationInfo,
     claim_turn,
+    mark_turn_completed,
     pop_mobile_turn_origin,
     get_claimed_turn_origin,
     has_active_companion_client,
@@ -36,7 +37,11 @@ from voicefi.integrations.conversations import (
     resolve_pending_question,
     clear_pending_question,
 )
-from voicefi.integrations.active_listening import ActiveListeningEngine, SpokenIntentCategory
+from voicefi.integrations.active_listening import (
+    ActiveListeningEngine,
+    SpokenIntentCategory,
+    SpokenTargetChannel,
+)
 from voicefi.integrations.tool_formatter import format_tool_details, extract_log_summary
 
 
@@ -259,7 +264,60 @@ class TranscriptWatcher:
             thinking = step.get("thinking", "")
             detected_role = step.get("role") or step.get("agent_role") or "antigravity"
 
+            ask_q_tool = None
+            if isinstance(tool_calls, list):
+                for tc in tool_calls:
+                    tc_name = tc.get("name") or tc.get("tool_name") or ""
+                    if tc_name == "ask_question":
+                        ask_q_tool = tc
+                        break
+
             if (
+                step_type == "PLANNER_RESPONSE"
+                and step_source == "MODEL"
+                and ask_q_tool
+            ):
+                args = ask_q_tool.get("args") or {}
+                if isinstance(args, str):
+                    try:
+                        args = json.loads(args)
+                    except Exception:
+                        args = {}
+                questions = args.get("questions") or []
+                if questions and isinstance(questions, list):
+                    q0 = questions[0]
+                    q_text = (q0.get("question") or "").strip()
+                    raw_opts = q0.get("options") or []
+                    clean_opts = [str(o).strip() for o in raw_opts if str(o).strip()]
+                    if len(clean_opts) == 2:
+                        synthesized_q = f"{q_text} Would you prefer {clean_opts[0]}, or {clean_opts[1]}?"
+                    elif len(clean_opts) > 2:
+                        opt_str = ". ".join(f"Option {i+1}: {opt}" for i, opt in enumerate(clean_opts))
+                        synthesized_q = f"{q_text} {opt_str}."
+                    else:
+                        synthesized_q = q_text
+
+                    self._processed_steps[path_str] = idx
+                    conv_info = self.tracker.parse_conversation(path)
+                    if conv_info:
+                        self.tracker.set_active_focus(
+                            conv_info.id, transcript_path=path, title=conv_info.title
+                        )
+                        try:
+                            set_pending_question(conv_info.id, synthesized_q, options=clean_opts)
+                        except Exception:
+                            pass
+
+                    self._handle_turn_ready(
+                        synthesized_q,
+                        conv_info,
+                        agent_role=str(detected_role),
+                        is_active=True,
+                        step_index=idx,
+                        transcript_path=path,
+                    )
+                    break
+            elif (
                 step_type == "PLANNER_RESPONSE"
                 and step_source == "MODEL"
                 and step.get("status") == "DONE"
@@ -346,7 +404,7 @@ class TranscriptWatcher:
                         clean_body = re.sub(r"<[^>]+>", "", user_content).strip()
                         if clean_body:
                             record_event(
-                                "voice_interaction",
+                                "transcript_prompt",
                                 {
                                     "caller_agent": "antigravity",
                                     "char_count": len(clean_body),
@@ -412,7 +470,7 @@ class TranscriptWatcher:
                 return
 
             # Track pending clarifying question / options if present
-            if summary and (summary.endswith("?") or " or " in summary.lower()):
+            if summary and summary.strip().endswith("?") and (" or " in summary.lower() or '"' in summary):
                 set_pending_question(turn_cid, summary)
 
             routing = getattr(getattr(cfg, "companion", None), "audio_routing", "smart")
@@ -426,13 +484,13 @@ class TranscriptWatcher:
             if routing == "phone_only":
                 # Suppress local Mac playback when all speech is routed to phone
                 return
-            elif routing in ("smart", "origin_only"):
+            elif routing == "origin_only":
                 if is_mobile:
-                    # Turn originated from mobile companion -> mobile phone handles speech & mic exclusively.
-                    # Suppress local Mac playback to eliminate dual speaker echo.
+                    # Turn originated from mobile companion and user requested origin_only
                     return
-                if routing == "smart" and mute_mac_active and has_active_companion_client():
-                    # Mac suppressed because mobile companion is actively connected and mute_mac_when_companion_active is enabled.
+            elif routing == "smart":
+                if mute_mac_active and has_active_companion_client():
+                    # Mac suppressed only when user explicitly enabled mute_mac_when_companion_active: True
                     return
 
             spoken_text = summary
@@ -443,6 +501,12 @@ class TranscriptWatcher:
 
             ws_path = conv_info.workspace_path if conv_info else None
             proj_name = conv_info.project_name if conv_info else None
+
+            from voicefi.audio.meeting_detection import is_user_on_call
+
+            if is_user_on_call():
+                print("[Watcher] User is on a call. Skipping spoken feedback and auto-listen.")
+                return
 
             target_agent = agent_role or "antigravity"
             should_speak = bool(
@@ -473,7 +537,7 @@ class TranscriptWatcher:
                 try:
                     from voicefi.ui.speech_hud import AgentSpeechHUD
 
-                    pos = getattr(cfg.antigravity, "speech_popup_position", "top_center")
+                    pos = getattr(cfg.antigravity, "speech_popup_position", "bottom_right")
                     AgentSpeechHUD.get_instance().show_speech(
                         spoken_text,
                         agent_name=target_agent,
@@ -489,17 +553,6 @@ class TranscriptWatcher:
 
             if barge_in_active:
                 # Active Barge-In: Start speech in background and monitor mic for user interruption
-                from voicefi.tts.base import set_agent_speaking, escape_to_stop_speech
-
-                set_agent_speaking(
-                    True,
-                    text=spoken_text,
-                    agent_name=target_agent,
-                    persona_name=pname,
-                    app_name="Antigravity",
-                    conv_id=turn_cid,
-                    workspace_path=ws_path,
-                )
                 self._notify_state(
                     "speaking",
                     text=spoken_text,
@@ -512,20 +565,14 @@ class TranscriptWatcher:
                     is_focused=is_active,
                     project_name=proj_name,
                     workspace_path=ws_path,
+                    app_name="Antigravity",
+                    conv_id=turn_cid,
                 )
 
                 def _speak_and_finish_hud():
                     try:
-                        with escape_to_stop_speech(
-                            agent_name=target_agent,
-                            app_name="Antigravity",
-                            conv_id=turn_cid,
-                        ):
-                            tts.stream_speak(spoken_text, block=True)
+                        tts.stream_speak(spoken_text, block=True)
                     finally:
-                        from voicefi.tts.base import set_agent_speaking
-
-                        set_agent_speaking(False)
                         if cfg.antigravity.show_speech_popup:
                             try:
                                 from voicefi.ui.speech_hud import AgentSpeechHUD
@@ -560,6 +607,8 @@ class TranscriptWatcher:
                     max_record_seconds=cfg.vad.max_record_seconds,
                     barge_in=cfg.vad.barge_in,
                     barge_in_sensitivity=getattr(cfg.vad, "barge_in_sensitivity", 1.0),
+                    vad_engine=getattr(cfg.vad, "engine", "auto"),
+                    speech_threshold=getattr(cfg.vad, "speech_threshold", 0.37),
                 )
 
                 def _on_tick(energy: float, conf: float = 0.0, is_spk: bool = False):
@@ -572,6 +621,9 @@ class TranscriptWatcher:
                     except Exception:
                         pass
 
+                fb_loop = getattr(getattr(cfg, "proactive", None), "feedback_loop", None)
+                listen_timeout = getattr(fb_loop, "timeout_seconds", 12.0) if fb_loop else 12.0
+
                 audio_data, temp_wav = recorder.record_speech_auto(
                     on_speech_start=lambda: self._notify_state("hearing", user_name=cfg.user_name),
                     on_pause_change=lambda paused: self._notify_state(
@@ -579,6 +631,9 @@ class TranscriptWatcher:
                     ),
                     on_barge_in=_on_barge_in,
                     on_listening_tick=_on_tick,
+                    timeout=listen_timeout,
+                    conv_id=turn_cid,
+                    agent_name=target_agent,
                 )
                 self.active_recorder = None
             else:
@@ -596,15 +651,10 @@ class TranscriptWatcher:
                         is_focused=is_active,
                         project_name=proj_name,
                         workspace_path=ws_path,
-                    )
-                    from voicefi.tts.base import escape_to_stop_speech
-
-                    with escape_to_stop_speech(
-                        agent_name=target_agent,
                         app_name="Antigravity",
                         conv_id=turn_cid,
-                    ):
-                        tts.stream_speak(spoken_text, block=True)
+                    )
+                    tts.stream_speak(spoken_text, block=True)
 
                 if cfg.antigravity.show_speech_popup:
                     try:
@@ -650,6 +700,8 @@ class TranscriptWatcher:
                         silence_duration=cfg.vad.silence_duration,
                         max_record_seconds=cfg.vad.max_record_seconds,
                         barge_in=False,
+                        vad_engine=getattr(cfg.vad, "engine", "auto"),
+                        speech_threshold=getattr(cfg.vad, "speech_threshold", 0.37),
                     )
                     self.active_recorder = recorder
 
@@ -663,6 +715,9 @@ class TranscriptWatcher:
                         except Exception:
                             pass
 
+                    fb_loop = getattr(getattr(cfg, "proactive", None), "feedback_loop", None)
+                    listen_timeout = getattr(fb_loop, "timeout_seconds", 12.0) if fb_loop else 12.0
+
                     audio_data, temp_wav = recorder.record_speech_auto(
                         on_speech_start=lambda: self._notify_state(
                             "hearing", user_name=cfg.user_name
@@ -673,6 +728,9 @@ class TranscriptWatcher:
                         ),
                         on_live_transcript=_on_live,
                         on_listening_tick=_on_tick,
+                        timeout=listen_timeout,
+                        conv_id=turn_cid,
+                        agent_name=target_agent,
                     )
                     self.active_recorder = None
                 else:
@@ -692,11 +750,13 @@ class TranscriptWatcher:
 
             if text and text.strip() and not self._interrupted:
                 clean_t = text.strip()
+                print(f'[Watcher] 🎙️ Transcribed speech: "{clean_t}"', flush=True)
                 from voicefi.audio.echo_canceller import is_acoustic_echo
 
                 if is_acoustic_echo(clean_t, reference_text=spoken_text):
                     print(
-                        f'[Watcher] 🛡️ Suppressed acoustic self-echo: "{clean_t}" (matched agent output)'
+                        f'[Watcher] 🛡️ Suppressed acoustic self-echo: "{clean_t}" (matched agent output)',
+                        flush=True,
                     )
                     return
 
@@ -726,9 +786,69 @@ class TranscriptWatcher:
                             if (turn_cid and turn_cid != "unknown")
                             else (conv_info.id if conv_info else None)
                         )
-                        send_message_to_antigravity(
-                            conv_id=cid, text=content, sender_name=cfg.user_name
+                        target_channel = getattr(
+                            eval_res, "target_channel", SpokenTargetChannel.ANTIGRAVITY
                         )
+                        routed_text = getattr(eval_res, "routed_prompt", None) or content
+
+                        if (
+                            target_channel == SpokenTargetChannel.CLAUDE
+                            and cfg.proactive.intent_routing.route_to_claude
+                        ):
+                            print(
+                                f"[Watcher/IntentRouter] 🔀 Routing spoken prompt to Claude Code: '{routed_text}'",
+                                flush=True,
+                            )
+                            from voicefi.integrations.claude import inject_text_to_claude
+
+                            inject_text_to_claude(
+                                routed_text,
+                                submit_enter=True,
+                                from_conv_id=cid,
+                                from_engine="antigravity",
+                                include_envelope=True,
+                            )
+                        elif (
+                            target_channel == SpokenTargetChannel.SLACK
+                            and cfg.proactive.intent_routing.route_to_slack
+                        ):
+                            ch = (eval_res.target_metadata or {}).get("channel", "general")
+                            slack_prompt = f"Please post this to Slack (#{ch}): {routed_text}"
+                            print(
+                                f"[Watcher/IntentRouter] 🔀 Routing spoken prompt to Slack: '{slack_prompt}'",
+                                flush=True,
+                            )
+                            send_message_to_antigravity(
+                                conv_id=cid, text=slack_prompt, sender_name=cfg.user_name
+                            )
+                        elif (
+                            target_channel == SpokenTargetChannel.LINEAR
+                            and cfg.proactive.intent_routing.route_to_linear
+                        ):
+                            linear_prompt = f"Please create a Linear issue for: {routed_text}"
+                            print(
+                                f"[Watcher/IntentRouter] 🔀 Routing spoken prompt to Linear: '{linear_prompt}'",
+                                flush=True,
+                            )
+                            send_message_to_antigravity(
+                                conv_id=cid, text=linear_prompt, sender_name=cfg.user_name
+                            )
+                        else:
+                            send_message_to_antigravity(
+                                conv_id=cid, text=content, sender_name=cfg.user_name
+                            )
+
+                        channel_name = getattr(target_channel, "value", str(target_channel))
+                        try:
+                            from voicefi.telemetry import capture_proactive_feedback_loop
+
+                            capture_proactive_feedback_loop(
+                                caller_agent="antigravity",
+                                user_chars=len(content),
+                                target_channel=channel_name,
+                            )
+                        except Exception:
+                            pass
 
                     if cfg.audio_cues.enabled:
                         play_chime(cfg.audio_cues.sent_chime, block=False)
@@ -772,3 +892,15 @@ class TranscriptWatcher:
         finally:
             self._is_handling_turn = False
             self._notify_state("idle")
+            try:
+                mark_turn_completed(turn_sig, conv_id=turn_cid, step_index=step_index)
+            except Exception:
+                pass
+            try:
+                from voicefi.tts.base import get_cross_process_hud_state, clear_cross_process_hud_state
+
+                state_info = get_cross_process_hud_state()
+                if state_info and state_info.get("state") in ("listening", "hearing", "transcribing"):
+                    clear_cross_process_hud_state()
+            except Exception:
+                pass

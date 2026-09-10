@@ -33,7 +33,7 @@ def get_version(override: str = None) -> str:
 
         return str(__version__).lstrip("v")
     except Exception:
-        return "0.1.0"
+        return "0.2.0"
 
 
 def clean():
@@ -43,7 +43,7 @@ def clean():
     DIST_DIR.mkdir(exist_ok=True)
 
 
-def build_app_bundle(version: str = "0.1.0"):
+def build_app_bundle(version: str = "0.2.0"):
     print(f"📦 Building native VoiceFi.app bundle (v{version}) with PyInstaller...")
 
     add_data = []

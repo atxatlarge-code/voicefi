@@ -125,7 +125,7 @@ atexit.register(shutdown_mcp_posthog)
 
 PROTOCOL_VERSION = "2024-11-05"
 SERVER_NAME = "voicefi"
-SERVER_VERSION = "0.1.0"
+SERVER_VERSION = "0.2.0"
 
 # Standard tool definitions exposed to MCP clients
 MCP_TOOLS: List[Dict[str, Any]] = [

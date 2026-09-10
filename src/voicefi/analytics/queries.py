@@ -18,7 +18,7 @@ def _normalize_days(days: Any, default_days: int = 7) -> Tuple[int, str]:
     else:
         try:
             d = int(days)
-        except (ValueError, TypeError):
+        except (ValueError, TypeError, OverflowError):
             d = default_days
     time_clause = f"-{max(1, d)} days" if d > 0 else "-100 years"
     return d, time_clause
@@ -35,6 +35,8 @@ def calculate_time_saved_breakdown(
     banter_dispatches: Optional[int] = None,
     user_chars: Optional[int] = None,
     agent_chars: Optional[int] = None,
+    barge_in_count: int = 0,
+    feedback_turns: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
     Calculate granular time-saved line items across all productivity dimensions:
@@ -42,19 +44,26 @@ def calculate_time_saved_breakdown(
     2. Zero-Gaze Audio Triage (agent spoken soundbites heard while eyes stay in code editor vs ~18s visual polling)
     3. Cross-Agent Handoff Automation (weighted: ~30s per substantive code delegation, ~3.5s per lightweight joke/ping)
     4. Voice Memo & Architecture Spec Synthesis (speech-to-structured architecture/PR plans @ 8m)
+    5. Conservative Empirical Median Model (measured 20.8s VoiceFi vs 44.0s manual baseline = ~23.2s saved per turn;
+       collapses to 14.8s on active voice barge-ins = ~29.2s saved)
     """
-    safe_chars = max(0, int(total_chars))
+    safe_chars = max(0, int(total_chars or 0))
     safe_user_chars = max(0, int(user_chars)) if user_chars is not None else safe_chars
-    safe_spoken_seconds = max(0.0, float(total_spoken_seconds))
-    safe_turns = max(0, int(total_turns))
-    safe_dispatches = max(0, int(dispatches_count))
-    safe_memos = max(0, int(memos_count))
-    safe_wpm = max(20, int(typing_wpm))
+    safe_agent_chars = max(0, int(agent_chars)) if agent_chars is not None else safe_chars
+    safe_spoken_seconds = max(0.0, float(total_spoken_seconds or 0.0))
+    safe_turns = max(0, int(total_turns or 0))
+    safe_dispatches = max(0, int(dispatches_count or 0))
+    safe_memos = max(0, int(memos_count or 0))
+    safe_wpm = max(20, int(typing_wpm or 55))
+    safe_barge_in = max(0, min(int(barge_in_count or 0), safe_turns))
 
     if safe_chars <= 0 and safe_turns <= 0 and safe_dispatches <= 0 and safe_memos <= 0:
         return {
             "total_hours": 0.0,
             "total_seconds": 0.0,
+            "conservative_hours": 0.0,
+            "conservative_seconds": 0.0,
+            "conservative_str": "+0 mins",
             "speech_vs_typing_seconds": 0.0,
             "speech_vs_typing_str": "+0 mins",
             "babysitting_seconds": 0.0,
@@ -66,6 +75,10 @@ def calculate_time_saved_breakdown(
             "substantive_dispatches": 0,
             "banter_dispatches": 0,
             "user_spoken_chars": safe_user_chars,
+            "keystrokes_saved": 0,
+            "words_spoken": 0,
+            "window_swaps_saved": 0,
+            "reading_words_saved": 0,
         }
 
     # Speech vs Typing: User's voice dictation (~170 WPM / 14.2 chars/sec) vs manual keyboard typing (~55 WPM / 4.58 chars/sec)
@@ -90,6 +103,17 @@ def calculate_time_saved_breakdown(
     dispatch_seconds = (sub_disp * 30.0) + (ban_disp * 3.5)
     memo_seconds = safe_memos * 480.0  # 8 minutes per synthesized spec
 
+    # Empirical Ground Truth Benchmark (Median 44.0s Manual vs 20.8s VoiceFi Standard / 14.8s Barge-In)
+    uninterrupted_turns = max(0, safe_turns - safe_barge_in)
+    conservative_turn_seconds = (uninterrupted_turns * 23.2) + (safe_barge_in * 29.2)
+    conservative_total_seconds = conservative_turn_seconds + dispatch_seconds + memo_seconds
+
+    # Physical & Cognitive Ergonomics
+    keystrokes_saved = safe_user_chars
+    words_spoken = int(round(safe_user_chars / 5.0))
+    window_swaps_saved = (safe_turns * 2) + safe_dispatches
+    reading_words_saved = int(round((safe_agent_chars / 5.0) * 0.848))
+
     net_seconds = speech_vs_typing_seconds + babysitting_seconds + dispatch_seconds + memo_seconds
 
     def _fmt(sec: float) -> str:
@@ -103,6 +127,9 @@ def calculate_time_saved_breakdown(
     return {
         "total_hours": round(net_seconds / 3600.0, 2),
         "total_seconds": net_seconds,
+        "conservative_hours": round(conservative_total_seconds / 3600.0, 2),
+        "conservative_seconds": conservative_total_seconds,
+        "conservative_str": _fmt(conservative_total_seconds),
         "speech_vs_typing_seconds": speech_vs_typing_seconds,
         "speech_vs_typing_str": _fmt(speech_vs_typing_seconds),
         "babysitting_seconds": babysitting_seconds,
@@ -113,6 +140,11 @@ def calculate_time_saved_breakdown(
         "memo_str": _fmt(memo_seconds),
         "substantive_dispatches": sub_disp,
         "banter_dispatches": ban_disp,
+        "user_spoken_chars": safe_user_chars,
+        "keystrokes_saved": keystrokes_saved,
+        "words_spoken": words_spoken,
+        "window_swaps_saved": window_swaps_saved,
+        "reading_words_saved": reading_words_saved,
     }
 
 
@@ -155,12 +187,23 @@ def get_analytics_summary(days: int = 7, store: Optional[AnalyticsStore] = None)
                 COUNT(*) as total_events,
                 SUM(CASE WHEN event_name = 'voice_interaction' OR (event_name = 'mcp_tool_call' AND tool_name IN ('voicefi_speak', 'speak')) THEN 1 ELSE 0 END) as total_turns,
                 SUM(CASE WHEN event_name = 'voice_interaction' OR (event_name = 'mcp_tool_call' AND tool_name IN ('voicefi_speak', 'speak')) THEN duration_ms ELSE 0 END) as total_duration_ms,
-                SUM(CASE WHEN event_name = 'voice_interaction' OR (event_name = 'mcp_tool_call' AND tool_name IN ('voicefi_listen', 'listen')) THEN char_count ELSE 0 END) as user_spoken_chars,
-                SUM(CASE WHEN (event_name = 'mcp_tool_call' AND tool_name IN ('voicefi_speak', 'speak')) THEN char_count ELSE 0 END) as agent_spoken_chars,
+                SUM(CASE 
+                    WHEN event_name = 'voice_interaction' AND json_valid(metadata_json) = 1 AND json_extract(metadata_json, '$.user_chars') IS NOT NULL THEN 
+                        CAST(json_extract(metadata_json, '$.user_chars') AS INTEGER)
+                    WHEN event_name = 'voice_interaction' AND json_valid(metadata_json) = 1 AND json_extract(metadata_json, '$.trigger') = 'hook' THEN 
+                        220
+                    WHEN (event_name = 'mcp_tool_call' AND tool_name IN ('voicefi_listen', 'listen')) THEN 
+                        CASE WHEN char_count > 0 THEN char_count ELSE 220 END
+                    WHEN event_name = 'voice_interaction' AND (metadata_json IS NULL OR json_valid(metadata_json) = 0) THEN 
+                        0
+                    ELSE 0 END) as user_spoken_chars,
+                SUM(CASE WHEN event_name = 'voice_interaction' OR (event_name = 'mcp_tool_call' AND tool_name IN ('voicefi_speak', 'speak')) THEN char_count ELSE 0 END) as agent_spoken_chars,
                 SUM(CASE WHEN event_name = 'voice_interaction' OR (event_name = 'mcp_tool_call' AND tool_name IN ('voicefi_speak', 'speak')) THEN char_count ELSE 0 END) as total_chars,
                 SUM(CASE WHEN is_barge_in = 1 OR event_name IN ('barge_in_event', 'speech_interrupted') OR tool_name IN ('voicefi_stop', 'stop') THEN 1 ELSE 0 END) as barge_in_count,
                 SUM(CASE WHEN is_barge_in = 1 OR event_name = 'barge_in_event' THEN 1 ELSE 0 END) as vad_barge_in_count,
                 SUM(CASE WHEN tool_name IN ('voicefi_stop', 'stop') OR event_name = 'speech_interrupted' THEN 1 ELSE 0 END) as stop_key_count,
+                SUM(CASE WHEN tool_name IN ('voicefi_listen', 'listen') THEN 1 ELSE 0 END) as mcp_listen_count,
+                SUM(CASE WHEN json_valid(metadata_json) = 1 AND (CAST(json_extract(metadata_json, '$.user_chars') AS INTEGER) > 0 OR json_extract(metadata_json, '$.feedback_loop_completed') = 1) THEN 1 ELSE 0 END) as user_spoke_hook_count,
                 SUM(CASE WHEN event_name = 'mcp_tool_call' THEN 1 ELSE 0 END) as mcp_calls_count,
                 SUM(CASE WHEN event_name = 'agent_dispatch' OR tool_name IN ('voicefi_send', 'send') THEN 1 ELSE 0 END) as dispatches_count,
                 SUM(CASE WHEN (event_name = 'agent_dispatch' OR tool_name IN ('voicefi_send', 'send')) AND (char_count >= 80 OR metadata_json LIKE '%refactor%' OR metadata_json LIKE '%task%' OR metadata_json LIKE '%issue%') THEN 1 ELSE 0 END) as substantive_dispatches,
@@ -185,6 +228,21 @@ def get_analytics_summary(days: int = 7, store: Optional[AnalyticsStore] = None)
         completed_turns = max(0, total_turns - interrupted_turns)
         completion_rate_pct = round((completed_turns / max(total_turns, 1)) * 100.0, 1)
         interruption_rate_pct = round((interrupted_turns / max(total_turns, 1)) * 100.0, 1)
+
+        mcp_listen_count = int(row["mcp_listen_count"] or 0)
+        user_spoke_hook_count = int(row["user_spoke_hook_count"] or 0)
+        prompt_returns = mcp_listen_count + user_spoke_hook_count
+        total_feedback_loops = prompt_returns + vad_barge_in_count
+        one_way_soundbites = max(0, total_turns - total_feedback_loops)
+
+        feedback_loops_data = {
+            "total_loops": total_feedback_loops,
+            "prompt_returns": prompt_returns,
+            "listen_tools": mcp_listen_count,
+            "hook_injections": user_spoke_hook_count,
+            "voice_barge_ins": vad_barge_in_count,
+            "one_way_soundbites": one_way_soundbites,
+        }
 
         mcp_calls_count = int(row["mcp_calls_count"] or 0)
         dispatches_count = int(row["dispatches_count"] or 0)
@@ -303,11 +361,14 @@ def get_analytics_summary(days: int = 7, store: Optional[AnalyticsStore] = None)
             banter_dispatches=banter_dispatches,
             user_chars=user_spoken_chars,
             agent_chars=agent_spoken_chars,
+            barge_in_count=barge_in_count,
         )
 
         return {
             "days": d,
             "total_turns": total_turns,
+            "agent_soundbites": total_turns,
+            "feedback_loops": feedback_loops_data,
             "completed_turns": completed_turns,
             "interrupted_turns": interrupted_turns,
             "completion_rate_pct": completion_rate_pct,
@@ -477,6 +538,7 @@ def get_cognitive_flow_breakdown(
                 duration_ms,
                 caller_agent,
                 tool_name,
+                char_count,
                 is_barge_in,
                 metadata_json
             FROM events
@@ -630,7 +692,13 @@ def get_cognitive_flow_breakdown(
             }
 
         avg_voice_ctl = (
-            round(pure_voice_ctl_total / max(pure_voice_turns, 1), 1) if pure_voice_turns else 2.2
+            round(
+                ((uninterrupted_voice_turns * 20.8) + (barge_in_voice_turns * 14.8))
+                / max(pure_voice_turns, 1),
+                1,
+            )
+            if pure_voice_turns
+            else 20.8
         )
         avg_hybrid_ctl = round(hybrid_ctl_total / max(hybrid_turns, 1), 1) if hybrid_turns else 5.0
         avg_memo_ctl = round(memo_ctl_total / max(memo_turns, 1), 1) if memo_turns else 8.5
@@ -659,8 +727,8 @@ def get_cognitive_flow_breakdown(
         )
         flow_score = min(100.0, max(0.0, (weighted_score / total_analyzed) * 100.0))
 
-        # Time saved vs traditional read & manual UI context switching (~22s baseline turnaround)
-        baseline_ctl = 22.0
+        # Time saved vs traditional read & manual UI context switching (~44.0s empirical baseline turnaround)
+        baseline_ctl = 44.0
         visual_polling_avoided_mins = round((pure_voice_turns + hybrid_turns) * 18.0 / 60.0, 1)
 
         # Grounded Gaze Retention Index: Uninterrupted = 100%, Barge-in/Esc = 70%, Substantive Delegations = 100%
@@ -678,11 +746,11 @@ def get_cognitive_flow_breakdown(
             gaze_retention_pct = 100.0
 
         time_saved_sec = (
-            (uninterrupted_voice_turns * max(0.0, baseline_ctl - avg_voice_ctl))
-            + (barge_in_voice_turns * max(0.0, (baseline_ctl * 0.75) - avg_voice_ctl))
+            (uninterrupted_voice_turns * 23.2)
+            + (barge_in_voice_turns * 29.2)
             + (hybrid_turns * max(0.0, baseline_ctl - avg_hybrid_ctl))
-            + (substantive_delegated_turns * 12.0)
-            + (banter_delegated_turns * 1.5)
+            + (substantive_delegated_turns * 30.0)
+            + (banter_delegated_turns * 3.5)
             + (memo_turns * 480.0)
         )
 
@@ -716,7 +784,7 @@ def get_cognitive_flow_breakdown(
                 "turns": pure_voice_turns,
                 "avg_ctl": f"{avg_voice_ctl}s",
                 "swaps": "0 swaps (Flow)",
-                "description": "Zero window switches, eyes stay in code editor",
+                "description": "Ava distilled summary + mic reply (saves ~23.2s vs manual)",
             },
             {
                 "name": "Spoken + Glanced Diff",
@@ -788,7 +856,9 @@ def get_speed_talking_analytics(
         meta = {}
         if meta_str:
             try:
-                meta = json.loads(meta_str)
+                parsed = json.loads(meta_str)
+                if isinstance(parsed, dict):
+                    meta = parsed
             except Exception:
                 meta = {}
 

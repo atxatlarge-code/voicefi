@@ -53,3 +53,23 @@ def test_whisper_local_anti_repetition_params():
     assert kwargs.get("no_repeat_ngram_size") == 3
     assert kwargs.get("vad_parameters") == {"min_silence_duration_ms": 500}
 
+
+def test_whisper_local_hallucination_filter():
+    """Verify that filter_hallucinations catches Whisper silence artifacts and preserves developer speech."""
+    # Suppressed hallucinations
+    assert WhisperLocalSTT.filter_hallucinations("[BLANK_AUDIO]") == ""
+    assert WhisperLocalSTT.filter_hallucinations("[applause]") == ""
+    assert WhisperLocalSTT.filter_hallucinations("(silence)") == ""
+    assert WhisperLocalSTT.filter_hallucinations("Thank you.") == ""
+    assert WhisperLocalSTT.filter_hallucinations("Thanks for watching!") == ""
+    assert WhisperLocalSTT.filter_hallucinations("Please subscribe.") == ""
+    assert WhisperLocalSTT.filter_hallucinations("you") == ""
+    assert WhisperLocalSTT.filter_hallucinations("...") == ""
+    assert WhisperLocalSTT.filter_hallucinations("Subtitles by Amara.org") == ""
+
+    # Preserved real speech
+    assert WhisperLocalSTT.filter_hallucinations("Thank you for fixing the bug") == "Thank you for fixing the bug"
+    assert WhisperLocalSTT.filter_hallucinations("Run the test suite now") == "Run the test suite now"
+    assert WhisperLocalSTT.filter_hallucinations("git checkout -b feature") == "git checkout -b feature"
+
+

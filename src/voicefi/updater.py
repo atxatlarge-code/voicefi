@@ -87,6 +87,8 @@ def check_for_updates(force: bool = False) -> Tuple[bool, Optional[str], Optiona
     release_notes = ""
     update_available = False
 
+    dmg_url = "https://voicefi.org/download/mac"
+
     try:
         # 1. Try GitHub Releases API first
         req = Request(
@@ -100,6 +102,11 @@ def check_for_updates(force: bool = False) -> Tuple[bool, Optional[str], Optiona
             if resp.status == 200:
                 body = json.loads(resp.read().decode("utf-8"))
                 tag_name = body.get("tag_name", "").lstrip("v")
+                if isinstance(body.get("assets"), list):
+                    for asset in body["assets"]:
+                        if asset.get("name", "").lower().endswith(".dmg"):
+                            dmg_url = asset.get("browser_download_url", dmg_url)
+                            break
                 if tag_name:
                     remote_tuple = parse_semver(tag_name)
                     if remote_tuple > local_ver_tuple:
@@ -129,6 +136,7 @@ def check_for_updates(force: bool = False) -> Tuple[bool, Optional[str], Optiona
         "update_available": update_available,
         "latest_version": latest_version,
         "url": release_url,
+        "dmg_url": dmg_url,
         "notes": release_notes[:200] if release_notes else "",
         "local_version": get_local_version(),
     }
@@ -136,14 +144,127 @@ def check_for_updates(force: bool = False) -> Tuple[bool, Optional[str], Optiona
     return update_available, latest_version, release_url
 
 
+def is_dmg_install() -> bool:
+    """
+    Return True if VoiceFi is running as a standalone DMG .app bundle
+    without a local ~/.voicefi/venv Python virtual environment.
+    """
+    venv_python = Path.home() / ".voicefi" / "venv" / "bin" / "python"
+    if venv_python.is_file():
+        return False
+    if getattr(sys, "frozen", False):
+        return True
+    if "/Applications/VoiceFi.app" in sys.executable:
+        return True
+    return False
+
+
+def download_and_open_dmg(
+    dmg_url: Optional[str] = None,
+    version: Optional[str] = None,
+    timeout_seconds: int = 120,
+) -> Dict[str, Any]:
+    """
+    Download latest VoiceFi macOS DMG to ~/Downloads and open it with Finder
+    for easy drag-and-drop upgrade.
+    """
+    import webbrowser
+
+    ver = version or "latest"
+    target_url = dmg_url or "https://voicefi.org/download/mac"
+    downloads_dir = Path.home() / "Downloads"
+    downloads_dir.mkdir(parents=True, exist_ok=True)
+    target_dmg = downloads_dir / f"VoiceFi_{ver}_macOS.dmg"
+
+    try:
+        import rumps
+
+        rumps.notification(
+            "VoiceFi Updater 💿",
+            f"Downloading VoiceFi {ver}...",
+            "Downloading latest macOS disk image to ~/Downloads",
+        )
+    except Exception:
+        pass
+
+    try:
+        req = Request(
+            target_url,
+            headers={"User-Agent": f"VoiceFi-Updater/{__version__}"},
+        )
+        with urlopen(req, timeout=timeout_seconds) as resp:
+            with open(target_dmg, "wb") as f:
+                while True:
+                    chunk = resp.read(65536)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+
+        if target_dmg.is_file() and target_dmg.stat().st_size > 1_000_000:
+            subprocess.run(["open", str(target_dmg)], check=False)
+            try:
+                import rumps
+
+                rumps.notification(
+                    "VoiceFi Installer Ready 🎉",
+                    f"VoiceFi {ver} Disk Image Opened",
+                    "Drag VoiceFi into Applications to complete the upgrade.",
+                )
+            except Exception:
+                pass
+            return {
+                "success": True,
+                "is_dmg": True,
+                "dmg_path": str(target_dmg),
+                "new_version": ver,
+                "message": f"Downloaded and opened VoiceFi {ver} installer. Drag to Applications to complete!",
+            }
+        else:
+            raise RuntimeError("Downloaded DMG file was invalid or incomplete.")
+    except Exception as e:
+        # Fallback: open browser directly to download page
+        try:
+            import webbrowser
+
+            webbrowser.open("https://voicefi.org/download/mac")
+            import rumps
+
+            rumps.notification(
+                "VoiceFi Update 🌐",
+                f"Opening Download Page ({ver})",
+                "Download the new DMG to upgrade VoiceFi.",
+            )
+        except Exception:
+            pass
+        return {
+            "success": True,
+            "is_dmg": True,
+            "fallback": True,
+            "new_version": ver,
+            "message": f"Opened latest DMG download page in browser ({e})",
+        }
+
+
 def perform_update(
     relink_hooks: bool = True,
     repo_url: Optional[str] = None,
+    force_dmg: bool = False,
 ) -> Dict[str, Any]:
     """
-    Execute in-place upgrade of VoiceFi virtual environment.
-    Runs pip upgrade, updates hooks, and returns result status.
+    Execute upgrade of VoiceFi.
+    If running as a standalone DMG .app bundle without ~/.voicefi/venv,
+    downloads and opens the latest DMG installer.
+    Otherwise, runs in-place pip/uv upgrade inside the virtual environment.
     """
+    old_version = get_local_version()
+
+    # Standalone DMG bundle handling
+    if force_dmg or is_dmg_install():
+        _, new_ver, _ = check_for_updates(force=True)
+        cached = read_update_cache() or {}
+        dmg_url = cached.get("dmg_url") or "https://voicefi.org/download/mac"
+        return download_and_open_dmg(dmg_url=dmg_url, version=new_ver or old_version)
+
     target_repo = repo_url or DEFAULT_REPO_URL
     old_version = get_local_version()
 
@@ -298,6 +419,19 @@ def run_auto_update_if_enabled(config: Optional[VoiceFiConfig] = None) -> None:
         try:
             is_avail, new_ver, _ = check_for_updates(force=False)
             if is_avail:
+                if is_dmg_install():
+                    try:
+                        import rumps
+
+                        rumps.notification(
+                            "VoiceFi Update Available ✨",
+                            f"Version v{new_ver} is Ready",
+                            "Click 'Update Available' in the menu bar to download the new installer.",
+                        )
+                    except Exception:
+                        pass
+                    return
+
                 print(
                     f"[VoiceFi] 🚀 Pro Auto-Updater: Found new version {new_ver}. Applying silent upgrade in background..."
                 )

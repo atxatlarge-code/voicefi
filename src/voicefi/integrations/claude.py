@@ -21,6 +21,7 @@ from voicefi.tts import get_tts_engine, stop_all_speech
 from voicefi.tts.base import (
     set_cross_process_hud_state,
     clear_cross_process_hud_state,
+    get_cross_process_hud_state,
     escape_to_stop_speech,
 )
 from voicefi.stt import get_stt_engine
@@ -29,6 +30,7 @@ from voicefi.audio.chimes import play_chime
 from voicefi.integrations.injector import (
     inject_text_to_active_app,
     inject_text_to_claude,
+    send_message_to_antigravity,
     is_frontmost_app_a_terminal,
     get_frontmost_app_name,
     set_clipboard_text,
@@ -36,10 +38,17 @@ from voicefi.integrations.injector import (
 from voicefi.integrations.antigravity import clean_markdown_for_speech
 from voicefi.integrations.conversations import (
     claim_turn,
+    mark_turn_completed,
     save_session_cookie,
     pop_mobile_turn_origin,
     has_active_companion_client,
 )
+from voicefi.integrations.active_listening import (
+    ActiveListeningEngine,
+    SpokenIntentCategory,
+    SpokenTargetChannel,
+)
+from voicefi.audio.echo_canceller import is_acoustic_echo
 
 
 def find_recent_claude_sessions(limit: int = 10, base_dir: Optional[Path] = None) -> list[Path]:
@@ -148,6 +157,12 @@ def handle_claude_stop_hook(
     if not cfg.claude.auto_listen and not cfg.claude.read_summary_aloud:
         return {"status": "disabled"}
 
+    from voicefi.audio.meeting_detection import is_user_on_call
+
+    if is_user_on_call():
+        print("[ClaudeHook] User is on a call. Skipping spoken feedback and auto-listen.")
+        return {"status": "on_call"}
+
     # 1. Extract summary text from payload or session file
     text_to_speak = ""
     session_file = None
@@ -185,51 +200,197 @@ def handle_claude_stop_hook(
     if not claim_turn(conv_id, text_to_speak) and not claim_turn(cid_key, text_to_speak):
         return {"status": "skipped_duplicate"}
 
-    print(f'\n🎭 [Claude Hook] Turn complete: "{text_to_speak}"')
+    try:
+        print(f'\n🎭 [Claude Hook] Turn complete: "{text_to_speak}"')
 
-    if text_to_speak:
+        if text_to_speak:
+            try:
+                from voicefi.audio.echo_canceller import record_agent_spoken
+
+                record_agent_spoken(text_to_speak)
+            except Exception:
+                pass
+
+        # Check Mobile Companion audio routing
+        routing = getattr(getattr(cfg, "companion", None), "audio_routing", "smart")
+        mute_mac_active = getattr(
+            getattr(cfg, "companion", None), "mute_mac_when_companion_active", False
+        )
+        is_mobile = pop_mobile_turn_origin(conv_id) or pop_mobile_turn_origin(cid_key)
+
+        if routing == "phone_only":
+            return {"status": "phone_only", "agent": "claude"}
+        elif routing == "origin_only":
+            if is_mobile:
+                # Turn originated from mobile phone companion and user requested origin_only
+                return {"status": "mobile_handled", "agent": "claude"}
+        elif routing == "smart":
+            if mute_mac_active and has_active_companion_client():
+                # Mac suppressed only when user explicitly enabled mute_mac_when_companion_active: True
+                return {"status": "mac_muted", "agent": "claude"}
+
+        # 2. Speak the soundbite aloud using Claude's voice persona (Guy)
+        hook_start_time = time.time()
+        if cfg.claude.read_summary_aloud:
+            tts_engine = get_tts_engine(cfg, agent_name="claude")
+            try:
+                set_cross_process_hud_state(
+                    "speaking",
+                    text=text_to_speak,
+                    agent_name="claude",
+                    persona_name=getattr(tts_engine, "voice", "Guy"),
+                )
+                with escape_to_stop_speech(agent_name="claude", app_name="Claude"):
+                    tts_engine.stream_speak(text_to_speak, block=True)
+            finally:
+                clear_cross_process_hud_state()
+
+        # 3. Check if we should auto-open microphone
+        if not cfg.claude.auto_listen:
+            if cfg.claude.read_summary_aloud:
+                dur_ms = int((time.time() - hook_start_time) * 1000)
+                try:
+                    from voicefi.telemetry import capture_voice_interaction
+
+                    capture_voice_interaction(
+                        trigger="hook",
+                        duration_ms=dur_ms,
+                        success=True,
+                        agent="claude",
+                        voice=getattr(tts_engine, "voice", "Guy"),
+                        chars_count=len(text_to_speak) if text_to_speak else 0,
+                    )
+                except Exception:
+                    pass
+            return {"status": "spoken", "agent": "claude"}
+
+        # 4. Play start listening chime with settle window to avoid mic bleed
+        if cfg.audio_cues.enabled:
+            play_chime(cfg.audio_cues.start_chime, block=True)
+            time.sleep(0.15)
+
+        # 5. Record user response with VAD
+        print("🎙️ Listening for response to Claude... (speak and then pause)")
+        fb_loop = getattr(getattr(cfg, "proactive", None), "feedback_loop", None)
+        listen_timeout = getattr(fb_loop, "timeout_seconds", 12.0) if fb_loop else 12.0
+
+        recorder = AudioRecorder(
+            sample_rate=cfg.vad.sample_rate,
+            energy_threshold=cfg.vad.energy_threshold,
+            silence_duration=cfg.vad.silence_duration,
+            max_record_seconds=cfg.vad.max_record_seconds,
+            vad_engine=getattr(cfg.vad, "engine", "auto"),
+            speech_threshold=getattr(cfg.vad, "speech_threshold", 0.37),
+        )
+
+        def _on_live(txt: str):
+            set_cross_process_hud_state(
+                "listening", text=txt, agent_name="claude", user_name=cfg.user_name, live_stream=True
+            )
+            try:
+                from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
+
+                UnifiedDynamicIslandHUD.get_instance().update_live_transcription(
+                    txt, user_name=cfg.user_name
+                )
+            except Exception:
+                pass
+
+        def _on_tick(energy: float, conf: float = 0.0, is_spk: bool = False):
+            try:
+                from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
+
+                UnifiedDynamicIslandHUD.get_instance().update_audio_level(energy, conf, is_spk)
+            except Exception:
+                pass
+
         try:
-            from voicefi.audio.echo_canceller import record_agent_spoken
-
-            record_agent_spoken(text_to_speak)
-        except Exception:
-            pass
-
-    # Check Mobile Companion audio routing
-    routing = getattr(getattr(cfg, "companion", None), "audio_routing", "smart")
-    mute_mac_active = getattr(
-        getattr(cfg, "companion", None), "mute_mac_when_companion_active", False
-    )
-    is_mobile = pop_mobile_turn_origin(conv_id) or pop_mobile_turn_origin(cid_key)
-
-    if routing == "phone_only":
-        return {"status": "phone_only", "agent": "claude"}
-    elif routing in ("smart", "origin_only"):
-        if is_mobile:
-            # Turn originated from mobile phone companion -> phone handles speech & mic exclusively.
-            return {"status": "mobile_handled", "agent": "claude"}
-        if routing == "smart" and mute_mac_active and has_active_companion_client():
-            # Mac suppressed because mobile companion is actively connected
-            return {"status": "mac_muted", "agent": "claude"}
-
-    # 2. Speak the soundbite aloud using Claude's voice persona (Guy)
-    hook_start_time = time.time()
-    if cfg.claude.read_summary_aloud:
-        tts_engine = get_tts_engine(cfg, agent_name="claude")
-        try:
-            with escape_to_stop_speech(agent_name="claude", app_name="Claude", conv_id=conv_id):
-                tts_engine.speak(text_to_speak, block=True)
+            audio_data, temp_wav = recorder.record_speech_auto(
+                on_speech_start=lambda: set_cross_process_hud_state(
+                    "hearing", agent_name="claude", user_name=cfg.user_name
+                ),
+                on_live_transcript=_on_live,
+                on_listening_tick=_on_tick,
+                timeout=listen_timeout,
+            )
         except Exception as e:
-            print(f"[Claude Hook] Speech error: {e}", file=sys.stderr)
-
+            print(f"[Claude Hook] Recording error: {e}", file=sys.stderr)
         from voicefi.tts.base import is_speech_interrupted
 
         if is_speech_interrupted(hook_start_time):
+            if temp_wav and Path(temp_wav).is_file():
+                Path(temp_wav).unlink(missing_ok=True)
             clear_cross_process_hud_state()
-            return {"status": "interrupted", "agent": "claude"}
+            return {"status": "cancelled"}
 
-    # 3. If auto_listen is disabled, finish early
-    if not cfg.claude.auto_listen:
+        if not temp_wav or not Path(temp_wav).is_file():
+            print("⚠️ No speech detected.")
+            clear_cross_process_hud_state()
+            return {"status": "no_speech"}
+
+        # 6. Transcribe user speech
+        set_cross_process_hud_state("transcribing", agent_name="claude")
+        stt_engine = get_stt_engine(cfg)
+        try:
+            transcription = stt_engine.transcribe(temp_wav)
+        finally:
+            if temp_wav and Path(temp_wav).is_file():
+                Path(temp_wav).unlink(missing_ok=True)
+
+        if is_speech_interrupted(hook_start_time):
+            clear_cross_process_hud_state()
+            return {"status": "cancelled"}
+
+        if not transcription or not transcription.strip():
+            print("⚠️ No speech detected.")
+            clear_cross_process_hud_state()
+            return {"status": "no_speech"}
+
+        clean_t = transcription.strip()
+        print(f"\n📝 Transcribed: {clean_t}\n")
+
+        # Suppress acoustic self-echo if microphone picked up Claude's own voice
+        if is_acoustic_echo(clean_t, reference_text=text_to_speak):
+            print(
+                f'[Claude Hook] 🛡️ Suppressed acoustic self-echo: "{clean_t}" (matched agent output)',
+                flush=True,
+            )
+            clear_cross_process_hud_state()
+            return {"status": "self_echo_suppressed"}
+
+        eval_res = ActiveListeningEngine.evaluate(clean_t, is_ambient=False)
+        print(
+            f"[ActiveListening/Claude] Intent evaluation: {eval_res.category.value}",
+            flush=True,
+        )
+
+        if eval_res.category == SpokenIntentCategory.CONVERSATIONAL_FILLER:
+            print(f"[Claude Hook] 🤫 Ignored conversational filler: '{clean_t}'", flush=True)
+            clear_cross_process_hud_state()
+            return {"status": "filler_ignored"}
+
+        target_channel = getattr(eval_res, "target_channel", SpokenTargetChannel.CLAUDE)
+        routed_text = getattr(eval_res, "routed_prompt", None) or eval_res.normalized_text or clean_t
+
+        # 7. Safe Window Injection / Cross-Agent Routing
+        set_cross_process_hud_state("done", text=routed_text[:20], agent_name="claude")
+        if (eval_res.target_metadata or {}).get("routed_to") == "antigravity":
+            print(f"[Claude Hook] 🔀 Routing spoken prompt to Antigravity: '{routed_text}'", flush=True)
+            from voicefi.integrations.conversations import get_latest_antigravity_conversation_id
+
+            target_conv = get_latest_antigravity_conversation_id()
+            send_message_to_antigravity(conv_id=target_conv, text=routed_text, sender_name="Claude")
+        elif cfg.claude.inject_to_active_window:
+            success = inject_text_to_claude(routed_text, submit_enter=cfg.claude.auto_submit)
+            if success:
+                print("Sent to active conversation.")
+            else:
+                print("⚠️ Injection failed — text left on clipboard.")
+
+        # 8. Play sent chime
+        if cfg.audio_cues.enabled:
+            play_chime(cfg.audio_cues.sent_chime, block=False)
+
         if cfg.claude.read_summary_aloud:
             dur_ms = int((time.time() - hook_start_time) * 1000)
             try:
@@ -240,117 +401,26 @@ def handle_claude_stop_hook(
                     duration_ms=dur_ms,
                     success=True,
                     agent="claude",
-                    voice=getattr(tts_engine, "voice", "Guy"),
+                    voice="Guy",
                     chars_count=len(text_to_speak) if text_to_speak else 0,
+                    user_chars=len(transcription) if transcription else 0,
                 )
             except Exception:
                 pass
-        return {"status": "spoken", "agent": "claude"}
 
-    # 4. Play start listening chime
-    if cfg.audio_cues.enabled:
-        play_chime(cfg.audio_cues.start_chime, block=False)
-
-    # 5. Record user response with VAD
-    print("🎙️ Listening for response to Claude... (speak and then pause)")
-    set_cross_process_hud_state("listening", agent_name="claude", user_name=cfg.user_name)
-    recorder = AudioRecorder(
-        sample_rate=cfg.vad.sample_rate,
-        energy_threshold=cfg.vad.energy_threshold,
-        silence_duration=cfg.vad.silence_duration,
-        max_record_seconds=cfg.vad.max_record_seconds,
-    )
-
-    def _on_live(txt: str):
-        set_cross_process_hud_state(
-            "listening", text=txt, agent_name="claude", user_name=cfg.user_name, live_stream=True
-        )
-        try:
-            from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
-
-            UnifiedDynamicIslandHUD.get_instance().update_live_transcription(
-                txt, user_name=cfg.user_name
-            )
-        except Exception:
-            pass
-
-    def _on_tick(energy: float, conf: float = 0.0, is_spk: bool = False):
-        try:
-            from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
-
-            UnifiedDynamicIslandHUD.get_instance().update_audio_level(energy, conf, is_spk)
-        except Exception:
-            pass
-
-    try:
-        audio_data, temp_wav = recorder.record_speech_auto(
-            on_speech_start=lambda: set_cross_process_hud_state(
-                "hearing", agent_name="claude", user_name=cfg.user_name
-            ),
-            on_live_transcript=_on_live,
-            on_listening_tick=_on_tick,
-        )
-    except Exception as e:
-        print(f"[Claude Hook] Recording error: {e}", file=sys.stderr)
-    from voicefi.tts.base import is_speech_interrupted
-
-    if is_speech_interrupted(hook_start_time):
-        if temp_wav and Path(temp_wav).is_file():
-            Path(temp_wav).unlink(missing_ok=True)
         clear_cross_process_hud_state()
-        return {"status": "cancelled"}
-
-    # 6. Transcribe user speech
-    set_cross_process_hud_state("transcribing", agent_name="claude")
-    stt_engine = get_stt_engine(cfg)
-    try:
-        transcription = stt_engine.transcribe(temp_wav)
+        return {"status": "transcribed", "text": transcription, "agent": "claude"}
     finally:
-        if temp_wav and Path(temp_wav).is_file():
-            Path(temp_wav).unlink(missing_ok=True)
-
-    if is_speech_interrupted(hook_start_time):
-        clear_cross_process_hud_state()
-        return {"status": "cancelled"}
-
-    if not transcription or not transcription.strip():
-        print("⚠️ No speech detected.")
-        clear_cross_process_hud_state()
-        return {"status": "no_speech"}
-
-    print(f"\n📝 Transcribed: {transcription}\n")
-
-    # 7. Safe Window Injection: Inject directly into Claude terminal/app
-    set_cross_process_hud_state("done", text=transcription[:20], agent_name="claude")
-    if cfg.claude.inject_to_active_window:
-        success = inject_text_to_claude(transcription, submit_enter=cfg.claude.auto_submit)
-        if success:
-            print("Sent to active conversation.")
-        else:
-            print("⚠️ Injection failed — text left on clipboard.")
-
-    # 8. Play sent chime
-    if cfg.audio_cues.enabled:
-        play_chime(cfg.audio_cues.sent_chime, block=False)
-
-    if cfg.claude.read_summary_aloud:
-        dur_ms = int((time.time() - hook_start_time) * 1000)
         try:
-            from voicefi.telemetry import capture_voice_interaction
-
-            capture_voice_interaction(
-                trigger="hook",
-                duration_ms=dur_ms,
-                success=True,
-                agent="claude",
-                voice="Guy",
-                chars_count=len(text_to_speak) if text_to_speak else 0,
-            )
+            state_info = get_cross_process_hud_state()
+            if state_info and state_info.get("state") in ("listening", "hearing", "transcribing"):
+                clear_cross_process_hud_state()
         except Exception:
             pass
-
-    clear_cross_process_hud_state()
-    return {"status": "transcribed", "text": transcription, "agent": "claude"}
+        try:
+            mark_turn_completed(cid_key)
+        except Exception:
+            pass
 
 
 def install_claude_hook(

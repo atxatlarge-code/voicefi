@@ -125,6 +125,9 @@ class ElevenLabsTTS(BaseTTS):
                     persona_name=getattr(
                         self, "persona_name", getattr(self, "voice_id", "ElevenLabs")
                     ),
+                    app_name=getattr(self, "app_name", "Antigravity"),
+                    conv_id=getattr(self, "conv_id", ""),
+                    workspace_path=getattr(self, "workspace_path", ""),
                 ):
                     from voicefi.tts.base import is_speech_interrupted
 

@@ -181,6 +181,9 @@ class EdgeTTS(BaseTTS):
                     text=clean_text,
                     agent_name=getattr(self, "agent_name", "VoiceFi"),
                     persona_name=getattr(self, "persona_name", getattr(self, "voice", "EdgeTTS")),
+                    app_name=getattr(self, "app_name", "Antigravity"),
+                    conv_id=getattr(self, "conv_id", ""),
+                    workspace_path=getattr(self, "workspace_path", ""),
                 ):
                     nonlocal turn_start_time
                     turn_start_time = time.time()

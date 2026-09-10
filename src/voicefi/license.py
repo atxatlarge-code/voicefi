@@ -333,6 +333,74 @@ class FeatureGate:
         return verify_license_key(license_key)
 
     @classmethod
+    def activate_license(
+        cls, key: str, config: Optional[VoiceFiConfig] = None
+    ) -> Dict[str, Any]:
+        """
+        Validate and activate an Ed25519 license key on config, save configuration,
+        and emit a sanitized zero-PII license_activated telemetry event.
+        """
+        from voicefi.config import load_config, save_config
+
+        raw_key = (key or "").strip()
+        if not raw_key:
+            err = "Empty license key provided"
+            try:
+                from voicefi.telemetry import capture_license_activated
+                capture_license_activated(tier="unknown", success=False, error=err)
+            except Exception:
+                pass
+            return {"success": False, "is_valid": False, "error": err}
+
+        validation = cls.verify_key(raw_key)
+        if not validation.get("is_valid"):
+            err = validation.get("error") or "Invalid license key signature."
+            try:
+                from voicefi.telemetry import capture_license_activated
+                capture_license_activated(
+                    tier=validation.get("tier", "unknown"),
+                    success=False,
+                    error=err,
+                )
+            except Exception:
+                pass
+            return {
+                "success": False,
+                "is_valid": False,
+                "is_expired": validation.get("is_expired", False),
+                "expires_at": validation.get("expires_at"),
+                "error": err,
+            }
+
+        cfg = config or load_config()
+        cfg.license_key = raw_key
+        cfg.tier = validation.get("tier", "pro")
+        cfg.auto_update = True  # Automatically enable auto-updates for Pro tier subscribers
+        save_config(cfg)
+
+        try:
+            from voicefi.telemetry import capture_license_activated
+            capture_license_activated(
+                tier=cfg.tier,
+                expires_at=validation.get("expires_at", "Perpetual"),
+                tag=validation.get("tag", ""),
+                success=True,
+            )
+        except Exception:
+            pass
+
+        return {
+            "success": True,
+            "is_valid": True,
+            "tier": cfg.tier,
+            "expires_at": validation.get("expires_at", "Perpetual"),
+            "tag": validation.get("tag", ""),
+            "validation": validation,
+            "config": cfg,
+        }
+
+
+    @classmethod
     def get_license_status(cls, config: VoiceFiConfig) -> Dict[str, Any]:
         """Check stored license key or org code validity."""
         license_key = getattr(config, "license_key", "").strip()

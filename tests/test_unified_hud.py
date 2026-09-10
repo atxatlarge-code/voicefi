@@ -186,7 +186,7 @@ def test_unified_hud_draggability_and_reset(mock_appkit):
     assert hud._user_dragged_center_x is None
     assert hud._user_dragged_top_y is None
 
-    # Test top-right anchoring with default margins on NSScreen (margin_x=20.0, margin_y=96.0)
+    # Test default bottom-right anchoring above lower dock on NSScreen (margin_x=20.0, margin_bottom=14.0)
     mock_screen = MagicMock()
     mock_visible = MagicMock()
     mock_visible.origin.x = 0.0
@@ -195,13 +195,28 @@ def test_unified_hud_draggability_and_reset(mock_appkit):
     mock_visible.size.height = 1080.0
     mock_screen.visibleFrame.return_value = mock_visible
 
-    with patch("voicefi.ui.unified_hud.NSScreen.mainScreen", return_value=mock_screen):
+    with patch("voicefi.ui.unified_hud.NSScreen.mainScreen", return_value=mock_screen), \
+         patch.object(UnifiedDynamicIslandHUD, "_get_dock_height", return_value=66.0), \
+         patch.object(UnifiedDynamicIslandHUD, "_is_dock_on_bottom", return_value=True):
+        # Default position is bottom_right
+        frame_br = hud._get_target_frame(hud.STANDARD_WIDTH, hud.STANDARD_HEIGHT)
+        # Expected: x = 1920 - 480 - 20 = 1420.0; y = 66.0 (dock) + 14.0 (margin_bottom) = 80.0
+        assert frame_br.origin.x == 1420.0
+        assert frame_br.origin.y == 80.0
+        assert frame_br.size.width == 480.0
+        assert frame_br.size.height == 58.0
+
+        # Pinned dock at bottom (visible.origin.y > 20.0)
+        mock_visible.origin.y = 72.0
+        frame_br_pinned = hud._get_target_frame(hud.STANDARD_WIDTH, hud.STANDARD_HEIGHT)
+        assert frame_br_pinned.origin.y == 72.0 + 14.0
+        mock_visible.origin.y = 0.0
+
+        # Test top-right anchoring when explicitly selected
+        hud.config.hud.position = "top_right"
         frame_tr = hud._get_target_frame(hud.STANDARD_WIDTH, hud.STANDARD_HEIGHT)
-        # Expected: x = 1920 - 480 - 20 = 1420.0; y = 1080 - 58 - 96 = 926.0 (clears Chrome top tab strip and address bar)
         assert frame_tr.origin.x == 1420.0
         assert frame_tr.origin.y == 926.0
-        assert frame_tr.size.width == 480.0
-        assert frame_tr.size.height == 58.0
 
         # Test custom configured margins
         hud.config.hud.margin_x = 30.0
@@ -209,6 +224,9 @@ def test_unified_hud_draggability_and_reset(mock_appkit):
         frame_custom = hud._get_target_frame(hud.STANDARD_WIDTH, hud.STANDARD_HEIGHT)
         assert frame_custom.origin.x == 1920.0 - 480.0 - 30.0
         assert frame_custom.origin.y == 1080.0 - 58.0 - 60.0
+
+        # Reset config
+        hud.config.hud.position = "bottom_right"
         hud.config.hud.margin_x = 20.0
         hud.config.hud.margin_y = 96.0
 

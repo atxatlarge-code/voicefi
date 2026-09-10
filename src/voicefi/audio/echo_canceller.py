@@ -91,15 +91,17 @@ def is_acoustic_echo(
     transcript: str,
     reference_text: Optional[str] = None,
     max_age_seconds: float = 60.0,
-    similarity_threshold: float = 0.55,
+    similarity_threshold: float = 0.80,
+    whitelist_options: Optional[List[str]] = None,
 ) -> bool:
     """
     Determine if a transcribed string is an acoustic echo of what the agent itself just spoke.
     Checks:
-      1. Normalized text identity
-      2. Substring & n-gram phrase containment (e.g. "Stage on Railway" inside "Stage on Railway or ship straightaway?")
-      3. Word overlap ratio (>= 50% overlap of meaningful words)
-      4. SequenceMatcher fuzzy similarity ratio (>= similarity_threshold)
+      1. Option whitelisting (pending choices are never treated as echo)
+      2. Normalized text identity
+      3. Substring & n-gram phrase containment with length-ratio guard (>= 70%)
+      4. High bidirectional word overlap ratio (>= 80% user words, >= 50% ref words)
+      5. SequenceMatcher fuzzy similarity ratio (>= similarity_threshold)
     """
     if not transcript or not transcript.strip():
         return False
@@ -109,6 +111,22 @@ def is_acoustic_echo(
     clean_trans = re.sub(r"\s+", " ", clean_trans)
     if not clean_trans or len(clean_trans) < 3:
         return False
+
+    # 1. Whitelist pending choice options so user replies to questions are never suppressed
+    active_whitelist = list(whitelist_options or [])
+    try:
+        from voicefi.integrations.conversations import get_pending_question
+
+        pending = get_pending_question()
+        if pending and pending.get("options"):
+            active_whitelist.extend(pending["options"])
+    except Exception:
+        pass
+
+    for opt in active_whitelist:
+        clean_opt = re.sub(r"[^a-z0-9\s]", "", str(opt).lower()).strip()
+        if clean_opt and (clean_opt in clean_trans or clean_trans in clean_opt):
+            return False
 
     trans_words = set(clean_trans.split())
     # Exclude common short noise words
@@ -142,35 +160,45 @@ def is_acoustic_echo(
     for ref in references:
         if not ref:
             continue
-        clean_ref = re.sub(r"[^a-z0-9\s]", "", ref.lower()).strip()
-        clean_ref = re.sub(r"\s+", " ", clean_ref)
-        if not clean_ref:
-            continue
 
-        # 1. Exact match
-        if clean_trans == clean_ref:
-            return True
+        # Check whole utterance as well as individual sentences
+        sub_refs = [ref]
+        raw_sents = [s.strip() for s in re.split(r"(?<=[.!?])\s+", ref) if len(s.strip()) >= 6]
+        if len(raw_sents) > 1:
+            sub_refs.extend(raw_sents)
 
-        # 2. Substring / phrase match in either direction
-        if clean_trans in clean_ref or (len(clean_ref) >= 8 and clean_ref in clean_trans):
-            return True
+        for sub_ref in sub_refs:
+            clean_ref = re.sub(r"[^a-z0-9\s]", "", sub_ref.lower()).strip()
+            clean_ref = re.sub(r"\s+", " ", clean_ref)
+            if not clean_ref:
+                continue
 
-        # 3. Word overlap ratio
-        ref_words = set(clean_ref.split())
-        ref_words_filtered = {w for w in ref_words if len(w) > 2 and w not in stop_words}
-        if not ref_words_filtered:
-            ref_words_filtered = ref_words
-
-        if trans_words_filtered and ref_words_filtered:
-            overlap = trans_words_filtered.intersection(ref_words_filtered)
-            overlap_ratio = len(overlap) / len(trans_words_filtered)
-            if overlap_ratio >= 0.5:
+            # 2. Exact match
+            if clean_trans == clean_ref:
                 return True
 
-        # 4. Fuzzy sequence similarity
-        ratio = difflib.SequenceMatcher(None, clean_trans, clean_ref).ratio()
-        if ratio >= similarity_threshold:
-            return True
+            # 3. Substring / phrase match in either direction
+            if (clean_trans in clean_ref and len(clean_trans) >= 8) or (
+                len(clean_ref) >= 8 and clean_ref in clean_trans
+            ):
+                return True
+
+            # 4. Word overlap ratio
+            ref_words = set(clean_ref.split())
+            ref_words_filtered = {w for w in ref_words if len(w) > 2 and w not in stop_words}
+            if not ref_words_filtered:
+                ref_words_filtered = ref_words
+
+            if trans_words_filtered and ref_words_filtered:
+                overlap = trans_words_filtered.intersection(ref_words_filtered)
+                overlap_ratio = len(overlap) / len(trans_words_filtered)
+                if overlap_ratio >= 0.6:
+                    return True
+
+            # 5. Fuzzy sequence similarity
+            ratio = difflib.SequenceMatcher(None, clean_trans, clean_ref).ratio()
+            if ratio >= similarity_threshold:
+                return True
 
     return False
 

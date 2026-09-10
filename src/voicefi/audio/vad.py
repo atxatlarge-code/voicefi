@@ -214,12 +214,11 @@ class VoiceActivityDetector:
 
         engine = self.active_engine
         if engine == "silero":
-            # Zero-cost silence gate: skip ONNX neural network forward pass when energy is at or below ambient noise floor
-            silence_ceiling = max(0.002, min(self.energy_threshold * 0.6, self.running_noise_floor * 1.15))
+            # Zero-cost silence gate: skip ONNX neural network forward pass only on absolute imperceptible silence
+            silence_ceiling = 0.0015
             if self.smoothed_energy < silence_ceiling:
-                self.running_noise_floor = 0.88 * self.running_noise_floor + 0.12 * min(
-                    0.015, energy
-                )
+                if energy < self.running_noise_floor:
+                    self.running_noise_floor = 0.95 * self.running_noise_floor + 0.05 * energy
                 return {
                     "is_speech": False,
                     "confidence": 0.0,
@@ -229,17 +228,16 @@ class VoiceActivityDetector:
                 }
 
             is_speech, prob = self._silero.process_chunk(audio_chunk)
-            # Update running noise floor on low-probability chunks
-            if prob < 0.2:
-                self.running_noise_floor = 0.88 * self.running_noise_floor + 0.12 * min(
-                    0.015, energy
-                )
+            # Update running noise floor ONLY on confident non-speech chunks (prob < 0.15)
+            if prob < 0.15:
+                target_floor = min(0.010, energy)
+                self.running_noise_floor = 0.92 * self.running_noise_floor + 0.08 * target_floor
 
             # Hybrid safeguard: if energy is significantly above active threshold (e.g. synthetic test audio, loud speech)
-            active_energy_thresh = max(
-                self.energy_threshold, self.running_noise_floor * 1.5 + 0.0035
+            active_energy_thresh = min(
+                0.010, max(self.energy_threshold, self.running_noise_floor * 1.5 + 0.0035)
             )
-            if not is_speech and self.smoothed_energy > max(0.040, active_energy_thresh * 2.2):
+            if not is_speech and self.smoothed_energy > max(0.035, active_energy_thresh * 2.0):
                 is_speech = True
                 prob = max(
                     prob, min(1.0, self.smoothed_energy / (active_energy_thresh * 2.0 + 1e-6))
@@ -253,13 +251,15 @@ class VoiceActivityDetector:
                 "active_threshold": self.speech_threshold,
             }
         else:
-            # Energy VAD fallback
-            active_threshold = max(self.energy_threshold, self.running_noise_floor * 1.5 + 0.0035)
+            # Energy VAD fallback: cap active threshold at 0.012 so high ambient noise never blocks human speech
+            effective_base_thresh = min(0.009, self.energy_threshold)
+            active_threshold = min(
+                0.012, max(effective_base_thresh, self.running_noise_floor * 1.4 + 0.003)
+            )
             is_speech = self.smoothed_energy > active_threshold
             if not is_speech:
-                self.running_noise_floor = 0.88 * self.running_noise_floor + 0.12 * min(
-                    0.015, energy
-                )
+                target_floor = min(0.010, energy)
+                self.running_noise_floor = 0.92 * self.running_noise_floor + 0.08 * target_floor
             return {
                 "is_speech": is_speech,
                 "confidence": min(1.0, self.smoothed_energy / (active_threshold * 2.0 + 1e-6)),

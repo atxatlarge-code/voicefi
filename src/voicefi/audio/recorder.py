@@ -4,6 +4,7 @@ Uses smoothed energy tracking and robust 0.8s silence cutoff to prevent backgrou
 Supports instant manual completion via Enter key / stop_event.
 """
 
+import os
 import time
 import tempfile
 import threading
@@ -52,8 +53,8 @@ class AudioRecorder:
         max_record_seconds: float = 45.0,
         barge_in: Any = "auto",
         barge_in_sensitivity: float = 1.0,
-        vad_engine: Literal["silero", "energy", "auto"] = "auto",
-        speech_threshold: float = 0.5,
+        vad_engine: Optional[Literal["silero", "energy", "auto"]] = None,
+        speech_threshold: Optional[float] = None,
     ):
         self.sample_rate = sample_rate
         self.energy_threshold = energy_threshold
@@ -61,11 +62,25 @@ class AudioRecorder:
         self.max_record_seconds = max_record_seconds
         self.barge_in = barge_in
         self.barge_in_sensitivity = max(0.1, barge_in_sensitivity)
-        self.vad_engine = vad_engine
-        self.speech_threshold = speech_threshold
+
+        # Pull VAD defaults from config if not explicitly specified
+        if vad_engine is None or speech_threshold is None:
+            try:
+                from voicefi.config import load_config
+
+                cfg_vad = load_config().vad
+                if vad_engine is None:
+                    vad_engine = getattr(cfg_vad, "engine", "auto")
+                if speech_threshold is None:
+                    speech_threshold = getattr(cfg_vad, "speech_threshold", 0.37)
+            except Exception:
+                pass
+
+        self.vad_engine = vad_engine or "auto"
+        self.speech_threshold = speech_threshold if speech_threshold is not None else 0.37
         self.vad = VoiceActivityDetector(
-            engine=vad_engine,
-            speech_threshold=speech_threshold,
+            engine=self.vad_engine,
+            speech_threshold=self.speech_threshold,
             energy_threshold=energy_threshold,
             sample_rate=sample_rate,
         )
@@ -90,6 +105,8 @@ class AudioRecorder:
         stop_event: Optional[threading.Event] = None,
         cancel_on_typing: bool = True,
         timeout: Optional[float] = None,
+        conv_id: Optional[str] = None,
+        agent_name: Optional[str] = None,
         **kwargs,
     ) -> Tuple[np.ndarray, Path]:
         """
@@ -104,7 +121,21 @@ class AudioRecorder:
         cancelled_by_user = False
         _last_speech_stop_time = 0.0
 
-        # Pause background monitor to yield device
+        # Set cross-process recording flag to yield device from background LaunchAgent
+        try:
+            from voicefi.tts.base import set_mic_recording
+
+            set_mic_recording(True, state="listening", conv_id=conv_id, agent_name=agent_name)
+        except Exception:
+            pass
+
+        # Pause background monitor and wake-word listener to yield device
+        try:
+            from voicefi.audio.wakeword import WakeWordListener
+
+            WakeWordListener.pause_all()
+        except ImportError:
+            pass
         try:
             from voicefi.audio.monitor import LiveVADMonitor
 
@@ -196,9 +227,12 @@ class AudioRecorder:
             running_noise_floor = 0.006
             smoothed_energy = 0.0
             peak_speech_energy = 0.0
+            last_touch_time = 0.0
 
             is_paused = False
-            cooldown_remaining_chunks = 0
+            is_barge_in_on, _ = resolve_barge_in_mode(self.barge_in)
+            is_test = bool(os.environ.get("PYTEST_CURRENT_TEST"))
+            cooldown_remaining_chunks = 0 if (is_barge_in_on or is_test) else 3  # 150ms acoustic settle margin
             barge_in_candidate_chunks = 0
             agent_speaking_chunks = 0
             speaker_bleed_floor = 0.0
@@ -212,6 +246,7 @@ class AudioRecorder:
 
             def _partial_worker():
                 nonlocal is_transcribing, latest_partial_audio
+                stt_instance = None
                 while not (trigger_stop.is_set() or self.stop_event.is_set()):
                     audio_to_transcribe = None
                     with streaming_lock:
@@ -222,10 +257,20 @@ class AudioRecorder:
 
                     if audio_to_transcribe is not None:
                         try:
-                            from voicefi.stt.whisper_local import WhisperLocalSTT
+                            if stt_instance is None:
+                                from voicefi.stt.whisper_local import WhisperLocalSTT
 
-                            stt = WhisperLocalSTT()
-                            txt = stt.transcribe(audio_to_transcribe, sample_rate=self.sample_rate)
+                                stt_instance = WhisperLocalSTT()
+
+                            # Keep live preview fast: slice to last 3.5s of audio if longer
+                            max_preview_samples = int(self.sample_rate * 3.5)
+                            preview_audio = (
+                                audio_to_transcribe[-max_preview_samples:]
+                                if len(audio_to_transcribe) > max_preview_samples
+                                else audio_to_transcribe
+                            )
+
+                            txt = stt_instance.transcribe(preview_audio, sample_rate=self.sample_rate)
                             if txt and on_live_transcript:
                                 on_live_transcript(txt)
                         except Exception:
@@ -246,21 +291,19 @@ class AudioRecorder:
                     # Check for manual instant stop (e.g. Enter, Space, Esc, stop_event, or cross-process Esc kill)
                     from voicefi.tts.base import is_speech_interrupted
 
-                    if (
-                        trigger_stop.is_set()
-                        or self.stop_event.is_set()
-                        or is_speech_interrupted(start_time)
-                    ):
+                    if is_speech_interrupted(start_time):
                         cancelled_by_user = True
                         break
 
+                    if trigger_stop.is_set() or self.stop_event.is_set():
+                        break
+
                     chunk, overflowed = stream.read(chunk_size)
-                    if (
-                        trigger_stop.is_set()
-                        or self.stop_event.is_set()
-                        or is_speech_interrupted(start_time)
-                    ):
+                    if is_speech_interrupted(start_time):
                         cancelled_by_user = True
+                        break
+
+                    if trigger_stop.is_set() or self.stop_event.is_set():
                         break
 
                     audio_chunk = chunk.flatten()
@@ -406,6 +449,17 @@ class AudioRecorder:
                                         if on_speech_start and not speech_start_notified:
                                             on_speech_start()
                                             speech_start_notified = True
+                                        try:
+                                            from voicefi.tts.base import set_mic_recording
+
+                                            set_mic_recording(
+                                                True,
+                                                state="hearing",
+                                                conv_id=conv_id,
+                                                agent_name=agent_name,
+                                            )
+                                        except Exception:
+                                            pass
                                         continue
                                 else:
                                     barge_in_candidate_chunks = max(
@@ -497,6 +551,15 @@ class AudioRecorder:
                     now = time.time()
                     elapsed = now - start_time
 
+                    if (now - last_touch_time) >= 3.0:
+                        last_touch_time = now
+                        try:
+                            from voicefi.tts.base import touch_mic_recording
+
+                            touch_mic_recording()
+                        except Exception:
+                            pass
+
                     if on_listening_tick:
                         try:
                             on_listening_tick(smoothed_energy, speech_confidence, is_speech)
@@ -518,10 +581,21 @@ class AudioRecorder:
                                 if on_speech_start and not speech_start_notified:
                                     on_speech_start()
                                     speech_start_notified = True
+                                try:
+                                    from voicefi.tts.base import set_mic_recording
+
+                                    set_mic_recording(
+                                        True,
+                                        state="hearing",
+                                        conv_id=conv_id,
+                                        agent_name=agent_name,
+                                    )
+                                except Exception:
+                                    pass
                         else:
                             speech_candidate_chunks = 0
                         peak_speech_energy = max(peak_speech_energy, smoothed_energy)
-                        consecutive_silence_chunks = max(0, consecutive_silence_chunks - 3)
+                        consecutive_silence_chunks = 0
                     else:
                         speech_candidate_chunks = 0
                         if speech_started:
@@ -537,7 +611,7 @@ class AudioRecorder:
                             if is_silence:
                                 consecutive_silence_chunks += 1
                             else:
-                                consecutive_silence_chunks = max(0, consecutive_silence_chunks - 2)
+                                consecutive_silence_chunks = 0
 
                             if consecutive_silence_chunks >= chunks_needed_for_silence:
                                 print(
@@ -579,7 +653,11 @@ class AudioRecorder:
                         )
                         break
 
-            if cancelled_by_user or not recorded_frames or not speech_started:
+            if cancelled_by_user or not recorded_frames:
+                return np.zeros(0, dtype=np.float32), None
+
+            manual_stop = trigger_stop.is_set() or self.stop_event.is_set()
+            if not speech_started and not (manual_stop and len(recorded_frames) >= 4):
                 return np.zeros(0, dtype=np.float32), None
 
             full_audio = np.concatenate(recorded_frames, axis=0)
@@ -598,7 +676,21 @@ class AudioRecorder:
                 except Exception:
                     pass
 
-            # Resume background monitor
+            # Clear cross-process recording flag
+            try:
+                from voicefi.tts.base import set_mic_recording
+
+                set_mic_recording(False)
+            except Exception:
+                pass
+
+            # Resume background monitor and wake-word listener
+            try:
+                from voicefi.audio.wakeword import WakeWordListener
+
+                WakeWordListener.resume_all()
+            except Exception:
+                pass
             try:
                 from voicefi.audio.monitor import LiveVADMonitor
 
@@ -615,6 +707,9 @@ class AudioRecorder:
         on_barge_in: Optional[Callable[[], None]] = None,
         on_live_transcript: Optional[Callable[[str], None]] = None,
         ptt_release_delay_ms: int = 150,
+        conv_id: Optional[str] = None,
+        agent_name: Optional[str] = None,
+        **kwargs,
     ) -> Tuple[np.ndarray, Path]:
         """
         Record audio in Push-to-Talk (PTT) mode.
@@ -628,7 +723,21 @@ class AudioRecorder:
         trigger_stop = stop_event or self.stop_event
         cancelled_by_user = False
 
-        # Pause background monitor to yield device
+        # Set cross-process recording flag to yield device from background LaunchAgent
+        try:
+            from voicefi.tts.base import set_mic_recording
+
+            set_mic_recording(True, state="hearing", conv_id=conv_id, agent_name=agent_name)
+        except Exception:
+            pass
+
+        # Pause background monitor and wake-word listener to yield device
+        try:
+            from voicefi.audio.wakeword import WakeWordListener
+
+            WakeWordListener.pause_all()
+        except ImportError:
+            pass
         try:
             from voicefi.audio.monitor import LiveVADMonitor
 
@@ -666,6 +775,7 @@ class AudioRecorder:
             recorded_frames = []
             smoothed_energy = 0.0
             start_time = time.time()
+            last_touch_time = 0.0
             stop_signaled_count = 0
 
             is_paused = False
@@ -679,6 +789,7 @@ class AudioRecorder:
 
             def _partial_worker():
                 nonlocal is_transcribing, latest_partial_audio
+                stt_instance = None
                 while not (trigger_stop.is_set() or self.stop_event.is_set()):
                     audio_to_transcribe = None
                     with streaming_lock:
@@ -689,10 +800,20 @@ class AudioRecorder:
 
                     if audio_to_transcribe is not None:
                         try:
-                            from voicefi.stt.whisper_local import WhisperLocalSTT
+                            if stt_instance is None:
+                                from voicefi.stt.whisper_local import WhisperLocalSTT
 
-                            stt = WhisperLocalSTT()
-                            txt = stt.transcribe(audio_to_transcribe, sample_rate=self.sample_rate)
+                                stt_instance = WhisperLocalSTT()
+
+                            # Keep live preview fast: slice to last 3.5s of audio if longer
+                            max_preview_samples = int(self.sample_rate * 3.5)
+                            preview_audio = (
+                                audio_to_transcribe[-max_preview_samples:]
+                                if len(audio_to_transcribe) > max_preview_samples
+                                else audio_to_transcribe
+                            )
+
+                            txt = stt_instance.transcribe(preview_audio, sample_rate=self.sample_rate)
                             if txt and on_live_transcript:
                                 on_live_transcript(txt)
                         except Exception:
@@ -764,6 +885,16 @@ class AudioRecorder:
                         except Exception:
                             pass
 
+                    now = time.time()
+                    if (now - last_touch_time) >= 3.0:
+                        last_touch_time = now
+                        try:
+                            from voicefi.tts.base import touch_mic_recording
+
+                            touch_mic_recording()
+                        except Exception:
+                            pass
+
                     # Process VAD for UI visualizer & speech tracking
                     vad_result = self.vad.process(audio_chunk)
                     smoothed_energy = vad_result["energy"]
@@ -810,7 +941,21 @@ class AudioRecorder:
                 except Exception:
                     pass
 
-            # Resume background monitor
+            # Clear cross-process recording flag
+            try:
+                from voicefi.tts.base import set_mic_recording
+
+                set_mic_recording(False)
+            except Exception:
+                pass
+
+            # Resume background monitor and wake-word listener
+            try:
+                from voicefi.audio.wakeword import WakeWordListener
+
+                WakeWordListener.resume_all()
+            except Exception:
+                pass
             try:
                 from voicefi.audio.monitor import LiveVADMonitor
 

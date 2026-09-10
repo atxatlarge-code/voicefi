@@ -144,7 +144,7 @@ class AntigravityConfig(BaseModel):
     unfocused_voice_prefix: bool = True
     show_speech_popup: bool = True
     speech_popup_linger_seconds: float = 3.0
-    speech_popup_position: Literal["top_center", "top_right", "bottom_right"] = "top_right"
+    speech_popup_position: Literal["top_center", "top_right", "bottom_right"] = "bottom_right"
     auto_send: bool = True
     persistent_hud: bool = True
     mirror_native_mic: bool = False
@@ -157,9 +157,10 @@ class HUDConfig(BaseModel):
     auto_send: bool = True
     show_live_transcript: bool = True
     fullscreen_overlay: bool = True  # True = float above full-screen games/apps; False = allow full-screen overlap/hide behind
-    position: Literal["top_center", "top_right", "bottom_right"] = "top_right"
+    position: Literal["top_center", "top_right", "bottom_right"] = "bottom_right"
     margin_x: float = 20.0
     margin_y: float = 96.0  # Vertical margin in points below menu bar (clearing Chrome's top tab strip & address bar)
+    margin_bottom: float = 14.0  # Vertical margin in points above macOS dock / lower bar
     linger_seconds: float = 2.0
     always_on_vad: bool = True
 

@@ -146,7 +146,7 @@ class HUDQuickControlsPanel:
         )
         self._panel.setOpaque_(False)
         self._panel.setBackgroundColor_(NSColor.clearColor())
-        self._panel.setLevel_(NSStatusWindowLevel + 2)
+        self._panel.setLevel_(NSStatusWindowLevel + 3)
         self._panel.setFloatingPanel_(True)
         self._panel.setHidesOnDeactivate_(False)
         self._panel.setCanHide_(False)
@@ -772,6 +772,10 @@ class HUDQuickControlsPanel:
                     self._panel.setFrameOrigin_(NSPoint(x, y))
 
             self._panel.orderFrontRegardless()
+            try:
+                self._panel.makeKeyAndOrderFront_(None)
+            except Exception:
+                pass
             self._is_visible = True
 
         if threading.current_thread() is threading.main_thread():

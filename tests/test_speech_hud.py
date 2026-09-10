@@ -59,7 +59,7 @@ def test_speech_hud_show_and_update():
 
     hud._body_lbl.setStringValue_.assert_called_with(f'"{test_msg}"')
     hud._title_lbl.setStringValue_.assert_called_with("Antigravity")
-    hud._tag_lbl.setStringValue_.assert_called_with("Christopher [Speaking • ⇥ Tab to focus]")
+    hud._tag_lbl.setStringValue_.assert_called_with("Christopher [Speaking • Esc to stop]")
     hud._panel.orderFrontRegardless.assert_called()
 
     # 2. Update text during streaming
@@ -86,9 +86,9 @@ def test_speech_hud_config_integration():
     cfg = VoiceFiConfig()
     assert cfg.antigravity.show_speech_popup is True
     assert cfg.antigravity.speech_popup_linger_seconds == 3.0
-    assert cfg.antigravity.speech_popup_position == "top_right"
+    assert cfg.antigravity.speech_popup_position == "bottom_right"
 
     cfg.antigravity.show_speech_popup = False
-    cfg.antigravity.speech_popup_position = "bottom_right"
+    cfg.antigravity.speech_popup_position = "top_right"
     assert cfg.antigravity.show_speech_popup is False
-    assert cfg.antigravity.speech_popup_position == "bottom_right"
+    assert cfg.antigravity.speech_popup_position == "top_right"

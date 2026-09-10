@@ -413,3 +413,97 @@ def test_duplicate_speech_suppression_resets_lock_cleanly():
     # Verify lock and speaking status are completely clean after suppression exception
     assert not is_agent_speaking()
     assert tts_base._LOCK_DEPTH == 0
+
+
+# ============================================================================
+# 6. Microphone Recording Lifecycle & Turn Coordination
+# ============================================================================
+
+
+def test_mic_recording_status_lifecycle():
+    """Verify set_mic_recording, get_mic_recording_info, and is_mic_recording_active."""
+    from voicefi.tts.base import (
+        set_mic_recording,
+        get_mic_recording_info,
+        is_mic_recording_active,
+    )
+
+    try:
+        set_mic_recording(False)
+        assert not is_mic_recording_active()
+        assert get_mic_recording_info() is None
+
+        set_mic_recording(True, state="listening", conv_id="conv-123", agent_name="Viv")
+        assert is_mic_recording_active()
+        info = get_mic_recording_info()
+        assert info is not None
+        assert info["state"] == "listening"
+        assert info["conv_id"] == "conv-123"
+        assert info["agent_name"] == "Viv"
+
+        # Update to hearing
+        set_mic_recording(True, state="hearing", conv_id="conv-123", agent_name="Viv")
+        info = get_mic_recording_info()
+        assert info is not None
+        assert info["state"] == "hearing"
+
+        set_mic_recording(False)
+        assert not is_mic_recording_active()
+        assert get_mic_recording_info() is None
+    finally:
+        set_mic_recording(False)
+
+
+def test_speech_turn_lock_waits_for_active_mic_recording():
+    """Verify speech_turn_lock waits politely while another conversation's mic is active."""
+    from voicefi.tts.base import (
+        set_mic_recording,
+        speech_turn_lock,
+    )
+
+    try:
+        # Simulate active recording in another conversation
+        set_mic_recording(True, state="hearing", conv_id="conv-other")
+
+        lock_entered = [False]
+
+        def _try_speak():
+            with speech_turn_lock(text="Turn waiting for mic", conv_id="conv-current"):
+                lock_entered[0] = True
+
+        t = threading.Thread(target=_try_speak, daemon=True)
+        t.start()
+
+        # Speech should be waiting because mic is active in conv-other
+        time.sleep(0.3)
+        assert not lock_entered[0]
+
+        # Release the microphone
+        set_mic_recording(False)
+
+        # Thread should now acquire lock and enter
+        t.join(timeout=2.0)
+        assert lock_entered[0]
+    finally:
+        set_mic_recording(False)
+
+
+def test_speech_turn_lock_barge_in_same_conv_does_not_block():
+    """Verify speech_turn_lock does not self-deadlock when mic recording is from the same process & conv_id."""
+    from voicefi.tts.base import (
+        set_mic_recording,
+        speech_turn_lock,
+    )
+
+    try:
+        # Simulate barge-in where same conv_id and process is recording
+        set_mic_recording(True, state="listening", conv_id="conv-barge-in")
+
+        entered = False
+        with speech_turn_lock(text="Barge-in speech turn", conv_id="conv-barge-in"):
+            entered = True
+
+        assert entered
+    finally:
+        set_mic_recording(False)
+

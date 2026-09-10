@@ -203,6 +203,18 @@ class AnalyticsStore:
         except Exception:
             return 0
 
+    def get_total_spoken_turns(self) -> int:
+        """Return total lifetime successful spoken turns recorded locally."""
+        try:
+            conn = self._get_connection()
+            with conn:
+                row = conn.execute(
+                    "SELECT COUNT(*) FROM events WHERE event_name = 'voice_interaction' AND success = 1;"
+                ).fetchone()
+                return int(row[0]) if row else 0
+        except Exception:
+            return 0
+
     def reset_database(self):
         """Completely wipe all records from the local analytics database."""
         conn = self._get_connection()

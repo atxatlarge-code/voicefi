@@ -67,9 +67,32 @@ def format_stats_dashboard(days: int = 7, store: Optional[AnalyticsStore] = None
     )
     barge_str = f"{summary['barge_in_count']} interruptions"
 
+    fb = summary.get("feedback_loops") or {}
+    total_fb_loops = fb.get("total_loops", 0)
+    prompt_returns = fb.get("prompt_returns", 0)
+    voice_barge_ins = fb.get("voice_barge_ins", 0)
+    one_way_soundbites = fb.get("one_way_soundbites", summary["total_turns"])
+    listen_tools = fb.get("listen_tools", 0)
+    hook_injections = fb.get("hook_injections", 0)
+
     lines.append(
-        f"  {BOLD}• Total Spoken Turns:{RESET}        {GREEN}{turns_str:<18}{RESET} {DIM}({spoken_mins_str}){RESET}"
+        f"  {BOLD}• Agent Soundbites Delivered:{RESET} {GREEN}{turns_str:<18}{RESET} {DIM}(Total Spoken Turns · {spoken_mins_str}){RESET}"
     )
+    lines.append(
+        f"    {DIM}↳ One-Way Audio Triage:{RESET}   {CYAN}{one_way_soundbites:,} soundbites{RESET} {DIM}(hands-free editor verification){RESET}"
+    )
+    if total_fb_loops > 0:
+        lines.append(
+            f"  {BOLD}• ProActive Feedback Loops:{RESET}   {GREEN}{total_fb_loops:,} roundtrips{RESET}  {DIM}(spoken voice returned to agent){RESET}"
+        )
+        if voice_barge_ins > 0:
+            lines.append(
+                f"    {DIM}↳ Active Voice Barge-Ins:{RESET} {CYAN}{voice_barge_ins:,} takeovers{RESET}    {DIM}(⚡ acoustic voice VAD interruptions){RESET}"
+            )
+        if prompt_returns > 0:
+            lines.append(
+                f"    {DIM}↳ Hands-Free Prompt Returns:{RESET} {CYAN}{prompt_returns:,} deliveries{RESET} {DIM}(🎙️ {listen_tools} listen tools + {hook_injections} hook injections){RESET}"
+            )
     lines.append(f"  {BOLD}• Estimated Time Saved:{RESET}      {YELLOW}{saved_str:<18}{RESET}")
 
     if total_hrs > 0 or summary["total_turns"] > 0:
@@ -80,8 +103,9 @@ def format_stats_dashboard(days: int = 7, store: Optional[AnalyticsStore] = None
 
         speech_str = bd.get("speech_vs_typing_str", "+0 mins")
         user_chars = bd.get("user_spoken_chars", summary.get("total_chars", 0))
+        user_words = int(round(user_chars / 5.0))
         lines.append(
-            f"    {DIM}↳ User Speech vs Typing:{RESET}   {GREEN}{speech_str:<10}{RESET} {DIM}({user_chars} user dictated chars @ ~170 wpm vs 55 wpm typing){RESET}"
+            f"    {DIM}↳ User Speech vs Typing:{RESET}   {GREEN}{speech_str:<10}{RESET} {DIM}({user_chars:,} user dictated chars / ~{user_words:,} words @ ~170 wpm vs 55 wpm typing){RESET}"
         )
 
         if summary.get("dispatches_count", 0) > 0:
@@ -100,8 +124,14 @@ def format_stats_dashboard(days: int = 7, store: Optional[AnalyticsStore] = None
         if summary.get("memos_count", 0) > 0:
             memo_str = bd.get("memo_str", "+0 mins")
             lines.append(
-                f"    {DIM}↳ Voice Memo Synthesis:{RESET}    {GREEN}{memo_str:<10}{RESET} {DIM}({summary['memos_count']} specs auto-drafted @ 8m){RESET}"
+                f"    {DIM}↳ Voice Memo Synthesis:{RESET}    {GREEN}{memo_str:<10}{RESET} {DIM}({summary['memos_count']} specs auto-drafted @ 8 mins){RESET}"
             )
+
+    cons_hrs = bd.get("conservative_hours", 0.0)
+    if cons_hrs > 0:
+        lines.append(
+            f"  {BOLD}• Benchmark Focus Preserved:{RESET} {CYAN}~{cons_hrs} hrs net{RESET} {DIM}(Conservative Turnaround: 44.0s vs 20.8s VoiceFi){RESET}"
+        )
 
     lines.append(f"  {BOLD}• Primary Voice Persona:{RESET}     {CYAN}{top_persona_str:<18}{RESET}")
     lines.append(f"  {BOLD}• Primary Coding Agent:{RESET}      {MAGENTA}{top_agent_str:<18}{RESET}")
@@ -113,12 +143,12 @@ def format_stats_dashboard(days: int = 7, store: Optional[AnalyticsStore] = None
     int_pct = summary.get("interruption_rate_pct", 0.0)
     vad_cnt = summary.get("vad_barge_in_count", 0)
     stop_cnt = summary.get("stop_key_count", 0)
-    barge_detail = f"{summary['barge_in_count']} interruptions"
+    barge_detail = f"{summary['barge_in_count']:,} interruptions"
     if summary["barge_in_count"] > 0:
-        barge_detail += f" {DIM}(⚡ {vad_cnt} voice VAD · ⎋ {stop_cnt} Esc/Stop){RESET}"
+        barge_detail += f" {DIM}(⚡ {vad_cnt:,} voice VAD · ⎋ {stop_cnt:,} Esc/Stop){RESET}"
 
     lines.append(
-        f"  {BOLD}• Turn Completion Ratio:{RESET}     {GREEN}{comp_t} full{RESET} {DIM}({comp_pct}%){RESET}  ·  {YELLOW}{int_t} interrupted{RESET} {DIM}({int_pct}% early barge-in){RESET}"
+        f"  {BOLD}• Soundbite Playback Ratio:{RESET} {GREEN}{comp_t:,} full{RESET} {DIM}({comp_pct}%){RESET}  ·  {YELLOW}{int_t:,} interrupted{RESET} {DIM}({int_pct}% early stop / barge-in){RESET}"
     )
     lines.append(f"  {BOLD}• Mid-Speech Barge-Ins:{RESET}      {barge_detail}")
 
@@ -167,11 +197,22 @@ def format_stats_dashboard(days: int = 7, store: Optional[AnalyticsStore] = None
         polling_mins = flow_data.get("visual_polling_avoided_mins", 0.0)
         gaze_pct = flow_data.get("gaze_retention_pct", 100.0)
 
+        saved_focus_str = (
+            f"+{mins_saved / 60.0:.1f} hrs"
+            if mins_saved >= 60.0
+            else f"+{mins_saved:.1f} mins"
+        )
+        polling_str = (
+            f"+{polling_mins / 60.0:.1f} hrs"
+            if polling_mins >= 60.0
+            else f"+{polling_mins:.1f} mins"
+        )
+
         lines.append(
-            f"  {BOLD}• Flow Preservation Index:{RESET}  {score_color}{score:.1f}% {flow_label}{RESET}  ·  {GREEN}+{mins_saved:.1f}m net focus saved{RESET}"
+            f"  {BOLD}• Flow Preservation Index:{RESET}  {score_color}{score:.1f}% {flow_label}{RESET}  ·  {GREEN}{saved_focus_str} net focus saved{RESET}"
         )
         lines.append(
-            f"  {BOLD}• Zero-Gaze Triage Focus:{RESET}   {CYAN}+{polling_mins:.1f}m visual polling avoided{RESET}  ·  {DIM}{gaze_pct:.1f}% eyes-in-editor{RESET}"
+            f"  {BOLD}• Zero-Gaze Triage Focus:{RESET}   {CYAN}{polling_str} visual polling avoided{RESET}  ·  {DIM}{gaze_pct:.1f}% eyes-in-editor{RESET}"
         )
 
         if "zero_swap_actions" in flow_data:
@@ -194,6 +235,24 @@ def format_stats_dashboard(days: int = 7, store: Optional[AnalyticsStore] = None
                     f"    {DIM}↳ ⎋ Instant Stop / Esc Controls:{RESET} {RED}{zsa.get('stop_controls', 0):<5}{RESET} {DIM}(instant cancellations without window switching){RESET}"
                 )
 
+        keystrokes = bd.get("keystrokes_saved", 0)
+        window_swaps = bd.get("window_swaps_saved", 0)
+        reading_saved = bd.get("reading_words_saved", 0)
+        if keystrokes > 0 or window_swaps > 0:
+            lines.append(f"  {BOLD}• Physical & Cognitive Relief:{RESET}")
+            if keystrokes > 0:
+                lines.append(
+                    f"    {DIM}↳ Mechanical Keystrokes:{RESET} {GREEN}{keystrokes:,} keys eliminated{RESET} {DIM}(~{int(round(keystrokes/5.0)):,} words spoken instead of typed){RESET}"
+                )
+            if window_swaps > 0:
+                lines.append(
+                    f"    {DIM}↳ Context Swaps Avoided:{RESET}  {CYAN}~{window_swaps:,} Cmd+Tab switches & clicks bypassed{RESET}"
+                )
+            if reading_saved > 0:
+                lines.append(
+                    f"    {DIM}↳ Reading Distillation:{RESET}   {YELLOW}~{reading_saved:,} raw markdown words filtered{RESET} {DIM}(~84.8% visual reduction){RESET}"
+                )
+
         lines.append(
             f"\n  {DIM}{'Modality':<30} {'Turns':<10} {'Avg Turnaround (CTL)':<22} {'Context Swaps':<14}{RESET}"
         )
@@ -207,6 +266,13 @@ def format_stats_dashboard(days: int = 7, store: Optional[AnalyticsStore] = None
                 f"  {BOLD}{name_str:<30}{RESET} {t_str:<10} {CYAN}{ctl_str:<22}{RESET} {DIM}{swaps_str:<14}{RESET}"
             )
 
+    lines.append(f"{DIM}{'─' * 74}{RESET}")
+    lines.append(
+        f"  ⭐ {BOLD}Star on GitHub:{RESET}      {CYAN}https://github.com/atxatlarge-code/voicefi{RESET}"
+    )
+    lines.append(
+        f"  💬 {BOLD}Feedback & Ideas:{RESET}    {DIM}vifi feedback submit \"<your thoughts>\"{RESET}"
+    )
     lines.append(f"{DIM}{'─' * 74}{RESET}")
     lines.append(
         f"{DIM}💡 Tip: Run 'vifi stats --export json' to export your local data, or 'vifi stats --clean' to purge.{RESET}\n"

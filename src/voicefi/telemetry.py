@@ -10,9 +10,11 @@ import os
 import platform
 import re
 import sys
+import time
 import traceback
 import urllib.request
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -25,10 +27,66 @@ from voicefi.config import load_config
 
 _posthog_initialized = False
 _active_command: Optional[str] = None
+_retention_checked_today: Optional[str] = None
 
 # Default public ingestion key for anonymous crash/feedback telemetry
 # Can be overridden via config.posthog_api_key or POSTHOG_API_KEY env var
 DEFAULT_POSTHOG_API_KEY = "phc_oFyLfqmnEeFMDehRQ4DzGrN9AGctauZiZhfufRtmW92e"
+
+_cached_tier_info: Optional[Dict[str, Any]] = None
+_cached_tier_time: float = 0.0
+
+
+def invalidate_tier_cache():
+    """Invalidate cached licensing tier info."""
+    global _cached_tier_info, _cached_tier_time
+    _cached_tier_info = None
+    _cached_tier_time = 0.0
+
+
+def get_tier_properties() -> Dict[str, Any]:
+    """
+    Retrieve non-PII tier and licensing status for telemetry segmentation.
+    Cached for 30s to prevent repeated disk I/O on rapid audio loops.
+    """
+    global _cached_tier_info, _cached_tier_time
+    now = time.time()
+    if _cached_tier_info is not None and (now - _cached_tier_time) < 30.0:
+        return dict(_cached_tier_info)
+
+    try:
+        from voicefi.license import FeatureGate
+
+        cfg = load_config()
+        summary = FeatureGate.get_tier_summary(cfg)
+        lic_info = summary.get("license_info", {})
+        is_licensed = bool(summary.get("is_licensed"))
+        is_trial = bool(summary.get("is_trial"))
+
+        if is_licensed:
+            tier_name = str(lic_info.get("tier") or "pro").lower()
+        elif is_trial:
+            tier_name = "pro_trial"
+        else:
+            tier_name = "community"
+
+        info = {
+            "tier": tier_name,
+            "is_licensed": is_licensed,
+            "is_pro": bool(summary.get("is_pro")),
+            "is_trial": is_trial,
+        }
+        _cached_tier_info = info
+        _cached_tier_time = now
+        return dict(info)
+    except Exception:
+        return {
+            "tier": "community",
+            "is_licensed": False,
+            "is_pro": False,
+            "is_trial": False,
+        }
+
 
 
 def set_active_command(command: str):
@@ -202,6 +260,7 @@ def init_telemetry():
             original_excepthook(exc_type, exc_value, exc_traceback)
 
         sys.excepthook = global_exception_handler
+        check_daily_active_retention()
     except Exception:
         pass
 
@@ -213,6 +272,10 @@ def record_event(event_name: str, properties: Optional[Dict[str, Any]] = None):
     2. Dispatches sanitized zero-PII event to remote telemetry sink if enabled.
     """
     props = dict(properties or {})
+    tier_props = get_tier_properties()
+    for k, v in tier_props.items():
+        if k not in props:
+            props[k] = v
 
     # 1. Always record to local SQLite store (100% offline, zero-network, local ownership)
     try:
@@ -248,6 +311,8 @@ def capture_event(event_name: str, properties: Optional[Dict[str, Any]] = None):
 
     if not _posthog_initialized:
         init_telemetry()
+    elif event_name != "daily_active_ping":
+        check_daily_active_retention()
 
     user_id = get_telemetry_id()
     sanitized_props = sanitize_telemetry_data(properties or {})
@@ -257,6 +322,20 @@ def capture_event(event_name: str, properties: Optional[Dict[str, Any]] = None):
         sanitized_props["arch"] = platform.machine()
     if "$is_server" not in sanitized_props:
         sanitized_props["$is_server"] = True
+
+    tier_props = get_tier_properties()
+    for k, v in tier_props.items():
+        if k not in sanitized_props:
+            sanitized_props[k] = v
+
+    # Flag internal developer machines so PostHog can filter test accounts
+    if (
+        os.getenv("VOICEFI_INTERNAL")
+        or os.getenv("VOICEFI_DEV")
+        or user_id in ("77e6a35c-081e-49a4-9089-1a1f15b6bbef",)
+        or Path.home().as_posix().endswith("/jaketrigg")
+    ):
+        sanitized_props["is_internal"] = True
 
     if _posthog_initialized and posthog:
         try:
@@ -294,6 +373,175 @@ def capture_event(event_name: str, properties: Optional[Dict[str, Any]] = None):
         pass
 
 
+def check_daily_active_retention() -> Optional[Dict[str, Any]]:
+    """
+    Tracks multi-day active retention. Emits 'daily_active_ping' once per calendar day.
+    Calculates days_since_install and is_day_2_plus to power Day-1, Day-7, Day-30 retention.
+    """
+    global _retention_checked_today
+    if not is_telemetry_enabled():
+        return None
+    today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    if _retention_checked_today == today_str:
+        return None
+
+    retention_file = Path.home() / ".voicefi" / ".activity_dates.json"
+    try:
+        data = {}
+        if retention_file.exists():
+            try:
+                data = json.loads(retention_file.read_text(encoding="utf-8"))
+            except Exception:
+                data = {}
+
+        install_date_str = data.get("install_date")
+        if not install_date_str:
+            install_date_str = today_str
+            data["install_date"] = install_date_str
+            data["active_dates"] = [today_str]
+            data["last_active_date"] = today_str
+            retention_file.parent.mkdir(parents=True, exist_ok=True)
+            retention_file.write_text(json.dumps(data), encoding="utf-8")
+            _retention_checked_today = today_str
+            ping_props = {
+                "days_since_install": 0,
+                "is_day_2_plus": False,
+                "total_active_days": 1,
+                "install_date": install_date_str,
+                "active_date": today_str,
+                "$is_server": True,
+            }
+            record_event("daily_active_ping", ping_props)
+            return ping_props
+
+        last_active_date = data.get("last_active_date")
+        if last_active_date == today_str:
+            _retention_checked_today = today_str
+            return None
+
+        active_dates = set(data.get("active_dates", []))
+        active_dates.add(today_str)
+        data["active_dates"] = sorted(list(active_dates))
+        data["last_active_date"] = today_str
+
+        try:
+            d_install = datetime.strptime(install_date_str, "%Y-%m-%d").date()
+            d_today = datetime.strptime(today_str, "%Y-%m-%d").date()
+            days_since_install = max(0, (d_today - d_install).days)
+        except Exception:
+            days_since_install = 0
+
+        is_day_2_plus = days_since_install >= 1
+        total_active_days = len(active_dates)
+
+        retention_file.write_text(json.dumps(data), encoding="utf-8")
+        _retention_checked_today = today_str
+
+        ping_props = {
+            "days_since_install": days_since_install,
+            "is_day_2_plus": is_day_2_plus,
+            "total_active_days": total_active_days,
+            "install_date": install_date_str,
+            "active_date": today_str,
+            "$is_server": True,
+        }
+        record_event("daily_active_ping", ping_props)
+        return ping_props
+    except Exception:
+        return None
+
+
+def check_and_record_first_spoken_turn(props: Dict[str, Any]) -> bool:
+    """
+    Idempotently records the 'first_spoken_turn' true-activation milestone once per install.
+    Returns True if this was the very first spoken turn on this machine, False otherwise.
+    """
+    marker_file = Path.home() / ".voicefi" / ".first_turn_recorded"
+    if marker_file.exists():
+        return False
+    try:
+        marker_file.parent.mkdir(parents=True, exist_ok=True)
+        marker_file.write_text(
+            json.dumps({
+                "timestamp": time.time(),
+                "trigger": props.get("trigger", "unknown"),
+                "agent": props.get("agent", "unknown"),
+                "voice": props.get("voice", "unknown"),
+            }),
+            encoding="utf-8",
+        )
+        milestone_props = {
+            "trigger": props.get("trigger", "unknown"),
+            "agent": props.get("agent", "unknown"),
+            "voice": props.get("voice", "unknown"),
+            "provider": props.get("provider", "unknown"),
+            "duration_ms": props.get("duration_ms", 0),
+            "milestone": "activation_first_turn",
+            "$is_server": True,
+        }
+        record_event("first_spoken_turn", milestone_props)
+        return True
+    except Exception:
+        return False
+
+
+def check_and_prompt_milestones(
+    props: Optional[Dict[str, Any]] = None,
+    turn_count_override: Optional[int] = None,
+) -> bool:
+    """
+    Check if the user has reached key turn milestones (e.g. Turn 5).
+    If Turn 5 is reached and not yet prompted:
+    1. Records 'milestone_turn_5' in PostHog telemetry.
+    2. Writes local marker file ~/.voicefi/.milestone_star_prompted.
+    3. Prints a celebratory terminal banner with GitHub Star and Feedback commands.
+    Returns True if a milestone was triggered, False otherwise.
+    """
+    marker_file = Path.home() / ".voicefi" / ".milestone_star_prompted"
+    if marker_file.exists():
+        return False
+
+    try:
+        if turn_count_override is not None:
+            total_turns = turn_count_override
+        else:
+            from voicefi.analytics.store import get_analytics_store
+
+            store = get_analytics_store()
+            total_turns = store.get_total_spoken_turns()
+
+        if total_turns >= 5:
+            marker_file.parent.mkdir(parents=True, exist_ok=True)
+            marker_file.write_text(
+                json.dumps({
+                    "timestamp": time.time(),
+                    "total_turns": total_turns,
+                    "milestone": "turn_5",
+                }),
+                encoding="utf-8",
+            )
+            record_event(
+                "milestone_turn_5",
+                {
+                    "total_turns": total_turns,
+                    "milestone": "spoken_turns_5",
+                    "$is_server": True,
+                },
+            )
+            print("\n" + "=" * 62)
+            print(" 🎉 Milestone: 5 Spoken Agent Turns Completed!")
+            print("=" * 62)
+            print(" ⭐ If VoiceFi is saving you time and gaze fatigue, please drop us a star:")
+            print("    👉 https://github.com/atxatlarge-code/voicefi")
+            print(" 💬 Have suggestions, ideas, or questions? Run anytime:")
+            print('    👉 vifi feedback submit "<your thoughts>"')
+            print("=" * 62 + "\n")
+            return True
+    except Exception:
+        pass
+    return False
+
+
 def capture_voice_interaction(
     trigger: str,
     duration_ms: int,
@@ -304,6 +552,7 @@ def capture_voice_interaction(
     chars_count: Optional[int] = None,
     is_barge_in: Optional[bool] = None,
     error_type: Optional[str] = None,
+    user_chars: Optional[int] = None,
 ):
     """
     Capture a voice_interaction event per utterance (Antigravity/Claude hook, speak CLI, IPC, MCP).
@@ -328,11 +577,43 @@ def capture_voice_interaction(
     if chars_count is not None:
         props["chars_count"] = max(0, int(chars_count))
         props["char_count"] = props["chars_count"]
+    if user_chars is not None:
+        u_chars = max(0, int(user_chars))
+        props["user_chars"] = u_chars
+        if u_chars > 0:
+            props["feedback_loop_completed"] = True
     if is_barge_in is not None:
         props["is_barge_in"] = bool(is_barge_in)
     if error_type:
         props["error_type"] = str(error_type)[:60]
 
+    record_event("voice_interaction", props)
+    if success:
+        check_and_record_first_spoken_turn(props)
+        check_and_prompt_milestones(props)
+
+
+def capture_proactive_feedback_loop(
+    caller_agent: str = "antigravity",
+    user_chars: int = 0,
+    target_channel: str = "antigravity",
+    duration_ms: int = 0,
+    is_barge_in: bool = False,
+):
+    """
+    Capture a completed ProActive Feedback Loop (where developer voice returned to agent).
+    """
+    props: Dict[str, Any] = {
+        "event_name": "proactive_feedback_loop",
+        "trigger": "feedback_loop",
+        "caller_agent": str(caller_agent).lower()[:32],
+        "user_chars": max(0, int(user_chars)),
+        "target_channel": str(target_channel)[:32],
+        "duration_ms": max(0, int(duration_ms)),
+        "is_barge_in": bool(is_barge_in),
+        "feedback_loop_completed": True,
+        "$is_server": True,
+    }
     record_event("voice_interaction", props)
 
 
@@ -412,3 +693,32 @@ def capture_agent_dispatch(
         "$is_server": True,
     }
     record_event("agent_dispatch", props)
+
+
+def capture_license_activated(
+    tier: str,
+    expires_at: Optional[str] = None,
+    tag: Optional[str] = None,
+    success: bool = True,
+    error: Optional[str] = None,
+):
+    """
+    Capture a license activation event when a developer applies a VoiceFi Pro/Org key.
+    Strictly zero-PII: does not record the raw key or email. Records tier, expiration description, and tag.
+    """
+    invalidate_tier_cache()
+    props: Dict[str, Any] = {
+        "tier": str(tier).lower().strip()[:20],
+        "expires_at": str(expires_at or "Perpetual")[:30],
+        "success": bool(success),
+        "$is_server": True,
+    }
+    if tag:
+        clean_tag = re.sub(r"[^A-Za-z0-9_\-]", "", str(tag).strip())[:20]
+        if clean_tag:
+            props["license_tag"] = clean_tag
+    if error:
+        props["error"] = str(error)[:60]
+
+    record_event("license_activated", props)
+

@@ -77,12 +77,31 @@ def is_headphone_or_headset_active() -> bool:
             "ear",
             "bluetooth",
             "wireless",
+            "in-ear",
+            "iem",
         )
         if any(marker in out_name for marker in headphone_markers):
             return True
 
-        # If not built-in speaker and not empty, likely external audio device/headphones
-        return not is_using_builtin_speakers()
+        # Check for external speaker/monitor markers that are definitely NOT headphones
+        external_speaker_markers = (
+            "display",
+            "monitor",
+            "tv",
+            "hdmi",
+            "soundbar",
+            "speaker",
+            "studio display",
+        )
+        if any(marker in out_name for marker in external_speaker_markers):
+            return False
+
+        # If it's built-in laptop speakers, definitely not headphones
+        if is_using_builtin_speakers():
+            return False
+
+        # Do not assume unknown external devices/monitors/DACs are headphones
+        return False
     except Exception:
         return False
 

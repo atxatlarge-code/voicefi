@@ -25,6 +25,8 @@ class WakeWordListener:
     wake words ('Hey Viv', 'Viv', 'Hey ViFi') and manages conversational handoff.
     """
 
+    _ACTIVE_INSTANCES: set = set()
+
     def __init__(
         self,
         config: Optional[VoiceFiConfig] = None,
@@ -34,6 +36,7 @@ class WakeWordListener:
         sample_rate: int = 16000,
         chunk_duration: float = 0.05,  # 50ms chunks
     ):
+        WakeWordListener._ACTIVE_INSTANCES.add(self)
         self.config = config or load_config()
         self.sample_rate = sample_rate
         self.chunk_duration = chunk_duration
@@ -110,12 +113,16 @@ class WakeWordListener:
 
     def stop(self):
         """Stop background listening."""
+        WakeWordListener._ACTIVE_INSTANCES.discard(self)
         self._running = False
         self._stop_event.set()
         self._set_state("stopped")
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=1.0)
         self._thread = None
+
+    def __del__(self):
+        WakeWordListener._ACTIVE_INSTANCES.discard(self)
 
     def pause(self):
         """Pause listening to yield microphone device to active recording sessions."""
@@ -126,6 +133,24 @@ class WakeWordListener:
         """Resume wake-word listening."""
         self._paused = False
         self._set_state("listening")
+
+    @classmethod
+    def pause_all(cls):
+        """Pause all active wake-word listeners to yield microphone to recording."""
+        for inst in list(cls._ACTIVE_INSTANCES):
+            try:
+                inst.pause()
+            except Exception:
+                pass
+
+    @classmethod
+    def resume_all(cls):
+        """Resume all active wake-word listeners."""
+        for inst in list(cls._ACTIVE_INSTANCES):
+            try:
+                inst.resume()
+            except Exception:
+                pass
 
     @property
     def is_running(self) -> bool:
@@ -148,7 +173,9 @@ class WakeWordListener:
 
         cooldown_chunks = 0
         while not self._stop_event.is_set():
-            if self._paused or not getattr(self.config.wakeword, "enabled", True):
+            from voicefi.tts.base import is_mic_recording_active
+
+            if self._paused or is_mic_recording_active() or not getattr(self.config.wakeword, "enabled", True):
                 time.sleep(0.1)
                 continue
 
@@ -157,9 +184,11 @@ class WakeWordListener:
                     samplerate=self.sample_rate, channels=1, dtype="float32"
                 ) as stream:
                     while not self._stop_event.is_set() and not self._paused:
+                        if is_mic_recording_active():
+                            break
                         # Always read from stream to drain hardware buffer
                         chunk, overflowed = stream.read(self.chunk_size)
-                        if self._stop_event.is_set() or self._paused:
+                        if self._stop_event.is_set() or self._paused or is_mic_recording_active():
                             break
 
                         # Suppress listening while agent is speaking, audio is playing, or recently interrupted
@@ -216,7 +245,9 @@ class WakeWordListener:
                                 silence_chunks >= silence_limit
                                 or len(recorded_frames) >= max_chunks
                             ):
-                                if len(recorded_frames) >= min_speech_chunks:
+                                from voicefi.audio.meeting_detection import is_user_on_call
+
+                                if not is_user_on_call() and len(recorded_frames) >= min_speech_chunks:
                                     full_audio = np.concatenate(recorded_frames, axis=0)
                                     threading.Thread(
                                         target=self._process_candidate_audio,
@@ -244,10 +275,11 @@ class WakeWordListener:
         if time.time() - self._last_wake_time < 1.2:
             return
 
-        # Acoustic echo guard: ignore candidates if agent is speaking, audio is playing, or recently interrupted
+        # Acoustic echo guard: ignore candidates if on a call, agent is speaking, audio is playing, or recently interrupted
         from voicefi.tts.base import is_speech_interrupted
+        from voicefi.audio.meeting_detection import is_user_on_call
 
-        if is_agent_speaking() or is_agent_audio_playing() or is_speech_interrupted():
+        if is_user_on_call() or is_agent_speaking() or is_agent_audio_playing() or is_speech_interrupted():
             return
 
         try:

@@ -80,6 +80,18 @@ class CompanionServerTestCase(AioHTTPTestCase):
         text2 = await resp2.text()
         assert "VoiceFi Companion" in text2
 
+    async def test_get_pair_route(self):
+        """Test GET /pair serves pairing & editable downloads companion hub."""
+        resp = await self.client.get("/pair")
+        assert resp.status == 200
+        text = await resp.text()
+        assert "VoiceFi" in text
+        assert "Mobile Pairing" in text
+        assert "Companion Downloads" in text
+        assert "dropZone" in text
+        assert "editorModal" in text
+        assert "mediaModal" in text
+
     async def test_get_spicewood_sheet_api(self):
         """Test GET /api/sheet/spicewood returns Spicewood lead sheet metadata and markdown."""
         resp = await self.client.get("/api/sheet/spicewood")
@@ -101,6 +113,94 @@ class CompanionServerTestCase(AioHTTPTestCase):
         assert resp_mp3.status in (200, 206)
         assert resp_mp3.content_type == "audio/mpeg"
         assert resp_mp3.content_length > 1000000
+
+    async def test_api_downloads_list_and_act1_file(self):
+        """Test GET /api/downloads returns complete file catalog including spicewood_act1_picture_lock.mp4."""
+        resp = await self.client.get("/api/downloads")
+        assert resp.status == 200
+        data = await resp.json()
+        assert data.get("status") == "ok"
+        assert data.get("total_count") > 0
+        filenames = [f["name"] for f in data.get("files", [])]
+        assert "spicewood_texas_lead_sheet.md" in filenames
+        assert "spicewood_act1_picture_lock.mp4" in filenames
+
+        # Verify classifications
+        for f in data.get("files", []):
+            if f["name"] == "spicewood_texas_lead_sheet.md":
+                assert f["editable"] is True
+                assert f["category"] == "document"
+            if f["name"] == "spicewood_act1_picture_lock.mp4":
+                assert f["playable"] is True
+                assert f["category"] == "video"
+                assert f["size"] > 10 * 1024 * 1024
+
+    async def test_api_downloads_crud_lifecycle(self):
+        """Test file upload, read content, edit/save content, rename, and delete lifecycle."""
+        test_filename = "test_companion_sheet.md"
+        init_content = "# Test Companion Sheet\nInitial test line."
+
+        # 1. Upload new file via JSON
+        upload_resp = await self.client.post(
+            "/api/downloads/upload",
+            json={"filename": test_filename, "content": init_content}
+        )
+        assert upload_resp.status == 200
+        upload_data = await upload_resp.json()
+        assert upload_data.get("status") == "ok"
+        assert len(upload_data.get("uploaded", [])) == 1
+
+        # 2. Read content via GET /api/downloads/{filename}/content
+        get_resp = await self.client.get(f"/api/downloads/{test_filename}/content")
+        assert get_resp.status == 200
+        get_data = await get_resp.json()
+        assert get_data.get("content") == init_content
+        assert get_data.get("info")["editable"] is True
+
+        # 3. Update/Save content via PUT /api/downloads/{filename}
+        updated_content = "# Test Companion Sheet\nUpdated content with edits."
+        put_resp = await self.client.put(
+            f"/api/downloads/{test_filename}",
+            json={"content": updated_content}
+        )
+        assert put_resp.status == 200
+        put_data = await put_resp.json()
+        assert put_data.get("status") == "ok"
+
+        # Verify saved content
+        verify_resp = await self.client.get(f"/api/downloads/{test_filename}/content")
+        assert verify_resp.status == 200
+        verify_data = await verify_resp.json()
+        assert verify_data.get("content") == updated_content
+
+        # 4. Rename file
+        renamed_filename = "test_companion_sheet_renamed.md"
+        rename_resp = await self.client.post(
+            "/api/downloads/rename",
+            json={"old_name": test_filename, "new_name": renamed_filename}
+        )
+        assert rename_resp.status == 200
+        rename_data = await rename_resp.json()
+        assert rename_data.get("status") == "ok"
+        assert rename_data["file"]["name"] == renamed_filename
+
+        # 5. Delete file
+        del_resp = await self.client.delete(f"/api/downloads/{renamed_filename}")
+        assert del_resp.status == 200
+        del_data = await del_resp.json()
+        assert del_data.get("status") == "ok"
+
+        # 6. Verify deleted
+        del_check = await self.client.get(f"/api/downloads/{renamed_filename}/content")
+        assert del_check.status == 404
+
+    async def test_api_downloads_security_guards(self):
+        """Test path traversal attempts are blocked safely."""
+        resp1 = await self.client.get("/api/downloads/..%2F..%2Fetc%2Fpasswd/content")
+        assert resp1.status in (400, 404)
+
+        resp2 = await self.client.delete("/api/downloads/..%2F..%2Fetc%2Fpasswd")
+        assert resp2.status in (400, 404)
 
     async def test_get_manifest(self):
         """Test GET /manifest.json serves PWA manifest."""
@@ -262,13 +362,16 @@ class CompanionServerTestCase(AioHTTPTestCase):
             mock_send.assert_called_once()
 
     async def test_api_qr(self):
-        """Test GET /api/qr returns pairing metadata."""
+        """Test GET /api/qr returns pairing metadata with Cloud Relay as default preferred URL."""
         resp = await self.client.get("/api/qr")
         assert resp.status == 200
         data = await resp.json()
         assert "urls" in data
         assert "qr_data_uri" in data
         assert data["qr_data_uri"].startswith("data:image/png;base64,")
+        assert "cloud_relay_url" in data
+        assert data.get("preferred_url") == data.get("cloud_relay_url")
+        assert "companion.voicefi.app" in data.get("preferred_url")
 
     async def test_api_tunnel_endpoints(self):
         """Test GET /api/tunnel/status and POST /api/tunnel/start."""

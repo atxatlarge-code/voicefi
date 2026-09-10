@@ -534,12 +534,36 @@
     </div>
   </header>
 
+  <!-- Persistent Floating Autoplay Blocked Banner (Visible across all views) -->
+  <div id="audioAutoplayBanner" class="hidden fixed top-14 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2.5 px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-full shadow-2xl border border-emerald-300/80 cursor-pointer animate-bounce transition active:scale-95 text-xs font-bold font-mono">
+    <span class="text-sm animate-pulse">🔊</span>
+    <span id="audioAutoplayText">Tap to Hear Response ▶</span>
+  </div>
+
   <!-- Container for Main Views -->
   <div class="flex-1 relative overflow-hidden flex flex-col bg-transparent">
 
     <!-- VIEW 1: Voice Stage -->
     <section id="viewVoice" class="flex-1 flex flex-col items-center justify-between p-4 max-w-sm mx-auto w-full z-10 overflow-y-auto">
       
+      <!-- Autoplay Blocked Voice View Banner -->
+      <div id="audioAutoplayVoiceBanner" class="hidden w-full bg-gradient-to-r from-emerald-950/90 to-teal-950/90 border border-emerald-500/60 rounded-2xl p-3 mb-2.5 text-left shrink-0 shadow-xl cursor-pointer active:scale-98 transition animate-pulse">
+        <div class="flex items-center justify-between gap-2">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <span class="text-base animate-bounce">🔊</span>
+            <div>
+              <p class="text-xs font-bold text-emerald-300">Tap to Hear Viv's Response</p>
+              <p class="text-[10px] text-zinc-300 leading-snug mt-0.5">
+                Autoplay blocked by mobile browser — tap to listen
+              </p>
+            </div>
+          </div>
+          <button id="audioAutoplayPlayBtn" type="button" class="px-3 py-1.5 bg-emerald-400 hover:bg-emerald-300 text-black text-[11px] font-bold rounded-xl font-mono shrink-0 transition active:scale-95 shadow-md flex items-center gap-1">
+            <span>PLAY</span> <span>▶</span>
+          </button>
+        </div>
+      </div>
+
       <!-- Unpaired / Waiting for Mac Connection Banner -->
       <div id="unpairedPromptBanner" class="hidden w-full bg-[#121214] border border-amber-500/40 rounded-2xl p-3 mb-2.5 text-left shrink-0 shadow-lg">
         <div class="flex items-start justify-between gap-2">
@@ -761,11 +785,26 @@
 
       <!-- Reel Selector Tabs -->
       <div class="w-full flex items-center justify-start p-1.5 bg-zinc-900/90 border border-zinc-800 rounded-xl gap-1.5 mb-2.5 shrink-0 overflow-x-auto flex-nowrap" style="-webkit-overflow-scrolling: touch; touch-action: pan-x;">
-        <button type="button" id="tabSpicewood" onclick="selectCompanionReel('spicewood')" class="py-1.5 px-3 rounded-lg text-[11px] font-bold transition-all text-zinc-400 hover:text-zinc-200 flex items-center justify-center gap-1 shrink-0">
-          <span>🤠</span> <span>Spicewood, TX</span> <span class="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-mono">85 BPM</span>
+        <button type="button" id="tabSpicewoodFull" onclick="selectCompanionReel('spicewood_full')" class="py-1.5 px-3 rounded-lg text-[11px] font-bold transition-all bg-amber-500 text-black shadow flex items-center justify-center gap-1 shrink-0">
+          <span>🤠</span> <span>Spicewood Master (Acts 1–3)</span> <span class="text-[9px] px-1.5 py-0.2 rounded bg-black/30 text-white font-mono">4:21</span>
         </button>
-        <button type="button" id="tabReel8" onclick="selectCompanionReel('reel8')" class="py-1.5 px-3 rounded-lg text-[11px] font-bold transition-all bg-[#38BDF8] text-black shadow flex items-center justify-center gap-1 shrink-0">
-          <span>🎵</span> <span>10.skills</span> <span class="text-[9px] px-1 py-0.2 rounded bg-black/30 text-white">2:25</span>
+        <button type="button" id="tabSpicewoodAudio" onclick="selectCompanionReel('spicewood_audio')" class="py-1.5 px-3 rounded-lg text-[11px] font-bold transition-all text-zinc-400 hover:text-zinc-200 flex items-center justify-center gap-1 shrink-0">
+          <span>🎵</span> <span>Full Master Audio</span> <span class="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-mono">320k</span>
+        </button>
+        <button type="button" id="tabSpicewoodAct1" onclick="selectCompanionReel('spicewood_act1')" class="py-1.5 px-3 rounded-lg text-[11px] font-bold transition-all text-zinc-400 hover:text-zinc-200 flex items-center justify-center gap-1 shrink-0">
+          <span>🎬</span> <span>Act 1</span> <span class="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-mono">18M</span>
+        </button>
+        <button type="button" id="tabSpicewoodAct2" onclick="selectCompanionReel('spicewood_act2')" class="py-1.5 px-3 rounded-lg text-[11px] font-bold transition-all text-zinc-400 hover:text-zinc-200 flex items-center justify-center gap-1 shrink-0">
+          <span>🎬</span> <span>Act 2</span> <span class="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-mono">21M</span>
+        </button>
+        <button type="button" id="tabSpicewoodAct3" onclick="selectCompanionReel('spicewood_act3')" class="py-1.5 px-3 rounded-lg text-[11px] font-bold transition-all text-zinc-400 hover:text-zinc-200 flex items-center justify-center gap-1 shrink-0">
+          <span>🎬</span> <span>Act 3</span> <span class="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-mono">20M</span>
+        </button>
+        <button type="button" id="tabSpicewood" onclick="selectCompanionReel('spicewood')" class="py-1.5 px-3 rounded-lg text-[11px] font-bold transition-all text-zinc-400 hover:text-zinc-200 flex items-center justify-center gap-1 shrink-0">
+          <span>🥁</span> <span>85 BPM Beat</span> <span class="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-mono">4:48</span>
+        </button>
+        <button type="button" id="tabReel8" onclick="selectCompanionReel('reel8')" class="py-1.5 px-3 rounded-lg text-[11px] font-bold transition-all text-zinc-400 hover:text-zinc-200 flex items-center justify-center gap-1 shrink-0">
+          <span>🎵</span> <span>10.skills</span> <span class="text-[9px] px-1 py-0.2 rounded bg-zinc-800 text-zinc-400">2:25</span>
         </button>
         <button type="button" id="tabReel6" onclick="selectCompanionReel('reel6')" class="py-1.5 px-3 rounded-lg text-[11px] font-bold transition-all text-zinc-400 hover:text-zinc-200 flex items-center justify-center gap-1 shrink-0">
           <span>⚡</span> <span>Speed Listen</span> <span class="text-[9px] px-1 py-0.2 rounded bg-zinc-800 text-zinc-400">35s</span>
@@ -1642,8 +1681,57 @@
 
     // Mobile Media Download & Native Share Helper
     const COMPANION_REELS = {
+      spicewood_full: {
+        title: "🤠 Spicewood Outlaws · Full Master Cut (Acts 1–3)",
+        dur: "4:21",
+        desc: "Complete 3-Act Spicewood Outlaws Film & Music Video Master (21.0 MB · 540p Mobile Master)",
+        reel916: "/downloads/spicewood_outlaws_full_master.mp4",
+        reel11: "/downloads/spicewood_outlaws_full_master.mp4",
+        audio: "/downloads/spicewood_outlaws_full_master_audio.mp3",
+        isWidescreen: true,
+        themeColor: "#F59E0B"
+      },
+      spicewood_audio: {
+        title: "🎵 Spicewood Outlaws · Full Master Audio",
+        dur: "4:21",
+        desc: "Full Master Soundtrack & Vocal Performance · 320 kbps Studio Master (Acts 1–3)",
+        audio: "/downloads/spicewood_outlaws_full_master_audio.mp3",
+        sheet: "/downloads/spicewood_texas_lead_sheet.md",
+        isAudioTrack: true,
+        themeColor: "#F59E0B"
+      },
+      spicewood_act1: {
+        title: "🎬 Spicewood Act 1 · Picture Lock",
+        dur: "55s",
+        desc: "Official Spicewood Act 1 Picture Lock Video Master Cut (17.9 MB · 720p HD)",
+        reel916: "/downloads/spicewood_act1_picture_lock.mp4",
+        reel11: "/downloads/spicewood_act1_picture_lock.mp4",
+        audio: "/downloads/spicewood_outlaws_full_master_audio.mp3",
+        isWidescreen: true,
+        themeColor: "#F59E0B"
+      },
+      spicewood_act2: {
+        title: "🎬 Spicewood Act 2 · Picture Lock",
+        dur: "1:35",
+        desc: "Official Spicewood Act 2 Picture Lock Video Master Cut (21.3 MB · 720p HD)",
+        reel916: "/downloads/spicewood_act2_picture_lock.mp4",
+        reel11: "/downloads/spicewood_act2_picture_lock.mp4",
+        audio: "/downloads/spicewood_outlaws_full_master_audio.mp3",
+        isWidescreen: true,
+        themeColor: "#F59E0B"
+      },
+      spicewood_act3: {
+        title: "🎬 Spicewood Act 3 · Picture Lock",
+        dur: "1:51",
+        desc: "Official Spicewood Act 3 Picture Lock Video Master Cut (20.4 MB · 720p HD)",
+        reel916: "/downloads/spicewood_act3_picture_lock.mp4",
+        reel11: "/downloads/spicewood_act3_picture_lock.mp4",
+        audio: "/downloads/spicewood_outlaws_full_master_audio.mp3",
+        isWidescreen: true,
+        themeColor: "#F59E0B"
+      },
       spicewood: {
-        title: "🤠 Spicewood, Texas · Studio Lead Sheet & Beat",
+        title: "🥁 Spicewood, Texas · Studio Lead Sheet & Beat",
         dur: "4:48",
         desc: "85.0 BPM Boom Bap Beat (Prod. Shinra B) + Synchronized Master Lead Sheet & Measure Grid",
         audio: "/downloads/spicewood_texas_beat_85bpm.mp3",
@@ -1685,7 +1773,7 @@
       }
     };
 
-    let activeCompanionReel = "spicewood";
+    let activeCompanionReel = "spicewood_full";
 
     window.selectCompanionReel = function(key) {
       activeCompanionReel = key;
@@ -1699,6 +1787,7 @@
       const btnOpenLeadSheet = document.getElementById('btnOpenLeadSheet');
       const btnSave916Comp = document.getElementById('btnSave916Comp');
       const btnSave11Comp = document.getElementById('btnSave11Comp');
+      const btnSaveAudioComp = document.getElementById('btnSaveAudioComp');
       const btnSaveSheetComp = document.getElementById('btnSaveSheetComp');
 
       if (data.isAudioTrack) {
@@ -1711,21 +1800,49 @@
             audioPlayer.load();
           }
         }
-        if (btnOpenLeadSheet) btnOpenLeadSheet.classList.remove('hidden');
+        if (btnOpenLeadSheet) {
+          if (data.sheet) btnOpenLeadSheet.classList.remove('hidden');
+          else btnOpenLeadSheet.classList.add('hidden');
+        }
         if (btnSave916Comp) btnSave916Comp.classList.add('hidden');
         if (btnSave11Comp) btnSave11Comp.classList.add('hidden');
-        if (btnSaveSheetComp) btnSaveSheetComp.classList.remove('hidden');
+        if (btnSaveAudioComp) btnSaveAudioComp.classList.remove('hidden');
+        if (btnSaveSheetComp) {
+          if (data.sheet) btnSaveSheetComp.classList.remove('hidden');
+          else btnSaveSheetComp.classList.add('hidden');
+        }
       } else {
         if (audioPlayer) { audioPlayer.pause(); }
         if (audioContainer) audioContainer.classList.add('hidden');
-        if (videoContainer) videoContainer.classList.remove('hidden');
+        if (videoContainer) {
+          videoContainer.classList.remove('hidden');
+          if (data.isWidescreen) {
+            videoContainer.className = "relative w-full aspect-video max-w-sm mx-auto bg-black rounded-3xl overflow-hidden border-2 border-amber-500/40 shadow-[0_0_40px_rgba(245,158,11,0.25)] flex items-center justify-center mb-2.5 shrink-0";
+          } else {
+            videoContainer.className = "relative w-full aspect-[9/16] max-w-[220px] mx-auto bg-black rounded-3xl overflow-hidden border-2 border-[#38BDF8]/40 shadow-[0_0_40px_rgba(56,189,248,0.25)] flex items-center justify-center mb-2.5 shrink-0";
+          }
+        }
         if (video) {
+          video.className = data.isWidescreen ? "w-full h-full object-contain" : "w-full h-full object-cover";
           video.src = data.reel916;
           video.load();
         }
         if (btnOpenLeadSheet) btnOpenLeadSheet.classList.add('hidden');
-        if (btnSave916Comp) btnSave916Comp.classList.remove('hidden');
-        if (btnSave11Comp) btnSave11Comp.classList.remove('hidden');
+        if (btnSave916Comp) {
+          btnSave916Comp.classList.remove('hidden');
+          const span = btnSave916Comp.querySelector('span:last-child');
+          if (span) {
+            span.innerText = data.isWidescreen ? "Save Video Cut (.mp4)" : "Save 9:16 Video Reel (.mp4)";
+          }
+        }
+        if (btnSave11Comp) {
+          if (data.isWidescreen) btnSave11Comp.classList.add('hidden');
+          else btnSave11Comp.classList.remove('hidden');
+        }
+        if (btnSaveAudioComp) {
+          if (data.audio) btnSaveAudioComp.classList.remove('hidden');
+          else btnSaveAudioComp.classList.add('hidden');
+        }
         if (btnSaveSheetComp) btnSaveSheetComp.classList.add('hidden');
       }
 
@@ -1734,15 +1851,21 @@
       if (titleEl) titleEl.innerHTML = `${data.title} <span id="compReelBadge" class="text-[9px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300 mono font-bold">${data.dur}</span>`;
       if (descEl) descEl.innerText = data.desc;
 
-      const keys = ['spicewood', 'reel8', 'reel6', 'reel4', 'reel2'];
+      const keys = ['spicewood_full', 'spicewood_audio', 'spicewood_act1', 'spicewood_act2', 'spicewood_act3', 'spicewood', 'reel8', 'reel6', 'reel4', 'reel2'];
       const inactiveClass = "py-1.5 px-2.5 rounded-lg text-[11px] font-bold transition-all text-zinc-400 hover:text-zinc-200 flex items-center justify-center gap-1 shrink-0";
       
       keys.forEach(k => {
-        const btnId = k === 'spicewood' ? 'tabSpicewood' : `tab${k.charAt(0).toUpperCase() + k.slice(1)}`;
+        const btnId = k === 'spicewood_full' ? 'tabSpicewoodFull'
+          : (k === 'spicewood_audio' ? 'tabSpicewoodAudio'
+          : (k === 'spicewood_act1' ? 'tabSpicewoodAct1'
+          : (k === 'spicewood_act2' ? 'tabSpicewoodAct2'
+          : (k === 'spicewood_act3' ? 'tabSpicewoodAct3'
+          : (k === 'spicewood' ? 'tabSpicewood'
+          : `tab${k.charAt(0).toUpperCase() + k.slice(1)}`)))));
         const btn = document.getElementById(btnId);
         if (btn) {
           if (k === key) {
-            if (k === 'spicewood') {
+            if (k.startsWith('spicewood')) {
               btn.className = "py-1.5 px-2.5 rounded-lg text-[11px] font-bold transition-all bg-amber-500 text-black shadow flex items-center justify-center gap-1 shrink-0";
             } else if (k === 'reel8') {
               btn.className = "py-1.5 px-2.5 rounded-lg text-[11px] font-bold transition-all bg-[#38BDF8] text-black shadow flex items-center justify-center gap-1 shrink-0";
@@ -1796,36 +1919,83 @@
     window.downloadCurrentCompanion = function(type) {
       const data = COMPANION_REELS[activeCompanionReel];
       if (!data) return;
-      if (type === '9:16') downloadOrShareMedia(data.reel916, `${activeCompanionReel}_916.mp4`);
-      else if (type === '1:1') downloadOrShareMedia(data.reel11, `${activeCompanionReel}_square.mp4`);
-      else if (type === 'sheet') downloadOrShareMedia(data.sheet || '/downloads/spicewood_texas_lead_sheet.md', 'spicewood_texas_lead_sheet.md');
-      else downloadOrShareMedia(data.audio, `${activeCompanionReel === 'spicewood' ? 'spicewood_texas_beat_85bpm' : activeCompanionReel}_audio.mp3`);
+      if (type === '9:16' || type === 'video') {
+        const url = data.reel916 || data.video;
+        const fname = url ? url.split('/').pop() : `${activeCompanionReel}.mp4`;
+        downloadOrShareMedia(url, fname);
+      } else if (type === '1:1') {
+        const url = data.reel11;
+        const fname = url ? url.split('/').pop() : `${activeCompanionReel}_square.mp4`;
+        downloadOrShareMedia(url, fname);
+      } else if (type === 'sheet') {
+        const url = data.sheet || '/downloads/spicewood_texas_lead_sheet.md';
+        downloadOrShareMedia(url, 'spicewood_texas_lead_sheet.md');
+      } else if (type === 'audio') {
+        const url = data.audio;
+        const fname = url ? url.split('/').pop() : `${activeCompanionReel}.mp3`;
+        downloadOrShareMedia(url, fname);
+      }
     };
 
     window.downloadOrShareMedia = async function(url, filename) {
-      if (navigator.canShare) {
-        try {
-          const res = await fetch(url);
-          const blob = await res.blob();
-          const file = new File([blob], filename, { type: blob.type });
-          if (navigator.canShare({ files: [file] })) {
+      if (typeof showToast === 'function') {
+        showToast(`⏳ Preparing ${filename}...`, 2000);
+      }
+      try {
+        const res = await fetch(url);
+        if (!res.ok) {
+          throw new Error(`Server returned HTTP ${res.status}`);
+        }
+        const ctype = res.headers.get('content-type') || '';
+        if (ctype.includes('text/html') && !filename.endsWith('.html')) {
+          throw new Error('Server returned an error page instead of media file');
+        }
+        const blob = await res.blob();
+        if (!blob || blob.size === 0) {
+          throw new Error('Downloaded file was empty');
+        }
+
+        const mimeType = blob.type || (filename.endsWith('.mp4') ? 'video/mp4' : (filename.endsWith('.mp3') ? 'audio/mpeg' : 'application/octet-stream'));
+        const file = new File([blob], filename, { type: mimeType });
+
+        // On mobile devices, offer native share sheet if supported
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          try {
             await navigator.share({
               files: [file],
               title: filename,
-              text: 'VoiceFi Master Video Reel'
+              text: 'VoiceFi: ' + filename
             });
+            if (typeof showToast === 'function') {
+              showToast(`✅ Saved / Shared ${filename}`, 3000);
+            }
             return;
+          } catch (shareErr) {
+            if (shareErr.name === 'AbortError') return;
+            console.log('navigator.share fallback to direct blob save:', shareErr);
           }
-        } catch (e) {
-          console.log('Share fallback triggered:', e);
+        }
+
+        // Direct download using Blob URL (triggers native browser download notification & Files save)
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 15000);
+        if (typeof showToast === 'function') {
+          showToast(`✅ Downloaded ${filename} (${(blob.size / 1048576).toFixed(1)} MB)`, 3500);
+        }
+      } catch (err) {
+        console.error('Download media error:', err);
+        if (typeof showToast === 'function') {
+          showToast(`❌ Download failed: ${err.message}`, 4000);
+        } else {
+          alert(`Download failed: ${err.message}`);
         }
       }
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
     };
 
     // Hard Reload App & Clear Service Worker Cache
@@ -1888,7 +2058,11 @@
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       }
       if (audioCtx.state === 'suspended') {
-        audioCtx.resume();
+        audioCtx.resume().then(() => {
+          if (typeof keepAudioContextAlive === 'function') keepAudioContextAlive();
+        }).catch(() => {});
+      } else if (audioCtx.state === 'running') {
+        if (typeof keepAudioContextAlive === 'function') keepAudioContextAlive();
       }
     }
 
@@ -2108,22 +2282,72 @@
 
     // Audio Context Unlocking for Mobile Chrome & Safari Autoplay Policies
     let audioUnlocked = false;
-    function unlockAudio() {
-      if (audioUnlocked) return;
-      initAudioContext();
-      if (audioCtx && audioCtx.state === 'suspended') {
-        audioCtx.resume();
+    let audioKeepAliveNode = null;
+    let pendingAutoplayItem = null;
+
+    function keepAudioContextAlive() {
+      if (!audioCtx) return;
+      if (audioCtx.state === 'suspended') {
+        try { audioCtx.resume().catch(() => {}); } catch (e) {}
       }
-      if (ttsAudio) {
-        ttsAudio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
-        ttsAudio.play().then(() => {
-          ttsAudio.pause();
-          audioUnlocked = true;
-        }).catch(() => {});
+      if (audioCtx.state !== 'running') return;
+      if (audioKeepAliveNode) return;
+      try {
+        const sampleRate = audioCtx.sampleRate || 44100;
+        // 2-second buffer with imperceptible dither (~ -90dB) prevents mobile OS CoreAudio / AAudio hardware sleep
+        const buffer = audioCtx.createBuffer(1, sampleRate * 2, sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < data.length; i++) {
+          data[i] = (Math.random() * 2 - 1) * 0.00004;
+        }
+        const source = audioCtx.createBufferSource();
+        source.buffer = buffer;
+        source.loop = true;
+        const gainNode = audioCtx.createGain();
+        gainNode.gain.value = 0.00004;
+        source.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        source.start(0);
+        audioKeepAliveNode = source;
+
+        audioCtx.onstatechange = () => {
+          if (audioCtx.state === 'suspended') {
+            audioKeepAliveNode = null;
+          }
+        };
+      } catch (e) {
+        console.warn("keepAudioContextAlive notice:", e);
       }
     }
-    document.addEventListener('touchstart', unlockAudio, { once: false, passive: true });
-    document.addEventListener('click', unlockAudio, { once: false, passive: true });
+
+    function unlockAudio() {
+      initAudioContext();
+      if (audioCtx) {
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume().then(() => {
+            keepAudioContextAlive();
+          }).catch(() => {});
+        } else if (audioCtx.state === 'running') {
+          keepAudioContextAlive();
+        }
+      }
+
+      if (!audioUnlocked && ttsAudio) {
+        try {
+          ttsAudio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+          const p = ttsAudio.play();
+          if (p && p.then) {
+            p.then(() => {
+              audioUnlocked = true;
+            }).catch(() => {});
+          }
+        } catch (e) {}
+      }
+    }
+    document.addEventListener('touchstart', unlockAudio, { passive: true });
+    document.addEventListener('touchend', unlockAudio, { passive: true });
+    document.addEventListener('click', unlockAudio, { passive: true });
+    document.addEventListener('keydown', unlockAudio, { passive: true });
 
     // Audio & Speech Synthesis with FIFO Turn Queue
     let currentTtsSourceNode = null;
@@ -2131,7 +2355,7 @@
     let speechQueue = [];
     let isProcessingSpeechQueue = false;
 
-    function stopAllAgentSpeech() {
+    function stopAllAgentSpeech(broadcastServer = false) {
       speechQueue = [];
       isProcessingSpeechQueue = false;
       isSpeaking = false;
@@ -2154,16 +2378,19 @@
         currentTtsSourceNode = null;
       }
 
-      // 3. Stop HTML5 <audio> element and reset
+      // 3. Stop HTML5 <audio> element
       if (ttsAudio) {
         try {
           ttsAudio.onended = null;
           ttsAudio.pause();
           ttsAudio.currentTime = 0;
-          ttsAudio.removeAttribute('src');
-          ttsAudio.load();
         } catch (e) {}
       }
+
+      // 4. Hide any pending autoplay banners
+      pendingAutoplayItem = null;
+      document.getElementById("audioAutoplayBanner")?.classList.add("hidden");
+      document.getElementById("audioAutoplayVoiceBanner")?.classList.add("hidden");
 
       // 4. Cancel browser SpeechSynthesis
       if ('speechSynthesis' in window) {
@@ -2172,16 +2399,18 @@
         } catch (e) {}
       }
 
-      // 5. Send POST /api/stop to server to halt Mac afplay / background speech
-      try {
-        fetch('/api/stop', { method: 'POST' }).catch(() => {});
-      } catch (e) {}
-
-      // 6. Send WebSocket stop message if connected
-      if (ws && ws.readyState === WebSocket.OPEN) {
+      if (broadcastServer) {
+        // 5. Send POST /api/stop to server to halt Mac afplay / background speech
         try {
-          ws.send(JSON.stringify({ type: 'stop' }));
+          fetch('/api/stop', { method: 'POST' }).catch(() => {});
         } catch (e) {}
+
+        // 6. Send WebSocket stop message if connected
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          try {
+            ws.send(JSON.stringify({ type: 'stop' }));
+          } catch (e) {}
+        }
       }
     }
 
@@ -2269,49 +2498,101 @@
           const arrayBuffer = await res.arrayBuffer();
           if (!isSpeaking || !isProcessingSpeechQueue) return;
 
+          let playbackStarted = false;
+
+          // Tier 1: Web Audio Buffer Source (High-Fidelity 48kHz Neural Edge TTS)
           initAudioContext();
           if (audioCtx) {
-            try {
-              if (audioCtx.state === 'suspended') {
-                await audioCtx.resume();
-              }
-              const audioBuffer = await new Promise((resolve, reject) => {
-                audioCtx.decodeAudioData(arrayBuffer.slice(0), resolve, reject);
-              });
-              if (!isSpeaking || !isProcessingSpeechQueue) return;
+            if (audioCtx.state === 'suspended') {
+              try { await audioCtx.resume(); } catch (e) {}
+            }
+            // CRITICAL: Only schedule buffer if audioCtx is genuinely RUNNING.
+            // On mobile, calling source.start() on a suspended context is completely silent
+            // and never dispatches onended, permanently freezing the conversational queue.
+            if (audioCtx.state === 'running') {
+              try {
+                const audioBuffer = await new Promise((resolve, reject) => {
+                  audioCtx.decodeAudioData(arrayBuffer.slice(0), resolve, reject);
+                });
+                if (!isSpeaking || !isProcessingSpeechQueue) return;
 
-              const source = audioCtx.createBufferSource();
-              source.buffer = audioBuffer;
-              source.connect(audioCtx.destination);
-              currentTtsSourceNode = source;
-              source.onended = () => {
-                if (currentTtsSourceNode === source) {
-                  currentTtsSourceNode = null;
-                }
-                finishCurrentTurn();
-              };
-              source.start(0);
-              return;
-            } catch (decodeErr) {
-              console.warn("WebAudio decode error:", decodeErr);
+                const source = audioCtx.createBufferSource();
+                source.buffer = audioBuffer;
+                source.connect(audioCtx.destination);
+                currentTtsSourceNode = source;
+
+                let turnCompleted = false;
+                const safeTurnFinish = () => {
+                  if (turnCompleted) return;
+                  turnCompleted = true;
+                  if (currentTtsSourceNode === source) {
+                    currentTtsSourceNode = null;
+                  }
+                  finishCurrentTurn();
+                };
+
+                source.onended = safeTurnFinish;
+                // Safety watchdog: ensure turn advances even if audio hardware glitches
+                const durationMs = Math.max(2500, ((audioBuffer.duration || 3) + 1.5) * 1000);
+                setTimeout(() => {
+                  if (!turnCompleted && currentTtsSourceNode === source) {
+                    safeTurnFinish();
+                  }
+                }, durationMs);
+
+                source.start(0);
+                playbackStarted = true;
+                return;
+              } catch (decodeErr) {
+                console.warn("WebAudio decode/playback error:", decodeErr);
+              }
+            } else {
+              console.warn("AudioContext suspended/inactive (state:", audioCtx.state, "), trying HTML5 Audio fallback");
             }
           }
 
-          // Fallback to HTML5 Audio element
-          if (!isSpeaking || !isProcessingSpeechQueue) return;
-          const blob = new Blob([arrayBuffer], { type: 'audio/mpeg' });
-          const audioUrl = URL.createObjectURL(blob);
-          if (ttsAudio) {
-            ttsAudio.src = audioUrl;
-            ttsAudio.onended = () => {
-              finishCurrentTurn();
-            };
+          // Tier 2: HTML5 Audio Element Fallback
+          if (!playbackStarted && ttsAudio && isSpeaking && isProcessingSpeechQueue) {
             try {
+              const blob = new Blob([arrayBuffer], { type: 'audio/mpeg' });
+              const audioUrl = URL.createObjectURL(blob);
+              ttsAudio.src = audioUrl;
+
+              let html5Done = false;
+              const safeHtml5Finish = () => {
+                if (html5Done) return;
+                html5Done = true;
+                URL.revokeObjectURL(audioUrl);
+                finishCurrentTurn();
+              };
+
+              ttsAudio.onended = safeHtml5Finish;
+              ttsAudio.onerror = (err) => {
+                console.warn("HTML5 audio playback error:", err);
+                safeHtml5Finish();
+              };
+
+              // Watchdog
+              setTimeout(() => {
+                if (!html5Done && isSpeaking) {
+                  safeHtml5Finish();
+                }
+              }, 15000);
+
               await ttsAudio.play();
+              playbackStarted = true;
               return;
             } catch (playErr) {
-              console.warn("HTML5 audio play blocked:", playErr);
+              console.warn("HTML5 audio play blocked/failed:", playErr);
             }
+          }
+
+          // If background autoplay was blocked by mobile browser policy, DO NOT DROP IT!
+          // Present an immediate one-tap playback prompt so user can listen without losing response.
+          if (!playbackStarted && isSpeaking && isProcessingSpeechQueue) {
+            console.warn("Autoplay blocked by mobile browser policy. Presenting tap-to-listen prompt.");
+            promptAutoplayUnlock(arrayBuffer, text, finishCurrentTurn);
+            return;
           }
         }
       } catch (err) {
@@ -2319,39 +2600,152 @@
         console.warn("Server TTS fetch error:", err);
       }
 
+      // Tier 3: Native Web Speech API Fallback (Only if TTS network fetch failed)
+      if (isSpeaking && isProcessingSpeechQueue) {
+        console.log("Synthesizing speech via native Web Speech API fallback...");
+        fallbackSpeechSynthesis(text, () => {
+          finishCurrentTurn();
+        });
+        return;
+      }
+
       finishCurrentTurn();
+    }
+
+    async function executePendingAutoplay() {
+      if (!pendingAutoplayItem) return;
+      const item = pendingAutoplayItem;
+      pendingAutoplayItem = null;
+
+      document.removeEventListener('click', executePendingAutoplay, true);
+      document.removeEventListener('touchstart', executePendingAutoplay, true);
+      const globalBanner = document.getElementById("audioAutoplayBanner");
+      const voiceBanner = document.getElementById("audioAutoplayVoiceBanner");
+      if (globalBanner) globalBanner.classList.add("hidden");
+      if (voiceBanner) voiceBanner.classList.add("hidden");
+
+      initAudioContext();
+      if (audioCtx && audioCtx.state === 'suspended') {
+        try { await audioCtx.resume(); } catch (e) {}
+      }
+      keepAudioContextAlive();
+
+      // 1. Play WebAudio inside user gesture
+      if (audioCtx && audioCtx.state === 'running') {
+        try {
+          const audioBuffer = await new Promise((resolve, reject) => {
+            audioCtx.decodeAudioData(item.arrayBuffer.slice(0), resolve, reject);
+          });
+          const source = audioCtx.createBufferSource();
+          source.buffer = audioBuffer;
+          source.connect(audioCtx.destination);
+          currentTtsSourceNode = source;
+          source.onended = () => {
+            currentTtsSourceNode = null;
+            item.onComplete();
+          };
+          source.start(0);
+          return;
+        } catch (e) {
+          console.warn("WebAudio unlock playback error:", e);
+        }
+      }
+
+      // 2. Play HTML5 Audio inside user gesture
+      if (ttsAudio) {
+        try {
+          const blob = new Blob([item.arrayBuffer], { type: 'audio/mpeg' });
+          const url = URL.createObjectURL(blob);
+          ttsAudio.src = url;
+          ttsAudio.onended = () => {
+            URL.revokeObjectURL(url);
+            item.onComplete();
+          };
+          ttsAudio.onerror = () => {
+            URL.revokeObjectURL(url);
+            item.onComplete();
+          };
+          await ttsAudio.play();
+          return;
+        } catch (e) {
+          console.warn("HTML5 unlock playback error:", e);
+        }
+      }
+
+      // 3. Fallback
+      fallbackSpeechSynthesis(item.text, item.onComplete);
+    }
+
+    function promptAutoplayUnlock(arrayBuffer, text, onComplete) {
+      pendingAutoplayItem = { arrayBuffer, text, onComplete };
+
+      // Update Orb state
+      setOrbState('speaking', 'Tap to Hear Viv 🔊', 'Autoplay restricted — tap anywhere to listen');
+
+      // Show floating banners
+      const globalBanner = document.getElementById("audioAutoplayBanner");
+      if (globalBanner) globalBanner.classList.remove("hidden");
+      const voiceBanner = document.getElementById("audioAutoplayVoiceBanner");
+      if (voiceBanner) voiceBanner.classList.remove("hidden");
+
+      document.addEventListener('click', executePendingAutoplay, { once: true, capture: true });
+      document.addEventListener('touchstart', executePendingAutoplay, { once: true, capture: true });
+
+      const playBtn = document.getElementById("audioAutoplayPlayBtn");
+      if (playBtn) {
+        playBtn.onclick = (e) => {
+          e.stopPropagation();
+          executePendingAutoplay();
+        };
+      }
     }
 
     function fallbackSpeechSynthesis(text, onComplete) {
       if (!isSpeaking || !isProcessingSpeechQueue) return;
       if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-        const utter = new SpeechSynthesisUtterance(text);
-        utter.rate = 1.0;
-        utter.pitch = 1.0;
+        try {
+          window.speechSynthesis.cancel();
+          // Strip any residual markdown blockquote markers or symbols
+          const cleanText = text.replace(/^[>\s*-]+/gm, '').replace(/\s+>\s+/g, ' ').trim();
+          const utter = new SpeechSynthesisUtterance(cleanText);
+          utter.rate = 1.0;
+          utter.pitch = 1.0;
 
-        // Try selecting natural female voice matching Viv profile if available on OS
-        const voices = window.speechSynthesis.getVoices() || [];
-        const preferredVoice = voices.find(v => (v.name.includes("Ava") || v.name.includes("Samantha") || v.name.includes("Karen") || v.name.includes("Zoe") || v.name.includes("Natural")) && v.lang.startsWith("en"))
-          || voices.find(v => v.lang.startsWith("en") && !v.name.includes("Male") && !v.name.includes("David"))
-          || voices.find(v => v.lang.startsWith("en"));
-        if (preferredVoice) {
-          utter.voice = preferredVoice;
+          // Try selecting natural female voice matching Viv profile if available on OS
+          const voices = window.speechSynthesis.getVoices() || [];
+          const preferredVoice = voices.find(v => (v.name.includes("Ava") || v.name.includes("Samantha") || v.name.includes("Karen") || v.name.includes("Zoe") || v.name.includes("Natural")) && v.lang.startsWith("en"))
+            || voices.find(v => v.lang.startsWith("en") && !v.name.includes("Male") && !v.name.includes("David"))
+            || voices.find(v => v.lang.startsWith("en"));
+          if (preferredVoice) {
+            utter.voice = preferredVoice;
+          }
+
+          let done = false;
+          const safeFinish = () => {
+            if (done) return;
+            done = true;
+            if (onComplete) onComplete();
+          };
+
+          utter.onend = safeFinish;
+          utter.onerror = (e) => {
+            console.warn("SpeechSynthesis error:", e);
+            safeFinish();
+          };
+
+          // Watchdog in case speechSynthesis drops onend
+          setTimeout(safeFinish, Math.max(3000, (cleanText.split(/\s+/).length / 2) * 1000 + 2000));
+
+          window.speechSynthesis.speak(utter);
+          return;
+        } catch (synthErr) {
+          console.warn("SpeechSynthesis invocation failed:", synthErr);
         }
-
-        utter.onend = () => {
-          if (onComplete) onComplete();
-        };
-        utter.onerror = () => {
-          if (onComplete) onComplete();
-        };
-        window.speechSynthesis.speak(utter);
-      } else {
-        if (onComplete) onComplete();
       }
+      if (onComplete) onComplete();
     }
 
-    // Audio Recording Engine (Multi-Tiered for Mobile & Desktop)
+          // Audio Recording Engine (Multi-Tiered for Mobile & Desktop)
     let mediaRecorder = null;
     let audioChunks = [];
     let vadInterval = null;
@@ -2359,7 +2753,7 @@
 
     async function startListening() {
       initAudioContext();
-      stopAllAgentSpeech();
+      stopAllAgentSpeech(false);
 
       if (isListening) {
         stopListening();
@@ -2438,6 +2832,10 @@
             if (window.bgField) window.bgField.setAudioLevel(0);
             const captured = (finalTranscript || interimTranscript).trim();
             if (captured) {
+              if (audioCtx && audioCtx.state === 'suspended') {
+                try { audioCtx.resume().catch(() => {}); } catch (e) {}
+              }
+              keepAudioContextAlive();
               sendVoiceCommand(captured, true);
             } else {
               setOrbState('idle');
@@ -2456,7 +2854,7 @@
     }
 
     async function startMediaRecorderListening() {
-      stopAllAgentSpeech();
+      stopAllAgentSpeech(false);
       if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
         try {
           micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -2508,6 +2906,10 @@
               });
               const data = await res.json();
               if (data.transcript && data.transcript.trim()) {
+                if (audioCtx && audioCtx.state === 'suspended') {
+                  try { audioCtx.resume().catch(() => {}); } catch (e) {}
+                }
+                keepAudioContextAlive();
                 sendVoiceCommand(data.transcript.trim(), true);
               } else {
                 setOrbState('idle');
@@ -2722,6 +3124,7 @@
 
     function sendVoiceCommand(text, isVoice = false) {
       if (!text || !text.trim()) return;
+      unlockAudio();
 
       // Acoustic echo suppression: only filter if this is audio input and phone is actively speaking
       if (isVoice && isAcousticEcho(text.trim())) {
@@ -2814,7 +3217,7 @@
     }
 
     async function startMacRecording() {
-      stopAllAgentSpeech();
+      stopAllAgentSpeech(false);
       showToast("Listening on Mac Studio Mic...", 3000);
       setOrbState('listening', 'Mac Mic Active', 'Speak clearly near your Mac...');
       isListening = true;
@@ -4424,8 +4827,14 @@
     }
 
     function handleServerEvent(data) {
-      if (data.type === "stop" || data.type === "speech_stopped" || data.type === "agent_speaking_finished") {
-        stopAllAgentSpeech();
+      if (data.type === "stop" || data.type === "speech_stopped") {
+        stopAllAgentSpeech(false);
+        return;
+      }
+      if (data.type === "agent_speaking_finished") {
+        if (!isSpeaking && !isListening) {
+          setOrbState('idle');
+        }
         return;
       }
       if (data.type === "speak" || data.type === "speak_text") {
@@ -4633,9 +5042,15 @@
     }
 
     // Event Listeners
-    orbBtn.addEventListener("click", () => {
+    orbBtn.addEventListener("click", (e) => {
+      if (pendingAutoplayItem) {
+        e.stopPropagation();
+        executePendingAutoplay();
+        return;
+      }
       initAudioContext();
-      stopAllAgentSpeech();
+      const wasSpeaking = isSpeaking;
+      stopAllAgentSpeech(wasSpeaking);
       if (window.bgField) window.bgField.pulse(0.9);
       if (isListening) {
         stopListening();
@@ -4645,9 +5060,15 @@
     });
 
     if (chatMicBtn) {
-      chatMicBtn.addEventListener("click", () => {
+      chatMicBtn.addEventListener("click", (e) => {
+        if (pendingAutoplayItem) {
+          e.stopPropagation();
+          executePendingAutoplay();
+          return;
+        }
         initAudioContext();
-        stopAllAgentSpeech();
+        const wasSpeaking = isSpeaking;
+        stopAllAgentSpeech(wasSpeaking);
         if (isListening) {
           stopListening();
         } else {
@@ -5129,6 +5550,7 @@
     if (textForm && textInput) {
       textForm.addEventListener("submit", (e) => {
         e.preventDefault();
+        unlockAudio();
         const val = textInput.value.trim();
         if (val) {
           sendVoiceCommand(val, false);
@@ -5139,6 +5561,7 @@
 
     chatForm.addEventListener("submit", (e) => {
       e.preventDefault();
+      unlockAudio();
       const val = chatInput.value.trim();
       if (val || currentAttachedImages.length > 0) {
         sendVoiceCommand(val || "Process attached images", false);

@@ -1019,12 +1019,14 @@ class AudioTroubleshooter:
         if fix in ("calibrate_mic", "calibrate"):
             res = self.test_microphone_loopback(duration_seconds=1.5, play_back=False)
             if res.success:
-                suggested_threshold = max(min(res.rms_energy * 1.5, 0.02), 0.002)
+                suggested_threshold = max(min(res.rms_energy * 1.2, 0.008), 0.003)
                 self.config.vad.energy_threshold = round(suggested_threshold, 5)
+                if getattr(self.config.vad, "engine", "auto") == "energy":
+                    self.config.vad.engine = "auto"
                 save_config(self.config)
                 return {
                     "success": True,
-                    "message": f"Calibrated microphone VAD threshold to {self.config.vad.energy_threshold} based on ambient noise.",
+                    "message": f"Calibrated microphone VAD threshold to {self.config.vad.energy_threshold} based on ambient noise (engine: {self.config.vad.engine}).",
                 }
             return {"success": False, "message": f"Microphone calibration failed: {res.error}"}
 

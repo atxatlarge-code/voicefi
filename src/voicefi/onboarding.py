@@ -304,9 +304,14 @@ def run_onboarding():
         except Exception as e:
             print(f"⚠️ Error dispatching to editor: {e}")
 
-    print("\n" + "=" * 50)
-    print(" 🎉 Onboarding flow complete!")
-    print("=" * 50 + "\n")
+    print("\n" + "=" * 60)
+    print(" 🎉 Onboarding flow complete! VoiceFi is live & listening.")
+    print("=" * 60)
+    print(" ⭐ Enjoying VoiceFi? Support open-source AI voice with a star:")
+    print("    👉 https://github.com/atxatlarge-code/voicefi")
+    print(" 💬 Questions, ideas, or feedback? Run anytime:")
+    print('    👉 vifi feedback submit "<your thoughts>"')
+    print("=" * 60 + "\n")
 
     try:
         from voicefi.telemetry import capture_event

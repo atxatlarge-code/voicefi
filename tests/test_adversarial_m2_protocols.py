@@ -507,7 +507,7 @@ class TestRESTEndpointsAdversarial(AioHTTPTestCase):
             assert "Invalid 'volume' parameter" in d_vbad.get("error", "")
 
     async def test_rest_stop_endpoint_rapid_burst(self):
-        """Verify POST /api/stop handles empty bodies, garbage payloads, and rapid 50x bursts."""
+        """Verify POST /api/stop handles empty bodies, garbage payloads, and rapid 50x bursts with debounce."""
         with patch("voicefi.tts.base.stop_all_speech") as mock_stop:
             # 1. Standard stop call
             resp = await self.client.post("/api/stop")
@@ -517,16 +517,23 @@ class TestRESTEndpointsAdversarial(AioHTTPTestCase):
             assert data.get("stopped") is True
             assert mock_stop.call_count == 1
 
-            # 2. Stop call with arbitrary body
+            # 2. Stop call with arbitrary body (after resetting debounce timestamp)
+            self.companion_server._last_stop_handle_time = 0.0
             resp_body = await self.client.post("/api/stop", json={"irrelevant": True})
             assert resp_body.status == 200
+            data_body = await resp_body.json()
+            assert data_body.get("status") == "ok"
             assert mock_stop.call_count == 2
 
-            # 3. Rapid burst of 50 stop requests
+            # 3. Rapid burst of 50 stop requests (verifying defensive server debouncing per Rule 8)
             for _ in range(50):
                 r = await self.client.post("/api/stop")
                 assert r.status == 200
-            assert mock_stop.call_count == 52
+                d = await r.json()
+                assert d.get("status") == "ok"
+                assert d.get("debounced") is True
+            # Debounce ensures stop_all_speech was not hammered 52 times
+            assert mock_stop.call_count == 2
 
     async def test_rest_send_fuzzing_and_error_handling(self):
         """Fuzz POST /api/send with malformed payloads, empty prompts, and failure states."""

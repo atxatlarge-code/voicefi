@@ -109,21 +109,72 @@ class ActiveListeningEngine:
                 return True
         return False
 
+    ORDINAL_INDEX_MAP = {
+        "first": 0, "1st": 0, "one": 0, "1": 0,
+        "second": 1, "2nd": 1, "two": 1, "2": 1,
+        "third": 2, "3rd": 2, "three": 2, "3": 2,
+        "fourth": 3, "4th": 3, "four": 3, "4": 3,
+        "fifth": 4, "5th": 4, "five": 4, "5": 4,
+    }
+
     @classmethod
     def match_pending_choice(cls, text: str, pending_question: Dict[str, Any]) -> Optional[str]:
         """
         Match spoken response against multiple choices in pending question.
         Returns the matched canonical option string, or None if no match.
+        Supports:
+          1. Ordinals & indices ("the first one", "option 2", "number 1", "3")
+          2. Relational references ("former", "latter")
+          3. Polar confirmation for binary questions ("yes", "sure" vs "no", "cancel")
+          4. Literal substring matching
+          5. Fuzzy key content word overlap with prefix stemming
         """
         if not pending_question or "options" not in pending_question:
             return None
 
         clean_text = text.strip().lower()
+        clean_text = re.sub(r"[.,!?;]+$", "", clean_text).strip()
+        norm_clean = re.sub(r"\b(?:please|thanks|thank you)\b", "", clean_text).strip()
+        norm_clean = re.sub(r"\s+", " ", norm_clean)
         options = pending_question["options"]
         if not options:
             return None
 
-        # 1. Exact match against option text
+        # 1. Ordinal & numeric index matching ("the first one", "option 2", "choice 1", "pick the second option")
+        for candidate_str in (norm_clean, clean_text):
+            idx_match = re.search(
+                r"^(?:(?:go\s+with|pick|choose|select|take|opt\s+for)\s+)?(?:the\s+)?(?:(first|1st|second|2nd|third|3rd|fourth|4th|fifth|5th|last|final)(?:\s+(?:one|option|choice))?|(?:option|choice|number|#)\s*([1-5]|one|two|three|four|five)|([1-5]))[\s.?!]*$",
+                candidate_str,
+                re.IGNORECASE,
+            )
+            if idx_match:
+                word = (idx_match.group(1) or idx_match.group(2) or idx_match.group(3) or "").lower()
+                if word in ("last", "final"):
+                    return options[-1]
+                mapped_idx = cls.ORDINAL_INDEX_MAP.get(word)
+                if mapped_idx is not None and mapped_idx < len(options):
+                    return options[mapped_idx]
+
+        # 2. Relational references for binary options
+        if len(options) == 2:
+            if re.search(r"\bformer\b", clean_text):
+                return options[0]
+            if re.search(r"\blatter\b", clean_text):
+                return options[1]
+
+            # Binary affirmative / rejection (rejection checked first to prevent "no don't do it" matching "do it")
+            if re.search(r"\b(?:no|nope|nah|cancel|abort|stop|don'?t)\b", clean_text):
+                for opt in options:
+                    if any(w in opt.lower() for w in ("no", "cancel", "abort", "skip", "stop")):
+                        return opt
+                return options[1]
+            elif re.search(r"\b(?:yes|yeah|yep|sure|go\s+ahead|do\s+it|proceed|confirm|sounds\s+good)\b", clean_text):
+                for opt in options:
+                    if any(w in opt.lower() for w in ("yes", "proceed", "continue", "stage", "confirm", "ship")):
+                        return opt
+                return options[0]
+
+        # 3. Exact match against option text
         for opt in options:
             opt_clean = opt.strip().lower()
             if clean_text == opt_clean:
@@ -131,10 +182,11 @@ class ActiveListeningEngine:
             if opt_clean in clean_text:
                 return opt
 
-        # 2. Key content word matching
+        # 4. Key content word matching
         text_words = set(re.findall(r"\b[a-z0-9]+\b", clean_text)) - cls.STOP_WORDS
         best_opt = None
-        best_overlap = 0
+        best_overlap = 0.0
+        best_opt_len = 0
 
         for opt in options:
             opt_words = set(re.findall(r"\b[a-z0-9]+\b", opt.lower())) - cls.STOP_WORDS
@@ -151,8 +203,12 @@ class ActiveListeningEngine:
             if overlap_score > best_overlap:
                 best_overlap = overlap_score
                 best_opt = opt
+                best_opt_len = len(opt_words)
 
-        if best_opt and best_overlap > 0:
+        # Require meaningful match: at least 0.8 overlap score (e.g. prefix match like stage <-> staging)
+        if best_opt and (
+            best_overlap >= 0.8 or (best_opt_len > 0 and (best_overlap / best_opt_len) >= 0.4)
+        ):
             return best_opt
 
         return None
@@ -170,8 +226,8 @@ class ActiveListeningEngine:
 
         # 1. Claude Code Direct Routing
         claude_patterns = [
-            r"^(?:(?:ask|tell|have|send\s+to|switch\s+to)\s+)?claude(?:\s+code)?(?:\s+to|\s*:\s*|\s*,\s*|\s+)\s*(.+)$",
-            r"^claude,\s*(.+)$",
+            r"^(?:ask|tell|have|send\s+to|switch\s+to)\s+claude(?:\s+code)?(?:\s+to|\s*:\s*|\s*,\s*|\s+)\s*(.+)$",
+            r"^claude(?:,\s*|\s*:\s*)(.+)$",
         ]
         for pat in claude_patterns:
             m = re.match(pat, clean, re.IGNORECASE)
@@ -203,10 +259,10 @@ class ActiveListeningEngine:
             return SpokenTargetChannel.LINEAR, title, {"title": title}
 
         # 4. Antigravity Direct Routing
-        ag_pattern = r"^(?:(?:ask|tell|have)\s+)?antigravity(?:\s+to|\s*:\s*|\s*,\s*|\s+)\s*(.+)$"
+        ag_pattern = r"^(?:(?:ask|tell|have|send\s+to)\s+)?antigravity(?:\s+to|\s*:\s*|\s*,\s*|\s+)\s*(.+)$"
         m_ag = re.match(ag_pattern, clean, re.IGNORECASE)
         if m_ag:
-            return SpokenTargetChannel.ANTIGRAVITY, m_ag.group(1).strip(), {}
+            return SpokenTargetChannel.ANTIGRAVITY, m_ag.group(1).strip(), {"routed_to": "antigravity"}
 
         return SpokenTargetChannel.ANTIGRAVITY, clean, {}
 
@@ -249,15 +305,18 @@ class ActiveListeningEngine:
 
         # 3. Check for Pending Question / Choice Match
         if pending_question:
-            matched_option = cls.match_pending_choice(normalized_text, pending_question)
-            if matched_option:
-                return ActiveListeningResult(
-                    category=SpokenIntentCategory.PENDING_ANSWER,
-                    raw_text=raw_text,
-                    normalized_text=normalized_text,
-                    is_actionable=True,
-                    selected_option=matched_option,
-                )
+            from voicefi.audio.echo_canceller import is_acoustic_echo
+
+            if not is_acoustic_echo(raw_text) and not is_acoustic_echo(normalized_text):
+                matched_option = cls.match_pending_choice(normalized_text, pending_question)
+                if matched_option:
+                    return ActiveListeningResult(
+                        category=SpokenIntentCategory.PENDING_ANSWER,
+                        raw_text=raw_text,
+                        normalized_text=normalized_text,
+                        is_actionable=True,
+                        selected_option=matched_option,
+                    )
 
         # 4. Check for Conversational Filler / Smalltalk
         if cls.is_conversational_filler(raw_text):

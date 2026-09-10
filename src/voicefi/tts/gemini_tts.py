@@ -206,7 +206,14 @@ class GeminiTTS(BaseTTS):
                     text=clean_text,
                     agent_name=getattr(self, "agent_name", "VoiceFi"),
                     persona_name=self.voice,
+                    app_name=getattr(self, "app_name", "Antigravity"),
+                    conv_id=getattr(self, "conv_id", ""),
+                    workspace_path=getattr(self, "workspace_path", ""),
                 ):
+                    nonlocal turn_start_time
+                    turn_start_time = time.time()
+                    self._stop_requested = False
+
                     if self._stop_requested or is_speech_interrupted(turn_start_time):
                         return
 

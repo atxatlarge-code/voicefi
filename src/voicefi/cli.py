@@ -3380,6 +3380,7 @@ def cmd_feedback(args):
         )
         print(f"✅ Feedback logged successfully (ID: {record['id']}).")
         print("📁 Saved to ~/.voicefi/feedback.jsonl")
+        print("⭐ Thank you for helping build VoiceFi! Drop a star on GitHub: https://github.com/atxatlarge-code/voicefi")
 
 
 def cmd_record(args):
@@ -4075,22 +4076,18 @@ def cmd_license(args):
             )
             return
 
-        validation = FeatureGate.verify_key(raw_key)
-        if not validation["is_valid"]:
-            if validation.get("is_expired"):
-                print(f"\n❌ Error: This license key expired on {validation.get('expires_at')}.")
+        config = load_config(getattr(args, "config", None))
+        result = FeatureGate.activate_license(raw_key, config=config)
+        if not result.get("success"):
+            if result.get("is_expired"):
+                print(f"\n❌ Error: This license key expired on {result.get('expires_at')}.")
             else:
-                print(f"\n❌ Error: {validation.get('error', 'Invalid license key signature.')}")
+                print(f"\n❌ Error: {result.get('error', 'Invalid license key signature.')}")
                 print("   Please check your license key or visit https://voicefi.org#pricing\n")
             return
 
-        config = load_config(getattr(args, "config", None))
-        config.license_key = raw_key
-        config.tier = validation.get("tier", "pro")
-        save_config(config)
-
-        expires_desc = validation.get("expires_at", "Perpetual")
-        tag_desc = f" ({validation['tag']})" if validation.get("tag") else ""
+        expires_desc = result.get("expires_at", "Perpetual")
+        tag_desc = f" ({result['tag']})" if result.get("tag") else ""
         masked_key = (
             (raw_key[:12] + "..." + raw_key[-6:])
             if len(raw_key) >= 20
@@ -4099,8 +4096,9 @@ def cmd_license(args):
 
         print("\n🎉 VoiceFi Pro License Successfully Activated!")
         print(f"🔑 License Key: {masked_key}")
-        print(f"⚡ Tier:        {config.tier.capitalize()}{tag_desc} · {expires_desc}")
+        print(f"⚡ Tier:        {result.get('tier', 'pro').capitalize()}{tag_desc} · {expires_desc}")
         print("🚀 All Pro features (Streaming STT, 20+ Neural Voices, Cloud Relay) are unlocked!")
+        return
     if action in ("generate", "create", "mint", "new"):
         from voicefi.license import generate_license_key
         tier = getattr(args, "tier", "PRO") or "PRO"
@@ -4382,8 +4380,9 @@ def cmd_hud(args):
         hud.set_persistent(True)
         hud.set_idle()
         _pump(0.5)
-        print("🟢 VoiceFi Dynamic Island HUD opened and visible.")
-        print("📌 Resting pill is anchored at the top-right below Chrome's tab bar.")
+        pos = getattr(cfg.hud, "position", "bottom_right") if hasattr(cfg, "hud") and cfg.hud else "bottom_right"
+        pos_desc = "the lower-right above the lower bar/dock" if pos == "bottom_right" else f"the {pos.replace('_', '-')}"
+        print(f"📌 Resting pill is anchored at {pos_desc}.")
         print(
             "💡 Use 'vifi hud status' to inspect, 'vifi hud debug' to test all states, or 'vifi hud off' / 'vifi hud close' to disable.\n"
         )
@@ -4403,7 +4402,7 @@ def cmd_hud(args):
         hud.set_idle()
         _pump(0.5)
         print(
-            "🎯 VoiceFi Dynamic Island HUD position reset to default top-right anchor below Chrome tab bar.\n"
+            "🎯 VoiceFi Dynamic Island HUD position reset to default bottom-right anchor above lower bar.\n"
         )
     elif action == "status":
         hud_cfg = getattr(cfg, "hud", None) or HUDConfig()
@@ -4548,7 +4547,7 @@ def cmd_hud(args):
             print(
                 f"  [F]     Toggle Fullscreen Overlay (Games) (Current: {'ON' if getattr(hud, 'fullscreen_overlay', True) else 'OFF'})"
             )
-            print("  [R]     Reset Position to Top-Right (20px Margin)")
+            print("  [R]     Reset Position to Bottom-Right (Above Dock)")
             print("  [C]     Clear / Force Hide HUD")
             print("  [Q]     Exit Debug Studio")
             print("────────────────────────────────────────────────────────────")
@@ -6106,7 +6105,7 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
     hud_sub.add_parser(
         "reset",
         aliases=["reset-position"],
-        help="Reset HUD position to default top-right anchor below Chrome tab bar",
+        help="Reset HUD position to default bottom-right anchor above lower bar",
     )
     hud_sub.add_parser(
         "debug",
@@ -6158,7 +6157,7 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
         "--position",
         type=str,
         default=None,
-        choices=["top_center", "top_right", "top_left", "bottom_center"],
+        choices=["bottom_right", "top_center", "top_right", "top_left", "bottom_center"],
         help="HUD screen position",
     )
     cfg_p.add_argument(

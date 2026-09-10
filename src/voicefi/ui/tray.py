@@ -426,25 +426,58 @@ class VoiceFiTrayApp(rumps.App):
 
         def _run():
             try:
-                rumps.notification(
-                    "VoiceFi Updater", "Starting Update...", "Downloading latest build from GitHub"
+                from voicefi.updater import check_for_updates, perform_update, is_dmg_install
+                from voicefi import __version__
+
+                is_avail, new_ver, _ = check_for_updates(force=True)
+
+                if not is_avail and not is_dmg_install():
+                    try:
+                        rumps.notification(
+                            "VoiceFi is Up to Date ✨",
+                            f"Version {__version__} is active",
+                            "All features and neural voices are up to date.",
+                        )
+                    except Exception:
+                        pass
+                    return
+
+                msg = (
+                    "Downloading latest macOS DMG..."
+                    if is_dmg_install()
+                    else "Downloading latest build from GitHub..."
                 )
-                from voicefi.updater import perform_update
+                try:
+                    rumps.notification("VoiceFi Updater", "Starting Update...", msg)
+                except Exception:
+                    pass
 
                 res = perform_update(relink_hooks=True)
                 if res.get("success"):
-                    rumps.notification(
-                        "VoiceFi Updated 🎉",
-                        res.get("message", "Upgraded successfully"),
-                        "All features are active.",
-                    )
-                    self.update_item.title = f"✅ Updated to {res.get('new_version', 'latest')}"
+                    if res.get("is_dmg"):
+                        self.update_item.title = f"💿 Installer Opened (v{res.get('new_version', new_ver)})"
+                    else:
+                        try:
+                            rumps.notification(
+                                "VoiceFi Updated 🎉",
+                                res.get("message", "Upgraded successfully"),
+                                "All features are active.",
+                            )
+                        except Exception:
+                            pass
+                        self.update_item.title = f"✅ Updated to {res.get('new_version', 'latest')}"
                 else:
-                    rumps.notification(
-                        "VoiceFi Update Error ⚠️", "Update Failed", str(res.get("error", "Error"))
-                    )
+                    try:
+                        rumps.notification(
+                            "VoiceFi Update Error ⚠️", "Update Failed", str(res.get("error", "Error"))
+                        )
+                    except Exception:
+                        pass
             except Exception as e:
-                rumps.notification("VoiceFi Update Error ⚠️", "Update Failed", str(e))
+                try:
+                    rumps.notification("VoiceFi Update Error ⚠️", "Update Failed", str(e))
+                except Exception:
+                    pass
 
         threading.Thread(target=_run, daemon=True).start()
 
@@ -940,7 +973,7 @@ class VoiceFiTrayApp(rumps.App):
 
         # 7. Screen Positioning Submenu
         pos_menu = rumps.MenuItem("📍 Screen Position")
-        cur_pos = getattr(hud_cfg, "position", "top_right")
+        cur_pos = getattr(hud_cfg, "position", "bottom_right")
 
         def _make_pos_cb(pos_key):
             def _cb(_):
@@ -958,9 +991,9 @@ class VoiceFiTrayApp(rumps.App):
                 self._build_hud_submenu()
                 try:
                     labels = {
+                        "bottom_right": "Bottom Right (Above Dock)",
                         "top_right": "Top Right",
                         "top_center": "Top Center (Notch)",
-                        "bottom_right": "Bottom Right",
                     }
                     rumps.notification(
                         "VoiceFi HUD",
@@ -972,22 +1005,24 @@ class VoiceFiTrayApp(rumps.App):
 
             return _cb
 
+        pos_br = rumps.MenuItem(
+            "📍 Bottom Right (Default • Above Dock)", callback=_make_pos_cb("bottom_right")
+        )
+        pos_br.state = 1 if cur_pos == "bottom_right" else 0
         pos_tr = rumps.MenuItem(
-            "📍 Top Right (Default • Clears Chrome Tabs)", callback=_make_pos_cb("top_right")
+            "📍 Top Right (Clears Chrome Tabs)", callback=_make_pos_cb("top_right")
         )
         pos_tr.state = 1 if cur_pos == "top_right" else 0
         pos_tc = rumps.MenuItem(
             "📍 Top Center (MacBook Camera Notch)", callback=_make_pos_cb("top_center")
         )
         pos_tc.state = 1 if cur_pos == "top_center" else 0
-        pos_br = rumps.MenuItem("📍 Bottom Right", callback=_make_pos_cb("bottom_right"))
-        pos_br.state = 1 if cur_pos == "bottom_right" else 0
 
         pos_menu.update(
             [
+                pos_br,
                 pos_tr,
                 pos_tc,
-                pos_br,
                 rumps.separator,
                 rumps.MenuItem("🎯 Reset Position to Default", callback=self.reset_hud_position),
             ]
@@ -1641,11 +1676,13 @@ class VoiceFiTrayApp(rumps.App):
                     )
 
                 self.active_recorder = None
-                self._current_status = "transcribing"
-                hud.show_transcribing()
-
-                stt = get_stt_engine(self.config)
-                text = stt.transcribe(temp_wav)
+                if temp_wav and Path(temp_wav).is_file():
+                    self._current_status = "transcribing"
+                    hud.show_transcribing()
+                    stt = get_stt_engine(self.config)
+                    text = stt.transcribe(temp_wav)
+                else:
+                    text = ""
                 if text and text.strip():
                     conv_id = active_conv.id if active_conv else None
                     is_auto_send = getattr(
@@ -1837,11 +1874,13 @@ class VoiceFiTrayApp(rumps.App):
                     )
 
                 self.active_recorder = None
-                self._current_status = "transcribing"
-                hud.show_transcribing()
-
-                stt = get_stt_engine(self.config)
-                text = stt.transcribe(temp_wav)
+                if temp_wav and Path(temp_wav).is_file():
+                    self._current_status = "transcribing"
+                    hud.show_transcribing()
+                    stt = get_stt_engine(self.config)
+                    text = stt.transcribe(temp_wav)
+                else:
+                    text = ""
                 if text and text.strip():
                     is_auto_send = getattr(
                         getattr(self.config, "hud", None), "auto_send", True
@@ -2246,13 +2285,13 @@ class VoiceFiTrayApp(rumps.App):
         self._build_hud_submenu()
 
     def reset_hud_position(self, sender=None):
-        """Reset HUD position back to default anchor below Chrome top bar."""
+        """Reset HUD position back to default anchor above lower Dock."""
         hud = UnifiedDynamicIslandHUD.get_instance()
         hud.reset_position()
         self._build_hud_submenu()
         try:
             rumps.notification(
-                "VoiceFi HUD", "Position Reset", "Restored default top-right anchor."
+                "VoiceFi HUD", "Position Reset", "Restored default bottom-right anchor."
             )
         except Exception:
             pass
@@ -2610,11 +2649,13 @@ class VoiceFiTrayApp(rumps.App):
                     )
 
                 self.active_recorder = None
-                self._current_status = "transcribing"
-                hud.show_transcribing()
-
-                stt = get_stt_engine(self.config)
-                text = stt.transcribe(temp_wav)
+                if temp_wav and Path(temp_wav).is_file():
+                    self._current_status = "transcribing"
+                    hud.show_transcribing()
+                    stt = get_stt_engine(self.config)
+                    text = stt.transcribe(temp_wav)
+                else:
+                    text = ""
                 if text and text.strip():
                     is_auto_send = getattr(getattr(self.config, "hud", None), "auto_send", True)
 

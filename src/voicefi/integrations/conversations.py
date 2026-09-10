@@ -106,14 +106,16 @@ def claim_turn(
                 for e in valid_entries:
                     e_pid = e.get("pid")
                     e_status = e.get("status", "claimed")
+                    e_ts = float(e.get("timestamp", 0))
                     # If claiming process died mid-flight before completion, ignore stale lock
+                    # BUT if timestamp is within recent debounce window (< 4.0s), respect the lock
                     if e_pid and e_status != "completed" and not is_pid_alive(int(e_pid)):
-                        continue
+                        if (now - e_ts) >= 4.0:
+                            continue
 
                     e_sig = e.get("signature", "")
                     e_norm = e.get("norm_sig") or _normalize_turn_signature(e_sig)
                     e_cid = e.get("conv_id", "")
-                    e_ts = float(e.get("timestamp", 0))
                     e_step = e.get("step_index")
                     e_tid = e.get("turn_id")
 
@@ -172,8 +174,15 @@ def claim_turn(
                 if len(valid_entries) > 25:
                     valid_entries = valid_entries[-25:]
 
-                with open(turn_file, "w") as f:
-                    json.dump(valid_entries, f)
+                import tempfile
+                try:
+                    with tempfile.NamedTemporaryFile("w", dir=turn_file.parent, delete=False) as tf:
+                        json.dump(valid_entries, tf)
+                        temp_name = tf.name
+                    os.replace(temp_name, str(turn_file))
+                except Exception:
+                    with open(turn_file, "w") as f:
+                        json.dump(valid_entries, f)
 
                 return True
             finally:
@@ -183,9 +192,13 @@ def claim_turn(
         return True
 
 
-def mark_turn_completed(turn_id: Optional[str] = None) -> None:
+def mark_turn_completed(
+    turn_id: Optional[str] = None,
+    conv_id: Optional[str] = None,
+    step_index: Optional[int] = None,
+) -> None:
     """Mark active turn as completed so its speech output is recorded."""
-    if not turn_id:
+    if not turn_id and not conv_id:
         return
     turn_file = Path("/tmp/voicefi_active_turns.json")
     lock_file = Path("/tmp/voicefi_active_turns.lock")
@@ -201,10 +214,23 @@ def mark_turn_completed(turn_id: Optional[str] = None) -> None:
                     if isinstance(data, list):
                         entries = data
                 for e in entries:
-                    if e.get("turn_id") == turn_id or e.get("signature") == turn_id:
+                    match = False
+                    if turn_id and (e.get("turn_id") == turn_id or e.get("signature") == turn_id):
+                        match = True
+                    elif conv_id and e.get("conv_id") == conv_id:
+                        if step_index is None or e.get("step_index") == step_index:
+                            match = True
+                    if match:
                         e["status"] = "completed"
-                with open(turn_file, "w") as f:
-                    json.dump(entries, f)
+                import tempfile
+                try:
+                    with tempfile.NamedTemporaryFile("w", dir=turn_file.parent, delete=False) as tf:
+                        json.dump(entries, tf)
+                        temp_name = tf.name
+                    os.replace(temp_name, str(turn_file))
+                except Exception:
+                    with open(turn_file, "w") as f:
+                        json.dump(entries, f)
             finally:
                 fcntl.flock(lock_fp, fcntl.LOCK_UN)
     except Exception:
@@ -285,28 +311,59 @@ def extract_choice_options(question_text: str) -> List[str]:
     if not question_text or not question_text.strip():
         return []
 
-    text = question_text.strip().rstrip("?.!")
+    raw = question_text.strip()
+    is_question = raw.endswith("?") or bool(
+        re.match(
+            r"^(?:which|should we|shall we|do you want|would you like|would you prefer|choose|select)\b",
+            raw,
+            re.IGNORECASE,
+        )
+    )
+    if not is_question:
+        return []
 
-    # 1. Quoted choices: "foo" or "bar"
+    text = raw.rstrip("?.!")
+
+    # 1. Numbered or bulleted markdown lists: "1. Option A\n2. Option B" or "- Option A\n- Option B"
+    list_items = re.findall(r"(?:^|\n)\s*(?:\d+[\.\)]|[-*•])\s+([^\n]+)", raw)
+    if len(list_items) >= 2:
+        return [item.strip().lower() for item in list_items if len(item.strip()) > 1]
+
+    # 2. Quoted choices: "foo" or "bar"
     quotes = re.findall(r'["\']([^"\']+)["\']', text)
     if len(quotes) >= 2:
         return [q.strip().lower() for q in quotes if q.strip()]
 
-    # 2. Simple 'A or B' split
+    # 3. Oxford comma & multi-choice 'or' split: "A, B, or C" / "A or B"
     if " or " in text.lower():
-        # Match 'X or Y' where X might have a prefix like 'Would you like to'
-        parts = re.split(r"\s+or\s+", text, flags=re.IGNORECASE)
-        if len(parts) == 2:
-            left, right = parts[0].strip(), parts[1].strip()
-            # Clean common question leading phrasing from left
-            left = re.sub(
-                r"^(?:do you want to|would you like to|should we|shall we|can we|do we|please choose:?)\s*",
+        tokens = re.split(r",\s*(?:or\s+)?|\s+or\s+", text, flags=re.IGNORECASE)
+        clean_tokens = []
+        for t in tokens:
+            cleaned_t = re.sub(
+                r"^(?:do you want to|would you like to|would you prefer to|should we|shall we|can we|do we|please choose:?)\s*",
                 "",
-                left,
+                t.strip(),
                 flags=re.IGNORECASE,
             ).strip()
-            if left and right:
-                return [left.lower(), right.lower()]
+            if cleaned_t and len(cleaned_t) > 1:
+                clean_tokens.append(cleaned_t.lower())
+
+        if len(clean_tokens) >= 2:
+            # If the first token starts with a verb phrase like "deploy to " or "use " in a multi-item
+            # list (>= 3 items) while subsequent tokens do not, strip that verb prefix so
+            # "Should we deploy to AWS, GCP, or Azure?" yields ["aws", "gcp", "azure"]
+            if len(clean_tokens) >= 3:
+                prefix_match = re.match(
+                    r"^(?:deploy to|connect to|switch to|use|run|test|build)\s+(.+)$",
+                    clean_tokens[0],
+                    re.IGNORECASE,
+                )
+                if prefix_match:
+                    candidate_verb = clean_tokens[0].split()[0]
+                    if not any(t.startswith(candidate_verb) for t in clean_tokens[1:]):
+                        clean_tokens[0] = prefix_match.group(1).strip()
+
+            return clean_tokens
 
     return []
 

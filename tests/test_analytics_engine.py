@@ -20,6 +20,7 @@ from voicefi.analytics.queries import (
     get_tool_usage_breakdown,
     get_agent_distribution,
     get_cognitive_flow_breakdown,
+    get_speed_talking_analytics,
 )
 from voicefi.analytics.terminal import render_horizontal_bar, format_stats_dashboard
 from voicefi.analytics.exporter import (
@@ -129,6 +130,7 @@ def test_get_analytics_summary(temp_store):
 
     summary = get_analytics_summary(days=7, store=temp_store)
     assert summary["total_turns"] == 3
+    assert summary["agent_soundbites"] == 3
     assert summary["total_chars"] == 130
     assert summary["barge_in_count"] == 1
     assert summary["mcp_calls_count"] == 1
@@ -136,6 +138,49 @@ def test_get_analytics_summary(temp_store):
     assert summary["top_persona"] == "Ava (Premium)"
     assert summary["p50_latency_ms"] > 0
     assert summary["p95_latency_ms"] >= summary["p50_latency_ms"]
+    assert "feedback_loops" in summary
+    assert summary["feedback_loops"]["total_loops"] == 1  # 1 voice barge-in
+
+
+def test_proactive_feedback_loops_breakdown(temp_store):
+    """Verify explicit accounting of ProActive Feedback Loops (listen tools + hook returns + VAD barge-ins)."""
+    # 1. Agent soundbite delivered (one-way audio triage)
+    temp_store.record_local_event(
+        event_name="voice_interaction",
+        duration_ms=1500,
+        caller_agent="antigravity",
+        char_count=100,
+    )
+    # 2. Closed feedback loop via MCP listen tool call
+    temp_store.record_local_event(
+        event_name="mcp_tool_call",
+        tool_name="voicefi_listen",
+        caller_agent="antigravity",
+        char_count=80,
+    )
+    # 3. Closed feedback loop via user spoken prompt hook injection
+    temp_store.record_local_event(
+        event_name="voice_interaction",
+        duration_ms=2000,
+        caller_agent="antigravity",
+        char_count=120,
+        properties={"user_chars": 50, "feedback_loop_completed": True},
+    )
+    # 4. Acoustic Voice VAD barge-in takeover
+    temp_store.record_local_event(
+        event_name="barge_in_event",
+        is_barge_in=True,
+        caller_agent="antigravity",
+    )
+
+    summary = get_analytics_summary(days=7, store=temp_store)
+    fb = summary["feedback_loops"]
+    assert fb["listen_tools"] == 1
+    assert fb["hook_injections"] == 1
+    assert fb["prompt_returns"] == 2
+    assert fb["voice_barge_ins"] == 1
+    assert fb["total_loops"] == 3  # 2 prompt returns + 1 voice barge-in
+    assert fb["one_way_soundbites"] == 0
 
 
 def test_get_daily_turn_volume_and_tool_breakdown(temp_store):
@@ -732,6 +777,182 @@ def test_weighted_dispatch_and_zero_gaze_triage(temp_store):
     assert "Zero-Gaze Audio Triage:" in dashboard
     assert "12 dispatches: 2 tasks @ 30s + 10 jokes/pings @ 3.5s" in dashboard
     assert "Zero-Gaze Triage Focus:" in dashboard
+
+
+def test_edge_case_empty_database_and_zero_turns(temp_store):
+    """Verify that every analytics query function handles an empty database safely with valid default payloads."""
+    summary = get_analytics_summary(days=7, store=temp_store)
+    assert summary["total_turns"] == 0
+    assert summary["completed_turns"] == 0
+    assert summary["interrupted_turns"] == 0
+    assert summary["completion_rate_pct"] == 0.0
+    assert summary["interruption_rate_pct"] == 0.0
+    assert summary["p50_latency_ms"] == 0.0
+    assert summary["p95_latency_ms"] == 0.0
+    assert summary["total_spoken_minutes"] == 0.0
+    assert summary["estimated_hours_saved"] == 0.0
+    assert summary["top_agent"] == "antigravity"
+    assert summary["top_persona"] == "Ava (Premium)"
+    assert summary["feedback_loops"]["total_loops"] == 0
+    assert summary["feedback_loops"]["one_way_soundbites"] == 0
+
+    assert get_daily_turn_volume(days=7, store=temp_store) == []
+    assert get_tool_usage_breakdown(days=7, store=temp_store) == []
+    assert get_agent_distribution(days=7, store=temp_store) == []
+
+    flow = get_cognitive_flow_breakdown(days=7, store=temp_store)
+    assert flow["total_turns"] == 0
+    assert flow["flow_preservation_score"] == 100.0
+    assert flow["gaze_retention_pct"] == 100.0
+    assert len(flow["modalities"]) == 4
+
+    speed = get_speed_talking_analytics(days=30, store=temp_store)
+    assert speed["total_speed_turns"] == 0
+    assert speed["total_seconds_saved"] == 0.0
+    assert speed["avg_multiplier"] == 1.5
+
+    dashboard = format_stats_dashboard(days=7, store=temp_store)
+    assert "VoiceFi Developer Activity & Tool Analytics" in dashboard
+    assert "0 turns" in dashboard
+
+    exp_json = export_events_json(days=7, store=temp_store)
+    assert json.loads(exp_json)["voicefi_analytics_export"] == []
+
+    exp_csv = export_events_csv(days=7, store=temp_store)
+    assert "event_name,timestamp" in exp_csv
+
+
+def test_edge_case_all_turns_are_barge_ins(temp_store):
+    """Verify metrics and flow preservation when 100% of spoken turns are interrupted via acoustic VAD barge-in."""
+    for _ in range(4):
+        temp_store.record_local_event(
+            event_name="voice_interaction",
+            duration_ms=600,
+            char_count=50,
+            is_barge_in=True,
+        )
+
+    summary = get_analytics_summary(days=7, store=temp_store)
+    assert summary["total_turns"] == 4
+    assert summary["completed_turns"] == 0
+    assert summary["interrupted_turns"] == 4
+    assert summary["completion_rate_pct"] == 0.0
+    assert summary["interruption_rate_pct"] == 100.0
+    assert summary["feedback_loops"]["one_way_soundbites"] == 0
+    assert summary["feedback_loops"]["voice_barge_ins"] == 4
+    assert summary["feedback_loops"]["total_loops"] == 4
+
+    # Each barge-in turn saves 29.2s under empirical median benchmark
+    bd = summary["time_saved_breakdown"]
+    assert bd["conservative_seconds"] == round(4 * 29.2, 1)
+
+    flow = get_cognitive_flow_breakdown(days=7, store=temp_store)
+    assert flow["total_turns"] == 4
+    assert flow["flow_preservation_score"] == 80.0
+    assert flow["gaze_retention_pct"] == 70.0
+
+
+def test_edge_case_barge_in_count_exceeds_total_turns(temp_store):
+    """Verify that extra stop controls or barge-in events do not produce negative completed turns or rates > 100%."""
+    # 1 voice turn
+    temp_store.record_local_event(
+        event_name="voice_interaction",
+        duration_ms=500,
+        char_count=40,
+        is_barge_in=True,
+    )
+    # Multiple stop keys and independent barge-in records
+    for _ in range(5):
+        temp_store.record_local_event(event_name="barge_in_event", is_barge_in=True)
+    for _ in range(3):
+        temp_store.record_local_event(event_name="mcp_tool_call", tool_name="voicefi_stop")
+
+    summary = get_analytics_summary(days=7, store=temp_store)
+    assert summary["total_turns"] == 1
+    assert summary["barge_in_count"] == 9  # 1 turn + 5 barge events + 3 stops
+    assert summary["interrupted_turns"] == 1  # Clamped to total_turns
+    assert summary["completed_turns"] == 0
+    assert summary["completion_rate_pct"] == 0.0
+    assert summary["interruption_rate_pct"] == 100.0
+    assert summary["feedback_loops"]["one_way_soundbites"] == 0
+
+
+def test_edge_case_speed_talking_corrupted_and_non_dict_metadata(temp_store):
+    """Verify get_speed_talking_analytics resilience against non-dict JSON (lists, strings), malformed syntax, and boundaries."""
+    conn = temp_store._get_connection()
+    with conn:
+        # 1. JSON list (previously triggered AttributeError: 'list' object has no attribute 'get')
+        conn.execute(
+            "INSERT INTO events (event_name, metadata_json) VALUES (?, ?)",
+            ("speed_talk", json.dumps([1, 2, 3])),
+        )
+        # 2. JSON string literal
+        conn.execute(
+            "INSERT INTO events (event_name, metadata_json) VALUES (?, ?)",
+            ("speed_talk", json.dumps("string_multiplier")),
+        )
+        # 3. Corrupt syntax
+        conn.execute(
+            "INSERT INTO events (event_name, metadata_json) VALUES (?, ?)",
+            ("speed_talk", "{invalid_json"),
+        )
+        # 4. Valid speed talk event
+        conn.execute(
+            "INSERT INTO events (event_name, char_count, metadata_json) VALUES (?, ?, ?)",
+            ("speed_talk", 200, json.dumps({"speed_multiplier": 1.5})),
+        )
+
+    res = get_speed_talking_analytics(days=30, store=temp_store)
+    assert res["total_speed_turns"] == 1
+    assert res["avg_multiplier"] == 1.5
+    assert res["total_seconds_saved"] > 0.0
+
+
+def test_edge_case_boundary_days_overflow_and_none(temp_store):
+    """Verify _normalize_days and query functions handle infinity, negative numbers, None, and strings cleanly."""
+    temp_store.record_local_event(event_name="voice_interaction", duration_ms=400, char_count=30)
+
+    # float('inf') previously raised OverflowError
+    summary_inf = get_analytics_summary(days=float("inf"), store=temp_store)
+    assert summary_inf["total_turns"] == 1
+
+    summary_neg = get_analytics_summary(days=-999, store=temp_store)
+    assert summary_neg["total_turns"] == 1
+
+    summary_zero = get_analytics_summary(days=0, store=temp_store)
+    assert summary_zero["total_turns"] == 1
+
+    flow_inf = get_cognitive_flow_breakdown(days=float("inf"), store=temp_store)
+    assert flow_inf["total_turns"] == 1
+
+    speed_inf = get_speed_talking_analytics(days=float("inf"), store=temp_store)
+    assert isinstance(speed_inf, dict)
+
+
+def test_edge_case_calculate_time_saved_none_and_zero_inputs():
+    """Verify calculate_time_saved_breakdown safely defaults None parameters without raising TypeError."""
+    res_none = calculate_time_saved_breakdown(None, None, None)  # type: ignore
+    assert res_none["total_hours"] == 0.0
+    assert res_none["total_seconds"] == 0.0
+    assert res_none["conservative_seconds"] == 0.0
+
+    res_neg = calculate_time_saved_breakdown(-500, -100.0, -10, typing_wpm=0)
+    assert res_neg["total_hours"] == 0.0
+    assert res_neg["total_seconds"] == 0.0
+
+
+def test_cognitive_flow_substantive_dispatch_by_char_count(temp_store):
+    """Verify get_cognitive_flow_breakdown selects char_count and correctly recognizes substantive dispatches >= 80 chars without keywords."""
+    temp_store.record_local_event(
+        event_name="agent_dispatch",
+        char_count=120,
+        properties={"description": "Implement authentication middleware without keyword"},
+    )
+    flow = get_cognitive_flow_breakdown(days=7, store=temp_store)
+    assert flow["total_turns"] == 1
+    # Because chars >= 80, this is substantive (weight 1.0) -> flow score should be 100.0%, NOT 50.0%
+    assert flow["flow_preservation_score"] == 100.0
+
 
 
 

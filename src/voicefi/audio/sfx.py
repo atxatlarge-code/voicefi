@@ -324,5 +324,7 @@ def strip_inline_sfx_tags(text: str) -> str:
         cleaned = re.sub(rf"\[({known})\]", "", cleaned, flags=re.IGNORECASE)
     except Exception:
         pass
-    return " ".join(cleaned.split()).strip()
+    # Clean inline spaces while preserving newlines for markdown line-by-line structure
+    lines = [re.sub(r"[ \t]+", " ", line).strip() for line in cleaned.splitlines()]
+    return "\n".join(lines).strip()
 

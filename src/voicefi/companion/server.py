@@ -91,7 +91,7 @@ class CompanionServer:
         self.host = host
         self.tracker = ConversationTracker()
         self.active_websockets: Set[web.WebSocketResponse] = set()
-        self.app = web.Application(client_max_size=30 * 1024 * 1024)
+        self.app = web.Application(client_max_size=500 * 1024 * 1024)
         self.runner: Optional[web.AppRunner] = None
         self.site: Optional[web.TCPSite] = None
         self.loop: Optional[asyncio.AbstractEventLoop] = None
@@ -136,6 +136,13 @@ class CompanionServer:
         self.app.router.add_get("/status_icon", self.handle_logo_mock)
         self.app.router.add_get("/downloads", self.handle_downloads)
         self.app.router.add_get("/downloads/{filename}", self.handle_download_file)
+        self.app.router.add_get("/api/downloads", self.handle_api_downloads_list)
+        self.app.router.add_post("/api/downloads/upload", self.handle_api_downloads_upload)
+        self.app.router.add_post("/api/downloads/rename", self.handle_api_downloads_rename)
+        self.app.router.add_get("/api/downloads/{filename}/content", self.handle_api_downloads_get_content)
+        self.app.router.add_put("/api/downloads/{filename}", self.handle_api_downloads_save_content)
+        self.app.router.add_post("/api/downloads/{filename}/save", self.handle_api_downloads_save_content)
+        self.app.router.add_delete("/api/downloads/{filename}", self.handle_api_downloads_delete)
         self.app.router.add_get("/manifest.json", self.handle_manifest)
         self.app.router.add_get("/sw.js", self.handle_sw)
         self.app.router.add_get("/antigravity-particles.js", self.handle_antigravity_js)
@@ -383,6 +390,224 @@ class CompanionServer:
             "content": content,
         })
 
+    def _safe_download_path(self, filename: str) -> Optional[Path]:
+        downloads_dir = (STATIC_DIR / "downloads").resolve()
+        downloads_dir.mkdir(parents=True, exist_ok=True)
+        import urllib.parse
+        decoded = urllib.parse.unquote(filename)
+        clean_name = Path(decoded).name
+        if not clean_name or clean_name in (".", ".."):
+            return None
+        target = (downloads_dir / clean_name).resolve()
+        if not str(target).startswith(str(downloads_dir)):
+            return None
+        return target
+
+    def _classify_download_file(self, p: Path) -> Dict[str, Any]:
+        stat = p.stat()
+        ext = p.suffix.lower()
+        size_bytes = stat.st_size
+
+        if size_bytes < 1024:
+            formatted_size = f"{size_bytes} B"
+        elif size_bytes < 1024 * 1024:
+            formatted_size = f"{size_bytes / 1024:.1f} KB"
+        elif size_bytes < 1024 * 1024 * 1024:
+            formatted_size = f"{size_bytes / (1024 * 1024):.1f} MB"
+        else:
+            formatted_size = f"{size_bytes / (1024 * 1024 * 1024):.2f} GB"
+
+        video_exts = {".mp4", ".mov", ".webm", ".m4v", ".avi", ".mkv"}
+        audio_exts = {".mp3", ".wav", ".m4a", ".aac", ".ogg", ".flac", ".aiff"}
+        doc_exts = {".md", ".txt", ".pdf", ".rtf", ".doc", ".docx"}
+        image_exts = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp"}
+        code_exts = {".json", ".csv", ".yaml", ".yml", ".html", ".css", ".js", ".py", ".sh", ".ts"}
+        editable_exts = {
+            ".md", ".txt", ".json", ".csv", ".yaml", ".yml", ".html", ".css",
+            ".js", ".py", ".sh", ".ts", ".xml", ".log", ".tsv", ".ini", ".conf",
+        }
+
+        category = "other"
+        if ext in video_exts:
+            category = "video"
+        elif ext in audio_exts:
+            category = "audio"
+        elif ext in image_exts:
+            category = "image"
+        elif ext in doc_exts or ext in code_exts:
+            category = "document"
+
+        return {
+            "name": p.name,
+            "size": size_bytes,
+            "formatted_size": formatted_size,
+            "mtime": stat.st_mtime,
+            "mtime_iso": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(stat.st_mtime)),
+            "ext": ext,
+            "category": category,
+            "editable": ext in editable_exts,
+            "playable": ext in video_exts or ext in audio_exts,
+            "url": f"/downloads/{p.name}",
+        }
+
+    async def handle_api_downloads_list(self, request: web.Request) -> web.Response:
+        downloads_dir = (STATIC_DIR / "downloads").resolve()
+        downloads_dir.mkdir(parents=True, exist_ok=True)
+        files = []
+        total_size = 0
+        for item in downloads_dir.iterdir():
+            if item.name.startswith(".") or not item.is_file():
+                continue
+            f_info = self._classify_download_file(item)
+            files.append(f_info)
+            total_size += f_info["size"]
+
+        files.sort(key=lambda x: x["mtime"], reverse=True)
+
+        if total_size < 1024 * 1024:
+            total_formatted = f"{total_size / 1024:.1f} KB"
+        elif total_size < 1024 * 1024 * 1024:
+            total_formatted = f"{total_size / (1024 * 1024):.1f} MB"
+        else:
+            total_formatted = f"{total_size / (1024 * 1024 * 1024):.2f} GB"
+
+        return web.json_response({
+            "status": "ok",
+            "files": files,
+            "total_count": len(files),
+            "total_size": total_size,
+            "total_size_formatted": total_formatted,
+        })
+
+    async def handle_api_downloads_get_content(self, request: web.Request) -> web.Response:
+        filename = request.match_info.get("filename", "")
+        target = self._safe_download_path(filename)
+        if not target or not target.is_file():
+            return web.json_response({"error": "File not found"}, status=404)
+        try:
+            content = target.read_text(encoding="utf-8", errors="replace")
+            info = self._classify_download_file(target)
+            return web.json_response({
+                "status": "ok",
+                "filename": target.name,
+                "content": content,
+                "info": info,
+            })
+        except Exception as e:
+            return web.json_response({"error": f"Failed to read file: {e}"}, status=400)
+
+    async def handle_api_downloads_save_content(self, request: web.Request) -> web.Response:
+        filename = request.match_info.get("filename", "")
+        target = self._safe_download_path(filename)
+        if not target:
+            return web.json_response({"error": "Invalid filename"}, status=400)
+        try:
+            data = await request.json()
+            content = data.get("content", "")
+            target.write_text(content, encoding="utf-8")
+            info = self._classify_download_file(target)
+            return web.json_response({
+                "status": "ok",
+                "filename": target.name,
+                "info": info,
+            })
+        except Exception as e:
+            return web.json_response({"error": f"Failed to save file: {e}"}, status=500)
+
+    async def handle_api_downloads_upload(self, request: web.Request) -> web.Response:
+        downloads_dir = (STATIC_DIR / "downloads").resolve()
+        downloads_dir.mkdir(parents=True, exist_ok=True)
+        uploaded = []
+        try:
+            content_type = request.headers.get("Content-Type", "")
+            if "multipart" in content_type:
+                reader = await request.multipart()
+                while True:
+                    part = await reader.next()
+                    if part is None:
+                        break
+                    raw_filename = part.filename
+                    if not raw_filename:
+                        continue
+                    clean_name = Path(raw_filename).name
+                    target = (downloads_dir / clean_name).resolve()
+                    if not str(target).startswith(str(downloads_dir)):
+                        continue
+                    with open(target, "wb") as f:
+                        while True:
+                            chunk = await part.read_chunk()
+                            if not chunk:
+                                break
+                            f.write(chunk)
+                    uploaded.append(self._classify_download_file(target))
+            else:
+                data = await request.json()
+                filename = data.get("filename")
+                if not filename:
+                    return web.json_response({"error": "Missing filename"}, status=400)
+                clean_name = Path(filename).name
+                target = (downloads_dir / clean_name).resolve()
+                if not str(target).startswith(str(downloads_dir)):
+                    return web.json_response({"error": "Invalid target path"}, status=400)
+
+                if "content_base64" in data:
+                    import base64
+                    b64 = data["content_base64"]
+                    if "," in b64:
+                        b64 = b64.split(",", 1)[1]
+                    target.write_bytes(base64.b64decode(b64))
+                elif "content" in data:
+                    target.write_text(data["content"], encoding="utf-8")
+                else:
+                    return web.json_response({"error": "Missing file content"}, status=400)
+                uploaded.append(self._classify_download_file(target))
+
+            return web.json_response({
+                "status": "ok",
+                "uploaded": uploaded,
+            })
+        except Exception as e:
+            return web.json_response({"error": f"Upload failed: {e}"}, status=500)
+
+    async def handle_api_downloads_rename(self, request: web.Request) -> web.Response:
+        try:
+            data = await request.json()
+            old_name = data.get("old_name", "")
+            new_name = data.get("new_name", "")
+            if not old_name or not new_name:
+                return web.json_response({"error": "old_name and new_name required"}, status=400)
+
+            src = self._safe_download_path(old_name)
+            dst = self._safe_download_path(new_name)
+            if not src or not src.is_file():
+                return web.json_response({"error": "Source file not found"}, status=404)
+            if not dst:
+                return web.json_response({"error": "Invalid destination filename"}, status=400)
+            if dst.exists() and dst != src:
+                return web.json_response({"error": "Destination file already exists"}, status=409)
+
+            src.rename(dst)
+            return web.json_response({
+                "status": "ok",
+                "file": self._classify_download_file(dst),
+            })
+        except Exception as e:
+            return web.json_response({"error": f"Rename failed: {e}"}, status=500)
+
+    async def handle_api_downloads_delete(self, request: web.Request) -> web.Response:
+        filename = request.match_info.get("filename", "")
+        target = self._safe_download_path(filename)
+        if not target or not target.is_file():
+            return web.json_response({"error": "File not found"}, status=404)
+        try:
+            target.unlink()
+            return web.json_response({
+                "status": "ok",
+                "deleted": target.name,
+            })
+        except Exception as e:
+            return web.json_response({"error": f"Delete failed: {e}"}, status=500)
+
     async def handle_manifest(self, request: web.Request) -> web.Response:
         manifest_path = STATIC_DIR / "manifest.json"
         if not manifest_path.is_file():
@@ -531,25 +756,22 @@ class CompanionServer:
             if not key:
                 return web.json_response({"error": "Missing or empty license_key"}, status=400)
 
-            validation = FeatureGate.verify_key(key)
-            if not validation["is_valid"]:
+            result = FeatureGate.activate_license(key, config=self.config)
+            if not result.get("success"):
                 return web.json_response(
                     {
-                        "error": validation.get("error", "Invalid license key signature"),
-                        "details": validation,
+                        "error": result.get("error", "Invalid license key signature"),
+                        "details": result,
                     },
                     status=400,
                 )
 
-            self.config = load_config()
-            self.config.license_key = key
-            self.config.tier = validation.get("tier", "pro")
-            save_config(self.config)
+            self.config = result.get("config") or load_config()
             summary = FeatureGate.get_tier_summary(self.config)
             return web.json_response(
                 {
                     "success": True,
-                    "message": f"VoiceFi {self.config.tier.capitalize()} license activated ({validation.get('expires_at', 'Perpetual')})",
+                    "message": f"VoiceFi {self.config.tier.capitalize()} license activated ({result.get('expires_at', 'Perpetual')})",
                     "summary": summary,
                 }
             )
@@ -1259,6 +1481,12 @@ class CompanionServer:
         Returns JSON: {"status": "ok", "stopped": true}
         """
         try:
+            now = time.time()
+            last_stop = getattr(self, "_last_stop_handle_time", 0.0)
+            if (now - last_stop) < 0.5:
+                return web.json_response({"status": "ok", "stopped": True, "debounced": True})
+            self._last_stop_handle_time = now
+
             from voicefi.tts.base import stop_all_speech
 
             stop_all_speech(broadcast_web=False)
@@ -1990,12 +2218,12 @@ class CompanionServer:
         urls["cloud_relay_url"] = cloud_url
         urls["universal_url"] = cloud_url
 
-        # Default preferred pairing URL to active tunnel or direct local Wi-Fi IP
+        # Default preferred pairing URL to Cloud Relay for universal 5G / remote everywhere access
         preferred_url = (
             active_tunnel
+            or cloud_url
             or urls.get("ip_url")
             or urls.get("mdns_url")
-            or cloud_url
             or f"http://127.0.0.1:{self.port}"
         )
         qr_b64 = generate_qr_base64_png(preferred_url)
@@ -2648,20 +2876,24 @@ class CompanionServer:
                         elif msg_type == "memo_stop":
                             self.stop_memo()
                         elif msg_type == "stop":
-                            from voicefi.tts.base import stop_all_speech
+                            now = time.time()
+                            last_stop = getattr(self, "_last_stop_handle_time", 0.0)
+                            if (now - last_stop) >= 0.5:
+                                self._last_stop_handle_time = now
+                                from voicefi.tts.base import stop_all_speech
 
-                            stop_all_speech()
-                            if hasattr(self, "_active_mac_recorder") and self._active_mac_recorder:
-                                try:
-                                    self._active_mac_recorder.stop()
-                                except Exception:
-                                    pass
-                            self.broadcast_event(
-                                {
-                                    "type": "speech_stopped",
-                                    "timestamp": time.time(),
-                                }
-                            )
+                                stop_all_speech()
+                                if hasattr(self, "_active_mac_recorder") and self._active_mac_recorder:
+                                    try:
+                                        self._active_mac_recorder.stop()
+                                    except Exception:
+                                        pass
+                                self.broadcast_event(
+                                    {
+                                        "type": "speech_stopped",
+                                        "timestamp": time.time(),
+                                    }
+                                )
                         elif msg_type == "ping":
                             record_companion_heartbeat(len(self.active_websockets))
                             await ws.send_str(json.dumps({"type": "pong"}))
@@ -3149,7 +3381,7 @@ class CompanionServer:
                     content, max_words=self.config.antigravity.max_spoken_words
                 )
                 turn_sig = f"{cid}:{summary[:35]}"
-                claimed_origin = get_claimed_turn_origin(cid, turn_sig)
+                claimed_origin = get_claimed_turn_origin(cid, turn_sig, step_index=idx)
                 if claimed_origin:
                     origin_tag = claimed_origin
                 else:
@@ -3614,6 +3846,7 @@ def run_companion_server(
     if tunnel_url:
         print(f"🌐 Trusted Public HTTPS:  {tunnel_url}")
     print(f"🚀 VoiceFi running on   http://{host}:{port}")
+    print(f"🌐 Cloud Relay URL:       {universal_url}")
     print(f"📱 Studio URL:            {urls['studio_localhost_url']}")
     print(f"📱 Local Pairing URL:     {urls['ip_url']}")
     print("Press Ctrl+C to stop.\n")

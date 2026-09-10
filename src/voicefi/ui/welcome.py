@@ -306,6 +306,13 @@ class VoiceFiWelcomeWindow:
         self.window.makeKeyAndOrderFront_(None)
         NSApplication.sharedApplication().activateIgnoringOtherApps_(True)
 
+        try:
+            from voicefi.telemetry import capture_event
+
+            capture_event("welcome_window_opened")
+        except Exception:
+            pass
+
     def hide(self):
         if self.window:
             self.window.orderOut_(None)
@@ -333,20 +340,14 @@ class VoiceFiWelcomeWindow:
             self._set_status("⚠️ Please enter a license key.", is_error=True)
             return
 
-        res = verify_license_key(raw_key)
-        if not res.get("is_valid"):
+        res = FeatureGate.activate_license(raw_key)
+        if not res.get("success"):
             err = res.get("error") or "Invalid license key signature."
             self._set_status(f"❌ {err}", is_error=True)
             return
 
-        # Activate on config
+        # Mark welcomed marker
         try:
-            config = load_config()
-            config.license_key = raw_key
-            config.tier = res.get("tier", "pro")
-            save_config(config)
-
-            # Mark welcomed marker
             marker_file = Path.home() / ".voicefi" / ".welcomed"
             marker_file.parent.mkdir(parents=True, exist_ok=True)
             marker_file.write_text(f"welcomed_at={time.time()}\n")

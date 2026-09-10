@@ -119,3 +119,57 @@ def test_cmd_update_cli_check_flag(capsys):
         assert "Update available" in captured.out
         assert "v0.5.0" in captured.out
         assert "vifi update" in captured.out
+
+
+def test_is_dmg_install():
+    """Verify is_dmg_install returns True when frozen or running from /Applications without venv."""
+    from voicefi.updater import is_dmg_install
+
+    with patch("pathlib.Path.is_file", return_value=False), patch("sys.frozen", True, create=True):
+        assert is_dmg_install() is True
+
+    with patch("pathlib.Path.is_file", return_value=True):
+        assert is_dmg_install() is False
+
+
+def test_perform_update_dmg_flow(tmp_path):
+    """Verify perform_update with force_dmg downloads and opens disk image."""
+    from voicefi.updater import perform_update
+
+    mock_dmg = tmp_path / "VoiceFi_0.5.0_macOS.dmg"
+    mock_dmg.write_bytes(b"0" * 1_500_000)
+
+    mock_resp = MagicMock()
+    mock_resp.read.side_effect = [b"0" * 1_500_000, b""]
+    mock_resp.__enter__.return_value = mock_resp
+    mock_resp.__exit__.return_value = None
+
+    with patch("voicefi.updater.check_for_updates", return_value=(True, "0.5.0", "https://voicefi.org")), \
+         patch("voicefi.updater.urlopen", return_value=mock_resp), \
+         patch("subprocess.run") as mock_subproc, \
+         patch("pathlib.Path.home", return_value=tmp_path):
+        res = perform_update(force_dmg=True)
+        assert res["success"] is True
+        assert res["is_dmg"] is True
+        assert "Downloaded and opened" in res["message"]
+        mock_subproc.assert_called_once()
+        assert "open" in mock_subproc.call_args[0][0]
+
+
+def test_run_auto_update_dmg_notification():
+    """Verify run_auto_update_if_enabled sends notification instead of running pip for DMG users."""
+    from voicefi.updater import run_auto_update_if_enabled
+
+    cfg = VoiceFiConfig(tier="pro", license_key="PRO-123456", auto_update=True)
+
+    with patch("voicefi.updater.check_for_updates", return_value=(True, "0.9.0", "https://voicefi.org")), \
+         patch("voicefi.updater.is_dmg_install", return_value=True), \
+         patch("rumps.notification") as mock_notify, \
+         patch("voicefi.updater.perform_update") as mock_perform:
+        run_auto_update_if_enabled(cfg)
+        import time
+        time.sleep(0.1)
+        mock_notify.assert_called_once()
+        assert "Update Available" in mock_notify.call_args[0][0]
+        mock_perform.assert_not_called()
+

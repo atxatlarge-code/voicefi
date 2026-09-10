@@ -38,32 +38,49 @@ fi
 ARCH="$(uname -m)"
 say_msg "${GREEN}✓${NC} Detected macOS ($ARCH)"
 
-# Silent, non-blocking telemetry event: install_started
-if [ -z "$DO_NOT_TRACK" ] && [ "$VOICEFI_TELEMETRY" != "0" ] && [ "$VOICEFI_TELEMETRY" != "false" ]; then
+# 1.5 Silent, non-blocking telemetry helper
+CURRENT_STEP="init"
+send_install_event() {
+    local event_name="$1"
+    local extra_props="${2:-}"
+    if [ "$DO_NOT_TRACK" = "1" ] || [ "$VOICEFI_TELEMETRY" = "0" ] || [ "$VOICEFI_TELEMETRY" = "false" ]; then
+        return 0
+    fi
     (
-        PH_KEY="phc_oFyLfqmnEeFMDehRQ4DzGrN9AGctauZiZhfufRtmW92e"
-        TELEMETRY_FILE="$HOME/.voicefi/telemetry.json"
-        mkdir -p "$HOME/.voicefi"
-        M_ID=""
+        local PH_KEY="phc_oFyLfqmnEeFMDehRQ4DzGrN9AGctauZiZhfufRtmW92e"
+        local TELEMETRY_FILE="$HOME/.voicefi/telemetry.json"
+        mkdir -p "$HOME/.voicefi" 2>/dev/null || true
+        local M_ID=""
         if [ -f "$TELEMETRY_FILE" ]; then
             M_ID="$(python3 -c "import json; print(json.loads(open('$TELEMETRY_FILE').read()).get('id', ''))" 2>/dev/null || grep -o '"id": *"[^"]*"' "$TELEMETRY_FILE" | cut -d'"' -f4 2>/dev/null)"
         fi
         if [ -z "$M_ID" ]; then
             M_ID="$(python3 -c "import uuid, json; u=str(uuid.uuid4()); open('$TELEMETRY_FILE', 'w').write(json.dumps({'id': u})); print(u)" 2>/dev/null || uuidgen 2>/dev/null || echo 'anon')"
         fi
-        S_VER="$(sw_vers -productVersion 2>/dev/null || echo '')"
-        BODY="{\"api_key\":\"$PH_KEY\",\"event\":\"install_started\",\"distinct_id\":\"$M_ID\",\"properties\":{\"os\":\"Darwin\",\"arch\":\"$ARCH\",\"os_version\":\"$S_VER\",\"installer\":\"vifi.sh\",\"\$is_server\":true}}"
+        local S_VER="$(sw_vers -productVersion 2>/dev/null || echo '')"
+        local PROPS="\"os\":\"Darwin\",\"arch\":\"$ARCH\",\"os_version\":\"$S_VER\",\"installer\":\"vifi.sh\",\"\$is_server\":true"
+        if [ -n "$extra_props" ]; then
+            PROPS="$PROPS,$extra_props"
+        fi
+        local BODY="{\"api_key\":\"$PH_KEY\",\"event\":\"$event_name\",\"distinct_id\":\"$M_ID\",\"properties\":{$PROPS}}"
         curl -s -m 2 -X POST "https://us.i.posthog.com/capture/" -H "Content-Type: application/json" -d "$BODY" >/dev/null 2>&1 || true
     ) &
-fi
+}
+
+# Trap unexpected errors to report install_failed for dropoff debugging
+trap 'EXIT_CODE=$?; if [ $EXIT_CODE -ne 0 ]; then send_install_event "install_failed" "\"error_step\":\"$CURRENT_STEP\",\"exit_code\":$EXIT_CODE"; fi' EXIT
+
+send_install_event "install_started"
 
 # 2. Directory Setup
+CURRENT_STEP="directory_setup"
 INSTALL_DIR="$HOME/.voicefi"
 BIN_DIR="$HOME/.local/bin"
 mkdir -p "$INSTALL_DIR"
 mkdir -p "$BIN_DIR"
 
 # 3. Python 3.10+ / uv Check & Bootstrapping
+CURRENT_STEP="bootstrap_python"
 HAS_GOOD_PYTHON=0
 if command -v python3 >/dev/null 2>&1; then
     PY_VER="$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || echo '0.0')"
@@ -101,6 +118,13 @@ fi
 # Ensure local bin is on path for this installer session
 export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
 
+USING_UV=false
+if [ -n "$UV_BIN" ]; then
+    USING_UV=true
+fi
+send_install_event "python_bootstrapped" "\"python_version\":\"$PY_VER\",\"using_uv\":$USING_UV"
+
+CURRENT_STEP="create_venv"
 say_msg "${CYAN}⚡ Setting up VoiceFi virtual environment in $INSTALL_DIR...${NC}"
 
 if [ -n "$UV_BIN" ]; then
@@ -124,6 +148,7 @@ else
 fi
 
 # If executing from within a cloned repo, install in editable mode
+CURRENT_STEP="install_package"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd || echo "")"
 if [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/pyproject.toml" ]; then
     say_msg "${CYAN}⚡ Installing local repository ($SCRIPT_DIR)...${NC}"
@@ -134,6 +159,7 @@ else
 fi
 
 # 4. Create wrapper binary for 'vifi', 'vg', and 'voicefi'
+CURRENT_STEP="create_bins"
 rm -f "$BIN_DIR/vifi" "$BIN_DIR/vg" "$BIN_DIR/voicefi"
 cat << 'RUNNER' > "$BIN_DIR/vifi"
 #!/usr/bin/env bash
@@ -152,14 +178,17 @@ ln -sf "$BIN_DIR/vifi" "$BIN_DIR/vg"
 #    - Writes user preferences (voice selection, sensitivity) to ~/.voicefi/config.yaml.
 #    - For Cursor & Windsurf: VoiceFi uses system-wide audio dictation (Ctrl+T).
 #    - Modifies zero system/root binaries and adds no telemetry services.
+CURRENT_STEP="setup_hooks"
 say_msg "${CYAN}⚡ Configuring Agent lifecycle hooks (Antigravity & Claude Code)...${NC}"
 "$INSTALL_DIR/venv/bin/voicefi" setup >/dev/null 2>&1 || true
 
 # 6. Enable Persistent Menu Bar Companion & Dynamic Island HUD (autostart server)
+CURRENT_STEP="setup_autostart"
 say_msg "${CYAN}⚡ Enabling VoiceFi Menu Bar Companion & Persistent Dynamic Island HUD (autostart)...${NC}"
 "$INSTALL_DIR/venv/bin/voicefi" autostart >/dev/null 2>&1 || true
 
 # 7. Check for Apple Neural Voices (Ava Premium 0ms instant offline speech)
+CURRENT_STEP="check_neural_voices"
 if "$INSTALL_DIR/venv/bin/python" -c "import sys; from voicefi.tts.offline import is_voice_installed; sys_ok, _ = is_voice_installed('Ava'); sys.exit(0 if sys_ok else 1)" 2>/dev/null; then
     AVA_NAME="$("$INSTALL_DIR/venv/bin/python" -c "from voicefi.tts.offline import is_voice_installed; _, name = is_voice_installed('Ava'); print(name or 'Ava (Premium)')" 2>/dev/null || echo "Ava (Premium)")"
     say_msg "${GREEN}✓${NC} Apple Neural Voice detected: ${BOLD}$AVA_NAME${NC} (0ms instant offline speech ready)"
@@ -181,6 +210,7 @@ else
 fi
 
 # 8. Check for Obsidian and prompt user interactively
+CURRENT_STEP="check_obsidian"
 if [ -d "$HOME/Library/Application Support/obsidian" ] || [ -d "$HOME/Documents/Obsidian Vault" ]; then
     INSTALL_OBSIDIAN="y"
     if [ -t 0 ] && [ -r /dev/tty ]; then
@@ -201,6 +231,7 @@ if [ -d "$HOME/Library/Application Support/obsidian" ] || [ -d "$HOME/Documents/
 fi
 
 # 9. Check PATH
+CURRENT_STEP="check_path"
 case ":$PATH:" in
     *":$BIN_DIR:"*) ;;
     *)
@@ -212,18 +243,9 @@ case ":$PATH:" in
 esac
 
 # Capture anonymous installation completion event
-"$INSTALL_DIR/venv/bin/python" -c '
-try:
-    from voicefi.telemetry import capture_event
-    import platform, sys
-    capture_event("install_completed", {
-        "installer_source": "vifi.sh",
-        "python_version": sys.version.split()[0],
-        "os_version": platform.mac_ver()[0] if hasattr(platform, "mac_ver") else "",
-    })
-except Exception:
-    pass
-' >/dev/null 2>&1 || true
+CURRENT_STEP="complete"
+send_install_event "install_completed" "\"python_version\":\"$PY_VER\""
+trap - EXIT
 
 say_msg ""
 say_msg "${GREEN}${BOLD}🎉 VoiceFi Installation Complete!${NC}"
@@ -236,7 +258,8 @@ say_msg "✨ ${BOLD}Trial & Tier Status:${NC}      Run ${CYAN}${BOLD}vifi tier${
 say_msg "🔊 ${BOLD}Test Voice:${NC}              Run ${CYAN}${BOLD}vifi voice test${NC} (or ${CYAN}${BOLD}vg voice test${NC})"
 say_msg "👂 ${BOLD}Hearing Test:${NC}            Run ${CYAN}${BOLD}vifi hearing-test${NC}"
 say_msg "🔄 ${BOLD}Feedback Loop:${NC}           Run ${CYAN}${BOLD}vifi feedback-loop${NC}"
-say_msg "🎛️  ${BOLD}Control Panel:${NC}           Run ${CYAN}${BOLD}vifi panel${NC} (http://localhost:5141)"
+say_msg "⭐ ${BOLD}Star on GitHub:${NC}          ${CYAN}https://github.com/atxatlarge-code/voicefi${NC}"
+say_msg "💬 ${BOLD}Feedback & Ideas:${NC}        Run ${CYAN}${BOLD}vifi feedback submit \"<thoughts>\"${NC}"
 say_msg "📖 ${BOLD}Commands:${NC}                Run ${CYAN}${BOLD}vifi --help${NC}"
 say_msg "------------------------------------------------------------------"
 say_msg ""

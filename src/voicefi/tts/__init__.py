@@ -58,6 +58,8 @@ def get_tts_engine(
     is_focused: bool = True,
     project_name: Optional[str] = None,
     workspace_path: Optional[str] = None,
+    app_name: Optional[str] = None,
+    conv_id: Optional[str] = None,
 ) -> BaseTTS:
     """
     Instantiate the configured TTS engine.
@@ -210,6 +212,9 @@ def get_tts_engine(
     persona = find_persona(voice)
     eng.agent_name = agent_name or "VoiceFi"
     eng.persona_name = persona.name if persona else voice
+    eng.app_name = app_name or "Antigravity"
+    eng.conv_id = conv_id or ""
+    eng.workspace_path = workspace_path or ""
     return eng
 
 

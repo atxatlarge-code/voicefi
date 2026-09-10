@@ -24,6 +24,9 @@ HUD_STATE_STATUS_FILE = Path(
 RECENT_SPEECH_FILE = Path(
     os.environ.get("VOICEFI_RECENT_SPEECH", "/tmp/voicefi_recent_speech.json")
 )
+MIC_RECORDING_STATUS_FILE = Path(
+    os.environ.get("VOICEFI_RECORDING_STATUS", "/tmp/voicefi_recording.status")
+)
 _THREAD_LOCK = threading.RLock()
 _IN_PROCESS_SPEAKING = False
 _IN_PROCESS_AUDIO_PLAYING = False
@@ -266,6 +269,82 @@ def is_pid_alive(pid: int) -> bool:
         return True
     except OSError:
         return False
+
+
+def set_mic_recording(
+    active: bool,
+    state: str = "listening",
+    conv_id: Optional[str] = None,
+    agent_name: Optional[str] = None,
+):
+    """Set cross-process flag indicating microphone is actively recording/listening."""
+    try:
+        if active:
+            payload = {
+                "pid": os.getpid(),
+                "timestamp": time.time(),
+                "state": state,
+                "conv_id": conv_id or "",
+                "agent_name": agent_name or "",
+            }
+            MIC_RECORDING_STATUS_FILE.write_text(json.dumps(payload))
+        else:
+            MIC_RECORDING_STATUS_FILE.unlink(missing_ok=True)
+    except Exception:
+        pass
+
+
+def touch_mic_recording() -> None:
+    """Refresh timestamp on active microphone recording status to prevent expiration during long dictation."""
+    try:
+        if MIC_RECORDING_STATUS_FILE.is_file():
+            raw = MIC_RECORDING_STATUS_FILE.read_text().strip()
+            if raw:
+                try:
+                    data = json.loads(raw)
+                    if isinstance(data, dict):
+                        data["timestamp"] = time.time()
+                        MIC_RECORDING_STATUS_FILE.write_text(json.dumps(data))
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+
+def get_mic_recording_info() -> Optional[Dict[str, Any]]:
+    """Retrieve active cross-process microphone recording state if valid and non-expired."""
+    try:
+        if MIC_RECORDING_STATUS_FILE.is_file():
+            raw = MIC_RECORDING_STATUS_FILE.read_text().strip()
+            if not raw:
+                return None
+            try:
+                data = json.loads(raw)
+                if isinstance(data, dict):
+                    pid = int(data.get("pid", 0))
+                    ts = float(data.get("timestamp", 0))
+                    if is_pid_alive(pid) and (time.time() - ts) < 60.0:
+                        return data
+                    else:
+                        MIC_RECORDING_STATUS_FILE.unlink(missing_ok=True)
+                        return None
+            except json.JSONDecodeError:
+                parts = raw.split(":")
+                if len(parts) == 2:
+                    pid = int(parts[0])
+                    ts = float(parts[1])
+                    if is_pid_alive(pid) and (time.time() - ts) < 60.0:
+                        return {"pid": pid, "timestamp": ts, "state": "listening"}
+                    else:
+                        MIC_RECORDING_STATUS_FILE.unlink(missing_ok=True)
+    except Exception:
+        pass
+    return None
+
+
+def is_mic_recording_active() -> bool:
+    """Check if any process is actively recording from the microphone."""
+    return get_mic_recording_info() is not None
 
 
 def get_agent_speaking_info() -> Optional[Dict[str, Any]]:
@@ -600,6 +679,24 @@ def speech_turn_lock(
             lock_fd = open(SPEECH_LOCK_FILE, "a+")
             fcntl.flock(lock_fd, fcntl.LOCK_EX)
 
+            # If another process or conversation is actively listening/hearing for the user,
+            # wait politely until the user finishes their spoken turn before speaking aloud.
+            mic_wait_start = time.time()
+            while is_mic_recording_active():
+                mic_info = get_mic_recording_info()
+                if mic_info:
+                    mic_pid = int(mic_info.get("pid", 0))
+                    mic_cid = mic_info.get("conv_id")
+                    # If this mic session belongs to the same process and conv_id (e.g. barge-in), proceed
+                    if mic_pid == os.getpid() and conv_id and mic_cid == conv_id:
+                        break
+                if is_speech_interrupted(mic_wait_start):
+                    raise DuplicateSpeechSuppressed("Interrupted by user while waiting for microphone")
+                if (time.time() - mic_wait_start) > 40.0:
+                    print("[TTS] ⚠️ Timed out waiting for active mic recording to finish, proceeding...")
+                    break
+                time.sleep(0.12)
+
             # Check if this exact speech was already delivered by another process while waiting for lock
             if text and is_duplicate_speech(text, window_seconds=6.0):
                 print(
@@ -609,6 +706,14 @@ def speech_turn_lock(
 
             if text:
                 record_recent_speech(text)
+
+            # If any previous audio is still playing out of speakers, wait until total silence
+            max_wait = 150  # up to 15s
+            while is_system_audio_playing() and max_wait > 0:
+                if is_speech_interrupted(mic_wait_start):
+                    raise DuplicateSpeechSuppressed("Interrupted by user")
+                time.sleep(0.1)
+                max_wait -= 1
 
             speak_kwargs = {
                 "text": text,
@@ -623,12 +728,6 @@ def speech_turn_lock(
                 speak_kwargs["workspace_path"] = workspace_path
 
             set_agent_speaking(True, **speak_kwargs)
-
-            # If any previous audio is still playing out of speakers, wait until total silence
-            max_wait = 150  # up to 15s
-            while is_system_audio_playing() and max_wait > 0:
-                time.sleep(0.1)
-                max_wait -= 1
 
             lock_start_time = time.time()
             # Acquire physical audio output mutex across all OS processes

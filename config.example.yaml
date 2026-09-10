@@ -69,7 +69,8 @@ hud:
   auto_send: true              # Instant prompt submission (false = review & edit mode)
   show_live_transcript: true   # Stream live transcription tokens
   fullscreen_overlay: true     # true = always on top of full-screen games/apps; false = allow full-screen overlap
-  position: "top_center"       # "top_center" | "top_right" | "bottom_right"
+  position: "bottom_right"     # "bottom_right" (default: above lower dock) | "top_right" | "top_center"
+  margin_bottom: 14.0          # Vertical points above lower bar / dock
   linger_seconds: 2.0          # Seconds to linger after done/speaking
 
 # Global Desktop Dictation Hotkeys
