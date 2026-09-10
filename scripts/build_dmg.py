@@ -98,6 +98,8 @@ def build_app_bundle(version: str = "0.2.0"):
         "--collect-all",
         "qrcode",
         "--collect-all",
+        "posthog",
+        "--collect-all",
         "voicefi",
         "--hidden-import",
         "rumps",
