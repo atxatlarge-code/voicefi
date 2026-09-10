@@ -145,7 +145,30 @@ def build_app_bundle(version: str = "0.2.0"):
         str(SRC_DIR / "voicefi" / "cli.py"),
     ]
 
-    subprocess.run(cmd, check=True, cwd=ROOT_DIR)
+    # Temporarily shelve heavy video reels from downloads directory during PyInstaller collection
+    downloads_dir = SRC_DIR / "voicefi" / "companion" / "static" / "downloads"
+    temp_media_dir = ROOT_DIR / ".temp_build_media"
+    temp_media_dir.mkdir(exist_ok=True)
+    shelved_files = []
+    if downloads_dir.is_dir():
+        for f in downloads_dir.iterdir():
+            if f.is_file() and (
+                f.suffix.lower() in (".mp4", ".mov", ".m4v")
+                or (f.suffix.lower() == ".wav" and f.stat().st_size > 5 * 1024 * 1024)
+            ):
+                dest = temp_media_dir / f.name
+                shutil.move(f, dest)
+                shelved_files.append((f, dest))
+    if shelved_files:
+        print(f"🎬 Shelved {len(shelved_files)} heavy video files during packaging to optimize bundle size...")
+
+    try:
+        subprocess.run(cmd, check=True, cwd=ROOT_DIR)
+    finally:
+        for orig, dest in shelved_files:
+            if dest.is_file():
+                shutil.move(dest, orig)
+        shutil.rmtree(temp_media_dir, ignore_errors=True)
 
     # Configure Info.plist for macOS Menu Bar & Required Permissions
     plist_path = APP_BUNDLE / "Contents" / "Info.plist"
