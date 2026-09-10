@@ -57,10 +57,27 @@ def build_app_bundle(version: str = "0.2.0"):
     if vad_asset.is_dir():
         add_data.extend(["--add-data", f"{vad_asset}:voicefi/assets"])
 
-    # Embed companion static PWA files
+    # Embed companion static PWA files (excluding heavy video reels/masters)
     companion_static = SRC_DIR / "voicefi" / "companion" / "static"
     if companion_static.is_dir():
-        add_data.extend(["--add-data", f"{companion_static}:voicefi/companion/static"])
+        staged_static = BUILD_DIR / "companion_static"
+        shutil.rmtree(staged_static, ignore_errors=True)
+        BUILD_DIR.mkdir(parents=True, exist_ok=True)
+
+        def _ignore_heavy_media(folder, files):
+            ignored = []
+            for f in files:
+                p = Path(folder) / f
+                if p.is_file():
+                    ext = p.suffix.lower()
+                    if ext in (".mp4", ".mov", ".m4v") or (
+                        ext == ".wav" and p.stat().st_size > 5 * 1024 * 1024
+                    ):
+                        ignored.append(f)
+            return ignored
+
+        shutil.copytree(companion_static, staged_static, ignore=_ignore_heavy_media)
+        add_data.extend(["--add-data", f"{staged_static}:voicefi/companion/static"])
 
     py_exec = sys.executable
     venv_py = ROOT_DIR / ".venv" / "bin" / "python3"
