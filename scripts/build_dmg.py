@@ -445,6 +445,13 @@ def notarize_dmg(dmg_path: Path, keychain_profile: str = None, apple_id: str = N
     subprocess.run(["xcrun", "stapler", "staple", str(dmg_path)], check=True)
     print("🎉 Notarization and ticket stapling complete!")
 
+    universal_dmg = DIST_DIR / "VoiceFi_macOS.dmg"
+    try:
+        shutil.copyfile(dmg_path, universal_dmg)
+        print(f"🔗 Updated universal release asset with stapled ticket: {universal_dmg.name}")
+    except Exception as e:
+        print(f"⚠️ Note copying universal DMG: {e}")
+
 
 def verify_dmg(dmg_path: Path):
     print(f"🔍 Verifying disk image {dmg_path.name}...")
@@ -564,14 +571,31 @@ if __name__ == "__main__":
 
     dmg_file = build_dmg(version=ver, identity=sign_identity)
 
-    if args.notarize or (args.apple_id and args.team_id and args.password):
+    notary_profile = args.notarize
+    if not notary_profile and not (args.apple_id and args.team_id and args.password):
+        try:
+            chk = subprocess.run(
+                ["xcrun", "notarytool", "history", "--keychain-profile", "voicefi-notary"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            if chk.returncode == 0:
+                notary_profile = "voicefi-notary"
+                print("🔑 Auto-detected notarytool keychain profile: voicefi-notary")
+        except Exception:
+            pass
+
+    if notary_profile or (args.apple_id and args.team_id and args.password):
         notarize_dmg(
             dmg_file,
-            keychain_profile=args.notarize,
+            keychain_profile=notary_profile,
             apple_id=args.apple_id,
             team_id=args.team_id,
             password=args.password,
         )
+    else:
+        print("⚠️ No notarization credentials provided or detected. Skipping notarization.")
 
     verify_dmg(dmg_file)
 
