@@ -680,6 +680,9 @@ class FeatureGate:
 
         return config
 
+    # Alias for convenient API usage
+    start_trial = ensure_trial_started
+
     @classmethod
     def sync_cloud_license(
         cls, config: VoiceFiConfig, force: bool = False, timeout: float = 3.0

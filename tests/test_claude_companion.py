@@ -168,11 +168,77 @@ class ClaudeCompanionServerTestCase(AioHTTPTestCase):
             mock_get_tts.assert_called_once_with(self.companion_server.config, agent_name="claude")
 
     async def test_api_new_claude_conversation(self):
-        """Test POST /api/conversation/new with engine='claude'."""
-        with patch("voicefi.companion.server.inject_text_to_claude", return_value=True) as mock_inject:
+        """Test POST /api/conversation/new with engine='claude' invokes headless runner."""
+        from voicefi.integrations.injector import DispatchResult
+
+        mock_disp = DispatchResult(
+            success=True,
+            delivery_type="headless",
+            target_conv_id="claude_new-uuid-1234",
+            engine="claude",
+        )
+        with patch("voicefi.integrations.claude_runner.ClaudeHeadlessRunner.dispatch", return_value=mock_disp) as mock_dispatch:
             resp = await self.client.post("/api/conversation/new", json={
                 "prompt": "Start new Claude task",
                 "engine": "claude",
             })
             assert resp.status == 200
-            mock_inject.assert_called_once_with("Start new Claude task", submit_enter=True)
+            data = await resp.json()
+            assert data.get("success") is True
+            assert data.get("conv_id") == "claude_new-uuid-1234"
+            mock_dispatch.assert_called_once()
+            args, kwargs = mock_dispatch.call_args
+            assert kwargs.get("text") == "Start new Claude task" or (len(args) > 0 and args[0] == "Start new Claude task")
+
+
+def test_claude_stop_hook_skips_desktop_mic_for_mobile():
+    """Test Claude stop hook skips Mac desktop mic auto-listen when turn originated from mobile companion."""
+    from voicefi.integrations.claude import handle_claude_stop_hook
+
+    mock_cfg = VoiceFiConfig()
+    mock_cfg.enabled = True
+    mock_cfg.hooks.enabled = True
+    mock_cfg.hooks.claude = True
+    mock_cfg.claude.read_summary_aloud = False
+    mock_cfg.claude.auto_listen = True
+
+    with patch("voicefi.integrations.claude.find_latest_claude_session", return_value=Path("/tmp/fake_claude.jsonl")), \
+         patch("voicefi.integrations.claude.extract_latest_claude_summary", return_value="Task completed."), \
+         patch("voicefi.integrations.claude.claim_turn", return_value=True), \
+         patch("voicefi.integrations.claude.pop_mobile_turn_origin", return_value=True), \
+         patch("voicefi.integrations.claude.AudioRecorder") as mock_recorder:
+
+        result = handle_claude_stop_hook({"session_id": "test-123"}, config=mock_cfg)
+        assert result.get("status") == "mobile_handled"
+        assert result.get("agent") == "claude"
+        # AudioRecorder must NOT have been instantiated to record on Mac desktop mic
+        mock_recorder.assert_not_called()
+
+
+def test_relay_client_voice_command_no_envelope():
+    """Test RelayClient dispatches user_voice_command with include_envelope=False."""
+    from voicefi.companion.relay_client import RelayClient
+
+    client = RelayClient(local_port=5141)
+
+    with patch("voicefi.integrations.injector.send_message_to_agent") as mock_send, \
+         patch("voicefi.integrations.conversations.set_mobile_turn_origin") as mock_origin, \
+         patch.object(client, "broadcast", return_value=None):
+
+        payload = {
+            "type": "user_voice_command",
+            "text": "What is the status of the refactor?",
+            "conv_id": "claude_abc-123",
+            "sender_name": "Mobile Jake",
+        }
+
+        asyncio.run(client._handle_incoming_message(json.dumps(payload)))
+        mock_origin.assert_called_once_with("claude_abc-123")
+        mock_send.assert_called_once_with(
+            conv_id="claude_abc-123",
+            text="What is the status of the refactor?",
+            target_engine=None,
+            sender_name="Mobile Jake",
+            title="Message from Mobile Jake",
+            include_envelope=False,
+        )

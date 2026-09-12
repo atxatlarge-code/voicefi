@@ -15,6 +15,9 @@ SPEECH_LOCK_FILE = Path(os.environ.get("VOICEFI_SPEECH_LOCK", "/tmp/voicefi_spee
 AGENT_SPEAKING_STATUS_FILE = Path(
     os.environ.get("VOICEFI_SPEAKING_STATUS", "/tmp/voicefi_speaking.status")
 )
+LAST_AGENT_SPEAKING_STATUS_FILE = Path(
+    os.environ.get("VOICEFI_LAST_SPEAKING_STATUS", "/tmp/voicefi_last_speaking.json")
+)
 AUDIO_PLAYING_STATUS_FILE = Path(
     os.environ.get("VOICEFI_AUDIO_PLAYING_STATUS", "/tmp/voicefi_audio_playing.status")
 )
@@ -30,6 +33,7 @@ MIC_RECORDING_STATUS_FILE = Path(
 _THREAD_LOCK = threading.RLock()
 _IN_PROCESS_SPEAKING = False
 _IN_PROCESS_AUDIO_PLAYING = False
+_LAST_AGENT_SPEAKING_INFO: Optional[Dict[str, Any]] = None
 _ACTIVE_TTS_ENGINES: weakref.WeakSet = weakref.WeakSet()
 
 
@@ -197,6 +201,7 @@ def set_agent_speaking(
         except Exception:
             pass
     try:
+        global _LAST_AGENT_SPEAKING_INFO
         if speaking:
             payload = {
                 "pid": os.getpid(),
@@ -208,7 +213,9 @@ def set_agent_speaking(
                 "conv_id": conv_id or "",
                 "workspace_path": workspace_path or "",
             }
+            _LAST_AGENT_SPEAKING_INFO = dict(payload)
             AGENT_SPEAKING_STATUS_FILE.write_text(json.dumps(payload))
+            LAST_AGENT_SPEAKING_STATUS_FILE.write_text(json.dumps(payload))
             set_cross_process_hud_state(
                 state="speaking",
                 text=text or "",
@@ -221,8 +228,52 @@ def set_agent_speaking(
             AGENT_SPEAKING_STATUS_FILE.unlink(missing_ok=True)
             set_agent_audio_playing(False)
             clear_cross_process_hud_state()
+            if _LAST_AGENT_SPEAKING_INFO:
+                _LAST_AGENT_SPEAKING_INFO["stopped_at"] = time.time()
+                try:
+                    LAST_AGENT_SPEAKING_STATUS_FILE.write_text(
+                        json.dumps(_LAST_AGENT_SPEAKING_INFO)
+                    )
+                except Exception:
+                    pass
     except Exception:
         pass
+
+
+def get_recent_speaking_info(window_seconds: float = 3.5) -> Optional[Dict[str, Any]]:
+    """
+    Retrieve metadata for the current speaking agent or the agent that finished speaking
+    within the last window_seconds. Enables Tab-to-focus to gracefully catch developer
+    reactions immediately after speech concludes.
+    """
+    active = get_agent_speaking_info()
+    if active:
+        return active
+
+    global _LAST_AGENT_SPEAKING_INFO
+    now = time.time()
+    if _LAST_AGENT_SPEAKING_INFO:
+        stopped_at = float(_LAST_AGENT_SPEAKING_INFO.get("stopped_at", 0))
+        ts = float(_LAST_AGENT_SPEAKING_INFO.get("timestamp", 0))
+        ref_time = stopped_at or ts
+        if (now - ref_time) <= window_seconds:
+            return _LAST_AGENT_SPEAKING_INFO
+
+    try:
+        if LAST_AGENT_SPEAKING_STATUS_FILE.is_file():
+            raw = LAST_AGENT_SPEAKING_STATUS_FILE.read_text().strip()
+            if raw:
+                data = json.loads(raw)
+                if isinstance(data, dict):
+                    stopped_at = float(data.get("stopped_at", 0))
+                    ts = float(data.get("timestamp", 0))
+                    ref_time = stopped_at or ts
+                    if (now - ref_time) <= window_seconds:
+                        return data
+    except Exception:
+        pass
+
+    return None
 
 
 def set_agent_audio_playing(playing: bool) -> None:
@@ -618,11 +669,15 @@ def escape_to_stop_speech(
                     now = time.time()
                     if (now - last_tab_time[0]) >= 0.35:
                         last_tab_time[0] = now
-                        focus_speaking_window(
-                            agent_name=agent_name,
-                            app_name=app_name,
-                            conv_id=conv_id,
-                        )
+                        threading.Thread(
+                            target=focus_speaking_window,
+                            kwargs={
+                                "agent_name": agent_name,
+                                "app_name": app_name,
+                                "conv_id": conv_id,
+                            },
+                            daemon=True,
+                        ).start()
             except Exception:
                 pass
 

@@ -78,7 +78,12 @@ def test_native_vpio_stream_mock_lifecycle():
     assert np.all(chunk == 0)
 
 
-@pytest.mark.skipif(not is_vpio_supported(), reason="Requires macOS hardware VoiceProcessingIO")
+import os
+
+@pytest.mark.skipif(
+    not is_vpio_supported() or os.getenv("VOICEFI_HEADLESS") == "1" or os.getenv("VOICEFI_TESTING") == "1",
+    reason="Requires interactive macOS audio hardware session",
+)
 def test_native_vpio_live_stream_capture():
     """Live integration test: capture a real buffer using Apple VoiceProcessingIO."""
     stream = NativeVoiceProcessingStream(target_sample_rate=16000, buffer_size=1024)

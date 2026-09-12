@@ -19,8 +19,10 @@ from voicefi.tts.base import (
     get_cross_process_hud_state,
     focus_speaking_window,
     escape_to_stop_speech,
+    get_recent_speaking_info,
     AGENT_SPEAKING_STATUS_FILE,
     HUD_STATE_STATUS_FILE,
+    LAST_AGENT_SPEAKING_STATUS_FILE,
 )
 from voicefi.integrations.injector import (
     focus_speaking_agent_window,
@@ -106,6 +108,38 @@ class TestSpeakingStateMetadata:
         set_agent_speaking(False)
         assert get_agent_speaking_info() is None
 
+    def test_recent_speaking_info_grace_period(self, tmp_path, monkeypatch):
+        status_file = tmp_path / "voicefi_speaking_test.json"
+        last_file = tmp_path / "voicefi_last_speaking_test.json"
+        monkeypatch.setattr("voicefi.tts.base.AGENT_SPEAKING_STATUS_FILE", status_file)
+        monkeypatch.setattr("voicefi.tts.base.LAST_AGENT_SPEAKING_STATUS_FILE", last_file)
+
+        set_agent_speaking(
+            True,
+            text="Recent speech test",
+            agent_name="claude",
+            persona_name="Viv",
+            app_name="Claude",
+            conv_id="claude-456",
+        )
+
+        # Active while speaking
+        assert get_recent_speaking_info(window_seconds=2.0) is not None
+        assert get_recent_speaking_info(window_seconds=2.0).get("agent_name") == "claude"
+
+        # Stop speech
+        set_agent_speaking(False)
+        assert get_agent_speaking_info() is None
+
+        # Still accessible within grace period
+        recent = get_recent_speaking_info(window_seconds=3.0)
+        assert recent is not None
+        assert recent.get("agent_name") == "claude"
+        assert recent.get("app_name") == "Claude"
+
+        # Not accessible if window_seconds is 0
+        assert get_recent_speaking_info(window_seconds=-1.0) is None
+
 
 class TestFocusSpeakingAgentWindow:
     @patch("voicefi.integrations.injector.focus_antigravity")
@@ -182,8 +216,33 @@ class TestEscapeToStopSpeechWithTab:
 
                 # Trigger Tab
                 on_press(DummyKey(vk=48))
+                time.sleep(0.05)
                 mock_focus_win.assert_called_once_with(
                     agent_name="antigravity",
                     app_name="Antigravity",
                     conv_id=None,
                 )
+
+
+class TestTabFocusDebounceAndNonBlocking:
+    @patch("voicefi.integrations.injector.focus_antigravity")
+    def test_sliding_debounce_prevents_spam(self, mock_focus_ag, monkeypatch):
+        monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+        monkeypatch.setattr("voicefi.integrations.injector._LAST_FOCUS_TS", 0.0)
+        mock_focus_ag.return_value = True
+
+        # First call should succeed and invoke underlying focus
+        res1 = focus_speaking_agent_window(agent_name="antigravity", app_name="Antigravity", force=False)
+        assert res1 is True
+        assert mock_focus_ag.call_count == 1
+
+        # Second call immediately after (within 350ms) should be debounced
+        res2 = focus_speaking_agent_window(agent_name="antigravity", app_name="Antigravity", force=False)
+        assert res2 is True
+        # Under debounce, call_count should still be 1!
+        assert mock_focus_ag.call_count == 1
+
+        # Forced call bypasses debounce
+        res3 = focus_speaking_agent_window(agent_name="antigravity", app_name="Antigravity", force=True)
+        assert res3 is True
+        assert mock_focus_ag.call_count == 2

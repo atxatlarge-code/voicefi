@@ -4,7 +4,7 @@ class Vifi < Formula
   desc "Universal Voice Layer for AI Agents, MCP, and macOS"
   homepage "https://voicefi.org"
   url "https://github.com/atxatlarge-code/voicefi/archive/refs/heads/main.tar.gz"
-  version "0.2.0"
+  version "0.2.1"
   license "MIT"
 
   depends_on "python@3.12"

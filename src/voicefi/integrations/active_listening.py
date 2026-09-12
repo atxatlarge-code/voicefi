@@ -226,8 +226,9 @@ class ActiveListeningEngine:
 
         # 1. Claude Code Direct Routing
         claude_patterns = [
-            r"^(?:ask|tell|have|send\s+to|switch\s+to)\s+claude(?:\s+code)?(?:\s+to|\s*:\s*|\s*,\s*|\s+)\s*(.+)$",
-            r"^claude(?:,\s*|\s*:\s*)(.+)$",
+            r"^(?:(?:hey|hi|ok|okay)\s+)?(?:ask|tell|have|send\s+to|switch\s+to|message|talk\s+to)\s+claude(?:\s+code)?(?:\s+to|\s*:\s*|\s*,\s*|\s+)\s*(.+)$",
+            r"^(?:(?:can|could)\s+you\s+)?(?:ask|tell|message)\s+claude(?:\s+to|\s+that|\s+)\s*(.+)$",
+            r"^(?:hey\s+)?claude(?:,\s*|\s*:\s*|\s+)(.+)$",
         ]
         for pat in claude_patterns:
             m = re.match(pat, clean, re.IGNORECASE)
@@ -377,8 +378,33 @@ class ActiveListeningEngine:
             return None, ""
 
         clean = text.strip()
-        default_names = ["viv", "vive", "vifi", "vivi", "wi-fi", "voicefi", "antigravity"]
-        prefixes = ["hey", "hi", "okay", "ok", "yo", "hello"]
+        try:
+            from voicefi.stt.biasing import PhoneticNormalizer
+
+            clean = PhoneticNormalizer.normalize(clean)
+        except Exception:
+            pass
+
+        claude_names = [
+            "claude",
+            "claud",
+            "clawed",
+            "clod",
+            "glenn",
+            "hagueclaud",
+            "hague claud",
+            "hague claude",
+        ]
+        default_names = [
+            "viv",
+            "vive",
+            "vifi",
+            "vivi",
+            "wi-fi",
+            "voicefi",
+            "antigravity",
+        ] + claude_names
+        prefixes = ["hey", "hi", "okay", "ok", "yo", "hello", "all right", "alright", "so"]
 
         all_aliases = list(aliases or [])
         for name in default_names:
@@ -396,6 +422,15 @@ class ActiveListeningEngine:
             m = re.match(pattern, clean, re.IGNORECASE)
             if m:
                 matched_phrase = alias.strip()
+                # Normalize Claude variants to standard wake phrase
+                mp_lower = matched_phrase.lower()
+                if any(c in mp_lower for c in claude_names):
+                    has_pfx = any(p in mp_lower for p in prefixes) or "hague" in mp_lower
+                    matched_phrase = "hey claude" if has_pfx else "claude"
+                elif any(v in mp_lower for v in ("viv", "vive", "vifi", "vivi", "wi-fi", "voicefi")):
+                    has_pfx = any(p in mp_lower for p in prefixes)
+                    matched_phrase = "hey viv" if has_pfx else "viv"
+
                 remainder = m.group(1) if m.group(1) else ""
                 # Strip leading punctuation and conjunctions
                 remainder = re.sub(r"^[\s,.:;!?-]+", "", remainder)

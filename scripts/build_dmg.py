@@ -263,22 +263,7 @@ def build_dmg(version: str, identity: str = None) -> Path:
     # 2. Create Applications folder shortcut
     os.symlink("/Applications", str(dmg_staging / "Applications"))
 
-    # 3. Copy Quickstart guide
-    quickstart = dmg_staging / "QUICKSTART.txt"
-    quickstart.write_text(
-        "VoiceFi™ — Universal Voice Layer for AI Agents & macOS\n\n"
-        "QUICKSTART:\n"
-        "1. Drag 'VoiceFi.app' into the Applications folder.\n"
-        "2. Launch VoiceFi from Applications or Spotlight.\n"
-        "3. The 🎙️ icon will appear in your macOS menu bar.\n"
-        "4. Press Control + T to dictate into any window or agent.\n\n"
-        "14-Day Free Pro Trial automatically active upon first launch.\n\n"
-        "Documentation & Updates: https://voicefi.org\n"
-        "License Keys & Pro: https://voicefi.app\n"
-        "Support: talktome@voicefi.org\n"
-    )
-
-    # 4. Copy High-DPI DMG Background
+    # 3. Copy High-DPI DMG Background
     dmg_bg_file = ASSETS_DIR / "dmg_background.png"
     if not dmg_bg_file.is_file():
         try:
@@ -292,7 +277,7 @@ def build_dmg(version: str, identity: str = None) -> Path:
     if dmg_bg_file.is_file():
         shutil.copy(dmg_bg_file, bg_dir / "background.png")
 
-    # 5. Volume Icon
+    # 4. Volume Icon
     if ICON_FILE.is_file():
         volume_icon = dmg_staging / ".VolumeIcon.icns"
         shutil.copy(ICON_FILE, volume_icon)
@@ -304,7 +289,7 @@ def build_dmg(version: str, identity: str = None) -> Path:
             subprocess.run([setfile_path, "-a", "C", str(dmg_staging)], stderr=subprocess.DEVNULL)
             subprocess.run([setfile_path, "-a", "V", str(bg_dir)], stderr=subprocess.DEVNULL)
 
-    # 6. Create temporary read-write DMG using native hdiutil
+    # 5. Create temporary read-write DMG using native hdiutil
     temp_dmg = DIST_DIR / "temp.dmg"
     temp_dmg.unlink(missing_ok=True)
     dmg_path.unlink(missing_ok=True)
@@ -325,18 +310,35 @@ def build_dmg(version: str, identity: str = None) -> Path:
         check=True,
     )
 
-    # 7. Mount temporary DMG and configure Finder window layout & positions via AppleScript
+    # Ensure any previous mounts are detached
+    try:
+        res = subprocess.run(["hdiutil", "info"], capture_output=True, text=True)
+        for line in res.stdout.splitlines():
+            if f"/Volumes/{APP_NAME}" in line:
+                idx = line.find("/Volumes/")
+                if idx != -1:
+                    subprocess.run(["hdiutil", "detach", line[idx:].strip(), "-force", "-quiet"], stderr=subprocess.DEVNULL)
+    except Exception:
+        pass
+
+    # 6. Mount temporary DMG and configure Finder window layout & positions via AppleScript
     print("🎨 Styling Finder drag-and-drop window layout...")
     mount_output = subprocess.run(
-        ["hdiutil", "attach", str(temp_dmg), "-noautoopen", "-nobrowse"],
+        ["hdiutil", "attach", str(temp_dmg), "-noautoopen"],
         capture_output=True,
         text=True,
         check=True,
     )
     mount_point = None
+    dev_node = None
     for line in mount_output.stdout.splitlines():
-        if f"/Volumes/{APP_NAME}" in line:
-            mount_point = line.split()[-1]
+        parts = line.split()
+        if not parts:
+            continue
+        idx = line.find(f"/Volumes/{APP_NAME}")
+        if idx != -1:
+            mount_point = line[idx:].strip()
+            dev_node = parts[0]
             break
     if not mount_point:
         mount_point = f"/Volumes/{APP_NAME}"
@@ -348,7 +350,7 @@ def build_dmg(version: str, identity: str = None) -> Path:
             set current view of container window to icon view
             set toolbar visible of container window to false
             set statusbar visible of container window to false
-            set the bounds of container window to {{280, 120, 940, 540}}
+            set the bounds of container window to {{280, 120, 940, 560}}
             set theViewOptions to the icon view options of container window
             set arrangement of theViewOptions to not arranged
             set icon size of theViewOptions to 120
@@ -356,27 +358,43 @@ def build_dmg(version: str, identity: str = None) -> Path:
             try
                 set background picture of theViewOptions to file ".background:background.png"
             end try
-            set position of item "{APP_NAME}.app" of container window to {{170, 220}}
-            set position of item "Applications" of container window to {{490, 220}}
-            try
-                set position of item "QUICKSTART.txt" of container window to {{330, 365}}
-            end try
+            repeat with i in (get every item)
+                set n to name of i
+                if n is not "Applications" and n is not "{APP_NAME}.app" then
+                    try
+                        set position of i to {{495, 200}}
+                    end try
+                end if
+            end repeat
+            set position of item "{APP_NAME}.app" of container window to {{165, 200}}
+            set position of item "Applications" of container window to {{495, 200}}
+            update without registering applications
+            delay 1
             close
             open
-            update without registering applications
             delay 1
         end tell
     end tell
     """
     try:
-        subprocess.run(["osascript", "-e", apple_script], capture_output=True, text=True, timeout=12)
+        subprocess.run(["osascript", "-e", apple_script], capture_output=True, text=True, timeout=15, check=True)
         print("  ✓ Configured Finder window layout and icon positions.")
     except Exception as e:
         print(f"  ⚠️ Note on AppleScript Finder styling: {e}")
     finally:
-        # Detach temporary volume
-        subprocess.run(["hdiutil", "detach", mount_point, "-force", "-quiet"], stderr=subprocess.DEVNULL)
+        # Detach temporary volume cleanly
         time.sleep(1)
+        if dev_node:
+            subprocess.run(["hdiutil", "detach", dev_node, "-force", "-quiet"], stderr=subprocess.DEVNULL)
+        if mount_point:
+            subprocess.run(["hdiutil", "detach", mount_point, "-force", "-quiet"], stderr=subprocess.DEVNULL)
+        time.sleep(2)
+        # Ensure temp_dmg is no longer attached before conversion
+        for _ in range(5):
+            chk = subprocess.run(["hdiutil", "info"], capture_output=True, text=True)
+            if str(temp_dmg) not in chk.stdout:
+                break
+            time.sleep(1)
 
     # 8. Convert to compressed read-only DMG
     subprocess.run(
@@ -403,6 +421,12 @@ def build_dmg(version: str, identity: str = None) -> Path:
         subprocess.run(["codesign", "--sign", identity, str(dmg_path)], check=True)
 
     print(f"🎉 SUCCESS: Generated {dmg_path} ({dmg_path.stat().st_size / (1024 * 1024):.1f} MB)")
+    universal_dmg = DIST_DIR / "VoiceFi_macOS.dmg"
+    try:
+        shutil.copyfile(dmg_path, universal_dmg)
+        print(f"🔗 Universal release asset created: {universal_dmg.name}")
+    except Exception as e:
+        print(f"⚠️ Note copying universal DMG: {e}")
     return dmg_path
 
 
@@ -444,13 +468,10 @@ def verify_dmg(dmg_path: Path):
 
         app_in_dmg = mount_point / f"{APP_NAME}.app"
         app_symlink = mount_point / "Applications"
-        quickstart = mount_point / "QUICKSTART.txt"
-
         assert app_in_dmg.exists(), f"{APP_NAME}.app missing in DMG"
         assert app_symlink.is_symlink(), "Applications symlink missing in DMG"
-        assert quickstart.exists(), "QUICKSTART.txt missing in DMG"
         print(
-            "✅ Verified DMG contents: App bundle, Applications shortcut, and Quickstart guide present."
+            "✅ Verified DMG contents: App bundle and Applications shortcut present."
         )
 
         dmg_exe = app_in_dmg / "Contents" / "MacOS" / APP_NAME

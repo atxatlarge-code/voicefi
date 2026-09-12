@@ -2114,13 +2114,27 @@ HTML_CONTROL_PANEL = """<!DOCTYPE html>
     };
 
     recognition.onresult = (event) => {
-      let transcript = '';
-      for (let i = event.resultIndex; i < event.results.length; ++i) {
-        transcript += event.results[i][0].transcript;
+      let finalParts = [];
+      let latestInterim = '';
+      for (let i = 0; i < event.results.length; ++i) {
+        const res = event.results[i];
+        if (!res || !res[0]) continue;
+        const chunk = (res[0].transcript || '').trim();
+        if (!chunk) continue;
+        if (res.isFinal) {
+          latestInterim = '';
+          if (finalParts.length === 0 || finalParts[finalParts.length - 1] !== chunk) {
+            finalParts.push(chunk);
+          }
+        } else {
+          latestInterim = chunk;
+        }
       }
-      document.getElementById('hudTranscript').textContent = `"${transcript}"`;
-      if (event.results[0].isFinal) {
-        handleVoiceCommand(transcript);
+      const finalText = finalParts.join(' ').trim();
+      const combined = (finalText || latestInterim || '').trim();
+      document.getElementById('hudTranscript').textContent = `"${combined}"`;
+      if (finalText) {
+        handleVoiceCommand(finalText);
       }
     };
 

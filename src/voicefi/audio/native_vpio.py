@@ -80,10 +80,9 @@ def is_vpio_supported() -> bool:
         AVAudioNode = objc.lookUpClass("AVAudioNode")
         AVAudioPCMBuffer = objc.lookUpClass("AVAudioPCMBuffer")
 
-        # Verify instance and method availability
-        test_engine = AVAudioEngine.alloc().init()
-        input_node = test_engine.inputNode()
-        if hasattr(input_node, "setVoiceProcessingEnabled_error_"):
+        # Verify method availability on AVAudioInputNode safely without allocating engine or touching hardware HAL
+        AVAudioInputNode = objc.lookUpClass("AVAudioInputNode")
+        if AVAudioInputNode and hasattr(AVAudioInputNode, "setVoiceProcessingEnabled_error_"):
             _VPIO_SUPPORTED = True
         else:
             _VPIO_SUPPORTED = False

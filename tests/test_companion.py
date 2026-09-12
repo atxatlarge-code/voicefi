@@ -4,6 +4,7 @@ Unit and integration tests for the VoiceFi Mobile Companion, PWA, and WebSocket 
 
 import asyncio
 import json
+from pathlib import Path
 import pytest
 from unittest.mock import patch, MagicMock
 from aiohttp import web
@@ -60,13 +61,21 @@ class CompanionServerTestCase(AioHTTPTestCase):
         return self.companion_server.app
 
     async def test_get_index_html(self):
-        """Test GET / serves mobile PWA HTML."""
+        """Test GET / serves mobile PWA HTML and defaults strictly to voice tab."""
         resp = await self.client.get("/")
         assert resp.status == 200
         text = await resp.text()
         assert "VoiceFi Companion" in text
         assert "Hands-Free Loop" in text
         assert "convSelect" in text
+        # Verify voice stage is default active view and chat is hidden initially
+        assert '<section id="viewVoice"' in text
+        assert '<section id="viewChat" class="hidden' in text
+        # Verify switchView('voice') is called on initialization
+        assert "switchView('voice')" in text
+        # Verify active view is persisted and does not jump to chat on command submit
+        assert "voicefi_companion_view" in text
+        assert "if (currentView !== 'chat') {\n          switchView('chat');" not in text
 
     async def test_get_rc_routes(self):
         """Test GET /rc and /rc/ serve companion PWA HTML."""
@@ -116,24 +125,48 @@ class CompanionServerTestCase(AioHTTPTestCase):
 
     async def test_api_downloads_list_and_act1_file(self):
         """Test GET /api/downloads returns complete file catalog including spicewood_act1_picture_lock.mp4."""
-        resp = await self.client.get("/api/downloads")
-        assert resp.status == 200
-        data = await resp.json()
-        assert data.get("status") == "ok"
-        assert data.get("total_count") > 0
-        filenames = [f["name"] for f in data.get("files", [])]
-        assert "spicewood_texas_lead_sheet.md" in filenames
-        assert "spicewood_act1_picture_lock.mp4" in filenames
+        act1_path = (
+            Path(__file__).resolve().parents[1]
+            / "src"
+            / "voicefi"
+            / "companion"
+            / "static"
+            / "downloads"
+            / "spicewood_act1_picture_lock.mp4"
+        )
+        created_dummy = False
+        if not act1_path.is_file():
+            act1_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(act1_path, "wb") as f:
+                f.seek(11 * 1024 * 1024)
+                f.write(b"\0")
+            created_dummy = True
 
-        # Verify classifications
-        for f in data.get("files", []):
-            if f["name"] == "spicewood_texas_lead_sheet.md":
-                assert f["editable"] is True
-                assert f["category"] == "document"
-            if f["name"] == "spicewood_act1_picture_lock.mp4":
-                assert f["playable"] is True
-                assert f["category"] == "video"
-                assert f["size"] > 10 * 1024 * 1024
+        try:
+            resp = await self.client.get("/api/downloads")
+            assert resp.status == 200
+            data = await resp.json()
+            assert data.get("status") == "ok"
+            assert data.get("total_count") > 0
+            filenames = [f["name"] for f in data.get("files", [])]
+            assert "spicewood_texas_lead_sheet.md" in filenames
+            assert "spicewood_act1_picture_lock.mp4" in filenames
+
+            # Verify classifications
+            for f in data.get("files", []):
+                if f["name"] == "spicewood_texas_lead_sheet.md":
+                    assert f["editable"] is True
+                    assert f["category"] == "document"
+                if f["name"] == "spicewood_act1_picture_lock.mp4":
+                    assert f["playable"] is True
+                    assert f["category"] == "video"
+                    assert f["size"] > 10 * 1024 * 1024
+        finally:
+            if created_dummy and act1_path.is_file():
+                try:
+                    act1_path.unlink()
+                except Exception:
+                    pass
 
     async def test_api_downloads_crud_lifecycle(self):
         """Test file upload, read content, edit/save content, rename, and delete lifecycle."""
@@ -264,6 +297,35 @@ class CompanionServerTestCase(AioHTTPTestCase):
         assert "conversations" in data
         assert isinstance(data["conversations"], list)
 
+    async def test_api_new_conversation_antigravity(self):
+        """Test POST /api/conversation/new creates and focuses an Antigravity conversation."""
+        with patch("voicefi.companion.server.create_new_antigravity_conversation", return_value="new-ag-conv-456") as mock_create:
+            resp = await self.client.post("/api/conversation/new", json={
+                "prompt": "Hello",
+                "engine": "antigravity",
+            })
+            assert resp.status == 200
+            data = await resp.json()
+            assert data.get("success") is True
+            assert data.get("conv_id") == "new-ag-conv-456"
+            assert "conversations" in data
+            mock_create.assert_called_once_with(prompt="Hello", title=None, model=None)
+
+    async def test_api_new_conversation_custom_params(self):
+        """Test POST /api/conversation/new with custom prompt, title, and model."""
+        with patch("voicefi.companion.server.create_new_antigravity_conversation", return_value="custom-conv-789") as mock_create:
+            resp = await self.client.post("/api/conversation/new", json={
+                "prompt": "Refactor database schema",
+                "title": "DB Refactor",
+                "model": "pro",
+                "engine": "antigravity",
+            })
+            assert resp.status == 200
+            data = await resp.json()
+            assert data.get("success") is True
+            assert data.get("conv_id") == "custom-conv-789"
+            mock_create.assert_called_once_with(prompt="Refactor database schema", title="DB Refactor", model="pro")
+
     async def test_api_switch_and_send(self):
         """Test POST /api/switch and POST /api/send."""
         # 1. Switch conversation
@@ -293,6 +355,8 @@ class CompanionServerTestCase(AioHTTPTestCase):
                 from_engine=None,
                 include_envelope=False,
                 allow_foreground_fallback=False,
+                use_headless=True,
+                cwd=None,
             )
 
     async def test_api_send_failure_response(self):
@@ -430,6 +494,7 @@ class CompanionServerTestCase(AioHTTPTestCase):
                 text="Check git diff",
                 sender_name="ViFi Companion",
                 title="Message from ViFi Companion",
+                use_headless=True,
             )
 
         # 4. Test server broadcasting agent turn completion

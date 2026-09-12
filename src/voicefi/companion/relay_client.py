@@ -107,12 +107,23 @@ class RelayClient:
     async def stop(self) -> None:
         """Stop relay client."""
         self.is_running = False
+        if self.has_peer:
+            self.has_peer = False
+            try:
+                from voicefi.integrations.conversations import record_companion_heartbeat
+                record_companion_heartbeat(0)
+            except Exception:
+                pass
+        if self._task:
+            self._task.cancel()
+            try:
+                await self._task
+            except (asyncio.CancelledError, Exception):
+                pass
         if self.ws and not self.ws.closed:
             await self.ws.close()
         if self.session and not self.session.closed:
             await self.session.close()
-        if self._task:
-            self._task.cancel()
 
     async def broadcast(self, data: Dict[str, Any]) -> None:
         """Broadcast a message or event payload up to the connected phone."""
@@ -170,11 +181,16 @@ class RelayClient:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                if not self.is_running:
+                    break
                 print(f"[RelayClient] ❌ Connection error: {e}", flush=True)
 
             self.has_peer = False
             if self.is_running:
-                await asyncio.sleep(reconnect_delay)
+                try:
+                    await asyncio.sleep(reconnect_delay)
+                except asyncio.CancelledError:
+                    break
                 reconnect_delay = min(reconnect_delay * 1.5, 10.0)
 
     async def _handle_incoming_message(self, text: str) -> None:
@@ -188,17 +204,33 @@ class RelayClient:
 
         if msg_type == "relay_connected":
             self.has_peer = payload.get("has_client", False)
+            if self.has_peer:
+                try:
+                    from voicefi.integrations.conversations import record_companion_heartbeat
+                    record_companion_heartbeat(1)
+                except Exception:
+                    pass
             if self.has_peer and self.on_peer_connected:
                 self.on_peer_connected()
 
         elif msg_type == "peer_connected":
             self.has_peer = True
+            try:
+                from voicefi.integrations.conversations import record_companion_heartbeat
+                record_companion_heartbeat(1)
+            except Exception:
+                pass
             logger.info("[RelayClient] 📱 Remote phone connected!")
             if self.on_peer_connected:
                 self.on_peer_connected()
 
         elif msg_type == "peer_disconnected":
             self.has_peer = False
+            try:
+                from voicefi.integrations.conversations import record_companion_heartbeat
+                record_companion_heartbeat(0)
+            except Exception:
+                pass
             logger.info("[RelayClient] 📱 Remote phone disconnected")
             if self.on_peer_disconnected:
                 self.on_peer_disconnected()
@@ -209,7 +241,12 @@ class RelayClient:
 
         elif msg_type in ("user_voice_command", "send_prompt"):
             from voicefi.integrations.injector import send_message_to_agent
-            from voicefi.integrations.conversations import set_mobile_turn_origin
+            from voicefi.integrations.conversations import set_mobile_turn_origin, record_companion_heartbeat
+
+            try:
+                record_companion_heartbeat(1)
+            except Exception:
+                pass
 
             text_prompt = payload.get("text", "").strip()
             engine = payload.get("engine")
@@ -221,33 +258,62 @@ class RelayClient:
                 flush=True,
             )
             if text_prompt:
+                if engine == "obsidian" or conv_id == "obsidian":
+                    from voicefi.integrations.obsidian import append_quick_capture_to_vault
+
+                    print(
+                        f"[RelayClient] 📝 Appending to Obsidian vault: '{text_prompt}'",
+                        flush=True,
+                    )
+                    res = append_quick_capture_to_vault(text=text_prompt)
+                    if res.get("status") == "ok":
+                        await self.broadcast(
+                            {
+                                "type": "vault_capture_appended",
+                                "vault_name": res.get("vault_name"),
+                                "daily_note_name": res.get("daily_note_name"),
+                                "entry": res.get("entry"),
+                                "time": res.get("time"),
+                            }
+                        )
+                    return
+
                 try:
                     set_mobile_turn_origin(conv_id)
                 except Exception:
                     pass
-                res = send_message_to_agent(
+                res = await asyncio.to_thread(
+                    send_message_to_agent,
                     conv_id=conv_id,
                     text=text_prompt,
                     target_engine=engine,
                     sender_name=sender_name,
                     title=title,
-                    include_envelope=True,
+                    include_envelope=False,
                 )
+                target_cid = getattr(res, "target_conv_id", conv_id) or conv_id
                 print(
-                    f"[RelayClient] 🚀 Injected to agent: success={getattr(res, 'success', True)}",
+                    f"[RelayClient] 🚀 Injected to agent ({target_cid}): success={getattr(res, 'success', True)}",
                     flush=True,
                 )
                 await self.broadcast(
                     {
                         "type": "user_command_injected",
-                        "conv_id": conv_id or "active",
+                        "conv_id": target_cid or conv_id or "active",
                         "success": getattr(res, "success", True),
                         "delivered": getattr(res, "success", True),
                         "text": text_prompt,
+                        "engine": engine or getattr(res, "engine", "antigravity"),
                     }
                 )
 
         elif msg_type == "ping":
+            if self.has_peer:
+                try:
+                    from voicefi.integrations.conversations import record_companion_heartbeat
+                    record_companion_heartbeat(1)
+                except Exception:
+                    pass
             await self.broadcast({"type": "pong", "timestamp": time.time()})
 
     async def _proxy_rpc_request(self, payload: Dict[str, Any]) -> None:

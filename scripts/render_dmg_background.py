@@ -37,8 +37,8 @@ OUT_FILE = ASSETS_DIR / "dmg_background.png"
 def render_dmg_background():
     app = NSApplication.sharedApplication()
 
-    # Dimensions in Points (660 x 420 pt) and Pixels (1320 x 840 px @2x)
-    pt_w, pt_h = 660.0, 420.0
+    # Dimensions in Points (660 x 440 pt) and Pixels (1320 x 880 px @2x)
+    pt_w, pt_h = 660.0, 440.0
     scale = 2.0
     px_w, px_h = int(pt_w * scale), int(pt_h * scale)
 
@@ -60,42 +60,29 @@ def render_dmg_background():
     bg_rect = NSRect(NSPoint(0, 0), NSSize(pt_w, pt_h))
     bg_gradient.drawInRect_angle_(bg_rect, -90.0)
 
-    # 2. Subtle Glow behind Left (App) and Right (Applications) icon landing pads
-    # Left Pad Center: (170, 205 in AppKit bottom-up coordinates is pt_h - 220 = 200)
-    app_center_x = 170.0
-    apps_center_x = 490.0
-    pad_center_y = 195.0
-
-    def draw_drop_pad(cx, cy, label_text):
-        pad_w, pad_h = 136.0, 136.0
-        pad_rect = NSRect(NSPoint(cx - pad_w / 2.0, cy - pad_h / 2.0), NSSize(pad_w, pad_h))
-        
-        # Outer soft glow ring
-        glow_color = NSColor.colorWithCalibratedRed_green_blue_alpha_(0.22, 0.22, 0.28, 0.4)
-        glow_color.setStroke()
-        glow_path = NSBezierPath.bezierPathWithRoundedRect_xRadius_yRadius_(pad_rect, 28.0, 28.0)
-        glow_path.setLineWidth_(1.5)
-        
-        # Dashed line pattern
-        pattern = [6.0, 5.0]
-        glow_path.setLineDash_count_phase_(pattern, 2, 0.0)
-        glow_path.stroke()
-
-        # Inner subtle tinted fill
-        fill_color = NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 1.0, 1.0, 0.025)
-        fill_color.setFill()
-        glow_path.fill()
-
-    draw_drop_pad(app_center_x, pad_center_y, "VoiceFi.app")
-    draw_drop_pad(apps_center_x, pad_center_y, "Applications")
-
-    # 3. Center Directional Electric Red Arrow ➔
+    # 2. Perfect Vertical Axis: Finder icon Y from top is 200.0 pt -> in AppKit bottom-up: pt_h - 200.0 = 240.0 pt
+    finder_icon_y = 200.0
+    appkit_icon_y = pt_h - finder_icon_y
+    app_x = 165.0
+    apps_x = 495.0
     center_x = 330.0
-    arrow_y = pad_center_y + 10.0
 
-    # Draw stylish pill badge around arrow
-    badge_w, badge_h = 154.0, 32.0
-    badge_rect = NSRect(NSPoint(center_x - badge_w / 2.0, arrow_y - badge_h / 2.0), NSSize(badge_w, badge_h))
+    # Subtle ambient radial glow behind Left (VoiceFi.app) and Right (Applications)
+    def draw_radial_glow(cx, cy, color):
+        for r, a in [(85.0, 0.04), (65.0, 0.08), (45.0, 0.12)]:
+            glow = color.colorWithAlphaComponent_(a)
+            glow.setFill()
+            path = NSBezierPath.bezierPathWithOvalInRect_(NSRect(NSPoint(cx - r, cy - r), NSSize(r * 2, r * 2)))
+            path.fill()
+
+    red_glow = NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 0.165, 0.165, 1.0)
+    blue_glow = NSColor.colorWithCalibratedRed_green_blue_alpha_(0.0, 0.55, 1.0, 1.0)
+    draw_radial_glow(app_x, appkit_icon_y, red_glow)
+    draw_radial_glow(apps_x, appkit_icon_y, blue_glow)
+
+    # 3. Center Directional Electric Red Arrow Pill Badge
+    badge_w, badge_h = 144.0, 32.0
+    badge_rect = NSRect(NSPoint(center_x - badge_w / 2.0, appkit_icon_y - badge_h / 2.0), NSSize(badge_w, badge_h))
     badge_path = NSBezierPath.bezierPathWithRoundedRect_xRadius_yRadius_(badge_rect, 16.0, 16.0)
 
     # Red badge background
@@ -103,26 +90,24 @@ def render_dmg_background():
     red_badge_bg.setFill()
     badge_path.fill()
 
-    red_badge_stroke = NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 0.165, 0.165, 0.45)
+    red_badge_stroke = NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 0.165, 0.165, 0.40)
     red_badge_stroke.setStroke()
     badge_path.setLineWidth_(1.2)
     badge_path.stroke()
 
     # Red Arrow icon inside badge
     arrow_path = NSBezierPath.bezierPath()
-    arrow_path.setLineWidth_(3.0)
+    arrow_path.setLineWidth_(2.8)
     arrow_path.setLineCapStyle_(AppKit.NSLineCapStyleRound)
     arrow_path.setLineJoinStyle_(AppKit.NSLineJoinStyleRound)
     
-    # Stem
-    arrow_path.moveToPoint_(NSPoint(center_x - 18.0, arrow_y))
-    arrow_path.lineToPoint_(NSPoint(center_x + 18.0, arrow_y))
-    # Arrowhead
-    arrow_path.moveToPoint_(NSPoint(center_x + 10.0, arrow_y + 6.5))
-    arrow_path.lineToPoint_(NSPoint(center_x + 18.0, arrow_y))
-    arrow_path.lineToPoint_(NSPoint(center_x + 10.0, arrow_y - 6.5))
+    arrow_path.moveToPoint_(NSPoint(center_x - 18.0, appkit_icon_y))
+    arrow_path.lineToPoint_(NSPoint(center_x + 18.0, appkit_icon_y))
+    arrow_path.moveToPoint_(NSPoint(center_x + 10.0, appkit_icon_y + 6.0))
+    arrow_path.lineToPoint_(NSPoint(center_x + 18.0, appkit_icon_y))
+    arrow_path.lineToPoint_(NSPoint(center_x + 10.0, appkit_icon_y - 6.0))
     
-    red_arrow_color = NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 0.22, 0.22, 1.0)
+    red_arrow_color = NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 0.28, 0.28, 1.0)
     red_arrow_color.setStroke()
     arrow_path.stroke()
 
@@ -138,15 +123,13 @@ def render_dmg_background():
         AppKit.NSParagraphStyleAttributeName: para,
     }
     inst_str = AppKit.NSAttributedString.alloc().initWithString_attributes_(
-        "Drag to Applications to Install", inst_attrs
+        "Drag to Applications", inst_attrs
     )
-    inst_str.drawInRect_(NSRect(NSPoint(center_x - 120.0, arrow_y - 34.0), NSSize(240.0, 20.0)))
+    inst_str.drawInRect_(NSRect(NSPoint(center_x - 100.0, appkit_icon_y - 32.0), NSSize(200.0, 18.0)))
 
     # 4. Header Section at Top
-    # App Title: VoiceFi
-    title_font = NSFont.systemFontOfSize_weight_(26.0, NSFontWeightBlack)
+    title_font = NSFont.systemFontOfSize_weight_(27.0, NSFontWeightBlack)
     title_white = NSColor.colorWithCalibratedRed_green_blue_alpha_(0.98, 0.98, 1.0, 1.0)
-    title_red = NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 0.165, 0.165, 1.0)
     
     title_attrs_white = {
         AppKit.NSFontAttributeName: title_font,
@@ -155,14 +138,13 @@ def render_dmg_background():
     }
     title_attrs_red = {
         AppKit.NSFontAttributeName: title_font,
-        AppKit.NSForegroundColorAttributeName: title_red,
+        AppKit.NSForegroundColorAttributeName: red_glow,
         AppKit.NSParagraphStyleAttributeName: para,
     }
 
     title_str = AppKit.NSMutableAttributedString.alloc().initWithString_attributes_("Voice", title_attrs_white)
     title_str.appendAttributedString_(AppKit.NSAttributedString.alloc().initWithString_attributes_("Fi", title_attrs_red))
-    
-    title_str.drawInRect_(NSRect(NSPoint(0, pt_h - 62.0), NSSize(pt_w, 34.0)))
+    title_str.drawInRect_(NSRect(NSPoint(0, pt_h - 60.0), NSSize(pt_w, 35.0)))
 
     # Subtitle: "Universal Voice Layer for AI Agents & macOS"
     sub_font = NSFont.systemFontOfSize_weight_(12.0, NSFontWeightMedium)
@@ -175,20 +157,20 @@ def render_dmg_background():
     sub_str = AppKit.NSAttributedString.alloc().initWithString_attributes_(
         "Universal Voice Layer for AI Agents & macOS", sub_attrs
     )
-    sub_str.drawInRect_(NSRect(NSPoint(0, pt_h - 84.0), NSSize(pt_w, 20.0)))
+    sub_str.drawInRect_(NSRect(NSPoint(0, pt_h - 82.0), NSSize(pt_w, 20.0)))
 
-    # 5. Footer Section at Bottom
+    # 5. Footer Section at Bottom (Placed within visible viewport: distance from top ~345 pt -> Y = 95.0 pt)
     foot_font = NSFont.systemFontOfSize_weight_(10.5, NSFontWeightMedium)
-    foot_color = NSColor.colorWithCalibratedRed_green_blue_alpha_(0.40, 0.45, 0.55, 0.85)
+    foot_color = NSColor.colorWithCalibratedRed_green_blue_alpha_(0.42, 0.47, 0.58, 0.85)
     foot_attrs = {
         AppKit.NSFontAttributeName: foot_font,
         AppKit.NSForegroundColorAttributeName: foot_color,
         AppKit.NSParagraphStyleAttributeName: para,
     }
     foot_str = AppKit.NSAttributedString.alloc().initWithString_attributes_(
-        "100% Private Offline Neural Speech • Universal Apple Silicon & Intel • Pro 14-Day Preview Included", foot_attrs
+        "100% Private Offline Neural Speech • Universal Apple Silicon & Intel", foot_attrs
     )
-    foot_str.drawInRect_(NSRect(NSPoint(0, 16.0), NSSize(pt_w, 18.0)))
+    foot_str.drawInRect_(NSRect(NSPoint(0, 95.0), NSSize(pt_w, 18.0)))
 
     rep = AppKit.NSBitmapImageRep.alloc().initWithFocusedViewRect_(
         NSRect(NSPoint(0, 0), NSSize(px_w, px_h))

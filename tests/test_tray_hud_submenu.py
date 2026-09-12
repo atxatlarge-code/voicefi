@@ -93,3 +93,13 @@ def test_reset_hud_position(mock_tray_app):
     with patch("voicefi.ui.tray.save_config"), patch("rumps.notification"):
         app.reset_hud_position()
         mock_hud.reset_position.assert_called_once()
+
+
+def test_preview_hud_ecosystem_states(mock_tray_app):
+    app, mock_hud = mock_tray_app
+    app.preview_hud_state("auditing")
+    mock_hud.set_auditing.assert_called_once()
+
+    app.preview_hud_state("verified")
+    mock_hud.set_verified.assert_called_once()
+

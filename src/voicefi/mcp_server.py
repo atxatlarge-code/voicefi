@@ -125,7 +125,7 @@ atexit.register(shutdown_mcp_posthog)
 
 PROTOCOL_VERSION = "2024-11-05"
 SERVER_NAME = "voicefi"
-SERVER_VERSION = "0.2.0"
+SERVER_VERSION = "0.2.1"
 
 # Standard tool definitions exposed to MCP clients
 MCP_TOOLS: List[Dict[str, Any]] = [
@@ -396,6 +396,63 @@ MCP_TOOLS: List[Dict[str, Any]] = [
             },
         },
     },
+    {
+        "name": "voicefi_vault_append",
+        "description": "Append a note, task, or thought directly into the user's active Obsidian Vault daily note (0-latency, 100% offline).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "text": {
+                    "type": "string",
+                    "description": "The text content or bullet item to append to today's daily note.",
+                },
+                "vault_path": {
+                    "type": "string",
+                    "description": "Optional custom Obsidian vault path (default: active vault).",
+                },
+            },
+            "required": ["text"],
+        },
+    },
+    {
+        "name": "voicefi_vault_query",
+        "description": "Search the user's Obsidian Vault for an answer, or read today's daily note when no query is given.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Question to answer from the vault. Omit to read today's daily note.",
+                },
+                "vault_path": {
+                    "type": "string",
+                    "description": "Optional custom Obsidian vault path (default: active vault).",
+                },
+            },
+        },
+    },
+    {
+        "name": "voicefi_vault_memo",
+        "description": "Save a structured technical spec, implementation plan, or voice memo with Mermaid diagram into the user's Obsidian Vault under 'Voice Memos/' and backlink in today's daily note.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "title": {
+                    "type": "string",
+                    "description": "The title of the voice memo / architectural document.",
+                },
+                "markdown": {
+                    "type": "string",
+                    "description": "The markdown content of the document (can include Mermaid diagrams, checklists).",
+                },
+                "vault_path": {
+                    "type": "string",
+                    "description": "Optional custom Obsidian vault path (default: active vault).",
+                },
+            },
+            "required": ["title", "markdown"],
+        },
+    },
 ]
 
 
@@ -654,6 +711,9 @@ class VoiceFiMCPServer:
             "meeting_stop",
             "meeting_status",
             "meeting_action",
+            "vault_append",
+            "vault_query",
+            "vault_memo",
         ):
             canonical_name = "voicefi_" + name
 
@@ -684,6 +744,12 @@ class VoiceFiMCPServer:
                 res = self._tool_meeting_status(args)
             elif canonical_name == "voicefi_meeting_action":
                 res = self._tool_meeting_action(args)
+            elif canonical_name == "voicefi_vault_append":
+                res = self._tool_vault_append(args)
+            elif canonical_name == "voicefi_vault_query":
+                res = self._tool_vault_query(args)
+            elif canonical_name == "voicefi_vault_memo":
+                res = self._tool_vault_memo(args)
             else:
                 res = {
                     "content": [{"type": "text", "text": f"Unknown tool '{name}' (not recognized)."}],
@@ -1251,14 +1317,17 @@ class VoiceFiMCPServer:
         )
         title = str(args.get("title")).strip() if args.get("title") is not None else None
 
-        result = send_message_to_agent(
-            conv_id=conv_id,
-            text=text,
-            sender_name=sender_name,
-            title=title,
-            target_engine=target_engine,
-            from_engine="claude" if target_engine == "antigravity" else "antigravity",
-        )
+        send_kwargs: Dict[str, Any] = {
+            "conv_id": conv_id,
+            "text": text,
+            "sender_name": sender_name,
+            "title": title,
+            "target_engine": target_engine,
+            "from_engine": "claude" if target_engine == "antigravity" else "antigravity",
+        }
+        if "headless" in args or "use_headless" in args:
+            send_kwargs["use_headless"] = bool(args.get("headless", args.get("use_headless", True)))
+        result = send_message_to_agent(**send_kwargs)
 
         if result.success:
             return {
@@ -1537,6 +1606,114 @@ class VoiceFiMCPServer:
                 {
                     "type": "text",
                     "text": f"⚡ Executed Meeting Action [{category.value}]: {title} -> {res_summary}",
+                }
+            ],
+            "isError": False,
+        }
+
+    def _tool_vault_append(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        from voicefi.integrations.obsidian import append_quick_capture_to_vault
+        from pathlib import Path
+
+        text = args.get("text", "")
+        if not text or not isinstance(text, str):
+            return {
+                "content": [{"type": "text", "text": "Error: 'text' parameter is required for vault_append."}],
+                "isError": True,
+            }
+
+        custom_vault = args.get("vault_path")
+        vp = Path(custom_vault) if custom_vault else None
+
+        res = append_quick_capture_to_vault(text, vault_path=vp)
+        if res.get("status") != "ok":
+            return {
+                "content": [{"type": "text", "text": f"Error: {res.get('error', 'Unknown vault error')}"}],
+                "isError": True,
+            }
+
+        return {
+            "content": [
+                {
+                    "type": "text",
+                    "text": f"✅ Appended to Obsidian Daily Note ({res['daily_note_name']}) in '{res['vault_name']}':\n{res['entry']}",
+                }
+            ],
+            "isError": False,
+        }
+
+    def _tool_vault_query(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        from voicefi.integrations.obsidian import get_today_note_content
+        from pathlib import Path
+
+        custom_vault = args.get("vault_path")
+        vp = Path(custom_vault) if custom_vault else None
+
+        query = (args.get("query") or "").strip()
+        if query:
+            from voicefi.integrations.vault_agent import VaultAgent
+
+            answer = VaultAgent().answer_vault_query(query, vault_path=vp)
+            sources = answer.get("sources", [])
+            lines = [answer.get("spoken_response", "")]
+            if sources:
+                lines.append("")
+                lines.append("Sources:")
+                for src in sources:
+                    loc = f":{src['line']}" if src.get("line") else ""
+                    lines.append(f"- {src['note']} ({src.get('path', '')}{loc})")
+            return {
+                "content": [{"type": "text", "text": "\n".join(lines)}],
+                "isError": False,
+            }
+
+        res = get_today_note_content(vault_path=vp)
+        if res.get("status") != "ok":
+            return {
+                "content": [{"type": "text", "text": f"Error: {res.get('error', 'Unknown vault error')}"}],
+                "isError": True,
+            }
+
+        return {
+            "content": [
+                {
+                    "type": "text",
+                    "text": f"Daily Note ({res['file_name']}) in Obsidian Vault '{res['vault_name']}':\n\n{res['content']}",
+                }
+            ],
+            "isError": False,
+        }
+
+    def _tool_vault_memo(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        from voicefi.integrations.obsidian import save_memo_to_vault
+        from pathlib import Path
+
+        title = args.get("title", "").strip()
+        markdown = args.get("markdown", "").strip()
+        if not title or not markdown:
+            return {
+                "content": [{"type": "text", "text": "Error: 'title' and 'markdown' parameters are required for vault_memo."}],
+                "isError": True,
+            }
+
+        custom_vault = args.get("vault_path")
+        vp = Path(custom_vault) if custom_vault else None
+
+        res = save_memo_to_vault(memo_markdown=markdown, title=title, vault_path=vp)
+        if res.get("status") != "ok":
+            return {
+                "content": [{"type": "text", "text": f"Error: {res.get('error', 'Unknown vault error')}"}],
+                "isError": True,
+            }
+
+        return {
+            "content": [
+                {
+                    "type": "text",
+                    "text": (
+                        f"✅ Saved Voice Memo to '{res['vault_name']}/Voice Memos/{res['memo_name']}' "
+                        f"and added backlink in daily note ({res['backlink']})."
+                    ),
                 }
             ],
             "isError": False,

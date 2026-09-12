@@ -41,6 +41,8 @@ from voicefi.integrations.conversations import (
     mark_turn_completed,
     save_session_cookie,
     pop_mobile_turn_origin,
+    peek_mobile_turn_origin,
+    get_claimed_turn_origin,
     has_active_companion_client,
 )
 from voicefi.integrations.active_listening import (
@@ -214,9 +216,16 @@ def handle_claude_stop_hook(
         # Check Mobile Companion audio routing
         routing = getattr(getattr(cfg, "companion", None), "audio_routing", "smart")
         mute_mac_active = getattr(
-            getattr(cfg, "companion", None), "mute_mac_when_companion_active", False
+            getattr(cfg, "companion", None), "mute_mac_when_companion_active", True
         )
-        is_mobile = pop_mobile_turn_origin(conv_id) or pop_mobile_turn_origin(cid_key)
+        is_mobile = (
+            get_claimed_turn_origin(conv_id, text_to_speak) == "mobile"
+            or get_claimed_turn_origin(cid_key, text_to_speak) == "mobile"
+            or peek_mobile_turn_origin(conv_id)
+            or peek_mobile_turn_origin(cid_key)
+            or pop_mobile_turn_origin(conv_id)
+            or pop_mobile_turn_origin(cid_key)
+        )
 
         if routing == "phone_only":
             return {"status": "phone_only", "agent": "claude"}
@@ -225,8 +234,11 @@ def handle_claude_stop_hook(
                 # Turn originated from mobile phone companion and user requested origin_only
                 return {"status": "mobile_handled", "agent": "claude"}
         elif routing == "smart":
+            if is_mobile:
+                # Turn originated from mobile companion -> only speak on phone, suppress Mac
+                return {"status": "mobile_handled", "agent": "claude"}
             if mute_mac_active and has_active_companion_client():
-                # Mac suppressed only when user explicitly enabled mute_mac_when_companion_active: True
+                # Mac suppressed when companion client is actively connected and mute_mac enabled
                 return {"status": "mac_muted", "agent": "claude"}
 
         # 2. Speak the soundbite aloud using Claude's voice persona (Guy)
@@ -246,7 +258,11 @@ def handle_claude_stop_hook(
                 clear_cross_process_hud_state()
 
         # 3. Check if we should auto-open microphone
-        if not cfg.claude.auto_listen:
+        if not cfg.claude.auto_listen or is_mobile:
+            if is_mobile:
+                print(
+                    "[Claude Hook] 📱 Turn originated from mobile companion — skipping Mac desktop mic auto-listen."
+                )
             if cfg.claude.read_summary_aloud:
                 dur_ms = int((time.time() - hook_start_time) * 1000)
                 try:
@@ -262,7 +278,7 @@ def handle_claude_stop_hook(
                     )
                 except Exception:
                     pass
-            return {"status": "spoken", "agent": "claude"}
+            return {"status": "mobile_handled" if is_mobile else "spoken", "agent": "claude"}
 
         # 4. Play start listening chime with settle window to avoid mic bleed
         if cfg.audio_cues.enabled:

@@ -50,9 +50,12 @@ class WakeWordListener:
             getattr(
                 self.config.wakeword,
                 "aliases",
-                ["hey viv", "viv", "hey vifi", "vifi", "hey antigravity"],
+                ["hey viv", "viv", "hey vifi", "vifi", "hey antigravity", "hey claude", "claude"],
             )
         )
+        for extra in ("hey claude", "claude"):
+            if extra not in [a.lower() for a in self.aliases]:
+                self.aliases.append(extra)
         if getattr(
             self.config.wakeword, "phrase", None
         ) and self.config.wakeword.phrase.lower() not in [a.lower() for a in self.aliases]:

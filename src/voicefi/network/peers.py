@@ -155,6 +155,16 @@ class PeerDiscoveryEngine:
         loop = asyncio.get_running_loop()
 
         for p in ports_to_try:
+            # Fast async TCP pre-check to discard offline hosts without threadpool saturation
+            if ip not in ("127.0.0.1", "localhost", local_ip):
+                try:
+                    conn = asyncio.open_connection(ip, p)
+                    _, writer = await asyncio.wait_for(conn, timeout=min(timeout, 0.2))
+                    writer.close()
+                    await writer.wait_closed()
+                except Exception:
+                    continue
+
             for endpoint in ("/api/peer/info", "/api/status"):
                 url = f"http://{ip}:{p}{endpoint}"
 

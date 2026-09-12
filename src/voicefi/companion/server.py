@@ -121,6 +121,27 @@ class CompanionServer:
         self.app.middlewares.append(cors_middleware)
         self._setup_routes()
 
+    def get_connectivity_summary(self) -> Dict[str, Any]:
+        """Return real-time connectivity status of companion server, relay, and active devices."""
+        relay_online = bool(
+            self.relay_client
+            and self.relay_client.ws
+            and not self.relay_client.ws.closed
+        )
+        has_relay_peer = bool(self.relay_client and getattr(self.relay_client, "has_peer", False))
+        ws_count = len([ws for ws in self.active_websockets if not ws.closed])
+        total_peers = ws_count + (1 if has_relay_peer else 0)
+
+        return {
+            "port": self.port,
+            "port_online": True,
+            "relay_connected": relay_online,
+            "has_relay_peer": has_relay_peer,
+            "connected_clients": ws_count,
+            "total_connected_devices": total_peers,
+            "is_paired": total_peers > 0,
+        }
+
     def _setup_routes(self):
         self.app.router.add_get("/", self.handle_index)
         self.app.router.add_get("/companion", self.handle_index)
@@ -176,9 +197,13 @@ class CompanionServer:
         self.app.router.add_post("/api/conversation/new", self.handle_new_conversation)
         self.app.router.add_post("/api/switch", self.handle_switch)
         self.app.router.add_post("/api/send", self.handle_send)
+        self.app.router.add_post("/api/turn_notify", self.handle_turn_notify)
         self.app.router.add_post("/api/speak", self.handle_speak)
         self.app.router.add_post("/api/sfx", self.handle_sfx)
         self.app.router.add_post("/api/stop", self.handle_stop)
+        self.app.router.add_post("/api/quick-bar/toggle", self.handle_quick_bar_toggle)
+        self.app.router.add_post("/api/quick-bar/show", self.handle_quick_bar_show)
+        self.app.router.add_post("/api/quick-bar/hide", self.handle_quick_bar_hide)
         self.app.router.add_post(
             "/api/conversation/{conv_id}/artifact_review", self.handle_artifact_review
         )
@@ -206,6 +231,11 @@ class CompanionServer:
             "/api/troubleshoot/hearing-test", self.handle_troubleshoot_hearing_test
         )
         self.app.router.add_post("/api/vault/query", self.handle_vault_query)
+        self.app.router.add_post("/api/vault/capture", self.handle_vault_capture)
+        self.app.router.add_post("/api/vault/memo", self.handle_vault_memo)
+        self.app.router.add_get("/api/vault/today", self.handle_vault_today)
+        self.app.router.add_get("/api/vault/status", self.handle_vault_status)
+        self.app.router.add_post("/api/vault/launch_agent", self.handle_vault_launch_agent)
         self.app.router.add_get("/api/qr", self.handle_qr)
         self.app.router.add_get("/api/tunnel/status", self.handle_tunnel_status)
         self.app.router.add_post("/api/tunnel/start", self.handle_tunnel_start)
@@ -1037,7 +1067,7 @@ class CompanionServer:
                 prompt_text = custom_feedback or "Please review and adjust the implementation plan."
 
             set_mobile_turn_origin(conv_id)
-            delivered = send_message_to_agent(conv_id=conv_id, text=prompt_text)
+            delivered = bool(send_message_to_agent(conv_id=conv_id, text=prompt_text))
             self.broadcast_event(
                 {
                     "type": "plan_action_dispatched",
@@ -1062,6 +1092,19 @@ class CompanionServer:
         convs = self.tracker.get_all_conversations(limit=12)
         active = self.tracker.get_active_or_latest()
         active_id = active.id if active else ""
+
+        vault_info = None
+        try:
+            from voicefi.integrations.obsidian import get_primary_vault
+            pv = get_primary_vault(self.config)
+            if pv:
+                vault_info = {
+                    "name": pv.name,
+                    "path": str(pv),
+                }
+        except Exception:
+            pass
+
         return web.json_response(
             {
                 "conversations": [
@@ -1076,6 +1119,7 @@ class CompanionServer:
                     for c in convs
                 ],
                 "active_id": active_id,
+                "vault": vault_info,
             }
         )
 
@@ -1112,11 +1156,19 @@ class CompanionServer:
             title = data.get("title")
             model = data.get("model")
             engine = data.get("engine", "antigravity")
+            active = None
 
             if engine == "claude":
-                delivered = inject_text_to_claude(prompt, submit_enter=True)
-                active = self.tracker.get_active_or_latest()
-                active_id = active.id if active else "claude_active"
+                from voicefi.integrations.claude_runner import ClaudeHeadlessRunner
+
+                runner = ClaudeHeadlessRunner.get_instance()
+                disp = runner.dispatch(
+                    text=prompt,
+                    conv_id=None,
+                    config=self.config,
+                    async_execution=True,
+                )
+                active_id = getattr(disp, "target_conv_id", None) or "claude_active"
             else:
                 new_id = create_new_antigravity_conversation(
                     prompt=prompt, title=title, model=model
@@ -1127,11 +1179,13 @@ class CompanionServer:
 
             if active_id:
                 self.tracker.set_active_focus(active_id)
+                if not active:
+                    active = self.tracker.get_active_or_latest()
                 self.broadcast_event(
                     {
                         "type": "conversation_created",
                         "conv_id": active_id,
-                        "title": active.title if active else "New Conversation",
+                        "title": active.title if active else (title or "New Conversation"),
                         "engine": engine,
                     }
                 )
@@ -1225,14 +1279,96 @@ class CompanionServer:
             target_engine = data.get("engine") or data.get("to_engine")
             from_conv_id = data.get("from_conv_id")
             from_engine = data.get("from_engine")
-            include_envelope = (
-                data.get("include_envelope", True)
-                if (target_engine in ("claude", "claude_code"))
-                else data.get("include_envelope", False)
+            include_envelope = bool(data.get("include_envelope", False))
+
+            lower_text = text.lower().strip()
+            if conv_id and (conv_id.startswith("claude_") or "claude" in conv_id.lower()):
+                target_engine = "claude"
+
+            has_claude_intent = bool(
+                re.search(
+                    r"\b(?:hey|ask|tell|all\s+right|alright|okay|so|can\s+you\s+ask|could\s+you\s+ask|send\s+to|talk\s+to|switch\s+to|have|message)?\s*claude\b",
+                    lower_text,
+                )
             )
+            if has_claude_intent:
+                target_engine = "claude"
+                if conv_id and not conv_id.startswith("claude_") and "claude" not in conv_id.lower():
+                    conv_id = None
 
             set_mobile_turn_origin(conv_id)
-            result = send_message_to_agent(
+
+            if target_engine == "obsidian" or conv_id == "obsidian":
+                from voicefi.integrations.obsidian import append_quick_capture_to_vault
+                from voicefi.integrations.vault_agent import VaultAgent, is_vault_question
+
+                # A spoken question is answered out of the vault and read back.
+                # Anything else is a thought, and goes into today's daily note.
+                if is_vault_question(text):
+                    agent = VaultAgent(self.config)
+                    answer = await asyncio.to_thread(agent.answer_vault_query, text)
+                    spoken = answer.get("spoken_response", "")
+                    if spoken:
+                        self.broadcast_event(
+                            {
+                                "type": "vault_answer",
+                                "text": spoken,
+                                "query": text,
+                                "sources": answer.get("sources", []),
+                                "provider": answer.get("provider"),
+                            }
+                        )
+                        self._speak_in_background(spoken)
+                    return web.json_response(
+                        {
+                            "success": True,
+                            "delivered": True,
+                            "delivered_ipc": True,
+                            "engine": "obsidian",
+                            "mode": "query",
+                            "res": answer,
+                        }
+                    )
+
+                res = append_quick_capture_to_vault(text=text, config=self.config)
+                if res.get("status") == "ok":
+                    self.broadcast_event(
+                        {
+                            "type": "vault_capture_appended",
+                            "vault_name": res.get("vault_name"),
+                            "daily_note_name": res.get("daily_note_name"),
+                            "entry": res.get("entry"),
+                            "time": res.get("time"),
+                        }
+                    )
+                    return web.json_response(
+                        {
+                            "success": True,
+                            "delivered": True,
+                            "delivered_ipc": True,
+                            "engine": "obsidian",
+                            "res": res,
+                        }
+                    )
+                else:
+                    return web.json_response(
+                        {
+                            "success": False,
+                            "delivered": False,
+                            "error": res.get("error", "Vault write failed"),
+                            "engine": "obsidian",
+                        },
+                        status=500,
+                    )
+
+            cwd_arg = data.get("cwd") or data.get("vault_path")
+            if not cwd_arg and target_engine in ("claude_obsidian", "obsidian_claude"):
+                from voicefi.integrations.obsidian import get_primary_vault
+                cwd_arg = get_primary_vault(self.config)
+                target_engine = "claude"
+
+            result = await asyncio.to_thread(
+                send_message_to_agent,
                 conv_id=conv_id,
                 text=text,
                 sender_name=sender_name,
@@ -1242,6 +1378,8 @@ class CompanionServer:
                 from_engine=from_engine,
                 include_envelope=include_envelope,
                 allow_foreground_fallback=False,  # Strict: never blind-paste for API sends
+                use_headless=True,
+                cwd=Path(cwd_arg) if cwd_arg else None,
             )
             is_success = bool(result)
             delivery_type = getattr(result, "delivery_type", "ipc" if is_success else "none")
@@ -1251,7 +1389,7 @@ class CompanionServer:
             self.broadcast_event(
                 {
                     "type": "user_command_injected",
-                    "conv_id": conv_id or target_cid or "active",
+                    "conv_id": target_cid or conv_id or "active",
                     "text": text,
                     "delivered": is_success,
                 }
@@ -1260,6 +1398,7 @@ class CompanionServer:
                 "success": is_success,
                 "delivered": is_success,
                 "delivered_ipc": (delivery_type == "ipc"),
+                "delivered_headless": (delivery_type == "headless"),
                 "pasted_to_foreground": (delivery_type == "foreground_paste"),
                 "target_engine": target_engine or getattr(result, "engine", "antigravity"),
                 "conv_id": target_cid,
@@ -1280,6 +1419,41 @@ class CompanionServer:
                 },
                 status=500,
             )
+
+    async def handle_turn_notify(self, request: web.Request) -> web.Response:
+        """
+        Receives turn completion notification from background headless runners (e.g. Claude Code)
+        and immediately broadcasts the turn completion to mobile and web companion clients.
+        """
+        try:
+            try:
+                data = await request.json()
+            except Exception:
+                return web.json_response(
+                    {"error": "Invalid JSON payload", "status": "error"}, status=400
+                )
+
+            if not isinstance(data, dict):
+                return web.json_response(
+                    {"error": "JSON body must be an object", "status": "error"}, status=400
+                )
+
+            summary = data.get("summary", "")
+            conv_id = data.get("conv_id", "")
+            agent_role = data.get("agent_role", "claude")
+            full_response = data.get("full_response", "")
+            origin = data.get("origin", "mobile")
+
+            self.broadcast_turn_completion(
+                summary=summary,
+                conv_id=conv_id,
+                agent_role=agent_role,
+                full_response=full_response,
+                origin=origin,
+            )
+            return web.json_response({"status": "ok", "broadcast": True})
+        except Exception as e:
+            return web.json_response({"status": "error", "error": str(e)}, status=500)
 
     async def handle_speak(self, request: web.Request) -> web.Response:
         """
@@ -1513,6 +1687,46 @@ class CompanionServer:
             )
         except Exception as e:
             return web.json_response({"error": str(e), "status": "error"}, status=500)
+
+    async def handle_quick_bar_toggle(self, request: web.Request) -> web.Response:
+        """Toggle the native macOS Quick Prompt Bar window."""
+        try:
+            from voicefi.ui.quick_bar import QuickPromptBarWindow
+
+            bar = QuickPromptBarWindow.get_instance()
+            bar.toggle()
+            return web.json_response({"status": "ok", "action": "toggle"})
+        except Exception as e:
+            return web.json_response({"status": "error", "error": str(e)}, status=500)
+
+    async def handle_quick_bar_show(self, request: web.Request) -> web.Response:
+        """Show the native macOS Quick Prompt Bar window, optionally with initial text."""
+        try:
+            data = {}
+            if request.can_read_body:
+                try:
+                    data = await request.json()
+                except Exception:
+                    data = {}
+            initial_text = data.get("text") or data.get("prompt")
+            from voicefi.ui.quick_bar import QuickPromptBarWindow
+
+            bar = QuickPromptBarWindow.get_instance()
+            bar.show(initial_text=initial_text)
+            return web.json_response({"status": "ok", "action": "show", "text": initial_text})
+        except Exception as e:
+            return web.json_response({"status": "error", "error": str(e)}, status=500)
+
+    async def handle_quick_bar_hide(self, request: web.Request) -> web.Response:
+        """Hide the native macOS Quick Prompt Bar window."""
+        try:
+            from voicefi.ui.quick_bar import QuickPromptBarWindow
+
+            bar = QuickPromptBarWindow.get_instance()
+            bar.hide()
+            return web.json_response({"status": "ok", "action": "hide"})
+        except Exception as e:
+            return web.json_response({"status": "error", "error": str(e)}, status=500)
 
     async def handle_hook_event(self, request: web.Request) -> web.Response:
         """
@@ -1798,6 +2012,21 @@ class CompanionServer:
         )
         return web.json_response(res.to_dict())
 
+    def _speak_in_background(self, spoken: str) -> None:
+        """Read text aloud off the event loop, bracketed by lifecycle events."""
+        self.broadcast_event({"type": "agent_speaking_started", "text": spoken})
+
+        def _speak_worker():
+            try:
+                tts = get_tts_engine(self.config)
+                tts.speak(spoken)
+            except Exception as ex:
+                logger.warning("[VaultAgent] TTS playback error: %s", ex)
+            finally:
+                self.broadcast_event({"type": "agent_speaking_finished"})
+
+        threading.Thread(target=_speak_worker, daemon=True).start()
+
     async def handle_vault_query(self, request: web.Request) -> web.Response:
         """Process conversational Q&A and active note queries from Obsidian."""
         try:
@@ -1837,6 +2066,175 @@ class CompanionServer:
 
             return web.json_response(result)
         except Exception as e:
+            return web.json_response({"error": str(e)}, status=500)
+
+    async def handle_vault_capture(self, request: web.Request) -> web.Response:
+        """Append a quick voice capture note directly into today's Obsidian daily note."""
+        try:
+            data = await request.json()
+            text = data.get("text", "").strip()
+            if not text:
+                return web.json_response({"error": "No text provided"}, status=400)
+
+            vault_path_str = data.get("vault_path")
+            vault_path = Path(vault_path_str) if vault_path_str else None
+
+            from voicefi.integrations.obsidian import append_quick_capture_to_vault
+
+            res = await asyncio.to_thread(
+                append_quick_capture_to_vault, text=text, vault_path=vault_path, config=self.config
+            )
+
+            if res.get("status") == "ok":
+                self.broadcast_event(
+                    {
+                        "type": "vault_capture_appended",
+                        "vault_name": res.get("vault_name"),
+                        "daily_note_name": res.get("daily_note_name"),
+                        "entry": res.get("entry"),
+                        "time": res.get("time"),
+                    }
+                )
+            return web.json_response(res)
+        except Exception as e:
+            logger.exception("handle_vault_capture error: %s", e)
+            return web.json_response({"error": str(e)}, status=500)
+
+    async def handle_vault_memo(self, request: web.Request) -> web.Response:
+        """Save a synthesized voice memo to <vault>/Voice Memos/ and backlink in daily note."""
+        try:
+            data = await request.json()
+            raw_text = data.get("raw_text") or data.get("text", "")
+            markdown = data.get("markdown", "").strip()
+            title = data.get("title", "").strip()
+            vault_path_str = data.get("vault_path")
+            vault_path = Path(vault_path_str) if vault_path_str else None
+
+            if not markdown and raw_text:
+                synthesizer = MemoSynthesizer(self.config)
+                synth = await asyncio.to_thread(synthesizer.synthesize_memo, raw_text)
+                title = title or synth.title
+                memo_parts = [
+                    f"# {synth.title}\n",
+                    f"> Voice memo captured on {time.strftime('%Y-%m-%d %H:%M')}\n",
+                    f"## Summary\n{synth.summary}\n",
+                ]
+                if synth.key_points:
+                    memo_parts.append("## Key Takeaways\n" + "\n".join(f"- {kp}" for kp in synth.key_points) + "\n")
+                if synth.diagram_code:
+                    memo_parts.append(f"## Architecture\n```{synth.diagram_type}\n{synth.diagram_code}\n```\n")
+                if synth.action_items:
+                    memo_parts.append("## Action Items\n" + "\n".join(f"- [ ] {ai}" for ai in synth.action_items) + "\n")
+                if synth.pr_checklist:
+                    memo_parts.append("## PR / Implementation Checklist\n" + "\n".join(f"- [ ] {c}" for c in synth.pr_checklist) + "\n")
+                markdown = "\n".join(memo_parts)
+
+            if not title:
+                title = "Voice Memo"
+            if not markdown:
+                return web.json_response({"error": "No memo content or text provided"}, status=400)
+
+            from voicefi.integrations.obsidian import save_memo_to_vault
+
+            res = await asyncio.to_thread(
+                save_memo_to_vault,
+                memo_markdown=markdown,
+                title=title,
+                vault_path=vault_path,
+                config=self.config,
+            )
+
+            if res.get("status") == "ok":
+                self.broadcast_event(
+                    {
+                        "type": "vault_memo_saved",
+                        "vault_name": res.get("vault_name"),
+                        "memo_name": res.get("memo_name"),
+                        "backlink": res.get("backlink"),
+                    }
+                )
+            return web.json_response(res)
+        except Exception as e:
+            logger.exception("handle_vault_memo error: %s", e)
+            return web.json_response({"error": str(e)}, status=500)
+
+    async def handle_vault_today(self, request: web.Request) -> web.Response:
+        """Fetch today's daily note content from Obsidian."""
+        try:
+            vault_path_str = request.query.get("vault_path")
+            vault_path = Path(vault_path_str) if vault_path_str else None
+
+            from voicefi.integrations.obsidian import get_today_note_content
+
+            res = await asyncio.to_thread(get_today_note_content, vault_path=vault_path, config=self.config)
+            return web.json_response(res)
+        except Exception as e:
+            logger.exception("handle_vault_today error: %s", e)
+            return web.json_response({"error": str(e)}, status=500)
+
+    async def handle_vault_status(self, request: web.Request) -> web.Response:
+        """Get Obsidian installation, vault discovery, and plugin status."""
+        try:
+            from voicefi.integrations.obsidian import (
+                is_obsidian_installed,
+                find_obsidian_vaults,
+                get_primary_vault,
+                get_daily_note_path,
+                is_plugin_installed,
+            )
+
+            def _get_status():
+                installed = is_obsidian_installed()
+                vaults = find_obsidian_vaults()
+                primary = get_primary_vault(self.config)
+                primary_info = None
+                if primary:
+                    daily_p = get_daily_note_path(primary, config=self.config)
+                    plugin_ok = is_plugin_installed(primary)
+                    primary_info = {
+                        "name": primary.name,
+                        "path": str(primary),
+                        "daily_note_path": str(daily_p),
+                        "daily_note_exists": daily_p.is_file(),
+                        "plugin_installed": plugin_ok,
+                    }
+                return {
+                    "status": "ok",
+                    "installed": installed,
+                    "primary_vault": primary_info,
+                    "vaults": [
+                        {
+                            "id": v.get("id"),
+                            "name": v.get("name"),
+                            "path": str(v.get("path")),
+                            "open": v.get("open", False),
+                        }
+                        for v in vaults
+                    ],
+                }
+
+            data = await asyncio.to_thread(_get_status)
+            return web.json_response(data)
+        except Exception as e:
+            logger.exception("handle_vault_status error: %s", e)
+            return web.json_response({"error": str(e)}, status=500)
+
+    async def handle_vault_launch_agent(self, request: web.Request) -> web.Response:
+        """Launch an AI agent (Antigravity or Claude Code) rooted in the Obsidian vault."""
+        try:
+            data = await request.json()
+            engine = data.get("engine", "antigravity")
+            vault_path_str = data.get("vault_path")
+            vault_path = Path(vault_path_str) if vault_path_str else None
+
+            from voicefi.integrations.obsidian import launch_agent_in_vault
+
+            res = await asyncio.to_thread(
+                launch_agent_in_vault, engine=engine, vault_path=vault_path, config=self.config
+            )
+            return web.json_response(res)
+        except Exception as e:
+            logger.exception("handle_vault_launch_agent error: %s", e)
             return web.json_response({"error": str(e)}, status=500)
 
     async def handle_screenshot(self, request: web.Request) -> web.Response:
@@ -2031,7 +2429,7 @@ class CompanionServer:
                     )
 
                 set_mobile_turn_origin(conv_id)
-                delivered = send_message_to_agent(conv_id=conv_id, text=clean_t)
+                delivered = bool(send_message_to_agent(conv_id=conv_id, text=clean_t))
                 self.broadcast_event(
                     {
                         "type": "user_command_injected",
@@ -2704,7 +3102,7 @@ class CompanionServer:
             from_conv_id = data.get("from_conv_id")
 
             formatted_sender = f"{sender_name} @ {sender_device}"
-            delivered = send_message_to_agent(
+            res = send_message_to_agent(
                 text=text,
                 target_engine="claude" if target_engine == "claude" else "antigravity",
                 sender_name=formatted_sender,
@@ -2712,6 +3110,7 @@ class CompanionServer:
                 from_conv_id=from_conv_id,
                 from_engine="peer",
             )
+            delivered = bool(res)
 
             self.broadcast_event(
                 {
@@ -2728,6 +3127,7 @@ class CompanionServer:
                     "success": delivered,
                     "delivered": delivered,
                     "target_engine": target_engine,
+                    "delivery_type": getattr(res, "delivery_type", "ipc" if delivered else "none"),
                     "device": get_computer_name(),
                 }
             )
@@ -2807,21 +3207,125 @@ class CompanionServer:
                         if msg_type == "user_voice_command":
                             text = payload.get("text", "").strip()
                             cid = payload.get("conv_id")
+                            engine = payload.get("engine") or payload.get("target_engine")
                             sender_name = payload.get("sender_name") or "ViFi Companion"
                             title = payload.get("title") or f"Message from {sender_name}"
                             if text:
-                                set_mobile_turn_origin(cid)
-                                send_message_to_agent(
-                                    conv_id=cid, text=text, sender_name=sender_name, title=title
-                                )
-                                self.broadcast_event(
-                                    {
-                                        "type": "user_command_injected",
-                                        "conv_id": cid or "active",
+                                if engine == "obsidian" or cid == "obsidian":
+                                    from voicefi.integrations.obsidian import append_quick_capture_to_vault
+                                    res = append_quick_capture_to_vault(text=text, config=self.config)
+                                    if res.get("status") == "ok":
+                                        self.broadcast_event(
+                                            {
+                                                "type": "vault_capture_appended",
+                                                "vault_name": res.get("vault_name"),
+                                                "daily_note_name": res.get("daily_note_name"),
+                                                "entry": res.get("entry"),
+                                                "time": res.get("time"),
+                                            }
+                                        )
+                                else:
+                                    lower_text = text.lower().strip()
+                                    if cid and (cid.startswith("claude_") or "claude" in cid.lower()):
+                                        engine = "claude"
+
+                                    has_claude_intent = bool(
+                                        re.search(
+                                            r"\b(?:hey|ask|tell|all\s+right|alright|okay|so|can\s+you\s+ask|could\s+you\s+ask|send\s+to|talk\s+to|switch\s+to|have|message)?\s*claude\b",
+                                            lower_text,
+                                        )
+                                    )
+                                    if has_claude_intent:
+                                        engine = "claude"
+                                        if cid and not cid.startswith("claude_") and "claude" not in cid.lower():
+                                            cid = None
+
+                                    set_mobile_turn_origin(cid)
+                                    cwd_arg = payload.get("cwd") or payload.get("vault_path")
+                                    if not cwd_arg and engine in ("claude_obsidian", "obsidian_claude"):
+                                        from voicefi.integrations.obsidian import get_primary_vault
+                                        cwd_arg = get_primary_vault(self.config)
+                                        engine = "claude"
+
+                                    kwargs = {
+                                        "conv_id": cid,
                                         "text": text,
-                                        "delivered": True,
+                                        "sender_name": sender_name,
+                                        "title": title,
+                                        "use_headless": True,
                                     }
+                                    if engine:
+                                        kwargs["target_engine"] = engine
+                                    if cwd_arg:
+                                        kwargs["cwd"] = Path(cwd_arg)
+                                    res = await asyncio.to_thread(send_message_to_agent, **kwargs)
+                                    target_cid = getattr(res, "target_conv_id", cid) or cid
+                                    self.broadcast_event(
+                                        {
+                                            "type": "user_command_injected",
+                                            "conv_id": target_cid or cid or "active",
+                                            "text": text,
+                                            "delivered": True,
+                                            "engine": engine or getattr(res, "engine", "claude"),
+                                        }
+                                    )
+                        elif msg_type == "vault_capture":
+                            text = payload.get("text", "").strip()
+                            if text:
+                                from voicefi.integrations.obsidian import append_quick_capture_to_vault
+                                res = append_quick_capture_to_vault(text=text, config=self.config)
+                                if res.get("status") == "ok":
+                                    self.broadcast_event(
+                                        {
+                                            "type": "vault_capture_appended",
+                                            "vault_name": res.get("vault_name"),
+                                            "daily_note_name": res.get("daily_note_name"),
+                                            "entry": res.get("entry"),
+                                            "time": res.get("time"),
+                                        }
+                                    )
+                        elif msg_type == "vault_memo":
+                            raw_text = payload.get("raw_text") or payload.get("text", "")
+                            markdown = payload.get("markdown", "").strip()
+                            title = payload.get("title", "").strip()
+                            if raw_text or markdown:
+                                from voicefi.integrations.obsidian import save_memo_to_vault
+                                from voicefi.memo import MemoSynthesizer
+                                if not markdown and raw_text:
+                                    synthesizer = MemoSynthesizer(self.config)
+                                    synth = await asyncio.to_thread(synthesizer.synthesize_memo, raw_text)
+                                    title = title or synth.title
+                                    memo_parts = [
+                                        f"# {synth.title}\n",
+                                        f"> Voice memo captured on {time.strftime('%Y-%m-%d %H:%M')}\n",
+                                        f"## Summary\n{synth.summary}\n",
+                                    ]
+                                    if synth.key_points:
+                                        memo_parts.append("## Key Takeaways\n" + "\n".join(f"- {kp}" for kp in synth.key_points) + "\n")
+                                    if synth.diagram_code:
+                                        memo_parts.append(f"## Architecture\n```{synth.diagram_type}\n{synth.diagram_code}\n```\n")
+                                    if synth.action_items:
+                                        memo_parts.append("## Action Items\n" + "\n".join(f"- [ ] {ai}" for ai in synth.action_items) + "\n")
+                                    if synth.pr_checklist:
+                                        memo_parts.append("## PR / Implementation Checklist\n" + "\n".join(f"- [ ] {c}" for c in synth.pr_checklist) + "\n")
+                                    markdown = "\n".join(memo_parts)
+                                if not title:
+                                    title = "Voice Memo"
+                                res = await asyncio.to_thread(
+                                    save_memo_to_vault,
+                                    memo_markdown=markdown,
+                                    title=title,
+                                    config=self.config,
                                 )
+                                if res.get("status") == "ok":
+                                    self.broadcast_event(
+                                        {
+                                            "type": "vault_memo_saved",
+                                            "vault_name": res.get("vault_name"),
+                                            "memo_name": res.get("memo_name"),
+                                            "backlink": res.get("backlink"),
+                                        }
+                                    )
                         elif msg_type == "ambient_start":
                             source = payload.get("source", "mic")
                             self.start_ambient(source=source)
@@ -2849,7 +3353,7 @@ class CompanionServer:
                                     if task:
                                         set_mobile_turn_origin(None)
                                         prompt = f"[{task.category.value}] {task.action_prompt}"
-                                        delivered = send_message_to_agent(conv_id=None, text=prompt)
+                                        delivered = bool(send_message_to_agent(conv_id=None, text=prompt))
                                         self._ambient_dispatcher.complete_task(
                                             tid, result_summary="Dispatched to agent"
                                         )
@@ -3246,13 +3750,23 @@ class CompanionServer:
         if not self.loop:
             return
 
-        msg = json.dumps(event_data)
+        def _json_safe(o):
+            if hasattr(o, "to_dict") and callable(o.to_dict):
+                return o.to_dict()
+            if hasattr(o, "success"):
+                return bool(o.success)
+            return str(o)
+
+        try:
+            msg = json.dumps(event_data, default=_json_safe)
+        except Exception as e:
+            logger.debug(f"Failed to serialize broadcast event: {e}")
+            return
         if self.active_websockets:
             for ws in list(self.active_websockets):
                 if not ws.closed:
                     asyncio.run_coroutine_threadsafe(ws.send_str(msg), self.loop)
-
-        if self.relay_client and self.relay_client.is_running:
+        elif self.relay_client and self.relay_client.is_running:
             asyncio.run_coroutine_threadsafe(self.relay_client.broadcast(event_data), self.loop)
 
     def broadcast_turn_completion(

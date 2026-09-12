@@ -28,6 +28,8 @@ from voicefi.integrations.conversations import (
     claim_turn,
     save_session_cookie,
     pop_mobile_turn_origin,
+    peek_mobile_turn_origin,
+    get_claimed_turn_origin,
     has_active_companion_client,
 )
 from voicefi.integrations.injector import inject_text_to_chatgpt
@@ -303,9 +305,16 @@ def handle_codex_stop_hook(
     # Check Mobile Companion audio routing
     routing = getattr(getattr(cfg, "companion", None), "audio_routing", "smart")
     mute_mac_active = getattr(
-        getattr(cfg, "companion", None), "mute_mac_when_companion_active", False
+        getattr(cfg, "companion", None), "mute_mac_when_companion_active", True
     )
-    is_mobile = pop_mobile_turn_origin(thread_id) or pop_mobile_turn_origin(cid_key)
+    is_mobile = (
+        get_claimed_turn_origin(thread_id, cleaned) == "mobile"
+        or get_claimed_turn_origin(cid_key, cleaned) == "mobile"
+        or peek_mobile_turn_origin(thread_id)
+        or peek_mobile_turn_origin(cid_key)
+        or pop_mobile_turn_origin(thread_id)
+        or pop_mobile_turn_origin(cid_key)
+    )
 
     if routing == "phone_only":
         return {"status": "phone_only", "agent": "codex"}

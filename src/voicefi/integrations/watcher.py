@@ -30,6 +30,7 @@ from voicefi.integrations.conversations import (
     claim_turn,
     mark_turn_completed,
     pop_mobile_turn_origin,
+    peek_mobile_turn_origin,
     get_claimed_turn_origin,
     has_active_companion_client,
     set_pending_question,
@@ -475,10 +476,11 @@ class TranscriptWatcher:
 
             routing = getattr(getattr(cfg, "companion", None), "audio_routing", "smart")
             mute_mac_active = getattr(
-                getattr(cfg, "companion", None), "mute_mac_when_companion_active", False
+                getattr(cfg, "companion", None), "mute_mac_when_companion_active", True
             )
             is_mobile = (
                 get_claimed_turn_origin(turn_cid, turn_sig, step_index=step_index) == "mobile"
+                or peek_mobile_turn_origin(turn_cid)
             )
 
             if routing == "phone_only":
@@ -489,8 +491,11 @@ class TranscriptWatcher:
                     # Turn originated from mobile companion and user requested origin_only
                     return
             elif routing == "smart":
+                if is_mobile:
+                    # Turn originated from mobile companion -> only speak on phone, suppress Mac
+                    return
                 if mute_mac_active and has_active_companion_client():
-                    # Mac suppressed only when user explicitly enabled mute_mac_when_companion_active: True
+                    # Companion client is actively connected and mute_mac is enabled
                     return
 
             spoken_text = summary

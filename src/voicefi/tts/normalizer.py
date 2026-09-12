@@ -91,7 +91,31 @@ def normalize_tts_text(text: str) -> str:
     # When used as an adjective or adverb ("site is live", "live stream", "go live"),
     # it must be pronounced /laɪv/ ("lyve").
 
-    # A. Preceded by linking / state verbs or adverbs ("is live", "now live", "went live", "go live", etc.)
+    # A. Preceded by determiners, articles, or possessives ("the live", "a live", "our live", "this live")
+    result = re.sub(
+        r"\b(the|a|an|this|that|these|those|our|your|my|their|its)\s+live\b",
+        r"\1 lyve",
+        result,
+        flags=re.IGNORECASE,
+    )
+
+    # B. Preceded by verification, inspection, or state verbs ("verified live", "check live", "test live")
+    result = re.sub(
+        r"\b(verified|verify|verifying|check|checking|checked|test|testing|tested|ensure|ensuring|confirmed|confirming)\s+live\b",
+        r"\1 lyve",
+        result,
+        flags=re.IGNORECASE,
+    )
+
+    # C. Contractions with linking verbs ("it's live", "that's live", "there's live")
+    result = re.sub(
+        r"\b(it's|its|that's|who's|what's|there's|here's)\s+live\b",
+        r"\1 lyve",
+        result,
+        flags=re.IGNORECASE,
+    )
+
+    # D. Preceded by linking / state verbs or adverbs ("is live", "now live", "went live", "go live", etc.)
     result = re.sub(
         r"\b(is|are|was|were|be|been|being|now|went|go|goes|going|gone|stay|stays|currently|already|also|running|deployed|up)\s+live\b",
         r"\1 lyve",
@@ -99,7 +123,7 @@ def normalize_tts_text(text: str) -> str:
         flags=re.IGNORECASE,
     )
 
-    # B. Preceded by tech subjects ("site is live", "server is live", "app is live")
+    # E. Preceded by tech subjects ("site is live", "server is live", "app is live")
     result = re.sub(
         r"\b(site|server|app|service|deployment|build|pipeline|dashboard|panel|stream|feed|bot|agent|endpoint|port|website)\s+(?:is|are)\s+live\b",
         r"\1 is lyve",
@@ -107,15 +131,37 @@ def normalize_tts_text(text: str) -> str:
         flags=re.IGNORECASE,
     )
 
-    # C. Followed by tech / media nouns ("live site", "live stream", "live session", "live dev mode", etc.)
+    # F. Followed by tech / media / interaction nouns ("live site", "live pronunciation", "live mic", "live turns", etc.)
+    live_nouns = (
+        r"site|sites|server|servers|session|sessions|stream|streams|streaming|"
+        r"dev|mode|code|coding|demo|demos|logs|log|feed|feeds|preview|previews|"
+        r"reload|updates|update|broadcast|broadcasts|traffic|test|tests|testing|"
+        r"run|runs|environment|environments|view|views|companion|companions|"
+        r"status|audio|transcription|transcriptions|transcript|transcripts|dictation|"
+        r"typing|listener|inspection|loopback|speech|connection|connections|"
+        r"socket|sockets|channel|channels|deployment|deployments|version|versions|"
+        r"activity|activities|turn|turns|event|events|action|actions|step|steps|"
+        r"mic|mics|microphone|microphones|voice|voices|call|calls|chat|chats|"
+        r"prompt|prompts|model|models|agent|agents|hud|huds|console|consoles|"
+        r"data|metric|metrics|telemetry|benchmark|benchmarks|recording|recordings|"
+        r"capture|captures|sample|samples|signal|signals|waveform|waveforms|"
+        r"spectrum|input|inputs|output|outputs|relay|relays|sync|syncing|"
+        r"state|states|loop|loops|detection|detector|monitor|monitoring|"
+        r"feedback|playback|pipeline|pipelines|soundbite|soundbites|"
+        r"response|responses|execution|executions|interaction|interactions|"
+        r"conversation|conversations|display|displays|indicator|indicators|"
+        r"pill|pills|dot|dots|badge|badges|energy|threshold|thresholds|"
+        r"latency|performance|talk|talking|show|shows|wire|wires|"
+        r"pronunciation|pronunciations"
+    )
     result = re.sub(
-        r"\blive\s+(site|sites|server|servers|session|sessions|stream|streams|streaming|dev|mode|code|coding|demo|demos|logs|feed|feeds|preview|reload|updates|update|broadcast|broadcasts|traffic|test|testing|run|runs|environment|environments|view|views|companion|status|audio|transcription|transcripts|listener|inspection|loopback|speech|connection|socket|channel|deployment|version)\b",
+        rf"\blive\s+({live_nouns})\b",
         r"lyve \1",
         result,
         flags=re.IGNORECASE,
     )
 
-    # D. Idioms & compound expressions ("go-live", "in live", "on live", "up and live")
+    # G. Idioms & compound expressions ("go-live", "in live", "on live", "up and live")
     result = re.sub(r"\bgo-live\b", "go-lyve", result, flags=re.IGNORECASE)
     result = re.sub(r"\b(in|on|up\s+and)\s+live\b", r"\1 lyve", result, flags=re.IGNORECASE)
 

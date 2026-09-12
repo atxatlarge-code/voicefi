@@ -26,6 +26,7 @@ from voicefi.integrations.conversations import (
     save_session_cookie,
     claim_turn,
     pop_mobile_turn_origin,
+    peek_mobile_turn_origin,
     get_claimed_turn_origin,
     has_active_companion_client,
     set_pending_question,
@@ -76,7 +77,7 @@ def clean_markdown_for_speech(text: str, max_words: Optional[int] = None) -> str
                 text, max_words=target_max_words, timeout=0.8
             )
             if distilled and len(distilled.strip()) > 3:
-                return distilled
+                return normalize_tts_text(distilled)
     except Exception:
         pass
 
@@ -528,9 +529,12 @@ def handle_antigravity_stop_hook(
 
         routing = getattr(getattr(cfg, "companion", None), "audio_routing", "smart")
         mute_mac_active = getattr(
-            getattr(cfg, "companion", None), "mute_mac_when_companion_active", False
+            getattr(cfg, "companion", None), "mute_mac_when_companion_active", True
         )
-        is_mobile = get_claimed_turn_origin(conv_id, turn_sig, step_index=step_index) == "mobile"
+        is_mobile = (
+            get_claimed_turn_origin(conv_id, turn_sig, step_index=step_index) == "mobile"
+            or peek_mobile_turn_origin(conv_id)
+        )
 
         if routing == "phone_only":
             return {}
@@ -539,8 +543,11 @@ def handle_antigravity_stop_hook(
                 # Turn originated from mobile phone companion and user requested origin_only
                 return {}
         elif routing == "smart":
+            if is_mobile:
+                # Turn originated from mobile companion -> only speak on phone, suppress Mac
+                return {}
             if mute_mac_active and has_active_companion_client():
-                # Mac suppressed only when user explicitly enabled mute_mac_when_companion_active: True
+                # Companion client is actively connected and mute_mac is enabled
                 return {}
 
         from voicefi.audio.meeting_detection import is_user_on_call

@@ -445,6 +445,27 @@ def stop_all_voicefi_servers(
                 except Exception:
                     pass
 
+    # 3b. Check for any rogue / orphaned 480x58 HUD windows via Quartz
+    try:
+        import Quartz
+
+        wl = Quartz.CGWindowListCopyWindowInfo(
+            Quartz.kCGWindowListOptionOnScreenOnly | Quartz.kCGWindowListExcludeDesktopElements,
+            Quartz.kCGNullWindowID,
+        )
+        for w in wl:
+            bounds = w.get("kCGWindowBounds", {})
+            if int(bounds.get("Width", 0)) == 480 and int(bounds.get("Height", 0)) == 58:
+                hud_pid = int(w.get("kCGWindowOwnerPID", 0))
+                if hud_pid > 0 and hud_pid != os.getpid() and hud_pid not in stopped_pids:
+                    try:
+                        os.kill(hud_pid, signal.SIGKILL)
+                        stopped_pids.append(hud_pid)
+                    except Exception:
+                        pass
+    except Exception:
+        pass
+
     # Brief settle margin for socket release
     time.sleep(0.1)
 
@@ -473,6 +494,7 @@ def clean_lock_files(only_stale: bool = False):
         Path("/tmp/voicefi_speech.lock"),
         Path("/tmp/voicefi_cross_process_hud.json"),
         Path("/tmp/voicefi_hud_state.json"),
+        Path("/tmp/voicefi_hud_owner.json"),
         Path("/tmp/voicefi_hud_stream.json"),
         Path("/tmp/voicefi_speech_pause.lock"),
         Path("/tmp/voicefi_speaking.status"),

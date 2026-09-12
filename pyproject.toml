@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "voicefi"
-version = "0.2.0"
+version = "0.2.1"
 description = "Giving your agents a voice, and your voice agency. Universal voice layer for AI coding agents and macOS desktop"
 readme = "README.md"
 requires-python = ">=3.10"

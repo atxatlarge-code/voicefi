@@ -6,16 +6,23 @@ Handles notifications cleanly without requiring a signed Info.plist bundle.
 import subprocess
 
 
+_orig_rumps_notify = None
+try:
+    import rumps
+    _orig_rumps_notify = getattr(rumps, "notification", None)
+except Exception:
+    pass
+
+
 def show_notification(title: str, subtitle: str = "", message: str = "") -> bool:
     """Display native macOS Notification Center banner."""
     # 1. Try rumps notification
-    try:
-        import rumps
-
-        rumps.notification(title, subtitle, message)
-        return True
-    except Exception:
-        pass
+    if _orig_rumps_notify is not None:
+        try:
+            _orig_rumps_notify(title, subtitle, message)
+            return True
+        except Exception:
+            pass
 
     # 2. Resilient osascript notification fallback
     try:

@@ -15,6 +15,7 @@ from voicefi.tts.base import (
     escape_to_stop_speech,
     is_tab_key,
     focus_speaking_window,
+    get_recent_speaking_info,
 )
 from voicefi.tts.mac_say import MacSayTTS, normalize_mac_rate
 from voicefi.tts.edge_tts import EdgeTTS, normalize_edge_rate
@@ -261,6 +262,7 @@ __all__ = [
     "escape_to_stop_speech",
     "is_tab_key",
     "focus_speaking_window",
+    "get_recent_speaking_info",
     "ClonedVoiceProfile",
     "VoiceCloneManager",
     "estimate_pitch_f0",

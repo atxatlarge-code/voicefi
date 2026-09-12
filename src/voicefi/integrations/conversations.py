@@ -288,6 +288,13 @@ def get_claimed_turn_origin(
                     return e.get("origin")
                 if e_sig == signature or (norm_sig and e_norm == norm_sig):
                     return e.get("origin")
+            # Recent conversation fallback: if this conversation was claimed with mobile origin within last 60s
+            for e in reversed(entries):
+                e_cid = e.get("conv_id", "")
+                e_ts = float(e.get("timestamp", 0))
+                if conv_id and e_cid == conv_id and (time.time() - e_ts) < 60.0:
+                    if e.get("origin") == "mobile":
+                        return "mobile"
     except Exception:
         pass
     return None
@@ -476,7 +483,21 @@ def set_mobile_turn_origin(conv_id: Optional[str] = None) -> None:
         pass
 
 
-def peek_mobile_turn_origin(conv_id: Optional[str] = None, max_age_seconds: float = 45.0) -> bool:
+def _matches_mobile_turn(cid: Optional[str], conv_id: Optional[str]) -> bool:
+    if not conv_id or not cid or cid == "active" or conv_id == "active":
+        return True
+    if cid == conv_id:
+        return True
+    clean_cid = str(cid).replace("claude_", "")
+    clean_conv = str(conv_id).replace("claude_", "")
+    if clean_cid == clean_conv:
+        return True
+    if (str(cid).startswith("claude") or "claude" in str(cid)) and (str(conv_id).startswith("claude") or "claude" in str(conv_id)):
+        return True
+    return False
+
+
+def peek_mobile_turn_origin(conv_id: Optional[str] = None, max_age_seconds: float = 300.0) -> bool:
     """
     Check if the pending turn originated from mobile companion without consuming the marker.
     """
@@ -489,14 +510,14 @@ def peek_mobile_turn_origin(conv_id: Optional[str] = None, max_age_seconds: floa
         ts = data.get("timestamp", 0)
         cid = data.get("conv_id")
         if (time.time() - ts) < max_age_seconds:
-            if not conv_id or not cid or cid == "active" or cid == conv_id:
+            if _matches_mobile_turn(cid, conv_id):
                 return True
     except Exception:
         pass
     return False
 
 
-def pop_mobile_turn_origin(conv_id: Optional[str] = None, max_age_seconds: float = 45.0) -> bool:
+def pop_mobile_turn_origin(conv_id: Optional[str] = None, max_age_seconds: float = 300.0) -> bool:
     """
     Check and consume mobile turn origin marker.
     Returns True if the completed turn originated from mobile companion (and consumes the marker), False otherwise.
@@ -510,7 +531,7 @@ def pop_mobile_turn_origin(conv_id: Optional[str] = None, max_age_seconds: float
         ts = data.get("timestamp", 0)
         cid = data.get("conv_id")
         if (time.time() - ts) < max_age_seconds:
-            if not conv_id or not cid or cid == "active" or cid == conv_id:
+            if _matches_mobile_turn(cid, conv_id):
                 origin_file.unlink(missing_ok=True)
                 return True
         else:
@@ -534,7 +555,7 @@ def record_companion_heartbeat(num_clients: int = 1) -> None:
         pass
 
 
-def has_active_companion_client(max_age_seconds: float = 15.0) -> bool:
+def has_active_companion_client(max_age_seconds: float = 25.0) -> bool:
     """Return True if at least one mobile companion client is connected and active."""
     heartbeat_file = Path("/tmp/voicefi_companion_clients.json")
     if not heartbeat_file.is_file():
@@ -925,17 +946,20 @@ class ConversationTracker:
             if conv_id in pb_titles and pb_titles[conv_id]:
                 title = pb_titles[conv_id]
             else:
-                # Fallback: Extract title from initial user prompt
-                first_step = json.loads(lines[0])
-                first_content = first_step.get("content", "")
-                if first_content:
-                    clean = re.sub(r"<USER_REQUEST>\s*", "", first_content)
-                    clean = re.sub(r"</USER_REQUEST>.*", "", clean, flags=re.DOTALL)
-                    clean = re.sub(r"/antigravity-guide\s*", "", clean)
-                    clean = clean.strip()
-                    if clean:
-                        first_line = clean.split("\n")[0].strip()
-                        title = first_line[:45] + ("..." if len(first_line) > 45 else "")
+                # Fallback: Extract title from initial user prompt with text
+                for l_str in lines:
+                    try:
+                        step_data = json.loads(l_str)
+                        if step_data.get("type") == "USER_INPUT":
+                            raw_c = step_data.get("content", "")
+                            clean = clean_user_message(raw_c)
+                            if clean:
+                                first_line = clean.split("\n")[0].strip()
+                                if first_line:
+                                    title = first_line[:45] + ("..." if len(first_line) > 45 else "")
+                                    break
+                    except Exception:
+                        continue
 
             # Determine status from the last step
             last_step = json.loads(lines[-1])
@@ -998,6 +1022,26 @@ class ConversationTracker:
             if info:
                 results.append(info)
 
+        # 3. If active focus or session cookie conversation is not yet on disk (e.g. newly created session),
+        # synthesize and prepend it so the user can immediately see and interact with it in the UI.
+        cookie = load_session_cookie()
+        target_focus = self.active_focus_id or (cookie.get("conversationId") if cookie else None)
+        if target_focus and not any(r.id == target_focus for r in results):
+            focus_engine = (
+                "claude"
+                if (target_focus.startswith("claude_") or "claude" in target_focus.lower())
+                else "antigravity"
+            )
+            c_title = (cookie.get("title") if cookie else None) or f"{focus_engine.capitalize()} Session"
+            synth_info = ConversationInfo(
+                id=target_focus,
+                title=c_title,
+                status="agent_working",
+                mtime=time.time(),
+                engine=focus_engine,
+            )
+            results.insert(0, synth_info)
+
         # Sort all conversations chronologically by mtime
         results.sort(key=lambda x: x.mtime, reverse=True)
         return results[:limit]
@@ -1041,13 +1085,20 @@ class ConversationTracker:
             engine=engine,
         )
 
-    def get_active_or_latest(self) -> Optional[ConversationInfo]:
+    def get_active_or_latest(self, engine: Optional[str] = None) -> Optional[ConversationInfo]:
         """
         Dynamically determine the currently active conversation (Antigravity or Claude Code).
         Prioritizes the most recently updated conversation based on transcript modification times
-        and active session cookies.
+        and active session cookies. Optionally filters by engine.
         """
-        convs = self.get_all_conversations(limit=10)
+        convs = self.get_all_conversations(limit=12)
+        if engine:
+            clean_eng = engine.lower().strip()
+            if clean_eng in ("claude", "claude_code"):
+                convs = [c for c in convs if getattr(c, "engine", "") == "claude" or c.id.startswith("claude_")]
+            elif clean_eng in ("antigravity", "agy"):
+                convs = [c for c in convs if getattr(c, "engine", "") != "claude" and not c.id.startswith("claude_")]
+
         if not convs:
             return None
 
@@ -1196,22 +1247,28 @@ def extract_user_message(content: str) -> Optional[str]:
 
 
 def clean_user_message(content: str) -> str:
-    """Clean internal Antigravity tags and metadata from raw user input string."""
+    """Clean internal Antigravity tags, envelopes, attachments, and metadata from raw user input string."""
     if not content:
         return ""
     clean = content
     # Extract <USER_REQUEST>...</USER_REQUEST> if present
-    m = re.search(r"<USER_REQUEST>\s*(.*?)\s*</USER_REQUEST>", clean, re.DOTALL)
-    if m:
-        clean = m.group(1).strip()
+    if "<USER_REQUEST>" in clean:
+        m = re.search(r"<USER_REQUEST>\s*(.*?)\s*</USER_REQUEST>", clean, re.DOTALL)
+        clean = m.group(1).strip() if m else ""
 
     # Remove trailing metadata tags
     clean = re.sub(r"<ADDITIONAL_METADATA>.*?</ADDITIONAL_METADATA>", "", clean, flags=re.DOTALL)
     clean = re.sub(r"<USER_SETTINGS_CHANGE>.*?</USER_SETTINGS_CHANGE>", "", clean, flags=re.DOTALL)
 
+    # Clean cross-agent bridge provenance headers & envelopes
+    clean = re.sub(r"^\[From:\s*[^\]]+\]\s*", "", clean)
+    clean = re.sub(r"^\[Message[^\]]*\]\s*", "", clean)
+    clean = re.sub(r"^\[Attached Screenshot:\s*[^\]]+\]\s*", "", clean)
+    clean = re.sub(r"^\[ATTACHED\s*\([0-9]+\):[^\]]+\]\s*", "", clean)
+
     # Clean slash command prefixes like /antigravity-guide
     clean = re.sub(r"^/[a-zA-Z0-9_-]+\s*", "", clean).strip()
-    return clean or content.strip()
+    return clean.strip()
 
 
 def get_conversation_artifacts(
@@ -1611,13 +1668,16 @@ def parse_claude_session(session_path: Path) -> Optional[ConversationInfo]:
                 continue
 
         # Generate human-friendly title
-        title_prefix = f"Claude • {project_name}" if project_name else "Claude"
         if first_user_text:
-            first_line = first_user_text.split("\n")[0].strip()
+            clean_first = clean_user_message(first_user_text)
+            first_line = clean_first.split("\n")[0].strip() if clean_first else first_user_text.split("\n")[0].strip()
             clean_first = first_line[:40] + ("..." if len(first_line) > 40 else "")
-            title = f"{title_prefix}: {clean_first}"
+            if project_name:
+                title = f"{project_name}: {clean_first}"
+            else:
+                title = clean_first
         else:
-            title = f"{title_prefix} ({session_id[:8]})"
+            title = f"{project_name} ({session_id[:8]})" if project_name else f"Claude ({session_id[:8]})"
 
         status = "idle"
         if last_msg_type == "user" or has_tool_calls_pending:

@@ -26,7 +26,7 @@ class ProjectContextExtractor:
         symbols: Set[str] = set()
 
         # 1. Common core dev & project keywords
-        symbols.update(["VoiceFi", "Antigravity", "Python", "TypeScript", "macOS", "CLI", "API"])
+        symbols.update(["VoiceFi", "Antigravity", "Claude", "Hey Claude", "Python", "TypeScript", "macOS", "CLI", "API"])
 
         # 2. Git branch name if available
         try:
@@ -137,6 +137,13 @@ class PhoneticNormalizer:
 
     # Static phonetic replacements
     REPLACEMENTS: Dict[str, str] = {
+        r"\bhague\s*claud[e]?\b": "Hey Claude",
+        r"\bhay\s*claud[e]?\b": "Hey Claude",
+        r"\bhey\s*claud\b": "Hey Claude",
+        r"\bhey\s*glenn\b": "Hey Claude",
+        r"\bhey\s*clod\b": "Hey Claude",
+        r"\bhey\s*clawed\b": "Hey Claude",
+        r"\bhague\s*claud\b": "Hey Claude",
         r"\bpie\s*test\b": "pytest",
         r"\bpi\s*test\b": "pytest",
         r"\bcube\s*cuddle\b": "kubectl",
@@ -171,6 +178,8 @@ class PhoneticNormalizer:
         r"\bdot\s*js\b": ".js",
         r"\bdot\s*json\b": ".json",
         r"\bdot\s*md\b": ".md",
+        r"\blyve\b": "live",
+        r"\bliev\b": "live",
     }
 
     @classmethod

@@ -802,7 +802,7 @@ class AudioTroubleshooter:
                     print(f"[Troubleshoot] Error sending message to conversation: {e2}")
 
         res_dict = verification.to_dict()
-        res_dict["sent_to_agent"] = sent_to_agent
+        res_dict["sent_to_agent"] = bool(sent_to_agent)
         return res_dict
 
     def test_feedback_loop(

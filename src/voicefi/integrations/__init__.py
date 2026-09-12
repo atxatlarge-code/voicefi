@@ -3,6 +3,7 @@
 from voicefi.integrations.antigravity import handle_antigravity_stop_hook, clean_markdown_for_speech
 from voicefi.integrations.injector import (
     inject_text_to_active_app,
+    inject_text_to_antigravity,
     focus_antigravity,
     focus_app_by_name,
     focus_speaking_agent_window,
@@ -14,6 +15,7 @@ __all__ = [
     "handle_antigravity_stop_hook",
     "clean_markdown_for_speech",
     "inject_text_to_active_app",
+    "inject_text_to_antigravity",
     "focus_antigravity",
     "focus_app_by_name",
     "focus_speaking_agent_window",

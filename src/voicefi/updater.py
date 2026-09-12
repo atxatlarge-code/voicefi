@@ -146,17 +146,166 @@ def check_for_updates(force: bool = False) -> Tuple[bool, Optional[str], Optiona
 
 def is_dmg_install() -> bool:
     """
-    Return True if VoiceFi is running as a standalone DMG .app bundle
-    without a local ~/.voicefi/venv Python virtual environment.
+    Return True if VoiceFi is running as a standalone macOS .app bundle
+    (e.g., PyInstaller frozen bundle or installed from DMG in /Applications).
     """
+    if getattr(sys, "frozen", False):
+        return True
+    try:
+        exec_str = str(Path(sys.executable).resolve())
+        if ".app/Contents/" in exec_str or "VoiceFi.app" in exec_str:
+            return True
+    except Exception:
+        pass
     venv_python = Path.home() / ".voicefi" / "venv" / "bin" / "python"
     if venv_python.is_file():
         return False
-    if getattr(sys, "frozen", False):
-        return True
-    if "/Applications/VoiceFi.app" in sys.executable:
-        return True
     return False
+
+
+def upgrade_dmg_app_bundle(
+    dmg_url: Optional[str] = None,
+    version: Optional[str] = None,
+    relaunch: bool = True,
+    timeout_seconds: int = 180,
+) -> Dict[str, Any]:
+    """
+    Download latest VoiceFi macOS DMG, silently mount it, copy the new
+    VoiceFi.app to replace the current application bundle in /Applications,
+    unmount DMG, and optionally relaunch the updated app seamlessly.
+    Falls back to download_and_open_dmg() if in-place replacement fails.
+    """
+    import tempfile
+    import shutil
+
+    ver = version or "latest"
+    target_url = dmg_url or "https://voicefi.org/download/mac"
+    cache_dir = Path.home() / ".voicefi" / "cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    target_dmg = cache_dir / f"VoiceFi_{ver}_update.dmg"
+
+    try:
+        import rumps
+
+        rumps.notification(
+            "VoiceFi Updater 💿",
+            f"Downloading VoiceFi {ver}...",
+            "Downloading latest version in background...",
+        )
+    except Exception:
+        pass
+
+    try:
+        # 1. Download DMG
+        req = Request(
+            target_url,
+            headers={"User-Agent": f"VoiceFi-Updater/{__version__}"},
+        )
+        with urlopen(req, timeout=timeout_seconds) as resp:
+            with open(target_dmg, "wb") as f:
+                while True:
+                    chunk = resp.read(65536)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+
+        if not target_dmg.is_file() or target_dmg.stat().st_size < 1_000_000:
+            raise RuntimeError("Downloaded DMG was invalid or incomplete.")
+
+        # 2. Silently mount DMG
+        mount_dir = Path(tempfile.mkdtemp(prefix="vifi_update_mount_"))
+        mount_res = subprocess.run(
+            [
+                "hdiutil",
+                "attach",
+                str(target_dmg),
+                "-mountpoint",
+                str(mount_dir),
+                "-noautoopen",
+                "-quiet",
+            ],
+            capture_output=True,
+            text=True,
+        )
+        if mount_res.returncode != 0:
+            raise RuntimeError(f"hdiutil attach failed: {mount_res.stderr}")
+
+        source_app = mount_dir / "VoiceFi.app"
+        if not source_app.is_dir():
+            subprocess.run(["hdiutil", "detach", str(mount_dir), "-force", "-quiet"], check=False)
+            raise RuntimeError("VoiceFi.app not found in mounted DMG volume.")
+
+        # 3. Locate installed bundle
+        from voicefi.ui.translocation import get_bundle_path
+
+        installed_bundle = get_bundle_path()
+        if not installed_bundle or not installed_bundle.is_dir():
+            if Path("/Applications/VoiceFi.app").is_dir():
+                installed_bundle = Path("/Applications/VoiceFi.app")
+            elif (Path.home() / "Applications" / "VoiceFi.app").is_dir():
+                installed_bundle = Path.home() / "Applications" / "VoiceFi.app"
+            else:
+                installed_bundle = Path("/Applications/VoiceFi.app")
+
+        parent_dir = installed_bundle.parent
+        staged_bundle = parent_dir / f"{installed_bundle.name}.new"
+        backup_bundle = parent_dir / f"{installed_bundle.name}.old"
+
+        # 4. Copy to staged bundle
+        if staged_bundle.exists():
+            shutil.rmtree(staged_bundle, ignore_errors=True)
+        shutil.copytree(source_app, staged_bundle, symlinks=True)
+
+        # 5. Clear quarantine on staged bundle
+        subprocess.run(
+            ["xattr", "-dr", "com.apple.quarantine", str(staged_bundle)],
+            stderr=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            check=False,
+        )
+
+        # 6. Detach DMG volume and clean up downloaded file
+        subprocess.run(["hdiutil", "detach", str(mount_dir), "-force", "-quiet"], check=False)
+        shutil.rmtree(mount_dir, ignore_errors=True)
+        target_dmg.unlink(missing_ok=True)
+
+        # 7. Atomic directory swap
+        if backup_bundle.exists():
+            shutil.rmtree(backup_bundle, ignore_errors=True)
+        if installed_bundle.exists():
+            os.rename(installed_bundle, backup_bundle)
+        os.rename(staged_bundle, installed_bundle)
+        shutil.rmtree(backup_bundle, ignore_errors=True)
+
+        # 8. Success notification
+        try:
+            import rumps
+
+            rumps.notification(
+                "VoiceFi Upgraded 🎉",
+                f"Version v{ver} Active",
+                "VoiceFi was updated and restarted successfully.",
+            )
+        except Exception:
+            pass
+
+        # 9. Relaunch
+        if relaunch:
+            subprocess.Popen(["open", str(installed_bundle)])
+            time.sleep(1.0)
+            sys.exit(0)
+
+        return {
+            "success": True,
+            "is_dmg": True,
+            "in_place": True,
+            "new_version": ver,
+            "message": f"Successfully updated VoiceFi.app to v{ver} in place!",
+        }
+
+    except Exception as e:
+        print(f"⚠️ [Updater] In-place DMG upgrade failed: {e}. Falling back to standard DMG download...")
+        return download_and_open_dmg(dmg_url=dmg_url, version=ver, timeout_seconds=timeout_seconds)
 
 
 def download_and_open_dmg(
@@ -249,11 +398,12 @@ def perform_update(
     relink_hooks: bool = True,
     repo_url: Optional[str] = None,
     force_dmg: bool = False,
+    relaunch: bool = True,
 ) -> Dict[str, Any]:
     """
     Execute upgrade of VoiceFi.
-    If running as a standalone DMG .app bundle without ~/.voicefi/venv,
-    downloads and opens the latest DMG installer.
+    If running as a standalone DMG .app bundle, upgrades the bundle in place
+    and relaunches seamlessly.
     Otherwise, runs in-place pip/uv upgrade inside the virtual environment.
     """
     old_version = get_local_version()
@@ -263,7 +413,11 @@ def perform_update(
         _, new_ver, _ = check_for_updates(force=True)
         cached = read_update_cache() or {}
         dmg_url = cached.get("dmg_url") or "https://voicefi.org/download/mac"
-        return download_and_open_dmg(dmg_url=dmg_url, version=new_ver or old_version)
+        return upgrade_dmg_app_bundle(
+            dmg_url=dmg_url,
+            version=new_ver or old_version,
+            relaunch=relaunch,
+        )
 
     target_repo = repo_url or DEFAULT_REPO_URL
     old_version = get_local_version()
@@ -419,26 +573,14 @@ def run_auto_update_if_enabled(config: Optional[VoiceFiConfig] = None) -> None:
         try:
             is_avail, new_ver, _ = check_for_updates(force=False)
             if is_avail:
-                if is_dmg_install():
-                    try:
-                        import rumps
-
-                        rumps.notification(
-                            "VoiceFi Update Available ✨",
-                            f"Version v{new_ver} is Ready",
-                            "Click 'Update Available' in the menu bar to download the new installer.",
-                        )
-                    except Exception:
-                        pass
-                    return
-
                 print(
                     f"[VoiceFi] 🚀 Pro Auto-Updater: Found new version {new_ver}. Applying silent upgrade in background..."
                 )
-                res = perform_update(relink_hooks=True)
+                res = perform_update(relink_hooks=True, relaunch=True)
                 if res.get("success"):
                     print(f"[VoiceFi] ✨ Pro Auto-Updater: {res.get('message')}")
                 else:
+                    print(f"[VoiceFi] ⚠️ Pro Auto-Updater failed: {res.get('error')}")
                     print(f"[VoiceFi] ⚠️ Pro Auto-Updater failed: {res.get('error')}")
         except Exception as e:
             print(f"[VoiceFi] Auto-updater exception: {e}")

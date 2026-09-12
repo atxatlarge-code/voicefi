@@ -20,7 +20,7 @@ def test_heteronym_live_adjective_and_adverb():
     assert "running lyve" in normalize_tts_text("The background daemon is running live.")
     assert "deployed lyve" in normalize_tts_text("The model is deployed live.")
 
-    # Preceding nouns
+    # Preceding nouns / interaction contexts
     assert "lyve streaming" in normalize_tts_text("Let's start live streaming.")
     assert "lyve stream" in normalize_tts_text("Audio from the live stream.")
     assert "lyve dev mode" in normalize_tts_text("Running in live dev mode.")
@@ -31,6 +31,12 @@ def test_heteronym_live_adjective_and_adverb():
     assert "lyve logs" in normalize_tts_text("Tailing live logs.")
     assert "lyve updates" in normalize_tts_text("Streaming live updates.")
     assert "lyve status" in normalize_tts_text("Reporting live status.")
+    assert "lyve pronunciation" in normalize_tts_text("Verified live pronunciation for Viv.")
+    assert "the lyve activity" in normalize_tts_text("Observing the live activity.")
+    assert "lyve mic" in normalize_tts_text("Turn on the live mic.")
+    assert "lyve turns" in normalize_tts_text("Monitoring live turns.")
+    assert "It's lyve" in normalize_tts_text("It's live now.")
+    assert "our lyve audio" in normalize_tts_text("Streaming our live audio.")
 
 
 def test_heteronym_live_verb_preserved():

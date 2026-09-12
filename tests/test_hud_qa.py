@@ -24,6 +24,7 @@ def cleanup_hud():
             if UnifiedDynamicIslandHUD._instance._panel:
                 UnifiedDynamicIslandHUD._instance._panel.orderOut_(None)
                 UnifiedDynamicIslandHUD._instance._panel.close()
+                NSRunLoop.currentRunLoop().runUntilDate_(NSDate.dateWithTimeIntervalSinceNow_(0.05))
         except Exception:
             pass
         UnifiedDynamicIslandHUD._instance = None

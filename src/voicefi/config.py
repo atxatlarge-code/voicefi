@@ -174,6 +174,10 @@ class ClaudeConfig(BaseModel):
     max_spoken_words: int = 60
     inject_to_active_window: bool = True
     show_speech_popup: bool = True
+    dispatch_mode: Literal["auto", "headless", "foreground"] = "auto"
+    oauth_token: Optional[str] = None
+    permission_mode: str = "auto"
+    timeout_seconds: int = 300
 
 
 class CodexConfig(BaseModel):
@@ -212,6 +216,9 @@ class GlobalHotkeyConfig(BaseModel):
     hub_hotkey: str = "<ctrl>+<shift>+j"
     dictate_hotkey: str = "<ctrl>+t"
     new_conversation_hotkey: str = "<cmd>+<shift>+n"
+    quick_bar_hotkey: str = "<ctrl>+space"
+    quick_bar_agent: str = "antigravity"
+    quick_bar_enabled: bool = True
     show_dictation_hud: bool = True
     preserve_clipboard: bool = True
 
@@ -257,6 +264,16 @@ class MemoConfig(BaseModel):
     energy_threshold: float = 0.003
 
 
+class ObsidianConfig(BaseModel):
+    enabled: bool = True
+    vault_path: Optional[str] = None
+    default_note_mode: str = "daily_note"  # "daily_note" | "inbox"
+    daily_note_format: Optional[str] = None
+    daily_note_folder: Optional[str] = None
+    voice_memos_folder: str = "Voice Memos"
+    auto_backlink: bool = True
+
+
 class AmbientConfig(BaseModel):
     enabled: bool = False
     auto_triage: bool = True
@@ -278,6 +295,8 @@ class WakeWordConfig(BaseModel):
             "vifi",
             "hey antigravity",
             "antigravity",
+            "hey claude",
+            "claude",
         ]
     )
     sensitivity: float = 0.6
@@ -299,7 +318,7 @@ class CompanionConfig(BaseModel):
     port: int = 5141
     host: str = "127.0.0.1"  # Default to loopback for security
     audio_routing: Literal["smart", "origin_only", "phone_only", "mac_only", "both"] = "smart"
-    mute_mac_when_companion_active: bool = False
+    mute_mac_when_companion_active: bool = True
     auth_token: Optional[str] = None
 
 
@@ -476,6 +495,7 @@ class VoiceFiConfig(BaseModel):
     global_hotkey: GlobalHotkeyConfig = Field(default_factory=GlobalHotkeyConfig)
     hud: HUDConfig = Field(default_factory=HUDConfig)
     memo: MemoConfig = Field(default_factory=MemoConfig)
+    obsidian: ObsidianConfig = Field(default_factory=ObsidianConfig)
     gemini: GeminiConfig = Field(default_factory=GeminiConfig)
     ipc: IPCConfig = Field(default_factory=IPCConfig)
     spark: SparkConfig = Field(default_factory=SparkConfig)

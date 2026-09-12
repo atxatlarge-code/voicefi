@@ -412,7 +412,7 @@ def cmd_listen(args):
         if target_engine in ("antigravity", "claude"):
             from voicefi.integrations.injector import send_message_to_agent
 
-            res = send_message_to_agent(engine=target_engine, text=text)
+            res = send_message_to_agent(target_engine=target_engine, text=text)
             if res.success:
                 print(
                     f"🚀 Sent directly to {target_engine.capitalize()} via background IPC (0 focus change)."
@@ -527,17 +527,21 @@ def cmd_send(args):
     # 2. Local Agent Dispatch
     from voicefi.integrations.injector import send_message_to_agent
 
+    use_headless = getattr(args, "headless", None)
     print(f"🚀 Dispatching message to {target_engine.capitalize()}...")
-    success = send_message_to_agent(
-        conv_id=conv_id,
-        text=text.strip(),
-        sender_name=sender_name,
-        title=title,
-        target_engine=target_engine,
-        from_conv_id=from_conv_id,
-        from_engine=from_engine,
-        include_envelope=include_envelope,
-    )
+    send_kwargs = {
+        "conv_id": conv_id,
+        "text": text.strip(),
+        "sender_name": sender_name,
+        "title": title,
+        "target_engine": target_engine,
+        "from_conv_id": from_conv_id,
+        "from_engine": from_engine,
+        "include_envelope": include_envelope,
+    }
+    if use_headless is not None:
+        send_kwargs["use_headless"] = use_headless
+    success = send_message_to_agent(**send_kwargs)
 
     if success:
         print(f"✅ Delivered successfully to {target_engine.capitalize()}.")
@@ -902,6 +906,44 @@ def cmd_tray(args):
     run_tray()
 
 
+def cmd_quick_bar(args):
+    """Launch or toggle native macOS Quick Prompt Bar (Control+Space)."""
+    raw_text = getattr(args, "text", None)
+    initial_text = " ".join(raw_text) if isinstance(raw_text, list) else str(raw_text or "")
+    clean_text = initial_text.strip()
+
+    # Try communicating with running background daemon first
+    try:
+        import urllib.request
+        import json
+
+        endpoint = "http://127.0.0.1:5141/api/quick-bar/show" if clean_text else "http://127.0.0.1:5141/api/quick-bar/toggle"
+        payload = json.dumps({"text": clean_text}).encode("utf-8") if clean_text else b"{}"
+        req = urllib.request.Request(
+            endpoint,
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=1.0) as resp:
+            if resp.status == 200:
+                print("✨ Quick Prompt Bar summoned on active display.")
+                return
+    except Exception:
+        pass
+
+    import AppKit
+    from PyObjCTools import AppHelper
+    from voicefi.ui.quick_bar import QuickPromptBarWindow
+
+    print("✨ Launching VoiceFi Quick Prompt Bar (Control+Space)...")
+    app = AppKit.NSApplication.sharedApplication()
+    AppKit.NSApp.setActivationPolicy_(AppKit.NSApplicationActivationPolicyAccessory)
+    bar = QuickPromptBarWindow.get_instance()
+    bar.show(initial_text=clean_text or None)
+    AppHelper.runEventLoop()
+
+
 def cmd_welcome(args):
     """Launch native macOS Welcome & License Activation Window."""
     import AppKit
@@ -967,21 +1009,32 @@ def cmd_wake(args):
 
     def _on_wake(matched_phrase: str, prompt: str):
         print(f"\n⚡ [WAKE TRIGGERED] Matched '{matched_phrase}'")
+        phrase_lower = matched_phrase.lower().strip()
+        is_claude = "claude" in phrase_lower or any(
+            k in phrase_lower for k in ("claud", "clod", "clawed", "glenn", "hague")
+        )
+        target_engine = "claude" if is_claude else "antigravity"
+        agent_name = "Claude Code" if is_claude else "Antigravity"
+
         if prompt and len(prompt.strip()) >= 3:
             norm = PhoneticNormalizer.normalize(prompt.strip())
             print(f'🚀 Prompt: "{norm}"')
-            print("📤 Dispatching directly to Antigravity via agentapi IPC...")
-            res = send_message_to_antigravity(
-                text=norm, sender_name=f"{config.user_name} (Hey Viv)", title="Prompt via Hey Viv"
+            print(f"📤 Dispatching to {agent_name}...")
+            res = send_message_to_agent(
+                text=norm,
+                sender_name=f"{config.user_name} ({matched_phrase})",
+                title=f"Prompt via {matched_phrase}",
+                target_engine=target_engine,
+                use_headless=True if is_claude else None,
             )
             if res.success:
-                print(f"✅ Delivered to Antigravity conversation ({res.delivery_type.upper()})")
+                print(f"✅ Delivered to {agent_name} conversation ({res.delivery_type.upper()})")
                 if config.audio_cues.enabled:
                     play_chime(config.audio_cues.sent_chime, block=False)
             else:
                 print(f"⚠️ Dispatch notice: {res.error}")
         else:
-            print("🎙️ Wake word detected without prompt -> Listening for command...")
+            print(f"🎙️ Wake word detected for {agent_name} without prompt -> Listening for command...")
             if config.audio_cues.enabled:
                 play_chime("start", block=False)
             recorder = AudioRecorder(
@@ -996,15 +1049,17 @@ def cmd_wake(args):
                 if text and text.strip():
                     norm = PhoneticNormalizer.normalize(text.strip())
                     print(f'🚀 Spoken Prompt: "{norm}"')
-                    print("📤 Dispatching directly to Antigravity via agentapi IPC...")
-                    res = send_message_to_antigravity(
+                    print(f"📤 Dispatching to {agent_name}...")
+                    res = send_message_to_agent(
                         text=norm,
-                        sender_name=f"{config.user_name} (Hey Viv)",
-                        title="Prompt via Hey Viv",
+                        sender_name=f"{config.user_name} ({matched_phrase})",
+                        title=f"Prompt via {matched_phrase}",
+                        target_engine=target_engine,
+                        use_headless=True if is_claude else None,
                     )
                     if res.success:
                         print(
-                            f"✅ Delivered to Antigravity conversation ({res.delivery_type.upper()})"
+                            f"✅ Delivered to {agent_name} conversation ({res.delivery_type.upper()})"
                         )
                         if config.audio_cues.enabled:
                             play_chime(config.audio_cues.sent_chime, block=False)
@@ -4002,6 +4057,100 @@ def cmd_obsidian(args):
                 "🎙️ Look for the Microphone icon in your left sidebar and the status bar at the bottom!\n"
             )
 
+    elif action == "status":
+        from voicefi.integrations.obsidian import (
+            is_obsidian_installed,
+            find_obsidian_vaults,
+            get_primary_vault,
+            get_daily_note_path,
+            is_plugin_installed,
+        )
+        print("\n💎 Obsidian Integration Status:")
+        print(f"   App Installed:   {'✅ Yes' if is_obsidian_installed() else '❌ No'}")
+        pv = get_primary_vault()
+        if pv:
+            print(f"   Primary Vault:   {pv.name} ({pv})")
+            dn = get_daily_note_path(pv)
+            print(f"   Today's Note:    {dn.name} ({'✅ Exists' if dn.is_file() else '⚪ Not created yet'})")
+            print(f"   VoiceFi Plugin:  {'✅ Installed' if is_plugin_installed(pv) else '⚪ Not installed (run vifi obsidian install)'}")
+        else:
+            print("   Primary Vault:   None found")
+        vaults = find_obsidian_vaults()
+        print(f"   Total Vaults:    {len(vaults)}\n")
+        return
+
+    elif action == "today":
+        from voicefi.integrations.obsidian import get_today_note_content
+        res = get_today_note_content()
+        if res.get("status") == "ok":
+            print(f"\n💎 Obsidian Daily Note ({res['file_name']}) in '{res['vault_name']}':")
+            print("─" * 60)
+            print(res.get("content", ""))
+            print("─" * 60 + "\n")
+        else:
+            print(f"❌ Error reading daily note: {res.get('error')}\n")
+        return
+
+    elif action == "capture":
+        return cmd_capture(args)
+
+    elif action == "launch":
+        engine = getattr(args, "engine", "antigravity") or "antigravity"
+        from voicefi.integrations.obsidian import launch_agent_in_vault
+        res = launch_agent_in_vault(engine=engine)
+        if res.get("status") == "ok":
+            print(f"\n🚀 {res.get('message')}\n")
+        else:
+            print(f"\n❌ Error launching agent: {res.get('error')}\n")
+        return
+
+
+def cmd_capture(args):
+    """Direct quick voice capture into Obsidian daily note (100% offline, 0-latency, 0-tokens)."""
+    from voicefi.integrations.obsidian import append_quick_capture_to_vault, get_primary_vault
+    from pathlib import Path
+
+    raw_text = getattr(args, "text", None)
+    if isinstance(raw_text, list):
+        text = " ".join(raw_text).strip()
+    elif isinstance(raw_text, str):
+        text = raw_text.strip()
+    else:
+        text = ""
+
+    vault_str = getattr(args, "vault", None)
+    vp = Path(vault_str) if vault_str else None
+
+    if not text:
+        print("\n🎙️  VoiceFi Quick Capture")
+        print("   Listening from microphone... Speak your note, pause when finished.")
+        try:
+            from voicefi.audio.recorder import AudioRecorder
+            from voicefi.stt import get_stt_engine
+            cfg = load_config()
+            recorder = AudioRecorder(cfg)
+            print("🔴 Recording... (speak now)")
+            audio_data = recorder.record_speech_auto(timeout=15.0)
+            if audio_data is not None and len(audio_data) > 0:
+                print("⚡ Transcribing locally with Whisper...")
+                stt = get_stt_engine(cfg)
+                text = stt.transcribe(audio_data).strip()
+        except Exception as e:
+            print(f"❌ Recording error: {e}")
+            return
+
+    if not text:
+        print("⚠️  No speech or text captured.\n")
+        return
+
+    res = append_quick_capture_to_vault(text, vault_path=vp)
+    if res.get("status") == "ok":
+        print(f"\n✅ Appended to Obsidian ({res['vault_name']}/{res['daily_note_name']}) at {res['time']}:")
+        print(f"   {res['entry']}\n")
+    else:
+        print(f"\n❌ Error appending to vault: {res.get('error')}\n")
+
+
 
 def cmd_tier(args):
     """Display active tier, 14-day free trial countdown, and pricing details."""
@@ -4067,6 +4216,29 @@ def cmd_license(args):
     """Manage VoiceFi license keys and Pro tier activation."""
     action = getattr(args, "license_action", "status")
     key = getattr(args, "key", None)
+
+    if action in ("help", "where", "find", "recover", "lost"):
+        print("\n==========================================================")
+        print("🔑 Finding or Recovering Your VoiceFi License Key")
+        print("==========================================================")
+        print("1. Polar Receipt Email:")
+        print("   If you purchased Pro, your cryptographic key was emailed from")
+        print("   Polar (notifications@polar.sh) and VoiceFi (talktome@voicefi.org)")
+        print("   with the subject 'Your VoiceFi Pro License'.")
+        print("\n2. Format of Genuine License Keys:")
+        print("   Keys begin with 'VF1-PRO-' followed by tier, expiration, and signature:")
+        print("   e.g. VF1-PRO-PERP-<ID>.<ED25519_SIGNATURE>")
+        print("\n3. 14-Day Free Pro Trial (No Key Required):")
+        print("   Testing VoiceFi? You do NOT need a license key or credit card!")
+        print("   Run: vifi tier (or start from the AppKit Welcome Window)")
+        print("\n4. Lost Key Recovery:")
+        print("   Visit your Polar Customer Portal with your checkout email:")
+        print("   👉 https://polar.sh/purchases")
+        print("   Or contact: support@voicefi.org")
+        print("\n5. Activate on This Machine:")
+        print("   vifi license activate <YOUR_LICENSE_KEY>")
+        print("==========================================================\n")
+        return
 
     if action in ("activate", "set", "apply") or key:
         raw_key = (key or (args.key_args[0] if getattr(args, "key_args", None) else "")).strip()
@@ -5340,6 +5512,19 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
         "--claude", action="store_true", help="Directly open Claude Voice Contenders Studio"
     )
 
+    # bar / prompt / quick
+    bar_p = subparsers.add_parser(
+        "bar",
+        aliases=["prompt", "quick"],
+        help="Launch or toggle native macOS Quick Prompt Bar (Control+Space)",
+    )
+    bar_p.add_argument(
+        "text",
+        nargs="*",
+        default=None,
+        help="Optional initial prompt text to populate in the bar",
+    )
+
     # info
     subparsers.add_parser("info", help="Show system status and voices")
 
@@ -5356,6 +5541,11 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
         dest="license_action", metavar="<action>", help="License action (status, activate)"
     )
     lic_sub.add_parser("status", help="Show active license and 14-day free trial status")
+    lic_sub.add_parser(
+        "where",
+        aliases=["help", "find", "recover", "lost"],
+        help="Where to find or recover your license key (Polar email, portal, or trial)",
+    )
     lic_act = lic_sub.add_parser(
         "activate", aliases=["set", "apply"], help="Activate a VoiceFi Pro license key"
     )
@@ -6086,6 +6276,20 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
         "-a", "--all", action="store_true", help="Install into all registered vaults"
     )
     obs_sub.add_parser("list", help="List registered Obsidian vaults on this machine")
+    obs_sub.add_parser("status", help="Show Obsidian installation, vault discovery, and daily note status")
+    obs_sub.add_parser("today", help="Display today's daily note content from active Obsidian vault")
+    obs_cap_p = obs_sub.add_parser("capture", help="Quick capture text directly into today's daily note")
+    obs_cap_p.add_argument("text", nargs="*", default=None, help="Text to append to today's daily note")
+    obs_cap_p.add_argument("-v", "--vault", type=str, default=None, help="Target specific Obsidian vault directory")
+    obs_launch_p = obs_sub.add_parser("launch", help="Launch or pair AI agent (Antigravity or Claude Code) into vault")
+    obs_launch_p.add_argument("--engine", choices=["antigravity", "claude"], default="antigravity", help="Agent engine to launch")
+
+    # capture (top-level shortcut for direct voice-to-vault)
+    cap_top_p = subparsers.add_parser(
+        "capture", help="Direct voice or text capture into today's Obsidian daily note"
+    )
+    cap_top_p.add_argument("text", nargs="*", default=None, help="Text to append to today's daily note")
+    cap_top_p.add_argument("-v", "--vault", type=str, default=None, help="Target specific Obsidian vault directory")
 
     # hud
     hud_p = subparsers.add_parser(
@@ -6424,6 +6628,12 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
     send_p.add_argument(
         "--no-envelope", action="store_true", help="Do not include provenance metadata header"
     )
+    send_p.add_argument(
+        "--headless",
+        action="store_true",
+        default=None,
+        help="Execute via background headless CLI without window focus changes",
+    )
 
     # duel / banter
     duel_p = subparsers.add_parser(
@@ -6607,6 +6817,12 @@ def main():
     if not args.command:
         if getattr(sys, "frozen", False):
             # Launched from macOS .app bundle without CLI arguments
+            try:
+                from voicefi.ui.translocation import check_and_prompt_move_to_applications
+
+                check_and_prompt_move_to_applications()
+            except Exception:
+                pass
             cmd_tray(args)
             return
         parser.print_help()
@@ -6680,6 +6896,7 @@ def main():
         "learn": cmd_learn,
         "learning": cmd_learn,
         "obsidian": cmd_obsidian,
+        "capture": cmd_capture,
         "voice": cmd_voice,
         "speed-talk": cmd_speed_talk,
         "speedtalk": cmd_speed_talk,
@@ -6732,6 +6949,9 @@ def main():
         "wake": cmd_wake,
         "wakeword": cmd_wake,
         "hey-viv": cmd_wake,
+        "bar": cmd_quick_bar,
+        "prompt": cmd_quick_bar,
+        "quick": cmd_quick_bar,
         "welcome": cmd_welcome,
         "welcome-gui": cmd_welcome,
         "license-gui": cmd_welcome,

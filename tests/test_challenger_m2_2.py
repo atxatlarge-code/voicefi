@@ -216,6 +216,7 @@ class ChallengerM2ParityStressTestCase(AioHTTPTestCase):
                 from_engine=None,
                 include_envelope=False,
                 allow_foreground_fallback=False,
+                use_headless=True,
             )
 
     # =========================================================================

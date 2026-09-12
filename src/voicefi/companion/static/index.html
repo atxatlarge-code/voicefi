@@ -413,10 +413,13 @@
 
   <!-- Header with Session Switcher and View Tabs -->
   <!-- Header with Session Switcher and View Tabs (Option 1 Clean Layout) -->
-  <header class="safe-top pb-2 px-3.5 border-b border-[#1c1c1c] bg-black/85 backdrop-blur-md z-20 shrink-0">
-    <div class="flex items-center justify-between gap-3 mb-2.5">
-      <div class="flex items-center gap-2">
-        <div class="w-8 h-8 flex items-center justify-center shrink-0">
+  <!-- Header: Single Dynamic Row with Expanding Context Capsule -->
+  <header class="safe-top px-3 py-2 border-b border-white/10 bg-[#0b0b0e]/95 backdrop-blur-xl z-30 shrink-0 sticky top-0">
+    <div class="flex items-center justify-between gap-2 max-w-5xl mx-auto w-full">
+      
+      <!-- 1. Left: Brand & Live Status Dot -->
+      <div class="flex items-center gap-1.5 shrink-0">
+        <div class="w-7 h-7 flex items-center justify-center shrink-0">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="68 68 376 388" class="w-full h-full object-contain">
             <defs>
               <linearGradient id="vfHdrSymRed" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -426,113 +429,154 @@
               </linearGradient>
             </defs>
             <g transform="translate(0, 5)">
-              <!-- 1. ELECTRIC RED WI-FI BROADCAST HAT -->
               <g stroke="url(#vfHdrSymRed)" stroke-linecap="round" fill="none">
                 <path d="M 152 145 A 120 120 0 0 1 360 145" stroke-width="26" />
                 <path d="M 184 180 A 80 80 0 0 1 328 180" stroke-width="24" />
                 <path d="M 216 215 A 42 42 0 0 1 296 215" stroke-width="22" />
               </g>
-              <!-- 2. CYBER FACE -->
               <g stroke="#FFFFFF" stroke-width="14" stroke-linecap="round">
                 <line x1="202" y1="262" x2="234" y2="262" />
                 <line x1="278" y1="262" x2="310" y2="262" />
               </g>
-              <!-- USB-C Port Nose -->
               <g>
                 <rect x="236" y="276" width="40" height="18" rx="9" fill="#000000" stroke="#FF2A2A" stroke-width="4" />
                 <line x1="246" y1="285" x2="266" y2="285" stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round" />
               </g>
-              <!-- Friendly Electric Red Waveform Smile -->
               <path d="M 228 322 Q 256 348 284 322" fill="none" stroke="#FF2A2A" stroke-width="8" stroke-linecap="round" />
-              <!-- 3. STUDIO CRADLE & PLUG BASE in Crisp White -->
-              <path d="M 124 220 C 124 350, 175 385, 256 385 C 337 385, 388 350, 388 220" 
-                    fill="none" 
-                    stroke="#FFFFFF" 
-                    stroke-width="20" 
-                    stroke-linecap="round" />
-              <!-- Plug Prongs with Red Knurled Accents -->
+              <path d="M 124 220 C 124 350, 175 385, 256 385 C 337 385, 388 350, 388 220" fill="none" stroke="#FFFFFF" stroke-width="20" stroke-linecap="round" />
               <g>
                 <rect x="108" y="202" width="32" height="34" rx="7" fill="#000000" stroke="#FFFFFF" stroke-width="4.5" />
                 <circle cx="124" cy="219" r="5.5" fill="#FF2A2A" />
                 <rect x="372" y="202" width="32" height="34" rx="7" fill="#000000" stroke="#FFFFFF" stroke-width="4.5" />
                 <circle cx="388" cy="219" r="5.5" fill="#FF2A2A" />
               </g>
-              <!-- Stem & Solid Base in Crisp White -->
               <line x1="256" y1="385" x2="256" y2="435" stroke="#FFFFFF" stroke-width="22" stroke-linecap="round" />
               <line x1="185" y1="435" x2="327" y2="435" stroke="#FFFFFF" stroke-width="22" stroke-linecap="round" />
             </g>
           </svg>
         </div>
-        <div class="flex items-center gap-2">
-          <h1 class="font-extrabold text-sm tracking-tight text-white flex items-center font-sans">
-            Voice<span class="text-[#FF2A2A]">Fi</span>
-          </h1>
-          <div id="connStatus" class="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-950/60 border border-emerald-500/40 text-[9px] font-mono font-bold text-emerald-400">
-            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" id="connDot"></span>
-            <span id="connText">• LIVE</span>
-          </div>
+        <div class="relative flex items-center">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" id="headerLiveDot"></span>
         </div>
       </div>
 
-      <div class="flex items-center gap-1.5">
-        <button id="btnHardRefresh" onclick="forceHardRefresh()" type="button" class="w-7 h-7 rounded-lg bg-[#141414] hover:bg-[#222222] border border-[#27272a] text-zinc-300 hover:text-white flex items-center justify-center transition active:scale-95 cursor-pointer shadow-sm" title="Force Refresh & Clear Offline Cache">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+      <!-- 2. Center: Expanding Context Capsule (Click to open Drawer!) -->
+      <button id="headerCapsuleBtn" type="button" onclick="toggleHeaderDrawer()" class="flex-1 min-w-0 max-w-[210px] xs:max-w-[260px] sm:max-w-[340px] md:max-w-[420px] h-10 sm:h-11 px-3 sm:px-4 rounded-2xl bg-[#16161b] hover:bg-[#202028] active:scale-95 border border-white/15 text-xs sm:text-sm font-bold text-zinc-200 flex items-center justify-between gap-2 transition cursor-pointer shadow-inner">
+        <span id="headerCapsuleText" class="truncate font-bold text-xs sm:text-sm text-amber-300 text-left">🤖 AGY • Troubleshooting Remote Companion Sync</span>
+        <span class="text-[9px] sm:text-[10px] text-zinc-400 shrink-0">▼</span>
+      </button>
+
+      <!-- 3. Right: View Switcher (1 Dropdown Button) + Refresh + Settings -->
+      <div class="flex items-center gap-2 sm:gap-2.5 shrink-0">
+        <!-- View Switcher Dropdown Button & Menu -->
+        <div class="relative">
+          <button id="headerViewSwitcherBtn" type="button" onclick="toggleViewDropdown()" class="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-[#16161b] hover:bg-[#202028] active:scale-95 border border-white/15 text-white flex items-center justify-center gap-1 transition cursor-pointer shadow-inner" title="Switch Mode (Voice / Chat / Docs / HD)">
+            <span id="headerActiveViewIcon" class="text-lg sm:text-xl">🎙️</span>
+            <span class="text-[9px] text-zinc-400">▼</span>
+          </button>
+
+          <!-- Floating Dropdown Sub-Menu -->
+          <div id="headerViewDropdownMenu" class="hidden absolute right-0 top-12 sm:top-14 w-44 sm:w-48 bg-[#121216]/98 backdrop-blur-2xl border border-white/20 rounded-2xl p-1.5 shadow-[0_15px_50px_rgba(0,0,0,0.85)] z-50 space-y-1 transition-all">
+            <button id="tabVoice" type="button" class="w-full px-3 py-2 rounded-xl text-left transition flex items-center justify-between text-xs sm:text-sm font-black cursor-pointer bg-white text-black shadow-md">
+              <div class="flex items-center gap-2.5">
+                <span class="text-base sm:text-lg">🎙️</span>
+                <span>Voice</span>
+              </div>
+              <span id="viewCheckVoice" class="text-emerald-400 text-xs font-bold">✓</span>
+            </button>
+            <button id="tabChat" type="button" class="w-full px-3 py-2 rounded-xl text-left transition flex items-center justify-between text-xs sm:text-sm font-semibold cursor-pointer text-zinc-300 hover:text-white hover:bg-white/5">
+              <div class="flex items-center gap-2.5">
+                <span class="text-base sm:text-lg">💬</span>
+                <span>Chat</span>
+              </div>
+              <span id="viewCheckChat" class="hidden text-emerald-400 text-xs font-bold">✓</span>
+            </button>
+            <button id="tabArtifacts" type="button" class="w-full px-3 py-2 rounded-xl text-left transition flex items-center justify-between text-xs sm:text-sm font-semibold cursor-pointer text-zinc-300 hover:text-white hover:bg-white/5 relative">
+              <div class="flex items-center gap-2.5">
+                <span class="text-base sm:text-lg">📑</span>
+                <span>Docs</span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <span id="artifactBadge" class="hidden text-[10px] bg-indigo-600 text-white px-1.5 py-0.5 rounded-full font-mono font-bold">0</span>
+                <span id="viewCheckArtifacts" class="hidden text-emerald-400 text-xs font-bold">✓</span>
+              </div>
+            </button>
+            <button id="tabDownloads" type="button" class="w-full px-3 py-2 rounded-xl text-left transition flex items-center justify-between text-xs sm:text-sm font-semibold cursor-pointer text-zinc-300 hover:text-white hover:bg-white/5">
+              <div class="flex items-center gap-2.5">
+                <span class="text-base sm:text-lg">🎬</span>
+                <span>HD</span>
+              </div>
+              <span id="viewCheckDownloads" class="hidden text-emerald-400 text-xs font-bold">✓</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Refresh Button -->
+        <button id="btnHardRefresh" onclick="forceHardRefresh()" type="button" class="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-[#16161b] hover:bg-[#202028] active:scale-95 text-zinc-300 hover:text-white flex items-center justify-center transition cursor-pointer border border-white/15 shadow-inner" title="Force Refresh & Clear Offline Cache">
+          <svg class="w-5 h-5 sm:w-5.5 sm:h-5.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
           </svg>
         </button>
-        <a href="/downloads" class="px-2 py-1 bg-red-950/40 hover:bg-red-900/60 border border-red-500/40 rounded-lg text-[10px] font-mono text-red-300 flex items-center gap-1 transition active:scale-95 cursor-pointer shadow-sm no-underline" title="Reel & Media Downloads">
-          <span class="text-xs">📥</span>
-          <span class="font-bold hidden sm:inline">Downloads</span>
-        </a>
-        <button id="topNavQrBtn" type="button" class="w-7 h-7 rounded-lg bg-[#141414] hover:bg-[#222222] border border-[#27272a] text-zinc-300 hover:text-white flex items-center justify-center transition active:scale-95 cursor-pointer shadow-sm" title="Pair Mobile Companion (QR Code)">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z" />
-            <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 6.75h.008v.008H6.75V6.75zM6.75 16.5h.008v.008H6.75V16.5zM16.5 6.75h.008v.008H16.5V6.75zM13.5 13.5h3v3h-3v-3zM16.5 19.5h3v-3h-3v3zM19.5 13.5h.008v.008H19.5V13.5zM13.5 19.5h.008v.008H13.5V19.5z" />
-          </svg>
-        </button>
-        <button id="openSettingsBtn" type="button" class="w-7 h-7 rounded-lg bg-[#141414] hover:bg-[#222222] border border-[#27272a] text-zinc-300 hover:text-white flex items-center justify-center transition active:scale-95 cursor-pointer shadow-sm" title="Companion Settings">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+
+        <!-- Settings Button -->
+        <button id="openSettingsBtn" type="button" class="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-[#16161b] hover:bg-[#202028] active:scale-95 text-zinc-300 hover:text-white flex items-center justify-center transition cursor-pointer border border-white/15 shadow-inner" title="Companion Settings">
+          <svg class="w-5 h-5 sm:w-5.5 sm:h-5.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
             <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
         </button>
       </div>
-    </div>
 
-    <!-- Active Conversation Dropdown Selector & New Chat Button -->
-    <div class="flex items-center gap-1.5 mb-2">
-      <div class="relative flex-1 min-w-0">
-        <select id="convSelect" class="w-full px-2.5 py-1.5 rounded-xl bg-[#0c0c0c] border border-[#222222] text-xs font-medium text-white appearance-none focus:outline-none focus:border-white transition pr-7 truncate cursor-pointer">
-          <option value="">Loading active conversations...</option>
-        </select>
-        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-[#666666] text-xs">
-          ▼
-        </div>
-      </div>
-
-      <!-- New Conversation Button -->
-      <button id="newConvBtn" title="Start a New Antigravity Conversation" class="px-2.5 py-1.5 bg-white text-black active:scale-95 text-xs font-bold rounded-xl flex items-center gap-1 shadow-sm transition shrink-0 cursor-pointer">
-        <span class="text-sm font-bold leading-none">+</span>
-        <span>New</span>
-      </button>
-    </div>
-
-    <!-- Navigation Tabs -->
-    <div class="flex items-center bg-[#0c0c0c] p-0.5 rounded-xl border border-[#222222] text-xs font-semibold">
-      <button id="tabVoice" class="flex-1 py-1 rounded-lg text-center transition flex items-center justify-center gap-1 bg-white text-black shadow-sm cursor-pointer font-bold">
-        <span>Voice</span>
-      </button>
-      <button id="tabChat" class="flex-1 py-1 rounded-lg text-center transition flex items-center justify-center gap-1 text-[#888888] hover:text-white cursor-pointer">
-        <span>Chat</span>
-      </button>
-      <button id="tabArtifacts" class="flex-1 py-1 rounded-lg text-center transition flex items-center justify-center gap-1 text-[#888888] hover:text-white cursor-pointer">
-        <span>Artifacts</span> <span id="artifactBadge" class="hidden text-[9px] bg-[#222222] text-white px-1 rounded-full mono">0</span>
-      </button>
-      <button id="tabDownloads" class="flex-1 py-1 rounded-lg text-center transition flex items-center justify-center gap-1 text-[#888888] hover:text-white cursor-pointer" title="Reel & Media Downloads">
-        <span>Downloads</span> <span class="text-[9px] bg-red-950/80 border border-red-500/40 text-red-400 px-1 rounded-full mono font-bold">HD</span>
-      </button>
     </div>
   </header>
+
+  <!-- Expanding Sub-Menu Drawer & Backdrop (Layers 2 & 3 inside) -->
+  <div id="headerDrawerBackdrop" onclick="toggleHeaderDrawer(false)" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity"></div>
+
+  <div id="headerDrawer" class="hidden fixed top-12 sm:top-14 inset-x-2 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 sm:w-[420px] bg-[#111115]/98 backdrop-blur-2xl border border-white/15 rounded-3xl p-4 shadow-[0_20px_60px_rgba(0,0,0,0.85)] z-50 space-y-3.5 transition-all">
+    
+    <!-- Drawer Title & Dismiss -->
+    <div class="flex items-center justify-between border-b border-white/10 pb-2">
+      <span class="text-xs font-mono font-bold text-zinc-400 uppercase tracking-wider">Select Agent & Context</span>
+      <button onclick="toggleHeaderDrawer(false)" type="button" class="text-zinc-400 hover:text-white text-xs px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 cursor-pointer">✕ Close</button>
+    </div>
+
+    <!-- App Filter Row (Layer 2) -->
+    <div id="appSelectorRow" class="grid grid-cols-4 gap-1.5">
+      <button type="button" id="appFilterAll" onclick="setAppFilter('all')" class="py-2 px-2 rounded-xl text-xs font-black flex items-center justify-center gap-1 transition active:scale-95 cursor-pointer bg-white text-black shadow-md">
+        <span>🌐</span> <span>All</span>
+      </button>
+      <button type="button" id="appFilterAG" onclick="setAppFilter('antigravity')" class="py-2 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition active:scale-95 cursor-pointer bg-[#18181e] hover:bg-[#22222a] text-zinc-300 hover:text-white border border-white/5">
+        <span class="w-2 h-2 rounded-full bg-cyan-400"></span> <span>AGY</span>
+      </button>
+      <button type="button" id="appFilterClaude" onclick="setAppFilter('claude')" class="py-2 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition active:scale-95 cursor-pointer bg-[#18181e] hover:bg-[#22222a] text-zinc-300 hover:text-white border border-white/5">
+        <span class="w-2 h-2 rounded-full bg-amber-400"></span> <span>Claude</span>
+      </button>
+      <button type="button" id="appFilterObsidian" onclick="setAppFilter('obsidian')" class="py-2 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition active:scale-95 cursor-pointer bg-[#18181e] hover:bg-[#22222a] text-zinc-300 hover:text-white border border-white/5">
+        <span class="w-2 h-2 rounded-full bg-purple-400"></span> <span>Vault</span>
+      </button>
+    </div>
+
+    <!-- Active Conversation Dropdown & New Button (Layer 3) -->
+    <div class="space-y-2">
+      <div class="relative w-full">
+        <select id="convSelect" class="w-full h-11 px-3.5 rounded-xl bg-[#18181f] hover:bg-[#202028] border border-white/15 text-xs font-semibold text-white appearance-none focus:outline-none focus:border-white transition pr-8 truncate cursor-pointer shadow-inner">
+          <option value="7ae2122d-0141-41d4-9745-b5eab9756688" selected>⏳ 🤖 AGY • voicefi.org: Troubleshooting Remote Companion Sync</option>
+        </select>
+        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-zinc-400 text-xs">▼</div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button id="newConvBtn" type="button" class="flex-1 py-2.5 bg-white hover:bg-zinc-200 active:scale-95 text-black text-xs font-black rounded-xl flex items-center justify-center gap-1.5 shadow-md transition cursor-pointer">
+          <span class="text-sm font-black">+</span> <span>New Conversation</span>
+        </button>
+        <button id="topNavQrBtn" type="button" class="px-3.5 py-2.5 rounded-xl bg-[#18181f] hover:bg-[#202028] text-zinc-300 hover:text-white text-xs font-bold border border-white/10 flex items-center gap-1.5 cursor-pointer" title="Pair Mobile Companion (QR Code)">
+          <span>📱</span> <span>QR Pair</span>
+        </button>
+      </div>
+    </div>
+
+  </div>
 
   <!-- Persistent Floating Autoplay Blocked Banner (Visible across all views) -->
   <div id="audioAutoplayBanner" class="hidden fixed top-14 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2.5 px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-full shadow-2xl border border-emerald-300/80 cursor-pointer animate-bounce transition active:scale-95 text-xs font-bold font-mono">
@@ -597,33 +641,44 @@
         </div>
       </div>
 
-      <!-- Top Live Voice Status Pill -->
-      <div class="w-full flex items-center justify-between px-1 mb-1 shrink-0">
-        <span class="text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-wider">Hands-Free Voice</span>
-        <!-- Live Voice & Agent State Badge Pill (Top-Right Aligned) -->
-        <div id="orbIcon" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#111111]/90 backdrop-blur-md border border-[#27272a] text-[10px] font-mono font-bold text-zinc-300 tracking-wider shadow-sm transition-all">
-          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400" id="orbStatusDot"></span>
-          <span id="orbStatusText">[PHONE MIC]</span>
-        </div>
+      <!-- Quick-Control Action Pills Row -->
+      <div class="w-full flex items-center justify-center gap-2 mb-2 shrink-0 flex-wrap">
+        <!-- Auto-Listen Pill -->
+        <button id="voiceAutoListenPill" type="button" class="px-3.5 py-2 rounded-xl bg-[#161619] hover:bg-[#202026] active:scale-95 border border-white/10 text-xs font-bold text-zinc-200 flex items-center gap-1.5 transition cursor-pointer shadow-sm">
+          <span id="voiceAutoListenDot" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span id="voiceAutoListenText">Auto-Listen: ON</span>
+        </button>
+
+        <!-- Mic Source Pill (Hidden as requested) -->
+        <button id="voiceMicSourcePill" type="button" class="hidden px-3.5 py-2 rounded-xl bg-[#161619] hover:bg-[#202026] active:scale-95 border border-white/10 text-xs font-bold text-zinc-200 items-center gap-1.5 transition cursor-pointer shadow-sm">
+          <span id="voiceMicSourceIcon">📱</span>
+          <span id="voiceMicSourceText">Phone Mic</span>
+        </button>
+
+        <!-- Speed Talk Pill -->
+        <button id="voiceSpeedPill" type="button" class="px-3.5 py-2 rounded-xl bg-[#161619] hover:bg-[#202026] active:scale-95 border border-white/10 text-xs font-bold text-zinc-200 flex items-center gap-1.5 transition cursor-pointer shadow-sm">
+          <span>⚡</span>
+          <span id="voiceSpeedText">1.0x</span>
+        </button>
       </div>
 
       <!-- Center Voice Stage (Aligned directly with Antigravity Zero-G Particle Singularity) -->
-      <div id="voiceCenterStage" class="my-auto flex flex-col items-center justify-center relative py-4 w-full max-w-xs mx-auto">
+      <div id="voiceCenterStage" class="my-auto flex flex-col items-center justify-center relative py-2 w-full max-w-xs mx-auto h-[210px] min-h-[210px] max-h-[210px] shrink-0">
         <!-- Interactive Minimal Voice Stage (Concentric, Borderless, Singularity-Aligned) -->
-        <button id="orbBtn" type="button" class="group relative flex flex-col items-center justify-center text-center p-3 w-full rounded-3xl transition-all duration-300 active:scale-95 cursor-pointer select-none focus:outline-none bg-transparent border-0">
+        <button id="orbBtn" type="button" class="group relative flex flex-col items-center justify-center text-center p-2 w-full rounded-3xl transition-all duration-300 active:scale-95 cursor-pointer select-none focus:outline-none bg-transparent border-0">
           
           <!-- VoiceFi Reactive Character Status Icon (Active Area Lighting) -->
-          <div id="voiceStageLogoHost" class="w-28 h-28 my-1 flex items-center justify-center relative transition-transform duration-300 group-hover:scale-105">
+          <div id="voiceStageLogoHost" class="w-32 h-32 shrink-0 my-1 flex items-center justify-center relative transition-transform duration-300 group-hover:scale-105">
             <!-- Dynamically populated via getVoiceFiReactiveSVG -->
           </div>
 
           <!-- State Title -->
-          <div id="stateTitle" class="text-2xl sm:text-3xl font-extrabold text-white tracking-tight leading-tight transition-all">
+          <div id="stateTitle" class="h-10 min-h-[40px] max-h-[40px] flex items-center justify-center text-xs sm:text-sm font-mono text-zinc-400 tracking-normal leading-tight text-center transition-colors max-w-[280px] mx-auto mt-1 line-clamp-2 overflow-hidden">
             Tap to Speak on Phone
           </div>
           
           <!-- Live Waveform Animation -->
-          <div id="orbWave" class="hidden flex items-center justify-center gap-1.5 my-2.5 h-6">
+          <div id="orbWave" class="opacity-0 pointer-events-none transition-opacity duration-200 flex items-center justify-center gap-1.5 h-6 my-1">
             <span class="wave-bar" style="animation-delay: 0s"></span>
             <span class="wave-bar" style="animation-delay: 0.15s"></span>
             <span class="wave-bar" style="animation-delay: 0.3s"></span>
@@ -633,50 +688,28 @@
             <span class="wave-bar" style="animation-delay: 0.2s"></span>
           </div>
 
-          <!-- State Subtitle -->
-          <p id="stateSubtitle" class="text-xs text-zinc-400 mt-1 max-w-xs font-mono leading-relaxed transition-all">
-            Microphone ready
-          </p>
         </button>
       </div>
 
+
       <!-- Transcript / Soundbite Card -->
-      <div class="w-full bg-[#0c0c0c]/85 backdrop-blur-md rounded-2xl p-3.5 border border-[#222222] shadow-sm shrink-0">
-        <div class="flex items-center justify-between text-[10px] font-semibold text-[#888888] uppercase tracking-wider mb-1.5">
-          <span id="logType">Latest Agent Turn</span>
-          <span id="autoListenTag" class="text-white font-mono lowercase">[auto-listen on]</span>
+      <div class="w-full bg-[#121215]/90 backdrop-blur-md rounded-2xl p-4 border border-white/10 shadow-md shrink-0 space-y-2 h-[110px] min-h-[110px] max-h-[110px] flex flex-col justify-between">
+        <div class="flex items-center justify-between text-[11px] font-bold text-zinc-400 uppercase tracking-wider shrink-0">
+          <div class="flex items-center gap-2">
+            <span id="logType">Latest Agent Turn</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <button id="soundbiteReplayBtn" type="button" class="px-2.5 py-1 rounded-lg bg-[#202024] hover:bg-[#2c2c34] active:scale-95 text-[11px] font-bold text-white flex items-center gap-1 transition cursor-pointer" title="Replay latest soundbite">
+              <span>🔊</span> <span>Replay</span>
+            </button>
+            <button id="soundbiteCopyBtn" type="button" class="px-2.5 py-1 rounded-lg bg-[#202024] hover:bg-[#2c2c34] active:scale-95 text-[11px] font-bold text-zinc-300 hover:text-white flex items-center gap-1 transition cursor-pointer" title="Copy soundbite text">
+              <span>📋</span>
+            </button>
+          </div>
         </div>
-        <p id="latestText" class="text-xs text-[#e4e4e7] leading-relaxed max-h-24 overflow-y-auto">
+        <p id="latestText" class="text-xs sm:text-sm text-zinc-100 leading-relaxed overflow-y-auto font-sans flex-1 max-h-[52px]">
           "Ready to pair with your Mac. Tap the button to begin speaking."
         </p>
-      </div>
-
-      <!-- Plan Review & Approval Card (Voice View) -->
-      <div id="voicePlanReviewCard" class="hidden w-full mt-2.5 p-3 bg-[#0a0a0a]/95 border border-[#333333] rounded-2xl backdrop-blur-md shadow-lg space-y-2 shrink-0">
-        <div class="flex items-center justify-between pb-1.5 border-b border-[#222222]">
-          <div class="flex items-center gap-1.5">
-            <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
-            <span class="text-[10px] font-bold text-white mono uppercase tracking-wider">PLAN REVIEW REQUIRED</span>
-          </div>
-          <button id="voiceViewPlanBtn" type="button" class="text-[10px] font-mono text-zinc-400 hover:text-white underline cursor-pointer">
-            [VIEW PLAN]
-          </button>
-        </div>
-        <div class="flex items-center justify-between text-xs">
-          <span class="font-mono text-zinc-300 text-[11px] truncate">implementation_plan.md</span>
-          <span class="text-[9px] font-mono text-zinc-500">[AWAITING APPROVAL]</span>
-        </div>
-        <div class="grid grid-cols-3 gap-1.5 pt-0.5">
-          <button type="button" id="voiceApprovePlanBtn" class="py-1.5 px-1 text-center bg-white text-black font-bold text-[10px] font-mono rounded-lg hover:bg-zinc-200 transition active:scale-95 cursor-pointer">
-            [APPROVE]
-          </button>
-          <button type="button" id="voiceRequestPlanChangesBtn" class="py-1.5 px-1 text-center bg-[#141414] hover:bg-[#222222] text-white border border-[#333333] font-bold text-[10px] font-mono rounded-lg transition active:scale-95 cursor-pointer">
-            [REVISE]
-          </button>
-          <button type="button" id="voiceTriggerVoiceReviewBtn" class="py-1.5 px-1 text-center bg-[#141414] hover:bg-[#222222] text-white border border-[#333333] font-bold text-[10px] font-mono rounded-lg transition active:scale-95 cursor-pointer">
-            [VOICE REVIEW]
-          </button>
-        </div>
       </div>
 
     </section>
@@ -694,34 +727,6 @@
           <span id="chatStatusTag" class="px-2.5 py-0.5 rounded-full text-[10px] font-mono bg-[#141414] text-[#888888] border border-[#222222]">[IDLE]</span>
           <span id="chatTurnCount" class="text-[10px] font-mono bg-[#141414] border border-[#222222] px-2 py-0.5 rounded text-[#888888]">0 turns</span>
           <button id="jumpBottomBtn" class="text-[11px] text-[#888888] hover:text-white underline cursor-pointer">↓</button>
-        </div>
-      </div>
-
-      <!-- Plan Review & Approval Card (Chat View) -->
-      <div id="planReviewCard" class="hidden px-3.5 py-2.5 bg-[#0a0a0a]/95 border-b border-[#2e2e2e] backdrop-blur-md shadow-md space-y-2 shrink-0">
-        <div class="flex items-center justify-between pb-1.5 border-b border-[#222222]">
-          <div class="flex items-center gap-2">
-            <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
-            <span class="text-[11px] font-bold text-white mono uppercase tracking-wider">PLAN REVIEW REQUIRED</span>
-          </div>
-          <button id="viewPlanBtn" type="button" class="text-[10px] font-mono text-zinc-400 hover:text-white underline cursor-pointer">
-            [VIEW PLAN]
-          </button>
-        </div>
-        <div class="flex items-center justify-between text-xs">
-          <span class="font-mono text-zinc-300 text-[11px] truncate">implementation_plan.md</span>
-          <span id="planStatusTag" class="text-[10px] font-mono text-zinc-500">[AWAITING APPROVAL]</span>
-        </div>
-        <div class="grid grid-cols-3 gap-2 pt-0.5">
-          <button type="button" id="approvePlanBtn" class="py-2 px-1 text-center bg-white text-black font-bold text-[10px] font-mono rounded-lg hover:bg-zinc-200 transition active:scale-95 cursor-pointer">
-            [APPROVE & PROCEED]
-          </button>
-          <button type="button" id="requestPlanChangesBtn" class="py-2 px-1 text-center bg-[#141414] hover:bg-[#222222] text-white border border-[#333333] font-bold text-[10px] font-mono rounded-lg transition active:scale-95 cursor-pointer">
-            [REQUEST CHANGES]
-          </button>
-          <button type="button" id="voiceReviewPlanBtn" class="py-2 px-1 text-center bg-[#141414] hover:bg-[#222222] text-white border border-[#333333] font-bold text-[10px] font-mono rounded-lg transition active:scale-95 cursor-pointer">
-            [VOICE REVIEW]
-          </button>
         </div>
       </div>
 
@@ -885,67 +890,52 @@
   <input type="file" id="phoneCameraDirectInput" accept="image/*" capture="environment" class="hidden">
 
   <!-- Bottom Chat Input Bar (Native Messages Layout) -->
-  <div class="p-2 sm:p-2.5 bg-black/95 backdrop-blur-md border-t border-[#1a1a1a] shrink-0 safe-bottom z-20">
+  <div class="p-3 pb-7 sm:pb-8 bg-black/95 backdrop-blur-xl border-t border-white/10 shrink-0 z-20 safe-bottom" style="padding-bottom: max(1.75rem, calc(env(safe-area-inset-bottom) + 1rem));">
     
     <!-- Expandable Quick Action Utility Tray (Toggled by (+) button) -->
-    <div id="quickActionsTray" class="hidden mb-2 pt-1 pb-1">
-      <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar font-mono text-[10px]">
-        <button type="button" id="chatMacScreenshotBtn" class="px-3 py-1.5 rounded-full bg-[#18181b] hover:bg-[#27272a] border border-[#2e2e32] text-zinc-200 hover:text-white flex items-center gap-1.5 shrink-0 font-bold transition active:scale-95 cursor-pointer" title="Capture Mac Desktop Screen">
-          <span class="text-xs">🖥️</span>
-          <span>MAC SCREEN</span>
+    <div id="quickActionsTray" class="hidden mb-3 pt-1 pb-1 w-full max-w-4xl mx-auto">
+      <div class="flex items-center gap-3 overflow-x-auto no-scrollbar font-mono text-xs">
+        <!-- 1. Photos & Files -->
+        <button type="button" id="chatCameraBtn" class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-[#18181b] hover:bg-[#24242a] active:bg-[#2c2c34] text-zinc-200 hover:text-white flex items-center justify-center shrink-0 transition active:scale-95 cursor-pointer shadow-md border border-white/10" title="Photos & Files" aria-label="Photos and Files">
+          <span class="text-xl sm:text-2xl">📁</span>
         </button>
-        <button type="button" id="chatPhoneScreenshotBtn" class="px-3 py-1.5 rounded-full bg-[#18181b] hover:bg-[#27272a] border border-[#2e2e32] text-zinc-200 hover:text-white flex items-center gap-1.5 shrink-0 font-bold transition active:scale-95 cursor-pointer" title="Share Phone Screen / Stream">
-          <span class="text-xs">📱</span>
-          <span>PHONE SCREEN</span>
+
+        <!-- 2. Camera -->
+        <button type="button" id="chatDirectCameraBtn" class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-[#18181b] hover:bg-[#24242a] active:bg-[#2c2c34] text-zinc-200 hover:text-white flex items-center justify-center shrink-0 transition active:scale-95 cursor-pointer shadow-md border border-white/10" title="Camera" aria-label="Camera">
+          <span class="text-xl sm:text-2xl">📸</span>
         </button>
-        <button type="button" id="chatDirectCameraBtn" class="px-3 py-1.5 rounded-full bg-[#18181b] hover:bg-[#27272a] border border-[#2e2e32] text-zinc-200 hover:text-white flex items-center gap-1.5 shrink-0 font-bold transition active:scale-95 cursor-pointer" title="Take Live Camera Photo">
-          <span class="text-xs">📸</span>
-          <span>CAMERA</span>
+
+        <!-- 3. Prompts -->
+        <button type="button" id="chatEmojiBtn" class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-[#18181b] hover:bg-[#24242a] active:bg-[#2c2c34] text-zinc-200 hover:text-white flex items-center justify-center shrink-0 transition active:scale-95 cursor-pointer shadow-md border border-white/10" title="Prompts" aria-label="Prompt Shortcuts">
+          <span class="text-xl sm:text-2xl">💡</span>
         </button>
-        <button type="button" id="chatCameraBtn" class="px-3 py-1.5 rounded-full bg-[#18181b] hover:bg-[#27272a] border border-[#2e2e32] text-zinc-200 hover:text-white flex items-center gap-1.5 shrink-0 font-bold transition active:scale-95 cursor-pointer" title="Upload Images or Files">
-          <span class="text-xs">📁</span>
-          <span>ALL FILES</span>
+
+        <!-- 4. Mac Desktop Screen (All the way over to the right) -->
+        <button type="button" id="chatMacScreenshotBtn" class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-[#18181b] hover:bg-[#24242a] active:bg-[#2c2c34] text-zinc-200 hover:text-white flex items-center justify-center shrink-0 transition active:scale-95 cursor-pointer shadow-md border border-white/10" title="Mac Screen" aria-label="Capture Mac Desktop Screen">
+          <span class="text-xl sm:text-2xl">🖥️</span>
         </button>
       </div>
     </div>
 
-    <!-- Native Messages Form Row -->
+    <!-- Native Messages Form Row (Updated Order: (+) -> [Input] -> (💎) -> (🎙️/Send)) -->
     <form id="chatForm" class="flex items-center gap-2 w-full max-w-4xl mx-auto">
       
-      <!-- 1. Left Action Button: (+) Plus button -->
-      <button type="button" id="chatAttachToggleBtn" class="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-[#1c1c1e] hover:bg-[#2c2c2e] active:scale-95 border border-[#2c2c2e] text-zinc-300 hover:text-white flex items-center justify-center shrink-0 transition-all cursor-pointer shadow-sm" title="Add attachments or shortcuts">
-        <svg id="chatAttachPlusIcon" class="w-5 h-5 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+      <!-- 1. Left Action Button: Sleek iOS Circular (+) Button -->
+      <button type="button" id="chatAttachToggleBtn" class="w-11 h-11 rounded-full bg-[#242428] hover:bg-[#303036] active:bg-[#3c3c44] text-zinc-100 flex items-center justify-center shrink-0 transition-all cursor-pointer shadow-sm border border-white/10 active:scale-95" title="Add attachments, camera, or shortcuts">
+        <svg id="chatAttachPlusIcon" class="w-5 h-5 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14" />
         </svg>
       </button>
 
-      <!-- 2. Center Pill Input Capsule -->
-      <div class="flex-1 min-w-0 h-10 sm:h-11 bg-[#1c1c1e] focus-within:bg-[#242426] border border-[#2c2c2e] focus-within:border-zinc-500 rounded-full px-3.5 flex items-center gap-2 transition-all shadow-inner">
-        <!-- Text Input -->
-        <input id="chatInput" type="text" autocomplete="off" placeholder="Text message to Mac..." class="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-white placeholder-zinc-400 font-sans focus:outline-none">
-
-        <!-- Inside Right Actions: Quick Prompt & Instant Multi-Select Gallery -->
-        <div class="flex items-center gap-1 shrink-0">
-          <!-- Quick Emoji / Prompt Shortcuts -->
-          <button type="button" id="chatEmojiBtn" class="p-1 text-zinc-400 hover:text-zinc-200 active:scale-95 transition cursor-pointer" title="Quick prompt shortcuts">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M15.182 15.182a4.5 4.5 0 01-6.364 0M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9.75 9.75c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75zm6 0c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75z" />
-            </svg>
-          </button>
-
-          <!-- Direct Multi-Select Gallery Photo Picker Button -->
-          <button type="button" id="chatGalleryBtn" class="p-1 text-zinc-400 hover:text-white active:scale-95 transition cursor-pointer" title="Multi-select photos from gallery">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
-            </svg>
-          </button>
-        </div>
+      <!-- 2. Center Pill Input Capsule (Wide & Spacious) -->
+      <div class="flex-1 min-w-0 h-11 sm:h-12 bg-[#161619] focus-within:bg-[#1e1e24] border border-white/10 focus-within:border-white/30 rounded-full px-4 flex items-center transition-all shadow-inner">
+        <input id="chatInput" type="text" autocomplete="off" placeholder="Message..." class="flex-1 min-w-0 bg-transparent text-sm sm:text-base text-white placeholder-zinc-500 font-sans focus:outline-none">
       </div>
 
       <!-- 3. Right Action Button: Dynamic Voice Mic / Send Arrow -->
-      <button type="button" id="chatMainActionBtn" class="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-[#2a3826] hover:bg-[#384c33] text-[#a4d87e] active:scale-95 flex items-center justify-center shrink-0 transition-all cursor-pointer shadow-md" title="Record voice command or send message">
+      <button type="button" id="chatMainActionBtn" class="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-black font-extrabold active:scale-95 flex items-center justify-center shrink-0 transition-all cursor-pointer shadow-[0_4px_18px_rgba(16,185,129,0.35)] border-0" title="Record voice command or send message">
         <!-- Mic Icon (Default when input is empty) -->
-        <svg id="chatActionMicIcon" class="w-5 h-5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+        <svg id="chatActionMicIcon" class="w-5 h-5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15a3 3 0 003-3V6a3 3 0 00-3-3 3 3 0 00-3 3v6a3 3 0 003 3z" />
         </svg>
         <!-- Send Icon (Active when typing or attachments present) -->
@@ -1014,12 +1004,22 @@
               <div class="text-[10px] text-zinc-400">Target speaker output</div>
             </div>
             <select id="audioRoutingSelect" class="px-2.5 py-1.5 rounded-lg bg-[#0a0a0a] border border-[#333333] text-xs text-white font-mono focus:outline-none focus:border-white transition cursor-pointer">
-              <option value="smart">Smart Auto</option>
-              <option value="origin_only">Origin Only</option>
-              <option value="phone_only">Phone Only</option>
-              <option value="mac_only">Mac Only</option>
-              <option value="both">Both (Echo)</option>
+              <option value="smart">Smart Auto (Phone when active, Mac when away)</option>
+              <option value="origin_only">Origin Only (Phone for mobile, Mac for desktop)</option>
+              <option value="phone_only">Phone Only (Always phone)</option>
+              <option value="mac_only">Mac Only (Always Mac)</option>
+              <option value="both">Both (Echo on phone & Mac)</option>
             </select>
+          </div>
+          
+          <div class="pt-2 border-t border-[#222222] flex items-center justify-between gap-2">
+            <div>
+              <div class="text-xs font-bold text-white font-mono">Mute Mac When Active</div>
+              <div class="text-[10px] text-zinc-400">Only play voice on phone while paired</div>
+            </div>
+            <label class="flex items-center gap-1.5 cursor-pointer">
+              <input id="muteMacToggle" type="checkbox" checked class="w-4 h-4 rounded bg-black border-[#333333] text-white focus:ring-0 focus:ring-offset-0 transition cursor-pointer">
+            </label>
           </div>
           
           <div class="pt-2 border-t border-[#222222] flex items-center justify-between gap-2">
@@ -1123,6 +1123,105 @@
       </p>
     </div>
   </div>
+
+  <!-- Obsidian 2-Way Voice Recording Takeover Layover -->
+  <div id="obsidianModal" class="fixed inset-0 bg-[#080511]/98 backdrop-blur-2xl z-50 hidden flex flex-col justify-between p-4 sm:p-6 text-left select-none overflow-y-auto">
+    
+    <!-- Top Header -->
+    <div class="max-w-md w-full mx-auto flex items-center justify-between border-b border-[#a882ff]/20 pb-3 shrink-0">
+      <div class="flex items-center gap-2.5">
+        <div class="w-10 h-10 rounded-2xl bg-[#2a1b42] flex items-center justify-center shrink-0 border border-[#a882ff]/40 shadow-[0_0_15px_rgba(168,130,255,0.3)]">
+          <svg class="w-6 h-6" viewBox="0 0 512 512" fill="none">
+            <path d="M382.3 475.6c-3.1 23.4-26 41.6-48.7 35.3-32.4-8.9-69.9-22.8-103.6-25.4l-51.7-4a34 34 0 0 1-22-10.2l-89-91.7a34 34 0 0 1-6.7-37.7s55-121 57.1-127.3c2-6.3 9.6-61.2 14-90.6 1.2-7.9 5-15 11-20.3L248 8.9a34.1 34.1 0 0 1 49.6 4.3L386 125.6a37 37 0 0 1 7.6 22.4c0 21.3 1.8 65 13.6 93.2 11.5 27.3 32.5 57 43.5 71.5a17.3 17.3 0 0 1 1.3 19.2 1494 1494 0 0 1-44.8 70.6c-15 22.3-21.9 49.9-25 73.1z" fill="#c4a1ff"/>
+          </svg>
+        </div>
+        <div>
+          <div class="flex items-center gap-1.5">
+            <h3 class="text-sm sm:text-base font-black text-white">Record to Obsidian</h3>
+            <span class="px-2 py-0.5 rounded-full bg-purple-500/20 text-[9px] font-mono font-bold text-purple-300 border border-purple-500/30">100% LOCAL</span>
+          </div>
+          <p id="obsidianVaultSubtitle" class="text-[11px] text-purple-300/80 font-mono">Connected Vault</p>
+        </div>
+      </div>
+      <button id="closeObsidianModal" type="button" class="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 active:bg-white/30 text-zinc-300 hover:text-white flex items-center justify-center text-sm font-bold cursor-pointer transition active:scale-95 shadow-sm" title="Dismiss Takeover">
+        ✕
+      </button>
+    </div>
+
+    <!-- Mode Selector Tabs (Daily Note vs AI Voice Memo) -->
+    <div class="max-w-md w-full mx-auto my-2 shrink-0">
+      <div class="flex items-center bg-[#130d22] p-1 rounded-2xl border border-[#a882ff]/25 text-xs font-bold gap-1 shadow-inner">
+        <button id="obsidianDailyCaptureBtn" type="button" class="flex-1 py-2.5 rounded-xl text-center transition flex items-center justify-center gap-1.5 bg-white text-black shadow-md cursor-pointer font-black min-h-[40px]">
+          <span>📝</span> <span>Daily Note</span>
+        </button>
+        <button id="obsidianVoiceMemoBtn" type="button" class="flex-1 py-2.5 rounded-xl text-center transition flex items-center justify-center gap-1.5 text-zinc-400 hover:text-white cursor-pointer font-bold min-h-[40px]">
+          <span>🧠</span> <span>AI Voice Memo</span>
+        </button>
+      </div>
+      <p id="obsidianModeDescription" class="text-[11px] text-purple-300/90 text-center font-mono mt-1.5">
+        Appends instant timestamped bullet directly into today's daily note
+      </p>
+    </div>
+
+    <!-- Center Active Recording Stage -->
+    <div class="max-w-md w-full mx-auto my-auto flex flex-col items-center justify-center py-2 shrink-0">
+      <!-- Pulsating Glowing Microphone Orb Button -->
+      <button id="obsidianTakeoverOrb" type="button" class="group relative flex flex-col items-center justify-center p-4 rounded-full transition-all duration-300 active:scale-95 cursor-pointer select-none focus:outline-none bg-transparent border-0" title="Tap to start/stop speaking">
+        <div id="obsidianOrbRing" class="w-28 h-28 sm:w-32 sm:h-32 rounded-full bg-gradient-to-br from-[#3b1f63] to-[#201035] border-2 border-[#a882ff] flex items-center justify-center shadow-[0_0_40px_rgba(168,130,255,0.35)] transition-all duration-300 group-hover:scale-105">
+          <svg id="obsidianOrbIcon" class="w-12 h-12 text-[#c4a1ff] transition-transform group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15a3 3 0 003-3V6a3 3 0 00-3-3 3 3 0 00-3 3v6a3 3 0 003 3z" />
+          </svg>
+        </div>
+      </button>
+
+      <!-- Waveform Indicator -->
+      <div id="obsidianTakeoverWave" class="hidden flex items-center justify-center gap-1.5 my-2 h-6">
+        <span class="wave-bar !bg-purple-400" style="animation-delay: 0s"></span>
+        <span class="wave-bar !bg-purple-400" style="animation-delay: 0.15s"></span>
+        <span class="wave-bar !bg-purple-400" style="animation-delay: 0.3s"></span>
+        <span class="wave-bar !bg-purple-400" style="animation-delay: 0.1s"></span>
+        <span class="wave-bar !bg-purple-400" style="animation-delay: 0.25s"></span>
+        <span class="wave-bar !bg-purple-400" style="animation-delay: 0.05s"></span>
+        <span class="wave-bar !bg-purple-400" style="animation-delay: 0.2s"></span>
+      </div>
+
+      <div id="obsidianTakeoverStatus" class="text-xl sm:text-2xl font-extrabold text-white tracking-tight text-center mt-1">
+        Tap Mic to Start Speaking
+      </div>
+      <p id="obsidianTakeoverTimer" class="text-xs text-purple-300/80 font-mono mt-0.5">
+        Continuous recording • No auto cut-off
+      </p>
+    </div>
+
+    <!-- Live Streaming Transcript Card -->
+    <div class="max-w-md w-full mx-auto shrink-0 mb-3 space-y-1.5">
+      <div class="flex items-center justify-between text-[11px] font-mono text-purple-300/80 px-1">
+        <span>LIVE SPEECH STREAM</span>
+        <button id="obsidianToggleTypeBtn" type="button" class="text-purple-300 hover:text-white flex items-center gap-1 font-bold cursor-pointer">
+          <span>⌨️</span> <span>Type instead</span>
+        </button>
+      </div>
+
+      <div id="obsidianTakeoverStreamBox" class="w-full bg-[#120c1f] rounded-2xl p-4 border border-[#a882ff]/30 min-h-[96px] max-h-[140px] overflow-y-auto text-left shadow-inner transition-all">
+        <p id="obsidianTakeoverStreamText" class="text-xs sm:text-sm text-zinc-400 italic leading-relaxed font-sans">
+          Your spoken thoughts will stream here live as you talk...
+        </p>
+        <textarea id="obsidianTakeoverTextarea" class="hidden w-full h-20 bg-transparent text-xs sm:text-sm text-white placeholder-zinc-500 font-sans focus:outline-none resize-none" placeholder="Type your note or brain dump here..."></textarea>
+      </div>
+    </div>
+
+    <!-- Bottom Action Buttons -->
+    <div class="max-w-md w-full mx-auto shrink-0 space-y-2 pb-2">
+      <button id="obsidianTakeoverPrimaryBtn" type="button" class="w-full h-14 rounded-2xl bg-white hover:bg-zinc-200 active:scale-95 text-black font-black text-sm sm:text-base flex items-center justify-center gap-2 shadow-lg transition cursor-pointer">
+        <span>🎙️</span> <span>Tap to Start Recording</span>
+      </button>
+      <button id="obsidianTakeoverDismissBtn" type="button" class="w-full py-2.5 rounded-xl bg-white/5 hover:bg-white/10 active:scale-95 text-zinc-400 hover:text-white text-xs font-bold transition cursor-pointer">
+        Cancel
+      </button>
+    </div>
+
+  </div>
+
 
   <!-- Autonomous Feedback Loop Interactive Demo Modal -->
   <div id="feedbackLoopModal" class="fixed inset-0 bg-black/95 backdrop-blur-xl z-50 hidden flex flex-col justify-between p-4 sm:p-6 overflow-y-auto">
@@ -1466,6 +1565,7 @@
     let isListening = false;
     let isSpeaking = false;
     let audioRoutingMode = localStorage.getItem("voicefi_audio_routing") || "smart";
+    let muteMacWhenCompanionActive = true;
     let activeConvId = "";
     let activeConversationData = null;
     let autoListen = true;
@@ -1482,6 +1582,7 @@
     const convSelect = document.getElementById("convSelect");
     const refreshBtn = document.getElementById("refreshBtn");
     const audioRoutingSelect = document.getElementById("audioRoutingSelect");
+    const muteMacToggle = document.getElementById("muteMacToggle");
     const agentRoleBadge = document.getElementById("agentRoleBadge");
     const sessionStatusTag = document.getElementById("sessionStatusTag");
     const openSettingsBtn = document.getElementById("openSettingsBtn");
@@ -1632,44 +1733,91 @@
     }
     window.addEventListener("resize", updateVoiceCenterCoordinates);
 
-    // Tab Navigation (Option 1 Segmented Switcher)
+    // Tab Navigation (View Switcher Dropdown & Sub-Buttons)
+    function toggleViewDropdown(forceState) {
+      const menu = document.getElementById("headerViewDropdownMenu");
+      if (!menu) return;
+      const isHidden = menu.classList.contains("hidden");
+      const shouldOpen = forceState !== undefined ? forceState : isHidden;
+      if (shouldOpen) {
+        menu.classList.remove("hidden");
+      } else {
+        menu.classList.add("hidden");
+      }
+    }
+    window.toggleViewDropdown = toggleViewDropdown;
+
+    document.addEventListener("click", (e) => {
+      const btn = document.getElementById("headerViewSwitcherBtn");
+      const menu = document.getElementById("headerViewDropdownMenu");
+      if (menu && !menu.classList.contains("hidden")) {
+        if (!menu.contains(e.target) && (!btn || !btn.contains(e.target))) {
+          menu.classList.add("hidden");
+        }
+      }
+    });
+
     function switchView(tab) {
       currentView = tab;
+      try {
+        localStorage.setItem('voicefi_companion_view', tab);
+      } catch (e) {}
       viewVoice.classList.add("hidden");
       viewChat.classList.add("hidden");
       viewArtifacts.classList.add("hidden");
       if (viewDownloads) viewDownloads.classList.add("hidden");
 
-      const inactiveTab = "flex-1 py-1 rounded-lg text-center transition flex items-center justify-center gap-1 text-[#888888] hover:text-white cursor-pointer";
-      const activeTab = "flex-1 py-1 rounded-lg text-center transition flex items-center justify-center gap-1 bg-white text-black shadow-sm cursor-pointer font-bold";
+      const inactiveTab = "w-full px-3 py-2 rounded-xl text-left transition flex items-center justify-between text-xs sm:text-sm font-semibold cursor-pointer text-zinc-300 hover:text-white hover:bg-white/10";
+      const activeTab = "w-full px-3 py-2 rounded-xl text-left transition flex items-center justify-between text-xs sm:text-sm font-black cursor-pointer bg-white text-black shadow-md";
 
-      tabVoice.className = inactiveTab;
-      tabChat.className = inactiveTab;
-      tabArtifacts.className = inactiveTab;
+      if (tabVoice) tabVoice.className = inactiveTab;
+      if (tabChat) tabChat.className = inactiveTab;
+      if (tabArtifacts) tabArtifacts.className = inactiveTab;
       if (tabDownloads) tabDownloads.className = inactiveTab;
+
+      const checkVoice = document.getElementById("viewCheckVoice");
+      const checkChat = document.getElementById("viewCheckChat");
+      const checkArtifacts = document.getElementById("viewCheckArtifacts");
+      const checkDownloads = document.getElementById("viewCheckDownloads");
+      if (checkVoice) checkVoice.classList.add("hidden");
+      if (checkChat) checkChat.classList.add("hidden");
+      if (checkArtifacts) checkArtifacts.classList.add("hidden");
+      if (checkDownloads) checkDownloads.classList.add("hidden");
+
+      const activeIcon = document.getElementById("headerActiveViewIcon");
 
       if (tab === 'voice') {
         viewVoice.classList.remove("hidden");
-        tabVoice.className = activeTab;
+        if (tabVoice) tabVoice.className = activeTab;
+        if (checkVoice) checkVoice.classList.remove("hidden");
+        if (activeIcon) activeIcon.textContent = "🎙️";
         if (mainFooter) mainFooter.classList.remove("hidden");
         setTimeout(updateVoiceCenterCoordinates, 50);
       } else if (tab === 'chat') {
         viewChat.classList.remove("hidden");
-        tabChat.className = activeTab;
+        if (tabChat) tabChat.className = activeTab;
+        if (checkChat) checkChat.classList.remove("hidden");
+        if (activeIcon) activeIcon.textContent = "💬";
         if (mainFooter) mainFooter.classList.add("hidden");
         scrollToChatBottom();
         if (window.bgField) window.bgField.setPullCenter(undefined, undefined);
       } else if (tab === 'artifacts') {
         viewArtifacts.classList.remove("hidden");
-        tabArtifacts.className = activeTab;
+        if (tabArtifacts) tabArtifacts.className = activeTab;
+        if (checkArtifacts) checkArtifacts.classList.remove("hidden");
+        if (activeIcon) activeIcon.textContent = "📑";
         if (mainFooter) mainFooter.classList.add("hidden");
         if (window.bgField) window.bgField.setPullCenter(undefined, undefined);
       } else if (tab === 'downloads') {
         if (viewDownloads) viewDownloads.classList.remove("hidden");
         if (tabDownloads) tabDownloads.className = activeTab;
+        if (checkDownloads) checkDownloads.classList.remove("hidden");
+        if (activeIcon) activeIcon.textContent = "🎬";
         if (mainFooter) mainFooter.classList.add("hidden");
         if (window.bgField) window.bgField.setPullCenter(undefined, undefined);
       }
+
+      toggleViewDropdown(false);
     }
 
     tabVoice.addEventListener("click", () => switchView('voice'));
@@ -2021,6 +2169,74 @@
       window.location.href = window.location.pathname + '?reload=' + Date.now();
     };
 
+    // Expanding Sub-Menu Header Drawer Handlers
+    function toggleHeaderDrawer(forceState) {
+      const drawer = document.getElementById("headerDrawer");
+      const backdrop = document.getElementById("headerDrawerBackdrop");
+      if (!drawer || !backdrop) return;
+      const isHidden = drawer.classList.contains("hidden");
+      const shouldOpen = forceState !== undefined ? forceState : isHidden;
+      if (shouldOpen) {
+        drawer.classList.remove("hidden");
+        backdrop.classList.remove("hidden");
+        if (typeof fetchConversations === 'function') {
+          fetchConversations();
+        }
+      } else {
+        drawer.classList.add("hidden");
+        backdrop.classList.add("hidden");
+      }
+    }
+    window.toggleHeaderDrawer = toggleHeaderDrawer;
+
+    function updateHeaderCapsuleText() {
+      const capText = document.getElementById("headerCapsuleText");
+      const select = document.getElementById("convSelect");
+      if (!capText) return;
+
+      const selectedOpt = select && select.selectedOptions && select.selectedOptions.length > 0
+        ? select.selectedOptions[0]
+        : (select && select.options && select.selectedIndex >= 0 ? select.options[select.selectedIndex] : null);
+
+      if (selectedOpt && select && select.value) {
+        const rawText = selectedOpt.text || "";
+        if (rawText && !rawText.includes("No active") && !rawText.startsWith("Loading") && !rawText.includes("Not connected") && !rawText.startsWith("⚠️")) {
+          let clean = rawText.replace(/^[⚪⏳🟢⚠️]\s*/, "");
+          clean = clean.replace(/•\s*[^:]+:\s*/, "• ");
+          capText.textContent = clean;
+          try {
+            localStorage.setItem("voicefi_last_conv_title", clean);
+            localStorage.setItem("voicefi_active_conv_id", select.value);
+          } catch (e) {}
+          return;
+        }
+      }
+
+      // Check cached title in localStorage
+      try {
+        const cached = localStorage.getItem("voicefi_last_conv_title");
+        if (cached && cached !== "Select Context") {
+          capText.textContent = cached;
+          return;
+        }
+      } catch (e) {}
+
+      if (typeof currentAppFilter !== 'undefined') {
+        if (currentAppFilter === 'claude') {
+          capText.textContent = "🎭 Claude";
+        } else if (currentAppFilter === 'antigravity') {
+          capText.textContent = "🤖 AGY";
+        } else if (currentAppFilter === 'obsidian') {
+          capText.textContent = "💎 Obsidian";
+        } else {
+          capText.textContent = "🤖 AGY • Troubleshooting Remote Companion Sync";
+        }
+      } else {
+        capText.textContent = "🤖 AGY • Troubleshooting Remote Companion Sync";
+      }
+    }
+    window.updateHeaderCapsuleText = updateHeaderCapsuleText;
+
     // Settings Modal Handlers
     if (openSettingsBtn && settingsModal) {
       openSettingsBtn.addEventListener("click", () => {
@@ -2040,8 +2256,14 @@
       });
     }
     document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && settingsModal && !settingsModal.classList.contains("hidden")) {
-        settingsModal.classList.add("hidden");
+      if (e.key === "Escape") {
+        if (settingsModal && !settingsModal.classList.contains("hidden")) {
+          settingsModal.classList.add("hidden");
+        }
+        toggleHeaderDrawer(false);
+        if (typeof toggleViewDropdown === 'function') {
+          toggleViewDropdown(false);
+        }
       }
     });
 
@@ -2179,18 +2401,30 @@
         }
       }
 
-      // Update Voice Stage Reactive Character Logo Host
+      // Update Voice Stage Reactive Character Logo Host (cached by state to prevent DOM churn and CSS animation resets)
       const stageLogoHost = document.getElementById("voiceStageLogoHost");
-      if (stageLogoHost) {
+      if (stageLogoHost && stageLogoHost.dataset.orbState !== state) {
         stageLogoHost.innerHTML = getVoiceFiReactiveSVG(state, 'stage_orb');
+        stageLogoHost.dataset.orbState = state;
       }
+
+      const setWaveActive = (active) => {
+        if (!orbWave) return;
+        if (active) {
+          orbWave.classList.remove("opacity-0", "pointer-events-none");
+          orbWave.classList.add("opacity-100");
+        } else {
+          orbWave.classList.add("opacity-0", "pointer-events-none");
+          orbWave.classList.remove("opacity-100");
+        }
+      };
 
       if (window.bgField) {
         if (state === 'listening') {
           window.bgField.setState('listening');
         } else if (state === 'speaking') {
           window.bgField.setState('speaking');
-        } else if (state === 'thinking') {
+        } else if (state === 'thinking' || state === 'working') {
           window.bgField.setState('thinking');
         } else if (state === 'transcribing') {
           window.bgField.setState('thinking');
@@ -2202,8 +2436,7 @@
 
       const orbStatusDot = document.getElementById("orbStatusDot");
       const orbStatusText = document.getElementById("orbStatusText");
-      const chatMicDot = document.getElementById("chatMicDot");
-      const chatMicText = document.getElementById("chatMicText");
+
 
       if (state === 'listening') {
         if (orbIcon) {
@@ -2211,72 +2444,48 @@
         }
         if (orbStatusDot) orbStatusDot.className = "w-1.5 h-1.5 rounded-full bg-red-500 animate-ping";
         if (orbStatusText) orbStatusText.innerText = "[REC]";
-        if (orbWave) orbWave.classList.remove("hidden");
+        setWaveActive(true);
         if (stateTitle) stateTitle.innerText = titleOverride || "Listening...";
         if (stateSubtitle) stateSubtitle.innerText = subtitleOverride || "Speak your response...";
-        if (chatMicBtn) {
-          chatMicBtn.className = "h-10 px-3 rounded-xl bg-white text-black font-bold flex items-center justify-center gap-1.5 shrink-0 mono text-xs shadow-md transition active:scale-95 cursor-pointer";
-          if (chatMicDot) chatMicDot.className = "w-2 h-2 rounded-full bg-red-600 animate-ping";
-          if (chatMicText) chatMicText.innerText = "REC";
-        }
       } else if (state === 'speaking') {
         if (orbIcon) {
           orbIcon.className = "inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-950/60 border border-emerald-500/60 text-[11px] font-mono font-bold text-emerald-300 tracking-wider mb-2 shadow-lg animate-pulse";
         }
         if (orbStatusDot) orbStatusDot.className = "w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse";
         if (orbStatusText) orbStatusText.innerText = "[AUDIO]";
-        if (orbWave) orbWave.classList.remove("hidden");
+        setWaveActive(true);
         if (stateTitle) stateTitle.innerText = titleOverride || "Agent Speaking";
         if (stateSubtitle) stateSubtitle.innerText = subtitleOverride || "Streaming response...";
-        if (chatMicBtn) {
-          chatMicBtn.className = "h-10 px-3 rounded-xl bg-[#141414] border border-[#27272a] text-white flex items-center justify-center gap-1.5 shrink-0 mono text-xs";
-          if (chatMicDot) chatMicDot.className = "w-2 h-2 rounded-full bg-emerald-500 animate-pulse";
-          if (chatMicText) chatMicText.innerText = "AUDIO";
-        }
-      } else if (state === 'thinking') {
+      } else if (state === 'thinking' || state === 'working') {
         if (orbIcon) {
           orbIcon.className = "inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-950/60 border border-blue-500/60 text-[11px] font-mono font-bold text-blue-300 tracking-wider mb-2 shadow-lg animate-pulse";
         }
         if (orbStatusDot) orbStatusDot.className = "w-1.5 h-1.5 rounded-full bg-blue-400 animate-ping";
-        if (orbStatusText) orbStatusText.innerText = "[THINK]";
-        if (orbWave) orbWave.classList.add("hidden");
-        if (stateTitle) stateTitle.innerText = titleOverride || "Agent Thinking...";
+        if (orbStatusText) orbStatusText.innerText = state === 'working' ? "[EXEC]" : "[THINK]";
+        setWaveActive(false);
+        if (stateTitle) stateTitle.innerText = titleOverride || (state === 'working' ? "Agent Working..." : "Agent Thinking...");
         if (stateSubtitle) stateSubtitle.innerText = subtitleOverride || "Executing steps & tools...";
-        if (chatMicBtn) {
-          chatMicBtn.className = "h-10 px-3 rounded-xl bg-[#141414] border border-white text-white flex items-center justify-center gap-1.5 shrink-0 mono text-xs shadow-sm";
-          if (chatMicDot) chatMicDot.className = "w-1.5 h-1.5 rounded-full bg-white animate-ping";
-          if (chatMicText) chatMicText.innerText = "THINK";
-        }
       } else if (state === 'transcribing') {
         if (orbIcon) {
           orbIcon.className = "inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-950/60 border border-amber-500/60 text-[11px] font-mono font-bold text-amber-300 tracking-wider mb-2 shadow-lg animate-pulse";
         }
         if (orbStatusDot) orbStatusDot.className = "w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse";
         if (orbStatusText) orbStatusText.innerText = "[SEND]";
-        if (orbWave) orbWave.classList.add("hidden");
+        setWaveActive(false);
         if (stateTitle) stateTitle.innerText = titleOverride || "Delivering Prompt...";
         if (stateSubtitle) stateSubtitle.innerText = subtitleOverride || "Injecting to Antigravity...";
-        if (chatMicBtn) {
-          chatMicBtn.className = "h-10 px-3 rounded-xl bg-[#18181b] border border-[#27272a] text-zinc-400 flex items-center justify-center gap-1.5 shrink-0 mono text-xs";
-          if (chatMicDot) chatMicDot.className = "w-2 h-2 rounded-full bg-amber-400 animate-pulse";
-          if (chatMicText) chatMicText.innerText = "SEND";
-        }
       } else {
         if (orbIcon) {
           orbIcon.className = "inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#111111]/80 backdrop-blur-md border border-[#27272a] text-[11px] font-mono font-bold text-zinc-300 tracking-wider mb-2 shadow-sm";
         }
         if (orbStatusDot) orbStatusDot.className = micSource === "mac" ? "w-1.5 h-1.5 rounded-full bg-blue-400" : "w-1.5 h-1.5 rounded-full bg-emerald-400";
         if (orbStatusText) orbStatusText.innerText = micSource === "mac" ? "[MAC MIC]" : "[PHONE MIC]";
-        if (orbWave) orbWave.classList.add("hidden");
+        setWaveActive(false);
         if (stateTitle) stateTitle.innerText = titleOverride || (micSource === "mac" ? "Tap to Talk on Mac" : "Tap to Speak on Phone");
         if (stateSubtitle) stateSubtitle.innerText = subtitleOverride || (micSource === "mac" ? "Using Mac Studio Mic" : (autoListen ? "Phone mic auto-listens on turn end" : "Tap to speak into phone"));
-        if (chatMicBtn) {
-          chatMicBtn.className = "h-10 px-3 rounded-xl bg-[#141414] hover:bg-[#222222] border border-[#27272a] text-white flex items-center justify-center gap-1.5 shrink-0 transition active:scale-95 cursor-pointer font-bold mono text-xs";
-          if (chatMicDot) chatMicDot.className = micSource === "mac" ? "w-1.5 h-1.5 rounded-full bg-blue-400" : "w-1.5 h-1.5 rounded-full bg-emerald-400";
-          if (chatMicText) chatMicText.innerText = micSource === "mac" ? "MAC" : "MIC";
-        }
       }
 
+      updateChatActionState();
       updateVoiceCenterCoordinates();
     }
 
@@ -2750,8 +2959,91 @@
     let audioChunks = [];
     let vadInterval = null;
     let micStream = null;
+    let isCurrentListeningHandsFree = false;
 
-    async function startListening() {
+    // Robust Web Speech API Result Parser for Android Chrome, iOS Safari & Desktop
+    function parseSpeechRecognitionResults(event) {
+      if (!event || !event.results) {
+        return { finalText: "", interimText: "", combinedText: "" };
+      }
+
+      let finalParts = [];
+      let latestInterim = "";
+
+      const clean = (s) => (s || "").replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, " ").replace(/\s+/g, " ").trim().toLowerCase();
+
+      for (let i = 0; i < event.results.length; ++i) {
+        const res = event.results[i];
+        if (!res || !res[0]) continue;
+        const chunk = (res[0].transcript || "").trim();
+        if (!chunk) continue;
+
+        if (res.isFinal) {
+          latestInterim = ""; // Cleared because anything before this final chunk is finalized
+          if (finalParts.length > 0) {
+            const last = finalParts[finalParts.length - 1];
+            const lastClean = clean(last);
+            const chunkClean = clean(chunk);
+
+            if (lastClean === chunkClean) {
+              continue;
+            }
+            if (chunkClean.startsWith(lastClean)) {
+              finalParts[finalParts.length - 1] = chunk;
+              continue;
+            }
+            const lastWords = lastClean.split(" ");
+            const chunkWords = chunkClean.split(" ");
+            let merged = false;
+            for (let overlapLen = Math.min(3, Math.min(lastWords.length, chunkWords.length)); overlapLen >= 1; overlapLen--) {
+              const lastSlice = lastWords.slice(-overlapLen).join(" ");
+              const chunkSlice = chunkWords.slice(0, overlapLen).join(" ");
+              if (lastSlice === chunkSlice) {
+                const rawChunkWords = chunk.split(/\s+/);
+                finalParts[finalParts.length - 1] = last + " " + rawChunkWords.slice(overlapLen).join(" ");
+                merged = true;
+                break;
+              }
+            }
+            if (merged) continue;
+          }
+          finalParts.push(chunk);
+        } else {
+          // Interim result: progressive draft of the current in-flight speech.
+          // In Android Chrome & WebKit, interim results are progressive drafts of the utterance.
+          // NEVER concatenate interim drafts together! The latest interim result contains the most complete hypothesis.
+          latestInterim = chunk;
+        }
+      }
+
+      const finalTranscript = finalParts.join(" ").trim();
+      const interimTranscript = latestInterim.trim();
+
+      let combined = "";
+      if (finalTranscript && interimTranscript) {
+        const finalClean = clean(finalTranscript);
+        const interimClean = clean(interimTranscript);
+
+        if (interimClean.startsWith(finalClean)) {
+          combined = interimTranscript;
+        } else if (finalClean.endsWith(interimClean)) {
+          combined = finalTranscript;
+        } else {
+          combined = `${finalTranscript} ${interimTranscript}`.trim();
+        }
+      } else {
+        combined = (finalTranscript || interimTranscript || "").trim();
+      }
+
+      return {
+        finalText: finalTranscript,
+        interimText: interimTranscript,
+        combinedText: combined
+      };
+    }
+
+    async function startListening(isHandsFree = false) {
+      isCurrentListeningHandsFree = Boolean(isHandsFree);
       initAudioContext();
       stopAllAgentSpeech(false);
 
@@ -2780,38 +3072,49 @@
       if (SpeechRecognition && micSource !== "mac") {
         try {
           if (recognition) {
-            try { recognition.abort(); } catch (e) {}
+            try {
+              recognition.onstart = null;
+              recognition.onresult = null;
+              recognition.onerror = null;
+              recognition.onend = null;
+              recognition.abort();
+            } catch (e) {}
           }
           recognition = new SpeechRecognition();
-          recognition.continuous = false;
+          // Push-to-talk (!isHandsFree) records continuously without auto cut-off.
+          // Auto cut-off on pause is strictly for hands-free loop (isHandsFree == true).
+          recognition.continuous = !isHandsFree;
           recognition.interimResults = true;
           recognition.maxAlternatives = 1;
           recognition.lang = 'en-US';
 
           let finalTranscript = "";
           let interimTranscript = "";
+          let activeTranscript = "";
 
           recognition.onstart = () => {
             isListening = true;
-            setOrbState('listening', 'Listening...', 'Speak your response...');
+            finalTranscript = "";
+            interimTranscript = "";
+            activeTranscript = "";
+            const sub = isHandsFree ? 'Speak your response...' : 'Push button again to stop & send';
+            setOrbState('listening', 'Listening...', sub);
             playChimeStart();
             if (window.bgField) window.bgField.setAudioLevel(0.4);
+            updateObsidianTakeoverRecording(true);
           };
 
           recognition.onresult = (event) => {
-            interimTranscript = "";
-            for (let i = event.resultIndex; i < event.results.length; ++i) {
-              const res = event.results[i];
-              if (res.isFinal) {
-                finalTranscript += res[0].transcript;
-              } else {
-                interimTranscript += res[0].transcript;
-              }
-            }
-            const activeText = (finalTranscript + " " + interimTranscript).trim();
-            if (activeText) {
-              setOrbState('listening', `"${activeText}"`, 'Listening...');
+            const parsed = parseSpeechRecognitionResults(event);
+            finalTranscript = parsed.finalText;
+            interimTranscript = parsed.interimText;
+            activeTranscript = parsed.combinedText;
+
+            if (activeTranscript) {
+              const sub = isHandsFree ? 'Listening...' : 'Push button again to stop & send';
+              setOrbState('listening', `"${activeTranscript}"`, sub);
               if (window.bgField) window.bgField.setAudioLevel(0.85);
+              updateObsidianTakeoverStream(activeTranscript);
             }
           };
 
@@ -2819,19 +3122,31 @@
             console.warn("SpeechRecognition error:", event.error);
             isListening = false;
             if (window.bgField) window.bgField.setAudioLevel(0);
+            updateObsidianTakeoverRecording(false);
             if (event.error !== 'no-speech' && event.error !== 'aborted') {
               // Try Tier 2 (MediaRecorder with local Whisper backend)
-              startMediaRecorderListening();
+              startMediaRecorderListening(isHandsFree);
             } else {
               setOrbState('idle');
+              resetObsidianTakeover();
             }
           };
 
           recognition.onend = () => {
             isListening = false;
             if (window.bgField) window.bgField.setAudioLevel(0);
-            const captured = (finalTranscript || interimTranscript).trim();
-            if (captured) {
+            updateObsidianTakeoverRecording(false);
+            const streamEl = document.getElementById("obsidianTakeoverStreamText");
+            const isTakeoverOpen = !document.getElementById("obsidianModal")?.classList.contains("hidden");
+            let takeoverStreamText = "";
+            if (isTakeoverOpen && streamEl) {
+              const text = streamEl.innerText.trim();
+              if (text && !text.includes("Your spoken thoughts will stream")) {
+                takeoverStreamText = text;
+              }
+            }
+            const captured = (activeTranscript || finalTranscript || interimTranscript || takeoverStreamText).trim();
+            if (captured && !captured.includes("Your spoken thoughts will stream")) {
               if (audioCtx && audioCtx.state === 'suspended') {
                 try { audioCtx.resume().catch(() => {}); } catch (e) {}
               }
@@ -2839,6 +3154,7 @@
               sendVoiceCommand(captured, true);
             } else {
               setOrbState('idle');
+              resetObsidianTakeover();
             }
           };
 
@@ -2850,10 +3166,10 @@
       }
 
       // Tier 2: MediaRecorder with local Whisper backend
-      startMediaRecorderListening();
+      startMediaRecorderListening(isHandsFree);
     }
 
-    async function startMediaRecorderListening() {
+    async function startMediaRecorderListening(isHandsFree = false) {
       stopAllAgentSpeech(false);
       if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
         try {
@@ -2883,6 +3199,7 @@
 
           mediaRecorder.onstop = async () => {
             isListening = false;
+            updateObsidianTakeoverRecording(false);
             if (vadInterval) clearInterval(vadInterval);
             if (micStream) {
               micStream.getTracks().forEach(t => t.stop());
@@ -2891,6 +3208,7 @@
 
             if (audioChunks.length === 0) {
               setOrbState('idle');
+              resetObsidianTakeover();
               return;
             }
 
@@ -2913,16 +3231,20 @@
                 sendVoiceCommand(data.transcript.trim(), true);
               } else {
                 setOrbState('idle');
+                resetObsidianTakeover();
               }
             } catch (err) {
               console.error("STT Error:", err);
               setOrbState('idle');
+              resetObsidianTakeover();
             }
           };
 
           mediaRecorder.start(100);
           isListening = true;
-          setOrbState('listening', 'Listening...', 'Speak your response...');
+          updateObsidianTakeoverRecording(true);
+          const sub = isHandsFree ? 'Speak your response...' : 'Push button again to stop & send';
+          setOrbState('listening', 'Listening...', sub);
           playChimeStart();
 
           // Audio energy tracking for VAD & Particle Field
@@ -2951,13 +3273,17 @@
                 window.bgField.setAudioLevel(Math.min(1.0, avg / 60));
               }
 
-              if (avg > 14) {
-                speechDetected = true;
-                silenceTicks = 0;
-              } else if (speechDetected) {
-                silenceTicks++;
-                if (silenceTicks >= 14) {
-                  stopListening();
+              // AUTO CUT-OFF ONLY IN HANDS-FREE LOOP:
+              // Push-to-talk (!isHandsFree) keeps recording until the user taps stop!
+              if (isHandsFree) {
+                if (avg > 14) {
+                  speechDetected = true;
+                  silenceTicks = 0;
+                } else if (speechDetected) {
+                  silenceTicks++;
+                  if (silenceTicks >= 14) {
+                    stopListening();
+                  }
                 }
               }
             }, 100);
@@ -2982,6 +3308,7 @@
     }
 
     function stopListening() {
+      updateObsidianTakeoverRecording(false);
       if (recognition) {
         try { recognition.stop(); } catch (e) {}
       }
@@ -3104,18 +3431,26 @@
       const sendIcon = document.getElementById("chatActionSendIcon");
       if (!actionBtn || !micIcon || !sendIcon) return;
 
+      if (isListening) {
+        actionBtn.className = "w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-red-600 hover:bg-red-500 active:bg-red-700 active:scale-95 text-white font-extrabold flex items-center justify-center shrink-0 transition-all cursor-pointer shadow-[0_4px_20px_rgba(239,68,68,0.5)] border-0 animate-pulse";
+        micIcon.classList.remove("hidden");
+        sendIcon.classList.add("hidden");
+        actionBtn.title = "Stop recording";
+        return;
+      }
+
       const hasText = chatInput && chatInput.value.trim().length > 0;
       const hasAttachments = currentAttachedImages.length > 0;
 
       if (hasText || hasAttachments) {
-        // Native Messages Send Button (Solid White Circle with Dark Icon)
-        actionBtn.className = "w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-white hover:bg-zinc-200 text-black active:scale-95 flex items-center justify-center shrink-0 transition-all cursor-pointer shadow-md";
+        // Native Messages Send Button (Solid White Pill with Dark Icon)
+        actionBtn.className = "w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-white hover:bg-zinc-200 active:bg-zinc-300 active:scale-95 text-black flex items-center justify-center shrink-0 transition-all cursor-pointer shadow-lg";
         micIcon.classList.add("hidden");
         sendIcon.classList.remove("hidden");
         actionBtn.title = "Send message";
       } else {
-        // Native Messages Mic Button (Olive/Accent Circle with Mic Icon)
-        actionBtn.className = "w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-[#2a3826] hover:bg-[#384c33] text-[#a4d87e] active:scale-95 flex items-center justify-center shrink-0 transition-all cursor-pointer shadow-md";
+        // Native Messages Mic Button (Vibrant Emerald with Large Mic Icon)
+        actionBtn.className = "w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 active:scale-95 text-black font-extrabold flex items-center justify-center shrink-0 transition-all cursor-pointer shadow-[0_4px_18px_rgba(16,185,129,0.35)] border-0";
         micIcon.classList.remove("hidden");
         sendIcon.classList.add("hidden");
         actionBtn.title = micSource === "mac" ? "Record on Mac Studio Mic" : "Record voice command on phone";
@@ -3153,13 +3488,128 @@
       latestText.innerText = `"${text}"`;
       logType.innerText = "YOU";
 
-      showToast("Command received — Antigravity processing...", 3500);
+      if (!activeConvId && convSelect && convSelect.value) {
+        activeConvId = convSelect.value;
+      }
+
+      if (activeConvId === "obsidian" || (convSelect && convSelect.value === "obsidian")) {
+        updateObsidianTakeoverSaving('saving');
+        if (currentObsidianMode === "memo") {
+          showToast("Synthesizing AI Voice Memo for Obsidian...", 3500);
+          appendOptimisticUserMessage(`🧠 AI Voice Memo: ${text.trim()}`);
+          fetch('/api/vault/memo', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ raw_text: fullText })
+          })
+          .then(async r => {
+            if (!r.ok) {
+              const errText = await r.text().catch(() => '');
+              let msg = `Vault error (HTTP ${r.status})`;
+              try {
+                const j = JSON.parse(errText);
+                if (j.error) msg = j.error;
+              } catch (e) {
+                if (errText) msg = errText;
+              }
+              throw new Error(msg);
+            }
+            return r.json();
+          })
+          .then(data => {
+            if (data && data.status === 'ok') {
+              showToast(`✅ Saved Voice Memo: ${data.memo_name || 'document'}!`, 3500);
+              updateObsidianTakeoverSaving('success', data.memo_name || 'Voice Memo');
+              if (typeof fetchTodayNote === 'function') fetchTodayNote();
+            } else {
+              const err = (data && data.error) || 'Failed to synthesize memo';
+              showToast(`Vault error: ${err}`, 3500);
+              updateObsidianTakeoverSaving('error', err);
+            }
+          })
+          .catch(err => {
+            console.warn("Vault memo error:", err);
+            showToast(`Vault memo error: ${err.message || err}`, 3500);
+            updateObsidianTakeoverSaving('error', err.message || String(err));
+          });
+
+          setTimeout(() => {
+            if (!isListening && !isSpeaking) {
+              setOrbState('idle', 'Saved Voice Memo', 'Push button again to capture');
+            }
+          }, 500);
+          return;
+        }
+
+        showToast("Saving to Obsidian Daily Note...", 2500);
+        appendOptimisticUserMessage(`🎙️ Quick Capture: ${text.trim()}`);
+        fetch('/api/vault/capture', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: fullText })
+        })
+        .then(async r => {
+          if (!r.ok) {
+            const errText = await r.text().catch(() => '');
+            let msg = `Vault error (HTTP ${r.status})`;
+            try {
+              const j = JSON.parse(errText);
+              if (j.error) msg = j.error;
+            } catch (e) {
+              if (errText) msg = errText;
+            }
+            throw new Error(msg);
+          }
+          return r.json();
+        })
+        .then(data => {
+          if (data && data.status === 'ok') {
+            showToast(`✅ Saved to ${data.daily_note_name || 'daily note'}!`, 3000);
+            updateObsidianTakeoverSaving('success', data.daily_note_name || 'Daily Note');
+            if (typeof fetchTodayNote === 'function') fetchTodayNote();
+          } else {
+            const err = (data && data.error) || 'Failed to save note';
+            showToast(`Vault error: ${err}`, 3500);
+            updateObsidianTakeoverSaving('error', err);
+          }
+        })
+        .catch(err => {
+          console.warn("Vault capture error:", err);
+          showToast(`Vault capture error: ${err.message || err}`, 3500);
+          updateObsidianTakeoverSaving('error', err.message || String(err));
+        });
+
+        setTimeout(() => {
+          if (!isListening && !isSpeaking) {
+            setOrbState('idle', 'Saved to Daily Note', 'Push button again to capture');
+          }
+        }, 500);
+        return;
+      }
+
+      const lowerFullText = fullText.toLowerCase().trim();
+      const hasClaudeIntent = /\b(?:hey|ask|tell|all\s+right|alright|okay|so|can\s+you\s+ask|could\s+you\s+ask|send\s+to|talk\s+to|switch\s+to|have|message)?\s*claude\b/i.test(lowerFullText);
+      const isClaudeFiltered = (typeof currentAppFilter !== 'undefined' && currentAppFilter === 'claude');
+      const isClaudeSession = Boolean(
+        hasClaudeIntent ||
+        isClaudeFiltered ||
+        (activeConvId && (activeConvId.startsWith("claude_") || activeConvId.toLowerCase().includes("claude"))) ||
+        (activeConversationData && (activeConversationData.engine === "claude" || (activeConversationData.id && activeConversationData.id.startsWith("claude_"))))
+      );
+      const targetEngine = isClaudeSession ? "claude" : "antigravity";
+      const targetConvId = (isClaudeSession && activeConvId && !activeConvId.startsWith("claude_") && !activeConvId.toLowerCase().includes("claude"))
+        ? null
+        : (activeConvId || null);
+
+      showToast(`Command received — ${isClaudeSession ? "Claude" : "Antigravity"} processing...`, 3500);
       appendOptimisticUserMessage(displayMsg);
-      startActiveTurnPolling(activeConvId);
+      startActiveTurnPolling(targetConvId || activeConvId);
 
       const targetPayload = {
         type: "user_voice_command",
-        conv_id: activeConvId || null,
+        conv_id: targetConvId,
+        engine: targetEngine,
+        target_engine: targetEngine,
         text: fullText
       };
 
@@ -3169,13 +3619,18 @@
         fetch('/api/send', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ conv_id: activeConvId || null, text: fullText })
+          body: JSON.stringify({
+            conv_id: targetConvId,
+            text: fullText,
+            engine: targetEngine,
+            target_engine: targetEngine
+          })
         }).catch(err => console.error("Send error:", err));
       }
 
       setTimeout(() => {
         if (!isListening && !isSpeaking) {
-          setOrbState('thinking', 'Agent Thinking...', 'Processing your request...');
+          setOrbState('thinking', isClaudeSession ? 'Claude Thinking...' : 'Agent Thinking...', 'Processing your request...');
         }
       }, 700);
     }
@@ -3187,6 +3642,8 @@
       const activeBadge = document.getElementById("activeMicBadge");
       const toggleIcon = document.getElementById("micSourceToggleIcon");
       const toggleTitle = document.getElementById("micSourceToggleTitle");
+      const pillIcon = document.getElementById("voiceMicSourceIcon");
+      const pillText = document.getElementById("voiceMicSourceText");
 
       if (micSource === "mac") {
         if (activeBadge) {
@@ -3195,6 +3652,8 @@
         }
         if (toggleIcon) toggleIcon.innerText = "💻";
         if (toggleTitle) toggleTitle.innerText = "Mac";
+        if (pillIcon) pillIcon.innerText = "💻";
+        if (pillText) pillText.innerText = "Mac Mic";
       } else {
         if (activeBadge) {
           activeBadge.innerText = "[MIC: PHONE]";
@@ -3202,6 +3661,8 @@
         }
         if (toggleIcon) toggleIcon.innerText = "📱";
         if (toggleTitle) toggleTitle.innerText = "Phone";
+        if (pillIcon) pillIcon.innerText = "📱";
+        if (pillText) pillText.innerText = "Phone Mic";
       }
       updateChatActionState();
     }
@@ -3523,9 +3984,100 @@
       return "›";
     }
 
+    // Obsidian Vault Integration
+    async function fetchTodayNote() {
+      try {
+        const res = await fetch('/api/vault/today');
+        if (!res.ok) return;
+        const data = await res.json();
+
+        chatSessionTitle.innerText = `💎 Obsidian: ${data.vault_name || 'Vault'}`;
+        const voiceSessionTitle = document.getElementById("voiceSessionTitle");
+        if (voiceSessionTitle) voiceSessionTitle.innerText = `💎 ${data.vault_name || 'Obsidian'}`;
+
+        const noteContent = data.content || "";
+        const formattedContent = typeof marked !== 'undefined' ? marked.parse(noteContent) : `<pre class="text-xs font-mono text-zinc-300 whitespace-pre-wrap">${noteContent}</pre>`;
+
+        turnsContainer.innerHTML = `
+          <div class="mb-4 p-4 rounded-2xl bg-gradient-to-b from-[#18181b] to-[#121214] border border-purple-500/30 shadow-lg">
+            <div class="flex items-center justify-between gap-2 mb-3">
+              <div class="flex items-center gap-2">
+                <span class="text-2xl">💎</span>
+                <div>
+                  <h3 class="text-sm font-bold text-white">${data.vault_name || 'Obsidian Vault'}</h3>
+                  <p class="text-[11px] text-purple-300/80 font-mono">${data.file_name || "Daily Note"}</p>
+                </div>
+              </div>
+              <span class="text-[10px] font-mono px-2.5 py-1 rounded-full bg-purple-950/80 border border-purple-500/40 text-purple-300 font-semibold">0 Tokens • 100% Local</span>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 mb-3">
+              <button id="vaultLaunchAgyBtn" class="py-2.5 px-3 bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-700/60 rounded-xl text-xs font-semibold text-zinc-200 flex items-center justify-center gap-2 transition active:scale-95 shadow-sm cursor-pointer">
+                <span>🤖</span>
+                <span>Connect AGY</span>
+              </button>
+              <button id="vaultLaunchClaudeBtn" class="py-2.5 px-3 bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-700/60 rounded-xl text-xs font-semibold text-zinc-200 flex items-center justify-center gap-2 transition active:scale-95 shadow-sm cursor-pointer">
+                <span>🎭</span>
+                <span>Connect Claude</span>
+              </button>
+            </div>
+
+            <div class="flex items-center justify-between text-[11px] text-zinc-400 bg-black/40 px-3 py-2 rounded-xl border border-white/5">
+              <span>🎙️ Push mic button to record continuously</span>
+              <span class="text-purple-400 font-mono font-medium">No auto cut-off</span>
+            </div>
+          </div>
+
+          <div class="p-4 rounded-2xl bg-[#111113] border border-[#222225] shadow-sm">
+            <div class="flex items-center justify-between mb-3 border-b border-[#222225] pb-2">
+              <div class="flex items-center gap-1.5">
+                <span class="text-xs font-bold text-zinc-200">Today's Daily Note</span>
+                <span class="text-[10px] font-mono text-zinc-500">${data.file_name || ''}</span>
+              </div>
+              <button id="refreshVaultBtn" class="text-xs text-purple-400 hover:text-purple-300 font-medium flex items-center gap-1 cursor-pointer">↻ Refresh</button>
+            </div>
+            <div class="prose prose-invert prose-xs max-w-none text-zinc-300 text-xs leading-relaxed">
+              ${formattedContent}
+            </div>
+          </div>
+        `;
+
+        document.getElementById("vaultLaunchAgyBtn")?.addEventListener("click", () => launchVaultAgent("antigravity"));
+        document.getElementById("vaultLaunchClaudeBtn")?.addEventListener("click", () => launchVaultAgent("claude"));
+        document.getElementById("refreshVaultBtn")?.addEventListener("click", fetchTodayNote);
+
+        scrollToChatBottom();
+      } catch (err) {
+        console.error("fetchTodayNote error:", err);
+      }
+    }
+
+    async function launchVaultAgent(engine) {
+      showToast(`Connecting ${engine === 'claude' ? 'Claude Code' : 'Antigravity'} to vault...`, 3000);
+      try {
+        const res = await fetch('/api/vault/launch_agent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ engine: engine })
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          showToast(`✅ ${data.message}`, 4000);
+          await fetchConversations();
+        } else {
+          showToast(`Error: ${data.error}`, 4000);
+        }
+      } catch (e) {
+        showToast(`Launch failed: ${e}`, 4000);
+      }
+    }
+
     // Render Full Conversation Window
     async function fetchConversationDetails(convId) {
       if (!convId) return;
+      if (convId === "obsidian") {
+        return fetchTodayNote();
+      }
       try {
         const res = await fetch(`/api/conversation/${encodeURIComponent(convId)}`);
         if (!res.ok) return;
@@ -3556,7 +4108,7 @@
       const voiceStatusTag = document.getElementById("voiceStatusTag");
       const chatStatusTag = document.getElementById("chatStatusTag");
 
-      if (voiceSessionTitle) voiceSessionTitle.innerText = data.title || "Antigravity";
+      if (voiceSessionTitle) voiceSessionTitle.innerText = data.title || (data.engine === "claude" ? "Claude Code" : "Antigravity");
 
       // Detect active in-progress state and active tool name
       const isWorking = data.status === "agent_working" || (data.turns && data.turns.length > 0 && data.turns[data.turns.length - 1].status === "working" && !data.turns[data.turns.length - 1].completed);
@@ -3589,7 +4141,7 @@
         if (!isListening && !isSpeaking) {
           const cleanAction = activeAction.replace(/^RUNNING:\s*/i, "");
           const actionTitle = (cleanAction === "RUNNING..." || cleanAction === "TOOL_CALL") ? "Agent Thinking..." : `Running: ${cleanAction}`;
-          setOrbState('thinking', actionTitle, "Executing steps & tools...");
+          setOrbState('working', actionTitle, "Executing steps & tools...");
         }
       } else {
         chatSessionDot.className = "w-1.5 h-1.5 rounded-full bg-[#555555]";
@@ -3635,23 +4187,6 @@
             No artifacts generated yet for this conversation.
           </div>
         `;
-      }
-
-      // Update Plan Review Action Cards
-      const hasPlan = Boolean(
-        data.plan_info &&
-        data.plan_info.exists &&
-        data.plan_info.requires_review === true &&
-        data.plan_info.status !== 'approved'
-      );
-      const planReviewCard = document.getElementById("planReviewCard");
-      const voicePlanReviewCard = document.getElementById("voicePlanReviewCard");
-      if (hasPlan) {
-        if (planReviewCard) planReviewCard.classList.remove("hidden");
-        if (voicePlanReviewCard) voicePlanReviewCard.classList.remove("hidden");
-      } else {
-        if (planReviewCard) planReviewCard.classList.add("hidden");
-        if (voicePlanReviewCard) voicePlanReviewCard.classList.add("hidden");
       }
 
       // Skip heavy DOM tree replacement if turns content hasn't changed
@@ -3726,8 +4261,14 @@
                 <!-- Agent Turn Header -->
                 <div class="flex items-center justify-between border-b border-[#1c1c1c] pb-2">
                   <div class="flex items-center gap-2">
-                    <span class="w-5 h-5 rounded-md bg-[#18181b] border border-[#27272a] flex items-center justify-center text-[9px] font-bold text-white mono">AG</span>
-                    <span class="font-bold text-xs text-white uppercase tracking-wider">${escapeHtml(turn.agent_role || 'Antigravity')}</span>
+                    ${(() => {
+                      const isClaudeTurn = (turn.agent_role || '').toLowerCase().includes('claude') || (data.engine === 'claude') || (data.id && data.id.startsWith('claude_'));
+                      const displayRole = turn.agent_role || (isClaudeTurn ? 'Claude' : 'Antigravity');
+                      return `
+                        <span class="w-5 h-5 rounded-md bg-[#18181b] border border-[#27272a] flex items-center justify-center text-[9px] font-bold text-white mono">${isClaudeTurn ? 'CC' : 'AG'}</span>
+                        <span class="font-bold text-xs text-white uppercase tracking-wider">${escapeHtml(displayRole)}</span>
+                      `;
+                    })()}
                     ${isWorking 
                       ? `<span class="text-[9px] font-mono px-1.5 py-0.2 rounded-full bg-white text-black font-bold animate-pulse">working...</span>` 
                       : `<span class="text-[9px] font-mono px-1.5 py-0.2 rounded-full bg-[#18181b] text-white border border-[#27272a]">done</span>`}
@@ -3745,7 +4286,7 @@
                   <div class="border border-white/40 rounded-xl p-3 bg-[#0c0c0c] space-y-1 animate-pulse">
                     <div class="flex items-center gap-2 text-xs font-semibold text-white">
                       <span class="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span>
-                      <span>Antigravity is processing...</span>
+                      <span>${((turn.agent_role || '').toLowerCase().includes('claude') || (data.engine === 'claude') || (data.id && data.id.startsWith('claude_'))) ? 'Claude' : 'Antigravity'} is processing...</span>
                     </div>
                     <p class="text-[10px] text-[#888888] font-mono">Analyzing codebase and preparing execution tools</p>
                   </div>
@@ -3992,11 +4533,10 @@
         const initialVal = targetTextarea.value ? targetTextarea.value.trim() + " " : "";
 
         dictationRecognition.onresult = (event) => {
-          let transcript = '';
-          for (let i = event.resultIndex; i < event.results.length; ++i) {
-            transcript += event.results[i][0].transcript;
+          const parsed = parseSpeechRecognitionResults(event);
+          if (parsed.combinedText) {
+            targetTextarea.value = initialVal + parsed.combinedText;
           }
-          targetTextarea.value = initialVal + transcript;
         };
 
         dictationRecognition.onerror = (event) => {
@@ -4300,7 +4840,6 @@
           clearAllStagedComments();
           artifactModal.classList.add("hidden");
           fetchConversationDetails(activeConvId);
-          switchView("chat");
         } else {
           showToast("Error: " + (data.error || "Failed to deliver review"), 3500);
         }
@@ -4567,7 +5106,6 @@
           stopDictation();
           artifactModal.classList.add("hidden");
           fetchConversationDetails(activeConvId);
-          switchView("chat");
         } else {
           showToast("Error: " + (data.error || "Failed to send feedback"), 3500);
         }
@@ -4676,6 +5214,13 @@
       return { sessionId, token, host };
     }
 
+    const isRelayDomain = Boolean(
+      window.location.hostname.includes('voicefi') ||
+      window.location.hostname.includes('app') ||
+      window.location.hostname.includes('dev')
+    );
+    window.__vifi_is_relay = isRelayDomain;
+
     let pendingRpcRequests = new Map();
     let rpcReqCounter = 0;
     const nativeFetch = window.fetch.bind(window);
@@ -4684,59 +5229,89 @@
     window.fetch = function(input, init) {
       const url = typeof input === 'string' ? input : (input && input.url ? input.url : '');
       const isRelayPath = url.startsWith('/api') || url.startsWith('api/');
+      const isRelay = Boolean(window.__vifi_is_relay || isRelayDomain);
 
-      if (window.__vifi_is_relay && isRelayPath) {
+      if (isRelay && isRelayPath) {
         const path = url.startsWith('/') ? url : `/${url}`;
         if (path.startsWith('/api/tts') || path.startsWith('/api/icon') || path.startsWith('/api/waitlist')) {
           return nativeFetch(input, init);
         }
 
         return new Promise((resolve, reject) => {
+          let hasSettled = false;
+          let rpcTimeout = null;
+
+          const finishResolve = (val) => {
+            if (!hasSettled) {
+              hasSettled = true;
+              if (rpcTimeout) clearTimeout(rpcTimeout);
+              resolve(val);
+            }
+          };
+
+          const finishReject = (err) => {
+            if (!hasSettled) {
+              hasSettled = true;
+              if (rpcTimeout) clearTimeout(rpcTimeout);
+              reject(err);
+            }
+          };
+
           const sendRpc = () => {
-            if (!ws || ws.readyState !== WebSocket.OPEN) {
-              nativeFetch(input, init).then(resolve).catch(reject);
+            if (hasSettled) return;
+
+            if (ws && ws.readyState === WebSocket.OPEN) {
+              const id = `rpc_${++rpcReqCounter}_${Date.now()}`;
+              rpcTimeout = setTimeout(() => {
+                pendingRpcRequests.delete(id);
+                finishReject(new Error("Request timed out waiting for Mac host response."));
+              }, 12000);
+
+              pendingRpcRequests.set(id, { resolve: finishResolve, reject: finishReject, timeout: rpcTimeout });
+
+              let body = init && init.body;
+              if (body && typeof body === 'string') {
+                try { body = JSON.parse(body); } catch (e) {}
+              }
+
+              ws.send(JSON.stringify({
+                type: "rpc_request",
+                id: id,
+                path: path,
+                method: (init && init.method) || "GET",
+                body: body,
+                headers: (init && init.headers) || {}
+              }));
               return;
             }
 
-            const id = `rpc_${++rpcReqCounter}_${Date.now()}`;
-            const timeout = setTimeout(() => {
-              pendingRpcRequests.delete(id);
-              nativeFetch(input, init).then(resolve).catch(reject);
-            }, 8000);
-
-            pendingRpcRequests.set(id, { resolve, reject, timeout });
-
-            let body = init && init.body;
-            if (body && typeof body === 'string') {
-              try { body = JSON.parse(body); } catch (e) {}
+            // If ws is not open, trigger reconnect if needed
+            if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+              if (typeof connectWebSocket === 'function') connectWebSocket();
             }
 
-            ws.send(JSON.stringify({
-              type: "rpc_request",
-              id: id,
-              path: path,
-              method: (init && init.method) || "GET",
-              body: body,
-              headers: (init && init.headers) || {}
-            }));
-          };
-
-          if (ws && ws.readyState === WebSocket.OPEN) {
-            sendRpc();
-          } else if (ws && ws.readyState === WebSocket.CONNECTING) {
+            let waited = 0;
             const checkTimer = setInterval(() => {
-              if (ws.readyState === WebSocket.OPEN) {
+              if (hasSettled) {
+                clearInterval(checkTimer);
+                return;
+              }
+              waited += 50;
+              if (ws && ws.readyState === WebSocket.OPEN) {
                 clearInterval(checkTimer);
                 sendRpc();
-              } else if (ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+              } else if (waited >= 5000) {
                 clearInterval(checkTimer);
-                nativeFetch(input, init).then(resolve).catch(reject);
+                if (isRelayDomain) {
+                  finishReject(new Error("Not connected to Mac host. Please ensure VoiceFi is running on your Mac."));
+                } else {
+                  nativeFetch(input, init).then(finishResolve).catch(finishReject);
+                }
               }
-            }, 40);
-            setTimeout(() => { clearInterval(checkTimer); sendRpc(); }, 4000);
-          } else {
-            sendRpc();
-          }
+            }, 50);
+          };
+
+          sendRpc();
         });
       }
       return nativeFetch(input, init);
@@ -4770,8 +5345,12 @@
 
       ws.onopen = () => {
         reconnectDelay = 1000;
-        connDot.className = "w-2 h-2 rounded-full bg-emerald-400";
-        connText.innerText = window.__vifi_is_relay ? "Connected (Cloud Relay)" : "Connected";
+        if (connDot) connDot.className = "w-2 h-2 rounded-full bg-emerald-400";
+        if (connText) connText.innerText = window.__vifi_is_relay ? "Connected (Cloud Relay)" : "Connected";
+        const headerDot = document.getElementById("headerLiveDot");
+        if (headerDot) headerDot.className = "w-2 h-2 rounded-full bg-emerald-500 animate-pulse";
+        const manualIndicator = document.getElementById("manualConnIndicator");
+        if (manualIndicator) manualIndicator.innerText = "Connected";
         requestWakeLock();
         fetchConversations();
 
@@ -4817,8 +5396,12 @@
 
       ws.onclose = () => {
         if (heartbeatTimer) clearInterval(heartbeatTimer);
-        connDot.className = "w-2 h-2 rounded-full bg-amber-400 animate-pulse";
-        connText.innerText = "Reconnecting...";
+        if (connDot) connDot.className = "w-2 h-2 rounded-full bg-amber-400 animate-pulse";
+        if (connText) connText.innerText = "Reconnecting...";
+        const headerDot = document.getElementById("headerLiveDot");
+        if (headerDot) headerDot.className = "w-2 h-2 rounded-full bg-amber-500 animate-pulse";
+        const manualIndicator = document.getElementById("manualConnIndicator");
+        if (manualIndicator) manualIndicator.innerText = "Reconnecting...";
         setTimeout(connectWebSocket, reconnectDelay);
         reconnectDelay = Math.min(reconnectDelay * 1.5, 8000);
       };
@@ -4860,6 +5443,7 @@
         }
         startActiveTurnPolling(activeConvId);
         fetchConversationDetails(activeConvId);
+        fetchConversations();
       } else if (data.type === "agent_turn_completed") {
         stopActiveTurnPolling();
         const isClaude = data.agent_role === "claude" || (data.conv_id && data.conv_id.startsWith("claude_"));
@@ -4869,8 +5453,9 @@
         if (latestText) latestText.innerText = data.summary || "";
         if (data.conv_id) activeConvId = data.conv_id;
 
-        // Refresh conversation details for full view
+        // Refresh conversation details and list for full view
         fetchConversationDetails(activeConvId);
+        fetchConversations();
 
         if (data.summary) {
           recordAgentSpokenText(data.summary);
@@ -4890,7 +5475,7 @@
             if (autoListen && !isListening && speechQueue.length === 0 && currentView === 'voice') {
               setTimeout(() => {
                 if (autoListen && !isListening && !isSpeaking && speechQueue.length === 0 && currentView === 'voice') {
-                  startListening();
+                  startListening(true);
                 }
               }, 600);
             }
@@ -4905,7 +5490,7 @@
             const macEstimatedDurationMs = Math.max(2500, Math.min(14000, (wordCount / 2.5) * 1000 + 1500));
             setTimeout(() => {
               if (autoListen && !isListening && !isSpeaking && currentView === 'voice') {
-                startListening();
+                startListening(true);
               }
             }, macEstimatedDurationMs);
           }
@@ -4916,21 +5501,36 @@
           if (audioRoutingSelect) audioRoutingSelect.value = audioRoutingMode;
           localStorage.setItem("voicefi_audio_routing", audioRoutingMode);
         }
+        if (typeof data.mute_mac_when_companion_active === "boolean") {
+          muteMacWhenCompanionActive = data.mute_mac_when_companion_active;
+          if (muteMacToggle) muteMacToggle.checked = muteMacWhenCompanionActive;
+        }
+      } else if (data.type === "vault_capture_appended") {
+        showToast(`🎙️ Appended to ${data.daily_note_name || 'daily note'}`, 2500);
+        if (activeConvId === "obsidian") {
+          fetchTodayNote();
+        }
+      } else if (data.type === "vault_memo_saved") {
+        showToast(`📝 Saved Memo: ${data.memo_name || 'document'}`, 3500);
+        if (activeConvId === "obsidian") {
+          fetchTodayNote();
+        }
       } else if (data.type === "agent_working_step") {
         if (liveActivityBanner) liveActivityBanner.classList.remove("hidden");
-        const stepSummary = data.summary || data.action || data.tool_name || '';
-        const toolLabel = data.action || data.tool_name || 'Running Tool';
-        if (liveActivityText) liveActivityText.innerText = `${toolLabel}: ${stepSummary}`;
+        const stepSummary = (data.summary && data.summary !== 'undefined') ? data.summary : '';
+        const toolLabel = (data.action && data.action !== 'undefined') ? data.action : (data.tool_name || 'Running Tool');
+        if (liveActivityText) liveActivityText.innerText = stepSummary ? `${toolLabel}: ${stepSummary}` : toolLabel;
         
         if (!isListening && !isSpeaking) {
-          const shortSummary = stepSummary.length > 36 ? stepSummary.slice(0, 34) + '...' : stepSummary;
+          const displaySummary = stepSummary || toolLabel;
+          const shortSummary = displaySummary.length > 36 ? displaySummary.slice(0, 34) + '...' : displaySummary;
           setOrbState('working', toolLabel, shortSummary);
           if (typeof updateVoiceFiHud === 'function') {
             updateVoiceFiHud('working', {
               title: 'Antigravity',
               tag: toolLabel,
               tagColor: 'text-sky-400',
-              body: stepSummary,
+              body: displaySummary,
               showAppIcon: true,
             });
           }
@@ -4981,6 +5581,402 @@
       }
     }
 
+    let cachedConversationsPayload = null;
+    let currentAppFilter = 'all'; // 'all' | 'antigravity' | 'claude' | 'obsidian'
+    let currentObsidianMode = 'capture'; // 'capture' | 'memo'
+    let currentVoiceSpeed = 1.0;
+
+    function setAppFilter(filter, openModal = true) {
+      currentAppFilter = filter;
+      const activeClass = "py-2 px-2 rounded-xl text-xs font-black flex items-center justify-center gap-1 transition active:scale-95 cursor-pointer bg-white text-black shadow-md";
+      const inactiveClass = "py-2 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition active:scale-95 cursor-pointer bg-[#18181e] hover:bg-[#22222a] text-zinc-300 hover:text-white border border-white/5";
+      
+      const btnAll = document.getElementById("appFilterAll");
+      const btnAG = document.getElementById("appFilterAG");
+      const btnClaude = document.getElementById("appFilterClaude");
+      const btnObsidian = document.getElementById("appFilterObsidian");
+
+      if (btnAll) btnAll.className = filter === 'all' ? activeClass : inactiveClass;
+      if (btnAG) btnAG.className = filter === 'antigravity' ? activeClass : inactiveClass;
+      if (btnClaude) btnClaude.className = filter === 'claude' ? activeClass : inactiveClass;
+      if (btnObsidian) btnObsidian.className = filter === 'obsidian' ? activeClass : inactiveClass;
+
+      const newConvBtn = document.getElementById("newConvBtn");
+      if (newConvBtn) {
+        if (filter === 'claude') {
+          newConvBtn.title = "Start a New Claude Conversation";
+        } else if (filter === 'antigravity') {
+          newConvBtn.title = "Start a New Antigravity Conversation";
+        } else if (filter === 'obsidian') {
+          newConvBtn.title = "New Obsidian Capture or Memo";
+        } else {
+          newConvBtn.title = "Start a New Conversation";
+        }
+      }
+
+      if (cachedConversationsPayload) {
+        renderFilteredConversations(cachedConversationsPayload);
+      }
+      updateHeaderCapsuleText();
+
+      if (activeConvId && activeConvId !== 'obsidian') {
+        fetch('/api/switch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ conv_id: activeConvId })
+        }).catch(err => console.warn("Switch notification notice:", err));
+      }
+
+      if (filter === 'obsidian') {
+        if (openModal) {
+          openObsidianTakeover();
+        }
+        if (currentView === 'chat') {
+          fetchTodayNote();
+        }
+      }
+    }
+    window.setAppFilter = setAppFilter;
+
+    // Obsidian 2-Way Voice Recording Takeover / Layover Engine
+    let obsidianTakeoverTimerInterval = null;
+    let obsidianTakeoverSeconds = 0;
+    let isObsidianTakeoverTyping = false;
+
+    function openObsidianTakeover(mode) {
+      if (mode) currentObsidianMode = mode;
+      activeConvId = 'obsidian';
+      if (convSelect) convSelect.value = 'obsidian';
+      setAppFilter('obsidian', false);
+
+      const obsModal = document.getElementById("obsidianModal");
+      if (!obsModal) return;
+
+      const vaultName = (cachedConversationsPayload && cachedConversationsPayload.vault && cachedConversationsPayload.vault.name) || "Obsidian Vault";
+      const vaultSub = document.getElementById("obsidianVaultSubtitle");
+      if (vaultSub) vaultSub.innerText = `Vault: ${vaultName}`;
+
+      updateObsidianTakeoverModeUI();
+      resetObsidianTakeover();
+      obsModal.classList.remove("hidden");
+    }
+    window.openObsidianTakeover = openObsidianTakeover;
+
+    function closeObsidianTakeover() {
+      if (isListening) stopListening();
+      if (obsidianTakeoverTimerInterval) {
+        clearInterval(obsidianTakeoverTimerInterval);
+        obsidianTakeoverTimerInterval = null;
+      }
+      const obsModal = document.getElementById("obsidianModal");
+      if (obsModal) obsModal.classList.add("hidden");
+      resetObsidianTakeover();
+    }
+    window.closeObsidianTakeover = closeObsidianTakeover;
+
+    function updateObsidianTakeoverModeUI() {
+      const dailyBtn = document.getElementById("obsidianDailyCaptureBtn");
+      const memoBtn = document.getElementById("obsidianVoiceMemoBtn");
+      const desc = document.getElementById("obsidianModeDescription");
+      const primaryBtn = document.getElementById("obsidianTakeoverPrimaryBtn");
+
+      if (currentObsidianMode === 'memo') {
+        if (memoBtn) memoBtn.className = "flex-1 py-2.5 rounded-xl text-center transition flex items-center justify-center gap-1.5 bg-white text-black shadow-md cursor-pointer font-black min-h-[40px]";
+        if (dailyBtn) dailyBtn.className = "flex-1 py-2.5 rounded-xl text-center transition flex items-center justify-center gap-1.5 text-zinc-400 hover:text-white cursor-pointer font-bold min-h-[40px]";
+        if (desc) desc.innerText = "Transcribes 2-5 min brain dump into structured markdown in Voice Memos/ with backlink";
+        if (primaryBtn && !isListening && !isObsidianTakeoverTyping) {
+          primaryBtn.innerHTML = "<span>🎙️</span> <span>Tap to Record AI Voice Memo</span>";
+        }
+      } else {
+        if (dailyBtn) dailyBtn.className = "flex-1 py-2.5 rounded-xl text-center transition flex items-center justify-center gap-1.5 bg-white text-black shadow-md cursor-pointer font-black min-h-[40px]";
+        if (memoBtn) memoBtn.className = "flex-1 py-2.5 rounded-xl text-center transition flex items-center justify-center gap-1.5 text-zinc-400 hover:text-white cursor-pointer font-bold min-h-[40px]";
+        if (desc) desc.innerText = "Appends instant timestamped bullet directly into today's daily note";
+        if (primaryBtn && !isListening && !isObsidianTakeoverTyping) {
+          primaryBtn.innerHTML = "<span>🎙️</span> <span>Tap to Record Daily Note</span>";
+        }
+      }
+    }
+
+    function resetObsidianTakeover() {
+      if (obsidianTakeoverTimerInterval) {
+        clearInterval(obsidianTakeoverTimerInterval);
+        obsidianTakeoverTimerInterval = null;
+      }
+      obsidianTakeoverSeconds = 0;
+      isObsidianTakeoverTyping = false;
+
+      const ring = document.getElementById("obsidianOrbRing");
+      if (ring) ring.className = "w-28 h-28 sm:w-32 sm:h-32 rounded-full bg-gradient-to-br from-[#3b1f63] to-[#201035] border-2 border-[#a882ff] flex items-center justify-center shadow-[0_0_40px_rgba(168,130,255,0.35)] transition-all duration-300 group-hover:scale-105";
+
+      const wave = document.getElementById("obsidianTakeoverWave");
+      if (wave) wave.classList.add("hidden");
+
+      const status = document.getElementById("obsidianTakeoverStatus");
+      if (status) status.innerText = "Tap Mic to Start Speaking";
+
+      const timer = document.getElementById("obsidianTakeoverTimer");
+      if (timer) timer.innerText = "Continuous recording • No auto cut-off";
+
+      const streamText = document.getElementById("obsidianTakeoverStreamText");
+      if (streamText) {
+        streamText.innerText = "Your spoken thoughts will stream here live as you talk...";
+        streamText.className = "text-xs sm:text-sm text-zinc-400 italic leading-relaxed font-sans";
+        streamText.classList.remove("hidden");
+      }
+
+      const textarea = document.getElementById("obsidianTakeoverTextarea");
+      if (textarea) {
+        textarea.value = "";
+        textarea.classList.add("hidden");
+      }
+
+      const typeBtn = document.getElementById("obsidianToggleTypeBtn");
+      if (typeBtn) typeBtn.innerHTML = `<span>⌨️</span> <span>Type instead</span>`;
+
+      const primaryBtn = document.getElementById("obsidianTakeoverPrimaryBtn");
+      if (primaryBtn) {
+        primaryBtn.className = "w-full h-14 rounded-2xl bg-white hover:bg-zinc-200 active:scale-95 text-black font-black text-sm sm:text-base flex items-center justify-center gap-2 shadow-lg transition cursor-pointer";
+        const label = currentObsidianMode === 'memo' ? 'Tap to Record AI Voice Memo' : 'Tap to Record Daily Note';
+        primaryBtn.innerHTML = `<span>🎙️</span> <span>${label}</span>`;
+      }
+    }
+
+    function updateObsidianTakeoverRecording(isRec) {
+      const obsModal = document.getElementById("obsidianModal");
+      if (!obsModal || obsModal.classList.contains("hidden")) return;
+
+      const ring = document.getElementById("obsidianOrbRing");
+      const wave = document.getElementById("obsidianTakeoverWave");
+      const status = document.getElementById("obsidianTakeoverStatus");
+      const timer = document.getElementById("obsidianTakeoverTimer");
+      const primaryBtn = document.getElementById("obsidianTakeoverPrimaryBtn");
+
+      if (isRec) {
+        if (ring) ring.className = "w-28 h-28 sm:w-32 sm:h-32 rounded-full bg-gradient-to-br from-[#53268e] to-[#201035] border-2 border-[#c4a1ff] flex items-center justify-center shadow-[0_0_55px_rgba(196,161,255,0.7)] animate-pulse transition-all duration-300 scale-105";
+        if (wave) wave.classList.remove("hidden");
+        if (status) status.innerText = "Listening...";
+        
+        obsidianTakeoverSeconds = 0;
+        if (obsidianTakeoverTimerInterval) clearInterval(obsidianTakeoverTimerInterval);
+        obsidianTakeoverTimerInterval = setInterval(() => {
+          obsidianTakeoverSeconds++;
+          const m = String(Math.floor(obsidianTakeoverSeconds / 60)).padStart(2, '0');
+          const s = String(obsidianTakeoverSeconds % 60).padStart(2, '0');
+          if (timer) timer.innerText = `${m}:${s} • Continuous recording`;
+        }, 1000);
+
+        if (primaryBtn) {
+          primaryBtn.className = "w-full h-14 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 active:scale-95 text-white font-black text-sm sm:text-base flex items-center justify-center gap-2 shadow-lg transition cursor-pointer";
+          const label = currentObsidianMode === 'memo' ? 'Stop & Save Voice Memo' : 'Stop & Save to Daily Note';
+          primaryBtn.innerHTML = `<span>⏹️</span> <span>${label}</span>`;
+        }
+      } else {
+        if (obsidianTakeoverTimerInterval) {
+          clearInterval(obsidianTakeoverTimerInterval);
+          obsidianTakeoverTimerInterval = null;
+        }
+        if (ring) ring.className = "w-28 h-28 sm:w-32 sm:h-32 rounded-full bg-gradient-to-br from-[#3b1f63] to-[#201035] border-2 border-[#a882ff] flex items-center justify-center shadow-[0_0_40px_rgba(168,130,255,0.35)] transition-all duration-300 group-hover:scale-105";
+        if (wave) wave.classList.add("hidden");
+      }
+    }
+
+    function updateObsidianTakeoverStream(text) {
+      const obsModal = document.getElementById("obsidianModal");
+      if (!obsModal || obsModal.classList.contains("hidden")) return;
+      const streamText = document.getElementById("obsidianTakeoverStreamText");
+      const streamBox = document.getElementById("obsidianTakeoverStreamBox");
+      if (streamText && text) {
+        streamText.innerText = text;
+        streamText.className = "text-xs sm:text-sm text-white font-medium leading-relaxed font-sans";
+        if (streamBox) streamBox.scrollTop = streamBox.scrollHeight;
+      }
+    }
+
+    function updateObsidianTakeoverSaving(state, detail) {
+      const obsModal = document.getElementById("obsidianModal");
+      if (!obsModal || obsModal.classList.contains("hidden")) return;
+
+      const status = document.getElementById("obsidianTakeoverStatus");
+      const primaryBtn = document.getElementById("obsidianTakeoverPrimaryBtn");
+      const wave = document.getElementById("obsidianTakeoverWave");
+      if (wave) wave.classList.add("hidden");
+
+      if (state === 'saving') {
+        if (status) status.innerText = currentObsidianMode === 'memo' ? "🧠 Synthesizing AI Voice Memo..." : "📝 Saving to Daily Note...";
+        if (primaryBtn) {
+          primaryBtn.className = "w-full h-14 rounded-2xl bg-purple-700/60 text-white font-black text-sm sm:text-base flex items-center justify-center gap-2 shadow-lg transition cursor-not-allowed";
+          primaryBtn.innerHTML = `<span>⏳</span> <span>Saving to Obsidian...</span>`;
+        }
+      } else if (state === 'success') {
+        if (status) status.innerText = detail ? `✅ Saved: ${detail}` : "✅ Saved to Vault!";
+        if (primaryBtn) {
+          primaryBtn.className = "w-full h-14 rounded-2xl bg-emerald-600 text-white font-black text-sm sm:text-base flex items-center justify-center gap-2 shadow-lg transition";
+          primaryBtn.innerHTML = `<span>✅</span> <span>Saved!</span>`;
+        }
+        setTimeout(() => {
+          obsModal.classList.add("hidden");
+          resetObsidianTakeover();
+        }, 950);
+      } else if (state === 'error') {
+        if (status) status.innerText = `⚠️ ${detail || "Save failed"}`;
+        if (primaryBtn) {
+          primaryBtn.className = "w-full h-14 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-black text-sm sm:text-base flex items-center justify-center gap-2 shadow-lg transition cursor-pointer";
+          primaryBtn.innerHTML = `<span>🔄</span> <span>Retry Save</span>`;
+        }
+      }
+    }
+
+    function setObsidianMode(mode, openTakeover = false) {
+      currentObsidianMode = mode; // 'capture' | 'memo'
+      activeConvId = 'obsidian';
+      setAppFilter('obsidian', false);
+      if (convSelect) convSelect.value = 'obsidian';
+
+      const obsModal = document.getElementById("obsidianModal");
+      const isTakeoverOpen = obsModal && !obsModal.classList.contains("hidden");
+
+      if (openTakeover || isTakeoverOpen) {
+        updateObsidianTakeoverModeUI();
+      } else {
+        const chatInput = document.getElementById("chatInput");
+        if (chatInput) {
+          chatInput.placeholder = mode === 'memo' ? "🧠 Speak or type 2-5 min brain dump for AI memo..." : "📝 Dictate quick bullet for today's daily note...";
+        }
+        updateChatActionState();
+      }
+      fetchTodayNote();
+    }
+    window.setObsidianMode = setObsidianMode;
+
+    function renderFilteredConversations(data) {
+      if (!data) return;
+      convSelect.innerHTML = "";
+
+      let conversations = data.conversations || [];
+      if (currentAppFilter === 'antigravity') {
+        conversations = conversations.filter(c => c.engine !== 'claude' && !(c.id && c.id.startsWith('claude_')));
+      } else if (currentAppFilter === 'claude') {
+        conversations = conversations.filter(c => c.engine === 'claude' || (c.id && c.id.startsWith('claude_')));
+      } else if (currentAppFilter === 'obsidian') {
+        conversations = [];
+      }
+
+      const showVault = (currentAppFilter === 'all' || currentAppFilter === 'obsidian') && Boolean(data.vault);
+
+      if (conversations.length === 0 && !showVault) {
+        const opt = document.createElement("option");
+        opt.value = "";
+        opt.innerText = currentAppFilter === 'obsidian' ? "💎 Obsidian (No active vault)" : "⚪ No active conversations";
+        convSelect.appendChild(opt);
+        activeConvId = "";
+      } else {
+        let matched = false;
+        let storedId = "";
+        try {
+          storedId = localStorage.getItem("voicefi_active_conv_id") || "";
+        } catch (e) {}
+        let preferredId = activeConvId || storedId || data.active_id;
+        if (currentAppFilter === 'claude' && preferredId && !preferredId.startsWith("claude_") && !preferredId.toLowerCase().includes("claude")) {
+          preferredId = (conversations.length > 0) ? conversations[0].id : "";
+        } else if (currentAppFilter === 'antigravity' && preferredId && (preferredId.startsWith("claude_") || preferredId.toLowerCase().includes("claude"))) {
+          preferredId = (conversations.length > 0) ? conversations[0].id : "";
+        }
+
+        conversations.forEach((c) => {
+          const opt = document.createElement("option");
+          opt.value = c.id;
+          const isClaude = c.engine === "claude" || (c.id && c.id.startsWith("claude_"));
+          const enginePrefix = isClaude ? "🎭 Claude" : "🤖 AGY";
+
+          let cleanTitle = (c.title || "Conversation").trim();
+          cleanTitle = cleanTitle.replace(/^\[From:[^\]]+\]\s*/i, "");
+          cleanTitle = cleanTitle.replace(/^\[Message[^\]]*\]\s*/i, "");
+          cleanTitle = cleanTitle.replace(/^\[Attached Screenshot:[^\]]+\]\s*/i, "");
+          cleanTitle = cleanTitle.replace(/^\[ATTACHED\s*\([0-9]+\):[^\]]+\]\s*/i, "");
+          if (isClaude) {
+            cleanTitle = cleanTitle.replace(/^Claude\s*•?\s*/i, "");
+            cleanTitle = cleanTitle.replace(/^Claude:\s*/i, "");
+          }
+          cleanTitle = cleanTitle.trim() || "Untitled";
+
+          let statusIcon = "⚪";
+          if (c.status === "agent_working") statusIcon = "⏳";
+          else if (c.status === "waiting_for_user") statusIcon = "🟢";
+
+          const proj = c.project_name ? `• ${c.project_name}` : "";
+          opt.innerText = `${statusIcon} ${enginePrefix} ${proj}: ${cleanTitle}`;
+
+          if (c.id === preferredId) {
+            opt.selected = true;
+            activeConvId = c.id;
+            matched = true;
+          }
+          convSelect.appendChild(opt);
+        });
+
+        if (showVault) {
+          const vaultOpt = document.createElement("option");
+          vaultOpt.value = "obsidian";
+          vaultOpt.innerText = `💎 Obsidian • ${data.vault.name}`;
+          if (preferredId === "obsidian" || currentAppFilter === 'obsidian') {
+            vaultOpt.selected = true;
+            activeConvId = "obsidian";
+            matched = true;
+          }
+          convSelect.appendChild(vaultOpt);
+          const obsSub = document.getElementById("obsidianVaultSubtitle");
+          if (obsSub) obsSub.innerText = `Vault: ${data.vault.name}`;
+        }
+
+        if (!matched && preferredId && preferredId !== "obsidian") {
+          const isClaude = preferredId.startsWith("claude_") || preferredId.toLowerCase().includes("claude");
+          const shouldInclude = (currentAppFilter === 'all') ||
+                                (currentAppFilter === 'claude' && isClaude) ||
+                                (currentAppFilter === 'antigravity' && !isClaude);
+          if (shouldInclude) {
+            const pendingOpt = document.createElement("option");
+            pendingOpt.value = preferredId;
+            pendingOpt.innerText = `⏳ ${isClaude ? "🎭 Claude" : "🤖 AGY"}: Active Session (${preferredId.slice(0, 10)}...)`;
+            pendingOpt.selected = true;
+            convSelect.insertBefore(pendingOpt, convSelect.firstChild);
+            matched = true;
+            activeConvId = preferredId;
+          }
+        }
+
+        if (!matched) {
+          if (conversations.length > 0) {
+            convSelect.options[0].selected = true;
+            convSelect.selectedIndex = 0;
+            activeConvId = conversations[0].id;
+          } else if (showVault) {
+            convSelect.value = "obsidian";
+            activeConvId = "obsidian";
+          }
+        }
+        if (activeConvId) {
+          try {
+            localStorage.setItem("voicefi_active_conv_id", activeConvId);
+          } catch (e) {}
+          fetchConversationDetails(activeConvId);
+        }
+      }
+
+      // Update input placeholder based on target
+      const chatInput = document.getElementById("chatInput");
+      if (chatInput) {
+        if (activeConvId === "obsidian" || currentAppFilter === 'obsidian') {
+          chatInput.placeholder = currentObsidianMode === 'memo' ? "AI Voice Memo..." : "Daily Note bullet...";
+        } else if (currentAppFilter === 'claude' || (activeConvId && activeConvId.startsWith("claude_"))) {
+          chatInput.placeholder = window.innerWidth < 480 ? "Message Claude..." : "Message Claude Code...";
+        } else {
+          chatInput.placeholder = window.innerWidth < 480 ? "Message..." : "Message Antigravity...";
+        }
+      }
+
+      updateHeaderCapsuleText();
+    }
+
     async function fetchConversations() {
       try {
         const res = await fetch('/api/conversations');
@@ -4991,26 +5987,8 @@
         if (!data || !Array.isArray(data.conversations)) {
           throw new Error("Invalid conversation payload");
         }
-        convSelect.innerHTML = "";
-        if (data.conversations.length === 0) {
-          const opt = document.createElement("option");
-          opt.value = "";
-          opt.innerText = "⚪ No active conversations";
-          convSelect.appendChild(opt);
-        } else {
-          data.conversations.forEach((c) => {
-            const opt = document.createElement("option");
-            opt.value = c.id;
-            const statusTag = c.status === "agent_working" ? "thinking" : c.status;
-            const enginePrefix = c.engine === "claude" ? "🎭 Claude:" : "🤖 AGY:";
-            opt.innerText = `${enginePrefix} ${c.title} (${statusTag})`;
-            if (c.id === data.active_id) {
-              opt.selected = true;
-              activeConvId = c.id;
-            }
-            convSelect.appendChild(opt);
-          });
-        }
+        cachedConversationsPayload = data;
+        renderFilteredConversations(data);
 
         if (activeConvId) {
           fetchConversationDetails(activeConvId);
@@ -5055,7 +6033,7 @@
       if (isListening) {
         stopListening();
       } else {
-        startListening();
+        startListening(false);
       }
     });
 
@@ -5072,7 +6050,7 @@
         if (isListening) {
           stopListening();
         } else {
-          startListening();
+          startListening(false);
         }
       });
     }
@@ -5131,7 +6109,6 @@
     // Plan Review Buttons (Voice View)
     document.getElementById("voiceApprovePlanBtn")?.addEventListener("click", () => handlePlanAction('approve'));
     document.getElementById("voiceRequestPlanChangesBtn")?.addEventListener("click", () => {
-      switchView('chat');
       chatInput.value = "Please revise the implementation plan: ";
       chatInput.focus();
     });
@@ -5240,7 +6217,10 @@
       qrPairBtn.addEventListener("click", loadAndShowQrModal);
     }
     if (topNavQrBtn && qrPairModal) {
-      topNavQrBtn.addEventListener("click", loadAndShowQrModal);
+      topNavQrBtn.addEventListener("click", () => {
+        toggleHeaderDrawer(false);
+        loadAndShowQrModal();
+      });
     }
 
     if (closeQrPairModal && qrPairModal) {
@@ -5483,27 +6463,55 @@
     const newConvBtn = document.getElementById("newConvBtn");
     if (newConvBtn) {
       newConvBtn.addEventListener("click", async () => {
+        toggleHeaderDrawer(false);
+        // If in Obsidian mode, open Obsidian voice recording takeover
+        if (currentAppFilter === 'obsidian') {
+          openObsidianTakeover();
+          return;
+        }
+
         const originalHtml = newConvBtn.innerHTML;
         newConvBtn.disabled = true;
-        newConvBtn.innerHTML = `<span class="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>`;
+        newConvBtn.classList.add("opacity-70", "cursor-not-allowed");
+        newConvBtn.innerHTML = `<span class="w-3.5 h-3.5 border-2 border-black border-t-transparent rounded-full animate-spin"></span>`;
+
+        const targetEngine = (currentAppFilter === 'claude' || (currentAppFilter === 'all' && activeConvId && activeConvId.startsWith("claude_"))) ? 'claude' : 'antigravity';
+        const promptText = (chatInput && chatInput.value.trim()) ? chatInput.value.trim() : "Hello";
 
         try {
           const res = await fetch('/api/conversation/new', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt: "Hello" })
+            body: JSON.stringify({ prompt: promptText, engine: targetEngine })
           });
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.error || `HTTP ${res.status}`);
+          }
           const data = await res.json();
           if (data.conv_id) {
             activeConvId = data.conv_id;
-            switchView('chat');
+            if (currentView === 'chat') {
+              switchView('chat');
+            } else {
+              switchView('voice');
+            }
             await fetchConversations();
             await fetchConversationDetails(activeConvId);
-            chatInput.focus();
+            if (chatInput) {
+              chatInput.value = "";
+              if (currentView === 'chat') chatInput.focus();
+            }
+            const engineLabel = targetEngine === 'claude' ? 'Claude' : 'Antigravity';
+            showToast(`✨ New ${engineLabel} conversation started`, 2500);
+          } else {
+            throw new Error(data.error || "No conversation ID returned");
           }
         } catch (err) {
           console.error("Create new conversation error:", err);
+          showToast(`⚠️ Could not start conversation: ${err.message}`, 3500);
         } finally {
+          newConvBtn.classList.remove("opacity-70", "cursor-not-allowed");
           newConvBtn.disabled = false;
           newConvBtn.innerHTML = originalHtml;
         }
@@ -5512,19 +6520,20 @@
 
     convSelect.addEventListener("change", async (e) => {
       activeConvId = e.target.value;
+      updateHeaderCapsuleText();
+      toggleHeaderDrawer(false);
       if (!activeConvId) return;
 
-      // Immediately switch to the full conversation history view
-      switchView('chat');
-
-      // Show immediate loading indicator in chat stream
-      turnsContainer.innerHTML = `
-        <div class="flex flex-col items-center justify-center py-20 text-indigo-400 text-xs">
-          <div class="w-8 h-8 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin mb-3"></div>
-          <p class="font-semibold text-slate-200">Loading conversation history...</p>
-          <span class="text-[11px] text-slate-400 mt-1 font-mono">Fetching turns & working logs</span>
-        </div>
-      `;
+      // Keep user on their current tab (never hijack voice mode)
+      if (currentView === 'chat') {
+        turnsContainer.innerHTML = `
+          <div class="flex flex-col items-center justify-center py-20 text-indigo-400 text-xs">
+            <div class="w-8 h-8 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin mb-3"></div>
+            <p class="font-semibold text-slate-200">Loading conversation history...</p>
+            <span class="text-[11px] text-slate-400 mt-1 font-mono">Fetching turns & working logs</span>
+          </div>
+        `;
+      }
 
       try {
         await fetch('/api/switch', {
@@ -5537,13 +6546,18 @@
       }
 
       await fetchConversationDetails(activeConvId);
-      scrollToChatBottom();
+      if (currentView === 'chat') {
+        scrollToChatBottom();
+      }
     });
 
     autoListenToggle.addEventListener("change", (e) => {
       autoListen = e.target.checked;
-      document.getElementById("autoListenTag").innerText = autoListen ? "auto-listen on" : "auto-listen off";
-      document.getElementById("autoListenTag").className = autoListen ? "text-emerald-400 font-mono lowercase" : "text-slate-500 font-mono lowercase";
+      const tag = document.getElementById("autoListenTag");
+      if (tag) {
+        tag.innerText = autoListen ? "auto-listen on" : "auto-listen off";
+        tag.className = autoListen ? "text-emerald-400 font-mono lowercase" : "text-slate-500 font-mono lowercase";
+      }
       setOrbState('idle');
     });
 
@@ -5567,9 +6581,6 @@
         sendVoiceCommand(val || "Process attached images", false);
         chatInput.value = "";
         updateChatActionState();
-        if (currentView !== 'chat') {
-          switchView('chat');
-        }
       }
     });
 
@@ -5591,6 +6602,23 @@
           showToast(`Audio Routing: ${e.target.options[e.target.selectedIndex].text}`, 2000);
         } catch (err) {
           console.warn("Error saving audio routing mode:", err);
+        }
+      });
+    }
+
+    if (muteMacToggle) {
+      muteMacToggle.checked = muteMacWhenCompanionActive;
+      muteMacToggle.addEventListener("change", async (e) => {
+        muteMacWhenCompanionActive = e.target.checked;
+        try {
+          await fetch('/api/config/audio_routing', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mute_mac_when_companion_active: muteMacWhenCompanionActive })
+          });
+          showToast(muteMacWhenCompanionActive ? "Mute Mac When Active: Enabled" : "Mute Mac When Active: Disabled", 2000);
+        } catch (err) {
+          console.warn("Error saving mute mac setting:", err);
         }
       });
     }
@@ -5671,15 +6699,23 @@
       updateAgThemeUI();
       updateMicSourceUI();
       const urlParams = new URLSearchParams(window.location.search);
-      if (urlParams.get('sheet') === 'spicewood' || urlParams.get('reel') === 'spicewood' || urlParams.get('tab') === 'downloads') {
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      if (urlParams.get('sheet') === 'spicewood' || urlParams.get('reel') === 'spicewood' || urlParams.get('tab') === 'downloads' || hashParams.get('tab') === 'downloads') {
         switchView('downloads');
         selectCompanionReel('spicewood');
         if (urlParams.get('sheet') === 'spicewood' || urlParams.get('open_sheet') === '1') {
           setTimeout(openCompanionLeadSheet, 250);
         }
       } else {
-        switchView('voice');
+        const savedView = localStorage.getItem('voicefi_companion_view');
+        if (savedView && ['voice', 'chat', 'artifacts', 'downloads'].includes(savedView)) {
+          switchView(savedView);
+        } else {
+          switchView('voice');
+        }
       }
+      fetchConversations();
+      updateHeaderCapsuleText();
       connectWebSocket();
       initMarkdownCommenting();
       initImageMarkupStudio();
@@ -5764,7 +6800,7 @@
             if (micSource === 'mac') {
               startMacRecording();
             } else {
-              startListening();
+              startListening(false);
             }
           }
         }
@@ -5781,6 +6817,194 @@
 
       document.getElementById("voiceRemoveAttachedBtn")?.addEventListener("click", clearAllAttachedImages);
       document.getElementById("micSourceToggleBtn")?.addEventListener("click", toggleMicSource);
+
+      // 7. Obsidian 2-Way Voice Recording Takeover Layover Listeners
+      const obsidianBtn = document.getElementById("chatObsidianBtn");
+      const obsModal = document.getElementById("obsidianModal");
+      const closeObsModal = document.getElementById("closeObsidianModal");
+      const takeoverDismissBtn = document.getElementById("obsidianTakeoverDismissBtn");
+      const dailyCaptureBtn = document.getElementById("obsidianDailyCaptureBtn");
+      const voiceMemoBtn = document.getElementById("obsidianVoiceMemoBtn");
+      const takeoverOrb = document.getElementById("obsidianTakeoverOrb");
+      const takeoverPrimaryBtn = document.getElementById("obsidianTakeoverPrimaryBtn");
+      const toggleTypeBtn = document.getElementById("obsidianToggleTypeBtn");
+      const takeoverTextarea = document.getElementById("obsidianTakeoverTextarea");
+
+      function handleObsidianTakeoverAction() {
+        if (isObsidianTakeoverTyping) {
+          const textarea = document.getElementById("obsidianTakeoverTextarea");
+          const text = textarea ? textarea.value.trim() : "";
+          if (!text) {
+            showToast("Please type a note first", 2500);
+            return;
+          }
+          sendVoiceCommand(text, false);
+          return;
+        }
+
+        const primaryBtn = document.getElementById("obsidianTakeoverPrimaryBtn");
+        const isRetry = primaryBtn && primaryBtn.innerText && primaryBtn.innerText.includes("Retry");
+        const streamEl = document.getElementById("obsidianTakeoverStreamText");
+        const streamRaw = streamEl ? streamEl.innerText.trim() : "";
+        const hasText = streamRaw && !streamRaw.includes("Your spoken thoughts will stream");
+
+        if (isRetry && hasText) {
+          updateObsidianTakeoverSaving('saving');
+          sendVoiceCommand(streamRaw, false);
+          return;
+        }
+
+        if (!isListening) {
+          startListening(false);
+        } else {
+          updateObsidianTakeoverSaving('saving');
+          stopListening();
+        }
+      }
+
+      if (obsidianBtn) {
+        obsidianBtn.addEventListener("click", () => {
+          openObsidianTakeover();
+        });
+      }
+      if (closeObsModal) {
+        closeObsModal.addEventListener("click", closeObsidianTakeover);
+      }
+      if (takeoverDismissBtn) {
+        takeoverDismissBtn.addEventListener("click", closeObsidianTakeover);
+      }
+      if (obsModal) {
+        obsModal.addEventListener("click", (e) => {
+          if (e.target === obsModal) closeObsidianTakeover();
+        });
+      }
+      if (dailyCaptureBtn) {
+        dailyCaptureBtn.addEventListener("click", () => {
+          setObsidianMode('capture');
+        });
+      }
+      if (voiceMemoBtn) {
+        voiceMemoBtn.addEventListener("click", () => {
+          setObsidianMode('memo');
+        });
+      }
+      if (takeoverOrb) {
+        takeoverOrb.addEventListener("click", handleObsidianTakeoverAction);
+      }
+      if (takeoverPrimaryBtn) {
+        takeoverPrimaryBtn.addEventListener("click", handleObsidianTakeoverAction);
+      }
+      if (toggleTypeBtn) {
+        toggleTypeBtn.addEventListener("click", () => {
+          const streamText = document.getElementById("obsidianTakeoverStreamText");
+          const textarea = document.getElementById("obsidianTakeoverTextarea");
+          const primaryBtn = document.getElementById("obsidianTakeoverPrimaryBtn");
+
+          isObsidianTakeoverTyping = !isObsidianTakeoverTyping;
+          if (isObsidianTakeoverTyping) {
+            if (isListening) stopListening();
+            if (streamText) streamText.classList.add("hidden");
+            if (textarea) {
+              textarea.classList.remove("hidden");
+              if (streamText && streamText.innerText !== "Your spoken thoughts will stream here live as you talk...") {
+                textarea.value = streamText.innerText.trim();
+              }
+              textarea.focus();
+            }
+            toggleTypeBtn.innerHTML = `<span>🎙️</span> <span>Voice stream instead</span>`;
+            if (primaryBtn) {
+              primaryBtn.className = "w-full h-14 rounded-2xl bg-white hover:bg-zinc-200 active:scale-95 text-black font-black text-sm sm:text-base flex items-center justify-center gap-2 shadow-lg transition cursor-pointer";
+              primaryBtn.innerHTML = `<span>💾</span> <span>Save to ${currentObsidianMode === 'memo' ? 'Voice Memo' : 'Daily Note'}</span>`;
+            }
+          } else {
+            if (textarea) textarea.classList.add("hidden");
+            if (streamText) {
+              streamText.classList.remove("hidden");
+              if (textarea && textarea.value.trim()) {
+                streamText.innerText = textarea.value.trim();
+                streamText.className = "text-xs sm:text-sm text-white font-medium leading-relaxed font-sans";
+              }
+            }
+            toggleTypeBtn.innerHTML = `<span>⌨️</span> <span>Type instead</span>`;
+            if (primaryBtn) {
+              primaryBtn.className = "w-full h-14 rounded-2xl bg-white hover:bg-zinc-200 active:scale-95 text-black font-black text-sm sm:text-base flex items-center justify-center gap-2 shadow-lg transition cursor-pointer";
+              const label = currentObsidianMode === 'memo' ? 'Tap to Record AI Voice Memo' : 'Tap to Record Daily Note';
+              primaryBtn.innerHTML = `<span>🎙️</span> <span>${label}</span>`;
+            }
+          }
+        });
+      }
+      if (takeoverTextarea) {
+        takeoverTextarea.addEventListener("keydown", (e) => {
+          if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+            e.preventDefault();
+            handleObsidianTakeoverAction();
+          }
+        });
+      }
+
+      // 8. Voice Stage Quick-Control Pills & Action Buttons
+      const voiceAutoListenPill = document.getElementById("voiceAutoListenPill");
+      if (voiceAutoListenPill) {
+        voiceAutoListenPill.addEventListener("click", () => {
+          autoListen = !autoListen;
+          if (autoListenToggle) autoListenToggle.checked = autoListen;
+          const dot = document.getElementById("voiceAutoListenDot");
+          const text = document.getElementById("voiceAutoListenText");
+          if (dot) dot.className = autoListen ? "w-2 h-2 rounded-full bg-emerald-400 animate-pulse" : "w-2 h-2 rounded-full bg-zinc-600";
+          if (text) text.innerText = autoListen ? "Auto-Listen: ON" : "Auto-Listen: OFF";
+          const tag = document.getElementById("autoListenTag");
+          if (tag) {
+            tag.innerText = autoListen ? "[auto-listen on]" : "[auto-listen off]";
+            tag.className = autoListen ? "text-emerald-400 font-mono lowercase" : "text-slate-500 font-mono lowercase";
+          }
+          showToast(`Auto-Listen ${autoListen ? 'Enabled' : 'Disabled'}`, 2000);
+        });
+      }
+
+      const voiceMicSourcePill = document.getElementById("voiceMicSourcePill");
+      if (voiceMicSourcePill) {
+        voiceMicSourcePill.addEventListener("click", toggleMicSource);
+      }
+
+      const voiceSpeedPill = document.getElementById("voiceSpeedPill");
+      if (voiceSpeedPill) {
+        voiceSpeedPill.addEventListener("click", () => {
+          const speeds = [1.0, 1.25, 1.5, 2.0];
+          const curIdx = speeds.indexOf(currentVoiceSpeed);
+          currentVoiceSpeed = speeds[(curIdx + 1) % speeds.length];
+          const text = document.getElementById("voiceSpeedText");
+          if (text) text.innerText = `${currentVoiceSpeed.toFixed(currentVoiceSpeed % 1 === 0 ? 1 : 2)}x`;
+          showToast(`⚡ Voice Speed: ${currentVoiceSpeed}x`, 2000);
+        });
+      }
+
+      const soundbiteReplayBtn = document.getElementById("soundbiteReplayBtn");
+      if (soundbiteReplayBtn) {
+        soundbiteReplayBtn.addEventListener("click", () => {
+          const text = (document.getElementById("latestText")?.innerText || lastSpokenAgentText || "").replace(/^"|"$/g, '').trim();
+          if (!text || text === "Ready to pair with your Mac. Tap the button to begin speaking.") {
+            showToast("No spoken soundbite to replay yet", 2000);
+            return;
+          }
+          showToast("🔊 Replaying soundbite...", 2000);
+          fetch('/api/speak', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: text, voice: 'Viv' })
+          }).catch(e => console.warn("Replay error:", e));
+        });
+      }
+
+      const soundbiteCopyBtn = document.getElementById("soundbiteCopyBtn");
+      if (soundbiteCopyBtn) {
+        soundbiteCopyBtn.addEventListener("click", () => {
+          const text = (document.getElementById("latestText")?.innerText || lastSpokenAgentText || "").replace(/^"|"$/g, '').trim();
+          if (text) {
+            navigator.clipboard.writeText(text).then(() => showToast("📋 Soundbite copied!", 2000)).catch(() => {});
+          }
+        });
+      }
 
       // Wire HTTPS redirect button
       const httpsBtn = document.getElementById("httpsRedirectBtn");
@@ -5807,6 +7031,10 @@
               audioRoutingMode = cfg.audio_routing;
               if (audioRoutingSelect) audioRoutingSelect.value = audioRoutingMode;
             }
+          }
+          if (typeof cfg.mute_mac_when_companion_active === "boolean") {
+            muteMacWhenCompanionActive = cfg.mute_mac_when_companion_active;
+            if (muteMacToggle) muteMacToggle.checked = muteMacWhenCompanionActive;
           }
         }
       } catch (err) {
@@ -5875,6 +7103,16 @@
             if (container) container.scrollTop = container.scrollHeight;
           }, 100);
         });
+      }
+
+      // Guarantee remote companion respects active view, defaulting to voice unless changed
+      if (currentView !== 'downloads') {
+        const savedView = localStorage.getItem('voicefi_companion_view');
+        if (savedView && ['voice', 'chat', 'artifacts', 'downloads'].includes(savedView)) {
+          switchView(savedView);
+        } else {
+          switchView('voice');
+        }
       }
     }
 
