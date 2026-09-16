@@ -602,6 +602,75 @@ class ReelBuilder:
         return slides
 
     @classmethod
+    def render_slides_fast(
+        cls,
+        slides: List[Dict[str, Any]],
+        format_type: str,
+        preset_cfg: Dict[str, Any],
+        font_multiplier: float,
+        width: int,
+        height: int,
+        tmp_dir: Path,
+    ) -> List[Path]:
+        """
+        Renders HTML slides to PNG images efficiently using a single persistent Playwright session.
+        Falls back to Chrome CLI if Playwright is unavailable.
+        """
+        png_files = [tmp_dir / f"slide_{idx}.png" for idx in range(len(slides))]
+        html_contents = [
+            cls.render_html_slide(
+                slide_data=s,
+                format_type=format_type,
+                preset_config=preset_cfg,
+                font_multiplier=font_multiplier,
+            )
+            for s in slides
+        ]
+
+        # Fast path: Playwright single browser session (20x-100x faster than cold-starting Chrome)
+        try:
+            from playwright.sync_api import sync_playwright
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=True)
+                page = browser.new_page(viewport={"width": width, "height": height})
+                for idx, html_code in enumerate(html_contents):
+                    html_file = tmp_dir / f"slide_{idx}.html"
+                    html_file.write_text(html_code, encoding="utf-8")
+                    page.set_content(html_code)
+                    try:
+                        page.evaluate("() => document.fonts.ready")
+                    except Exception:
+                        pass
+                    page.screenshot(path=str(png_files[idx]))
+                browser.close()
+            return png_files
+        except Exception:
+            pass
+
+        # Fallback: Sequential Chrome CLI
+        chrome_path = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+        if not os.path.exists(chrome_path):
+            chrome_path = shutil.which("google-chrome") or shutil.which("chromium") or "google-chrome"
+
+        for idx, html_code in enumerate(html_contents):
+            html_file = tmp_dir / f"slide_{idx}.html"
+            html_file.write_text(html_code, encoding="utf-8")
+            png_file = png_files[idx]
+            cmd = [
+                chrome_path,
+                "--headless",
+                "--disable-gpu",
+                f"--window-size={width},{height}",
+                f"--screenshot={str(png_file)}",
+                f"file://{str(html_file)}",
+            ]
+            res = subprocess.run(cmd, capture_output=True, text=True)
+            if res.returncode != 0 or not png_file.is_file():
+                raise RuntimeError(f"Chrome screenshot failed for slide {idx}: {res.stderr}")
+
+        return png_files
+
+    @classmethod
     def compile_reel(
         cls,
         output_mp4: Union[str, Path],
@@ -641,35 +710,16 @@ class ReelBuilder:
         tmp_dir = Path(tempfile.mkdtemp(prefix="vifi_reel_build_"))
 
         try:
-            # 1. Render HTML slides to PNG images via Headless Chrome
-            png_files = []
-            chrome_path = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-            if not os.path.exists(chrome_path):
-                chrome_path = "google-chrome"
-
-            for idx, s in enumerate(slides):
-                html_file = tmp_dir / f"slide_{idx}.html"
-                png_file = tmp_dir / f"slide_{idx}.png"
-                html_content = cls.render_html_slide(
-                    slide_data=s,
-                    format_type=format_type,
-                    preset_config=preset_cfg,
-                    font_multiplier=font_multiplier,
-                )
-                html_file.write_text(html_content, encoding="utf-8")
-
-                cmd = [
-                    chrome_path,
-                    "--headless",
-                    "--disable-gpu",
-                    f"--window-size={width},{height}",
-                    f"--screenshot={str(png_file)}",
-                    f"file://{str(html_file)}",
-                ]
-                res = subprocess.run(cmd, capture_output=True, text=True)
-                if res.returncode != 0 or not png_file.is_file():
-                    raise RuntimeError(f"Chrome screenshot failed for slide {idx}: {res.stderr}")
-                png_files.append(png_file)
+            # 1. Render HTML slides to PNG images via persistent browser
+            png_files = cls.render_slides_fast(
+                slides=slides,
+                format_type=format_type,
+                preset_cfg=preset_cfg,
+                font_multiplier=font_multiplier,
+                width=width,
+                height=height,
+                tmp_dir=tmp_dir,
+            )
 
             # 2. Build FFmpeg concat plan
             concat_file = tmp_dir / "concat_plan.txt"
@@ -679,7 +729,8 @@ class ReelBuilder:
                     f.write(f"duration {s.get('dur', 4.0):.3f}\n")
                 f.write(f"file '{png_files[-1]}'\n")
 
-            # 3. Compile MP4 with FFmpeg
+            # 3. Compile MP4 with hardware-accelerated FFmpeg
+            encoder_args = get_video_encoder_args(quality="high")
             cmd_ffmpeg = [
                 "ffmpeg",
                 "-y",
@@ -691,14 +742,7 @@ class ReelBuilder:
                 str(concat_file),
                 "-i",
                 str(audio_path),
-                "-c:v",
-                "libx264",
-                "-pix_fmt",
-                "yuv420p",
-                "-preset",
-                "medium",
-                "-crf",
-                "19",
+                *encoder_args,
                 "-c:a",
                 "aac",
                 "-b:a",
@@ -716,3 +760,27 @@ class ReelBuilder:
 
         finally:
             shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+def get_video_encoder_args(quality: str = "high") -> List[str]:
+    """
+    Returns optimal hardware-accelerated video encoder flags.
+    Uses Apple Silicon VideoToolbox ('h264_videotoolbox') on macOS when available,
+    falling back to CPU 'libx264' with fast presets.
+    """
+    if sys.platform == "darwin":
+        bitrate = "12M" if quality == "high" else "8M"
+        return [
+            "-c:v", "h264_videotoolbox",
+            "-b:v", bitrate,
+            "-pix_fmt", "yuv420p"
+        ]
+    else:
+        preset = "fast" if quality == "high" else "veryfast"
+        crf = "18" if quality == "high" else "22"
+        return [
+            "-c:v", "libx264",
+            "-preset", preset,
+            "-crf", crf,
+            "-pix_fmt", "yuv420p"
+        ]

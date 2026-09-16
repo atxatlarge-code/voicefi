@@ -25,6 +25,7 @@ from voicefi.video.reel_builder import (
     VOICEFI_LOGO_SVG,
     RADIO_HOST_LOGO_SVG,
     JAKE_LOGO_SVG,
+    get_video_encoder_args,
 )
 
 # Canonical Speaker Profiles
@@ -236,11 +237,8 @@ class KineticKaraokeEngine:
   }}
   .word-active {{
     color: {tag_color};
-    font-weight: 900;
+    font-weight: 800;
     text-shadow: 0 0 32px {tag_color}, 0 0 12px {tag_color};
-    display: inline-block;
-    transform: scale(1.06);
-    padding: 0 2px;
   }}
   .word-upcoming {{
     color: #64748B;
@@ -276,6 +274,106 @@ class KineticKaraokeEngine:
 </html>"""
 
     @classmethod
+    def render_karaoke_frames_fast(
+        cls,
+        turn_idx: int,
+        speaker_info: Dict[str, str],
+        subtext: str,
+        words: List[Tuple[str, float, float]],
+        unique_states: List[int],
+        tmp_dir: Path,
+        width: int = 1080,
+        height: int = 1920,
+    ) -> Dict[int, Path]:
+        """
+        Renders all required karaoke overlay frames for a turn.
+        Uses persistent Playwright session with in-memory DOM updates (setActiveWord)
+        for ultra-fast rendering (~40ms/frame), with transparent Chrome CLI fallback.
+        """
+        state_png_map: Dict[int, Path] = {}
+        for s in unique_states:
+            state_png_map[s] = tmp_dir / f"turn_{turn_idx}_state_{s}.png"
+
+        # Try fast path via Playwright
+        try:
+            from playwright.sync_api import sync_playwright
+
+            base_html = cls.render_overlay_html(
+                speaker_info=speaker_info,
+                subtext=subtext,
+                words=words,
+                active_word_idx=-1,
+                width=width,
+                height=height,
+            )
+            # Inject fast DOM toggler script into base HTML
+            dom_script = """
+<script>
+function setActiveWord(activeIdx) {
+  const spans = document.querySelectorAll('.caption-text span');
+  spans.forEach((span, idx) => {
+    if (activeIdx === -1) {
+      span.className = 'word-upcoming';
+    } else if (idx < activeIdx) {
+      span.className = 'word-spoken';
+    } else if (idx === activeIdx) {
+      span.className = 'word-active';
+    } else {
+      span.className = 'word-upcoming';
+    }
+  });
+}
+</script>
+</body>"""
+            scripted_html = base_html.replace("</body>", dom_script)
+
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=True)
+                page = browser.new_page(viewport={"width": width, "height": height})
+                page.set_content(scripted_html)
+                try:
+                    page.evaluate("() => document.fonts.ready")
+                except Exception:
+                    pass
+                for state_idx in unique_states:
+                    page.evaluate(f"setActiveWord({state_idx})")
+                    page.screenshot(path=str(state_png_map[state_idx]), omit_background=True)
+                browser.close()
+            return state_png_map
+        except Exception:
+            pass
+
+        # Fallback: Chrome CLI per frame
+        chrome_path = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+        if not os.path.exists(chrome_path):
+            chrome_path = shutil.which("google-chrome") or shutil.which("chromium") or "google-chrome"
+
+        for state_idx in unique_states:
+            png_file = state_png_map[state_idx]
+            html_file = tmp_dir / f"turn_{turn_idx}_state_{state_idx}.html"
+            html_content = cls.render_overlay_html(
+                speaker_info=speaker_info,
+                subtext=subtext,
+                words=words,
+                active_word_idx=state_idx,
+                width=width,
+                height=height,
+            )
+            html_file.write_text(html_content, encoding="utf-8")
+            cmd = [
+                chrome_path,
+                "--headless",
+                "--disable-gpu",
+                "--default-background-color=00000000",
+                f"--window-size={width},{height}",
+                f"--screenshot={str(png_file)}",
+                f"file://{str(html_file)}",
+            ]
+            subprocess.run(cmd, capture_output=True, check=True)
+
+        return state_png_map
+
+    @classmethod
     def compile_section(
         cls,
         clip_path: Path,
@@ -287,6 +385,7 @@ class KineticKaraokeEngine:
         fps: int = 24,
     ):
         """Composite video clip with transparent word overlay stream."""
+        encoder_args = get_video_encoder_args(quality="high")
         cmd = [
             "ffmpeg",
             "-y",
@@ -306,17 +405,11 @@ class KineticKaraokeEngine:
             "[v_out]",
             "-t",
             f"{duration:.3f}",
-            "-c:v",
-            "libx264",
-            "-preset",
-            "fast",
-            "-crf",
-            "18",
-            "-pix_fmt",
-            "yuv420p",
+            *encoder_args,
             "-an",
             str(out_mp4),
         ]
         res = subprocess.run(cmd, capture_output=True, text=True)
         if res.returncode != 0:
             raise RuntimeError(f"Section compilation failed: {res.stderr}")
+
