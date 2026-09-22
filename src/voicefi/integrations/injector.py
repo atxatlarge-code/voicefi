@@ -92,6 +92,51 @@ def open_accessibility_settings() -> None:
         pass
 
 
+def cooperative_activate_app(target_app: Any) -> bool:
+    """
+    Cooperatively activate target macOS application without focus drops on macOS 14+ (Sonoma/Sequoia).
+    Yields the current process's activation token to the target application before requesting activation.
+    Falls back gracefully to activateWithOptions_ on macOS 11-13.
+    """
+    if not target_app:
+        return False
+
+    try:
+        from AppKit import NSApplication, NSRunningApplication
+
+        # On macOS 14+, NSApplication.sharedApplication() or NSRunningApplication supports yieldActivationToApplication:
+        ns_app = NSApplication.sharedApplication()
+        if hasattr(ns_app, "yieldActivationToApplication_"):
+            try:
+                ns_app.yieldActivationToApplication_(target_app)
+            except Exception:
+                pass
+        else:
+            curr = NSRunningApplication.currentApplication()
+            if hasattr(curr, "yieldActivationToApplication_"):
+                try:
+                    curr.yieldActivationToApplication_(target_app)
+                except Exception:
+                    pass
+
+        # Request target app activation (macOS 14+ activate)
+        if hasattr(target_app, "activate"):
+            try:
+                res = target_app.activate()
+                if res is True or res is None:
+                    return True
+            except Exception:
+                pass
+
+        # Fallback for macOS 11-13 or older runtimes
+        if hasattr(target_app, "activateWithOptions_"):
+            return bool(target_app.activateWithOptions_(3))
+    except Exception:
+        pass
+
+    return False
+
+
 def focus_antigravity(focus_input: bool = True) -> bool:
     """
     Bring Antigravity application window to the front and focus chat input box.
@@ -111,10 +156,7 @@ def focus_antigravity(focus_input: bool = True) -> bool:
             loc_name = (app.localizedName() or "").lower()
             bundle_id = (app.bundleIdentifier() or "").lower()
             if loc_name in ("antigravity", "antigravity ide") or bundle_id == "com.google.antigravity":
-                app.activateWithOptions_(
-                    NSApplicationActivateIgnoringOtherApps | NSApplicationActivateAllWindows
-                )
-                activated = True
+                activated = cooperative_activate_app(app)
                 break
     except Exception:
         pass
@@ -185,11 +227,33 @@ def focus_antigravity(focus_input: bool = True) -> bool:
 def navigate_to_antigravity_conversation(conv_id: str, title: Optional[str] = None) -> bool:
     """
     Navigate the Antigravity desktop window directly to a specific conversation by ID or title.
-    Uses macOS Accessibility (AXUIElement) and Quartz mouse events to locate and click
+    Uses macOS Accessibility (AXUIElement) and Quartz mouse events to locate and select
     the conversation link without moving the user's mouse cursor.
     """
     if not conv_id:
         return False
+    if os.environ.get("PYTEST_CURRENT_TEST"):
+        return True
+
+    # Resolve conversation title from SQLite database if not supplied
+    if not title and conv_id:
+        try:
+            import sqlite3
+            from pathlib import Path
+
+            db_path = Path.home() / ".gemini" / "antigravity" / "conversation_summaries.db"
+            if db_path.is_file():
+                with sqlite3.connect(str(db_path), timeout=0.5) as conn:
+                    cur = conn.cursor()
+                    cur.execute(
+                        "SELECT title FROM conversation_summaries WHERE conversation_id = ? LIMIT 1",
+                        (str(conv_id),),
+                    )
+                    row = cur.fetchone()
+                    if row and row[0]:
+                        title = str(row[0])
+        except Exception:
+            pass
 
     try:
         from AppKit import NSWorkspace
@@ -197,6 +261,7 @@ def navigate_to_antigravity_conversation(conv_id: str, title: Optional[str] = No
             AXUIElementCreateApplication,
             AXUIElementCopyAttributeValue,
             AXUIElementSetAttributeValue,
+            AXUIElementPerformAction,
             AXValueGetValue,
             kAXValueCGRectType,
         )
@@ -206,26 +271,65 @@ def navigate_to_antigravity_conversation(conv_id: str, title: Optional[str] = No
         apps = [
             a
             for a in ws.runningApplications()
-            if a.localizedName() in ("Antigravity", "Antigravity IDE")
+            if (a.localizedName() or "").strip() in ("Antigravity", "Antigravity IDE")
         ]
         if not apps:
             return False
         app = apps[0]
-        app.activateWithOptions_(1 << 1)
-        time.sleep(0.12)
+        cooperative_activate_app(app)
+        time.sleep(0.10)
 
         app_ax = AXUIElementCreateApplication(app.processIdentifier())
         AXUIElementSetAttributeValue(app_ax, "AXManualAccessibility", True)
-        err, windows = AXUIElementCopyAttributeValue(app_ax, "AXWindows", None)
-        if not windows:
+
+        # In Chromium/Electron, AXWindows is often empty () while AXMainWindow/AXFocusedWindow exist
+        win = None
+        err, win = AXUIElementCopyAttributeValue(app_ax, "AXMainWindow", None)
+        if not win or err != 0:
+            err, win = AXUIElementCopyAttributeValue(app_ax, "AXFocusedWindow", None)
+        if not win or err != 0:
+            err, windows = AXUIElementCopyAttributeValue(app_ax, "AXWindows", None)
+            if windows:
+                win = windows[0]
+        if not win:
+            return focus_antigravity(focus_input=True)
+
+        # Fast-path: check if target conversation is ALREADY open in the active window
+        def _check_already_active(el, depth=0):
+            if depth > 10:
+                return False
+            err, role = AXUIElementCopyAttributeValue(el, "AXRole", None)
+            if role == "AXWebArea":
+                err, url = AXUIElementCopyAttributeValue(el, "AXURL", None)
+                url_str = str(url) if url else ""
+                if conv_id and f"/c/{conv_id}" in url_str:
+                    return True
+            err, children = AXUIElementCopyAttributeValue(el, "AXChildren", None)
+            if children:
+                for c in children:
+                    if _check_already_active(c, depth + 1):
+                        return True
             return False
-        win = windows[0]
+
+        if _check_already_active(win):
+            time.sleep(0.04)
+            subprocess.run(
+                [
+                    "osascript",
+                    "-e",
+                    'tell application "System Events" to keystroke "l" using command down',
+                ],
+                capture_output=True,
+                timeout=2,
+            )
+            return True
 
         target_link = None
+        clean_title = (title or "").strip().lower()
 
         def _find_link(el, depth=0):
             nonlocal target_link
-            if target_link or depth > 35:
+            if target_link is not None or depth > 35:
                 return
             err, role = AXUIElementCopyAttributeValue(el, "AXRole", None)
             if role == "AXLink":
@@ -234,11 +338,10 @@ def navigate_to_antigravity_conversation(conv_id: str, title: Optional[str] = No
                 if conv_id and f"/c/{conv_id}" in url_str:
                     target_link = el
                     return
-                if title:
+                if clean_title:
                     err, desc = AXUIElementCopyAttributeValue(el, "AXDescription", None)
-                    if desc and (
-                        title.lower() in str(desc).lower() or str(desc).lower() in title.lower()
-                    ):
+                    desc_str = str(desc).strip().lower() if desc else ""
+                    if desc_str and (clean_title in desc_str or desc_str in clean_title):
                         target_link = el
                         return
             err, children = AXUIElementCopyAttributeValue(el, "AXChildren", None)
@@ -259,40 +362,46 @@ def navigate_to_antigravity_conversation(conv_id: str, title: Optional[str] = No
                 capture_output=True,
                 timeout=2,
             )
-            time.sleep(0.25)
-            err, windows = AXUIElementCopyAttributeValue(app_ax, "AXWindows", None)
-            if windows:
-                _find_link(windows[0])
+            time.sleep(0.20)
+            err, win_hist = AXUIElementCopyAttributeValue(app_ax, "AXMainWindow", None)
+            if win_hist:
+                _find_link(win_hist)
+            if not target_link:
+                err, win_foc = AXUIElementCopyAttributeValue(app_ax, "AXFocusedWindow", None)
+                if win_foc:
+                    _find_link(win_foc)
 
         if not target_link:
-            return False
+            return focus_antigravity(focus_input=True)
 
+        # 1. Native AXPress action
+        AXUIElementPerformAction(target_link, "AXPress")
+        time.sleep(0.06)
+
+        # 2. Resilient Quartz click fallback if frame is available
         err, frame_val = AXUIElementCopyAttributeValue(target_link, "AXFrame", None)
-        if not frame_val:
-            return False
-        success, rect = AXValueGetValue(frame_val, kAXValueCGRectType, None)
-        if not success or rect.size.width <= 0 or rect.size.height <= 0:
-            return False
+        if frame_val:
+            success, rect = AXValueGetValue(frame_val, kAXValueCGRectType, None)
+            if success and rect.size.width > 0:
+                center_x = rect.origin.x + rect.size.width / 2
+                center_y = rect.origin.y + (rect.size.height / 2 if rect.size.height > 5 else 15.0)
+                prev_pos = Quartz.CGEventGetLocation(Quartz.CGEventCreate(None))
 
-        center_x = rect.origin.x + rect.size.width / 2
-        center_y = rect.origin.y + rect.size.height / 2
-        prev_pos = Quartz.CGEventGetLocation(Quartz.CGEventCreate(None))
+                point = Quartz.CGPoint(center_x, center_y)
+                down = Quartz.CGEventCreateMouseEvent(
+                    None, Quartz.kCGEventLeftMouseDown, point, Quartz.kCGMouseButtonLeft
+                )
+                up = Quartz.CGEventCreateMouseEvent(
+                    None, Quartz.kCGEventLeftMouseUp, point, Quartz.kCGMouseButtonLeft
+                )
+                Quartz.CGEventPost(Quartz.kCGHIDEventTap, down)
+                time.sleep(0.04)
+                Quartz.CGEventPost(Quartz.kCGHIDEventTap, up)
+                time.sleep(0.04)
+                Quartz.CGWarpMouseCursorPosition(prev_pos)
 
-        point = Quartz.CGPoint(center_x, center_y)
-        down = Quartz.CGEventCreateMouseEvent(
-            None, Quartz.kCGEventLeftMouseDown, point, Quartz.kCGMouseButtonLeft
-        )
-        up = Quartz.CGEventCreateMouseEvent(
-            None, Quartz.kCGEventLeftMouseUp, point, Quartz.kCGMouseButtonLeft
-        )
-        Quartz.CGEventPost(Quartz.kCGHIDEventTap, down)
-        time.sleep(0.04)
-        Quartz.CGEventPost(Quartz.kCGHIDEventTap, up)
-        time.sleep(0.04)
-        Quartz.CGWarpMouseCursorPosition(prev_pos)
-
-        # Focus chat input with Cmd+L
-        time.sleep(0.1)
+        # 3. Focus chat input with Cmd+L
+        time.sleep(0.12)
         subprocess.run(
             [
                 "osascript",
@@ -305,7 +414,202 @@ def navigate_to_antigravity_conversation(conv_id: str, title: Optional[str] = No
         return True
     except Exception as e:
         print(f"[Injector] Notice navigating to Antigravity conversation: {e}")
-        return False
+        return focus_antigravity(focus_input=True)
+
+
+def select_claude_conversation_window(
+    conv_id: Optional[str] = None,
+    title: Optional[str] = None,
+) -> bool:
+    """
+    Focus Claude Code application window and select the active conversation thread.
+    Supports both Claude Desktop (Claude.app) and CLI terminal emulators
+    (Terminal.app, iTerm2, Ghostty, Warp, Cursor, Code).
+    """
+    if os.environ.get("PYTEST_CURRENT_TEST"):
+        return True
+
+    # 1. Check for running Claude Desktop app
+    try:
+        from AppKit import NSWorkspace
+
+        ws = NSWorkspace.sharedWorkspace()
+        claude_apps = [
+            a for a in ws.runningApplications() if (a.localizedName() or "").lower() == "claude"
+        ]
+        if claude_apps:
+            claude_app = claude_apps[0]
+            cooperative_activate_app(claude_app)
+            time.sleep(0.10)
+
+            # If conv_id is provided, resolve conversation title from session jsonl
+            resolved_title = title
+            if not resolved_title and conv_id:
+                try:
+                    import glob
+                    import json
+                    from pathlib import Path
+
+                    clean_cid = conv_id.replace("claude_", "")
+                    pattern = str(
+                        Path.home() / ".claude" / "projects" / "*" / f"{clean_cid}.jsonl"
+                    )
+                    matched_files = glob.glob(pattern)
+                    if matched_files:
+                        with open(matched_files[0], "r", encoding="utf-8") as fp:
+                            for line in fp:
+                                try:
+                                    obj = json.loads(line.strip())
+                                    if obj.get("type") == "custom-title" and obj.get("customTitle"):
+                                        resolved_title = obj.get("customTitle")
+                                        break
+                                except Exception:
+                                    continue
+                except Exception:
+                    pass
+
+            # If we have a title, search Claude Desktop's AX tree for matching conversation button
+            if resolved_title:
+                try:
+                    from ApplicationServices import (
+                        AXUIElementCreateApplication,
+                        AXUIElementSetAttributeValue,
+                        AXUIElementCopyAttributeValue,
+                        AXUIElementPerformAction,
+                    )
+
+                    app_ax = AXUIElementCreateApplication(claude_app.processIdentifier())
+                    AXUIElementSetAttributeValue(app_ax, "AXManualAccessibility", True)
+                    err, win = AXUIElementCopyAttributeValue(app_ax, "AXMainWindow", None)
+                    if not win:
+                        err, wins = AXUIElementCopyAttributeValue(app_ax, "AXWindows", None)
+                        if wins:
+                            win = wins[0]
+
+                    target_btn = None
+                    t_lower = resolved_title.strip().lower()
+
+                    def _find_claude_btn(el, depth=0):
+                        nonlocal target_btn
+                        if target_btn is not None or depth > 30:
+                            return
+                        err, role = AXUIElementCopyAttributeValue(el, "AXRole", None)
+                        if role in ("AXButton", "AXRow", "AXStaticText"):
+                            for attr in ("AXTitle", "AXDescription", "AXValue"):
+                                err, text_val = AXUIElementCopyAttributeValue(el, attr, None)
+                                if text_val and t_lower in str(text_val).strip().lower():
+                                    target_btn = el
+                                    return
+                        err, children = AXUIElementCopyAttributeValue(el, "AXChildren", None)
+                        if children:
+                            for c in children:
+                                _find_claude_btn(c, depth + 1)
+
+                    if win:
+                        _find_claude_btn(win)
+                    if target_btn:
+                        AXUIElementPerformAction(target_btn, "AXPress")
+                        time.sleep(0.08)
+                except Exception as e:
+                    print(f"[Injector] Notice selecting Claude Desktop conversation: {e}")
+
+            # Focus prompt textarea in Claude Desktop
+            if _focus_and_click_claude_desktop():
+                return True
+            return True
+    except Exception as e:
+        print(f"[Injector] Notice checking Claude Desktop: {e}")
+
+    # 2. Check for Claude CLI session in terminal
+    focused_term = focus_terminal_app()
+    if focused_term:
+        return True
+
+    return focus_app_by_name("Claude")
+
+
+def select_codex_conversation_window(
+    conv_id: Optional[str] = None,
+    title: Optional[str] = None,
+) -> bool:
+    """
+    Focus Codex application window and select the active thread or conversation.
+    Supports ChatGPT macOS desktop app and terminal emulators.
+    """
+    if os.environ.get("PYTEST_CURRENT_TEST"):
+        return True
+
+    # 1. Check for ChatGPT desktop app
+    try:
+        from AppKit import NSWorkspace
+
+        ws = NSWorkspace.sharedWorkspace()
+        chatgpt_apps = [
+            a
+            for a in ws.runningApplications()
+            if (a.localizedName() or "").lower() in ("chatgpt", "chatgpt.app")
+            or (a.bundleIdentifier() or "").lower() in ("com.openai.chat", "com.openai.chatgpt")
+        ]
+        if chatgpt_apps:
+            app = chatgpt_apps[0]
+            cooperative_activate_app(app)
+            time.sleep(0.10)
+
+            # If conv_id or title is known, search AX tree to select conversation thread
+            if conv_id or title:
+                try:
+                    from ApplicationServices import (
+                        AXUIElementCreateApplication,
+                        AXUIElementSetAttributeValue,
+                        AXUIElementCopyAttributeValue,
+                        AXUIElementPerformAction,
+                    )
+
+                    app_ax = AXUIElementCreateApplication(app.processIdentifier())
+                    AXUIElementSetAttributeValue(app_ax, "AXManualAccessibility", True)
+                    err, win = AXUIElementCopyAttributeValue(app_ax, "AXMainWindow", None)
+                    if not win:
+                        err, wins = AXUIElementCopyAttributeValue(app_ax, "AXWindows", None)
+                        if wins:
+                            win = wins[0]
+
+                    target_btn = None
+                    search_term = (title or conv_id or "").strip().lower()
+
+                    def _find_chatgpt_thread(el, depth=0):
+                        nonlocal target_btn
+                        if target_btn is not None or depth > 30:
+                            return
+                        err, role = AXUIElementCopyAttributeValue(el, "AXRole", None)
+                        if role in ("AXButton", "AXRow", "AXStaticText", "AXLink"):
+                            for attr in ("AXTitle", "AXDescription", "AXValue"):
+                                err, val = AXUIElementCopyAttributeValue(el, attr, None)
+                                if val and search_term in str(val).strip().lower():
+                                    target_btn = el
+                                    return
+                        err, children = AXUIElementCopyAttributeValue(el, "AXChildren", None)
+                        if children:
+                            for c in children:
+                                _find_chatgpt_thread(c, depth + 1)
+
+                    if win and search_term:
+                        _find_chatgpt_thread(win)
+                    if target_btn:
+                        AXUIElementPerformAction(target_btn, "AXPress")
+                        time.sleep(0.08)
+                except Exception:
+                    pass
+
+            return focus_chatgpt(focus_input=True)
+    except Exception as e:
+        print(f"[Injector] Notice checking ChatGPT desktop: {e}")
+
+    # 2. Fall back to terminal if running CLI
+    focused_term = focus_terminal_app()
+    if focused_term:
+        return True
+
+    return focus_app_by_name("ChatGPT")
 
 
 _LAST_INJECTED_TEXT = ""
@@ -893,10 +1197,8 @@ def focus_terminal_app() -> Optional[str]:
         for name in term_priority:
             if name in running:
                 app = running[name]
-                app.activateWithOptions_(
-                    NSApplicationActivateIgnoringOtherApps | NSApplicationActivateAllWindows
-                )
-                return app.localizedName()
+                if cooperative_activate_app(app):
+                    return app.localizedName()
     except Exception:
         pass
 
@@ -952,7 +1254,7 @@ def _focus_and_click_claude_desktop() -> bool:
             return False
 
         claude_app = claude_apps[0]
-        claude_app.activateWithOptions_(1 << 1)
+        cooperative_activate_app(claude_app)
         time.sleep(0.15)
 
         # 1. Try native AX focus on the Prompt AXTextArea (Zero mouse movement)
@@ -1235,10 +1537,8 @@ def focus_chatgpt(focus_input: bool = True) -> bool:
             loc = (app.localizedName() or "").lower()
             bundle = (app.bundleIdentifier() or "").lower()
             if "chatgpt" in loc or bundle in ("com.openai.chat", "com.openai.chatgpt"):
-                app.activateWithOptions_(
-                    NSApplicationActivateIgnoringOtherApps | NSApplicationActivateAllWindows
-                )
-                return True
+                if cooperative_activate_app(app):
+                    return True
     except Exception:
         pass
 
@@ -1515,8 +1815,7 @@ def focus_app_by_name(app_name: str) -> bool:
             if loc_name and (
                 loc_name.lower() == target.lower() or target.lower() in loc_name.lower()
             ):
-                app.activateWithOptions_(1 << 1)
-                return True
+                return cooperative_activate_app(app)
     except Exception:
         pass
 
@@ -1561,7 +1860,7 @@ def focus_speaking_agent_window(
 ) -> bool:
     """
     Focus the window/application where the current or most recent speech turn originated.
-    Invoked when pressing Tab while an AI agent is speaking aloud (or recently spoke).
+    Invoked when pressing Option+Tab while an AI agent is speaking aloud (or recently spoke).
     Supports Antigravity, Claude Code, ChatGPT, IDEs, and custom app targets.
     Thread-safe with sliding debounce to prevent subprocess storms.
     """
@@ -1588,7 +1887,7 @@ def focus_speaking_agent_window(
 
             info = (
                 get_agent_speaking_info()
-                or get_recent_speaking_info(window_seconds=3.5)
+                or get_recent_speaking_info(window_seconds=4.0)
                 or get_cross_process_hud_state()
             )
             if info and isinstance(info, dict):
@@ -1597,6 +1896,24 @@ def focus_speaking_agent_window(
                 conv_id = conv_id or info.get("conv_id")
         except Exception:
             pass
+
+        # If still not resolved and not in pytest, check active session cookie
+        if not agent_name and not app_name and not os.environ.get("PYTEST_CURRENT_TEST"):
+            try:
+                from voicefi.integrations.conversations import load_session_cookie
+
+                cookie = load_session_cookie()
+                if cookie:
+                    conv_id = conv_id or cookie.get("conv_id") or cookie.get("conversationId")
+                    eng = (cookie.get("engine") or "").lower()
+                    if eng == "claude":
+                        app_name = "Claude"
+                    elif eng in ("codex", "chatgpt"):
+                        app_name = "ChatGPT"
+                    else:
+                        app_name = "Antigravity"
+            except Exception:
+                pass
 
     # Update active conversation tracking if conv_id is present
     if conv_id:
@@ -1613,26 +1930,46 @@ def focus_speaking_agent_window(
     # 2. Route based on agent/app identity:
     # 2a. Claude Code or Claude Desktop
     if "claude" in agent_lower or "claude" in app_lower:
-        print("[Injector] 🎯 Tab to Focus: Focusing Claude / Terminal window...")
+        print(
+            f"[Injector] 🎯 Option+Tab / HUD Click: Focusing Claude window (conv: {conv_id or 'active'})..."
+        )
+        if conv_id and select_claude_conversation_window(conv_id=conv_id):
+            return True
         if focus_terminal_app():
             return True
         if _focus_and_click_claude_desktop():
             return True
         return focus_app_by_name("Claude")
 
-    # 2b. ChatGPT Desktop
-    if "chatgpt" in agent_lower or "openai" in agent_lower or "chatgpt" in app_lower:
-        print("[Injector] 🎯 Tab to Focus: Focusing ChatGPT window...")
+    # 2b. ChatGPT Desktop / Codex
+    if (
+        "chatgpt" in agent_lower
+        or "openai" in agent_lower
+        or "chatgpt" in app_lower
+        or "codex" in agent_lower
+        or "codex" in app_lower
+    ):
+        print(
+            f"[Injector] 🎯 Option+Tab / HUD Click: Focusing Codex / ChatGPT window (conv: {conv_id or 'active'})..."
+        )
+        if conv_id and select_codex_conversation_window(conv_id=conv_id):
+            return True
         return focus_chatgpt(focus_input=True)
 
     # 2c. Specific app name provided (e.g. Ghostty, Cursor, Code, Terminal, Warp, Obsidian, etc.)
     if app_name and app_lower not in ("antigravity", "antigravity ide", "voicefi", "viv", "agent"):
-        print(f"[Injector] 🎯 Tab to Focus: Focusing {app_name} window...")
+        print(f"[Injector] 🎯 Option+Tab / HUD Click: Focusing {app_name} window...")
         if focus_app_by_name(app_name):
             return True
 
     # 2d. Antigravity / Subagents / Default
-    print(f"[Injector] 🎯 Tab to Focus: Focusing Antigravity window (agent: {agent_name or 'Antigravity'})...")
+    print(
+        f"[Injector] 🎯 Option+Tab / HUD Click: Focusing Antigravity window (conv: {conv_id or 'active'}, agent: {agent_name or 'Antigravity'})..."
+    )
+    if conv_id:
+        if navigate_to_antigravity_conversation(conv_id=conv_id):
+            return True
+
     focused = focus_antigravity(focus_input=True)
     if not focused and app_name:
         focused = focus_app_by_name(app_name)

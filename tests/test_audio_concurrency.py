@@ -23,6 +23,8 @@ from voicefi.tts.base import (
     stop_all_speech,
     DuplicateSpeechSuppressed,
     clear_recent_speech_history,
+    clear_speech_stopped_time,
+    get_agent_speaking_info,
 )
 import voicefi.tts.base as tts_base
 from voicefi.audio.recorder import AudioRecorder
@@ -40,11 +42,13 @@ def clean_audio_state():
     """Ensure all audio and speaking lock states are clean before and after each test."""
     set_agent_speaking(False)
     clear_recent_speech_history()
+    clear_speech_stopped_time()
     tts_base._LOCK_DEPTH = 0
     with patch("pynput.keyboard.Listener", return_value=MagicMock()):
         yield
     set_agent_speaking(False)
     clear_recent_speech_history()
+    clear_speech_stopped_time()
     tts_base._LOCK_DEPTH = 0
 
 
@@ -506,4 +510,80 @@ def test_speech_turn_lock_barge_in_same_conv_does_not_block():
         assert entered
     finally:
         set_mic_recording(False)
+
+
+def test_queued_speech_turn_cancelled_on_stop_all_speech():
+    """
+    Verify that if Turn A is actively speaking and Turn B is waiting in queue,
+    calling stop_all_speech() cancels Turn A AND causes Turn B to be suppressed
+    without speaking upon acquiring the lock.
+    """
+    from voicefi.tts.base import record_speech_stopped
+
+    turn_a_started = threading.Event()
+    turn_b_attempted = threading.Event()
+    turn_b_suppressed = [False]
+    turn_b_spoke = [False]
+
+    def _turn_a():
+        with speech_turn_lock(text="Guy speaking for Turn A", persona_name="Guy"):
+            turn_a_started.set()
+            # Wait until Turn B has enqueued and stop_all_speech has been called
+            time.sleep(0.35)
+
+    def _turn_b():
+        # Ensure Turn A has already acquired lock
+        turn_a_started.wait(timeout=2.0)
+        time.sleep(0.05)  # Let Turn A establish ownership
+        turn_b_attempted.set()
+        try:
+            with speech_turn_lock(text="Viv speaking for Turn B", persona_name="Viv"):
+                turn_b_spoke[0] = True
+        except DuplicateSpeechSuppressed:
+            turn_b_suppressed[0] = True
+
+    t_a = threading.Thread(target=_turn_a, daemon=True)
+    t_b = threading.Thread(target=_turn_b, daemon=True)
+
+    t_a.start()
+    turn_a_started.wait(timeout=2.0)
+    t_b.start()
+    turn_b_attempted.wait(timeout=2.0)
+    time.sleep(0.08)  # Let Turn B enter flock wait queue
+
+    # User presses Esc / stop_all_speech() is triggered
+    record_speech_stopped()
+
+    t_a.join(timeout=3.0)
+    t_b.join(timeout=3.0)
+
+    # Turn B must have been suppressed and must NOT have spoken!
+    assert turn_b_suppressed[0], "Expected Turn B to be suppressed by queue stop guard"
+    assert not turn_b_spoke[0], "Turn B should never have spoken"
+
+
+def test_sequential_turns_distinct_personas_hud_state():
+    """
+    Verify that sequential turns with different personas (e.g. Guy, then Viv)
+    cleanly update persona_name in get_agent_speaking_info() in exact order.
+    """
+    first_persona = None
+    second_persona = None
+
+    with speech_turn_lock(text="First turn by Guy", persona_name="Guy", conv_id="conv-guy"):
+        info_1 = get_agent_speaking_info()
+        assert info_1 is not None
+        first_persona = info_1.get("persona_name")
+
+    # After Turn 1 completes, speaking info is cleared
+    assert get_agent_speaking_info() is None
+
+    with speech_turn_lock(text="Second turn by Viv", persona_name="Viv", conv_id="conv-viv"):
+        info_2 = get_agent_speaking_info()
+        assert info_2 is not None
+        second_persona = info_2.get("persona_name")
+
+    assert first_persona == "Guy"
+    assert second_persona == "Viv"
+    assert get_agent_speaking_info() is None
 

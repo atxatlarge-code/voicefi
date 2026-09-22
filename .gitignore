@@ -37,8 +37,10 @@ ENV/
 # Model cache & temporary recordings
 models/
 *.wav
+!src/voicefi/assets/*.wav
 *.mp3
 *.mp4
+assets/reels
 assets/reels/
 assets/audio/
 *odyssey*

@@ -14,7 +14,7 @@ from typing import Optional, List, Dict, Any
 
 from voicefi import __version__
 from voicefi.cli_format import VoiceFiArgumentParser, resolve_prog_name, render_categorized_help
-from voicefi.config import load_config, save_config, get_default_config_path
+from voicefi.config import load_config, save_config, get_default_config_path, VALID_GEMINI_LIVE_VOICES
 from voicefi.license import FeatureGate
 from voicefi.tts import (
     get_tts_engine,
@@ -150,7 +150,14 @@ def cmd_hook(args):
         return
 
     # 2. Per-agent hook disable guard
-    if target_agent in ("claude", "claude_code"):
+    is_claude = target_agent in ("claude", "claude_code") or target_agent.startswith("claude")
+    is_codex = (
+        target_agent in ("codex", "openai", "chatgpt")
+        or target_agent.startswith("codex")
+        or target_agent.startswith("chatgpt")
+        or target_agent.startswith("openai")
+    )
+    if is_claude:
         if not getattr(config.hooks, "claude", True) or not getattr(
             config.integrations, "claude_code", True
         ):
@@ -159,7 +166,7 @@ def cmd_hook(args):
         if not config.claude.auto_listen and not config.claude.read_summary_aloud:
             print(json.dumps({}))
             return
-    elif target_agent in ("codex", "openai", "chatgpt"):
+    elif is_codex:
         if not getattr(config.hooks, "codex", True) or not getattr(
             config.integrations, "codex", True
         ):
@@ -169,7 +176,7 @@ def cmd_hook(args):
         if codex_cfg and not codex_cfg.auto_listen and not codex_cfg.read_summary_aloud:
             print(json.dumps({}))
             return
-    elif target_agent == "antigravity":
+    elif target_agent == "antigravity" or target_agent.startswith("antigravity"):
         if not getattr(config.hooks, "antigravity", True) or not getattr(
             config.integrations, "antigravity", True
         ):
@@ -277,23 +284,31 @@ def cmd_hook(args):
         },
     )
 
+    # Ensure agent and voice override metadata are populated in payload
+    if not isinstance(payload, dict):
+        payload = {}
+    payload.setdefault("agent", target_agent)
+    voice_arg = getattr(args, "voice", None)
+    if voice_arg:
+        payload["voice"] = voice_arg
+
     # Fast IPC Forwarding: if VoiceFi background server is running,
     # forward hook event directly for instant (< 10ms) return to the agent
     from voicefi.integrations.server_client import forward_hook_to_server
 
     server_resp = forward_hook_to_server(payload, config)
-    if server_resp and server_resp.get("status") == "handled":
+    if server_resp and server_resp.get("status") in ("handled", "ok"):
         if hasattr(args, "_telemetry_extra") and isinstance(args._telemetry_extra, dict):
             args._telemetry_extra["ipc_forwarded"] = True
         print(json.dumps({}))
         return
 
     # Standalone fallback: execute in-process if background server is offline
-    if target_agent in ("claude", "claude_code"):
+    if is_claude:
         from voicefi.integrations.claude import handle_claude_stop_hook
 
         result = handle_claude_stop_hook(payload, config)
-    elif target_agent in ("codex", "openai", "chatgpt"):
+    elif is_codex:
         from voicefi.integrations.codex import handle_codex_stop_hook
 
         result = handle_codex_stop_hook(payload, config)
@@ -814,8 +829,13 @@ def cmd_fx(args):
 
 
 def cmd_reel(args):
-    """Compile multi-format social video reels from audio and slides."""
+    """Compile multi-format social video reels from audio and slides, or documentary mode."""
     import subprocess
+
+    if getattr(args, "doc", False) or getattr(args, "input", "") in ("doc", "documentary") or getattr(args, "script", None):
+        from voicefi.video.documentary_reel import cmd_documentary_reel
+        return cmd_documentary_reel(args)
+
     from voicefi.video.reel_builder import ReelBuilder
 
     in_file = getattr(args, "input", None)
@@ -1696,9 +1716,39 @@ def cmd_clone(args):
     config = load_config(args.config)
     subaction = getattr(args, "clone_action", None)
 
-    if not subaction:
-        # Default to listing if no subaction provided
-        subaction = "list"
+    # If no explicit subcommand was provided, check direct flags (e.g. from `vifi voice clone ...`)
+    if not subaction or subaction in ("clone", "train"):
+        raw_name = getattr(args, "name", None)
+        target_val = getattr(args, "target", None)
+        if raw_name and str(raw_name).lower().strip() in ("list", "ls"):
+            subaction = "list"
+            args.name = None
+        elif raw_name and str(raw_name).lower().strip() in ("delete", "rm", "del"):
+            subaction = "delete"
+            args.name = target_val or None
+        elif raw_name and str(raw_name).lower().strip() in ("test", "audition"):
+            subaction = "test"
+            args.name = target_val or None
+        elif getattr(args, "list", False) is True:
+            subaction = "list"
+        elif getattr(args, "test", False) is True:
+            subaction = "test"
+        elif getattr(args, "delete", False) is True:
+            subaction = "delete"
+        elif getattr(args, "audio_files", None) or (isinstance(getattr(args, "files", None), (list, tuple)) and args.files):
+            subaction = "import"
+            if not getattr(args, "files", None):
+                args.files = args.audio_files
+        elif getattr(args, "record", False) is True:
+            subaction = "record"
+        elif getattr(args, "name", None) and not subaction:
+            if getattr(args, "audio_files", None):
+                subaction = "import"
+                args.files = args.audio_files
+            else:
+                subaction = "record"
+        elif not subaction:
+            subaction = "list"
 
     if subaction == "record":
         name = args.name.strip()
@@ -1753,8 +1803,8 @@ def cmd_clone(args):
                 manager.assign_to_agent(profile.name, target_agent, config)
                 print(f"  • Assigned to:   {target_agent}")
 
-            print("\nTest your voice with:  vg clone test " + profile.name)
-            print("Assign to agent with: vg clone assign " + profile.name + " antigravity\n")
+            print("\nTest your voice with:  vifi voice test " + profile.name)
+            print("Assign to agent with: vifi voice set antigravity " + profile.name + "\n")
         finally:
             for wf in recorded_files:
                 try:
@@ -1791,13 +1841,15 @@ def cmd_clone(args):
             manager.assign_to_agent(profile.name, target_agent, config)
             print(f"  • Assigned to: {target_agent}")
 
-        print()
+        print("\nTest your voice with:  vifi voice test " + profile.name)
+        print("Assign to agent with: vifi voice set antigravity " + profile.name + "\n")
 
     elif subaction == "list":
         clones = manager.list_cloned_voices()
         if not clones:
             print("\nℹ️ No custom cloned voices found.")
-            print("Train one now with: 'vg clone record <your_name>'\n")
+            print("Clone one now with: 'vifi voice clone <name> --audio <file.wav>'")
+            print("                or: 'vifi voice clone <name> --record'\n")
             return
 
         print(f"\n🎙️ Trained Custom Voices ({len(clones)}):")
@@ -2121,7 +2173,7 @@ def cmd_hearing_test(args):
 
 
 def cmd_feedback_loop(args):
-    """Manage ProActive Listening setting (on/off/status) or run acoustic loop test."""
+    """Manage ProActive Feedback Loop setting (on/off/status) or run acoustic loop test."""
     voice_arg = getattr(args, "voice", None)
     action_arg = getattr(args, "action", None)
     target = (action_arg or voice_arg or "").lower()
@@ -2131,7 +2183,7 @@ def cmd_feedback_loop(args):
         cfg.proactive.feedback_loop.enabled = True
         cfg.antigravity.auto_listen = True
         save_config(cfg)
-        print("\n⚡ ProActive Listening: 🟢 ENABLED")
+        print("\n⚡ ProActive Feedback Loop: 🟢 ENABLED")
         print(
             "💡 The microphone will automatically open for your conversational turn after the agent speaks.\n"
         )
@@ -2141,13 +2193,13 @@ def cmd_feedback_loop(args):
         cfg.proactive.feedback_loop.enabled = False
         cfg.antigravity.auto_listen = False
         save_config(cfg)
-        print("\n⚡ ProActive Listening: ⚪ DISABLED")
+        print("\n⚡ ProActive Feedback Loop: ⚪ DISABLED")
         print("💡 Speech synthesis only. Use Ctrl+R or Ctrl+T to speak on-demand.\n")
         return
     elif target == "status":
         cfg = load_config(getattr(args, "config", None))
         status_str = "🟢 ENABLED" if cfg.proactive.feedback_loop.enabled else "⚪ DISABLED"
-        print(f"\n⚡ ProActive Listening Status: {status_str}")
+        print(f"\n⚡ ProActive Feedback Loop Status: {status_str}")
         print(
             f"  • Turn Handoff: {'✅ Active' if cfg.proactive.feedback_loop.enabled else '⚪ Inactive'}"
         )
@@ -2482,8 +2534,7 @@ def cmd_voice(args):
         run_silent_voice_ping(args, config)
         return
 
-    if subaction == "train":
-        args.clone_action = "record"
+    if subaction in ("train", "clone"):
         cmd_clone(args)
         return
 
@@ -4226,8 +4277,8 @@ def cmd_license(args):
         print("   Polar (notifications@polar.sh) and VoiceFi (talktome@voicefi.org)")
         print("   with the subject 'Your VoiceFi Pro License'.")
         print("\n2. Format of Genuine License Keys:")
-        print("   Keys begin with 'VF1-PRO-' followed by tier, expiration, and signature:")
-        print("   e.g. VF1-PRO-PERP-<ID>.<ED25519_SIGNATURE>")
+        print("   Keys begin with 'VF1-PRO-' followed by expiration and signature:")
+        print("   e.g. VF1-PRO-<EXPIRATION>-<ID>.<ED25519_SIGNATURE>")
         print("\n3. 14-Day Free Pro Trial (No Key Required):")
         print("   Testing VoiceFi? You do NOT need a license key or credit card!")
         print("   Run: vifi tier (or start from the AppKit Welcome Window)")
@@ -4244,7 +4295,7 @@ def cmd_license(args):
         raw_key = (key or (args.key_args[0] if getattr(args, "key_args", None) else "")).strip()
         if not raw_key:
             print(
-                "❌ Error: Please provide a valid license key (e.g. vifi license activate VF1-PRO-PERP-USER.<SIGNATURE>)"
+                "❌ Error: Please provide a valid license key (e.g. vifi license activate VF1-PRO-<KEY>)"
             )
             return
 
@@ -5218,6 +5269,71 @@ def cmd_spark(args):
         asyncio.run(runner.stop())
 
 
+def cmd_live(args):
+    """Run real-time Gemini 3.8 Live voice/comedy session."""
+    import asyncio
+    from voicefi.integrations.gemini_live import GeminiLiveRunner, VALID_GEMINI_LIVE_VOICES
+
+    prompt = " ".join(args.prompt).strip() if getattr(args, "prompt", None) else None
+    voice = getattr(args, "voice", "Puck") or "Puck"
+    mode = getattr(args, "mode", "comedy") or "comedy"
+    use_thinking = getattr(args, "thinking", False)
+    thinking_level = getattr(args, "thinking_level", "LOW") or "LOW"
+    enable_sfx = not getattr(args, "no_sfx", False)
+    play_audio = not getattr(args, "no_play", False)
+    direct_live = getattr(args, "direct_live", False) or getattr(args, "root_live", False)
+    enable_tools = getattr(args, "tools", True)
+    model = getattr(args, "model", None) or ("gemini-3.8-live-extended-thinking" if use_thinking else "gemini-2.5-flash-native-audio-latest")
+
+    if direct_live:
+        from voicefi.live_studio import GeminiLiveStudio
+
+        try:
+            studio = GeminiLiveStudio(
+                model=model,
+                voice=voice,
+                use_thinking=use_thinking,
+                thinking_level=thinking_level,
+                enable_tools=enable_tools,
+            )
+            asyncio.run(studio.run())
+        except KeyboardInterrupt:
+            pass
+        return
+
+    try:
+        runner = GeminiLiveRunner(
+            voice=voice,
+            mode=mode,
+            use_thinking=use_thinking,
+            thinking_level=thinking_level,
+            enable_sfx=enable_sfx,
+            play_audio=play_audio,
+        )
+    except Exception as e:
+        print(f"❌ Error initializing Gemini 3.8 Live runner: {e}")
+        return
+
+    if prompt:
+        asyncio.run(runner.run_prompt(prompt))
+    else:
+        print(f"\n🎭 Gemini 3.8 Live Studio (Model: {runner.model} | Voice: {runner.voice} | Mode: {runner.mode})")
+        print("Type your joke prompt or topic below. Type 'exit' to quit.\n")
+        while True:
+            try:
+                line = input("🎤 You > ").strip()
+                if not line:
+                    continue
+                if line.lower() in ("exit", "quit", "q"):
+                    print("👋 Exiting Gemini Live Studio.")
+                    break
+                asyncio.run(runner.run_prompt(line))
+            except (KeyboardInterrupt, EOFError):
+                print("\n👋 Exiting Gemini Live Studio.")
+                break
+
+
+
 def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
     prog_name = prog or resolve_prog_name()
     parser = VoiceFiArgumentParser(
@@ -5226,6 +5342,13 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument("--config", type=str, default=None, help="Path to custom config.yaml")
+    parser.add_argument(
+        "-l",
+        "--live",
+        dest="root_live",
+        action="store_true",
+        help="Start Gemini 3.8 Live interactive full-duplex speech-to-speech studio",
+    )
 
     subparsers = parser.add_subparsers(
         dest="command", metavar="<command>", help="Available subcommands"
@@ -5252,6 +5375,13 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
         type=str,
         default="antigravity",
         help="Target agent name (antigravity, claude, codex)",
+    )
+    hook_p.add_argument(
+        "-v",
+        "--voice",
+        type=str,
+        default=None,
+        help="Voice persona or provider voice to speak this hook with (e.g. Steffan, Ryan, Emma, Ava)",
     )
     hook_p.add_argument(
         "--enable", action="store_true", help="Enable agent lifecycle hooks in configuration"
@@ -5549,7 +5679,7 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
     lic_act = lic_sub.add_parser(
         "activate", aliases=["set", "apply"], help="Activate a VoiceFi Pro license key"
     )
-    lic_act.add_argument("key", type=str, help="Pro license key (e.g. VF1-PRO-PERP-USER.<SIG>)")
+    lic_act.add_argument("key", type=str, help="Pro license key (e.g. VF1-PRO-...)")
     lic_gen = lic_sub.add_parser(
         "generate",
         aliases=["create", "mint", "new"],
@@ -5783,8 +5913,15 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
     # feedback-loop / proactive top-level
     fb_p = subparsers.add_parser(
         "feedback-loop",
-        aliases=["proactive", "proactive-listening", "feedback_loop", "loopback", "voice-loop"],
-        help="Manage ProActive Listening (on/off/status) or run acoustic verification test",
+        aliases=[
+            "proactive",
+            "proactive-feedback-loop",
+            "proactive-listening",
+            "feedback_loop",
+            "loopback",
+            "voice-loop",
+        ],
+        help="Manage ProActive Feedback Loop (on/off/status) or run acoustic verification test",
     )
     fb_p.add_argument("voice", nargs="?", default="Aria", help="Voice to speak")
     fb_p.add_argument(
@@ -5982,13 +6119,6 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
     )
     v_st.add_argument("-t", "--text", type=str, default=None, help="Custom text to speak")
 
-    # voice train
-    v_train = voice_sub.add_parser("train", help="Train a custom voice clone from mic or files")
-    v_train.add_argument("name", type=str, help="Name for the custom voice")
-    v_train.add_argument("--api-key", type=str, default=None, help="ElevenLabs API key (optional)")
-    v_train.add_argument(
-        "--assign", type=str, default=None, help="Automatically assign to agent (e.g. antigravity)"
-    )
 
     # voice set
     v_set = voice_sub.add_parser(
@@ -6027,6 +6157,48 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
 
     # voice get
     voice_sub.add_parser("get", help="Show active voice mappings")
+
+    # voice clone
+    v_clone = voice_sub.add_parser(
+        "clone",
+        aliases=["train"],
+        help="Clone, record, import, test, and manage custom voice profiles",
+    )
+    v_clone.add_argument("name", nargs="?", default=None, help="Name for the custom cloned voice (or action: list, delete, test)")
+    v_clone.add_argument("target", nargs="?", default=None, help="Target voice name when action is specified (e.g. 'vifi voice clone delete MyVoice')")
+    v_clone.add_argument(
+        "--audio",
+        "-a",
+        nargs="+",
+        dest="audio_files",
+        default=None,
+        help="Audio file(s) to clone from (.wav, .mp3, .m4a)",
+    )
+    v_clone.add_argument(
+        "--record",
+        "-r",
+        action="store_true",
+        help="Launch interactive 4-prompt microphone recording wizard",
+    )
+    v_clone.add_argument(
+        "--assign",
+        type=str,
+        default=None,
+        help="Assign directly to agent upon completion (e.g. antigravity, claude)",
+    )
+    v_clone.add_argument(
+        "--provider",
+        type=str,
+        default="auto",
+        choices=["auto", "kokoro", "local_clone", "f5_tts", "elevenlabs", "edge_tts"],
+        help="TTS engine provider for voice cloning",
+    )
+    v_clone.add_argument("--api-key", type=str, default=None, help="ElevenLabs API key (optional)")
+    v_clone.add_argument("--description", type=str, default="", help="Voice description")
+    v_clone.add_argument("-l", "--list", action="store_true", help="List all custom cloned voices")
+    v_clone.add_argument("-t", "--test", action="store_true", help="Audition the cloned voice")
+    v_clone.add_argument("--text", type=str, default=None, help="Sample text to speak for audition")
+    v_clone.add_argument("-d", "--delete", action="store_true", help="Delete a cloned voice profile")
 
     # clone
     clone_p = subparsers.add_parser("clone", help="Train and manage custom voice clones")
@@ -6696,6 +6868,22 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
     reel_p.add_argument(
         "--open", action="store_true", help="Automatically open video after compilation"
     )
+    reel_p.add_argument(
+        "--doc",
+        "--documentary",
+        action="store_true",
+        help="Enable Documentary Mode (documentary broadcaster narration, Baskerville subtitles, BBC mastering)",
+    )
+    reel_p.add_argument("--script", default=None, help="Narrative script text to synthesize in documentary mode")
+    reel_p.add_argument(
+        "--persona", default="documentary_broadcaster", help="Voice persona for documentary narration (default: documentary_broadcaster)"
+    )
+    reel_p.add_argument(
+        "--score", default="beatdrop", choices=["beatdrop", "classical", "none"], help="Soundtrack score style"
+    )
+    reel_p.add_argument(
+        "--punchline", default=None, help="Punchline phrase for comedic dead-air tape-stop mute"
+    )
 
     # trim / audio cutter
     trim_p = subparsers.add_parser(
@@ -6769,6 +6957,75 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
     )
     spark_p.add_argument("--socket", type=str, default=None, help="Path to Unix domain socket")
 
+    # live / gemini 3.8 live runner
+    live_p = subparsers.add_parser(
+        "live",
+        aliases=["comedy", "gemini-live"],
+        help="Run real-time Gemini 3.8 Live voice/comedy session with co-timed sound effects",
+    )
+    live_p.add_argument("prompt", nargs="*", default=None, help="Prompt or joke topic to execute once")
+    live_p.add_argument(
+        "--model",
+        default="gemini-2.5-flash-native-audio-latest",
+        choices=["gemini-2.5-flash-native-audio-latest", "gemini-3.8-live", "gemini-3.8-live-extended-thinking"],
+        help="Live model ID (default: gemini-2.5-flash-native-audio-latest for native audio speech)",
+    )
+    live_p.add_argument(
+        "-v",
+        "--voice",
+        default="Puck",
+        choices=sorted(list(VALID_GEMINI_LIVE_VOICES)),
+        help="Voice persona (default: Puck)",
+    )
+    live_p.add_argument(
+        "-m",
+        "--mode",
+        default="comedy",
+        choices=["comedy", "roast", "banter", "assistant"],
+        help="Persona mode (default: comedy)",
+    )
+    live_p.add_argument(
+        "-t",
+        "--thinking",
+        action="store_true",
+        help="Use Gemini 3.8 Live Extended Thinking model",
+    )
+    live_p.add_argument(
+        "--thinking-level",
+        default="LOW",
+        choices=["MINIMAL", "LOW", "MEDIUM", "HIGH"],
+        help="Thinking level for extended thinking (default: LOW)",
+    )
+    live_p.add_argument(
+        "--no-sfx",
+        action="store_true",
+        help="Disable synchronized punchline sound effects",
+    )
+    live_p.add_argument(
+        "--no-play",
+        action="store_true",
+        help="Do not play audio aloud through speakers",
+    )
+    live_p.add_argument(
+        "-l",
+        "--direct",
+        dest="direct_live",
+        action="store_true",
+        help="Start direct microphone-to-speaker full-duplex speech loop",
+    )
+    live_p.add_argument(
+        "--tools",
+        action="store_true",
+        default=True,
+        help="Enable background tools while speaking (code reading, shell checks, sfx)",
+    )
+    live_p.add_argument(
+        "--no-tools",
+        dest="tools",
+        action="store_false",
+        help="Disable background tools",
+    )
+
     # record / voice note recorder
     record_p = subparsers.add_parser(
         "record",
@@ -6814,6 +7071,10 @@ def main():
     parser = build_parser()
     args = parser.parse_args()
 
+    if getattr(args, "root_live", False):
+        cmd_live(args)
+        return
+
     if not args.command:
         if getattr(sys, "frozen", False):
             # Launched from macOS .app bundle without CLI arguments
@@ -6842,6 +7103,9 @@ def main():
         "ipc-bridge": cmd_bridge,
         "ipc": cmd_bridge,
         "spark": cmd_spark,
+        "live": cmd_live,
+        "comedy": cmd_live,
+        "gemini-live": cmd_live,
         "sfx": cmd_sfx,
         "sound": cmd_sfx,
         "duel": cmd_duel,

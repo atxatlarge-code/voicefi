@@ -39,7 +39,9 @@ Universal Voice Layer for AI Agents, MCP, and macOS.
 | `vifi stats` / `vifi analytics` | **Developer Activity & Tool Analytics**: Shows local turn volume, time saved, tool distributions, and acoustic latency benchmarks. |
 | `vifi bridge` / `vifi bridge --server` | **Local Daemon IPC Bridge**: Manages bidirectional Unix domain socket (`/tmp/voicefi.sock`) & WebSocket connection to Gemini Spark / Antigravity agents. |
 | `vifi spark [prompt]` | **Gemini Spark Runner**: Executes prompts with spoken soundbite distillation, `SIGINT`/`SIGTERM` barge-in cancellation, and turn-end hooks. |
-| `vifi panel` | Launch interactive web control panel (`http://localhost:5141`). |
+| `vifi -l` / `vifi live -l` | **Gemini 3.8 Live Direct Studio**: Real-time full-duplex speech-to-speech studio with parallel background tools (code reading, search, git checks, SFX) and instant barge-in. |
+| `vifi live [prompt]` / `vifi comedy` | **Gemini 3.8 Live Studio**: Real-time bidirectional voice & stand-up comedy session with sub-second latency, affective speech, and co-timed punchline SFX (rimshots, applause). |
+| `vifi panel` / `http://localhost:5141/live` | Launch interactive web control panel or Gemini 3.8 Live direct speech-to-speech showcase. |
 | `vifi companion` / `vifi rc` | **Mobile & Web Remote Companion**: Starts full-duplex WebSocket hub, prints pairing QR code, and opens PWA / Spicewood lead sheet (`vifi rc sheet`). |
 | `vifi hud debug` | Interactive terminal Dynamic Island HUD Debug Studio. |
 | `vifi wake` / `vifi listen --wake` | **'Hey Viv' Wake Word Studio**: Runs interactive foreground wake word listener and Antigravity voice dispatcher. |
@@ -153,7 +155,7 @@ To debug how VoiceFi handles simultaneous speech output and microphone capture:
         │                          records stop timestamp -> 3.0s silence lock.
         │                          WakeWordListener drains PortAudio buffer to prevent echo loop.
         │
-        ├─► [User Presses Tab] ──► focus_speaking_agent_window() brings active agent window
+        ├─► [User Presses Option+Tab] ──► focus_speaking_agent_window() brings active agent window
         │                          (Antigravity, Claude, ChatGPT, Cursor, Terminal) to front with input focus.
         ▼
 [Auto-Listen Handoff] ─────► play_chime("start") -> Dynamic Island HUD 'listening' ->
@@ -165,7 +167,7 @@ To debug how VoiceFi handles simultaneous speech output and microphone capture:
 2. **Audio Mutex (`exclusive_audio`)**: The claiming process acquires `/tmp/voicefi_audio_output.lock` to prevent CoreAudio device contention across subagents or terminal sessions.
 3. **Pipelined Playback**: `EdgeTTS` splits the text into sentences. Sentence 1 begins playing over `afplay` immediately while Sentence 2 is pre-fetched in the background.
 4. **Instant Escape Stop**: Pressing <kbd>Esc</kbd> at any point triggers `stop_all_speech()`, which kills active `afplay` processes (`SIGTERM`/`SIGKILL`), purges remaining sentence chunks from the queue, and sets a 3.0s global interruption guard.
-5. **Tab to Focus Speaking Window**: Pressing <kbd>Tab</kbd> during speech immediately activates and raises the window/application where the spoken turn originated (Antigravity, Claude Code, Terminal, etc.) and focuses its chat input box without interrupting speech playback.
+5. **Option+Tab to Focus Speaking Window**: Pressing <kbd>Option</kbd>+<kbd>Tab</kbd> during speech immediately activates and raises the window/application where the spoken turn originated (Antigravity, Claude Code, Terminal, etc.) and focuses its chat input box without interrupting speech playback.
 6. **PortAudio Stream Draining**: While speech is playing, `WakeWordListener` continuously reads and purges mic audio frames from PortAudio to prevent speaker audio from buffering in hardware ring buffers.
 7. **Sequential Handoff**: If speech was not interrupted, VoiceFi plays the start chime and opens the microphone for hands-free auto-listen.
 
@@ -197,7 +199,7 @@ When diagnosing audio, turn completion speech, or stop behavior, run checks in t
 ---
 
 ### 8. Remote Companion Voice Loop & State Synchronization Guidelines
-*(Full architectural breakdown in [`docs/COMPANION_VOICE_LOOP_LESSONS_LEARNED.md`](file:///Users/jaketrigg/Projects/VoiceFi/docs/COMPANION_VOICE_LOOP_LESSONS_LEARNED.md))*
+*(Full architectural breakdown in [`docs/COMPANION_VOICE_LOOP_LESSONS_LEARNED.md`](file:///Users/jaketrigg/Projects/VoiceFi/docs/COMPANION_VOICE_LOOP_LESSONS_LEARNED.md) and [`docs/PIXEL_DEMO_AND_VOICE_OPTIMIZATIONS.md`](file:///Users/jaketrigg/Projects/VoiceFi/docs/PIXEL_DEMO_AND_VOICE_OPTIMIZATIONS.md))*
 * **Prevent the "Stop Echo" Loop:** Web clients receiving server events (`speech_stopped`, `stop`) must perform strictly local teardown (`stopAllAgentSpeech(broadcastServer = false)`). They must **NEVER** broadcast `/api/stop` back to the server, which would cause an infinite 90ms cancellation ping-pong loop.
 * **Timestamp Evaluation Inside Mutexes:** In queued audio pipelines (`edge_tts.py`, `mac_say.py`, `gemini_tts.py`), `turn_start_time = time.time()` and `self._stop_requested = False` must be initialized **inside** the critical section (`with speech_turn_lock(...)`), not outside before acquiring the lock.
 * **Multi-Sentence Sentence Pipelining as Stress Test:** Sentence chunking across punctuation (`?`, `.`) exercises background prefetching threads and cancellation timestamps. Always validate with multi-sentence structures (jokes, setup + punchline).

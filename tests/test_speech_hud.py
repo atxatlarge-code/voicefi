@@ -49,18 +49,19 @@ def test_speech_hud_show_and_update():
 
     # 1. Show speech
     test_msg = "Refactoring completed with zero syntax errors. Ready to merge."
-    hud.show_speech(
-        test_msg,
-        agent_name="Antigravity",
-        persona_name="Christopher",
-        is_speaking=True,
-        position="top_center",
-    )
+    with patch.object(hud, "_resolve_conversation_title", return_value=None):
+        hud.show_speech(
+            test_msg,
+            agent_name="Antigravity",
+            persona_name="Christopher",
+            is_speaking=True,
+            position="top_center",
+        )
 
-    hud._body_lbl.setStringValue_.assert_called_with(f'"{test_msg}"')
-    hud._title_lbl.setStringValue_.assert_called_with("Antigravity")
-    hud._tag_lbl.setStringValue_.assert_called_with("Christopher [Speaking • Esc to stop]")
-    hud._panel.orderFrontRegardless.assert_called()
+        hud._body_lbl.setStringValue_.assert_called_with(f'"{test_msg}"')
+        hud._title_lbl.setStringValue_.assert_called_with("Antigravity")
+        hud._tag_lbl.setStringValue_.assert_called_with("Christopher [Speaking • Esc to stop]")
+        hud._panel.orderFrontRegardless.assert_called()
 
     # 2. Update text during streaming
     hud._panel.isVisible.return_value = True

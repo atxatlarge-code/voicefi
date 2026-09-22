@@ -111,3 +111,17 @@ def redact_secrets(text: str, placeholder: str = REDACTION_PLACEHOLDER) -> str:
 def contains_secret(text: str) -> bool:
     """True when :func:`redact_secrets` would mask something in ``text``."""
     return bool(text) and redact_secrets(text) != text
+
+
+def mask_license_key(key: str) -> str:
+    """Mask a VoiceFi license key for UI display (e.g. VF1-PRO-••••••••••••••••)."""
+    if not key:
+        return ""
+    key = key.strip()
+    if key.startswith("VF1-"):
+        parts = key.split("-")
+        if len(parts) >= 3:
+            prefix = "-".join(parts[:2])
+            return f"{prefix}-" + "•" * 24
+    return "•" * min(len(key), 28)
+

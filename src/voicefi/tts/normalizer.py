@@ -361,3 +361,149 @@ def format_for_app_context(
         return cleaned
 
     return cleaned
+
+
+_REPETITION_RUN_THRESHOLD = 6
+_MAX_REPETITION_UNIT_CHARS = 60
+
+
+def _token_key(word: str) -> str:
+    """Normalize a token for repetition comparison — strip surrounding punctuation and lowercase."""
+    return re.sub(r"[^\w]", "", word).lower()
+
+
+def collapse_repetitive_artifacts(text: str, min_run: int = _REPETITION_RUN_THRESHOLD) -> str:
+    """
+    Deterministically strip Whisper STT hallucination loops in <0.5ms.
+
+    Handles two primary failure modes:
+    1. Word-level: any single token repeated consecutively min_run+ times
+       (e.g., 'URL URL URL URL URL URL' -> stripped).
+    2. Character-level: any phrase (2-60 chars) repeated consecutively min_run+ times
+       (e.g., 'Thank you for watching. Thank you for watching...' or CJK loops -> stripped).
+
+    Safe for human rhetorical repetition ('no, no, no' = 3; 'yeah yeah yeah' = 3)
+    because they remain below the min_run threshold.
+    """
+    if not text or not text.strip():
+        return text
+
+    # 1. Word-level pass
+    words = text.split()
+    if len(words) >= min_run:
+        out = []
+        i = 0
+        while i < len(words):
+            key = _token_key(words[i])
+            j = i
+            if key:
+                while j < len(words) and _token_key(words[j]) == key:
+                    j += 1
+            else:
+                j = i + 1
+            if (j - i) < min_run:
+                out.extend(words[i:j])
+            i = j
+        text = " ".join(out)
+
+    # 2. Character-level regex pass (multi-word phrases and unsegmented/CJK text)
+    pattern = re.compile(
+        r"(.{2," + str(_MAX_REPETITION_UNIT_CHARS) + r"}?)\1{" + str(min_run - 1) + r",}",
+        flags=re.DOTALL,
+    )
+    m = pattern.search(text)
+    if m:
+        unit = m.group(1).strip()
+        result = pattern.sub("", text)
+        # If the leftover text is just a boundary echo of the repeating unit, drop it
+        if result.strip() and result.strip() == unit:
+            result = ""
+        elif result.endswith(unit):
+            result = result[:-len(unit)].rstrip()
+        elif result.startswith(unit):
+            result = result[len(unit):].lstrip()
+        text = re.sub(r"\s+", " ", result).strip()
+
+    # 3. Sentence & multi-word clause duplicate pass (collapses 2-run repetitions of sentences or >=4 word phrases)
+    return _collapse_sentence_and_clause_duplicates(text)
+
+
+def _collapse_sentence_and_clause_duplicates(text: str) -> str:
+    """
+    Collapse 2-run duplicate sentences or long phrases (>= 3 words / >= 12 chars).
+    Preserves rhetorical repetition ('No, no, no', 'Yeah yeah yeah').
+    """
+    if not text or len(text.strip()) < 15:
+        return text
+
+    # Pass A: Punctuation-delimited sentences
+    parts = re.split(r'([.!?;\n]+(?:\s+|$))', text)
+    if len(parts) > 2:
+        reconstructed = []
+        last_norm = ""
+        for i in range(0, len(parts), 2):
+            clause = parts[i]
+            sep = parts[i + 1] if i + 1 < len(parts) else ""
+            if not clause.strip():
+                reconstructed.append(clause + sep)
+                continue
+            norm = re.sub(r"[^\w\s]", "", clause).strip().lower()
+            norm_words = norm.split()
+            # Only collapse if clause is substantial (>= 3 words and >= 10 chars)
+            if len(norm_words) >= 3 and len(norm) >= 10 and norm == last_norm:
+                continue
+            last_norm = norm
+            reconstructed.append(clause + sep)
+        text = "".join(reconstructed).strip()
+
+    # Pass B: Unpunctuated phrase duplication (common in STT)
+    # Check if a multi-word sequence (k >= 4 words) repeats consecutively: S S -> S
+    tokens = text.split()
+    n = len(tokens)
+    if n >= 8:
+        max_k = min(n // 2, 40)
+        for k in range(max_k, 3, -1):
+            i = 0
+            while i + 2 * k <= len(tokens):
+                chunk1 = " ".join(_token_key(w) for w in tokens[i : i + k])
+                chunk2 = " ".join(_token_key(w) for w in tokens[i + k : i + 2 * k])
+                if chunk1 and chunk1 == chunk2:
+                    tokens = tokens[: i + k] + tokens[i + 2 * k :]
+                else:
+                    i += 1
+        text = " ".join(tokens)
+
+    return text.strip()
+
+
+def inject_documentary_breathing_pauses(text: str) -> str:
+    """
+    Format text for nature documentary style narration by inserting deliberate
+    breathing pauses and dramatic ellipses before revelation clauses.
+    """
+    if not text or not text.strip():
+        return text
+
+    t = text.strip()
+
+    # Expand intro phrases into breath pauses (only at sentence or clause boundaries)
+    intro_patterns = [
+        (r"(^|[.!?;]\s*)(And here)[,.]?\s*", r"\1And here... "),
+        (r"(^|[.!?;]\s*)(Look closely)[,.]?\s*", r"\1Look closely... "),
+        (r"(^|[.!?;]\s*)(Remarkable)[,.]?\s*", r"\1Remarkable... "),
+        (r"(^|[.!?;]\s*)(Extraordinary)[,.]?\s*", r"\1Extraordinary... "),
+        (r"(^|[.!?;]\s*)(Quite astonishing)[,.]?\s*", r"\1Quite astonishing... "),
+        (r"(^|[.!?;]\s*)(Here in the)[,.]?\s*", r"\1Here... in the "),
+        (r"(^|[.!?;]\s*)(Notice how)[,.]?\s*", r"\1Notice... how "),
+        (r"(^|[.!?;]\s*)(Yet)[,.]?\s+", r"\1Yet... "),
+    ]
+    for pat, rep in intro_patterns:
+        t = re.sub(pat, rep, t, flags=re.IGNORECASE)
+
+    # Insert dramatic pauses at major clause boundaries if not already punctuated with ellipsis
+    t = re.sub(r",\s*(we discover|we find|lies|awaits|emerges|survives)\b", r"... \1", t, flags=re.IGNORECASE)
+
+    # Normalize multiple ellipses or spaces (e.g. '... ...' or '... .' -> '...')
+    t = re.sub(r"(?:\s*\.+){2,}\s*", "... ", t)
+    t = re.sub(r"\s+", " ", t).strip()
+    return t

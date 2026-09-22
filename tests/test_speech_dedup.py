@@ -38,6 +38,33 @@ def test_claim_turn_with_step_index(tmp_path, monkeypatch):
     assert origin == "desktop"
 
 
+def test_claim_turn_allows_identical_text_on_new_step_index(tmp_path, monkeypatch):
+    """
+    Verify that repeating requests ('tell me the joke again') produce successful claims
+    when the step_index changes, even if the text/signature is 100% identical.
+    """
+    turn_file = tmp_path / "active_turns.json"
+    lock_file = tmp_path / "active_turns.lock"
+    monkeypatch.setattr(
+        "voicefi.integrations.conversations.Path",
+        lambda p: turn_file if "active_turns.json" in str(p) else (lock_file if "active_turns.lock" in str(p) else Path(p)),
+    )
+
+    joke = "Why did the scorpion make a great debate champion? Because its closing point always had a wicked sting!"
+
+    # First turn (step 2134)
+    assert claim_turn("conv-scorpion", joke, step_index=2134) is True
+
+    # Duplicate hook call for step 2134 is rejected
+    assert claim_turn("conv-scorpion", joke, step_index=2134) is False
+
+    # Next turn (step 2136) with identical text must SUCCEED because step_index is distinct
+    assert claim_turn("conv-scorpion", joke, step_index=2136) is True
+
+    # Duplicate hook call for step 2136 is rejected
+    assert claim_turn("conv-scorpion", joke, step_index=2136) is False
+
+
 def test_speech_turn_lock_deduplication(tmp_path, monkeypatch):
     recent_file = tmp_path / "recent_speech.json"
     speech_lock = tmp_path / "speech.lock"

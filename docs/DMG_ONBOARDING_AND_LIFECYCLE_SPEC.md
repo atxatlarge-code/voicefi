@@ -204,7 +204,7 @@ stateDiagram-v2
 | ID | Timing / Trigger | Notification Title & Message | Action on Click |
 | :--- | :--- | :--- | :--- |
 | `nudge_hotkey_reminder` | 15 min after setup if 0 turns | **VoiceFi is Ready 🎙️**<br>Press `Control+T` in any application to speak your prompt. | Focuses active app / menu bar |
-| `nudge_turn_controls` | Upon completion of 1st turn | **🎙️ Spoken Turn Active**<br>Press `Esc` to stop speech immediately, or `Tab` to jump to the speaking agent. | Dismisses notification |
+| `nudge_turn_controls` | Upon completion of 1st turn | **🎙️ Spoken Turn Active**<br>Press `Esc` to stop speech immediately, or `Option+Tab` to jump to the speaking agent. | Dismisses notification |
 | `nudge_speed_talk` | After 10 turns at normal speed | **⚡ Save 40% of Listening Time**<br>Speed Talking accelerates agent speech (1.5x–2.5x) with zero pitch distortion. | Enables Speed Talking |
 | `nudge_wakeword` | Day 3 of active usage | **Hands-Free Wake Word 🗣️**<br>Say "Hey Viv" or press `Control+Space` to summon the Quick Prompt Bar. | Opens Quick Prompt Bar |
 | `nudge_cross_agent` | Antigravity + Claude both found | **🤖 Multi-Agent Pair Programming**<br>Delegate tasks between agents using `vifi send "Review this code" --to claude`. | Opens documentation |

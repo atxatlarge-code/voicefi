@@ -2,7 +2,7 @@
 Native macOS HUD Quick Controls Popover / Flyout.
 Provides an Apple-style frosted glass panel anchored directly below the VoiceFi HUD
 with instant segmented pill controls and toggles for:
-- ⚡ ProActive Listening [ ON | OFF ]
+- ⚡ ProActive Feedback Loop [ ON | OFF ]
 - ✋ Active Barge-In [ AUTO | ON | OFF ]
 - ⏱️ Pause Delay (Fibonacci: 1s, 2s, 3s, 5s, 8s, 11s)
 - 🚀 Auto-Send Mode [ Auto | Review ✏️ ]
@@ -212,9 +212,9 @@ class HUDQuickControlsPanel:
         cur_y = h - 68
 
         # ---------------------------------------------------------------------
-        # 2. ⚡ ProActive Listening
+        # 2. ⚡ ProActive Feedback Loop
         # ---------------------------------------------------------------------
-        _make_lbl("⚡ ProActive Listening", 18, cur_y + 12, 230, 18, font_size=11.5, bold=True)
+        _make_lbl("⚡ ProActive Feedback Loop", 18, cur_y + 12, 230, 18, font_size=11.5, bold=True)
         _make_lbl(
             "↳ Hands-free turn handoff when agent finishes speaking",
             18,
@@ -537,7 +537,7 @@ class HUDQuickControlsPanel:
         if hasattr(self.config, "claude"):
             self.config.claude.auto_listen = enabled
         save_config(self.config)
-        print(f"[QuickControls] ⚡ ProActive Listening: {'ON' if enabled else 'OFF'}")
+        print(f"[QuickControls] ⚡ ProActive Feedback Loop: {'ON' if enabled else 'OFF'}")
 
     def _on_barge_in_toggle(self, sender):
         idx = sender.selectedSegment()

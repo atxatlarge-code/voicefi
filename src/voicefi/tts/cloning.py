@@ -69,6 +69,18 @@ class ClonedVoiceProfile(BaseModel):
     calibrated_rate: Optional[int] = None
     calibrated_pitch: Optional[str] = "+0Hz"
 
+    @property
+    def vocal_range(self) -> str:
+        return self.acoustic_metrics.get("vocal_range", "Natural")
+
+    @property
+    def avg_pitch_hz(self) -> float:
+        return float(self.acoustic_metrics.get("avg_pitch_hz", 140.0))
+
+    @property
+    def suggested_neural_base(self) -> str:
+        return self.acoustic_metrics.get("suggested_neural_base", self.calibrated_voice or "Ava (Premium)")
+
 
 def estimate_pitch_f0(audio_data: np.ndarray, sample_rate: int = 16000) -> float:
     """
@@ -232,12 +244,29 @@ class VoiceCloneManager:
         return profiles
 
     def get_cloned_voice(self, name_or_id: str) -> Optional[ClonedVoiceProfile]:
-        """Find a cloned profile by name or exact ID (case-insensitive)."""
-        target = name_or_id.lower().strip()
+        """Find a cloned profile by name, exact ID, calibrated voice, or slug (case-insensitive)."""
+        if not name_or_id:
+            return None
+        target = str(name_or_id).lower().strip()
         for p in self.list_cloned_voices():
-            if p.id.lower() == target or p.name.lower() == target:
+            if (
+                p.id.lower() == target
+                or p.name.lower() == target
+                or (p.calibrated_voice and p.calibrated_voice.lower() == target)
+                or target in p.id.lower()
+                or target in p.name.lower()
+            ):
                 return p
+
+        # Fallback alias mapping for documentary broadcaster
+        if target in ("attenborough", "sir david attenborough", "david attenborough", "documentary", "documentary_broadcaster"):
+            for p in self.list_cloned_voices():
+                if any(k in p.id.lower() or k in p.name.lower() for k in ("documentary", "broadcaster", "attenborough")):
+                    return p
+
         return None
+
+    get_voice = get_cloned_voice
 
     def save_cloned_profile(self, profile: ClonedVoiceProfile) -> Path:
         """Save profile metadata to its directory."""
@@ -260,7 +289,7 @@ class VoiceCloneManager:
 
         copied = []
         for i, src in enumerate(file_paths):
-            src_path = Path(src)
+            src_path = Path(src).expanduser().resolve()
             if not src_path.exists():
                 continue
             dest_name = f"sample_{i + 1:02d}_{src_path.name}"
@@ -292,8 +321,8 @@ class VoiceCloneManager:
         Train / Clone a voice from audio samples.
         - Ingests samples to ~/.voicefi/cloned_voices/<name>/samples/
         - Extracts acoustic features & vocal range
-        - Calls ElevenLabs Instant Voice Clone API if api_key provided
-        - Configures local open-source F5-TTS or calibrated neural voice profile
+        - Auto-transcribes reference audio via local STT if ref_text omitted
+        - Configures local Kokoro, F5-TTS, or ElevenLabs IVC profile
         - Generates persona style prompt
         - Persists profile
         """
@@ -313,24 +342,40 @@ class VoiceCloneManager:
         # 2. Extract acoustic features
         acoustics = analyze_audio_acoustics(stored_samples)
 
-        # 3. Provider Resolution: ElevenLabs IVC, F5-TTS Open Source, or Local Calibrated
+        # 3. Provider Resolution: Kokoro, ElevenLabs IVC, F5-TTS, or Calibrated Neural
         voice_id = f"cloned_{slug}"
-        if provider_preference in ("f5_tts", "local_clone"):
+        if provider_preference in ("kokoro", "kokoro_onnx"):
+            provider = "kokoro"
+        elif provider_preference in ("f5_tts", "local_clone", "luxtts"):
             provider = "f5_tts"
         elif api_key:
             provider = "elevenlabs"
         elif provider_preference:
             provider = provider_preference
         else:
-            provider = "edge_tts"
+            provider = "local_clone"
 
         labels_dict = labels or {}
         labels_dict.setdefault("cloned_by", "voicefi")
         labels_dict.setdefault("vocal_range", acoustics.get("vocal_range", "Unknown"))
-        if ref_text:
-            labels_dict["ref_text"] = ref_text
-        elif "ref_text" not in labels_dict and TRAINING_PROMPTS:
-            labels_dict["ref_text"] = TRAINING_PROMPTS[0]["text"]
+        
+        # Auto-transcribe reference audio if not provided
+        if ref_text and ref_text.strip():
+            labels_dict["ref_text"] = ref_text.strip()
+        elif "ref_text" not in labels_dict:
+            try:
+                from voicefi.stt import get_stt_engine
+                from voicefi.config import load_config
+                cfg = load_config()
+                stt = get_stt_engine(cfg)
+                transcribed = stt.transcribe(str(stored_samples[0]))
+                if transcribed and transcribed.strip():
+                    labels_dict["ref_text"] = transcribed.strip()
+                elif TRAINING_PROMPTS:
+                    labels_dict["ref_text"] = TRAINING_PROMPTS[0]["text"]
+            except Exception:
+                if TRAINING_PROMPTS:
+                    labels_dict["ref_text"] = TRAINING_PROMPTS[0]["text"]
 
         if api_key and provider == "elevenlabs":
             try:
@@ -345,14 +390,9 @@ class VoiceCloneManager:
                 provider = "elevenlabs"
             except Exception as e:
                 print(
-                    f"[VoiceCloneManager] ElevenLabs IVC failed ({e}), falling back to open-source F5-TTS/local profile."
+                    f"[VoiceCloneManager] ElevenLabs IVC failed ({e}), falling back to local open-source profile."
                 )
-                try:
-                    import f5_tts
-
-                    provider = "f5_tts"
-                except ImportError:
-                    provider = "edge_tts"
+                provider = "local_clone"
 
         # 4. Generate persona prompt
         persona_prompt = generate_persona_prompt(clean_name, acoustics, custom_traits)
@@ -416,6 +456,7 @@ class VoiceCloneManager:
             if profile.provider in ("elevenlabs", "f5_tts", "local_clone")
             else (profile.calibrated_voice or "en-US-AvaNeural"),
             provider=profile.provider,
+            offline_voice=profile.calibrated_voice or "Ava (Premium)",
             rate=profile.calibrated_rate or 200,
             pitch=profile.calibrated_pitch or "+0Hz",
             description=f"Cloned voice of {profile.name}",

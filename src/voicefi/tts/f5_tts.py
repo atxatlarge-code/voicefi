@@ -21,6 +21,18 @@ from voicefi.tts.base import (
 )
 
 
+def normalize_f5_model_name(model_name: Optional[str]) -> str:
+    """Map user-facing aliases (e.g. F5-TTS) to the exact YAML config name."""
+    if not model_name:
+        return "F5TTS_v1_Base"
+    m = str(model_name).strip()
+    if m in ("F5-TTS", "F5_TTS", "f5_tts", "F5TTS", "f5-tts", "f5tts"):
+        return "F5TTS_v1_Base"
+    if m in ("E2-TTS", "E2_TTS", "e2_tts", "E2TTS", "e2-tts", "e2tts"):
+        return "E2TTS_Base"
+    return m
+
+
 class F5TTS(BaseTTS):
     """
     Open-Source Zero-Shot Voice Cloning TTS Provider based on F5-TTS.
@@ -36,19 +48,36 @@ class F5TTS(BaseTTS):
         model_name: str = "F5TTS_v1_Base",
         device: Optional[str] = None,
         speed: float = 1.0,
+        nfe_step: int = 32,
+        persona_name: Optional[str] = None,
     ):
         super().__init__()
         self.ref_audio = ref_audio
         self.ref_text = ref_text
-        self.model_name = model_name or "F5TTS_v1_Base"
+        self.model_name = normalize_f5_model_name(model_name)
         self.device = device
         self.speed = speed
+        self.nfe_step = nfe_step or 32
+        self.persona_name = persona_name
         self._current_process: Optional[subprocess.Popen] = None
         self._stop_requested = False
 
     @classmethod
+    def is_available(cls) -> bool:
+        """Check if f5_tts and torchcodec packages are installed and functional."""
+        try:
+            import f5_tts  # noqa: F401
+            import torchcodec  # noqa: F401
+            return True
+        except ImportError:
+            return False
+        except Exception:
+            return False
+
+    @classmethod
     def get_f5_instance(cls, model_name: str = "F5TTS_v1_Base", device: Optional[str] = None):
         """Lazy-load and cache the F5TTS model instance."""
+        target_model = normalize_f5_model_name(model_name)
         target_device = device
         if target_device in (None, "auto"):
             try:
@@ -63,17 +92,30 @@ class F5TTS(BaseTTS):
             except Exception:
                 target_device = "cpu"
 
-        cache_key = (model_name, target_device)
+        cache_key = (target_model, target_device)
         if cache_key in cls._model_cache:
             return cls._model_cache[cache_key]
 
         try:
             from f5_tts.api import F5TTS as F5TTSModel
 
-            print(
-                f"[F5-TTS] Loading local open-source model '{model_name}' on device '{target_device}'..."
-            )
-            inst = F5TTSModel(model=model_name, device=target_device)
+            # Patch f5_tts.infer.utils_infer.ThreadPoolExecutor to use max_workers=1 on Apple Silicon MPS.
+            # PyTorch MPS Metal command queues are not thread-safe and crash with SIGSEGV on concurrent threads.
+            try:
+                import f5_tts.infer.utils_infer as ui
+                from concurrent.futures import ThreadPoolExecutor as StdThreadPoolExecutor
+
+                class SafeMPSThreadPoolExecutor(StdThreadPoolExecutor):
+                    def __init__(self, *args, **kwargs):
+                        if target_device == "mps":
+                            kwargs["max_workers"] = 1
+                        super().__init__(*args, **kwargs)
+
+                ui.ThreadPoolExecutor = SafeMPSThreadPoolExecutor
+            except Exception:
+                pass
+
+            inst = F5TTSModel(model=target_model, device=target_device)
             cls._model_cache[cache_key] = inst
             return inst
         except ImportError:
@@ -89,12 +131,33 @@ class F5TTS(BaseTTS):
         if self.ref_audio and Path(self.ref_audio).exists():
             return str(Path(self.ref_audio).resolve()), self.ref_text
 
-        # Check default clones directory
+        # 1. Check VoiceCloneManager for active persona/voice
+        try:
+            from voicefi.tts.cloning import VoiceCloneManager
+
+            vcm = VoiceCloneManager()
+            for cand in [
+                getattr(self, "persona_name", None),
+                getattr(self, "voice", None),
+                "documentary_broadcaster",
+                "attenborough",
+            ]:
+                if cand:
+                    c_prof = vcm.get_cloned_voice(cand)
+                    if c_prof and c_prof.sample_paths:
+                        s_path = Path(c_prof.sample_paths[0])
+                        if s_path.exists():
+                            r_text = c_prof.labels.get("ref_text") if c_prof.labels else None
+                            return str(s_path.resolve()), r_text
+        except Exception:
+            pass
+
+        # 2. Check default clones directory
         clones_dir = Path.home() / ".voicefi" / "cloned_voices"
         if clones_dir.exists():
-            # Check for ava or voice persona or any trained profile
-            for name in ["ava", "persona", "default", "custom"]:
-                p_dir = clones_dir / name
+            for p_dir in clones_dir.iterdir():
+                if not p_dir.is_dir():
+                    continue
                 prof_file = p_dir / "profile.json"
                 if prof_file.is_file():
                     import json
@@ -111,7 +174,7 @@ class F5TTS(BaseTTS):
                     except Exception:
                         pass
 
-        # Fallback to f5-tts bundled sample if available
+        # 3. Fallback to f5-tts bundled sample if available
         try:
             from importlib.resources import files
 
@@ -138,9 +201,23 @@ class F5TTS(BaseTTS):
             return False
 
         try:
+            from voicefi.tts.normalizer import inject_documentary_breathing_pauses
+            from voicefi.audio.mastering import apply_bbc_documentary_mastering
+
+            # Apply breathing pauses if this is a documentary narrator profile
+            is_doc_narrator = any(
+                k in str(ref_file).lower() or k in str(getattr(self, "persona_name", "")).lower()
+                for k in ("documentary", "broadcaster", "attenborough")
+            )
+            if is_doc_narrator:
+                clean_text = inject_documentary_breathing_pauses(clean_text)
+
             f5_inst = self.get_f5_instance(self.model_name, self.device)
             if not ref_text:
                 ref_text = f5_inst.transcribe(ref_file)
+
+            import random
+            safe_seed = random.randint(0, 4294967295)
 
             output_path.parent.mkdir(parents=True, exist_ok=True)
             f5_inst.infer(
@@ -150,8 +227,25 @@ class F5TTS(BaseTTS):
                 file_wave=str(output_path),
                 speed=self.speed,
                 remove_silence=True,
+                seed=safe_seed,
+                nfe_step=self.nfe_step,
             )
-            return output_path.exists() and output_path.stat().st_size > 0
+
+            # Ensure PYTHONHASHSEED is valid 32-bit unsigned int or pop it
+            if "PYTHONHASHSEED" in os.environ:
+                try:
+                    val = int(os.environ["PYTHONHASHSEED"])
+                    if val < 0 or val > 4294967295:
+                        os.environ.pop("PYTHONHASHSEED", None)
+                except ValueError:
+                    if os.environ.get("PYTHONHASHSEED") != "random":
+                        os.environ.pop("PYTHONHASHSEED", None)
+
+            if output_path.exists() and output_path.stat().st_size > 0:
+                # Apply BBC studio broadcast mastering chain
+                apply_bbc_documentary_mastering(output_path, output_path)
+                return True
+            return False
         except Exception as e:
             print(f"[F5-TTS] Synthesis error: {e}")
             return False
@@ -182,10 +276,25 @@ class F5TTS(BaseTTS):
                 if self._stop_requested or is_speech_interrupted(turn_start_time):
                     return
                 if not success or not tmp_path.exists():
-                    print("[F5-TTS] Failed to generate audio. Falling back to native macOS say.")
+                    from voicefi.tts.cloning import VoiceCloneManager
+                    from voicefi.tts.edge_tts import EdgeTTS
                     from voicefi.tts.mac_say import MacSayTTS
 
-                    MacSayTTS().speak(text, block=block)
+                    vcm = VoiceCloneManager()
+                    c_prof = vcm.get_cloned_voice(getattr(self, "persona_name", "documentary_broadcaster")) or vcm.get_cloned_voice("attenborough")
+                    if c_prof and c_prof.calibrated_voice and "Neural" in str(c_prof.calibrated_voice):
+                        print(
+                            f"[F5-TTS] Notice: Falling back to calibrated neural voice '{c_prof.calibrated_voice}' with BBC studio mastering."
+                        )
+                        eng = EdgeTTS(
+                            voice=c_prof.calibrated_voice,
+                            rate=f"{c_prof.calibrated_rate or 148}wpm",
+                            pitch=getattr(c_prof, "calibrated_pitch", "-5Hz") or "-5Hz",
+                        )
+                        eng.speak(text, block=block)
+                    else:
+                        print("[F5-TTS] Failed to generate audio. Falling back to native macOS say.")
+                        MacSayTTS().speak(text, block=block)
                     return
 
                 # Play generated WAV via afplay

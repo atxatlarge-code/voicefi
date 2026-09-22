@@ -38,26 +38,57 @@ class GeminiTTS(BaseTTS):
     """
 
     VALID_VOICES = {
-        "aoede": "Aoede",
         "puck": "Puck",
         "charon": "Charon",
         "kore": "Kore",
         "fenrir": "Fenrir",
+        "aoede": "Aoede",
+        "zephyr": "Zephyr",
+        "leda": "Leda",
+        "orus": "Orus",
+        "callirrhoe": "Callirrhoe",
+        "autonoe": "Autonoe",
+        "enceladus": "Enceladus",
+        "iapetus": "Iapetus",
+        "umbriel": "Umbriel",
+        "algieba": "Algieba",
+        "despina": "Despina",
+        "erinome": "Erinome",
+        "algenib": "Algenib",
+        "rasalgethi": "Rasalgethi",
+        "laomedeia": "Laomedeia",
+        "achernar": "Achernar",
+        "alnilam": "Alnilam",
+        "schedar": "Schedar",
+        "gacrux": "Gacrux",
+        "pulcherrima": "Pulcherrima",
+        "achird": "Achird",
+        "zubenelgenubi": "Zubenelgenubi",
+        "vindemiatrix": "Vindemiatrix",
+        "sadachbia": "Sadachbia",
+        "sadaltager": "Sadaltager",
+        "sulafat": "Sulafat",
     }
 
     def __init__(
         self,
         api_key: Optional[str] = None,
-        voice: str = "Aoede",
-        model: str = "gemini-2.0-flash-exp",
+        voice: str = "Puck",
+        model: str = "gemini-3.8-live",
         temperature: float = 0.3,
     ):
         super().__init__()
+        from voicefi.config import resolve_gemini_api_key
+
         self.api_key = (
-            api_key or os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or ""
+            api_key
+            or resolve_gemini_api_key()
+            or os.environ.get("GEMINI_API_KEY")
+            or os.environ.get("GOOGLE_API_KEY")
+            or ""
         )
         self.voice = self._normalize_voice_name(voice)
-        self.model = model or "gemini-2.0-flash-exp"
+        self.model = model or "gemini-3.8-live"
         self.temperature = temperature
         self._current_process: Optional[subprocess.Popen] = None
         self._stop_requested = False
@@ -131,10 +162,65 @@ class GeminiTTS(BaseTTS):
             set_agent_audio_playing(False)
             self._current_process = None
 
+    def _generate_audio_bytes_live(self, text: str) -> Optional[bytes]:
+        """Synthesize audio using bidirectional WebSocket Live streaming."""
+        if not self.api_key:
+            return None
+        try:
+            import asyncio
+            import io
+            import wave
+            from google import genai
+            from google.genai import types
+
+            client = genai.Client(api_key=self.api_key)
+            config = types.LiveConnectConfig(
+                response_modalities=["AUDIO"],
+                speech_config=types.SpeechConfig(
+                    voice_config=types.VoiceConfig(
+                        prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                            voice_name=self.voice
+                        )
+                    )
+                ),
+            )
+
+            async def _run():
+                chunks = []
+                async with client.aio.live.connect(model=self.model, config=config) as session:
+                    await session.send_realtime_input(text=text)
+                    async for response in session.receive():
+                        if response.server_content and response.server_content.model_turn:
+                            for part in response.server_content.model_turn.parts:
+                                if part.inline_data and part.inline_data.data:
+                                    chunks.append(part.inline_data.data)
+                        if response.server_content and response.server_content.turn_complete:
+                            break
+                if chunks:
+                    raw_pcm = b"".join(chunks)
+                    buf = io.BytesIO()
+                    with wave.open(buf, "wb") as wf:
+                        wf.setnchannels(1)
+                        wf.setsampwidth(2)
+                        wf.setframerate(24000)
+                        wf.writeframes(raw_pcm)
+                    return buf.getvalue()
+                return None
+
+            return asyncio.run(_run())
+        except Exception as e:
+            logger.debug("Gemini Live synthesis failed: %s", e)
+            return None
+
     def _generate_audio_bytes(self, text: str, timeout: float = 4.0) -> Optional[bytes]:
         """Request audio synthesis from Gemini API."""
         if not self.api_key:
             return None
+
+        if "live" in self.model:
+            live_bytes = self._generate_audio_bytes_live(text)
+            if live_bytes:
+                return live_bytes
 
         url = f"{GEMINI_API_URL}/{self.model}:generateContent?key={self.api_key}"
         headers = {"Content-Type": "application/json"}

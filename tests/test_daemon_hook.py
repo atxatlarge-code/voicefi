@@ -58,6 +58,38 @@ class TestCompanionHookEndpoint(AioHTTPTestCase):
             assert data["status"] == "handled"
             assert data["agent"] == "claude"
 
+    async def test_hook_event_endpoint_claude_alias(self):
+        """Test POST /api/hook/event handles Claude Code alias (e.g. claude2) with voice override."""
+        payload = {
+            "agent": "claude2",
+            "voice": "en-GB-RyanNeural",
+            "conversationId": "claude_session_alias",
+            "message": "Task complete!",
+        }
+        with patch("voicefi.integrations.claude.handle_claude_stop_hook") as mock_handle:
+            resp = await self.client.post("/api/hook/event", json=payload)
+            assert resp.status == 200
+            data = await resp.json()
+            assert data["success"] is True
+            assert data["status"] == "handled"
+            assert data["agent"] == "claude2"
+
+    async def test_hook_event_endpoint_codex_alias(self):
+        """Test POST /api/hook/event handles Codex alias (e.g. codex2) with voice override."""
+        payload = {
+            "agent": "codex2",
+            "voice": "en-US-AvaNeural",
+            "conversationId": "codex_session_alias",
+            "last-assistant-message": "Task complete!",
+        }
+        with patch("voicefi.integrations.codex.handle_codex_stop_hook") as mock_handle:
+            resp = await self.client.post("/api/hook/event", json=payload)
+            assert resp.status == 200
+            data = await resp.json()
+            assert data["success"] is True
+            assert data["status"] == "handled"
+            assert data["agent"] == "codex2"
+
 
 def test_cmd_hook_fast_forward_to_daemon(monkeypatch, capsys):
     """Test cmd_hook immediately returns allow when daemon/server handles the hook."""
@@ -175,4 +207,97 @@ def test_cmd_hook_action_disable_and_enable(monkeypatch, capsys):
     cmd_hook(args_en)
     assert cfg.hooks.enabled is True
     assert len(saved_cfgs) == 2
+
+
+class TestMultiInstanceAgentVoiceOverrides:
+    """Validate multi-agent subscription aliases and per-hook voice overrides."""
+
+    def test_cmd_hook_populates_agent_alias_and_voice(self, monkeypatch, capsys):
+        """Test vifi hook --agent claude2 --voice Ryan passes metadata to server."""
+        args = argparse.Namespace(
+            config=None,
+            agent="claude2",
+            voice="en-GB-RyanNeural",
+            action=None,
+            extra_args=[],
+            disable=False,
+            enable=False,
+            status=False,
+            remove=False,
+        )
+        forwarded_payloads = []
+        monkeypatch.setattr(
+            "voicefi.integrations.server_client.forward_hook_to_server",
+            lambda p, c: forwarded_payloads.append(p) or {"status": "handled"},
+        )
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+
+        cmd_hook(args)
+        assert len(forwarded_payloads) == 1
+        assert forwarded_payloads[0]["agent"] == "claude2"
+        assert forwarded_payloads[0]["voice"] == "en-GB-RyanNeural"
+
+    def test_handle_claude_stop_hook_uses_voice_override(self, monkeypatch):
+        """Test handle_claude_stop_hook passes voice_override to get_tts_engine."""
+        from voicefi.integrations.claude import handle_claude_stop_hook
+
+        cfg = VoiceFiConfig(enabled=True)
+        cfg.claude.read_summary_aloud = True
+        cfg.claude.auto_listen = False
+
+        payload = {
+            "agent": "claude2",
+            "voice": "en-GB-RyanNeural",
+            "message": "Claude 2 finished compiling the assets.",
+        }
+
+        mock_tts = MagicMock()
+        mock_tts.voice = "Ryan"
+        captured_kwargs = {}
+
+        def mock_get_tts(config, **kwargs):
+            captured_kwargs.update(kwargs)
+            return mock_tts
+
+        monkeypatch.setattr("voicefi.integrations.claude.get_tts_engine", mock_get_tts)
+        monkeypatch.setattr("voicefi.integrations.claude.claim_turn", lambda *a, **kw: True)
+        monkeypatch.setattr("voicefi.audio.meeting_detection.is_user_on_call", lambda: False)
+
+        result = handle_claude_stop_hook(payload, cfg)
+        assert captured_kwargs.get("agent_name") == "claude2"
+        assert captured_kwargs.get("voice_override") == "en-GB-RyanNeural"
+        mock_tts.stream_speak.assert_called_once()
+
+    def test_handle_codex_stop_hook_uses_voice_override(self, monkeypatch):
+        """Test handle_codex_stop_hook passes voice_override to get_tts_engine."""
+        from voicefi.integrations.codex import handle_codex_stop_hook
+
+        cfg = VoiceFiConfig(enabled=True)
+        cfg.codex.read_summary_aloud = True
+        cfg.codex.auto_listen = False
+
+        payload = {
+            "agent": "codex2",
+            "voice": "en-US-AvaNeural",
+            "last-assistant-message": "Codex 2 finished writing the migration script.",
+            "thread-id": "codex_sub_2",
+        }
+
+        mock_tts = MagicMock()
+        mock_tts.voice = "Ava"
+        captured_kwargs = {}
+
+        def mock_get_tts(config, **kwargs):
+            captured_kwargs.update(kwargs)
+            return mock_tts
+
+        monkeypatch.setattr("voicefi.integrations.codex.get_tts_engine", mock_get_tts)
+        monkeypatch.setattr("voicefi.integrations.codex.claim_turn", lambda *a, **kw: True)
+        monkeypatch.setattr("voicefi.audio.meeting_detection.is_user_on_call", lambda: False)
+
+        result = handle_codex_stop_hook(payload, cfg)
+        assert captured_kwargs.get("agent_name") == "codex2"
+        assert captured_kwargs.get("voice_override") == "en-US-AvaNeural"
+        mock_tts.speak.assert_called_once()
+
 

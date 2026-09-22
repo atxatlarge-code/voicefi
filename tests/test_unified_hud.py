@@ -43,6 +43,10 @@ def test_unified_hud_states(mock_appkit):
     hud.set_speaking(text="Test speech text", persona_name="Christopher")
     assert hud._current_state == "speaking"
 
+    # 4b. Spoken Settled
+    hud.set_spoken(text="Test speech text", persona_name="Christopher")
+    assert hud._current_state == "spoken"
+
     # 5. Listening
     hud.set_listening(user_name="Jake")
     assert hud._current_state == "listening"
@@ -179,7 +183,7 @@ def test_unified_hud_draggability_and_reset(mock_appkit):
     frame = hud._get_target_frame(hud.STANDARD_WIDTH, hud.STANDARD_HEIGHT)
     assert frame.origin.x == 300.0 - (hud.STANDARD_WIDTH / 2.0)
     assert frame.origin.y == 600.0 - hud.STANDARD_HEIGHT
-    assert frame.size.width == 480.0
+    assert frame.size.width == 540.0
     assert frame.size.height == 58.0
 
     hud.reset_position()
@@ -198,13 +202,20 @@ def test_unified_hud_draggability_and_reset(mock_appkit):
     with patch("voicefi.ui.unified_hud.NSScreen.mainScreen", return_value=mock_screen), \
          patch.object(UnifiedDynamicIslandHUD, "_get_dock_height", return_value=66.0), \
          patch.object(UnifiedDynamicIslandHUD, "_is_dock_on_bottom", return_value=True):
-        # Default position is bottom_right
+        # Default position is bottom_right (compact 58.0 default height)
         frame_br = hud._get_target_frame(hud.STANDARD_WIDTH, hud.STANDARD_HEIGHT)
-        # Expected: x = 1920 - 480 - 20 = 1420.0; y = 66.0 (dock) + 14.0 (margin_bottom) = 80.0
-        assert frame_br.origin.x == 1420.0
+        # Expected: x = 1920 - 540 - 20 = 1360.0; y = 66.0 (dock) + 14.0 (margin_bottom) = 80.0
+        assert frame_br.origin.x == 1360.0
         assert frame_br.origin.y == 80.0
-        assert frame_br.size.width == 480.0
+        assert frame_br.size.width == 540.0
         assert frame_br.size.height == 58.0
+
+        # Expanded height (82.0) anchored above dock grows upward, origin y stays 80.0
+        frame_br_exp = hud._get_target_frame(hud.STANDARD_WIDTH, hud.EXPANDED_HEIGHT)
+        assert frame_br_exp.origin.x == 1360.0
+        assert frame_br_exp.origin.y == 80.0
+        assert frame_br_exp.size.width == 540.0
+        assert frame_br_exp.size.height == 82.0
 
         # Pinned dock at bottom (visible.origin.y > 20.0)
         mock_visible.origin.y = 72.0
@@ -215,14 +226,14 @@ def test_unified_hud_draggability_and_reset(mock_appkit):
         # Test top-right anchoring when explicitly selected
         hud.config.hud.position = "top_right"
         frame_tr = hud._get_target_frame(hud.STANDARD_WIDTH, hud.STANDARD_HEIGHT)
-        assert frame_tr.origin.x == 1420.0
-        assert frame_tr.origin.y == 926.0
+        assert frame_tr.origin.x == 1360.0
+        assert frame_tr.origin.y == 1080.0 - 58.0 - 96.0
 
         # Test custom configured margins
         hud.config.hud.margin_x = 30.0
         hud.config.hud.margin_y = 60.0
         frame_custom = hud._get_target_frame(hud.STANDARD_WIDTH, hud.STANDARD_HEIGHT)
-        assert frame_custom.origin.x == 1920.0 - 480.0 - 30.0
+        assert frame_custom.origin.x == 1920.0 - 540.0 - 30.0
         assert frame_custom.origin.y == 1080.0 - 58.0 - 60.0
 
         # Reset config
@@ -231,10 +242,20 @@ def test_unified_hud_draggability_and_reset(mock_appkit):
         hud.config.hud.margin_y = 96.0
 
 
-def test_unified_hud_fixed_dimensions(mock_appkit):
+def test_unified_hud_dimensions_and_dynamic_expansion(mock_appkit):
     hud = UnifiedDynamicIslandHUD.get_instance()
-    assert hud.STANDARD_WIDTH == 480.0
+    assert hud.STANDARD_WIDTH == 540.0
     assert hud.STANDARD_HEIGHT == 58.0
+    assert hud.EXPANDED_HEIGHT == 82.0
+
+    # Short single-line text stays compact (58px)
+    assert not hud._needs_expanded_height("Standing by • Dictate (⌃T)")
+    assert not hud._needs_expanded_height("Short spoken phrase")
+
+    # Long text (>72 chars / >415px) or newlines expand to 82px
+    assert hud._needs_expanded_height("Line 1\nLine 2")
+    long_phrase = "Refactoring the authentication middleware and verifying all 14 unit tests pass with zero regressions."
+    assert hud._needs_expanded_height(long_phrase)
 
 
 def test_cmd_hud_actions(mock_appkit):

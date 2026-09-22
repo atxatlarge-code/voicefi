@@ -102,6 +102,7 @@ COMMAND_CATEGORIES = [
         "🤖 Agent & Integration",
         [
             ("hook", "Run as AI agent lifecycle hook (Antigravity, Claude Code)"),
+            ("live / -l", "Gemini 3.8 Live direct speech-to-speech studio with parallel tools"),
             ("speak", "Speak text aloud with neural or local offline voice"),
             ("listen", "Listen from microphone, transcribe, and inject into active app"),
             ("wake", "Run interactive 'Hey Viv' wake word listener & dispatcher"),
@@ -205,6 +206,11 @@ def render_categorized_help(prog: str = "vifi", stream=None) -> str:
         f"  {c_bold_yellow('--version', stream):<28} Show VoiceFi version"
         if _use_color(stream)
         else "  --version          Show VoiceFi version"
+    )
+    lines.append(
+        f"  {c_bold_yellow('-l, --live', stream):<28} Start Gemini 3.8 Live speech-to-speech studio"
+        if _use_color(stream)
+        else "  -l, --live         Start Gemini 3.8 Live speech-to-speech studio"
     )
     lines.append(
         f"  {c_bold_yellow('--config <path>', stream):<28} Path to custom config.yaml"

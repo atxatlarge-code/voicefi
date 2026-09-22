@@ -92,6 +92,8 @@ class RelayClient:
         self.is_running = False
         self.has_peer = False
         self._task: Optional[asyncio.Task] = None
+        self.live_ws: Optional[aiohttp.ClientWebSocketResponse] = None
+        self.live_task: Optional[asyncio.Task] = None
 
     @property
     def pairing_url(self) -> str:
@@ -107,6 +109,7 @@ class RelayClient:
     async def stop(self) -> None:
         """Stop relay client."""
         self.is_running = False
+        await self._stop_live_session()
         if self.has_peer:
             self.has_peer = False
             try:
@@ -173,7 +176,7 @@ class RelayClient:
                         if msg.type == aiohttp.WSMsgType.TEXT:
                             await self._handle_incoming_message(msg.data)
                         elif msg.type == aiohttp.WSMsgType.BINARY:
-                            pass
+                            await self._handle_incoming_binary(msg.data)
                         elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
                             print(f"[RelayClient] ⚠️ WS closed/error: {msg.type}", flush=True)
                             break
@@ -207,7 +210,7 @@ class RelayClient:
             if self.has_peer:
                 try:
                     from voicefi.integrations.conversations import record_companion_heartbeat
-                    record_companion_heartbeat(1)
+                    record_companion_heartbeat(1, num_mobile_clients=1, has_mobile=True)
                 except Exception:
                     pass
             if self.has_peer and self.on_peer_connected:
@@ -217,7 +220,7 @@ class RelayClient:
             self.has_peer = True
             try:
                 from voicefi.integrations.conversations import record_companion_heartbeat
-                record_companion_heartbeat(1)
+                record_companion_heartbeat(1, num_mobile_clients=1, has_mobile=True)
             except Exception:
                 pass
             logger.info("[RelayClient] 📱 Remote phone connected!")
@@ -228,7 +231,7 @@ class RelayClient:
             self.has_peer = False
             try:
                 from voicefi.integrations.conversations import record_companion_heartbeat
-                record_companion_heartbeat(0)
+                record_companion_heartbeat(0, num_mobile_clients=0, has_mobile=False)
             except Exception:
                 pass
             logger.info("[RelayClient] 📱 Remote phone disconnected")
@@ -244,7 +247,7 @@ class RelayClient:
             from voicefi.integrations.conversations import set_mobile_turn_origin, record_companion_heartbeat
 
             try:
-                record_companion_heartbeat(1)
+                record_companion_heartbeat(1, num_mobile_clients=1, has_mobile=True)
             except Exception:
                 pass
 
@@ -307,6 +310,27 @@ class RelayClient:
                     }
                 )
 
+        elif msg_type == "live_start":
+            await self._start_live_session(payload)
+
+        elif msg_type == "live_stop":
+            await self._stop_live_session()
+
+        elif msg_type == "live_barge_in":
+            if self.live_ws and not self.live_ws.closed:
+                try:
+                    await self.live_ws.send_str(json.dumps({"type": "barge_in"}))
+                except Exception as e:
+                    logger.debug(f"[RelayClient] live_barge_in error: {e}")
+
+        elif msg_type == "live_text":
+            prompt_text = payload.get("text", "")
+            if self.live_ws and not self.live_ws.closed and prompt_text:
+                try:
+                    await self.live_ws.send_str(json.dumps({"type": "text", "text": prompt_text}))
+                except Exception as e:
+                    logger.debug(f"[RelayClient] live_text error: {e}")
+
         elif msg_type == "ping":
             if self.has_peer:
                 try:
@@ -315,6 +339,78 @@ class RelayClient:
                 except Exception:
                     pass
             await self.broadcast({"type": "pong", "timestamp": time.time()})
+
+    async def _handle_incoming_binary(self, data: bytes) -> None:
+        """Forward binary 16kHz PCM audio chunk from phone to local Gemini Live WS."""
+        if self.live_ws and not self.live_ws.closed:
+            try:
+                await self.live_ws.send_bytes(data)
+            except Exception as e:
+                logger.debug(f"[RelayClient] Error forwarding binary audio to live WS: {e}")
+
+    async def _start_live_session(self, payload: Dict[str, Any]) -> None:
+        """Proxy a Gemini Live session from the phone to local /ws/live."""
+        await self._stop_live_session()
+        params = payload.get("params") or payload.get("config") or {}
+        query_params = {
+            "model": params.get("model", "gemini-2.5-flash-native-audio-latest"),
+            "voice": params.get("voice", "Puck"),
+            "thinking": "1" if params.get("thinking") else "0",
+            "thinking_level": params.get("thinking_level", "LOW"),
+            "tools": "1" if params.get("tools", True) else "0",
+        }
+        query_str = urllib.parse.urlencode(query_params)
+        url = f"http://127.0.0.1:{self.local_port}/ws/live?{query_str}"
+        try:
+            if not self.session or self.session.closed:
+                self.session = aiohttp.ClientSession()
+            self.live_ws = await self.session.ws_connect(url, heartbeat=15.0)
+            self.live_task = asyncio.create_task(self._pipe_live_ws())
+            logger.info("[RelayClient] ⚡ Connected to local Gemini Live WS on Port %s", self.local_port)
+        except Exception as e:
+            logger.error("[RelayClient] Failed to connect to local live WS: %s", e)
+            await self.broadcast({"type": "error", "message": f"Could not connect to Gemini Live: {e}"})
+
+    async def _stop_live_session(self) -> None:
+        """Close the active Gemini Live proxy session."""
+        if self.live_task:
+            self.live_task.cancel()
+            try:
+                await self.live_task
+            except (asyncio.CancelledError, Exception):
+                pass
+            self.live_task = None
+        if self.live_ws and not self.live_ws.closed:
+            try:
+                await self.live_ws.close()
+            except Exception:
+                pass
+            self.live_ws = None
+
+    async def _pipe_live_ws(self) -> None:
+        """Pipe audio bytes and JSON events from local /ws/live back to the remote phone."""
+        if not self.live_ws:
+            return
+        try:
+            async for msg in self.live_ws:
+                if not self.ws or self.ws.closed:
+                    break
+                if msg.type == aiohttp.WSMsgType.BINARY:
+                    await self.ws.send_bytes(msg.data)
+                elif msg.type == aiohttp.WSMsgType.TEXT:
+                    await self.ws.send_str(msg.data)
+                elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
+                    break
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            logger.debug(f"[RelayClient] Pipe live WS ended: {e}")
+        finally:
+            if self.ws and not self.ws.closed:
+                try:
+                    await self.ws.send_str(json.dumps({"type": "turn_complete"}))
+                except Exception:
+                    pass
 
     async def _proxy_rpc_request(self, payload: Dict[str, Any]) -> None:
         """Proxy a REST API request to localhost:local_port and return response to phone."""

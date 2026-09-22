@@ -15,12 +15,14 @@
    */
   function getVoiceFiReactiveSVG(state = 'idle') {
     const validStates = [
-      'idle', 'thinking', 'speaking', 'listening', 'working',
+      'idle', 'thinking', 'speaking', 'spoken', 'listening', 'working',
       'hearing', 'new_conversation', 'editing', 'meeting',
       'paused', 'transcribing', 'done', 'user_prompt'
     ];
     const safeState = validStates.includes(state) ? state : 'idle';
     const stateClass = `vifi-active-${safeState}`;
+    const mouthColor = safeState === 'spoken' ? '#00E575' : '#FFFFFF';
+    const cradleColor = safeState === 'spoken' ? '#00E575' : '#FFFFFF';
 
     return `
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="40 50 432 412" class="w-full h-full object-contain ${stateClass}" style="overflow: visible;" aria-label="VoiceFi Status: ${safeState}">
@@ -38,8 +40,8 @@
             <rect class="vifi-nose-frame" x="238" y="278" width="36" height="15" rx="7.5" fill="#000000" stroke="#FFFFFF" stroke-width="2.5" />
             <line class="vifi-nose-pin" x1="246" y1="285.5" x2="266" y2="285.5" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" />
           </g>
-          <path class="vifi-mouth" d="M 230 320 Q 256 342 282 320" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" />
-          <path class="vifi-cradle" d="M 124 220 C 124 350, 175 385, 256 385 C 337 385, 388 350, 388 220" fill="none" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round" />
+          <path class="vifi-mouth" d="M 230 320 Q 256 342 282 320" fill="none" stroke="${mouthColor}" stroke-width="6" stroke-linecap="round" />
+          <path class="vifi-cradle" d="M 124 220 C 124 350, 175 385, 256 385 C 337 385, 388 350, 388 220" fill="none" stroke="${cradleColor}" stroke-width="12" stroke-linecap="round" />
           <g class="vifi-ear-left">
             <rect class="vifi-ear-frame" x="110" y="205" width="28" height="30" rx="6" fill="#000000" stroke="#FFFFFF" stroke-width="3.5" />
             <circle class="vifi-ear-dot vifi-ear-dot-l" cx="124" cy="220" r="4.5" fill="#FFFFFF" />
@@ -68,7 +70,7 @@
    */
   function updateVoiceFiHud(state, options = {}) {
     const validStates = [
-      'idle', 'thinking', 'speaking', 'listening', 'working',
+      'idle', 'thinking', 'speaking', 'spoken', 'listening', 'working',
       'hearing', 'new_conversation', 'editing', 'meeting',
       'paused', 'transcribing', 'done', 'user_prompt'
     ];
@@ -111,9 +113,9 @@
     // 4. Update Aura Halos & Right Visualizers
     if (capsule) {
       capsule.classList.remove(
-        'glow-speaking', 'glow-thinking', 'glow-working', 'glow-listening', 'glow-new_conversation',
+        'glow-speaking', 'glow-spoken', 'glow-thinking', 'glow-working', 'glow-listening', 'glow-new_conversation',
         'glow-editing', 'glow-hearing', 'glow-meeting', 'glow-paused', 'glow-transcribing', 'glow-done', 'glow-user_prompt',
-        'hud-state-idle', 'hud-state-listening', 'hud-state-speaking', 'hud-state-thinking', 'hud-state-working',
+        'hud-state-idle', 'hud-state-listening', 'hud-state-speaking', 'hud-state-spoken', 'hud-state-thinking', 'hud-state-working',
         'hud-state-hearing', 'hud-state-new_conversation', 'hud-state-editing', 'hud-state-meeting',
         'hud-state-paused', 'hud-state-transcribing', 'hud-state-done', 'hud-state-user_prompt'
       );
@@ -160,12 +162,12 @@
 
     // 5. Update Connected App / Persona Logo Badge (Hidden on idle)
     if (appBadge) {
-      const isVisibleState = ['speaking', 'thinking', 'working', 'new_conversation', 'editing', 'user_prompt'].includes(safeState);
+      const isVisibleState = ['speaking', 'spoken', 'thinking', 'working', 'new_conversation', 'editing', 'user_prompt'].includes(safeState);
       if (showAppIcon && isVisibleState) {
         appBadge.style.display = 'flex';
         appBadge.classList.remove('hidden');
         const name = personaName || (typeof window !== 'undefined' && window.selectedVoiceKey && typeof voicePersonas !== 'undefined' && voicePersonas[window.selectedVoiceKey] ? voicePersonas[window.selectedVoiceKey].name : null);
-        if (safeState === 'speaking' && name) {
+        if ((safeState === 'speaking' || safeState === 'spoken') && name) {
           appBadge.innerText = (name === 'Christopher' ? '🧔' : (name === 'Viv' ? '✨' : (name === 'Aria' ? '⚡' : (name === 'Emily' ? '🍀' : (name === 'Sonia' ? '🔬' : '🤖')))));
         } else if (safeState === 'new_conversation') {
           appBadge.innerText = '⚡';

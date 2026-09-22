@@ -307,6 +307,21 @@ def run_onboarding():
     print("\n" + "=" * 60)
     print(" 🎉 Onboarding flow complete! VoiceFi is live & listening.")
     print("=" * 60)
+    print(" ☝️  LOOK UP AT YOUR MAC MENU BAR:")
+    print("    Look up at the top right of your macOS screen for the 🎙️ VoiceFi icon")
+    print("    anytime to open the menu, switch voices, or adjust settings.")
+    print("-" * 60)
+    try:
+        from voicefi.companion.server import get_active_tunnel_url
+        from voicefi.companion.relay_client import RelaySessionCredentials
+        from voicefi.companion.qr import print_qr_code
+
+        active_t = get_active_tunnel_url()
+        creds = RelaySessionCredentials.load_or_create()
+        pairing_url = active_t or creds.get_pairing_url("https://companion.voicefi.app")
+        print_qr_code(pairing_url, title="📱 VoiceFi Mobile Companion (Scan with Phone)")
+    except Exception:
+        pass
     print(" ⭐ Enjoying VoiceFi? Support open-source AI voice with a star:")
     print("    👉 https://github.com/atxatlarge-code/voicefi")
     print(" 💬 Questions, ideas, or feedback? Run anytime:")

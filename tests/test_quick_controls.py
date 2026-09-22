@@ -25,7 +25,7 @@ def test_quick_controls_singleton():
 
 
 def test_quick_controls_proactive_listening_toggle(tmp_path, monkeypatch):
-    """Verify toggling ProActive Listening syncs across proactive and agent configs."""
+    """Verify toggling ProActive Feedback Loop syncs across proactive and agent configs."""
     cfg_file = tmp_path / "config.yaml"
     monkeypatch.setenv("VOICEFI_CONFIG", str(cfg_file))
 

@@ -118,5 +118,13 @@ class WhisperLocalSTT(BaseSTT):
         if re.match(r"^(subtitles by|translated by|transcribed by)\b", norm):
             return ""
 
+        # Strip Whisper hallucination loops (word runs and phrase loops)
+        try:
+            from voicefi.tts.normalizer import collapse_repetitive_artifacts
+
+            stripped = collapse_repetitive_artifacts(stripped)
+        except Exception:
+            pass
+
         return stripped
 

@@ -77,7 +77,7 @@ Capture 2–5 minute stream-of-consciousness rambles directly from mobile. The t
 
 ## 🛡️ Synchronization & Concurrency Invariants (Lessons Learned)
 
-*(Comprehensive architecture documentation: [`docs/COMPANION_VOICE_LOOP_LESSONS_LEARNED.md`](file:///Users/jaketrigg/Projects/VoiceFi/docs/COMPANION_VOICE_LOOP_LESSONS_LEARNED.md))*
+*(Comprehensive architecture documentation: [`docs/COMPANION_VOICE_LOOP_LESSONS_LEARNED.md`](file:///Users/jaketrigg/Projects/VoiceFi/docs/COMPANION_VOICE_LOOP_LESSONS_LEARNED.md) and [`docs/PIXEL_DEMO_AND_VOICE_OPTIMIZATIONS.md`](file:///Users/jaketrigg/Projects/VoiceFi/docs/PIXEL_DEMO_AND_VOICE_OPTIMIZATIONS.md))*
 
 When extending, debugging, or operating the Remote Companion voice loop, all agents and developers must uphold these **6 architectural invariants**:
 

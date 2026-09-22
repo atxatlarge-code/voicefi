@@ -14,7 +14,7 @@ from typing import Optional, Dict, Any, Tuple, Callable, List
 
 from voicefi.config import VoiceFiConfig, load_config
 from voicefi.tts import get_tts_engine, stop_all_speech
-from voicefi.tts.base import is_system_audio_playing
+from voicefi.tts.base import is_system_audio_playing, DuplicateSpeechSuppressed
 from voicefi.stt import get_stt_engine
 from voicefi.audio.recorder import AudioRecorder
 from voicefi.audio.chimes import play_chime
@@ -33,6 +33,7 @@ from voicefi.integrations.conversations import (
     peek_mobile_turn_origin,
     get_claimed_turn_origin,
     has_active_companion_client,
+    mark_turn_spoken_on_mac,
     set_pending_question,
     get_pending_question,
     resolve_pending_question,
@@ -462,9 +463,9 @@ class TranscriptWatcher:
 
             turn_sig = f"{turn_cid}:{summary[:35]}"
             try:
-                claimed = claim_turn(turn_cid, turn_sig, step_index=step_index)
+                claimed = claim_turn(turn_cid, turn_sig, step_index=step_index, delivered_via="watcher")
             except TypeError:
-                claimed = claim_turn(turn_cid, turn_sig)
+                claimed = claim_turn(turn_cid, turn_sig, delivered_via="watcher")
 
             if not claimed:
                 # Already claimed and handled by CLI hook
@@ -494,8 +495,8 @@ class TranscriptWatcher:
                 if is_mobile:
                     # Turn originated from mobile companion -> only speak on phone, suppress Mac
                     return
-                if mute_mac_active and has_active_companion_client():
-                    # Companion client is actively connected and mute_mac is enabled
+                if mute_mac_active and has_active_companion_client(require_mobile=True):
+                    # Mobile companion client is actively connected and mute_mac is enabled
                     return
 
             spoken_text = summary
@@ -512,6 +513,22 @@ class TranscriptWatcher:
             if is_user_on_call():
                 print("[Watcher] User is on a call. Skipping spoken feedback and auto-listen.")
                 return
+
+            respect_media = getattr(getattr(cfg, "tts", None), "respect_media_playback", True)
+            if respect_media:
+                try:
+                    from voicefi.audio.media_detection import is_active_media_playing, wait_for_media_completion
+
+                    if is_active_media_playing():
+                        media_timeout = getattr(getattr(cfg, "tts", None), "media_pause_timeout", 600.0)
+                        cleared = wait_for_media_completion(max_wait_seconds=media_timeout)
+                        if not cleared:
+                            print(
+                                "[Watcher] 🎬 Media clip still playing after timeout. Skipping spoken feedback and auto-listen."
+                            )
+                            return
+                except Exception:
+                    pass
 
             target_agent = agent_role or "antigravity"
             should_speak = bool(
@@ -537,33 +554,10 @@ class TranscriptWatcher:
             is_barge_in_on, _ = resolve_barge_in_mode(getattr(cfg.vad, "barge_in", "auto"))
             barge_in_active = bool(should_speak and should_listen and is_barge_in_on)
 
-            # Trigger Native Floating Speech HUD if enabled
-            if cfg.antigravity.show_speech_popup and spoken_text and not self._interrupted:
-                try:
-                    from voicefi.ui.speech_hud import AgentSpeechHUD
-
-                    pos = getattr(cfg.antigravity, "speech_popup_position", "bottom_right")
-                    AgentSpeechHUD.get_instance().show_speech(
-                        spoken_text,
-                        agent_name=target_agent,
-                        role=agent_role,
-                        persona_name=pname,
-                        is_speaking=True,
-                        position=pos,
-                    )
-                except Exception as e:
-                    print(f"[Watcher] Speech HUD display notice: {e}")
-
             temp_wav: Optional[Path] = None
 
             if barge_in_active:
                 # Active Barge-In: Start speech in background and monitor mic for user interruption
-                self._notify_state(
-                    "speaking",
-                    text=spoken_text,
-                    agent_name=target_agent,
-                    persona_name=pname,
-                )
                 tts = get_tts_engine(
                     cfg,
                     agent_name=target_agent,
@@ -577,6 +571,11 @@ class TranscriptWatcher:
                 def _speak_and_finish_hud():
                     try:
                         tts.stream_speak(spoken_text, block=True)
+                        mark_turn_spoken_on_mac(turn_cid, turn_sig, step_index=step_index)
+                    except DuplicateSpeechSuppressed:
+                        pass
+                    except Exception:
+                        pass
                     finally:
                         if cfg.antigravity.show_speech_popup:
                             try:
@@ -644,12 +643,6 @@ class TranscriptWatcher:
             else:
                 # Standard sequential speech then auto-listen
                 if should_speak:
-                    self._notify_state(
-                        "speaking",
-                        text=spoken_text,
-                        agent_name=target_agent,
-                        persona_name=pname,
-                    )
                     tts = get_tts_engine(
                         cfg,
                         agent_name=target_agent,
@@ -659,7 +652,11 @@ class TranscriptWatcher:
                         app_name="Antigravity",
                         conv_id=turn_cid,
                     )
-                    tts.stream_speak(spoken_text, block=True)
+                    try:
+                        tts.stream_speak(spoken_text, block=True)
+                        mark_turn_spoken_on_mac(turn_cid, turn_sig, step_index=step_index)
+                    except DuplicateSpeechSuppressed:
+                        return
 
                 if cfg.antigravity.show_speech_popup:
                     try:
@@ -753,147 +750,150 @@ class TranscriptWatcher:
             finally:
                 Path(temp_wav).unlink(missing_ok=True)
 
-            if text and text.strip() and not self._interrupted:
-                clean_t = text.strip()
-                print(f'[Watcher] 🎙️ Transcribed speech: "{clean_t}"', flush=True)
-                from voicefi.audio.echo_canceller import is_acoustic_echo
+            if not text or not text.strip() or self._interrupted:
+                self._notify_state("idle")
+                return
 
-                if is_acoustic_echo(clean_t, reference_text=spoken_text):
-                    print(
-                        f'[Watcher] 🛡️ Suppressed acoustic self-echo: "{clean_t}" (matched agent output)',
-                        flush=True,
-                    )
-                    return
+            clean_t = text.strip()
+            print(f'[Watcher] 🎙️ Transcribed speech: "{clean_t}"', flush=True)
+            from voicefi.audio.echo_canceller import is_acoustic_echo
 
-                pending_q = get_pending_question(turn_cid)
-                eval_res = ActiveListeningEngine.evaluate(
-                    clean_t, pending_question=pending_q, is_ambient=False
+            if is_acoustic_echo(clean_t, reference_text=spoken_text):
+                print(
+                    f'[Watcher] 🛡️ Suppressed acoustic self-echo: "{clean_t}" (matched agent output)',
+                    flush=True,
                 )
+                return
 
-                if eval_res.category == SpokenIntentCategory.PENDING_ANSWER:
-                    print(
-                        f"[ActiveListening/Watcher] 🎯 Matched pending choice: '{eval_res.selected_option}'"
-                    )
-                    resolve_pending_question(turn_cid, selected_option=eval_res.selected_option)
-                    text_to_send = eval_res.selected_option or eval_res.normalized_text
-                else:
-                    clear_pending_question(turn_cid)
-                    text_to_send = eval_res.normalized_text or clean_t
+            pending_q = get_pending_question(turn_cid)
+            eval_res = ActiveListeningEngine.evaluate(
+                clean_t, pending_question=pending_q, is_ambient=False
+            )
 
-                is_auto_send = getattr(getattr(cfg, "hud", None), "auto_send", True) and getattr(
-                    cfg.antigravity, "auto_send", True
+            if eval_res.category == SpokenIntentCategory.PENDING_ANSWER:
+                print(
+                    f"[ActiveListening/Watcher] 🎯 Matched pending choice: '{eval_res.selected_option}'"
                 )
+                resolve_pending_question(turn_cid, selected_option=eval_res.selected_option)
+                text_to_send = eval_res.selected_option or eval_res.normalized_text
+            else:
+                clear_pending_question(turn_cid)
+                text_to_send = eval_res.normalized_text or clean_t
 
-                def _send_payload(content: str):
-                    if cfg.antigravity.inject_to_active_window:
-                        cid = (
-                            turn_cid
-                            if (turn_cid and turn_cid != "unknown")
-                            else (conv_info.id if conv_info else None)
+            is_auto_send = getattr(getattr(cfg, "hud", None), "auto_send", True) and getattr(
+                cfg.antigravity, "auto_send", True
+            )
+
+            def _send_payload(content: str):
+                if cfg.antigravity.inject_to_active_window:
+                    cid = (
+                        turn_cid
+                        if (turn_cid and turn_cid != "unknown")
+                        else (conv_info.id if conv_info else None)
+                    )
+                    target_channel = getattr(
+                        eval_res, "target_channel", SpokenTargetChannel.ANTIGRAVITY
+                    )
+                    routed_text = getattr(eval_res, "routed_prompt", None) or content
+
+                    if (
+                        target_channel == SpokenTargetChannel.CLAUDE
+                        and cfg.proactive.intent_routing.route_to_claude
+                    ):
+                        print(
+                            f"[Watcher/IntentRouter] 🔀 Routing spoken prompt to Claude Code: '{routed_text}'",
+                            flush=True,
                         )
-                        target_channel = getattr(
-                            eval_res, "target_channel", SpokenTargetChannel.ANTIGRAVITY
+                        from voicefi.integrations.claude import inject_text_to_claude
+
+                        inject_text_to_claude(
+                            routed_text,
+                            submit_enter=True,
+                            from_conv_id=cid,
+                            from_engine="antigravity",
+                            include_envelope=True,
                         )
-                        routed_text = getattr(eval_res, "routed_prompt", None) or content
+                    elif (
+                        target_channel == SpokenTargetChannel.SLACK
+                        and cfg.proactive.intent_routing.route_to_slack
+                    ):
+                        ch = (eval_res.target_metadata or {}).get("channel", "general")
+                        slack_prompt = f"Please post this to Slack (#{ch}): {routed_text}"
+                        print(
+                            f"[Watcher/IntentRouter] 🔀 Routing spoken prompt to Slack: '{slack_prompt}'",
+                            flush=True,
+                        )
+                        send_message_to_antigravity(
+                            conv_id=cid, text=slack_prompt, sender_name=cfg.user_name
+                        )
+                    elif (
+                        target_channel == SpokenTargetChannel.LINEAR
+                        and cfg.proactive.intent_routing.route_to_linear
+                    ):
+                        linear_prompt = f"Please create a Linear issue for: {routed_text}"
+                        print(
+                            f"[Watcher/IntentRouter] 🔀 Routing spoken prompt to Linear: '{linear_prompt}'",
+                            flush=True,
+                        )
+                        send_message_to_antigravity(
+                            conv_id=cid, text=linear_prompt, sender_name=cfg.user_name
+                        )
+                    else:
+                        send_message_to_antigravity(
+                            conv_id=cid, text=content, sender_name=cfg.user_name
+                        )
 
-                        if (
-                            target_channel == SpokenTargetChannel.CLAUDE
-                            and cfg.proactive.intent_routing.route_to_claude
-                        ):
-                            print(
-                                f"[Watcher/IntentRouter] 🔀 Routing spoken prompt to Claude Code: '{routed_text}'",
-                                flush=True,
-                            )
-                            from voicefi.integrations.claude import inject_text_to_claude
-
-                            inject_text_to_claude(
-                                routed_text,
-                                submit_enter=True,
-                                from_conv_id=cid,
-                                from_engine="antigravity",
-                                include_envelope=True,
-                            )
-                        elif (
-                            target_channel == SpokenTargetChannel.SLACK
-                            and cfg.proactive.intent_routing.route_to_slack
-                        ):
-                            ch = (eval_res.target_metadata or {}).get("channel", "general")
-                            slack_prompt = f"Please post this to Slack (#{ch}): {routed_text}"
-                            print(
-                                f"[Watcher/IntentRouter] 🔀 Routing spoken prompt to Slack: '{slack_prompt}'",
-                                flush=True,
-                            )
-                            send_message_to_antigravity(
-                                conv_id=cid, text=slack_prompt, sender_name=cfg.user_name
-                            )
-                        elif (
-                            target_channel == SpokenTargetChannel.LINEAR
-                            and cfg.proactive.intent_routing.route_to_linear
-                        ):
-                            linear_prompt = f"Please create a Linear issue for: {routed_text}"
-                            print(
-                                f"[Watcher/IntentRouter] 🔀 Routing spoken prompt to Linear: '{linear_prompt}'",
-                                flush=True,
-                            )
-                            send_message_to_antigravity(
-                                conv_id=cid, text=linear_prompt, sender_name=cfg.user_name
-                            )
-                        else:
-                            send_message_to_antigravity(
-                                conv_id=cid, text=content, sender_name=cfg.user_name
-                            )
-
-                        channel_name = getattr(target_channel, "value", str(target_channel))
-                        try:
-                            from voicefi.telemetry import capture_proactive_feedback_loop
-
-                            capture_proactive_feedback_loop(
-                                caller_agent="antigravity",
-                                user_chars=len(content),
-                                target_channel=channel_name,
-                            )
-                        except Exception:
-                            pass
-
-                    if cfg.audio_cues.enabled:
-                        play_chime(cfg.audio_cues.sent_chime, block=False)
-
+                    channel_name = getattr(target_channel, "value", str(target_channel))
                     try:
-                        if not os.environ.get("PYTEST_CURRENT_TEST"):
-                            import rumps
+                        from voicefi.telemetry import capture_proactive_feedback_loop
 
-                            title = conv_info.title if conv_info else "Antigravity Agent"
-                            rumps.notification(
-                                f"VoiceFi • {title[:30]}", "Transcribed Voice", content[:100]
-                            )
+                        capture_proactive_feedback_loop(
+                            caller_agent="antigravity",
+                            user_chars=len(content),
+                            target_channel=channel_name,
+                        )
                     except Exception:
                         pass
 
-                if is_auto_send:
+                if cfg.audio_cues.enabled:
+                    play_chime(cfg.audio_cues.sent_chime, block=False)
+
+                try:
+                    if not os.environ.get("PYTEST_CURRENT_TEST"):
+                        import rumps
+
+                        title = conv_info.title if conv_info else "Antigravity Agent"
+                        rumps.notification(
+                            f"VoiceFi • {title[:30]}", "Transcribed Voice", content[:100]
+                        )
+                except Exception:
+                    pass
+
+            if is_auto_send:
+                _send_payload(text_to_send)
+                try:
+                    from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
+
+                    UnifiedDynamicIslandHUD.get_instance().show_done(
+                        preview_text=text_to_send[:20]
+                    )
+                except Exception:
+                    pass
+            else:
+                try:
+                    from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
+
+                    hud = UnifiedDynamicIslandHUD.get_instance()
+                    target_title = (
+                        conv_info.title[:20]
+                        if (conv_info and conv_info.title)
+                        else "Antigravity"
+                    )
+                    hud.set_editing(
+                        text_to_send, on_submit=_send_payload, target_name=target_title
+                    )
+                except Exception:
                     _send_payload(text_to_send)
-                    try:
-                        from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
-
-                        UnifiedDynamicIslandHUD.get_instance().show_done(
-                            preview_text=text_to_send[:20]
-                        )
-                    except Exception:
-                        pass
-                else:
-                    try:
-                        from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
-
-                        hud = UnifiedDynamicIslandHUD.get_instance()
-                        target_title = (
-                            conv_info.title[:20]
-                            if (conv_info and conv_info.title)
-                            else "Antigravity"
-                        )
-                        hud.set_editing(
-                            text_to_send, on_submit=_send_payload, target_name=target_title
-                        )
-                    except Exception:
-                        _send_payload(text_to_send)
         finally:
             self._is_handling_turn = False
             self._notify_state("idle")

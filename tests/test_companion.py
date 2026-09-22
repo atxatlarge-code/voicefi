@@ -427,15 +427,16 @@ class CompanionServerTestCase(AioHTTPTestCase):
 
     async def test_api_qr(self):
         """Test GET /api/qr returns pairing metadata with Cloud Relay as default preferred URL."""
-        resp = await self.client.get("/api/qr")
-        assert resp.status == 200
-        data = await resp.json()
-        assert "urls" in data
-        assert "qr_data_uri" in data
-        assert data["qr_data_uri"].startswith("data:image/png;base64,")
-        assert "cloud_relay_url" in data
-        assert data.get("preferred_url") == data.get("cloud_relay_url")
-        assert "companion.voicefi.app" in data.get("preferred_url")
+        with patch("voicefi.companion.server.get_active_tunnel_url", return_value=None):
+            resp = await self.client.get("/api/qr")
+            assert resp.status == 200
+            data = await resp.json()
+            assert "urls" in data
+            assert "qr_data_uri" in data
+            assert data["qr_data_uri"].startswith("data:image/png;base64,")
+            assert "cloud_relay_url" in data
+            assert data.get("preferred_url") == data.get("cloud_relay_url")
+            assert "companion.voicefi.app" in data.get("preferred_url")
 
     async def test_api_tunnel_endpoints(self):
         """Test GET /api/tunnel/status and POST /api/tunnel/start."""
@@ -456,13 +457,14 @@ class CompanionServerTestCase(AioHTTPTestCase):
             assert "urls" in data_start
             assert data_start["urls"]["tunnel_url"] == "https://test-quick-tunnel.trycloudflare.com"
 
-        # 3. Test QR endpoint reflects active tunnel
+        # 3. Test QR endpoint reflects active tunnel in metadata while defaulting preferred_url to Cloud Relay
         with patch("voicefi.companion.server.get_active_tunnel_url", return_value="https://test-quick-tunnel.trycloudflare.com"):
             resp_qr = await self.client.get("/api/qr")
             assert resp_qr.status == 200
             data_qr = await resp_qr.json()
             assert data_qr.get("active_tunnel_url") == "https://test-quick-tunnel.trycloudflare.com"
-            assert data_qr.get("preferred_url") == "https://test-quick-tunnel.trycloudflare.com"
+            assert data_qr.get("urls", {}).get("tunnel_url") == "https://test-quick-tunnel.trycloudflare.com"
+            assert data_qr.get("preferred_url") == data_qr.get("cloud_relay_url")
 
     async def test_websocket_channel(self):
         """Test bidirectional WebSocket handshake and event broadcasting."""
@@ -503,10 +505,39 @@ class CompanionServerTestCase(AioHTTPTestCase):
             conv_id="test-conv-456",
             agent_role="antigravity",
         )
-        msg_turn = await ws.receive_json()
-        assert msg_turn.get("type") == "agent_turn_completed"
-        assert "Build completed successfully" in msg_turn.get("summary")
-        assert msg_turn.get("conv_id") == "test-conv-456"
+        msg_turn1 = await ws.receive_json()
+        assert msg_turn1.get("type") == "agent_turn_completed"
+        assert "Build completed successfully" in msg_turn1.get("summary")
+        assert msg_turn1.get("step_index") is None
+
+        # Repeat turn with same summary but advancing step_index (e.g. tell joke again)
+        self.companion_server.broadcast_turn_completion(
+            summary="Build completed successfully. Ready to deploy?",
+            conv_id="test-conv-456",
+            agent_role="antigravity",
+            step_index=42,
+        )
+        msg_turn2 = await ws.receive_json()
+        assert msg_turn2.get("type") == "agent_turn_completed"
+        assert msg_turn2.get("step_index") == 42
+
+        # Immediate duplicate for step 42 should be suppressed
+        self.companion_server.broadcast_turn_completion(
+            summary="Build completed successfully. Ready to deploy?",
+            conv_id="test-conv-456",
+            agent_role="antigravity",
+            step_index=42,
+        )
+
+        # Step 43 with same summary must broadcast
+        self.companion_server.broadcast_turn_completion(
+            summary="Build completed successfully. Ready to deploy?",
+            conv_id="test-conv-456",
+            agent_role="antigravity",
+            step_index=43,
+        )
+        msg_turn3 = await ws.receive_json()
+        assert msg_turn3.get("step_index") == 43
 
         await ws.close()
 

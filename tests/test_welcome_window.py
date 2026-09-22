@@ -56,7 +56,7 @@ def test_welcome_window_activation_invalid_key(tmp_path, monkeypatch):
 
     win = VoiceFiWelcomeWindow.get_instance()
     mock_field = MagicMock()
-    mock_field.stringValue.return_value = "VF1-PRO-PERP-DEVELOPER..."
+    mock_field.stringValue.return_value = "VF1-PRO-DEVELOPER..."
     win.key_field = mock_field
 
     win._on_activate_clicked()
@@ -102,7 +102,34 @@ def test_welcome_window_appkit_build():
         assert win.ax_status_btn is not None
         assert win.key_help_btn is not None
         assert win.paste_btn is not None
+        # Verify Companion QR & Tunnel UI elements
+        assert win.qr_image_view is not None
+        assert win.qr_url_field is not None
+        assert win.tunnel_btn is not None
+        assert win.phone_status_label is not None
+        assert win.copy_qr_btn is not None
+        assert win.open_browser_btn is not None
+        assert win.app_status_badge is not None
+        assert win.menu_callout_banner is not None
         # Clean up singleton for subsequent tests
+        VoiceFiWelcomeWindow._instance = None
+
+
+def test_welcome_window_companion_qr_and_tunnel():
+    """Verify QR code image generation from URL and tunnel button handlers."""
+    with patch("voicefi.ui.welcome.is_headless", return_value=False):
+        VoiceFiWelcomeWindow._instance = None
+        win = VoiceFiWelcomeWindow()
+        # Test QR generation
+        img = win._create_nsimage_from_url("https://companion.voicefi.app")
+        assert img is not None
+        assert img.isValid() is True
+
+        # Test tunnel button click with mocked start_cloudflared_tunnel
+        with patch("voicefi.ui.welcome.start_cloudflared_tunnel", return_value="https://test-tunnel.trycloudflare.com"):
+            win._on_start_tunnel_clicked()
+            assert "Starting" in win.tunnel_btn.title()
+
         VoiceFiWelcomeWindow._instance = None
 
 

@@ -71,6 +71,26 @@ def normalize_edge_rate(rate: any) -> str:
     return "+0%"
 
 
+def normalize_edge_pitch(pitch: any) -> str:
+    """Normalize pitch into a valid EdgeTTS offset string like '+0Hz', '-4Hz', '+5Hz'."""
+    if not pitch:
+        return "+0Hz"
+    if isinstance(pitch, str):
+        p = pitch.strip()
+        if p.lower().endswith("hz"):
+            if not (p.startswith("+") or p.startswith("-")):
+                p = f"+{p}"
+            return p
+        try:
+            val = int(p)
+            return f"{val:+d}Hz"
+        except ValueError:
+            return "+0Hz"
+    if isinstance(pitch, (int, float)):
+        return f"{int(round(pitch)):+d}Hz"
+    return "+0Hz"
+
+
 class EdgeTTS(BaseTTS):
     """TTS engine using Edge TTS neural voices with reliable playback and turn queuing."""
 
@@ -79,6 +99,7 @@ class EdgeTTS(BaseTTS):
         voice: str = "en-US-AvaNeural",
         rate: any = 0,
         volume: any = 1.0,
+        pitch: any = "+0Hz",
         streaming: bool = True,
         agent_name: str = "VoiceFi",
         persona_name: Optional[str] = None,
@@ -88,6 +109,8 @@ class EdgeTTS(BaseTTS):
         self.voice = voice or "en-US-AvaNeural"
         self.rate = rate
         self.rate_str = normalize_edge_rate(rate)
+        self.pitch = pitch
+        self.pitch_str = normalize_edge_pitch(pitch)
         try:
             self.volume = float(volume) if volume is not None else 1.0
         except (ValueError, TypeError):
@@ -159,7 +182,9 @@ class EdgeTTS(BaseTTS):
     async def _generate_audio(self, text: str, output_path: str) -> None:
         import edge_tts
 
-        communicate = edge_tts.Communicate(text, self.voice, rate=self.rate_str)
+        communicate = edge_tts.Communicate(
+            text, self.voice, rate=self.rate_str, pitch=self.pitch_str
+        )
         await communicate.save(output_path)
 
     def speak(self, text: str, block: bool = True) -> None:
@@ -172,6 +197,15 @@ class EdgeTTS(BaseTTS):
             return
 
         clean_text = normalize_tts_text(text)
+        is_documentary_broadcaster = (
+            any(k in str(getattr(self, "persona_name", "")).lower() for k in ("documentary", "broadcaster", "attenborough"))
+            or any(k in str(getattr(self, "agent_name", "")).lower() for k in ("documentary", "broadcaster", "attenborough"))
+            or "thomas" in str(self.voice).lower()
+        )
+        if is_documentary_broadcaster:
+            from voicefi.tts.normalizer import inject_documentary_breathing_pauses
+            clean_text = inject_documentary_breathing_pauses(clean_text)
+
         self._stop_requested = False
         turn_start_time = time.time()
 
@@ -227,9 +261,17 @@ class EdgeTTS(BaseTTS):
                                 and Path(temp_path).is_file()
                                 and Path(temp_path).stat().st_size > 0
                             ):
+                                play_path = temp_path
+                                if is_documentary_broadcaster:
+                                    try:
+                                        from voicefi.audio.mastering import apply_bbc_documentary_mastering
+                                        play_path = str(apply_bbc_documentary_mastering(temp_path))
+                                    except Exception:
+                                        pass
+
                                 set_agent_audio_playing(True)
                                 proc = subprocess.Popen(
-                                    ["afplay", "-v", self.afplay_vol, temp_path],
+                                    ["afplay", "-v", self.afplay_vol, play_path],
                                     stdout=subprocess.DEVNULL,
                                     stderr=subprocess.DEVNULL,
                                 )
@@ -335,9 +377,16 @@ class EdgeTTS(BaseTTS):
                                     and Path(chunk_path).is_file()
                                     and Path(chunk_path).stat().st_size > 0
                                 ):
+                                    play_chunk = chunk_path
+                                    if is_documentary_broadcaster:
+                                        try:
+                                            from voicefi.audio.mastering import apply_bbc_documentary_mastering
+                                            play_chunk = str(apply_bbc_documentary_mastering(chunk_path))
+                                        except Exception:
+                                            pass
                                     set_agent_audio_playing(True)
                                     proc = subprocess.Popen(
-                                        ["afplay", "-v", self.afplay_vol, chunk_path],
+                                        ["afplay", "-v", self.afplay_vol, play_chunk],
                                         stdout=subprocess.DEVNULL,
                                         stderr=subprocess.DEVNULL,
                                     )
@@ -389,8 +438,22 @@ class EdgeTTS(BaseTTS):
         if not text or not text.strip():
             return False
         clean_text = normalize_tts_text(text)
+        is_documentary_broadcaster = (
+            any(k in str(getattr(self, "persona_name", "")).lower() for k in ("documentary", "broadcaster", "attenborough"))
+            or any(k in str(getattr(self, "agent_name", "")).lower() for k in ("documentary", "broadcaster", "attenborough"))
+            or "thomas" in str(self.voice).lower()
+        )
+        if is_documentary_broadcaster:
+            from voicefi.tts.normalizer import inject_documentary_breathing_pauses
+            clean_text = inject_documentary_breathing_pauses(clean_text)
         try:
             await self._generate_audio(clean_text, str(output_path))
+            if is_documentary_broadcaster and Path(output_path).is_file():
+                try:
+                    from voicefi.audio.mastering import apply_bbc_documentary_mastering
+                    apply_bbc_documentary_mastering(output_path, output_path)
+                except Exception:
+                    pass
             return Path(output_path).is_file() and Path(output_path).stat().st_size > 0
         except Exception as e:
             print(f"[EdgeTTS] Error synthesizing to file: {e}")

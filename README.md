@@ -397,6 +397,23 @@ VoiceFi exposes over 45 subcommands and aliases through the unified `vifi` CLI (
 
 ---
 
+## 🧠 Ergonomics, Flow & Cognitive Relief
+
+> *"In 30 days of real-world dogfooding, over 75,000 words were spoken instead of typed—eliminating 350,000+ mechanical keystrokes and an entire Stephen King novel's worth of RSI."*
+
+<div align="center">
+
+<img src="./assets/jakey_chalkboard.png" alt="All work and no talking makes Jakey a dull boy" width="80%">
+
+<br>
+
+*All work and no talking makes Jakey a dull boy.*  
+*(Measured live via `vifi stats` across 6,700+ turns and zero window context switches)*
+
+</div>
+
+---
+
 ## ⚙️ Configuration Schema
 
 VoiceFi configuration is stored at `~/.voicefi/config.yaml`. A standard configuration looks like:
@@ -448,6 +465,7 @@ antigravity:
 - 📐 **[MCP Architecture Specification](docs/MCP_ARCHITECTURE.md)**: Model Context Protocol design and multi-agent dispatching.
 - 🎙️ **[Dynamic Island HUD Design Guide](docs/HUD_DESIGN_GUIDE.md)**: Glassmorphic HUD specifications and interactive debug studio.
 - 🎭 **[Cross-Agent Comedy & Banter Spec](docs/CROSS_AGENT_COMEDY_SPEC.md)**: Technical spec for acoustic joke duels and sound effect cues.
+- 🎵 **[Audio Attribution & Sound Effect Licenses](docs/AUDIO_ATTRIBUTION.md)**: Provenance, artist credits, and CC licensing for bundled acoustic sound cues.
 - 🤖 **[Agent Persona & Troubleshooting Guide](AGENTS.md)**: Hardware diagnostics, voice barge-in tuning, and multi-agent persona assignments.
 - 🗺️ **[Development Roadmap](ROADMAP.md)**: Three-phase growth roadmap from CLI launch to voice store marketplace.
 - 🤝 **[Contributing Guidelines](CONTRIBUTING.md)**: Local development setup, testing standards, and PR workflows.
@@ -465,7 +483,7 @@ Run the test suite:
 uv run pytest
 
 # Run MCP and CLI integration tests
-uv run pytest tests/test_mcp_server.py tests/test_cli_layout.py tests/test_chimes.py
+uv run pytest tests/test_mcp_server.py tests/test_cli_layout.py tests/test_chimes.py tests/test_sfx.py
 ```
 
 Run acoustic and hardware verification:
@@ -486,5 +504,6 @@ vifi hearing-test
 ## 📄 License & Patent Notice
 
 - **Software License**: Licensed under the [MIT License](LICENSE).
+- **Audio & Sound Effects**: Studio acoustic sound effects are licensed under Creative Commons (CC0 1.0, CC BY 3.0, and CC BY-SA 3.0). See [Audio Attribution](docs/AUDIO_ATTRIBUTION.md) for complete artist credits and source recordings.
 - **Patent Notice**: *U.S. Patent Application No. 63/137,300* — LienLogic Data LLC.
 - **Website**: [https://voicefi.org](https://voicefi.org)

@@ -249,8 +249,9 @@ class WakeWordListener:
                                 or len(recorded_frames) >= max_chunks
                             ):
                                 from voicefi.audio.meeting_detection import is_user_on_call
+                                from voicefi.audio.media_detection import is_active_media_playing
 
-                                if not is_user_on_call() and len(recorded_frames) >= min_speech_chunks:
+                                if not is_user_on_call() and not is_active_media_playing() and len(recorded_frames) >= min_speech_chunks:
                                     full_audio = np.concatenate(recorded_frames, axis=0)
                                     threading.Thread(
                                         target=self._process_candidate_audio,
@@ -281,8 +282,9 @@ class WakeWordListener:
         # Acoustic echo guard: ignore candidates if on a call, agent is speaking, audio is playing, or recently interrupted
         from voicefi.tts.base import is_speech_interrupted
         from voicefi.audio.meeting_detection import is_user_on_call
+        from voicefi.audio.media_detection import is_active_media_playing
 
-        if is_user_on_call() or is_agent_speaking() or is_agent_audio_playing() or is_speech_interrupted():
+        if is_user_on_call() or is_active_media_playing() or is_agent_speaking() or is_agent_audio_playing() or is_speech_interrupted():
             return
 
         try:

@@ -13,7 +13,7 @@ import time
 from typing import Dict, Any, List, Optional, Tuple
 import requests
 
-from voicefi.config import VoiceFiConfig, load_config
+from voicefi.config import VoiceFiConfig, load_config, resolve_gemini_api_key
 
 logger = logging.getLogger(__name__)
 
@@ -61,16 +61,8 @@ class GeminiIntelligenceEngine:
         )
 
     def _resolve_api_key(self) -> str:
-        """Resolve API key from VoiceFi config or standard environment variables."""
-        if hasattr(self.config, "gemini") and self.config.gemini.api_key:
-            return self.config.gemini.api_key.strip()
-        if hasattr(self.config, "tts") and getattr(self.config.tts, "gemini_api_key", None):
-            return self.config.tts.gemini_api_key.strip()
-        for env_var in ("GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GENAI_API_KEY"):
-            val = os.environ.get(env_var, "").strip()
-            if val:
-                return val
-        return ""
+        """Resolve API key from VoiceFi config, env vars, or local project .env files."""
+        return resolve_gemini_api_key(self.config)
 
     def get_active_provider(self) -> str:
         """

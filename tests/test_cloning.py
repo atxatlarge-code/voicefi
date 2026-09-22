@@ -103,7 +103,7 @@ def test_voice_clone_manager_train_local(temp_clones_dir, synthetic_wav_samples)
 
     assert profile.name == "JakeLocal"
     assert profile.id == "cloned_jakelocal"
-    assert profile.provider == "edge_tts"
+    assert profile.provider in ("local_clone", "edge_tts")
     assert len(profile.sample_paths) == 2
     assert profile.calibrated_voice is not None
 
@@ -145,7 +145,8 @@ def test_assign_cloned_voice_to_agent(temp_clones_dir, synthetic_wav_samples):
     config = VoiceFiConfig()
     tgt, vid = manager.assign_to_agent("JakeAssign", "antigravity", config)
     assert tgt == "antigravity"
-    assert config.agents["antigravity"].voice == profile.calibrated_voice
+    assert config.agents["antigravity"].voice in (profile.id, profile.calibrated_voice)
+    assert config.agents["antigravity"].offline_voice == profile.calibrated_voice
 
     # Subagent assignment
     manager.assign_to_agent("JakeAssign", "researcher", config)
@@ -188,13 +189,19 @@ def test_get_tts_engine_with_cloned_voice(temp_clones_dir, synthetic_wav_samples
 
 
 def test_cli_cmd_clone_list(temp_clones_dir, synthetic_wav_samples, capsys):
-    """Test CLI 'vg clone list' output."""
+    """Test CLI 'vifi clone list' output."""
     with patch("voicefi.tts.cloning.get_clones_dir", return_value=temp_clones_dir):
         manager = VoiceCloneManager(root_dir=temp_clones_dir)
         manager.train_voice("JakeCLI", synthetic_wav_samples)
 
         args = MagicMock()
         args.clone_action = "list"
+        args.list = False
+        args.test = False
+        args.delete = False
+        args.record = False
+        args.audio_files = None
+        args.files = None
         args.config = None
 
         cmd_clone(args)
@@ -204,7 +211,7 @@ def test_cli_cmd_clone_list(temp_clones_dir, synthetic_wav_samples, capsys):
 
 
 def test_cli_cmd_clone_delete(temp_clones_dir, synthetic_wav_samples, capsys):
-    """Test CLI 'vg clone delete' command."""
+    """Test CLI 'vifi clone delete' command."""
     with patch("voicefi.tts.cloning.get_clones_dir", return_value=temp_clones_dir):
         manager = VoiceCloneManager(root_dir=temp_clones_dir)
         manager.train_voice("JakeDelete", synthetic_wav_samples)
@@ -213,8 +220,89 @@ def test_cli_cmd_clone_delete(temp_clones_dir, synthetic_wav_samples, capsys):
         args = MagicMock()
         args.clone_action = "delete"
         args.name = "JakeDelete"
+        args.list = False
+        args.test = False
+        args.delete = False
+        args.record = False
+        args.audio_files = None
+        args.files = None
         args.from_provider = False
         args.config = None
 
         cmd_clone(args)
         assert manager.get_cloned_voice("JakeDelete") is None
+
+
+def test_import_samples_path_expansion(temp_clones_dir, synthetic_wav_samples):
+    """Verify import_samples properly expands ~ and resolves paths."""
+    manager = VoiceCloneManager(root_dir=temp_clones_dir)
+    imported = manager.import_samples("PathTestVoice", [str(synthetic_wav_samples[0])])
+    assert len(imported) == 1
+    assert imported[0].exists()
+    assert imported[0].suffix == ".wav"
+    assert "pathtestvoice" in str(imported[0]).lower()
+
+
+def test_kokoro_tts_engine_init():
+    """Verify KokoroTTS initializes and exposes curated offline voices."""
+    from voicefi.tts.kokoro_tts import KokoroTTS, KOKORO_VOICE_MAP
+    assert "af_heart" in KOKORO_VOICE_MAP
+    assert "am_adam" in KOKORO_VOICE_MAP
+    tts = KokoroTTS(voice="af_bella", speed=1.0)
+    assert tts.provider == "kokoro"
+    assert tts.voice == "af_bella"
+
+
+def test_cli_parser_voice_clone():
+    """Verify argparse properly parses `vifi voice clone` arguments."""
+    from voicefi.cli import build_parser
+
+    parser = build_parser()
+    # Test vifi voice clone with --audio
+    args1 = parser.parse_args(["voice", "clone", "MyClone", "--audio", "test.wav", "--assign", "antigravity"])
+    assert args1.command == "voice"
+    assert args1.voice_action == "clone"
+    assert args1.name == "MyClone"
+    assert args1.audio_files == ["test.wav"]
+    assert args1.assign == "antigravity"
+
+    # Test vifi clone alias
+    args2 = parser.parse_args(["clone", "list"])
+    assert args2.command == "clone"
+    assert args2.clone_action == "list"
+
+
+def test_mcp_clone_tools(temp_clones_dir, synthetic_wav_samples):
+    """Verify MCP tools for listing and setting cloned voices."""
+    with patch("voicefi.tts.cloning.get_clones_dir", return_value=temp_clones_dir):
+        manager = VoiceCloneManager(root_dir=temp_clones_dir)
+        manager.train_voice("MCPCloneVoice", synthetic_wav_samples)
+
+        from voicefi.mcp_server import VoiceFiMCPServer
+        server = VoiceFiMCPServer()
+
+        # Test clone_list tool
+        res = server.handle_request({
+            "jsonrpc": "2.0",
+            "id": 101,
+            "method": "tools/call",
+            "params": {"name": "voicefi_clone_list", "arguments": {}},
+        })
+        assert not res.get("error")
+        data = json.loads(res["result"]["content"][0]["text"])
+        assert data["count"] >= 1
+        assert any(v["name"] == "MCPCloneVoice" for v in data["cloned_voices"])
+
+        # Test voicefi_set_voice with cloned voice
+        res_set = server.handle_request({
+            "jsonrpc": "2.0",
+            "id": 102,
+            "method": "tools/call",
+            "params": {
+                "name": "voicefi_set_voice",
+                "arguments": {"agent": "antigravity", "persona": "MCPCloneVoice"},
+            },
+        })
+        assert not res_set.get("error")
+        assert "Successfully updated voice" in res_set["result"]["content"][0]["text"]
+

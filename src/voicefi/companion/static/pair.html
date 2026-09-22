@@ -112,6 +112,41 @@
         <span>🤖 Antigravity</span>
       </div>
 
+      <!-- Top Menu Guidance Callout -->
+      <div class="p-3.5 bg-[#121620] border border-[#233147] rounded-2xl text-xs sm:text-[13px] text-slate-200 flex items-start gap-3 text-left shadow-lg">
+        <span class="text-lg shrink-0 select-none animate-bounce pt-0.5">☝️</span>
+        <div class="leading-relaxed">
+          <span class="font-bold text-white">Mac Menu Bar:</span> Look up at the top right of your macOS screen for the
+          <span class="inline-flex items-center gap-1.5 px-2 py-0.5 mx-1 rounded-lg bg-white/10 border border-white/20 text-white font-semibold align-middle shadow-sm">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="90 20 332 440" class="w-3.5 h-3.5 inline-block shrink-0 text-white" fill="none" stroke="currentColor">
+              <g transform="translate(0, 15)">
+                <g stroke-linecap="round">
+                  <path d="M 152 145 A 120 120 0 0 1 360 145" stroke-width="26" />
+                  <path d="M 184 180 A 80 80 0 0 1 328 180" stroke-width="24" />
+                  <path d="M 216 215 A 42 42 0 0 1 296 215" stroke-width="22" />
+                </g>
+                <g stroke-width="14" stroke-linecap="round">
+                  <line x1="202" y1="262" x2="234" y2="262" />
+                  <line x1="278" y1="262" x2="310" y2="262" />
+                </g>
+                <rect x="238" y="278" width="36" height="15" rx="7.5" stroke-width="6" />
+                <line x1="246" y1="285.5" x2="266" y2="285.5" stroke-width="5" stroke-linecap="round" />
+                <path d="M 230 320 Q 256 342 282 320" stroke-width="9" stroke-linecap="round" />
+                <path d="M 124 220 C 124 350, 175 385, 256 385 C 337 385, 388 350, 388 220" stroke-width="20" stroke-linecap="round" />
+                <rect x="110" y="205" width="28" height="30" rx="6" stroke-width="6" />
+                <circle cx="124" cy="220" r="5" fill="currentColor" />
+                <rect x="374" y="205" width="28" height="30" rx="6" stroke-width="6" />
+                <circle cx="388" cy="220" r="5" fill="currentColor" />
+                <line x1="256" y1="385" x2="256" y2="430" stroke-width="20" stroke-linecap="round" />
+                <line x1="190" y1="430" x2="322" y2="430" stroke-width="20" stroke-linecap="round" />
+              </g>
+            </svg>
+            <span class="text-xs text-white">VoiceFi icon</span>
+          </span>
+          anytime to find the menu, switch voices, or open settings.
+        </div>
+      </div>
+
       <p class="text-xs text-zinc-400">
         Point your iPhone or Android camera at the QR code below to connect hands-free voice to your Mac:
       </p>
@@ -126,6 +161,11 @@
           </div>
         </div>
       </div>
+
+      <!-- Cloudflare Tunnel 1-Click Action -->
+      <button id="btnPairStartTunnel" onclick="startTunnelFromPair()" type="button" class="w-full py-2.5 bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white text-xs font-black font-mono rounded-xl transition active:scale-95 cursor-pointer shadow-md flex items-center justify-center gap-1.5">
+        <span>🌐</span> <span id="btnPairStartTunnelText">Create HTTPS Tunnel (Hotspot / Remote)</span>
+      </button>
 
       <!-- Direct URL Box with Connection Mode Selector -->
       <div class="space-y-2 text-left">
@@ -582,9 +622,6 @@
         { label: '⚡ Direct Wi-Fi (.local) · Fastest 0ms', key: 'mdns_url' },
         { label: '📶 Direct IP Address · Local LAN', key: 'ip_url' },
       ];
-      if (urls.tunnel_url) {
-        options.push({ label: '🔒 Cloudflare HTTPS Tunnel', key: 'tunnel_url' });
-      }
 
       options.forEach(opt => {
         if (urls[opt.key]) {
@@ -601,7 +638,8 @@
       networkSelect.addEventListener('change', (e) => {
         const selectedUrl = e.target.value;
         if (selectedUrl) {
-          renderQr(selectedUrl, null);
+          const uriToUse = (cachedInitialDataUri && selectedUrl === cachedInitialUrl) ? cachedInitialDataUri : null;
+          renderQr(selectedUrl, uriToUse);
         }
       });
     }
@@ -612,7 +650,8 @@
         if (res.ok) {
           const data = await res.json();
           const targetUrl = data.cloud_relay_url || data.preferred_url || data.urls?.cloud_relay_url || data.urls?.ip_url || data.urls?.mdns_url || `http://${window.location.hostname}:5141`;
-          cachedInitialDataUri = data.qr_data_uri || null;
+          const matchingDataUri = (data.preferred_url === targetUrl && data.qr_data_uri) ? data.qr_data_uri : null;
+          cachedInitialDataUri = matchingDataUri;
           cachedInitialUrl = targetUrl;
           populateNetworkOptions(data.urls);
           if (networkSelect) {
@@ -623,13 +662,47 @@
               }
             }
           }
-          renderQr(targetUrl, data.qr_data_uri);
+          const btnText = document.getElementById('btnPairStartTunnelText');
+          if (btnText) {
+            if (data.active_tunnel_url) {
+              btnText.innerText = "🟢 Companion Tunnel: Active (HTTPS) ✅";
+            } else {
+              btnText.innerText = "Create HTTPS Tunnel (Hotspot / Remote)";
+            }
+          }
+          renderQr(targetUrl, matchingDataUri);
           return;
         }
       } catch (e) {}
 
       const fallbackUrl = 'https://companion.voicefi.app';
       renderQr(fallbackUrl, null);
+    }
+
+    async function startTunnelFromPair() {
+      const btn = document.getElementById('btnPairStartTunnel');
+      const text = document.getElementById('btnPairStartTunnelText');
+      if (text) text.innerText = "Starting Companion Tunnel...";
+      if (btn) btn.disabled = true;
+      try {
+        const res = await fetch('/api/tunnel/start', { method: 'POST' });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.tunnel_url) {
+            if (text) text.innerText = "🟢 Companion Tunnel: Active (HTTPS) ✅";
+            if (btn) btn.disabled = false;
+            cachedInitialUrl = data.tunnel_url;
+            cachedInitialDataUri = data.qr_data_uri || null;
+            renderQr(data.tunnel_url, data.qr_data_uri);
+            return;
+          }
+        }
+        if (text) text.innerText = "Tunnel Error (Click to Retry)";
+        if (btn) btn.disabled = false;
+      } catch (e) {
+        if (text) text.innerText = "Network Error (Click to Retry)";
+        if (btn) btn.disabled = false;
+      }
     }
 
     if (copyBtn) {

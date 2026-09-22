@@ -27,6 +27,9 @@
 .hud-state-speaking, .glow-speaking {
   border-color: #06B6D4 !important;
 }
+.hud-state-spoken, .glow-spoken {
+  border-color: #00E575 !important;
+}
 .hud-state-listening, .glow-listening,
 .hud-state-hearing, .glow-hearing {
   border-color: #FF2A2A !important;

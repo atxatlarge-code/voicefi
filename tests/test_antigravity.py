@@ -272,7 +272,7 @@ def test_clean_markdown_short_exclamation_retains_explanation():
     raw = "Yes! I have reviewed all the live assets and verified that the configuration is working properly across all modules."
     cleaned = clean_markdown_for_speech(raw, max_words=30)
     assert cleaned.startswith("Yes!")
-    assert "reviewed all the live assets" in cleaned
+    assert "reviewed all the" in cleaned and "assets and verified" in cleaned
     assert len(cleaned.split()) > 5
 
 

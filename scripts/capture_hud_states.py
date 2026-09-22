@@ -66,7 +66,10 @@ def capture_nsimage(ns_img, output_path, width=256, height=256):
 
 def main():
     app = NSApplication.sharedApplication()
-    hud = UnifiedDynamicIslandHUD.get_instance()
+    from unittest.mock import patch
+    with patch("voicefi.ui.unified_hud._get_active_hud_owner_pid", return_value=None):
+        UnifiedDynamicIslandHUD._instance = None
+        hud = UnifiedDynamicIslandHUD.get_instance()
 
     output_dir = Path(__file__).parent.parent / "assets" / "screenshots"
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -88,9 +91,37 @@ def main():
         (
             "speaking",
             lambda: hud.set_speaking(
-                text="All 12 unit tests passed. Ready to deploy. Staging on Railway now...",
+                text="All 12 unit tests passed. Ready to deploy.",
                 agent_name="Antigravity",
                 persona_name="Viv",
+                conv_title="Cloudflare Bot",
+            ),
+        ),
+        (
+            "speaking_2line",
+            lambda: hud.set_speaking(
+                text="Refactoring the authentication middleware and verifying all 14 unit tests pass with zero regressions before deploying to staging.",
+                agent_name="Antigravity",
+                persona_name="Viv",
+                conv_title="Cloudflare Bot",
+            ),
+        ),
+        (
+            "spoken",
+            lambda: hud.set_spoken(
+                text="All 12 unit tests passed. Ready to deploy.",
+                speaker="Viv",
+                agent_name="Antigravity",
+                conv_title="Cloudflare Bot",
+            ),
+        ),
+        (
+            "spoken_2line",
+            lambda: hud.set_spoken(
+                text="Refactoring the authentication middleware and verifying all 14 unit tests pass with zero regressions before deploying to staging.",
+                speaker="Viv",
+                agent_name="Antigravity",
+                conv_title="Cloudflare Bot",
             ),
         ),
         ("listening", lambda: hud.set_listening(prompt_preview="", user_name="Jake")),

@@ -22,8 +22,11 @@ def test_gemini_config_defaults():
     assert hasattr(cfg, "gemini")
     assert cfg.gemini.enabled is True
     assert cfg.gemini.model == "gemini-2.5-flash"
-    assert cfg.gemini.live_model == "gemini-2.0-flash-exp"
-    assert cfg.gemini.live_voice == "Aoede"
+    assert cfg.gemini.live_model == "gemini-3.8-live"
+    assert cfg.gemini.live_voice == "Puck"
+    assert cfg.gemini.live_extended_thinking_model == "gemini-3.8-live-extended-thinking"
+    assert cfg.gemini.thinking_level == "LOW"
+    assert cfg.gemini.enable_affective_dialog is True
     assert "gemini" in cfg.agents
     assert cfg.agents["gemini"].voice == "Aoede"
     assert cfg.agents["gemini"].provider == "gemini"
@@ -32,10 +35,17 @@ def test_gemini_config_defaults():
 def test_gemini_curated_personas():
     """Verify Google Gemini neural voices exist in curated personas and can be resolved."""
     gemini_personas = get_curated_personas(provider="gemini")
-    assert len(gemini_personas) >= 5
+    assert len(gemini_personas) >= 30
 
     voice_names = [p.name for p in gemini_personas]
-    for expected in ["Aoede", "Puck", "Charon", "Kore", "Fenrir"]:
+    for expected in [
+        "Puck", "Charon", "Kore", "Fenrir", "Aoede",
+        "Zephyr", "Leda", "Orus", "Callirrhoe", "Autonoe",
+        "Enceladus", "Iapetus", "Umbriel", "Algieba", "Despina",
+        "Erinome", "Algenib", "Rasalgethi", "Laomedeia", "Achernar",
+        "Alnilam", "Schedar", "Gacrux", "Pulcherrima", "Achird",
+        "Zubenelgenubi", "Vindemiatrix", "Sadachbia", "Sadaltager", "Sulafat",
+    ]:
         assert expected in voice_names
 
     p = find_persona("Aoede")
@@ -204,4 +214,61 @@ def test_intent_classification():
         assert res is not None
         assert res["target"] == "claude"
         assert res["prompt"] == "Refactor the auth handler"
+
+
+def test_gemini_live_runner_initialization():
+    """Verify GeminiLiveRunner initializes with correct defaults and validates voices."""
+    from voicefi.integrations.gemini_live import GeminiLiveRunner
+
+    runner = GeminiLiveRunner(api_key="fake_test_key", voice="Puck", mode="comedy")
+    assert runner.model == "gemini-3.8-live"
+    assert runner.voice == "Puck"
+    assert runner.mode == "comedy"
+    assert runner.enable_sfx is True
+
+    runner_thinking = GeminiLiveRunner(
+        api_key="fake_test_key", voice="Charon", use_thinking=True, thinking_level="HIGH"
+    )
+    assert runner_thinking.model == "gemini-3.8-live-extended-thinking"
+    assert runner_thinking.voice == "Charon"
+    assert runner_thinking.thinking_level == "HIGH"
+
+
+def test_gemini_live_sfx_trigger():
+    """Verify play_sound_effect properly maps names."""
+    from voicefi.integrations.gemini_live import play_sound_effect
+
+    res_invalid = play_sound_effect("non_existent_sfx_123")
+    assert "not found" in res_invalid
+
+    with patch("subprocess.Popen") as mock_popen:
+        res = play_sound_effect("rimshot")
+        assert "Played sound effect 'rimshot'" in res
+        mock_popen.assert_called_once()
+
+
+def test_mcp_voicefi_live_tool_execution():
+    """Verify VoiceFiMCPServer handles voicefi_live tool execution."""
+    from voicefi.mcp_server import VoiceFiMCPServer
+
+    srv = VoiceFiMCPServer()
+    mock_result = {
+        "transcript": "Why did the developer go broke? Because they used up all their cache!",
+        "audio_file": "/tmp/test_live.wav",
+        "duration_sec": 4.5,
+        "ttfa_ms": 612,
+        "triggered_sfx": ["rimshot"],
+    }
+
+    with patch("voicefi.integrations.gemini_live.GeminiLiveRunner.run_prompt", return_value=mock_result):
+        res = srv.execute_tool("voicefi_live", {
+            "prompt": "Tell a developer joke",
+            "api_key": "fake_test_key",
+            "play_audio": False,
+        })
+        assert res.get("isError") is False
+        assert "Gemini 3.8 Live" in res["content"][0]["text"]
+        assert "Why did the developer go broke?" in res["content"][0]["text"]
+        assert "rimshot" in res["content"][0]["text"]
+
 

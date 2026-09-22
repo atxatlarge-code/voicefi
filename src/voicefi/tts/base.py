@@ -224,10 +224,24 @@ def set_agent_speaking(
                 app_name=app_name or "",
                 conv_id=conv_id or "",
             )
+            # Immediately update in-process UnifiedDynamicIslandHUD if active
+            try:
+                from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
+
+                if UnifiedDynamicIslandHUD._instance:
+                    UnifiedDynamicIslandHUD._instance.set_speaking(
+                        text=text or "Speaking aloud...",
+                        agent_name=agent_name or "Antigravity",
+                        persona_name=persona_name,
+                        app_name=app_name,
+                        conv_id=conv_id,
+                        linger=None,
+                    )
+            except Exception:
+                pass
         else:
             AGENT_SPEAKING_STATUS_FILE.unlink(missing_ok=True)
             set_agent_audio_playing(False)
-            clear_cross_process_hud_state()
             if _LAST_AGENT_SPEAKING_INFO:
                 _LAST_AGENT_SPEAKING_INFO["stopped_at"] = time.time()
                 try:
@@ -236,6 +250,24 @@ def set_agent_speaking(
                     )
                 except Exception:
                     pass
+                set_cross_process_hud_state(
+                    state="spoken",
+                    text=_LAST_AGENT_SPEAKING_INFO.get("text", "") or "",
+                    agent_name=_LAST_AGENT_SPEAKING_INFO.get("agent_name", "VoiceFi"),
+                    persona_name=_LAST_AGENT_SPEAKING_INFO.get("persona_name", "Viv"),
+                    app_name=_LAST_AGENT_SPEAKING_INFO.get("app_name", ""),
+                    conv_id=_LAST_AGENT_SPEAKING_INFO.get("conv_id", ""),
+                )
+            else:
+                clear_cross_process_hud_state()
+            # Immediately finish speech on in-process UnifiedDynamicIslandHUD if active
+            try:
+                from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
+
+                if UnifiedDynamicIslandHUD._instance:
+                    UnifiedDynamicIslandHUD._instance.finish_speech(linger_seconds=2.0)
+            except Exception:
+                pass
     except Exception:
         pass
 
@@ -243,7 +275,7 @@ def set_agent_speaking(
 def get_recent_speaking_info(window_seconds: float = 3.5) -> Optional[Dict[str, Any]]:
     """
     Retrieve metadata for the current speaking agent or the agent that finished speaking
-    within the last window_seconds. Enables Tab-to-focus to gracefully catch developer
+    within the last window_seconds. Enables Option+Tab to focus to gracefully catch developer
     reactions immediately after speech concludes.
     """
     active = get_agent_speaking_info()
@@ -591,6 +623,62 @@ def is_tab_key(key: Any) -> bool:
     return False
 
 
+def is_option_pressed() -> bool:
+    """Check if the Option/Alt modifier key is currently pressed at OS level (macOS)."""
+    try:
+        import Quartz
+
+        flags = Quartz.CGEventSourceFlagsState(Quartz.kCGEventSourceStateCombinedSessionState)
+        return bool(flags & Quartz.kCGEventFlagMaskAlternate)
+    except Exception:
+        return False
+
+
+def is_cmd_pressed() -> bool:
+    """Check if the Command modifier key is currently pressed at OS level (macOS)."""
+    try:
+        import Quartz
+
+        flags = Quartz.CGEventSourceFlagsState(Quartz.kCGEventSourceStateCombinedSessionState)
+        return bool(flags & Quartz.kCGEventFlagMaskCommand)
+    except Exception:
+        return False
+
+
+def is_ctrl_pressed() -> bool:
+    """Check if the Control modifier key is currently pressed at OS level (macOS)."""
+    try:
+        import Quartz
+
+        flags = Quartz.CGEventSourceFlagsState(Quartz.kCGEventSourceStateCombinedSessionState)
+        return bool(flags & Quartz.kCGEventFlagMaskControl)
+    except Exception:
+        return False
+
+
+def is_option_tab_event(key: Any, modifiers: Optional[set] = None) -> bool:
+    """
+    Universally check if a key event corresponds to Option+Tab (⌥⇥).
+    Ensures that Tab is pressed, Option is active, and Cmd/Ctrl are NOT active.
+    """
+    if not is_tab_key(key):
+        return False
+
+    if modifiers is not None:
+        has_opt = "alt" in modifiers
+        has_cmd = "cmd" in modifiers
+        has_ctrl = "ctrl" in modifiers
+        if not has_opt and not os.environ.get("PYTEST_CURRENT_TEST"):
+            has_opt = is_option_pressed()
+        if not has_cmd and not os.environ.get("PYTEST_CURRENT_TEST"):
+            has_cmd = is_cmd_pressed()
+        if not has_ctrl and not os.environ.get("PYTEST_CURRENT_TEST"):
+            has_ctrl = is_ctrl_pressed()
+        return has_opt and not has_cmd and not has_ctrl
+
+    return is_option_pressed() and not is_cmd_pressed() and not is_ctrl_pressed()
+
+
 def focus_speaking_window(
     agent_name: Optional[str] = None,
     app_name: Optional[str] = None,
@@ -598,7 +686,7 @@ def focus_speaking_window(
 ) -> bool:
     """
     Focus the active application window for the speaking agent or origin.
-    Invoked when pressing Tab while speech is active.
+    Invoked when pressing Option+Tab while speech is active.
     """
     try:
         from voicefi.integrations.injector import focus_speaking_agent_window
@@ -635,6 +723,10 @@ def is_speech_interrupted(turn_start_time: float = 0.0) -> bool:
 _LOCK_DEPTH = 0
 
 
+_ESCAPE_MONITOR_DEPTH = 0
+_ESCAPE_MONITOR_LOCK = threading.Lock()
+
+
 @contextmanager
 def escape_to_stop_speech(
     agent_name: Optional[str] = None,
@@ -644,10 +736,28 @@ def escape_to_stop_speech(
     """
     Spawns a lightweight global keyboard listener while speech is active.
     - Escape (Key.esc, vk=53, or char=\\x1b): immediately triggers stop_all_speech().
-    - Tab (Key.tab, vk=48, or char=\\t): focuses the window/application of the speaking agent.
+    - Option+Tab (⌥⇥): focuses the window/application of the speaking agent.
+    - Background media monitor: halts speech if user starts playing a clip.
     """
     if os.environ.get("PYTEST_CURRENT_TEST"):
         yield
+        return
+
+    global _ESCAPE_MONITOR_DEPTH
+    with _ESCAPE_MONITOR_LOCK:
+        if _ESCAPE_MONITOR_DEPTH > 0:
+            _ESCAPE_MONITOR_DEPTH += 1
+            is_nested = True
+        else:
+            _ESCAPE_MONITOR_DEPTH += 1
+            is_nested = False
+
+    if is_nested:
+        try:
+            yield
+        finally:
+            with _ESCAPE_MONITOR_LOCK:
+                _ESCAPE_MONITOR_DEPTH -= 1
         return
 
     listener = None
@@ -655,8 +765,18 @@ def escape_to_stop_speech(
     try:
         from pynput import keyboard
 
+        modifiers = set()
+
         def _on_press(key):
             try:
+                vk = getattr(key, "vk", None)
+                if key in (keyboard.Key.alt, keyboard.Key.alt_l, keyboard.Key.alt_r, keyboard.Key.alt_gr) or vk in (58, 61):
+                    modifiers.add("alt")
+                if key in (keyboard.Key.cmd, keyboard.Key.cmd_l, keyboard.Key.cmd_r) or vk in (54, 55):
+                    modifiers.add("cmd")
+                if key in (keyboard.Key.ctrl, keyboard.Key.ctrl_l, keyboard.Key.ctrl_r) or vk in (59, 62):
+                    modifiers.add("ctrl")
+
                 if is_escape_key(key):
                     stop_all_speech()
                     try:
@@ -665,7 +785,7 @@ def escape_to_stop_speech(
                         capture_barge_in_event(device_type="keyboard_esc", is_full_duplex=False)
                     except Exception:
                         pass
-                elif is_tab_key(key):
+                elif is_option_tab_event(key, modifiers):
                     now = time.time()
                     if (now - last_tab_time[0]) >= 0.35:
                         last_tab_time[0] = now
@@ -681,15 +801,60 @@ def escape_to_stop_speech(
             except Exception:
                 pass
 
-        listener = keyboard.Listener(on_press=_on_press)
+        def _on_release(key):
+            try:
+                vk = getattr(key, "vk", None)
+                if key in (keyboard.Key.alt, keyboard.Key.alt_l, keyboard.Key.alt_r, keyboard.Key.alt_gr) or vk in (58, 61):
+                    modifiers.discard("alt")
+                if key in (keyboard.Key.cmd, keyboard.Key.cmd_l, keyboard.Key.cmd_r) or vk in (54, 55):
+                    modifiers.discard("cmd")
+                if key in (keyboard.Key.ctrl, keyboard.Key.ctrl_l, keyboard.Key.ctrl_r) or vk in (59, 62):
+                    modifiers.discard("ctrl")
+            except Exception:
+                pass
+
+        listener = keyboard.Listener(on_press=_on_press, on_release=_on_release)
         listener.daemon = True
         listener.start()
+    except Exception:
+        pass
+
+    stop_media_monitor = threading.Event()
+    media_thread = None
+    try:
+        def _monitor_media():
+            positive_hits = 0
+            while not stop_media_monitor.is_set():
+                try:
+                    from voicefi.audio.media_detection import is_active_media_playing, get_active_media_info
+
+                    if is_active_media_playing(use_cache=False):
+                        positive_hits += 1
+                        if positive_hits >= 2:
+                            info = get_active_media_info(use_cache=False) or {}
+                            detail = info.get("detail", "media clip")
+                            print(f"[TTS] 🎬 Media playback confirmed ({detail}) while speaking. Stopping speech immediately.")
+                            stop_all_speech()
+                            break
+                    else:
+                        positive_hits = 0
+                except Exception:
+                    pass
+                stop_media_monitor.wait(0.25)
+
+        media_thread = threading.Thread(target=_monitor_media, daemon=True, name="MediaPlaybackMonitor")
+        media_thread.start()
     except Exception:
         pass
 
     try:
         yield
     finally:
+        with _ESCAPE_MONITOR_LOCK:
+            _ESCAPE_MONITOR_DEPTH -= 1
+        stop_media_monitor.set()
+        if media_thread is not None:
+            media_thread.join(timeout=0.15)
         if listener is not None:
             try:
                 listener.stop()
@@ -730,9 +895,66 @@ def speech_turn_lock(
         _LOCK_DEPTH += 1
         SPEECH_LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
         lock_fd = None
+        enqueue_time = time.time()
         try:
+            # Pre-lock stop guard: if speech was recently stopped by user (< 1.5s), abort immediately
+            stop_time = get_last_speech_stop_time()
+            if stop_time > 0 and (enqueue_time - stop_time) < 1.5:
+                raise DuplicateSpeechSuppressed("Interrupted by user recently (pre-lock guard)")
+
+            # Pre-lock polite media wait: DO NOT hold SPEECH_LOCK_FILE while user watches media!
+            try:
+                from voicefi.config import load_config
+
+                cfg = load_config()
+                respect_media = getattr(cfg.tts, "respect_media_playback", True)
+                media_timeout = getattr(cfg.tts, "media_pause_timeout", 600.0)
+            except Exception:
+                respect_media = True
+                media_timeout = 600.0
+
+            if respect_media:
+                try:
+                    from voicefi.audio.media_detection import is_active_media_playing, wait_for_media_completion
+
+                    if is_active_media_playing(use_cache=True):
+                        cleared = wait_for_media_completion(
+                            max_wait_seconds=media_timeout, turn_start_time=enqueue_time
+                        )
+                        if not cleared or is_speech_interrupted(enqueue_time):
+                            raise DuplicateSpeechSuppressed(
+                                "Interrupted or timed out while waiting for media clip to finish"
+                            )
+                except ImportError:
+                    pass
+
             lock_fd = open(SPEECH_LOCK_FILE, "a+")
             fcntl.flock(lock_fd, fcntl.LOCK_EX)
+
+            # Fast post-lock re-check (under 2ms) to ensure media didn't start in interleaving window
+            if respect_media:
+                try:
+                    from voicefi.audio.media_detection import is_active_media_playing
+
+                    if is_active_media_playing(use_cache=True):
+                        raise DuplicateSpeechSuppressed(
+                            "Media playback started while acquiring speech lock"
+                        )
+                except ImportError:
+                    pass
+
+            # Post-lock queue guard: if user stopped speech while this turn was waiting in queue, abort!
+            now = time.time()
+            post_stop_time = get_last_speech_stop_time()
+            if post_stop_time > 0:
+                if post_stop_time > enqueue_time:
+                    raise DuplicateSpeechSuppressed(
+                        "Interrupted by user while waiting in speech lock queue"
+                    )
+                if (now - post_stop_time) < 1.5:
+                    raise DuplicateSpeechSuppressed(
+                        "Interrupted by user recently (post-lock guard)"
+                    )
 
             # If another process or conversation is actively listening/hearing for the user,
             # wait politely until the user finishes their spoken turn before speaking aloud.
@@ -745,7 +967,7 @@ def speech_turn_lock(
                     # If this mic session belongs to the same process and conv_id (e.g. barge-in), proceed
                     if mic_pid == os.getpid() and conv_id and mic_cid == conv_id:
                         break
-                if is_speech_interrupted(mic_wait_start):
+                if is_speech_interrupted(enqueue_time):
                     raise DuplicateSpeechSuppressed("Interrupted by user while waiting for microphone")
                 if (time.time() - mic_wait_start) > 40.0:
                     print("[TTS] ⚠️ Timed out waiting for active mic recording to finish, proceeding...")
@@ -765,10 +987,13 @@ def speech_turn_lock(
             # If any previous audio is still playing out of speakers, wait until total silence
             max_wait = 150  # up to 15s
             while is_system_audio_playing() and max_wait > 0:
-                if is_speech_interrupted(mic_wait_start):
+                if is_speech_interrupted(enqueue_time):
                     raise DuplicateSpeechSuppressed("Interrupted by user")
                 time.sleep(0.1)
                 max_wait -= 1
+
+            if is_speech_interrupted(enqueue_time):
+                raise DuplicateSpeechSuppressed("Interrupted by user after previous audio finished")
 
             speak_kwargs = {
                 "text": text,
@@ -869,9 +1094,11 @@ _LAST_SPEECH_STOP_FILE = Path("/tmp/voicefi_last_speech_stop.ts")
 
 
 def record_speech_stopped() -> None:
-    """Record timestamp when speech was interrupted/stopped."""
+    """Record timestamp when speech was interrupted/stopped atomically."""
     try:
-        _LAST_SPEECH_STOP_FILE.write_text(str(time.time()))
+        tmp_file = _LAST_SPEECH_STOP_FILE.with_suffix(".tmp")
+        tmp_file.write_text(str(time.time()))
+        tmp_file.replace(_LAST_SPEECH_STOP_FILE)
     except Exception:
         pass
 
@@ -884,6 +1111,14 @@ def get_last_speech_stop_time() -> float:
     except Exception:
         pass
     return 0.0
+
+
+def clear_speech_stopped_time() -> None:
+    """Clear recorded speech stop timestamp (useful for testing or explicit reset)."""
+    try:
+        _LAST_SPEECH_STOP_FILE.unlink(missing_ok=True)
+    except Exception:
+        pass
 
 
 _STOPPING_ALL_SPEECH = False

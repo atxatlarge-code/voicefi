@@ -252,7 +252,7 @@ class ConversationHubWindow:
         """Refresh contents and display the panel persistently on screen (Main Thread safe)."""
 
         def _do_show():
-            self._refresh_ui()
+            self._refresh_ui(force=True)
             if self._panel:
                 if not self._panel.isVisible():
                     self._position_top_right()
@@ -320,6 +320,8 @@ class ConversationHubWindow:
     def _refresh_ui(self, force: bool = False):
         """Populate the conversation list on the main thread."""
         if not self._panel:
+            return
+        if not force and hasattr(self._panel, "isVisible") and not self._panel.isVisible():
             return
 
         convs = self.tracker.get_all_conversations(limit=7)

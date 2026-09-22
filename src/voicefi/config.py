@@ -96,9 +96,12 @@ class TTSConfig(BaseModel):
     elevenlabs_voice_id: Optional[str] = "21m00Tcm4TlvDq8ikWAM"
     gemini_api_key: Optional[str] = ""
     f5_device: Literal["auto", "mps", "cpu", "cuda"] = "auto"
-    f5_model_name: str = "F5-TTS"
+    f5_model_name: str = "F5TTS_v1_Base"
+    f5_nfe_step: int = 16
     f5_ref_audio: Optional[str] = None
     f5_ref_text: Optional[str] = None
+    respect_media_playback: bool = True
+    media_pause_timeout: float = 600.0
 
 
 class STTConfig(BaseModel):
@@ -239,13 +242,51 @@ class AgentVoiceProfile(BaseModel):
     f5_ref_text: Optional[str] = None
 
 
+VALID_GEMINI_LIVE_VOICES = {
+    "Puck",
+    "Charon",
+    "Kore",
+    "Fenrir",
+    "Aoede",
+    "Zephyr",
+    "Leda",
+    "Orus",
+    "Callirrhoe",
+    "Autonoe",
+    "Enceladus",
+    "Iapetus",
+    "Umbriel",
+    "Algieba",
+    "Despina",
+    "Erinome",
+    "Algenib",
+    "Rasalgethi",
+    "Laomedeia",
+    "Achernar",
+    "Alnilam",
+    "Schedar",
+    "Gacrux",
+    "Pulcherrima",
+    "Achird",
+    "Zubenelgenubi",
+    "Vindemiatrix",
+    "Sadachbia",
+    "Sadaltager",
+    "Sulafat",
+}
+
+
 class GeminiConfig(BaseModel):
     enabled: bool = True
     provider: Literal["auto", "gemini", "ollama", "heuristic"] = "auto"
     api_key: Optional[str] = ""
     model: str = "gemini-2.5-flash"
-    live_model: str = "gemini-2.0-flash-exp"
-    live_voice: str = "Aoede"  # Aoede, Puck, Charon, Kore, Fenrir
+    live_model: str = "gemini-3.8-live"
+    live_extended_thinking_model: str = "gemini-3.8-live-extended-thinking"
+    live_voice: str = "Puck"  # Puck, Aoede, Charon, Kore, Fenrir
+    default_demo_voice: str = "Puck"
+    thinking_level: Literal["MINIMAL", "LOW", "MEDIUM", "HIGH"] = "LOW"
+    enable_affective_dialog: bool = True
     local_llm_url: str = "http://localhost:11434/v1"
     local_llm_model: str = "qwen2.5:0.5b"
     temperature: float = 0.2
@@ -694,21 +735,26 @@ class VoiceFiConfig(BaseModel):
             return _extract_profile(self.agents[key])
 
         # Built-in agent persona fallbacks
-        if key in ("claude", "claude_code"):
+        if key in ("claude", "claude_code") or key.startswith("claude"):
             return "edge_tts", "en-US-SteffanNeural", default_rate
-        elif key == "antigravity":
+        elif key == "antigravity" or key.startswith("antigravity"):
             return "edge_tts", "en-US-AvaNeural", default_rate
-        elif key == "cursor":
+        elif key == "cursor" or key.startswith("cursor"):
             return "edge_tts", "en-US-JennyNeural", default_rate
-        elif key in (
-            "obsidian",
-            "aria",
-            "emma",
-            "openai",
-            "codex",
-            "chatgpt",
-            "debugger",
-            "tester",
+        elif (
+            key in (
+                "obsidian",
+                "aria",
+                "emma",
+                "openai",
+                "codex",
+                "chatgpt",
+                "debugger",
+                "tester",
+            )
+            or key.startswith("codex")
+            or key.startswith("chatgpt")
+            or key.startswith("openai")
         ):
             return "edge_tts", "en-US-AvaNeural", default_rate
         elif key in ("researcher", "architect"):
@@ -780,3 +826,46 @@ def save_config(config: VoiceFiConfig, target_path: Optional[Union[Path, str]] =
     with open(dest, "w", encoding="utf-8") as f:
         yaml.safe_dump(config.model_dump(), f, default_flow_style=False, sort_keys=False)
     return dest
+
+
+def resolve_gemini_api_key(config: Optional[VoiceFiConfig] = None) -> str:
+    """
+    Resolve Google Gemini API key across config, environment variables, and local .env files.
+    """
+    cfg = config or load_config()
+    if hasattr(cfg, "gemini") and cfg.gemini.api_key:
+        return cfg.gemini.api_key.strip()
+    if hasattr(cfg, "tts") and getattr(cfg.tts, "gemini_api_key", None):
+        return cfg.tts.gemini_api_key.strip()
+
+    for env_var in ("GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GENAI_API_KEY"):
+        val = os.environ.get(env_var, "").strip()
+        if val:
+            return val
+
+    # Probe local project .env files only if not explicitly passing custom config or in pytest
+    if config is not None or "PYTEST_CURRENT_TEST" in os.environ:
+        return ""
+
+    candidate_envs = [
+        Path.cwd() / ".env",
+        Path.home() / ".voicefi" / ".env",
+        Path.home() / "Projects" / "VoiceFi" / ".env",
+    ]
+    for env_path in candidate_envs:
+        if env_path.is_file():
+            try:
+                for line in env_path.read_text(encoding="utf-8").splitlines():
+                    line = line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    for prefix in ("GEMINI_API_KEY=", "GOOGLE_API_KEY=", "GOOGLE_GENAI_API_KEY="):
+                        if line.startswith(prefix):
+                            candidate_val = line[len(prefix):].strip().strip('"').strip("'")
+                            if candidate_val:
+                                return candidate_val
+            except Exception:
+                pass
+
+    return ""
+

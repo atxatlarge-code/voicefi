@@ -861,7 +861,18 @@ class AudioTroubleshooter:
             "audio_cues_enabled": self.config.audio_cues.enabled,
             "configured_agents": list(self.config.agents.keys()),
             "configured_subagents": list(self.config.subagents.keys()),
+            "respect_media_playback": getattr(self.config.tts, "respect_media_playback", True),
+            "media_pause_timeout": getattr(self.config.tts, "media_pause_timeout", 600.0),
         }
+
+        try:
+            from voicefi.audio.media_detection import is_active_media_playing, get_active_media_info
+
+            diagnostics["is_active_media_playing"] = is_active_media_playing()
+            diagnostics["active_media_info"] = get_active_media_info()
+        except Exception:
+            diagnostics["is_active_media_playing"] = False
+            diagnostics["active_media_info"] = None
 
         try:
             import sounddevice as sd

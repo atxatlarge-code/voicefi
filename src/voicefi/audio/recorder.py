@@ -143,6 +143,19 @@ class AudioRecorder:
         except ImportError:
             pass
 
+        # Check active media playback (Quick Look or QuickTime) before capturing audio
+        try:
+            from voicefi.audio.media_detection import is_active_media_playing
+
+            if is_active_media_playing():
+                print(
+                    "[AudioRecorder] 🎬 Media playback active. Suppressing mic capture to avoid clip feedback."
+                )
+                cancelled_by_user = True
+                self.stop_event.set()
+        except Exception:
+            pass
+
         kb_listener = None
         try:
             from pynput import keyboard
@@ -271,6 +284,13 @@ class AudioRecorder:
                             )
 
                             txt = stt_instance.transcribe(preview_audio, sample_rate=self.sample_rate)
+                            if txt:
+                                try:
+                                    from voicefi.tts.normalizer import collapse_repetitive_artifacts
+
+                                    txt = collapse_repetitive_artifacts(txt)
+                                except Exception:
+                                    pass
                             if txt and on_live_transcript:
                                 on_live_transcript(txt)
                         except Exception:
@@ -307,6 +327,20 @@ class AudioRecorder:
                         break
 
                     audio_chunk = chunk.flatten()
+                    chunk_count += 1
+
+                    if not speech_started and chunk_count % 8 == 0:
+                        try:
+                            from voicefi.audio.media_detection import is_active_media_playing
+
+                            if is_active_media_playing():
+                                print(
+                                    "[AudioRecorder] 🎬 Media playback started during listen. Yielding immediately."
+                                )
+                                cancelled_by_user = True
+                                break
+                        except Exception:
+                            pass
 
                     # Check if an AI agent is speaking aloud
                     agent_speaking = is_agent_speaking()
@@ -437,8 +471,11 @@ class AudioRecorder:
                                             except Exception:
                                                 pass
 
-                                        # Clear any past frames before barge-in to avoid speaker bleed
+                                        # Clear past speaker bleed frames, but preserve onset frames to avoid clipped syllables
                                         recorded_frames.clear()
+                                        if agent_speaking_pre_roll:
+                                            recorded_frames.extend(agent_speaking_pre_roll)
+                                            agent_speaking_pre_roll.clear()
                                         speech_started = True
                                         speech_start_time = time.time()
                                         peak_speech_energy = smoothed_energy
@@ -814,6 +851,13 @@ class AudioRecorder:
                             )
 
                             txt = stt_instance.transcribe(preview_audio, sample_rate=self.sample_rate)
+                            if txt:
+                                try:
+                                    from voicefi.tts.normalizer import collapse_repetitive_artifacts
+
+                                    txt = collapse_repetitive_artifacts(txt)
+                                except Exception:
+                                    pass
                             if txt and on_live_transcript:
                                 on_live_transcript(txt)
                         except Exception:

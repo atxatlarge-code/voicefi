@@ -31,6 +31,7 @@ from voicefi.integrations.conversations import (
     peek_mobile_turn_origin,
     get_claimed_turn_origin,
     has_active_companion_client,
+    mark_turn_spoken_on_mac,
 )
 from voicefi.integrations.injector import inject_text_to_chatgpt
 
@@ -283,7 +284,7 @@ def handle_codex_stop_hook(
 
     # Deduplicate turn
     cid_key = f"codex_{thread_id}" if not thread_id.startswith("codex_") else thread_id
-    if not claim_turn(thread_id, cleaned) and not claim_turn(cid_key, cleaned):
+    if not claim_turn(thread_id, cleaned, delivered_via="hook") and not claim_turn(cid_key, cleaned, delivered_via="hook"):
         return {"status": "skipped_duplicate"}
 
     # Update session cookie so Mobile Companion knows Codex is the active agent
@@ -324,16 +325,65 @@ def handle_codex_stop_hook(
         if routing == "smart" and mute_mac_active and has_active_companion_client():
             return {"status": "mac_muted", "agent": "codex"}
 
+    # Check meeting & media detection
+    from voicefi.audio.meeting_detection import is_user_on_call
+
+    if is_user_on_call():
+        print("[Codex Hook] User is on a call. Skipping spoken feedback and auto-listen.")
+        return {"status": "on_call", "agent": "codex"}
+
+    respect_media = getattr(getattr(cfg, "tts", None), "respect_media_playback", True)
+    if respect_media:
+        try:
+            from voicefi.audio.media_detection import is_active_media_playing, wait_for_media_completion
+
+            if is_active_media_playing():
+                media_timeout = getattr(getattr(cfg, "tts", None), "media_pause_timeout", 600.0)
+                cleared = wait_for_media_completion(max_wait_seconds=media_timeout)
+                if not cleared:
+                    print(
+                        "[Codex Hook] 🎬 Media clip still playing after timeout. Skipping speech."
+                    )
+                    return {"status": "media_playing", "agent": "codex"}
+        except Exception:
+            pass
+
     # Speak the soundbite aloud using Codex's voice persona (Emma)
     hook_start_time = time.time()
+    agent_name = (
+        payload.get("agent")
+        if isinstance(payload, dict) and payload.get("agent")
+        else "codex"
+    )
+    voice_override = payload.get("voice") if isinstance(payload, dict) else None
     tts_engine = None
     if read_aloud:
-        tts_engine = get_tts_engine(cfg, agent_name="codex")
+        tts_engine = get_tts_engine(
+            cfg,
+            agent_name=agent_name,
+            voice_override=voice_override,
+            app_name="ChatGPT",
+            conv_id=thread_id,
+        )
         try:
-            with escape_to_stop_speech():
+            set_cross_process_hud_state(
+                "speaking",
+                text=cleaned,
+                agent_name=agent_name,
+                persona_name=getattr(tts_engine, "voice", "Emma"),
+                app_name="ChatGPT",
+                conv_id=thread_id,
+            )
+            with escape_to_stop_speech(
+                agent_name=agent_name, app_name="ChatGPT", conv_id=thread_id
+            ):
                 tts_engine.speak(cleaned, block=True)
+            mark_turn_spoken_on_mac(thread_id, cleaned)
+            mark_turn_spoken_on_mac(cid_key, cleaned)
         except Exception as e:
             print(f"[Codex Hook] Speech error: {e}", file=sys.stderr)
+        finally:
+            clear_cross_process_hud_state()
 
         from voicefi.tts.base import is_speech_interrupted
 

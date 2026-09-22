@@ -63,6 +63,15 @@ vifi ping "Viv" --json
 
 ---
 
+### 2c. Prototyping & Auditioning in Google AI Studio
+To audition voices with emotional direction tags (`[excited]`, `[whispers]`, `[sighs]`), multi-speaker dialogues, and director instructions in an interactive web UI:
+- **Studio Link:** [Google AI Studio — Generate Speech](https://aistudio.google.com/generate-speech)
+- **Zero-Click Programmatic Script:** [`scripts/generate_gemini_dialogue.py`](file:///Users/jaketrigg/Projects/VoiceFi/scripts/generate_gemini_dialogue.py) (Synthesizes dialogues directly from CLI or files without browser UI clicks).
+- **Comprehensive Examples & Guide:** [`docs/GOOGLE_AI_STUDIO_SPEECH_TESTING.md`](file:///Users/jaketrigg/Projects/VoiceFi/docs/GOOGLE_AI_STUDIO_SPEECH_TESTING.md)
+- **Supported Personas:** Aoede (Breezy/Warm), Puck (Upbeat/Playful), Charon (Deep/Grave), Kore (Firm/Grounded), Fenrir (Excitable/Urgent).
+
+---
+
 ### 3. Assigning Voice Personas
 Once a voice is agreed upon, assign it to yourself or your subagents:
 

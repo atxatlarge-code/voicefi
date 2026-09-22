@@ -14,6 +14,8 @@ from contextlib import redirect_stdout
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 
+from voicefi.config import VALID_GEMINI_LIVE_VOICES
+
 # Configure logger to output only to stderr so stdout is reserved for JSON-RPC
 logger = logging.getLogger("voicefi.mcp")
 if not logger.handlers:
@@ -295,6 +297,47 @@ MCP_TOOLS: List[Dict[str, Any]] = [
         },
     },
     {
+        "name": "voicefi_live",
+        "description": "Interact with Google Gemini 3.8 Live for real-time speech, jokes, banter, and co-timed punchline sound effects with sub-second latency.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "prompt": {
+                    "type": "string",
+                    "description": "Prompt, topic, or joke request to send to Gemini 3.8 Live.",
+                },
+                "mode": {
+                    "type": "string",
+                    "enum": ["comedy", "roast", "banter", "assistant"],
+                    "description": "Persona mode (default: 'comedy').",
+                },
+                "voice": {
+                    "type": "string",
+                    "enum": sorted(list(VALID_GEMINI_LIVE_VOICES)),
+                    "description": "Voice persona (default: 'Puck').",
+                },
+                "use_thinking": {
+                    "type": "boolean",
+                    "description": "Whether to use Gemini 3.8 Live Extended Thinking (default: false).",
+                },
+                "thinking_level": {
+                    "type": "string",
+                    "enum": ["MINIMAL", "LOW", "MEDIUM", "HIGH"],
+                    "description": "Reasoning depth when use_thinking is true (default: 'LOW').",
+                },
+                "enable_sfx": {
+                    "type": "boolean",
+                    "description": "Whether to allow Gemini 3.8 Live to trigger synchronized punchline sound effects (default: true).",
+                },
+                "play_audio": {
+                    "type": "boolean",
+                    "description": "Whether to play audio aloud through speakers (default: true).",
+                },
+            },
+            "required": ["prompt"],
+        },
+    },
+    {
         "name": "voicefi_meeting_start",
         "description": "Start an intelligent ProActive Meeting Note Taker session with Granola-style live markdown distillation and real-time action listener.",
         "inputSchema": {
@@ -453,7 +496,68 @@ MCP_TOOLS: List[Dict[str, Any]] = [
             "required": ["title", "markdown"],
         },
     },
+    {
+        "name": "voicefi_clone_list",
+        "description": "List all custom trained and cloned voice profiles with their acoustic vocal range, average pitch (Hz), and suggested neural base.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+        },
+    },
 ]
+
+
+
+CLIENT_ID_ENV_VARS = ("VOICEFI_CLIENT_ID", "VOICEBOX_CLIENT_ID")
+
+
+def detect_calling_client_identity(handshake_client_name: Optional[str] = None) -> str:
+    """
+    Deterministically identify the calling agent without requiring manual tool parameters.
+    Resolution precedence:
+      1. Explicit environment variable (VOICEFI_CLIENT_ID / VOICEBOX_CLIENT_ID)
+      2. MCP Initialize Handshake clientInfo.name (e.g. claude-code -> claude)
+      3. Parent Process Name / Command Inspection
+      4. Default fallback ('antigravity')
+    """
+    # 1. Environment Variable Override
+    for var in CLIENT_ID_ENV_VARS:
+        val = os.environ.get(var)
+        if val and val.strip():
+            return val.strip().lower()
+
+    # 2. MCP Handshake clientInfo.name
+    if handshake_client_name:
+        name = handshake_client_name.lower()
+        if "claude" in name:
+            return "claude"
+        elif "antigravity" in name:
+            return "antigravity"
+        elif "cursor" in name:
+            return "cursor"
+        elif "windsurf" in name:
+            return "windsurf"
+
+    # 3. Parent Process Inspection
+    try:
+        import psutil
+
+        parent = psutil.Process(os.getppid())
+        pname = parent.name().lower()
+        pcmd = " ".join(parent.cmdline()).lower()
+
+        if "claude" in pname or "claude" in pcmd:
+            return "claude"
+        if "antigravity" in pname or "antigravity" in pcmd:
+            return "antigravity"
+        if "cursor" in pname:
+            return "cursor"
+        if any(term in pname for term in ("iterm", "terminal", "ghostty", "warp", "zsh", "bash")):
+            return "terminal"
+    except Exception:
+        pass
+
+    return "antigravity"
 
 
 class VoiceFiMCPServer:
@@ -714,6 +818,9 @@ class VoiceFiMCPServer:
             "vault_append",
             "vault_query",
             "vault_memo",
+            "live",
+            "comedy",
+            "gemini_live",
         ):
             canonical_name = "voicefi_" + name
 
@@ -722,6 +829,8 @@ class VoiceFiMCPServer:
                 res = self._tool_speak(args)
             elif canonical_name in ("voicefi_speed_talk", "voicefi_speedtalk"):
                 res = self._tool_speed_talk(args)
+            elif canonical_name in ("voicefi_live", "voicefi_gemini_live", "voicefi_comedy"):
+                res = self._tool_live(args)
             elif canonical_name == "voicefi_listen":
                 res = self._tool_listen(args)
             elif canonical_name == "voicefi_stop":
@@ -750,6 +859,8 @@ class VoiceFiMCPServer:
                 res = self._tool_vault_query(args)
             elif canonical_name == "voicefi_vault_memo":
                 res = self._tool_vault_memo(args)
+            elif canonical_name == "voicefi_clone_list":
+                res = self._tool_clone_list(args)
             else:
                 res = {
                     "content": [{"type": "text", "text": f"Unknown tool '{name}' (not recognized)."}],
@@ -873,12 +984,12 @@ class VoiceFiMCPServer:
             if raw_persona is not None and str(raw_persona).strip()
             else None
         )
-        raw_agent = args.get("agent_name") or args.get("agent") or "antigravity"
-        agent_name = (
-            str(raw_agent).strip()
-            if raw_agent is not None and str(raw_agent).strip()
-            else "antigravity"
-        )
+        raw_agent = args.get("agent_name") or args.get("agent")
+        if raw_agent is not None and str(raw_agent).strip():
+            agent_name = str(raw_agent).strip()
+        else:
+            agent_name = detect_calling_client_identity(getattr(self, "client_name", None))
+
         block = bool(args.get("block", True))
         speed_arg = args.get("speed") or args.get("speed_talk")
 
@@ -1193,6 +1304,21 @@ class VoiceFiMCPServer:
             "energy_threshold": cfg.vad.energy_threshold,
         }
 
+        try:
+            from voicefi.tts.cloning import VoiceCloneManager
+            status_info["cloned_voices"] = [
+                {
+                    "name": cv.name,
+                    "provider": cv.provider,
+                    "vocal_range": cv.vocal_range,
+                    "avg_pitch_hz": cv.avg_pitch_hz,
+                    "suggested_neural_base": cv.suggested_neural_base,
+                }
+                for cv in VoiceCloneManager().list_cloned_voices()
+            ]
+        except Exception:
+            status_info["cloned_voices"] = []
+
         return {
             "content": [
                 {
@@ -1218,9 +1344,28 @@ class VoiceFiMCPServer:
             }
 
         cfg = load_config()
-        persona = find_persona(persona_name)
-        resolved_voice = persona.id if persona else persona_name
-        resolved_provider = persona.provider if persona else "edge_tts"
+
+        # Check cloned voices first
+        cloned = None
+        try:
+            from voicefi.tts.cloning import VoiceCloneManager
+            cloned = VoiceCloneManager().get_cloned_voice(persona_name)
+        except Exception:
+            pass
+
+        if cloned:
+            resolved_voice = cloned.name
+            resolved_provider = cloned.provider or "local_clone"
+            offline_voice = cloned.suggested_neural_base or "Ava (Premium)"
+        else:
+            persona = find_persona(persona_name)
+            resolved_voice = persona.id if persona else persona_name
+            resolved_provider = persona.provider if persona else "edge_tts"
+            offline_voice = (
+                persona.offline_voice
+                if persona and getattr(persona, "offline_voice", None)
+                else persona_name
+            )
 
         if agent in ("default", "global", "tts"):
             cfg.tts.voice = resolved_voice
@@ -1229,9 +1374,7 @@ class VoiceFiMCPServer:
             cfg.agents[agent] = AgentVoiceProfile(
                 voice=resolved_voice,
                 provider=resolved_provider,
-                offline_voice=persona.offline_voice
-                if persona and getattr(persona, "offline_voice", None)
-                else persona_name,
+                offline_voice=offline_voice,
                 description=f"{agent.title()} Voice Profile",
             )
 
@@ -1402,6 +1545,55 @@ class VoiceFiMCPServer:
                         "text": f"Unknown sound effect '{clean_name}'. Available: {', '.join(list_available_sfx())}",
                     }
                 ],
+                "isError": True,
+            }
+
+    def _tool_live(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        prompt = (args.get("prompt") or args.get("text") or "").strip()
+        if not prompt:
+            return {
+                "content": [{"type": "text", "text": "Missing required argument 'prompt'."}],
+                "isError": True,
+            }
+
+        api_key = args.get("api_key")
+        voice = args.get("voice", "Puck")
+        mode = args.get("mode", "comedy")
+        use_thinking = bool(args.get("use_thinking", False))
+        thinking_level = args.get("thinking_level", "LOW")
+        enable_sfx = bool(args.get("enable_sfx", True))
+        play_audio = bool(args.get("play_audio", True))
+
+        try:
+            import asyncio
+            from voicefi.integrations.gemini_live import GeminiLiveRunner
+
+            runner = GeminiLiveRunner(
+                api_key=api_key,
+                voice=voice,
+                mode=mode,
+                use_thinking=use_thinking,
+                thinking_level=thinking_level,
+                enable_sfx=enable_sfx,
+                play_audio=play_audio,
+            )
+
+            result = asyncio.run(runner.run_prompt(prompt))
+
+            sfx_str = f"\n🥁 Co-timed SFX: {', '.join(result['triggered_sfx'])}" if result.get("triggered_sfx") else ""
+            summary_msg = (
+                f"🎙️ [Gemini 3.8 Live ({runner.model} | Voice: {runner.voice})]\n\n"
+                f"\"{result['transcript']}\"\n\n"
+                f"⏱️ TTFA: {result['ttfa_ms']}ms | Audio: {result['duration_sec']:.2f}s{sfx_str}"
+            )
+            return {
+                "content": [{"type": "text", "text": summary_msg}],
+                "isError": False,
+            }
+        except Exception as e:
+            logger.error("Error executing Gemini 3.8 Live tool: %s", e, exc_info=True)
+            return {
+                "content": [{"type": "text", "text": f"Gemini 3.8 Live error: {str(e)}"}],
                 "isError": True,
             }
 
@@ -1714,6 +1906,33 @@ class VoiceFiMCPServer:
                         f"✅ Saved Voice Memo to '{res['vault_name']}/Voice Memos/{res['memo_name']}' "
                         f"and added backlink in daily note ({res['backlink']})."
                     ),
+                }
+            ],
+            "isError": False,
+        }
+
+    def _tool_clone_list(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        from voicefi.tts.cloning import VoiceCloneManager
+
+        mgr = VoiceCloneManager()
+        cloned = mgr.list_cloned_voices()
+        result = [
+            {
+                "name": cv.name,
+                "provider": cv.provider,
+                "vocal_range": cv.vocal_range,
+                "avg_pitch_hz": cv.avg_pitch_hz,
+                "suggested_neural_base": cv.suggested_neural_base,
+                "sample_count": len(cv.sample_paths),
+                "created_at": cv.created_at,
+            }
+            for cv in cloned
+        ]
+        return {
+            "content": [
+                {
+                    "type": "text",
+                    "text": json.dumps({"cloned_voices": result, "count": len(result)}, indent=2),
                 }
             ],
             "isError": False,

@@ -288,7 +288,7 @@ class VoiceFiTrayApp(rumps.App):
         )
 
         self.auto_listen_item = rumps.MenuItem(
-            "⚡ ProActive Listening (Auto Turn-Taking)",
+            "⚡ ProActive Feedback Loop (Auto Turn-Taking)",
             callback=self.toggle_auto_listen,
         )
         self.auto_listen_item.state = 1 if self.config.proactive.feedback_loop.enabled else 0
@@ -993,18 +993,45 @@ class VoiceFiTrayApp(rumps.App):
             return
 
         summary = self._get_companion_status_summary()
+        mute_mac_active = getattr(
+            getattr(self.config, "companion", None), "mute_mac_when_companion_active", True
+        )
 
         if summary.get("is_paired"):
             n = summary.get("total_connected_devices", 1)
-            self.companion_menu.title = f"📱 Remote Companion (🟢 {n} Paired)"
+            mute_status = " • 🔇 Laptop Muted" if mute_mac_active else " • 🔊 Laptop Active"
+            self.companion_menu.title = f"📱 Remote Companion (🟢 {n} Paired{mute_status})"
         else:
             self.companion_menu.title = "📱 Remote Companion (Ready to Pair)"
+
+        def _toggle_mute_mac(sender):
+            curr = getattr(
+                getattr(self.config, "companion", None), "mute_mac_when_companion_active", True
+            )
+            new_val = not curr
+            if hasattr(self.config, "companion") and self.config.companion is not None:
+                self.config.companion.mute_mac_when_companion_active = new_val
+            try:
+                save_config(self.config)
+            except Exception:
+                pass
+            self._build_companion_submenu()
+            status_text = "Laptop muted while companion is connected" if new_val else "Laptop speakers active alongside companion"
+            rumps.notification("VoiceFi Audio Routing", "Laptop Speakers", status_text)
+
+        mute_item = rumps.MenuItem(
+            "🔇 Mute Laptop when Remote Companion Active",
+            callback=_toggle_mute_mac,
+        )
+        mute_item.state = 1 if mute_mac_active else 0
 
         # Pairing QR code goes at top per user request
         items = [
             rumps.MenuItem("📷 Show Pairing QR Code...", callback=self.open_mobile_companion),
             rumps.MenuItem("📱 Open in Browser (localhost:5141/rc)", callback=self.open_mobile_companion_browser),
             rumps.MenuItem("📋 Copy Pairing Link", callback=self.copy_companion_link),
+            rumps.separator,
+            mute_item,
             rumps.separator,
         ]
 
@@ -1760,10 +1787,12 @@ class VoiceFiTrayApp(rumps.App):
                 hud_state if (hud_state and hud_state.get("state") == "speaking") else {}
             )
             current_pid = info.get("pid")
-            last_pid = getattr(self, "_last_spoken_pid", None)
-            if not was_speaking or last_pid != current_pid:
+            current_sig = f"{current_pid}:{info.get('persona_name')}:{info.get('conv_id')}:{info.get('text', '')[:30]}"
+            last_sig = getattr(self, "_last_spoken_sig", None)
+            if not was_speaking or last_sig != current_sig:
                 self._cross_process_speaking = True
                 self._last_spoken_pid = current_pid
+                self._last_spoken_sig = current_sig
                 hud_cfg = getattr(self.config, "hud", None)
                 show_speaking = getattr(
                     self.config.antigravity, "show_speech_popup", True
@@ -1773,11 +1802,14 @@ class VoiceFiTrayApp(rumps.App):
                         text=info.get("text", "") or "Speaking aloud...",
                         agent_name=info.get("agent_name", "VoiceFi"),
                         persona_name=info.get("persona_name") or "Viv",
+                        app_name=info.get("app_name"),
+                        conv_id=info.get("conv_id"),
                         linger=None,
                     )
         elif was_speaking and not is_speaking:
             self._cross_process_speaking = False
             self._last_spoken_pid = None
+            self._last_spoken_sig = None
             if self._current_status == "speaking":
                 self._current_status = "idle"
             hud_cfg = getattr(self.config, "hud", None)
@@ -1811,6 +1843,8 @@ class VoiceFiTrayApp(rumps.App):
                             "user_name", getattr(self.config, "user_name", "Jake")
                         ),
                         live_stream=hud_state.get("live_stream", False),
+                        app_name=hud_state.get("app_name"),
+                        conv_id=hud_state.get("conv_id"),
                     )
         elif not hud_state and getattr(self, "_last_ext_hud_sig", None) is not None:
             self._last_ext_hud_sig = None
@@ -1819,6 +1853,7 @@ class VoiceFiTrayApp(rumps.App):
 
         status_map = {
             "speaking": "speaker.wave.2.fill",
+            "spoken": "checkmark.circle.fill",
             "listening": "mic.fill",
             "hearing": "waveform.circle.fill",
             "transcribing": "ellipsis.bubble",
@@ -1963,7 +1998,9 @@ class VoiceFiTrayApp(rumps.App):
         """Thread-safe state change handler."""
         self._current_status = state
         if hasattr(self, "hub") and self.hub:
-            self.hub.refresh()
+            panel = getattr(self.hub, "_panel", None)
+            if panel and hasattr(panel, "isVisible") and panel.isVisible():
+                self.hub.refresh()
         try:
             hud = UnifiedDynamicIslandHUD.get_instance()
             if state == "idle":
@@ -1985,6 +2022,17 @@ class VoiceFiTrayApp(rumps.App):
                     agent_name=kwargs.get("agent_name", "Antigravity"),
                     persona_name=kwargs.get("persona_name"),
                     linger=kwargs.get("linger"),
+                    app_name=kwargs.get("app_name"),
+                    conv_id=kwargs.get("conv_id"),
+                )
+            elif state == "spoken":
+                hud.set_spoken(
+                    text=kwargs.get("text", "") or kwargs.get("body_text", ""),
+                    speaker=kwargs.get("persona_name") or kwargs.get("agent_name", "Viv"),
+                    linger=kwargs.get("linger", 2.0),
+                    agent_name=kwargs.get("agent_name", "Antigravity"),
+                    app_name=kwargs.get("app_name"),
+                    conv_id=kwargs.get("conv_id"),
                 )
             elif state == "thinking":
                 hud.set_thinking(
@@ -2301,12 +2349,14 @@ class VoiceFiTrayApp(rumps.App):
                         )
                         hud.set_editing(text, on_submit=_send_action, target_name=target_name)
                 else:
+                    self._current_status = "idle"
                     if hud.persistent:
                         hud.set_idle()
                     else:
                         hud.hide()
             except Exception as e:
                 print(f"[VoiceFi] Error during agent voice capture: {e}")
+                self._current_status = "idle"
                 if hud.persistent:
                     hud.set_idle()
                 else:
@@ -2317,7 +2367,6 @@ class VoiceFiTrayApp(rumps.App):
                 self.active_recorder = None
                 self._current_status = "idle"
                 self._key_down_times.clear()
-                self._build_conversations_submenu()
                 if self.wakeword_listener and getattr(
                     getattr(self.config, "wakeword", None), "enabled", True
                 ):
@@ -2468,12 +2517,14 @@ class VoiceFiTrayApp(rumps.App):
                             on_submit=_create_action, initial_text=text
                         )
                 else:
+                    self._current_status = "idle"
                     if hud.persistent:
                         hud.set_idle()
                     else:
                         hud.hide()
             except Exception as e:
                 print(f"[VoiceFi] Error starting new conversation: {e}")
+                self._current_status = "idle"
                 if hud.persistent:
                     hud.set_idle()
                 else:
@@ -2515,6 +2566,7 @@ class VoiceFiTrayApp(rumps.App):
                 from voicefi.tts.base import (
                     is_escape_key,
                     is_tab_key,
+                    is_option_tab_event,
                     is_agent_speaking,
                     get_recent_speaking_info,
                 )
@@ -2564,11 +2616,11 @@ class VoiceFiTrayApp(rumps.App):
                         )
 
                         # Instant Fast-Path: If no modifiers are held and VoiceFi is idle (not speaking/recording),
-                        # early-exit in microseconds so bare keys (Esc in games/vim, Tab, Enter, typing) have 0ms latency.
+                        # early-exit in microseconds so bare keys (Esc in games/vim, Enter, typing) have 0ms latency.
                         if not (mod or alt or char == "√"):
                             if not (is_recently_speaking or is_recording):
                                 return
-                            if vk not in (53, 48, 36, 76) and key not in (Key.esc, Key.tab, Key.enter):
+                            if vk not in (53, 36, 76) and key not in (Key.esc, Key.enter):
                                 return
 
                         # 1. Escape: stop speech or cancel recording (dispatched asynchronously off event tap thread)
@@ -2577,8 +2629,8 @@ class VoiceFiTrayApp(rumps.App):
                                 threading.Thread(target=self.handle_escape_press, daemon=True).start()
                             return
 
-                        # 1.5 Tab while speaking: focus the window where speech originated
-                        if is_tab_key(key):
+                        # 1.5 Option+Tab while speaking: focus the window where speech originated
+                        if is_option_tab_event(key, modifiers):
                             if is_recently_speaking and _debounce("tab_focus", interval=0.35):
                                 threading.Thread(target=focus_speaking_agent_window, daemon=True).start()
                             return
@@ -3332,12 +3384,14 @@ class VoiceFiTrayApp(rumps.App):
                             text, on_submit=_inject_action, target_name="Universal Dictation"
                         )
                 else:
+                    self._current_status = "idle"
                     if hud.persistent:
                         hud.set_idle()
                     else:
                         hud.hide()
             except Exception as e:
                 print(f"[VoiceFi] Error in manual listen: {e}")
+                self._current_status = "idle"
                 if hud.persistent:
                     hud.set_idle()
                 else:

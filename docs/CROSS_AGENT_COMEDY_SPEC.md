@@ -121,14 +121,16 @@ Under default operation, VoiceFi registers Stop lifecycle hooks (`vifi hook`) th
 
 ## 🥁 Standard Comedy Sound Cues
 
-| Cue Name | Trigger | Typical Comic Context |
-| :--- | :--- | :--- |
-| `drum_smash` | `vifi sfx drum_smash` | Classic Ba-dum-tss! 🥁 after a punchline or witty observation |
-| `honk` | `vifi sfx honk` | Clown horn / double beep for absurd tech debt or self-deprecating bugs |
-| `sad_trombone` | `vifi sfx sad_trombone` | Wah-wah-wah-waaaah for build failures or valuation crashes |
-| `applause` | `vifi sfx applause` | Grand finale victory cheer or when all 100 tests pass |
-| `boing` | `vifi sfx boing` | Cartoon bounce for unexpected recursion or stack overflows |
-| `crickets` | `vifi sfx crickets` | Deadpan pause when a bad joke is intentionally delivered |
+VoiceFi bundles studio-recorded acoustic audio files mastered at 44.1 kHz 16-bit PCM for instantaneous zero-latency punchline execution. For complete artist provenance, Freesound IDs, and Creative Commons licensing, see [AUDIO_ATTRIBUTION.md](AUDIO_ATTRIBUTION.md).
+
+| Cue Name | Trigger | Typical Comic Context | Acoustic Profile & Attribution |
+| :--- | :--- | :--- | :--- |
+| `drum_smash` | `vifi sfx drum_smash` | Classic Ba-dum-tss! 🥁 after a punchline or witty observation | Snare crack, tom resonance, bronze cymbal wash, kick drum (Stephen M. Cameron, CC0) |
+| `honk` | `vifi sfx honk` | Clown horn / double beep for absurd tech debt or self-deprecating bugs | Authentic rubber bulb horn double squeeze (StickInTheMud, CC0) |
+| `sad_trombone` | `vifi sfx sad_trombone` | Wah-wah-wah-waaaah for build failures or valuation crashes | Real brass tenor trombone plunger wah slide (Joe Lamb, CC BY 3.0) |
+| `applause` | `vifi sfx applause` | Grand finale victory cheer or when all 100 tests pass | Intimate live hall crowd ovation and cheering (Yannick Lemieux, CC0) |
+| `boing` | `vifi sfx boing` | Cartoon bounce for unexpected recursion or stack overflows | Physical vibrating metal jaw harp spring twang (Stephan, CC BY 3.0) |
+| `crickets` | `vifi sfx crickets` | Deadpan pause when a bad joke is intentionally delivered | Organic field recording of autumn field crickets (Thatcher, CC BY-SA 3.0) |
 
 ---
 

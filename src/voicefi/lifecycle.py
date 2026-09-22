@@ -238,7 +238,7 @@ def check_and_trigger_lifecycle_nudges(
         show_notification(
             title="🎙️ Spoken Turn Active",
             subtitle="VoiceFi Shortcuts",
-            message="Press Esc anytime to stop agent speech, or Tab to jump straight to the active conversation window.",
+            message="Press Esc anytime to stop agent speech, or Option+Tab to jump straight to the active conversation window.",
         )
         record_nudge_delivered("nudge_first_turn_tips", state, current_ts)
         return "nudge_first_turn_tips"

@@ -11,7 +11,7 @@ import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Tuple
 
 
 def get_session_cookie_path() -> Path:
@@ -53,6 +53,8 @@ def claim_turn(
     origin: Optional[str] = None,
     step_index: Optional[int] = None,
     turn_id: Optional[str] = None,
+    delivered_via: str = "hook",
+    spoken_on_mac: bool = False,
 ) -> bool:
     """
     Atomically claims a turn using cross-process file locks so only one worker
@@ -134,17 +136,29 @@ def claim_turn(
                     ):
                         return False
 
-                    # 3. Exact signature string match
-                    if e_sig == signature:
-                        return False
+                    # If both this turn and the recorded turn have explicit, distinct step indices
+                    # (e.g. step 2136 vs step 2134), they represent distinct conversational turns
+                    # and must NOT be suppressed by text/signature matching.
+                    is_distinct_step = (
+                        resolved_step_idx is not None
+                        and resolved_step_idx >= 0
+                        and e_step is not None
+                        and e_step >= 0
+                        and resolved_step_idx != e_step
+                    )
 
-                    # 4. Normalized text match or strong prefix match
-                    if norm_sig and e_norm:
-                        if norm_sig == e_norm:
+                    if not is_distinct_step:
+                        # 3. Exact signature string match
+                        if e_sig == signature:
                             return False
-                        if len(norm_sig) >= 15 and len(e_norm) >= 15:
-                            if norm_sig[:20] == e_norm[:20]:
+
+                        # 4. Normalized text match or strong prefix match
+                        if norm_sig and e_norm:
+                            if norm_sig == e_norm:
                                 return False
+                            if len(norm_sig) >= 15 and len(e_norm) >= 15:
+                                if norm_sig[:20] == e_norm[:20]:
+                                    return False
 
                     # 5. Conversation-level rapid debounce & explicit speech suppression
                     if conv_id and e_cid == conv_id:
@@ -165,6 +179,8 @@ def claim_turn(
                         "signature": signature,
                         "norm_sig": norm_sig,
                         "origin": resolved_origin,
+                        "delivered_via": delivered_via,
+                        "spoken_on_mac": spoken_on_mac,
                         "timestamp": now,
                         "pid": os.getpid(),
                         "status": "claimed",
@@ -237,6 +253,71 @@ def mark_turn_completed(
         pass
 
 
+def mark_turn_spoken_on_mac(
+    conv_id: Optional[str] = None,
+    signature: Optional[str] = None,
+    step_index: Optional[int] = None,
+    turn_id: Optional[str] = None,
+) -> bool:
+    """
+    Mark that this turn's speech was synthesized and played aloud on Mac desktop CoreAudio.
+    Used by Companion to suppress duplicate speech when running alongside a desktop coding agent.
+    """
+    turn_file = Path("/tmp/voicefi_active_turns.json")
+    lock_file = Path("/tmp/voicefi_active_turns.lock")
+    try:
+        if not turn_file.is_file():
+            return False
+        norm_sig = _normalize_turn_signature(signature) if signature else ""
+        with open(lock_file, "a+") as lock_fp:
+            fcntl.flock(lock_fp, fcntl.LOCK_EX)
+            try:
+                entries = []
+                with open(turn_file, "r") as f:
+                    data = json.load(f)
+                    if isinstance(data, list):
+                        entries = data
+                matched = False
+                for e in entries:
+                    match = False
+                    if turn_id and (e.get("turn_id") == turn_id or e.get("signature") == turn_id):
+                        match = True
+                    elif conv_id and e.get("conv_id") == conv_id:
+                        if step_index is not None and e.get("step_index") is not None:
+                            if e.get("step_index") == step_index:
+                                match = True
+                        elif signature:
+                            e_sig = e.get("signature", "")
+                            e_norm = e.get("norm_sig") or _normalize_turn_signature(e_sig)
+                            if e_sig == signature or (norm_sig and e_norm == norm_sig):
+                                match = True
+                        else:
+                            # If no signature or step_index specified, mark the latest entry for this conv_id
+                            match = True
+                    if match:
+                        e["spoken_on_mac"] = True
+                        matched = True
+                        break
+                if matched:
+                    import tempfile
+
+                    try:
+                        with tempfile.NamedTemporaryFile("w", dir=turn_file.parent, delete=False) as tf:
+                            json.dump(entries, tf)
+                            temp_name = tf.name
+                        os.replace(temp_name, str(turn_file))
+                        return True
+                    except Exception:
+                        with open(turn_file, "w") as f:
+                            json.dump(entries, f)
+                        return True
+            finally:
+                fcntl.flock(lock_fp, fcntl.LOCK_UN)
+    except Exception:
+        pass
+    return False
+
+
 def claim_active_conversation_turn(
     text: str,
     conv_id: Optional[str] = None,
@@ -283,11 +364,13 @@ def get_claimed_turn_origin(
                     and e_cid == conv_id
                     and step_index is not None
                     and e_step is not None
-                    and e_step == step_index
                 ):
-                    return e.get("origin")
+                    if e_step == step_index:
+                        return e.get("origin")
+                    continue
                 if e_sig == signature or (norm_sig and e_norm == norm_sig):
-                    return e.get("origin")
+                    if step_index is None or e_step is None or step_index == e_step:
+                        return e.get("origin")
             # Recent conversation fallback: if this conversation was claimed with mobile origin within last 60s
             for e in reversed(entries):
                 e_cid = e.get("conv_id", "")
@@ -298,6 +381,77 @@ def get_claimed_turn_origin(
     except Exception:
         pass
     return None
+
+
+def get_turn_delivery_info(
+    conv_id: Optional[str],
+    signature: str,
+    step_index: Optional[int] = None,
+) -> Dict[str, Any]:
+    """
+    Get delivery provenance (hook vs otherwise/watcher, spoken_on_mac, origin) for a turn.
+    Used by Companion to check if a coding agent turn was delivered via hook or otherwise.
+    """
+    turn_file = Path("/tmp/voicefi_active_turns.json")
+    default_info = {
+        "delivered_via": "otherwise",
+        "delivered_via_hook": False,
+        "spoken_on_mac": False,
+        "origin": "desktop",
+        "status": "unknown",
+    }
+    if not turn_file.is_file():
+        return default_info
+    try:
+        norm_sig = _normalize_turn_signature(signature) if signature else ""
+        with open(turn_file, "r") as f:
+            entries = json.load(f)
+        if isinstance(entries, list):
+            for e in reversed(entries):
+                e_sig = e.get("signature", "")
+                e_norm = e.get("norm_sig") or _normalize_turn_signature(e_sig)
+                e_cid = e.get("conv_id", "")
+                e_step = e.get("step_index")
+                match = False
+                if (
+                    conv_id
+                    and e_cid == conv_id
+                    and step_index is not None
+                    and e_step is not None
+                ):
+                    if e_step == step_index:
+                        match = True
+                    else:
+                        continue
+                elif signature and (e_sig == signature or (norm_sig and e_norm == norm_sig)):
+                    if step_index is None or e_step is None or step_index == e_step:
+                        match = True
+
+                if match:
+                    d_via = e.get("delivered_via", "hook")
+                    return {
+                        "delivered_via": d_via,
+                        "delivered_via_hook": (d_via == "hook"),
+                        "spoken_on_mac": bool(e.get("spoken_on_mac", False)),
+                        "origin": e.get("origin", "desktop"),
+                        "status": e.get("status", "claimed"),
+                    }
+            # Fallback by conversation id within recent 60s
+            for e in reversed(entries):
+                e_cid = e.get("conv_id", "")
+                e_ts = float(e.get("timestamp", 0))
+                if conv_id and e_cid == conv_id and (time.time() - e_ts) < 60.0:
+                    d_via = e.get("delivered_via", "hook")
+                    return {
+                        "delivered_via": d_via,
+                        "delivered_via_hook": (d_via == "hook"),
+                        "spoken_on_mac": bool(e.get("spoken_on_mac", False)),
+                        "origin": e.get("origin", "desktop"),
+                        "status": e.get("status", "claimed"),
+                    }
+    except Exception:
+        pass
+    return default_info
 
 
 @dataclass
@@ -541,12 +695,29 @@ def pop_mobile_turn_origin(conv_id: Optional[str] = None, max_age_seconds: float
     return False
 
 
-def record_companion_heartbeat(num_clients: int = 1) -> None:
-    """Record active companion client heartbeat to allow Mac to coordinate audio routing."""
+def record_companion_heartbeat(
+    num_clients: int = 1,
+    num_mobile_clients: Optional[int] = None,
+    has_mobile: Optional[bool] = None,
+) -> None:
+    """
+    Record active companion client heartbeat to allow Mac to coordinate audio routing.
+    Distinguishes between local laptop desktop browser companion tabs and remote phone companions.
+    """
     heartbeat_file = Path("/tmp/voicefi_companion_clients.json")
     try:
+        if has_mobile is not None:
+            is_mobile_active = bool(has_mobile) and (num_clients > 0)
+        elif num_mobile_clients is not None:
+            is_mobile_active = (num_mobile_clients > 0) and (num_clients > 0)
+        else:
+            # Backward-compatible default: single client parameter implies active mobile companion
+            is_mobile_active = (num_clients > 0)
+
         data = {
             "clients": max(0, num_clients),
+            "mobile_clients": max(0, num_mobile_clients if num_mobile_clients is not None else (1 if is_mobile_active else 0)),
+            "has_mobile": is_mobile_active,
             "timestamp": time.time(),
         }
         with open(heartbeat_file, "w") as f:
@@ -555,8 +726,12 @@ def record_companion_heartbeat(num_clients: int = 1) -> None:
         pass
 
 
-def has_active_companion_client(max_age_seconds: float = 25.0) -> bool:
-    """Return True if at least one mobile companion client is connected and active."""
+def has_active_companion_client(max_age_seconds: float = 25.0, require_mobile: bool = False) -> bool:
+    """
+    Return True if at least one companion client is connected and active.
+    If require_mobile=False (default), any active companion (remote phone or browser) returns True
+    so that Mac desktop audio is muted when mute_mac_when_companion_active is enabled.
+    """
     heartbeat_file = Path("/tmp/voicefi_companion_clients.json")
     if not heartbeat_file.is_file():
         return False
@@ -565,11 +740,19 @@ def has_active_companion_client(max_age_seconds: float = 25.0) -> bool:
             data = json.load(f)
         ts = data.get("timestamp", 0)
         count = data.get("clients", 0)
+        has_mobile = data.get("has_mobile", True) if "has_mobile" in data else (data.get("mobile_clients", 1) > 0)
         if (time.time() - ts) < max_age_seconds and count > 0:
+            if require_mobile:
+                return bool(has_mobile)
             return True
     except Exception:
         pass
     return False
+
+
+def has_active_mobile_companion(max_age_seconds: float = 25.0) -> bool:
+    """Return True if at least one remote/mobile phone companion client is connected."""
+    return has_active_companion_client(max_age_seconds=max_age_seconds, require_mobile=True)
 
 
 def clear_companion_heartbeat() -> None:
@@ -803,6 +986,8 @@ class ConversationTracker:
         self._cache: Dict[str, ConversationInfo] = {}
         self._transcripts_cache: List[Path] = []
         self._last_transcripts_scan: float = 0.0
+        self._pb_titles_cache: Dict[str, str] = {}
+        self._pb_titles_mtime: float = 0.0
 
     def get_recent_transcripts(self, limit: int = 10, ttl: float = 2.0) -> List[Path]:
         """Find recently modified transcript.jsonl files in brain directory with TTL caching."""
@@ -851,11 +1036,14 @@ class ConversationTracker:
         return res[:limit]
 
     def _get_pb_titles(self) -> Dict[str, str]:
-        """Extract genuine side-panel conversation titles from agyhub_summaries_proto.pb."""
+        """Extract genuine side-panel conversation titles from agyhub_summaries_proto.pb with mtime cache."""
         pb_path = Path.home() / ".gemini" / "antigravity" / "agyhub_summaries_proto.pb"
         if not pb_path.is_file():
             return {}
         try:
+            mtime = pb_path.stat().st_mtime
+            if self._pb_titles_cache and mtime == self._pb_titles_mtime:
+                return self._pb_titles_cache
             data = pb_path.read_bytes()
             # Protobuf pattern: \n$ <36-byte uuid> \x12 <varint> \n <1-byte len> <title>
             pattern = rb"\n\$([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\x12[\x80-\xff]*[\x00-\x7f]\n([\x01-\x7f])"
@@ -868,9 +1056,11 @@ class ConversationTracker:
                 title = t_bytes.decode("utf-8", errors="ignore").strip()
                 if title and not title.startswith("file:///"):
                     titles[cid] = title
+            self._pb_titles_cache = titles
+            self._pb_titles_mtime = mtime
             return titles
         except Exception:
-            return {}
+            return self._pb_titles_cache or {}
 
     def parse_conversation(self, transcript_path: Path) -> Optional[ConversationInfo]:
         """Parse conversation transcript to extract metadata, title, and current state."""
@@ -1572,8 +1762,11 @@ def find_recent_claude_sessions(base_dir: Optional[Path] = None, limit: int = 10
     return [p for _, p in candidate_files[:limit]]
 
 
+_CLAUDE_SESSIONS_CACHE: Dict[str, Tuple[float, ConversationInfo]] = {}
+
+
 def parse_claude_session(session_path: Path) -> Optional[ConversationInfo]:
-    """Parse a Claude Code session JSONL file into ConversationInfo."""
+    """Parse a Claude Code session JSONL file into ConversationInfo with mtime cache."""
     try:
         p = Path(session_path)
         if not p.is_file():
@@ -1581,6 +1774,11 @@ def parse_claude_session(session_path: Path) -> Optional[ConversationInfo]:
         mtime = p.stat().st_mtime
         session_id = p.stem  # e.g. "c32203cb-5b68-4bbb-ba3e-18990b071640"
         conv_id = f"claude_{session_id}" if not session_id.startswith("claude_") else session_id
+
+        if conv_id in _CLAUDE_SESSIONS_CACHE:
+            cached_mtime, cached_info = _CLAUDE_SESSIONS_CACHE[conv_id]
+            if cached_mtime == mtime:
+                return cached_info
 
         lines = []
         with open(p, "r", encoding="utf-8") as f:
@@ -1691,7 +1889,7 @@ def parse_claude_session(session_path: Path) -> Optional[ConversationInfo]:
 
             cleaned_agent_text = clean_markdown_for_speech(last_assistant_text, max_words=60)
 
-        return ConversationInfo(
+        info = ConversationInfo(
             id=conv_id,
             title=title,
             status=status,
@@ -1703,6 +1901,8 @@ def parse_claude_session(session_path: Path) -> Optional[ConversationInfo]:
             project_name=project_name,
             cwd=cwd,
         )
+        _CLAUDE_SESSIONS_CACHE[conv_id] = (mtime, info)
+        return info
     except Exception:
         return None
 

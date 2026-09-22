@@ -543,3 +543,12 @@ pytest tests/test_custom_neural_tts.py -v
 - [ ] **Offline File Synthesis**: Implement `speak_to_file()` to support silent benchmarking (`vifi ping`) and test fixtures without audio hardware dependencies.
 - [ ] **Audio State Cleanliness**: Ensure `set_agent_audio_playing(False)` is called in `finally:` blocks or `stop()`.
 - [ ] **Test Isolation**: Guarantee that unit tests run safely in CI/CD without requiring real audio output devices (respect `os.getenv("PYTEST_CURRENT_TEST")`).
+
+---
+
+## 6. Reference Tools & Cloud Sandboxes
+
+For visual prototyping, emotion tag testing, and rapid auditioning of neural TTS models:
+* **[Google AI Studio — Generate Speech](https://aistudio.google.com/generate-speech)**: Interactive web sandbox for testing Gemini 3.1 Flash TTS and Gemini 3.8 Live neural voices (Aoede, Puck, Charon, Kore, Fenrir) with inline direction tags (`[whispers]`, `[sighs]`, `[excited]`, `[pause]`) and multi-speaker dialogues.
+* **[Google AI Studio Testing Guide & Showcase](file:///Users/jaketrigg/Projects/VoiceFi/docs/GOOGLE_AI_STUDIO_SPEECH_TESTING.md)**: Curated prompts, multi-speaker banter scripts, nature documentary presets, and speed-talking benchmarks.
+

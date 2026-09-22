@@ -44,6 +44,7 @@ from voicefi.integrations.conversations import (
     peek_mobile_turn_origin,
     get_claimed_turn_origin,
     has_active_companion_client,
+    mark_turn_spoken_on_mac,
 )
 from voicefi.integrations.active_listening import (
     ActiveListeningEngine,
@@ -165,6 +166,22 @@ def handle_claude_stop_hook(
         print("[ClaudeHook] User is on a call. Skipping spoken feedback and auto-listen.")
         return {"status": "on_call"}
 
+    respect_media = getattr(getattr(cfg, "tts", None), "respect_media_playback", True)
+    if respect_media:
+        try:
+            from voicefi.audio.media_detection import is_active_media_playing, wait_for_media_completion
+
+            if is_active_media_playing():
+                media_timeout = getattr(getattr(cfg, "tts", None), "media_pause_timeout", 600.0)
+                cleared = wait_for_media_completion(max_wait_seconds=media_timeout)
+                if not cleared:
+                    print(
+                        "[ClaudeHook] 🎬 Media clip still playing after timeout. Skipping spoken feedback and auto-listen."
+                    )
+                    return {"status": "media_playing"}
+        except Exception:
+            pass
+
     # 1. Extract summary text from payload or session file
     text_to_speak = ""
     session_file = None
@@ -199,7 +216,7 @@ def handle_claude_stop_hook(
         engine="claude",
     )
 
-    if not claim_turn(conv_id, text_to_speak) and not claim_turn(cid_key, text_to_speak):
+    if not claim_turn(conv_id, text_to_speak, delivered_via="hook") and not claim_turn(cid_key, text_to_speak, delivered_via="hook"):
         return {"status": "skipped_duplicate"}
 
     try:
@@ -237,27 +254,56 @@ def handle_claude_stop_hook(
             if is_mobile:
                 # Turn originated from mobile companion -> only speak on phone, suppress Mac
                 return {"status": "mobile_handled", "agent": "claude"}
-            if mute_mac_active and has_active_companion_client():
-                # Mac suppressed when companion client is actively connected and mute_mac enabled
+            if mute_mac_active and has_active_companion_client(require_mobile=True):
+                # Mac suppressed when mobile companion client is actively connected and mute_mac enabled
                 return {"status": "mac_muted", "agent": "claude"}
 
-        # 2. Speak the soundbite aloud using Claude's voice persona (Guy)
+        # 2. Speak the soundbite aloud using Claude's voice persona (Guy / Steffan)
         hook_start_time = time.time()
+        agent_name = (
+            payload.get("agent")
+            if isinstance(payload, dict) and payload.get("agent")
+            else "claude"
+        )
+        voice_override = payload.get("voice") if isinstance(payload, dict) else None
         if cfg.claude.read_summary_aloud:
-            tts_engine = get_tts_engine(cfg, agent_name="claude")
+            mark_turn_spoken_on_mac(conv_id, text_to_speak)
+            mark_turn_spoken_on_mac(cid_key, text_to_speak)
+            tts_engine = get_tts_engine(
+                cfg,
+                agent_name=agent_name,
+                voice_override=voice_override,
+                app_name="Claude",
+                conv_id=conv_id,
+            )
             try:
                 set_cross_process_hud_state(
                     "speaking",
                     text=text_to_speak,
-                    agent_name="claude",
+                    agent_name=agent_name,
                     persona_name=getattr(tts_engine, "voice", "Guy"),
+                    app_name="Claude",
+                    conv_id=conv_id,
                 )
-                with escape_to_stop_speech(agent_name="claude", app_name="Claude"):
+                with escape_to_stop_speech(
+                    agent_name=agent_name, app_name="Claude", conv_id=conv_id
+                ):
                     tts_engine.stream_speak(text_to_speak, block=True)
             finally:
                 clear_cross_process_hud_state()
 
         # 3. Check if we should auto-open microphone
+        try:
+            from voicefi.audio.media_detection import is_active_media_playing
+
+            if is_active_media_playing():
+                print(
+                    "[Claude Hook] 🎬 Media playback active. Skipping auto-listen handoff to avoid feedback."
+                )
+                return {"status": "media_playing", "agent": "claude"}
+        except Exception:
+            pass
+
         if not cfg.claude.auto_listen or is_mobile:
             if is_mobile:
                 print(

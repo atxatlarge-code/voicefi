@@ -44,7 +44,10 @@
   <main class="w-full max-w-md my-auto flex flex-col items-center gap-4 py-3">
     <!-- Reel Selector Pills -->
     <div class="w-full flex items-center justify-start p-1.5 bg-zinc-900/90 border border-zinc-800 rounded-2xl gap-1.5 overflow-x-auto flex-nowrap no-scrollbar" style="-webkit-overflow-scrolling: touch; touch-action: pan-x;">
-      <button id="btnReel14" onclick="selectReel('reel14')" class="py-1.5 px-3 rounded-xl text-xs font-bold transition-all bg-[#8B9A46] text-black font-extrabold shadow flex items-center justify-center gap-1 shrink-0">
+      <button id="btnDullBoy" onclick="selectReel('dull_boy')" class="py-1.5 px-3 rounded-xl text-xs font-bold transition-all bg-red-600 text-white font-extrabold shadow flex items-center justify-center gap-1 shrink-0">
+        <span>🪓</span> <span>Dull Boy</span> <span class="text-[9px] px-1.5 py-0.2 rounded bg-black/40 text-red-200 font-mono">11s</span>
+      </button>
+      <button id="btnReel14" onclick="selectReel('reel14')" class="py-1.5 px-3 rounded-xl text-xs font-bold transition-all text-zinc-400 hover:text-zinc-200 flex items-center justify-center gap-1 shrink-0">
         <span>🕶️</span> <span>REEL-014 (Neo)</span> <span class="text-[9px] px-1.5 py-0.2 rounded bg-black/30 text-white font-mono">48s</span>
       </button>
       <button id="btnSpicewoodFull" onclick="selectReel('spicewood_full')" class="py-1.5 px-3 rounded-xl text-xs font-bold transition-all text-zinc-400 hover:text-zinc-200 flex items-center justify-center gap-1 shrink-0">
@@ -83,37 +86,37 @@
     </div>
 
     <!-- Video Player Preview Container -->
-    <div id="videoBorder" class="relative w-full aspect-[9/16] max-w-[220px] bg-black rounded-3xl overflow-hidden border-2 border-amber-500/40 shadow-[0_0_40px_rgba(245,158,11,0.25)] flex items-center justify-center">
-      <video id="reelVideo" src="/downloads/spicewood_outlaws_full_master_9_16.mp4" playsinline controls loop class="w-full h-full object-cover"></video>
+    <div id="videoBorder" class="relative w-full aspect-[9/16] max-w-[220px] bg-black rounded-3xl overflow-hidden border-2 border-red-500/40 shadow-[0_0_40px_rgba(239,68,68,0.25)] flex items-center justify-center">
+      <video id="reelVideo" src="/downloads/jakey_dull_boy_9_16.mp4" playsinline controls loop class="w-full h-full object-cover"></video>
     </div>
 
     <!-- Audio Turntable Container -->
-    <div id="audioBorder" class="hidden relative w-full aspect-square max-w-[240px] bg-gradient-to-b from-zinc-900 to-black rounded-3xl p-4 border-2 border-amber-500/40 shadow-[0_0_40px_rgba(245,158,11,0.25)] flex flex-col items-center justify-between text-center">
-      <div class="text-xs uppercase font-mono font-black tracking-wider text-amber-400" id="audioLabel">Master Soundtrack</div>
+    <div id="audioBorder" class="hidden relative w-full aspect-square max-w-[240px] bg-gradient-to-b from-zinc-900 to-black rounded-3xl p-4 border-2 border-red-500/40 shadow-[0_0_40px_rgba(239,68,68,0.25)] flex flex-col items-center justify-between text-center">
+      <div class="text-xs uppercase font-mono font-black tracking-wider text-red-400" id="audioLabel">Master Soundtrack</div>
       <div class="w-28 h-28 rounded-full bg-gradient-to-tr from-zinc-950 via-zinc-800 to-zinc-950 border-4 border-zinc-700/80 shadow-2xl flex items-center justify-center relative mx-auto my-auto animate-[spin_12s_linear_infinite]">
-        <div class="w-10 h-10 rounded-full bg-amber-500 flex items-center justify-center text-black font-black text-[9px] shadow-inner font-mono">
+        <div class="w-10 h-10 rounded-full bg-red-500 flex items-center justify-center text-black font-black text-[9px] shadow-inner font-mono">
           320k
         </div>
       </div>
       <div class="w-full mt-2">
-        <audio id="reelAudio" src="/downloads/spicewood_outlaws_full_master_audio.mp3" class="w-full h-9" controls preload="metadata"></audio>
+        <audio id="reelAudio" src="/downloads/jakey_dull_boy_master_audio.mp3" class="w-full h-9" controls preload="metadata"></audio>
       </div>
     </div>
 
     <!-- Title & Specs -->
     <div class="text-center px-2">
       <h2 id="reelTitle" class="text-sm font-black tracking-tight text-white flex items-center justify-center gap-1.5">
-        🤠 Spicewood Outlaws · Full Master Cut <span id="reelBadge" class="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300 mono font-bold">4:21</span>
+        🪓 All Work & No Talking · Dull Boy <span id="reelBadge" class="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300 mono font-bold">11s</span>
       </h2>
-      <p id="reelDesc" class="text-[11px] text-zinc-400 mt-1 font-mono">Complete 3-Act Spicewood Outlaws Film & Music Video Master (21.0 MB · 540p Mobile Master)</p>
+      <p id="reelDesc" class="text-[11px] text-zinc-400 mt-1 font-mono">Springfield Chalkboard to The Shining Axe Smash Cut (1080x1920 Full HD Master)</p>
     </div>
 
     <!-- Download Action Buttons -->
     <div class="w-full flex flex-col gap-2">
       <!-- Lead Sheet Button -->
-      <a id="btnLeadSheet" href="/downloads/spicewood_texas_lead_sheet.md" target="_blank" class="w-full py-3 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-[0.98] text-black font-black text-xs flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(245,158,11,0.35)] transition-all">
+      <a id="btnLeadSheet" href="/downloads/jakey_dull_boy_lead_sheet.md" target="_blank" class="w-full py-3 px-4 rounded-xl bg-red-600 hover:bg-red-500 active:scale-[0.98] text-white font-black text-xs flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(239,68,68,0.35)] transition-all">
         <span>📜</span>
-        <span>View Lead Sheet & Rhyme Grid (.md)</span>
+        <span>View Lead Sheet & Storyboard (.md)</span>
       </a>
 
       <!-- Primary: Save Reel / Audio to Photos / Downloads -->
@@ -141,6 +144,16 @@
 
   <script>
     const REELS_DATA = {
+      dull_boy: {
+        title: "🪓 All Work & No Talking · Dull Boy",
+        dur: "11s",
+        desc: "Springfield Chalkboard to The Shining Axe Smash Cut (1080x1920 Full HD Master)",
+        video: "/downloads/jakey_dull_boy_9_16.mp4",
+        audio: "/downloads/jakey_dull_boy_master_audio.mp3",
+        sheet: "/downloads/jakey_dull_boy_lead_sheet.md",
+        isWidescreen: false,
+        themeColor: "#EF4444"
+      },
       reel14: {
         title: "🕶️ The Science of the Glass Wall · REEL-014",
         dur: "48s",
@@ -250,7 +263,7 @@
       }
     };
 
-    let activeReelKey = "spicewood_full";
+    let activeReelKey = "dull_boy";
 
     function showToast(msg, duration = 3000) {
       const toast = document.getElementById('toastNotification');
@@ -300,7 +313,8 @@
           videoBorder.className = "relative w-full aspect-video max-w-sm bg-black rounded-3xl overflow-hidden border-2 border-amber-500/40 shadow-[0_0_40px_rgba(245,158,11,0.25)] flex items-center justify-center";
           video.className = "w-full h-full object-contain";
         } else {
-          videoBorder.className = "relative w-full aspect-[9/16] max-w-[220px] bg-black rounded-3xl overflow-hidden border-2 border-[#38BDF8]/40 shadow-[0_0_40px_rgba(56,189,248,0.25)] flex items-center justify-center";
+          const borderClass = data.themeColor === "#EF4444" ? "border-red-500/40 shadow-[0_0_40px_rgba(239,68,68,0.25)]" : (data.themeColor === "#8B9A46" ? "border-[#8B9A46]/40 shadow-[0_0_40px_rgba(139,154,70,0.25)]" : "border-[#38BDF8]/40 shadow-[0_0_40px_rgba(56,189,248,0.25)]");
+          videoBorder.className = `relative w-full aspect-[9/16] max-w-[220px] bg-black rounded-3xl overflow-hidden border-2 ${borderClass} flex items-center justify-center`;
           video.className = "w-full h-full object-cover";
         }
         if (video) {
@@ -308,8 +322,12 @@
           video.load();
         }
         if (btnLeadSheet) {
-          if (data.sheet) btnLeadSheet.classList.remove('hidden');
-          else btnLeadSheet.classList.add('hidden');
+          if (data.sheet) {
+            btnLeadSheet.href = data.sheet;
+            btnLeadSheet.classList.remove('hidden');
+          } else {
+            btnLeadSheet.classList.add('hidden');
+          }
         }
         if (btnSaveText) btnSaveText.innerText = data.isWidescreen ? "Save Video Cut (.mp4)" : "Save 9:16 Video Reel (.mp4)";
         if (btnSavePrimary) btnSavePrimary.className = "w-full py-3 px-4 rounded-xl bg-red-600 hover:bg-red-500 active:scale-[0.98] text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(255,42,42,0.35)] transition-all cursor-pointer";
@@ -322,11 +340,12 @@
       document.getElementById('reelTitle').innerHTML = `${data.title} <span id="reelBadge" class="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300 mono font-bold">${data.dur}</span>`;
       document.getElementById('reelDesc').innerText = data.desc;
 
-      const keys = ['reel14', 'spicewood_full', 'spicewood_audio', 'spicewood_act1', 'spicewood_act2', 'spicewood_act3', 'spicewood_beat', 'ogygia', 'reel8', 'reel6', 'reel4', 'reel2'];
+      const keys = ['dull_boy', 'reel14', 'spicewood_full', 'spicewood_audio', 'spicewood_act1', 'spicewood_act2', 'spicewood_act3', 'spicewood_beat', 'ogygia', 'reel8', 'reel6', 'reel4', 'reel2'];
       const inactiveClass = "py-1.5 px-3 rounded-xl text-xs font-bold transition-all text-zinc-400 hover:text-zinc-200 flex items-center justify-center gap-1 shrink-0";
       
       keys.forEach(k => {
-        const btnId = k === 'reel14' ? 'btnReel14'
+        const btnId = k === 'dull_boy' ? 'btnDullBoy'
+          : (k === 'reel14' ? 'btnReel14'
           : (k === 'spicewood_full' ? 'btnSpicewoodFull'
           : (k === 'spicewood_audio' ? 'btnSpicewoodAudio'
           : (k === 'spicewood_act1' ? 'btnSpicewoodAct1'
@@ -334,11 +353,13 @@
           : (k === 'spicewood_act3' ? 'btnSpicewoodAct3'
           : (k === 'spicewood_beat' ? 'btnSpicewoodBeat'
           : (k === 'ogygia' ? 'btnOgygia'
-          : `btn${k.charAt(0).toUpperCase() + k.slice(1)}`)))))));
+          : `btn${k.charAt(0).toUpperCase() + k.slice(1)}`))))))));
         const btn = document.getElementById(btnId);
         if (btn) {
           if (k === key) {
-            if (k === 'reel14') {
+            if (k === 'dull_boy') {
+              btn.className = "py-1.5 px-3 rounded-xl text-xs font-bold transition-all bg-red-600 text-white font-extrabold shadow flex items-center justify-center gap-1 shrink-0";
+            } else if (k === 'reel14') {
               btn.className = "py-1.5 px-3 rounded-xl text-xs font-bold transition-all bg-[#8B9A46] text-black font-extrabold shadow flex items-center justify-center gap-1 shrink-0";
             } else if (k.startsWith('spicewood')) {
               btn.className = "py-1.5 px-3 rounded-xl text-xs font-bold transition-all bg-amber-500 text-black shadow flex items-center justify-center gap-1 shrink-0";

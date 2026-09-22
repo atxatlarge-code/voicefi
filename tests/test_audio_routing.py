@@ -91,6 +91,19 @@ def test_claim_turn_preserves_mobile_origin():
     assert fallback_origin == "mobile"
 
 
+def test_server_peek_mobile_origin_preserves_for_claim_turn():
+    """Verify server transcript broadcaster using peek_mobile_turn_origin leaves marker for claim_turn."""
+    set_mobile_turn_origin("conv-peek-test")
+    # Simulate server.py checking origin via peek_mobile_turn_origin
+    assert peek_mobile_turn_origin("conv-peek-test") is True
+
+    # Marker must still exist so claim_turn receives mobile origin
+    claimed = claim_turn("conv-peek-test", "conv-peek-test:step_99", step_index=99)
+    assert claimed is True
+    origin = get_claimed_turn_origin("conv-peek-test", "conv-peek-test:step_99", step_index=99)
+    assert origin == "mobile"
+
+
 # ==============================================================================
 # 2. ANTIGRAVITY STOP HOOK ROUTING TESTS
 # ==============================================================================
@@ -307,3 +320,117 @@ async def test_relay_client_heartbeat_on_peer_events():
     # Peer disconnects
     await client._handle_incoming_message(json.dumps({"type": "peer_disconnected"}))
     assert not has_active_companion_client()
+
+
+# ==============================================================================
+# 6. MOBILE VS DESKTOP COMPANION SEPARATION & HOOK DELIVERY TESTS
+# ==============================================================================
+
+def test_heartbeat_differentiates_mobile_and_desktop_clients():
+    from voicefi.integrations.conversations import has_active_mobile_companion
+
+    # Only desktop/local client connected (e.g. laptop browser tab)
+    record_companion_heartbeat(1, num_mobile_clients=0, has_mobile=False)
+    assert has_active_companion_client(require_mobile=False) is True
+    assert has_active_companion_client(require_mobile=True) is False
+    assert has_active_mobile_companion() is False
+
+    # Mobile client connected (e.g. phone companion)
+    record_companion_heartbeat(2, num_mobile_clients=1, has_mobile=True)
+    assert has_active_companion_client(require_mobile=False) is True
+    assert has_active_companion_client(require_mobile=True) is True
+    assert has_active_mobile_companion() is True
+
+    # No clients connected
+    record_companion_heartbeat(0, num_mobile_clients=0, has_mobile=False)
+    assert has_active_companion_client(require_mobile=False) is False
+    assert has_active_companion_client(require_mobile=True) is False
+    assert has_active_mobile_companion() is False
+
+
+def test_desktop_companion_does_not_mute_mac_stop_hook(tmp_path):
+    """When only laptop browser is open, Mac desktop speakers must NOT be muted."""
+    cfg = VoiceFiConfig()
+    cfg.companion.audio_routing = "smart"
+    cfg.companion.mute_mac_when_companion_active = True
+    cfg.antigravity.read_summary_aloud = True
+    cfg.antigravity.auto_listen = False
+    cfg.antigravity.show_speech_popup = False
+
+    fake_transcript = tmp_path / "transcript.jsonl"
+    fake_transcript.write_text('{"type": "PLANNER_RESPONSE", "content": "Desktop browser open test."}\n')
+
+    # Simulate only a desktop/local browser tab being connected
+    record_companion_heartbeat(1, num_mobile_clients=0, has_mobile=False)
+
+    mock_engine = MagicMock()
+
+    with patch("voicefi.integrations.antigravity.extract_latest_agent_summary", return_value=("Desktop browser open test.", "antigravity", 4)), \
+         patch("voicefi.integrations.antigravity.claim_turn", return_value=True), \
+         patch("voicefi.integrations.antigravity.get_claimed_turn_origin", return_value="desktop"), \
+         patch("voicefi.integrations.antigravity.peek_mobile_turn_origin", return_value=False), \
+         patch("voicefi.audio.meeting_detection.is_user_on_call", return_value=False), \
+         patch("voicefi.integrations.antigravity.get_tts_engine", return_value=mock_engine):
+
+        res = handle_antigravity_stop_hook(
+            payload={"conv_id": "conv-desk-companion", "transcriptPath": str(fake_transcript)},
+            config=cfg,
+        )
+
+        # TTS MUST be called because no mobile companion is active
+        mock_engine.stream_speak.assert_called_once_with("Desktop browser open test.", block=True)
+
+
+def test_mobile_companion_mutes_mac_stop_hook(tmp_path):
+    """When phone companion is connected, Mac desktop speakers MUST be muted in smart mode."""
+    cfg = VoiceFiConfig()
+    cfg.companion.audio_routing = "smart"
+    cfg.companion.mute_mac_when_companion_active = True
+
+    fake_transcript = tmp_path / "transcript.jsonl"
+    fake_transcript.write_text('{"type": "PLANNER_RESPONSE", "content": "Phone companion open test."}\n')
+
+    # Simulate phone companion being connected
+    record_companion_heartbeat(1, num_mobile_clients=1, has_mobile=True)
+
+    with patch("voicefi.integrations.antigravity.extract_latest_agent_summary", return_value=("Phone companion open test.", "antigravity", 5)), \
+         patch("voicefi.integrations.antigravity.claim_turn", return_value=True), \
+         patch("voicefi.integrations.antigravity.get_claimed_turn_origin", return_value="desktop"), \
+         patch("voicefi.integrations.antigravity.peek_mobile_turn_origin", return_value=False), \
+         patch("voicefi.integrations.antigravity.get_tts_engine") as mock_tts:
+
+        res = handle_antigravity_stop_hook(
+            payload={"conv_id": "conv-phone-companion", "transcriptPath": str(fake_transcript)},
+            config=cfg,
+        )
+
+        assert res == {}
+        mock_tts.assert_not_called()
+
+
+def test_delivered_via_hook_and_spoken_on_mac_tracking():
+    from voicefi.integrations.conversations import (
+        claim_turn,
+        mark_turn_spoken_on_mac,
+        get_turn_delivery_info,
+    )
+
+    cid = "test-conv-delivery-1"
+    sig = f"{cid}:Hello world from test"
+
+    # Turn claimed via hook
+    claimed = claim_turn(cid, sig, step_index=1, delivered_via="hook")
+    assert claimed is True
+
+    info = get_turn_delivery_info(cid, sig, step_index=1)
+    assert info["delivered_via"] == "hook"
+    assert info["delivered_via_hook"] is True
+    assert info["spoken_on_mac"] is False
+
+    # Mark spoken on Mac CoreAudio
+    mark_turn_spoken_on_mac(cid, sig, step_index=1)
+
+    info_after = get_turn_delivery_info(cid, sig, step_index=1)
+    assert info_after["spoken_on_mac"] is True
+    assert info_after["delivered_via_hook"] is True
+
