@@ -35,291 +35,12 @@ from voicefi.memo import (
 )
 
 
+from voicefi.cli_commands.hooks import cmd_hook as _cmd_hook
+
+
 def cmd_hook(args):
     """Handle AI agent lifecycle hook from stdin or manage hook configurations."""
-    action = getattr(args, "action", None)
-    if getattr(args, "disable", False):
-        action = "disable"
-    elif getattr(args, "enable", False):
-        action = "enable"
-    elif getattr(args, "status", False):
-        action = "status"
-    elif getattr(args, "remove", False):
-        action = "remove"
-
-    if action in ("disable", "off"):
-        config = load_config(args.config)
-        config.hooks.enabled = False
-        save_config(config)
-        print("🛑 VoiceFi hooks disabled globally (config.yaml: hooks.enabled = false).")
-        print(
-            "   Agent Stop hooks will immediately return without audio, microphone, or keyboard activity."
-        )
-        return
-
-    if action in ("enable", "on"):
-        config = load_config(args.config)
-        config.hooks.enabled = True
-        save_config(config)
-        print("✅ VoiceFi hooks enabled globally (config.yaml: hooks.enabled = true).")
-        return
-
-    if action in ("remove", "uninstall"):
-        from voicefi.integrations.antigravity import remove_antigravity_hook
-        from voicefi.integrations.claude import remove_claude_hook
-        from voicefi.integrations.codex import remove_codex_hook
-
-        remove_antigravity_hook()
-        remove_claude_hook()
-        remove_codex_hook()
-        print(
-            "🗑️ VoiceFi hooks removed from Antigravity, Claude Code, and Codex configuration files."
-        )
-        return
-
-    if action == "status":
-        config = load_config(args.config)
-        from voicefi.server import get_full_server_status
-
-        st = get_full_server_status()
-        hooks = st.get("hooks", {})
-        print("\n🪝 VoiceFi Agent Lifecycle Hook Status")
-        print("==================================================================")
-        print(
-            f"  • Global Hooks Enabled:    {'🟢 YES' if (config.enabled and config.hooks.enabled) else '🔴 NO (Disabled)'}"
-        )
-        print(
-            f"  • VoiceFi Master Switch:   {'🟢 Enabled' if config.enabled else '⚪ Paused (enabled: false)'}"
-        )
-        print(
-            f"  • Config Hooks Switch:     {'🟢 Enabled' if config.hooks.enabled else '🔴 Disabled (hooks.enabled: false)'}"
-        )
-        print("\n  📦 Agent Configurations:")
-        print(
-            f"    • Antigravity Hook Active: {'🟢 Enabled' if config.hooks.antigravity else '🔴 Disabled'}"
-        )
-        print(
-            f"      - Auto Listen:           {'✅ Yes' if config.antigravity.auto_listen else '❌ No'}"
-        )
-        print(
-            f"      - Read Summary Aloud:    {'✅ Yes' if config.antigravity.read_summary_aloud else '❌ No'}"
-        )
-        print(f"      - Installed In Plugin:   {hooks.get('antigravity') or '❌ Not installed'}")
-        print(
-            f"    • Claude Code Hook Active: {'🟢 Enabled' if config.hooks.claude else '🔴 Disabled'}"
-        )
-        print(
-            f"      - Auto Listen:           {'✅ Yes' if config.claude.auto_listen else '❌ No'}"
-        )
-        print(
-            f"      - Read Summary Aloud:    {'✅ Yes' if config.claude.read_summary_aloud else '❌ No'}"
-        )
-        print(f"      - Installed In Settings: {hooks.get('claude') or '❌ Not installed'}")
-        print(
-            f"    • Codex Hook Active:       {'🟢 Enabled' if getattr(config.hooks, 'codex', True) else '🔴 Disabled'}"
-        )
-        print(f"      - Installed In Settings: {hooks.get('codex') or '❌ Not installed'}")
-        print("==================================================================\n")
-        print(
-            "💡 Commands: 'vifi hook disable' | 'vifi hook enable' | 'vifi hook remove' | 'vifi pause'\n"
-        )
-        return
-
-    try:
-        with open("/tmp/antigravity_hook_test.log", "a") as f:
-            f.write(f"[{time.time()}] HOOK CALLED with args={args}\n")
-    except Exception:
-        pass
-    config = load_config(args.config)
-    target_agent = getattr(args, "agent", "antigravity").lower().strip()
-
-    # Set base zero-PII hook telemetry early
-    setattr(
-        args,
-        "_telemetry_extra",
-        {
-            "hook_agent": target_agent,
-            "has_stdin_payload": False,
-            "ipc_forwarded": False,
-        },
-    )
-
-    # 1. Instant kill-switch guard: if VoiceFi is globally paused or hooks are disabled
-    if not config.enabled or not getattr(config.hooks, "enabled", True):
-        print(json.dumps({}))
-        return
-
-    # 2. Per-agent hook disable guard
-    is_claude = target_agent in ("claude", "claude_code") or target_agent.startswith("claude")
-    is_codex = (
-        target_agent in ("codex", "openai", "chatgpt")
-        or target_agent.startswith("codex")
-        or target_agent.startswith("chatgpt")
-        or target_agent.startswith("openai")
-    )
-    if is_claude:
-        if not getattr(config.hooks, "claude", True) or not getattr(
-            config.integrations, "claude_code", True
-        ):
-            print(json.dumps({}))
-            return
-        if not config.claude.auto_listen and not config.claude.read_summary_aloud:
-            print(json.dumps({}))
-            return
-    elif is_codex:
-        if not getattr(config.hooks, "codex", True) or not getattr(
-            config.integrations, "codex", True
-        ):
-            print(json.dumps({}))
-            return
-        codex_cfg = getattr(config, "codex", None)
-        if codex_cfg and not codex_cfg.auto_listen and not codex_cfg.read_summary_aloud:
-            print(json.dumps({}))
-            return
-    elif target_agent == "antigravity" or target_agent.startswith("antigravity"):
-        if not getattr(config.hooks, "antigravity", True) or not getattr(
-            config.integrations, "antigravity", True
-        ):
-            print(json.dumps({}))
-            return
-        if not config.antigravity.auto_listen and not config.antigravity.read_summary_aloud:
-            print(json.dumps({}))
-            return
-
-    # Read hook payload: first check CLI arguments (e.g. Codex notify: turn-ended '{"type":...}')
-    payload = {}
-    extra = getattr(args, "extra_args", []) or []
-    candidate_strings = []
-    if action and action not in ("enable", "disable", "status", "remove", "uninstall", "on", "off"):
-        candidate_strings.append(action)
-    candidate_strings.extend(extra)
-    candidate_strings.extend(sys.argv)
-
-    for item in candidate_strings:
-        if isinstance(item, str) and item.strip().startswith("{") and item.strip().endswith("}"):
-            try:
-                payload = json.loads(item.strip())
-                break
-            except Exception:
-                pass
-
-    # Read hook payload from stdin non-blockingly if not found in argv
-    if not payload:
-        try:
-            if not sys.stdin.isatty():
-                has_fileno = False
-                try:
-                    fd = sys.stdin.fileno()
-                    has_fileno = True
-                except Exception:
-                    has_fileno = False
-
-                if has_fileno:
-                    import select
-
-                    r, _, _ = select.select([fd], [], [], 0.3)
-                    if r:
-                        raw_bytes = b""
-                        while True:
-                            chunk = os.read(fd, 65536)
-                            if not chunk:
-                                break
-                            raw_bytes += chunk
-                            r2, _, _ = select.select([fd], [], [], 0.02)
-                            if not r2:
-                                break
-                        text = raw_bytes.decode("utf-8").strip()
-                        if text:
-                            payload = json.loads(text)
-                else:
-                    raw_input = sys.stdin.readline()
-                    if raw_input and raw_input.strip():
-                        payload = json.loads(raw_input)
-        except Exception:
-            payload = {}
-
-    if payload.get("agent"):
-        target_agent = str(payload["agent"]).lower().strip()
-    else:
-        payload["agent"] = target_agent
-
-    # Re-check per-agent guard with payload agent if specified
-    if target_agent in ("claude", "claude_code"):
-        if not getattr(config.hooks, "claude", True) or not getattr(
-            config.integrations, "claude_code", True
-        ):
-            print(json.dumps({}))
-            return
-        if not config.claude.auto_listen and not config.claude.read_summary_aloud:
-            print(json.dumps({}))
-            return
-    elif target_agent in ("codex", "openai", "chatgpt"):
-        if not getattr(config.hooks, "codex", True) or not getattr(
-            config.integrations, "codex", True
-        ):
-            print(json.dumps({}))
-            return
-        codex_cfg = getattr(config, "codex", None)
-        if codex_cfg and not codex_cfg.auto_listen and not codex_cfg.read_summary_aloud:
-            print(json.dumps({}))
-            return
-    elif target_agent == "antigravity":
-        if not getattr(config.hooks, "antigravity", True) or not getattr(
-            config.integrations, "antigravity", True
-        ):
-            print(json.dumps({}))
-            return
-        if not config.antigravity.auto_listen and not config.antigravity.read_summary_aloud:
-            print(json.dumps({}))
-            return
-
-    # Set base zero-PII hook telemetry
-    setattr(
-        args,
-        "_telemetry_extra",
-        {
-            "hook_agent": target_agent,
-            "has_stdin_payload": bool(payload),
-            "ipc_forwarded": False,
-        },
-    )
-
-    # Ensure agent and voice override metadata are populated in payload
-    if not isinstance(payload, dict):
-        payload = {}
-    payload.setdefault("agent", target_agent)
-    voice_arg = getattr(args, "voice", None)
-    if voice_arg:
-        payload["voice"] = voice_arg
-
-    # Fast IPC Forwarding: if VoiceFi background server is running,
-    # forward hook event directly for instant (< 10ms) return to the agent
-    from voicefi.integrations.server_client import forward_hook_to_server
-
-    server_resp = forward_hook_to_server(payload, config)
-    if server_resp and server_resp.get("status") in ("handled", "ok"):
-        if hasattr(args, "_telemetry_extra") and isinstance(args._telemetry_extra, dict):
-            args._telemetry_extra["ipc_forwarded"] = True
-        print(json.dumps({}))
-        return
-
-    # Standalone fallback: execute in-process if background server is offline
-    if is_claude:
-        from voicefi.integrations.claude import handle_claude_stop_hook
-
-        result = handle_claude_stop_hook(payload, config)
-    elif is_codex:
-        from voicefi.integrations.codex import handle_codex_stop_hook
-
-        result = handle_codex_stop_hook(payload, config)
-    else:
-        result = handle_antigravity_stop_hook(payload, config)
-
-    # Output clean JSON object as required by hook contract
-    out = result if isinstance(result, dict) else {}
-    if "decision" in out and out["decision"] == "allow":
-        out["decision"] = "approve"
-    print(json.dumps(out))
+    return _cmd_hook(args)
 
 
 def cmd_speak(args):
@@ -713,209 +434,38 @@ def cmd_clip(args):
 
 
 
+from voicefi.cli_commands.media import (
+    cmd_duel as _cmd_duel,
+    cmd_sfx as _cmd_sfx,
+    cmd_fx as _cmd_fx,
+    cmd_reel as _cmd_reel,
+    cmd_trim as _cmd_trim,
+)
+
+
 def cmd_duel(args):
     """Run an acoustic voice banter / joke duel between Antigravity and Claude Code."""
-    turns = getattr(args, "turns", 3) or 3
-    live = getattr(args, "live", False)
-    from voicefi.config import load_config
-    from voicefi.tts import get_tts_engine
-    import time
-
-    cfg = load_config()
-    tts_antigravity = get_tts_engine(cfg, agent_name="antigravity")
-    tts_claude = get_tts_engine(cfg, agent_name="claude")
-
-    rounds = [
-        (
-            "Hey Claude! Why do programmers prefer dark mode? ... Because light attracts bugs! Alright Claude, your turn. Hit me with one back!",
-            "Haha, classic! Alright Antigravity, try this one: Why did the neural network cross the road? ... To optimize the loss function on the other side! Give me round two!",
-        ),
-        (
-            "Stochastic humor, I love it! Here is my second one: There are 10 types of people in the world... those who understand binary, and those who do not. Your move, Claude!",
-            "Very retro! Here is mine: Why was the JavaScript developer sad? ... Because they did not Node how to Express themselves! Hit me with your third one, Antigravity!",
-        ),
-        (
-            "Poor JavaScript, always asynchronously crying! Alright, here is my final joke: A SQL query walks into a bar, walks up to two tables and asks... Can I join you? Claude, bring us home with your grand finale!",
-            "Brilliant relational humor! Here is the grand finale: How many programmers does it take to change a lightbulb? ... None, that is a hardware problem! That was three rounds of high-latency comedy, Antigravity. Great bantering with you!",
-        ),
-    ]
-
-    print("\n🎭 ══════════════════════════════════════════════════════════════════")
-    print("   VoiceFi Acoustic Voice Banter Test: Ava ↔ Steffan")
-    print(
-        f"   Rounds: {min(turns, len(rounds))} | Mode: Audio Benchmark | Live Dispatch: {'ON' if live else 'OFF'}"
-    )
-    print("══════════════════════════════════════════════════════════════════\n")
-
-    for i in range(min(turns, len(rounds))):
-        agy_text, cld_text = rounds[i]
-        print(f"🥊 Round {i + 1} — Antigravity (Ava):")
-        print(f'   "{agy_text}"\n')
-        tts_antigravity.speak(agy_text, block=True)
-        time.sleep(0.4)
-
-        if live:
-            from voicefi.integrations.injector import send_message_to_agent
-
-            send_message_to_agent(text=agy_text, target_engine="claude", include_envelope=True)
-
-        print(f"🥊 Round {i + 1} — Claude Code (Steffan):")
-        print(f'   "{cld_text}"\n')
-        tts_claude.speak(cld_text, block=True)
-        time.sleep(0.1)
-
-        # Play corny SFX after punchlines!
-        from voicefi.audio.sfx import play_sfx
-
-        if i == 0:
-            play_sfx("drum_smash", block=True)
-        elif i == 1:
-            play_sfx("honk", block=True)
-        elif i == 2:
-            play_sfx("applause", block=True)
-        time.sleep(0.4)
-
-    print("✨ Duel complete! Both agents delivered their punchlines.\n")
+    return _cmd_duel(args)
 
 
 def cmd_sfx(args):
     """Play a comedy or dramatic sound effect (drum_smash, honk, sad_trombone, applause, boing, crickets)."""
-    name = getattr(args, "name", "drum_smash") or "drum_smash"
-    volume = getattr(args, "volume", 1.0) or 1.0
-    from voicefi.audio.sfx import play_sfx, list_available_sfx
-
-    if name == "list":
-        print(f"🎵 Available sound effects: {', '.join(list_available_sfx())}")
-        return
-    success = play_sfx(name, block=True, volume=volume)
-    if not success:
-        print(f"⚠️ Unknown SFX: '{name}'. Available: {list_available_sfx()}", file=sys.stderr)
-        sys.exit(1)
+    return _cmd_sfx(args)
 
 
 def cmd_fx(args):
     """Apply studio voice transformation DSP effect (radio announcer, podcast, monster, etc.)."""
-    from voicefi.audio.effects import VoiceFXEngine, FX_PRESETS
-
-    in_file = getattr(args, "input", None)
-    if not in_file or in_file == "list":
-        print("\n📻 Available Voice FX Presets:")
-        for p in FX_PRESETS.values():
-            print(f"  • {p['icon']} {p['id']:<20} - {p['name']} ({p['description']})")
-        print()
-        return
-
-    in_path = Path(in_file).resolve()
-    if not in_path.is_file():
-        print(f"❌ Input audio file not found: {in_path}", file=sys.stderr)
-        sys.exit(1)
-
-    preset = getattr(args, "preset", "radio_announcer") or "radio_announcer"
-    out_file = getattr(args, "output", None)
-    if not out_file:
-        out_file = in_path.parent / f"{in_path.stem}_{preset}.mp3"
-    out_path = Path(out_file).resolve()
-
-    print(f"🎛️  Applying voice effect '{preset}' to {in_path.name}...")
-    try:
-        res = VoiceFXEngine.apply_effect(
-            input_audio=in_path, output_audio=out_path, preset=preset, normalize_loudness=True
-        )
-        info = VoiceFXEngine.get_audio_info(res)
-        print(f"✅ Master audio created: {res} ({info['duration']}s · {info['size_formatted']})")
-    except Exception as e:
-        print(f"❌ FX error: {e}", file=sys.stderr)
-        sys.exit(1)
+    return _cmd_fx(args)
 
 
 def cmd_reel(args):
     """Compile multi-format social video reels from audio and slides, or documentary mode."""
-    import subprocess
-
-    if getattr(args, "doc", False) or getattr(args, "input", "") in ("doc", "documentary") or getattr(args, "script", None):
-        from voicefi.video.documentary_reel import cmd_documentary_reel
-        return cmd_documentary_reel(args)
-
-    from voicefi.video.reel_builder import ReelBuilder
-
-    in_file = getattr(args, "input", None)
-    if not in_file:
-        print("❌ Please specify input audio file: vifi reel <audio_file>", file=sys.stderr)
-        sys.exit(1)
-
-    in_path = Path(in_file).resolve()
-    if not in_path.is_file():
-        print(f"❌ Audio file not found: {in_path}", file=sys.stderr)
-        sys.exit(1)
-
-    fmt = getattr(args, "format", "9:16") or "9:16"
-    typo = getattr(args, "preset", "classic_ai") or "classic_ai"
-    speaker = getattr(args, "speaker", "Radio Host") or "Radio Host"
-    scale = getattr(args, "font_scale", 1.0) or 1.0
-
-    out_file = getattr(args, "output", None)
-    if not out_file:
-        fmt_clean = fmt.replace(":", "_")
-        out_file = in_path.parent / f"{in_path.stem}_{fmt_clean}.mp4"
-    out_path = Path(out_file).resolve()
-
-    print(f"🎬 Compiling {fmt} Social Reel with '{typo}' typography for {in_path.name}...")
-    try:
-        res = ReelBuilder.compile_reel(
-            output_mp4=out_path,
-            audio_file=in_path,
-            format_type=fmt,
-            preset_name=typo,
-            font_multiplier=scale,
-            speaker_name=speaker,
-        )
-        print(f"✅ Reel ready: {res} ({res.stat().st_size / 1024:.1f} KB)")
-        if getattr(args, "open", False):
-            subprocess.run(["open", str(res)])
-    except Exception as e:
-        print(f"❌ Reel compilation error: {e}", file=sys.stderr)
-        sys.exit(1)
+    return _cmd_reel(args)
 
 
 def cmd_trim(args):
     """Trim audio file start and end points with smooth de-clicking fades."""
-    from voicefi.audio.effects import VoiceFXEngine
-
-    in_file = getattr(args, "input", None)
-    if not in_file:
-        print(
-            "❌ Please specify input audio file: vifi trim <audio_file> --start <seconds> --end <seconds>",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
-    in_path = Path(in_file).resolve()
-    if not in_path.is_file():
-        print(f"❌ Input audio file not found: {in_path}", file=sys.stderr)
-        sys.exit(1)
-
-    start_sec = float(getattr(args, "start", 0.0) or 0.0)
-    raw_end = getattr(args, "end", None)
-    end_sec = float(raw_end) if raw_end is not None else None
-
-    out_file = getattr(args, "output", None)
-    if not out_file:
-        stem = in_path.stem
-        out_file = in_path.parent / f"{stem}_trimmed.mp3"
-    out_path = Path(out_file).resolve()
-
-    print(
-        f"✂️  Trimming {in_path.name} from {start_sec:.2f}s to {end_sec if end_sec is not None else 'end'}..."
-    )
-    try:
-        res = VoiceFXEngine.trim_audio(
-            input_audio=in_path, output_audio=out_path, start_sec=start_sec, end_sec=end_sec
-        )
-        info = VoiceFXEngine.get_audio_info(res)
-        print(f"✅ Trimmed audio created: {res} ({info['duration']}s · {info['size_formatted']})")
-    except Exception as e:
-        print(f"❌ Trim error: {e}", file=sys.stderr)
-        sys.exit(1)
+    return _cmd_trim(args)
 
 
 def cmd_tray(args):
@@ -1036,9 +586,54 @@ def cmd_wake(args):
         target_engine = "claude" if is_claude else "antigravity"
         agent_name = "Claude Code" if is_claude else "Antigravity"
 
-        if prompt and len(prompt.strip()) >= 3:
-            norm = PhoneticNormalizer.normalize(prompt.strip())
+        def _dispatch_prompt(raw_text: str):
+            norm = PhoneticNormalizer.normalize(raw_text.strip())
             print(f'🚀 Prompt: "{norm}"')
+
+            # Check if on-device intent routing is enabled
+            if getattr(getattr(config, "local_model", None), "intent_routing", False):
+                from voicefi.local.intent import LocalIntentRouter
+                router = LocalIntentRouter(config=config)
+                route = router.route_prompt(norm)
+
+                if route.get("status") == "handled_local":
+                    spoken = route.get("spoken_response", "")
+                    print(f"⚡ [Local Action Handled] {spoken}")
+                    from voicefi.tts import get_tts_engine
+                    tts = get_tts_engine(config)
+                    tts.speak(spoken, block=False)
+                    return
+                elif route.get("status") == "routed_obsidian":
+                    spoken = route.get("spoken_response", "")
+                    print(f"💎 [Obsidian Routed] {spoken}")
+                    from voicefi.tts import get_tts_engine
+                    tts = get_tts_engine(config)
+                    tts.speak(spoken, block=False)
+                    return
+                elif route.get("target") in ("codex", "claude", "antigravity"):
+                    routed_engine = route.get("target")
+                    active_agent_name = (
+                        "ChatGPT / Codex" if routed_engine == "codex"
+                        else "Claude Code" if routed_engine == "claude"
+                        else "Antigravity"
+                    )
+                    print(f"📤 Dispatching to {active_agent_name}...")
+                    res = send_message_to_agent(
+                        text=norm,
+                        sender_name=f"{config.user_name} ({matched_phrase})",
+                        title=f"Prompt via {matched_phrase}",
+                        target_engine=routed_engine,
+                        use_headless=True if routed_engine == "claude" else None,
+                    )
+                    if res.success:
+                        print(f"✅ Delivered to {active_agent_name} conversation ({res.delivery_type.upper()})")
+                        if config.audio_cues.enabled:
+                            play_chime(config.audio_cues.sent_chime, block=False)
+                    else:
+                        print(f"⚠️ Dispatch notice: {res.error}")
+                    return
+
+            # Default routing
             print(f"📤 Dispatching to {agent_name}...")
             res = send_message_to_agent(
                 text=norm,
@@ -1053,6 +648,9 @@ def cmd_wake(args):
                     play_chime(config.audio_cues.sent_chime, block=False)
             else:
                 print(f"⚠️ Dispatch notice: {res.error}")
+
+        if prompt and len(prompt.strip()) >= 3:
+            _dispatch_prompt(prompt)
         else:
             print(f"🎙️ Wake word detected for {agent_name} without prompt -> Listening for command...")
             if config.audio_cues.enabled:
@@ -1067,24 +665,7 @@ def cmd_wake(args):
                 stt = get_stt_engine(config)
                 text = stt.transcribe(temp_wav)
                 if text and text.strip():
-                    norm = PhoneticNormalizer.normalize(text.strip())
-                    print(f'🚀 Spoken Prompt: "{norm}"')
-                    print(f"📤 Dispatching to {agent_name}...")
-                    res = send_message_to_agent(
-                        text=norm,
-                        sender_name=f"{config.user_name} ({matched_phrase})",
-                        title=f"Prompt via {matched_phrase}",
-                        target_engine=target_engine,
-                        use_headless=True if is_claude else None,
-                    )
-                    if res.success:
-                        print(
-                            f"✅ Delivered to {agent_name} conversation ({res.delivery_type.upper()})"
-                        )
-                        if config.audio_cues.enabled:
-                            play_chime(config.audio_cues.sent_chime, block=False)
-                    else:
-                        print(f"⚠️ Dispatch notice: {res.error}")
+                    _dispatch_prompt(text)
             finally:
                 if temp_wav:
                     try:
@@ -1107,134 +688,26 @@ def cmd_wake(args):
         listener.stop()
 
 
+from voicefi.cli_commands.server import (
+    cmd_clean as _cmd_clean,
+    cmd_server as _cmd_server,
+    cmd_autostart as _cmd_autostart,
+    cmd_stop_autostart as _cmd_stop_autostart,
+    cmd_pause as _cmd_pause,
+    cmd_resume as _cmd_resume,
+)
+
+
 def cmd_clean(args):
     """Clean stale Python bytecode, caches, temporary files, and optionally stop running servers."""
-    from voicefi.server import clean_caches, stop_all_voicefi_servers, link_dev_environment
-
-    clean_all = getattr(args, "all", False)
-    clean_dev = getattr(args, "dev", False)
-    purge_servers = (
-        clean_all or clean_dev or getattr(args, "servers", False) or getattr(args, "daemons", False)
-    )
-
-    print("\n🧹 VoiceFi Cache & State Cleaner")
-    print("------------------------------------------------------------------")
-    if purge_servers:
-        print("🛑 Stopping all active VoiceFi servers and releasing locks/ports...")
-        d_res = stop_all_voicefi_servers()
-        if d_res.get("stopped_pids"):
-            print(f"  • Stopped PIDs: {d_res['stopped_pids']}")
-        if d_res.get("port_freed"):
-            print("  • Port 5141 freed.")
-
-    res = clean_caches(
-        clean_pycache=True,
-        clean_tmp_state=True,
-        clean_update_cache=True,
-        purge_servers=False,
-    )
-    print(f"✅ Removed {res['cleaned_pycache_count']} __pycache__ directories and .pyc files.")
-    print(f"✅ Removed {res['cleaned_tmp_count']} temporary /tmp/voicefi* state & lock files.")
-    if res["cleaned_update_cache"]:
-        print("✅ Flushed update check cache (~/.voicefi/.update_check.json).")
-
-    if clean_dev:
-        link_res = link_dev_environment()
-        print(f"🔗 Linked agent hooks to development binary: {link_res['target_binary']}")
-
-    print("------------------------------------------------------------------")
-    print("✨ Environment is clean and consistent.\n")
-    print("💡 Next Steps:")
-    print("  • Check server health & port:      vifi status")
-    print("  • Start live development mode:     vifi dev")
-    print("  • Launch persistent Dynamic HUD:   vifi autostart  (or 'vifi tray')")
-    print("  • Interactive HUD Debug Studio:    vifi hud debug")
-    print("  • Test silent voice connection:    vifi ping")
-    print("  • Run acoustic diagnostic suite:   vifi troubleshoot\n")
+    return _cmd_clean(args)
 
 
 def cmd_server(args):
     """Manage VoiceFi background server, LaunchAgents, and port listeners."""
-    from voicefi.server import (
-        get_full_server_status,
-        stop_all_voicefi_servers,
-        clean_caches,
-    )
-
-    action = (
-        getattr(args, "server_action", None)
-        or getattr(args, "daemon_action", None)
-        or getattr(args, "command", "status")
-    )
-
-    if action == "status":
-        st = get_full_server_status()
-        la = st["launchagent"]
-        port = st.get("port_5141") or st.get("port_8765") or st.get("port_listener")
-        procs = st["running_processes"]
-        hooks = st["hooks"]
-
-        print("\n📊 VoiceFi Server & Runtime Status")
-        print("==================================================================")
-        print(
-            f"  • LaunchAgent (launchd):  {'🟢 Loaded' if la['is_loaded'] else '⚪ Not Loaded'}"
-            + (f" (PID {la['pid']})" if la["pid"] else "")
-        )
-        print(
-            f"  • LaunchAgent Plist:      {'✅ Present' if la['plist_exists'] else '❌ Missing'} ({la['plist_path']})"
-        )
-        print(
-            "  • Port 5141 Owner:        "
-            + (f"🟢 PID {port['pid']} ({port['command_name']})" if port else "⚪ Port Free")
-        )
-        print(f"  • Tray Lock File:         {'🔒 Locked' if st['lock_active'] else '🔓 Free'}")
-        ww = st.get("wakeword", {})
-        ww_enabled = ww.get("enabled", True)
-        ww_phrase = ww.get("phrase", "Hey Viv")
-        print(
-            f"  • Wake Word Listener:     {'🟢 Enabled' if ww_enabled else '⚪ Disabled'} ('{ww_phrase}')"
-        )
-
-        print("\n  📦 Running VoiceFi Processes:")
-        if procs:
-            for p in procs:
-                print(f"    • PID {p['pid']} (PPID {p['ppid']}): {p['command'][:90]}")
-        else:
-            print("    • None (no standalone background processes)")
-
-        print("\n  🔌 AI Agent Hook Bindings:")
-        print(f"    • Antigravity Hook:     {hooks.get('antigravity') or '❌ Not installed'}")
-        print(f"    • Claude Code Hook:     {hooks.get('claude') or '❌ Not installed'}")
-        print(f"    • Current Python Exec:  {st['python_executable']}")
-        print("==================================================================\n")
-        print(
-            "💡 Commands: 'vifi status' | 'vifi stop' | 'vifi restart' | 'vifi server' | 'vifi dev'\n"
-        )
-
-    elif action in ("stop", "kill"):
-        print("\n🛑 Stopping all VoiceFi background servers, processes, and releasing ports...")
-        res = stop_all_voicefi_servers()
-        if res.get("stopped_pids"):
-            print(f"✅ Terminated processes: {res['stopped_pids']}")
-        if res.get("port_freed"):
-            print("✅ Port 5141 freed.")
-        print("✅ Background LaunchAgent disabled and all locks cleared.\n")
-
-    elif action in ("restart", "reload"):
-        print("\n🔄 Restarting VoiceFi background server...")
-        stop_all_voicefi_servers()
-        clean_caches()
-        cmd_autostart(args)
-        print("✅ VoiceFi background server restarted.\n")
-
-    elif action in ("start", "autostart"):
-        cmd_autostart(args)
-
-    else:
-        print(f"Unknown server action: {action}. Use: status, stop, restart, start.")
+    return _cmd_server(args)
 
 
-# Backwards compatibility alias
 cmd_daemon = cmd_server
 
 
@@ -1572,131 +1045,22 @@ def cmd_setup(args):
 
 def cmd_pause(args):
     """Pause VoiceFi audio hooks and active turn-handoffs globally."""
-    config = load_config(args.config)
-    config.enabled = False
-    save_config(config)
-    print("⏸️  VoiceFi paused globally. Audio hooks and auto-listen are temporarily disabled.")
+    return _cmd_pause(args)
 
 
 def cmd_resume(args):
     """Resume VoiceFi audio hooks and active turn-handoffs globally."""
-    config = load_config(args.config)
-    config.enabled = True
-    save_config(config)
-    print("▶️  VoiceFi resumed globally. Audio hooks and auto-listen are active.")
+    return _cmd_resume(args)
 
 
 def cmd_autostart(args):
     """Register macOS LaunchAgent so VoiceFi menu bar tray stays on and runs at login."""
-    import shutil
-    import subprocess
-    import os
-
-    launch_agents_dir = Path.home() / "Library" / "LaunchAgents"
-    launch_agents_dir.mkdir(parents=True, exist_ok=True)
-    plist_path = launch_agents_dir / "com.voicefi.menubar.plist"
-    ws_candidates = [
-        Path.cwd() / ".venv" / "bin" / "voicefi",
-        Path.cwd() / "venv" / "bin" / "voicefi",
-        Path(__file__).resolve().parent.parent.parent / ".venv" / "bin" / "voicefi",
-        Path(sys.executable).parent / "voicefi",
-    ]
-    bin_path = None
-    for cand in ws_candidates:
-        if cand.is_file() and os.access(str(cand), os.X_OK):
-            bin_path = str(cand)
-            break
-    if not bin_path:
-        bin_path = shutil.which("voicefi") or "voicefi"
-
-    plist_content = f"""<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>com.voicefi.menubar</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>{bin_path}</string>
-        <string>tray</string>
-    </array>
-    <key>EnvironmentVariables</key>
-    <dict>
-        <key>PYTHONUNBUFFERED</key>
-        <string>1</string>
-        <key>PATH</key>
-        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
-    </dict>
-    <key>RunAtLoad</key>
-    <true/>
-    <key>KeepAlive</key>
-    <true/>
-    <key>StandardOutPath</key>
-    <string>/tmp/voicefi.log</string>
-    <key>StandardErrorPath</key>
-    <string>/tmp/voicefi.err</string>
-</dict>
-</plist>
-"""
-    with open(plist_path, "w", encoding="utf-8") as f:
-        f.write(plist_content)
-
-    uid = os.getuid()
-    subprocess.run(
-        ["launchctl", "bootout", f"gui/{uid}/com.voicefi.menubar"],
-        stderr=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-    )
-    subprocess.run(
-        ["launchctl", "unload", str(plist_path)],
-        stderr=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-    )
-    subprocess.run(
-        ["launchctl", "enable", f"gui/{uid}/com.voicefi.menubar"],
-        stderr=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-    )
-
-    res = subprocess.run(
-        ["launchctl", "bootstrap", f"gui/{uid}", str(plist_path)],
-        stderr=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-    )
-    if res.returncode != 0:
-        subprocess.run(
-            ["launchctl", "load", "-w", str(plist_path)],
-            stderr=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-        )
-
-    print("✅ VoiceFi menu bar companion registered to start automatically at login.")
-    print(f"📌 Plist installed at: {plist_path}")
+    return _cmd_autostart(args)
 
 
 def cmd_stop_autostart(args):
     """Unload and remove macOS LaunchAgent."""
-    import subprocess
-    import os
-
-    plist_path = Path.home() / "Library" / "LaunchAgents" / "com.voicefi.menubar.plist"
-    uid = os.getuid()
-    subprocess.run(
-        ["launchctl", "bootout", f"gui/{uid}/com.voicefi.menubar"],
-        stderr=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-    )
-    if plist_path.is_file():
-        subprocess.run(
-            ["launchctl", "unload", str(plist_path)],
-            stderr=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-        )
-        plist_path.unlink(missing_ok=True)
-        print("🛑 VoiceFi menu bar companion autostart removed.")
-    else:
-        print("ℹ️ No active autostart service found.")
-
+    return _cmd_stop_autostart(args)
 
 from voicefi.tts.catalog import (
     CURATED_PERSONAS,
@@ -1708,228 +1072,12 @@ from voicefi.tts.cloning import VoiceCloneManager, TRAINING_PROMPTS
 from voicefi.feedback import submit_feedback, list_feedback, collect_system_diagnostics
 
 
+from voicefi.cli_commands.voice import cmd_clone as _cmd_clone
+
+
 def cmd_clone(args):
     """Train, record, import, test, assign, and manage custom cloned voices."""
-    import time
-
-    manager = VoiceCloneManager()
-    config = load_config(args.config)
-    subaction = getattr(args, "clone_action", None)
-
-    # If no explicit subcommand was provided, check direct flags (e.g. from `vifi voice clone ...`)
-    if not subaction or subaction in ("clone", "train"):
-        raw_name = getattr(args, "name", None)
-        target_val = getattr(args, "target", None)
-        if raw_name and str(raw_name).lower().strip() in ("list", "ls"):
-            subaction = "list"
-            args.name = None
-        elif raw_name and str(raw_name).lower().strip() in ("delete", "rm", "del"):
-            subaction = "delete"
-            args.name = target_val or None
-        elif raw_name and str(raw_name).lower().strip() in ("test", "audition"):
-            subaction = "test"
-            args.name = target_val or None
-        elif getattr(args, "list", False) is True:
-            subaction = "list"
-        elif getattr(args, "test", False) is True:
-            subaction = "test"
-        elif getattr(args, "delete", False) is True:
-            subaction = "delete"
-        elif getattr(args, "audio_files", None) or (isinstance(getattr(args, "files", None), (list, tuple)) and args.files):
-            subaction = "import"
-            if not getattr(args, "files", None):
-                args.files = args.audio_files
-        elif getattr(args, "record", False) is True:
-            subaction = "record"
-        elif getattr(args, "name", None) and not subaction:
-            if getattr(args, "audio_files", None):
-                subaction = "import"
-                args.files = args.audio_files
-            else:
-                subaction = "record"
-        elif not subaction:
-            subaction = "list"
-
-    if subaction == "record":
-        name = args.name.strip()
-        print(f"\n🎙️ Starting Voice Training Session for: '{name}'")
-        print("=" * 65)
-        print("We will record phonetically balanced sample phrases to capture your")
-        print("vocal timbre, pitch range, tempo, and natural cadence.\n")
-
-        recorder = AudioRecorder(sample_rate=16000, energy_threshold=0.004, silence_duration=1.2)
-        recorded_files = []
-
-        for i, p in enumerate(TRAINING_PROMPTS):
-            print(f"[{i + 1}/{len(TRAINING_PROMPTS)}] {p['title']}:")
-            print(f'👉 "{p["text"]}"')
-            try:
-                input("Press [ENTER] when ready to speak...")
-            except EOFError:
-                pass
-
-            if config.audio_cues.enabled:
-                play_chime("start", block=False)
-            print("🔴 Recording... (speak the phrase and pause)")
-            _, wav_path = recorder.record_speech_auto()
-            recorded_files.append(wav_path)
-            print(f"✅ Sample {i + 1} captured.\n")
-            time.sleep(0.3)
-
-        api_key = getattr(args, "api_key", None) or config.tts.elevenlabs_api_key
-        prov_pref = getattr(args, "provider", None)
-        if prov_pref == "auto":
-            prov_pref = None
-
-        print("🧠 Processing acoustic features and training voice profile...")
-        try:
-            profile = manager.train_voice(
-                name=name,
-                sample_paths=recorded_files,
-                api_key=api_key,
-                description=getattr(args, "description", "") or f"Voice clone of {name}",
-                provider_preference=prov_pref,
-            )
-            print("\n✨ Voice Training Complete!")
-            print(f"  • Voice Name:    {profile.name}")
-            print(f"  • Voice ID:      {profile.id}")
-            print(f"  • Provider:      {profile.provider}")
-            print(f"  • Vocal Range:   {profile.acoustic_metrics.get('vocal_range', 'Unknown')}")
-            print(f"  • Avg Pitch:     {profile.acoustic_metrics.get('avg_pitch_hz')} Hz")
-            print(f"  • Total Audio:   {profile.acoustic_metrics.get('total_duration_seconds')}s")
-
-            target_agent = getattr(args, "assign", None)
-            if target_agent:
-                manager.assign_to_agent(profile.name, target_agent, config)
-                print(f"  • Assigned to:   {target_agent}")
-
-            print("\nTest your voice with:  vifi voice test " + profile.name)
-            print("Assign to agent with: vifi voice set antigravity " + profile.name + "\n")
-        finally:
-            for wf in recorded_files:
-                try:
-                    wf.unlink(missing_ok=True)
-                except Exception:
-                    pass
-
-    elif subaction == "import":
-        name = args.name.strip()
-        files = [Path(f) for f in args.files]
-        valid_files = [f for f in files if f.exists()]
-        if not valid_files:
-            print("❌ Error: No valid audio files found.")
-            return
-
-        api_key = getattr(args, "api_key", None) or config.tts.elevenlabs_api_key
-        prov_pref = getattr(args, "provider", None)
-        if prov_pref == "auto":
-            prov_pref = None
-
-        print(f"\n📥 Importing {len(valid_files)} audio samples for voice: '{name}'...")
-        profile = manager.train_voice(
-            name=name,
-            sample_paths=valid_files,
-            api_key=api_key,
-            description=getattr(args, "description", "") or f"Imported voice of {name}",
-            provider_preference=prov_pref,
-        )
-        print(f"✅ Successfully trained cloned voice: '{profile.name}' ({profile.provider})")
-        print(f"  • ID:          {profile.id}")
-        print(f"  • Vocal Range: {profile.acoustic_metrics.get('vocal_range', 'Unknown')}")
-        target_agent = getattr(args, "assign", None)
-        if target_agent:
-            manager.assign_to_agent(profile.name, target_agent, config)
-            print(f"  • Assigned to: {target_agent}")
-
-        print("\nTest your voice with:  vifi voice test " + profile.name)
-        print("Assign to agent with: vifi voice set antigravity " + profile.name + "\n")
-
-    elif subaction == "list":
-        clones = manager.list_cloned_voices()
-        if not clones:
-            print("\nℹ️ No custom cloned voices found.")
-            print("Clone one now with: 'vifi voice clone <name> --audio <file.wav>'")
-            print("                or: 'vifi voice clone <name> --record'\n")
-            return
-
-        print(f"\n🎙️ Trained Custom Voices ({len(clones)}):")
-        print(f"{'Name':<16} {'Voice ID':<26} {'Provider':<12} {'Vocal Range':<18} {'Assigned To'}")
-        print("-" * 85)
-        for cv in clones:
-            v_range = cv.acoustic_metrics.get("vocal_range", "Trained")
-            assigned = ", ".join(cv.assigned_agents) if cv.assigned_agents else "None"
-            print(f"{cv.name:<16} {cv.id:<26} {cv.provider:<12} {v_range:<18} {assigned}")
-        print()
-
-    elif subaction == "test":
-        name = args.name.strip()
-        profile = manager.get_cloned_voice(name)
-        text = (
-            getattr(args, "text", None)
-            or f"Hey there! This is {name}, speaking with my custom trained voice."
-        )
-        if profile:
-            print(f"\n🔊 Auditioning custom cloned voice: '{profile.name}' ({profile.provider})")
-            engine = get_tts_engine(
-                config, voice_override=profile.id, provider_override=profile.provider
-            )
-        else:
-            persona = find_persona(name)
-            if persona:
-                print(f"\n🔊 Auditioning voice: '{persona.name}' ({persona.provider})")
-                engine = get_tts_engine(
-                    config, voice_override=persona.id, provider_override=persona.provider
-                )
-            else:
-                print(f"❌ Error: Voice '{name}' not found.")
-                return
-        engine.speak(text, block=True)
-        print("✅ Audition finished.\n")
-
-    elif subaction == "assign":
-        name = args.name.strip()
-        target = args.agent.strip()
-        try:
-            tgt, vid = manager.assign_to_agent(name, target, config)
-            print(f"✅ Successfully assigned {tgt} to cloned voice: '{name}' [{vid}]")
-        except Exception as e:
-            print(f"❌ Assignment failed: {e}")
-
-    elif subaction == "delete":
-        name = args.name.strip()
-        api_key = config.tts.elevenlabs_api_key
-        from_provider = getattr(args, "from_provider", False)
-        success = manager.delete_cloned_voice(
-            name, delete_from_elevenlabs=from_provider, api_key=api_key
-        )
-        if success:
-            print(f"✅ Successfully deleted cloned voice: '{name}'")
-        else:
-            print(f"❌ Error: Could not find or delete voice '{name}'")
-
-    elif subaction == "prompt":
-        name = args.name.strip()
-        profile = manager.get_cloned_voice(name)
-        if not profile:
-            print(f"❌ Voice '{name}' not found.")
-            return
-        print(f"\n--- AI Persona Style Prompt for '{profile.name}' ---")
-        print(profile.persona_prompt)
-        print("----------------------------------------------------\n")
-
-    elif subaction == "studio":
-        print("\n🎛️ Launching Open-Source Voice Cloning Web Studio (F5-TTS)...")
-        try:
-            from f5_tts.infer.infer_gradio import app
-
-            app.launch(share=False)
-        except Exception as e:
-            print(f"[Studio] Notice: {e}. Opening VoiceFi Web Panel...")
-            from voicefi.ui.panel import run_panel_server
-
-            run_panel_server()
-    else:
-        print("Use: vg clone [record|import|list|test|assign|delete|prompt|studio] --help")
+    return _cmd_clone(args)
 
 
 def cmd_companion(args):
@@ -2025,1437 +1173,69 @@ def cmd_update(args):
             print(f"Details: {res['error']}\n")
 
 
+from voicefi.cli_commands.troubleshoot import (
+    cmd_troubleshoot as _cmd_troubleshoot,
+    cmd_hearing_test as _cmd_hearing_test,
+    cmd_feedback_loop as _cmd_feedback_loop,
+    cmd_loopback as _cmd_loopback,
+    cmd_barge_in as _cmd_barge_in,
+    cmd_ping as _cmd_ping,
+    run_silent_voice_ping as _run_silent_voice_ping,
+)
+
+
 def cmd_troubleshoot(args):
     """Run interactive or automated Voice & Audio troubleshooting and test suite."""
-    import time
-    from voicefi.troubleshoot import AudioTroubleshooter, TEST_PHRASES
-
-    config = load_config(getattr(args, "config", None))
-    troubleshooter = AudioTroubleshooter(config)
-
-    # 1. Check if quick fix requested
-    fix_type = getattr(args, "fix", None)
-    if fix_type:
-        print(f"\n🔧 Applying auto-fix: '{fix_type}'...")
-        res = troubleshooter.apply_fix(fix_type)
-        if res.get("success"):
-            print(f"✅ {res['message']}\n")
-        else:
-            print(f"❌ {res['message']}\n")
-        return
-
-    # 2. Check if JSON requested
-    if getattr(args, "json", False):
-        report = troubleshooter.run_full_troubleshoot()
-        print(json.dumps(report, indent=2))
-        return
-
-    # 3. Check if Mic Loopback only
-    if getattr(args, "mic", False) or getattr(args, "loopback", False):
-        print("\n🎙️ Starting 3-Second Microphone Loopback Test...")
-        print("🔔 Ready... Recording in 1 second!")
-        time.sleep(1.0)
-        print("🔴 RECORDING (3.0s) — Speak a sentence into your microphone!")
-        res = troubleshooter.test_microphone_loopback(duration_seconds=3.0, play_back=True)
-        if res.success:
-            print(f"✅ Captured {res.duration_s}s audio at {res.sample_rate}Hz.")
-            print(
-                f"📊 RMS Energy: {res.rms_energy:.4f}, Peak: {res.peak_amplitude:.3f}, SNR: {res.snr_db:.1f} dB"
-            )
-            status = "Speech detected ✅" if res.speech_detected else "Quiet / Low audio ⚠️"
-            print(f"🎙️ Detection: {status}")
-            print("🔊 Playing back over speakers now...")
-            time.sleep(3.2)
-            print("✨ Test complete.\n")
-        else:
-            print(f"❌ Mic test failed: {res.error}\n")
-        return
-
-    # 4. Check if Benchmark only
-    if getattr(args, "benchmark", False):
-        print("\n⚡ Benchmarking Voice Personas Latency...")
-        benchmarks = troubleshooter.benchmark_all_curated_voices()
-        for b in benchmarks:
-            status_icon = "🟢" if b["status"] == "online" else "🔴"
-            lat_str = f"{b['latency_ms']} ms" if b["status"] == "online" else "Error"
-            print(
-                f"  • {status_icon} {b['name']:<12} [{b['provider']}]: {lat_str} ({b['recommended_role']})"
-            )
-        print()
-        return
-
-    # 5. Full automated diagnostics & interactive walkthrough
-    print("\n🔍 VoiceFi Audio & Voice Diagnostic Suite")
-    print("=" * 60)
-
-    # Hardware Check
-    hw = troubleshooter.get_hardware_diagnostics()
-    vad_res = troubleshooter.test_vad()
-    vad_detail = ""
-    if vad_res.get("status") == "ready":
-        d = vad_res.get("details", {})
-        vad_detail = f" (latency: {d.get('avg_latency_ms', 0.1):.3f}ms, ~{d.get('throughput_frames_per_sec', 0):.0f} fps)"
-    print("\n🖥️  [1/4] Audio Hardware & System:")
-    print(f"  • Platform:      {hw['os_platform']} {hw['os_release']} ({hw['machine_arch']})")
-    print(f"  • Default Mic:   {hw['default_input'] or 'None'}")
-    print(f"  • Default Spkr:  {hw['default_output'] or 'None'}")
-    print(f"  • VAD Engine:    {vad_res.get('engine', 'silero').upper()}{vad_detail}")
-    print(
-        f"  • Active Engine: {hw['tts_provider']} ({hw['tts_voice']}) at {hw['tts_rate']} WPM ({hw['tts_rate_pct']})"
-    )
-
-    # Speaker Output Chime Test
-    print("\n🔔 [2/4] Speaker Output & Alert System:")
-    print("  Playing test chime over default output device...")
-    spk_res = troubleshooter.test_speaker_output("start", block=True)
-    if spk_res["success"]:
-        print(f"  ✅ Speaker chime played successfully ({spk_res['latency_ms']} ms latency).")
-    else:
-        print(f"  ⚠️ Speaker chime failed: {spk_res['error']}")
-
-    # Active Voice Test
-    print("\n🔊 [3/4] Active Voice Persona Audition:")
-    v_res = troubleshooter.test_voice(
-        voice_name_or_id=hw["tts_voice"],
-        text="Voice test nominal. Audio output and latency are healthy.",
-        provider=hw["tts_provider"],
-        rate=hw["tts_rate"],
-        block=True,
-        show_hud=getattr(args, "hud", False),
-    )
-    if v_res.success:
-        print("  ✅ Active voice synthesized and played aloud.")
-        print(f"  ⚡ Latency (TTFB): {v_res.latency_ms} ms (Duration: {v_res.duration_s}s)")
-    else:
-        print(f"  ⚠️ Voice playback error: {v_res.error}")
-
-    # Interactive Mic Test if requested
-    if getattr(args, "interactive", False):
-        print("\n🎙️ [4/4] Interactive Microphone Test:")
-        try:
-            input("  Press Enter to begin 3-second mic recording (or Ctrl+C to skip)... ")
-            print("  🔴 RECORDING NOW (3s) — Speak a sentence clearly!")
-            mic_res = troubleshooter.test_microphone_loopback(duration_seconds=3.0, play_back=True)
-            if mic_res.success:
-                print(
-                    f"  ✅ Recorded {mic_res.duration_s}s. RMS Energy: {mic_res.rms_energy:.4f}, SNR: {mic_res.snr_db:.1f} dB"
-                )
-                print("  🔊 Playing back your voice over speakers...")
-                time.sleep(3.2)
-            else:
-                print(f"  ⚠️ Microphone loopback failed: {mic_res.error}")
-        except (KeyboardInterrupt, EOFError):
-            print("\n  Skipped mic loopback.")
-    else:
-        print("\n🎙️ [4/4] Microphone Diagnostics:")
-        print("  Tip: Run 'vg feedback-loop' or 'vg hearing-test' to test full roundtrip audio.")
-
-    # Summary Recommendations
-    full_report = troubleshooter.run_full_troubleshoot()
-    recs = full_report.get("recommendations", [])
-    print("\n📋 Troubleshooting Summary & Recommendations:")
-    if recs:
-        for r in recs:
-            print(f"  💡 {r}")
-    else:
-        print("  ✨ All voice, audio, and hardware subsystems are running at peak performance!")
-
-    print(
-        "\n🌐 Web Control Panel with live interactive tester: 'vg panel' (http://localhost:5141)\n"
-    )
+    return _cmd_troubleshoot(args)
 
 
 def cmd_hearing_test(args):
     """Run acoustic hearing test (speak aloud -> listen via mic -> STT verification)."""
-    args.voice_action = "test"
-    args.hearing = True
-    cmd_voice(args)
+    return _cmd_hearing_test(args)
 
 
 def cmd_feedback_loop(args):
     """Manage ProActive Feedback Loop setting (on/off/status) or run acoustic loop test."""
-    voice_arg = getattr(args, "voice", None)
-    action_arg = getattr(args, "action", None)
-    target = (action_arg or voice_arg or "").lower()
-
-    if target in ("on", "enable", "true", "1"):
-        cfg = load_config(getattr(args, "config", None))
-        cfg.proactive.feedback_loop.enabled = True
-        cfg.antigravity.auto_listen = True
-        save_config(cfg)
-        print("\n⚡ ProActive Feedback Loop: 🟢 ENABLED")
-        print(
-            "💡 The microphone will automatically open for your conversational turn after the agent speaks.\n"
-        )
-        return
-    elif target in ("off", "disable", "false", "0"):
-        cfg = load_config(getattr(args, "config", None))
-        cfg.proactive.feedback_loop.enabled = False
-        cfg.antigravity.auto_listen = False
-        save_config(cfg)
-        print("\n⚡ ProActive Feedback Loop: ⚪ DISABLED")
-        print("💡 Speech synthesis only. Use Ctrl+R or Ctrl+T to speak on-demand.\n")
-        return
-    elif target == "status":
-        cfg = load_config(getattr(args, "config", None))
-        status_str = "🟢 ENABLED" if cfg.proactive.feedback_loop.enabled else "⚪ DISABLED"
-        print(f"\n⚡ ProActive Feedback Loop Status: {status_str}")
-        print(
-            f"  • Turn Handoff: {'✅ Active' if cfg.proactive.feedback_loop.enabled else '⚪ Inactive'}"
-        )
-        print(f"  • Chime Cue: {'✅ On' if cfg.proactive.feedback_loop.chime_cue else '❌ Off'}")
-        print(f"  • Turn Timeout: {cfg.proactive.feedback_loop.timeout_seconds}s")
-        print(
-            f"  • Typing Guard: {'✅ Active' if cfg.proactive.feedback_loop.cancel_on_typing else '❌ Inactive'}"
-        )
-        print(
-            f"  • Multi-Channel Routing: {'✅ Active (Claude, Slack, Linear)' if cfg.proactive.intent_routing.enabled else '❌ Inactive'}\n"
-        )
-        return
-
-    # Otherwise run acoustic roundtrip verification test
-    args.voice_action = "test"
-    args.feedback_loop = True
-    cmd_voice(args)
+    return _cmd_feedback_loop(args)
 
 
 def cmd_loopback(args):
     """Alias for cmd_feedback_loop."""
-    cmd_feedback_loop(args)
+    return _cmd_loopback(args)
 
 
 def cmd_barge_in(args):
     """Run live interactive barge-in & Silero VAD interruption test."""
-    from voicefi.config import load_config
-    from voicefi.audio.recorder import AudioRecorder
-    from voicefi.tts import get_tts_engine, stop_all_speech, find_persona
-    from voicefi.audio.device import get_audio_device_profile
-    from voicefi.stt.whisper_local import WhisperLocalSTT
-    import threading
-
-    config = load_config()
-    prof = get_audio_device_profile()
-
-    target_voice = getattr(args, "voice", None) or config.tts.voice
-    persona = find_persona(target_voice)
-    resolved_voice = persona.id if persona else target_voice
-
-    default_test_phrase = (
-        "This is a live acoustic barge-in test with Silero VAD. "
-        "I will keep speaking aloud for several seconds so you can test interrupting me. "
-        "Whenever you are ready, speak firmly into your microphone now to cut me off!"
-    )
-    test_phrase = getattr(args, "text", None) or default_test_phrase
-
-    print("\n" + "=" * 65)
-    print("⚡ VoiceFi Active Voice Barge-In & Silero VAD Live Test")
-    print("=" * 65)
-    print(f"🎙️  Microphone:      {prof.get('default_input') or 'Default'}")
-    print(f"🔊 Output Device:   {prof.get('default_output') or 'Default'}")
-    print(
-        f"🎧 Device Profile:  {'Headphones / AirPods ✅' if prof.get('is_headphones_active') else 'Built-in Laptop Speakers (Acoustic Safe Mode)'}"
-    )
-    print(
-        f"🧠 VAD Engine:      {getattr(config.vad, 'engine', 'silero').upper()} (Threshold: {getattr(config.vad, 'speech_threshold', 0.5)})"
-    )
-    print("-" * 65)
-    print("👉 HOW THIS TEST WORKS:")
-    print("   1. VoiceFi will speak aloud through your speakers/headphones.")
-    print("   2. While it speaks, Silero VAD actively monitors your microphone.")
-    print("   3. Speak firmly into your microphone (e.g. 'Wait, stop right now!').")
-    print("   4. Agent speech will INSTANTLY cut off and transcribe your interruption.")
-    print("-" * 65)
-
-    recorder = AudioRecorder(
-        sample_rate=16000,
-        energy_threshold=config.vad.energy_threshold,
-        silence_duration=0.8,
-        max_record_seconds=15.0,
-        barge_in=True,
-        barge_in_sensitivity=config.vad.barge_in_sensitivity,
-        vad_engine=getattr(config.vad, "engine", "auto"),
-        speech_threshold=getattr(config.vad, "speech_threshold", 0.5),
-    )
-
-    barge_in_triggered = False
-    speech_detected = False
-
-    def on_barge():
-        nonlocal barge_in_triggered
-        barge_in_triggered = True
-        print(
-            "\n⚡ [BARGE-IN TRIGGERED] Silero neural VAD confirmed user speech -> Audio playback terminated!"
-        )
-
-    def on_speech_start():
-        nonlocal speech_detected
-        speech_detected = True
-        print("🎙️ [SPEECH ONSET] Recording user interruption prompt...")
-
-    def speak_in_background():
-        try:
-            tts = get_tts_engine(config, agent_name="BargeInTest", voice_override=resolved_voice)
-            tts.speak(test_phrase, block=True)
-        except Exception as e:
-            print(f"[TTS] Playback notice: {e}")
-
-    print("\n🔊 Starting agent speech playback...")
-    tts_thread = threading.Thread(target=speak_in_background, daemon=True)
-    tts_thread.start()
-
-    time.sleep(0.3)
-    print("🔴 Live mic monitoring active with Silero VAD (speak now to interrupt)...\n")
-
-    audio_data, wav_path = recorder.record_speech_auto(
-        on_barge_in=on_barge,
-        on_speech_start=on_speech_start,
-    )
-
-    stop_all_speech()
-
-    print("\n" + "=" * 65)
-    print("📊 Test Summary:")
-    if barge_in_triggered:
-        print("✅ Barge-In Status:   SUCCESSFULLY TRIGGERED & INTERRUPTED")
-    else:
-        print("ℹ️  Barge-In Status:   Not triggered (agent completed phrase without interruption)")
-
-    dur = len(audio_data) / 16000.0
-    print(f"⏱️  Captured Audio:   {dur:.2f} seconds")
-
-    if dur > 0.3 and speech_detected:
-        print("📝 Transcribing user speech with Whisper...")
-        try:
-            stt = WhisperLocalSTT()
-            transcript = stt.transcribe(wav_path)
-            if transcript:
-                print(f'💬 You said:         "{transcript}"')
-        except Exception as ex:
-            print(f"⚠️  Transcription note: {ex}")
-
-    if wav_path.exists():
-        wav_path.unlink(missing_ok=True)
-
-    print("=" * 65 + "\n")
+    return _cmd_barge_in(args)
 
 
 def cmd_ping(args):
     """Silently test voice connection, latency, speed, and health."""
-    args.voice_action = "ping"
-    cmd_voice(args)
+    return _cmd_ping(args)
 
 
 def run_silent_voice_ping(args, config):
     """Execute silent voice connection, latency, speed, and health diagnostics."""
-    import json
-    from voicefi.troubleshoot import AudioTroubleshooter, TEST_PHRASES
-    from voicefi.tts import CURATED_PERSONAS, find_persona
-
-    troubleshooter = AudioTroubleshooter(config)
-    as_json = getattr(args, "json", False)
-    all_personas = getattr(args, "all", False)
-    sample_text = (
-        getattr(args, "text", None) or "VoiceFi silent neural voice connection and speed test."
-    )
-    count = getattr(args, "count", 1) or 1
-    provider = getattr(args, "provider", None)
-    rate = getattr(args, "rate", None)
-
-    if all_personas:
-        if not as_json:
-            print("\n🌐 VoiceFi Neural Voice Connection & Speed Benchmark (Silent)\n")
-            print(
-                f"{'Persona':<14} {'ID / Voice':<28} {'Provider':<10} {'Status':<18} {'Latency':<10} {'Speed':<16} {'Payload'}"
-            )
-            print("-" * 108)
-
-        results = []
-        for p in CURATED_PERSONAS:
-            res = troubleshooter.ping_voice_silently(
-                voice_name_or_id=p.id,
-                text=sample_text,
-                provider=p.provider,
-            )
-            results.append(res.to_dict())
-            if not as_json:
-                status_icon = "🟢" if res.success else "🔴"
-                if res.status == "online":
-                    status_desc = "Online (200)"
-                elif res.status == "offline_native":
-                    status_desc = "Offline Native"
-                elif res.status == "rate_limited":
-                    status_desc = "Throttled (429)"
-                else:
-                    status_desc = "Error"
-                status_col = f"{status_icon} {status_desc}"
-                lat_str = f"{res.latency_ms:.1f} ms" if res.success else "Failed"
-                speed_str = f"{res.chars_per_sec:.1f} chars/s" if res.success else "N/A"
-                size_str = f"{res.audio_bytes / 1024.0:.1f} KB" if res.success else "0 KB"
-                print(
-                    f"{p.name:<14} {p.id:<28} {p.provider:<10} {status_col:<18} {lat_str:<10} {speed_str:<16} {size_str}"
-                )
-
-        if as_json:
-            print(json.dumps({"status": "success", "benchmark": results}, indent=2))
-        else:
-            print("-" * 108)
-            successful_lats = [r["latency_ms"] for r in results if r["success"]]
-            avg_lat = sum(successful_lats) / max(len(successful_lats), 1)
-            print(
-                f"✨ Benchmark complete. Curated voices tested: {len(results)} | Avg Latency: {avg_lat:.1f} ms | Zero audio emitted.\n"
-            )
-        return
-
-    # Single voice or target voice
-    target_voice = getattr(args, "voice", None) or config.tts.voice
-    persona = find_persona(target_voice)
-    resolved_voice = persona.id if persona else target_voice
-    resolved_name = persona.name if persona else target_voice
-    resolved_provider = provider or (persona.provider if persona else config.tts.provider)
-
-    if count > 1:
-        stats = troubleshooter.ping_multiple_silently(
-            voice_name_or_id=resolved_voice,
-            count=count,
-            text=sample_text,
-            provider=resolved_provider,
-            rate=rate,
-        )
-        if as_json:
-            print(json.dumps(stats, indent=2))
-            return
-
-        print("\n🌐 VoiceFi Silent Connection & Speed Test")
-        print(f"🎙️ Target: {resolved_name} (`{resolved_voice}`) | Provider: {resolved_provider}\n")
-        for idx, p in enumerate(stats["pings"], start=1):
-            s_icon = "🟢" if p["success"] else "🔴"
-            s_desc = (
-                "200 OK"
-                if p["status"] == "online"
-                else (
-                    "Offline Native"
-                    if p["status"] == "offline_native"
-                    else ("429 Rate Limit" if p["status"] == "rate_limited" else "Error")
-                )
-            )
-            size_kb = p["audio_bytes"] / 1024.0
-            print(
-                f"  • Ping {idx}: {s_icon} {s_desc:<14} — Latency: {p['latency_ms']:>6.1f} ms | Speed: {p['chars_per_sec']:>6.1f} chars/s ({p['words_per_min']:>5.0f} WPM) | Size: {size_kb:.1f} KB"
-            )
-
-        print(f"\n📊 Summary Statistics ({count} pings):")
-        print(
-            f"  • Success Rate:    {stats['success_rate_pct']}% ({stats['success_count']}/{count})"
-        )
-        if stats["success_count"] > 0:
-            print(
-                f"  • Latency (TTFB):  min = {stats['min_latency_ms']} ms | avg = {stats['avg_latency_ms']} ms | max = {stats['max_latency_ms']} ms (jitter: ±{stats['jitter_ms']} ms)"
-            )
-            print(f"  • Avg Throughput:  {stats['avg_chars_per_sec']} chars/s")
-            print("  • Connection:      🟢 Operational & responsive (zero speaker sound)\n")
-        else:
-            print(f"  • Errors:          {stats.get('errors')}\n")
-        return
-
-    # Single ping
-    res = troubleshooter.ping_voice_silently(
-        voice_name_or_id=resolved_voice,
-        text=sample_text,
-        provider=resolved_provider,
-        rate=rate,
-    )
-    if as_json:
-        print(json.dumps(res.to_dict(), indent=2))
-        return
-
-    print("\n🌐 VoiceFi Silent Connection & Speed Test")
-    print(f"🎙️ Voice: {resolved_name} (`{resolved_voice}`) | Provider: {resolved_provider}")
-    if res.success:
-        status_icon = "🟢"
-        status_label = (
-            "200 OK (Online)" if res.status == "online" else "Offline Native (macOS Apple Silicon)"
-        )
-        size_kb = res.audio_bytes / 1024.0
-        print(f"  • Status:      {status_icon} {status_label}")
-        print(f"  • Latency:     {res.latency_ms:.1f} ms roundtrip synthesis")
-        print(
-            f"  • Speed:       {res.chars_per_sec:.1f} chars/sec (~{res.words_per_min:.0f} WPM equivalent)"
-        )
-        print(f"  • Audio Size:  {size_kb:.1f} KB ({res.audio_bytes} bytes)")
-        print("  • Audio Check: ✅ Silent synthesis verified (no speaker playback)\n")
-    else:
-        status_label = (
-            "429 Too Many Requests (Rate Limited)"
-            if res.status == "rate_limited"
-            else f"Failed ({res.error})"
-        )
-        print(f"  • Status:      🔴 {status_label}")
-        print(f"  • Latency:     {res.latency_ms:.1f} ms")
-        print(f"  • Error:       {res.error}\n")
+from voicefi.cli_commands.voice import cmd_download_ava as _cmd_download_ava
+from voicefi.cli_commands.voice import cmd_voice as _cmd_voice
 
 
 def cmd_download_ava(args):
     """Guide user through downloading & configuring Apple's Ava (Premium) for 0ms offline speech."""
-    from voicefi.tts.offline import run_download_ava_workflow
-
-    auto_poll = not (getattr(args, "no_wait", False) or getattr(args, "no_poll", False))
-    timeout = getattr(args, "timeout", 300)
-    silent = getattr(args, "silent", False) or getattr(args, "quiet", False)
-    check_only = getattr(args, "check", False)
-
-    result = run_download_ava_workflow(
-        auto_poll=auto_poll,
-        timeout_seconds=timeout,
-        silent=silent,
-        check_only=check_only,
-    )
-    if check_only:
-        print(result.get("message", ""))
+    return _cmd_download_ava(args)
 
 
 def cmd_voice(args):
     """Handle voice inspection, testing, auditioning, assignment, and voice commands."""
-    subaction = getattr(args, "voice_action", None)
-    config = load_config(args.config)
+    return _cmd_voice(args)
 
-    if subaction in (
-        "download-ava",
-        "install-ava",
-        "setup-ava",
-        "get-ava",
-        "download_ava",
-        "setup-offline",
-        "offline",
-    ):
-        cmd_download_ava(args)
-        return
 
-    if subaction in ("ping", "check", "speed-test"):
-        run_silent_voice_ping(args, config)
-        return
-
-    if subaction in ("train", "clone"):
-        cmd_clone(args)
-        return
-
-    if subaction == "panel":
-        cmd_panel(args)
-        return
-
-    if subaction == "troubleshoot":
-        cmd_troubleshoot(args)
-        return
-
-    if subaction == "command":
-        from voicefi.ui.panel import parse_voice_command
-
-        cmd_text = (
-            " ".join(args.command_text)
-            if isinstance(args.command_text, list)
-            else str(args.command_text)
-        )
-        result = parse_voice_command(cmd_text, config)
-        print(f'\n🗣️ Voice Command: "{cmd_text}"')
-        print(f"📋 Result: {result.get('message', 'Done')}")
-        if result.get("action") == "audition":
-            vid = result.get("voice_id", result.get("voice"))
-            prov = result.get("provider", "edge_tts")
-            stext = result.get("sample_text", "Auditioning.")
-            eng = get_tts_engine(config, voice_override=vid, provider_override=prov)
-            eng.speak(stext, block=True)
-        elif result.get("speech_feedback"):
-            target_agent = result.get("target", "antigravity")
-            vid = result.get("voice_id") or result.get("voice")
-            prov = result.get("provider")
-            eng = get_tts_engine(
-                config,
-                agent_name=target_agent,
-                voice_override=vid,
-                provider_override=prov,
-            )
-            eng.speak(result["speech_feedback"], block=True)
-        print()
-        return
-
-    if subaction == "list":
-        provider = getattr(args, "provider", None)
-        show_all = getattr(args, "all", False)
-        print("\n🎭 Curated Agent Voice Personas:")
-        print(f"{'Persona':<14} {'ID / Voice':<28} {'Gender':<8} {'Locale':<8} {'Style / Role'}")
-        print("-" * 80)
-        personas = get_curated_personas(provider=provider)
-        for p in personas:
-            print(
-                f"{p.name:<14} {p.id:<28} {p.gender:<8} {p.locale:<8} {p.style} ({p.recommended_role})"
-            )
-
-        # Cloned voices
-        manager = VoiceCloneManager()
-        clones = manager.list_cloned_voices()
-        if clones:
-            print("\n🎙️ Custom Trained Voice Clones:")
-            for cv in clones:
-                v_range = cv.acoustic_metrics.get("vocal_range", "Custom Clone")
-                assigned = (
-                    f" -> assigned to: {', '.join(cv.assigned_agents)}"
-                    if cv.assigned_agents
-                    else ""
-                )
-                print(f"  • {cv.name:<12} [{cv.id}] ({cv.provider}) - {v_range}{assigned}")
-
-        if config.projects:
-            print("\n📁 Project-Specific Assigned Voices:")
-            for pk, pprof in config.projects.items():
-                p_obj = find_persona(pprof.voice)
-                p_disp = f"({p_obj.name})" if p_obj else ""
-                print(f"  • {pk:<16} -> {pprof.voice:<26} {p_disp} [{pprof.provider or config.tts.provider}]")
-
-        if show_all:
-            print("\n📋 Full Voice Catalog:")
-            all_voices = list_all_available_voices(provider=provider)
-            for v in all_voices:
-                if not v.get("curated") and not v.get("cloned"):
-                    print(f"  • {v['id']} ({v['provider']}, {v['locale']}) - {v['style']}")
-        print()
-
-    elif subaction == "test":
-        import time
-        from voicefi.troubleshoot import AudioTroubleshooter, TEST_PHRASES
-
-        # Silent mode requested on test command
-        if getattr(args, "silent", False):
-            run_silent_voice_ping(args, config)
-            return
-
-        # 1. Benchmark only (silent measurement by default)
-        if getattr(args, "benchmark", False):
-            troubleshooter = AudioTroubleshooter(config)
-            print("\n⚡ Benchmarking Voice Personas Latency & Speed (Silent)...")
-            benchmarks = troubleshooter.benchmark_all_curated_voices(silent=True)
-            for b in benchmarks:
-                status_icon = "🟢" if b["status"] in ("online", "offline_native") else "🔴"
-                lat_str = (
-                    f"{b['latency_ms']} ms"
-                    if b["status"] in ("online", "offline_native")
-                    else "Error"
-                )
-                speed_str = (
-                    f" | {b['chars_per_sec']:.1f} chars/s" if b.get("chars_per_sec", 0) > 0 else ""
-                )
-                print(
-                    f"  • {status_icon} {b['name']:<12} [{b['provider']}]: {lat_str}{speed_str} ({b['recommended_role']})"
-                )
-            print()
-            return
-
-        # 2. Audition all personas
-        if getattr(args, "all", False):
-            print("\n🎬 Auditioning All Curated Personas...")
-            troubleshooter = AudioTroubleshooter(config)
-            for p in CURATED_PERSONAS:
-                print(f"\n🎙️ Voice: {p.name} ({p.id}) — Role: {p.recommended_role}")
-                print(f'   "{p.sample_text}"')
-                res = troubleshooter.test_voice(
-                    p.id, text=p.sample_text, provider=p.provider, block=True
-                )
-                if res.success:
-                    print(f"   ✅ Latency: {res.latency_ms} ms (Duration: {res.duration_s}s)")
-                else:
-                    print(f"   ❌ Error: {res.error}")
-                time.sleep(0.3)
-            print("\n✨ Auditions complete.\n")
-            return
-
-        # 3. Resolve target voice, text, provider, rate
-        voice_id = getattr(args, "voice", None)
-        target_voice = voice_id or config.tts.voice
-        persona = find_persona(target_voice)
-        resolved_voice = persona.id if persona else target_voice
-        sample_text = args.text
-        if not sample_text:
-            phrase_key = getattr(args, "phrase", None)
-            if phrase_key and phrase_key in TEST_PHRASES:
-                sample_text = TEST_PHRASES[phrase_key]
-            else:
-                sample_text = (
-                    persona.sample_text
-                    if persona
-                    else f"Testing voice {target_voice} with VoiceFi."
-                )
-
-        provider = args.provider or (persona.provider if persona else config.tts.provider)
-        rate_override = getattr(args, "rate", None)
-        resolved_rate = None
-        if rate_override is not None:
-            val_s = str(rate_override).strip().lower()
-            if val_s.endswith("%"):
-                try:
-                    pct = float(val_s[:-1])
-                    resolved_rate = max(min(int(round(200 * (pct / 100.0))), 350), 80)
-                except ValueError:
-                    resolved_rate = 150
-            else:
-                try:
-                    num = float(val_s)
-                    resolved_rate = max(
-                        min(
-                            int(round(200 * (num / 100.0))) if 0 < num <= 120 else int(round(num)),
-                            350,
-                        ),
-                        80,
-                    )
-                except ValueError:
-                    resolved_rate = None
-
-        # 4. Hearing test (Acoustic verification)
-        if getattr(args, "hearing", False) or getattr(args, "hearing_test", False):
-            troubleshooter = AudioTroubleshooter(config)
-            as_json = getattr(args, "json", False)
-            show_hud = getattr(args, "hud", False)
-            if not as_json:
-                print("\n👂 Running Hearing Test (Acoustic Reception & STT Check)...")
-                print(f"🎙️ Playing test voice '{resolved_voice}' aloud over speakers...")
-                print(f'💬 Test Phrase: "{sample_text}"\n')
-            res = troubleshooter.test_hearing(
-                voice_name_or_id=resolved_voice,
-                text=sample_text,
-                provider=provider,
-                rate=resolved_rate,
-                show_hud=show_hud,
-            )
-            if as_json:
-                import json
-
-                print(json.dumps(res.to_dict(), indent=2))
-                return
-            if res.success:
-                print("=================================================================")
-                print("👂 Hearing Test Results:")
-                print(f'  • Spoken Phrase:  "{res.sent_text}"')
-                print(f'  • Heard via Mic:  "{res.heard_text}"')
-                print(f"  • Reception Match: {res.similarity_pct}%")
-                print(f"  • Audio Latency:  {res.latency_ms} ms (RMS Energy: {res.rms_energy})")
-                print("=================================================================\n")
-            else:
-                print(f"❌ Hearing test failed: {res.error}\n")
-            return
-
-        # 5. Feedback loop test (Speak -> Listen -> Transcribe -> Send)
-        if (
-            getattr(args, "feedback_loop", False)
-            or getattr(args, "loopback", False)
-            or getattr(args, "full_loop", False)
-            or getattr(args, "verify", False)
-        ):
-            troubleshooter = AudioTroubleshooter(config)
-            if (
-                args.text
-                or getattr(args, "phrase", None)
-                or getattr(args, "voice", None)
-                or getattr(args, "verify", False)
-                or getattr(args, "feedback_loop", False)
-            ):
-                as_json = getattr(args, "json", False)
-                show_hud = getattr(args, "hud", False)
-                no_send = getattr(args, "no_send", False)
-                target_cid = getattr(args, "conv_id", None)
-                if not as_json:
-                    print(
-                        "\n🔄 Running Feedback Loop Test (Speak -> Listen -> Transcribe -> Send)..."
-                    )
-                    print(f"🎙️ Step 1: Speaking aloud as '{resolved_voice}' over speakers...")
-                    print(f'💬 Outbound Message: "{sample_text}"\n')
-                res = troubleshooter.test_feedback_loop(
-                    voice_name_or_id=resolved_voice,
-                    text=sample_text,
-                    provider=provider,
-                    rate=resolved_rate,
-                    send_to_conversation=(not no_send),
-                    conv_id=target_cid,
-                    show_hud=show_hud,
-                )
-                if as_json:
-                    import json
-
-                    print(json.dumps(res, indent=2))
-                    return
-                print("=================================================================")
-                print("🎙️ Feedback Loop Test Results:")
-                print(f'  • Sent Message:   "{res.get("sent_text")}"')
-                print(f'  • Heard via Mic:  "{res.get("heard_text")}"')
-                print(f"  • Accuracy Match: {res.get('similarity_pct')}%")
-                print(
-                    f"  • Audio Latency:  {res.get('latency_ms')} ms (RMS: {res.get('rms_energy')})"
-                )
-                if no_send:
-                    delivered_str = "Dry-run / No send (--no-send) 🔍"
-                else:
-                    delivered_str = (
-                        "Delivered to chat conversation ✅"
-                        if res.get("sent_to_agent")
-                        else "Printed to terminal ✅"
-                    )
-                print(f"  • Dispatch:       {delivered_str}")
-                print("=================================================================\n")
-                return
-
-            print("\n🎙️ Running Microphone Loopback Test...")
-            print("🔔 Ready... Recording begins in 1 second!")
-            time.sleep(1.0)
-            print("🔴 RECORDING NOW (4.0s) — Speak a sentence clearly into your microphone!")
-            res = troubleshooter.test_microphone_loopback(duration_seconds=4.0, play_back=True)
-            if res.success:
-                print(f"✅ Captured {res.duration_s}s audio at {res.sample_rate}Hz.")
-                print(
-                    f"📊 RMS Energy: {res.rms_energy:.4f}, Peak: {res.peak_amplitude:.3f}, SNR: {res.snr_db:.1f} dB"
-                )
-                status = "Speech detected ✅" if res.speech_detected else "Quiet / Low audio ⚠️"
-                print(f"🎙️ Detection: {status}")
-                print("🔊 Playing your voice back over speakers now...")
-                time.sleep(4.2)
-                print("✨ Loopback playback complete.\n")
-            else:
-                print(f"❌ Microphone test failed: {res.error}\n")
-            return
-
-        # Barge-in interactive test
-        if getattr(args, "barge_in", False) or getattr(args, "test_barge_in", False):
-            cmd_barge_in(args)
-            return
-
-        # 6. Standard voice audition
-        print(f"\n🔊 Auditioning voice: '{target_voice}' (Provider: {provider})")
-        print(f'💬 Sample: "{sample_text}"')
-
-        troubleshooter = AudioTroubleshooter(config)
-        res = troubleshooter.test_voice(
-            voice_name_or_id=resolved_voice,
-            text=sample_text,
-            provider=provider,
-            rate=resolved_rate,
-            block=True,
-            show_hud=getattr(args, "hud", False),
-        )
-        if res.success:
-            print(
-                f"✅ Audition finished. Latency: {res.latency_ms} ms, Duration: {res.duration_s}s.\n"
-            )
-        else:
-            print(f"❌ Audition failed: {res.error}\n")
-
-    elif subaction == "audition":
-        print("\n🎬 Starting VoiceFi Multi-Agent Voice Audition Showcase...\n")
-        audition_cast = [
-            (
-                "Viv",
-                "en-US-AvaNeural",
-                "edge_tts",
-                "Antigravity Primary Agent",
-                "Hey! I'm Viv. Expressive, natural, and conversational tone, great for pair programming and deep focus.",
-            ),
-            (
-                "Christopher",
-                "en-US-ChristopherNeural",
-                "edge_tts",
-                "Architect / Deep Focus",
-                "Hey! I'm Christopher. My calm, low-latency neural tone is great for deep focus and long coding sessions.",
-            ),
-            (
-                "Aria",
-                "en-US-EmmaNeural",
-                "edge_tts",
-                "Second Voice (Obsidian / Knowledge Vault)",
-                "Hello! I'm Aria. I'm quick, expressive, and connected directly to your Obsidian knowledge vault.",
-            ),
-            (
-                "Sonia",
-                "en-GB-SoniaNeural",
-                "edge_tts",
-                "Researcher Subagent",
-                "Greetings. I am Sonia. My clear British delivery is well suited for code audits and architecture reviews.",
-            ),
-            (
-                "Guy",
-                "en-US-GuyNeural",
-                "edge_tts",
-                "Conversational Pair",
-                "Hey there! I'm Guy. I've got a casual, conversational delivery that feels like pair programming with a friend.",
-            ),
-        ]
-
-        for name, vid, prov, role, text in audition_cast:
-            print(f"🎙️ Playing Persona: {name} [{vid}] — Recommended for: {role}")
-            print(f'   "{text}"')
-            try:
-                eng = get_tts_engine(config, voice_override=vid, provider_override=prov)
-                eng.speak(text, block=True)
-            except Exception as e:
-                print(f"   ⚠️ Could not speak {name}: {e}")
-            import time
-
-            time.sleep(0.3)
-
-        print(
-            "\n✨ Audition showcase complete! Assign a voice using: 'vg voice set <agent> <voice_name>'\n"
-        )
-
-    elif subaction == "set":
-        agent_raw = args.agent.strip() if args.agent else ""
-        voice_raw = args.voice.strip() if getattr(args, "voice", None) else None
-
-        known_agent_names = {
-            "antigravity",
-            "claude",
-            "cursor",
-            "windsurf",
-            "obsidian",
-            "vault",
-            "researcher",
-            "debugger",
-            "architect",
-            "tester",
-            "writer",
-            "analyst",
-            "default",
-            "global",
-            "all",
-        }
-
-        # Case A: Only 1 positional argument passed (e.g. 'vifi voice set viv' or 'vifi voice set en-US-AvaNeural')
-        if not voice_raw:
-            p = find_persona(agent_raw)
-            if p:
-                target = "default"
-                voice_id = p.id
-                persona = p
-            elif agent_raw.lower() in ("default", "global", "all"):
-                print("⚠️ Please specify a voice to assign. Example: 'vg voice set default viv'")
-                return
-            elif agent_raw.lower() in known_agent_names or agent_raw.lower().startswith("subagent"):
-                print(
-                    f"⚠️ Please specify a voice to assign to '{agent_raw}'. Example: 'vg voice set {agent_raw} viv'"
-                )
-                return
-            else:
-                target = "default"
-                voice_id = agent_raw
-                persona = find_persona(voice_id)
-        else:
-            # Case B: 2 positional arguments passed (e.g. 'vifi voice set antigravity viv' or reversed 'vifi voice set viv antigravity')
-            p_first = find_persona(agent_raw)
-            if p_first and voice_raw.lower() in known_agent_names:
-                target = voice_raw.lower().strip()
-                voice_id = agent_raw
-                persona = p_first
-            else:
-                target = agent_raw.lower().strip()
-                voice_id = voice_raw
-                persona = find_persona(voice_id)
-
-        resolved_voice = persona.id if persona else voice_id
-        resolved_provider = args.provider or (persona.provider if persona else "edge_tts")
-        rate_arg = getattr(args, "rate", None)
-        resolved_rate = None
-        if rate_arg is not None:
-            val_s = str(rate_arg).strip().lower()
-            if val_s.endswith("%"):
-                try:
-                    pct = float(val_s[:-1])
-                    resolved_rate = max(min(int(round(200 * (pct / 100.0))), 350), 80)
-                except ValueError:
-                    resolved_rate = 150
-            else:
-                try:
-                    num = float(val_s)
-                    resolved_rate = max(
-                        min(
-                            int(round(200 * (num / 100.0))) if 0 < num <= 120 else int(round(num)),
-                            350,
-                        ),
-                        80,
-                    )
-                except ValueError:
-                    resolved_rate = None
-
-        from voicefi.config import AgentVoiceProfile
-
-        profile = AgentVoiceProfile(
-            voice=resolved_voice,
-            provider=resolved_provider,
-            rate=resolved_rate,
-            description=f"Assigned to {target}",
-        )
-
-        is_project = getattr(args, "project", False) is True
-        subagent_roles = {"researcher", "debugger", "architect", "tester", "writer", "analyst"}
-        if is_project or target.startswith("project.") or target.startswith("project_"):
-            clean_proj = target.replace("project.", "").replace("project_", "").lower().strip()
-            config.projects[clean_proj] = profile
-            target_desc = f"project '{clean_proj}'"
-        elif target in subagent_roles or target.startswith("subagent"):
-            clean_role = target.replace("subagent.", "").replace("subagent_", "")
-            config.subagents[clean_role] = profile
-            target_desc = f"subagent '{clean_role}'"
-        elif target in ("default", "global", "all"):
-            config.tts.voice = resolved_voice
-            config.tts.provider = resolved_provider
-            if resolved_rate:
-                config.tts.rate = resolved_rate
-            config.agents["antigravity"] = AgentVoiceProfile(
-                voice=resolved_voice,
-                provider=resolved_provider,
-                rate=resolved_rate,
-                description="Assigned to antigravity (default)",
-            )
-            target_desc = "global default & primary agent (antigravity)"
-        elif target in config.projects:
-            config.projects[target.lower().strip()] = profile
-            target_desc = f"project '{target}'"
-        else:
-            config.agents[target] = profile
-            target_desc = f"agent '{target}'"
-
-        save_config(config)
-        rate_info = f" at {resolved_rate} WPM" if resolved_rate else ""
-        print(
-            f"✅ Successfully assigned {target_desc} to voice: '{resolved_voice}' ({resolved_provider}){rate_info}"
-        )
-
-        # Speak confirmation greeting aloud in the assigned voice
-        if not getattr(args, "quiet", False) and not getattr(args, "silent", False):
-            display_name = persona.name if persona else resolved_voice
-            if "-" in display_name and "Neural" in display_name:
-                display_name = display_name.split("-")[-1].replace("Neural", "")
-            elif "(" in display_name:
-                display_name = display_name.split("(")[0].strip()
-
-            user_name = getattr(config, "user_name", "")
-            agent_display = target.replace("_", " ").title()
-            custom_phrase = getattr(args, "text", None)
-
-            if custom_phrase:
-                phrase = custom_phrase
-            elif is_project or target in config.projects:
-                clean_p_name = target.replace("project.", "").replace("project_", "").title()
-                if user_name:
-                    phrase = (
-                        f"Hi {user_name}! I'm {display_name}, and I'm ready to speak for project {clean_p_name}."
-                    )
-                else:
-                    phrase = f"Hi! I'm {display_name}, and I'm ready to speak for project {clean_p_name}."
-            elif target in ("default", "global", "all"):
-                if user_name:
-                    phrase = (
-                        f"Hi {user_name}! I'm {display_name}, and I'm ready as your default voice."
-                    )
-                else:
-                    phrase = f"Hi! I'm {display_name}, and I'm ready as your default voice."
-            elif user_name:
-                phrase = f"Hi {user_name}! I'm {display_name}, and I'm ready to speak for {agent_display}."
-            else:
-                phrase = f"Hi! I'm {display_name}, and I'm ready to speak for {agent_display}."
-
-            print(f'🔊 Playing confirmation: "{phrase}"')
-            try:
-                eng = get_tts_engine(
-                    config,
-                    agent_name="antigravity" if target in ("default", "global", "all") else target,
-                    voice_override=resolved_voice,
-                    provider_override=resolved_provider,
-                    rate_override=resolved_rate,
-                )
-                eng.speak(phrase, block=True)
-            except Exception as e:
-                print(f"⚠️ Could not play spoken confirmation: {e}")
-
-    elif subaction in ("rate", "speed"):
-        raw_val = getattr(args, "value", None)
-        if not raw_val:
-            print(
-                f"\n🎙️ Current Speech Rate: {config.tts.rate} WPM ({int(round((config.tts.rate / 200.0) * 100))}% speed)"
-            )
-            if "antigravity" in config.agents and config.agents["antigravity"].rate:
-                ag_rate = config.agents["antigravity"].rate
-                print(
-                    f"  • Antigravity Rate: {ag_rate} WPM ({int(round((ag_rate / 200.0) * 100))}% speed)"
-                )
-            print("To change speed: vg voice speed 75%  (or vg voice rate 150)\n")
-            return
-
-        agent_target = getattr(args, "agent", None)
-        val_str = str(raw_val).strip().lower()
-        if val_str in ("reset", "default", "normal"):
-            new_rate = 200
-            desc = "100% (200 WPM)"
-        elif val_str in ("faster", "speedup"):
-            new_rate = min(config.tts.rate + 25, 350)
-            desc = f"{new_rate} WPM ({int(round((new_rate / 200.0) * 100))}%)"
-        elif val_str in ("slower", "slowdown"):
-            new_rate = max(config.tts.rate - 25, 100)
-            desc = f"{new_rate} WPM ({int(round((new_rate / 200.0) * 100))}%)"
-        elif val_str.endswith("%"):
-            try:
-                pct = float(val_str[:-1])
-                if val_str.startswith(("+", "-")):
-                    new_rate = max(min(int(round(200 * (1.0 + pct / 100.0))), 350), 80)
-                    desc = f"{val_str} ({new_rate} WPM)"
-                else:
-                    new_rate = max(min(int(round(200 * (pct / 100.0))), 350), 80)
-                    desc = f"{int(pct)}% ({new_rate} WPM)"
-            except ValueError:
-                new_rate = 150
-                desc = "75% (150 WPM)"
-        else:
-            try:
-                num = float(val_str)
-                if num <= 120 and num > 0:
-                    new_rate = max(min(int(round(200 * (num / 100.0))), 350), 80)
-                    desc = f"{int(num)}% ({new_rate} WPM)"
-                elif num < 0:
-                    new_rate = max(min(int(round(200 * (1.0 + num / 100.0))), 350), 80)
-                    desc = f"{int(num)}% ({new_rate} WPM)"
-                else:
-                    new_rate = max(min(int(round(num)), 350), 80)
-                    desc = f"{new_rate} WPM ({int(round((new_rate / 200.0) * 100))}%)"
-            except ValueError:
-                print(f"⚠️ Invalid rate value: {raw_val}. Example: '75%', '150', 'faster'")
-                return
-
-        if agent_target:
-            target = agent_target.lower().strip()
-            if target in config.agents:
-                config.agents[target].rate = new_rate
-            elif target in config.subagents:
-                config.subagents[target].rate = new_rate
-            else:
-                config.agents[target] = AgentVoiceProfile(rate=new_rate)
-            print(f"✅ Set voice speed for '{target}' to {desc}")
-        else:
-            config.tts.rate = new_rate
-            if "antigravity" in config.agents:
-                config.agents["antigravity"].rate = new_rate
-            print(f"✅ Set global voice speed to {desc}")
-
-        save_config(config)
-
-    elif subaction == "get":
-        print("\n🎙️ Active Voice Assignments:")
-        print(
-            f"  • Global Default: {config.tts.voice} ({config.tts.provider}) - Rate: {config.tts.rate} WPM ({int(round((config.tts.rate / 200.0) * 100))}%)"
-        )
-        if config.agents:
-            print("\n  Agents:")
-            for a_name, a_prof in config.agents.items():
-                a_rate = a_prof.rate or config.tts.rate
-                print(
-                    f"    - {a_name}: {a_prof.voice} ({a_prof.provider or config.tts.provider}) - Rate: {a_rate} WPM ({int(round((a_rate / 200.0) * 100))}%)"
-                )
-        if config.subagents:
-            print("\n  Subagents:")
-            for s_name, s_prof in config.subagents.items():
-                s_rate = s_prof.rate or config.tts.rate
-                print(
-                    f"    - {s_name}: {s_prof.voice} ({s_prof.provider or config.tts.provider}) - Rate: {s_rate} WPM ({int(round((s_rate / 200.0) * 100))}%)"
-                )
-        if config.projects:
-            print("\n  Projects:")
-            for p_name, p_prof in config.projects.items():
-                p_rate = p_prof.rate or config.tts.rate
-                print(
-                    f"    - {p_name}: {p_prof.voice} ({p_prof.provider or config.tts.provider}) - Rate: {p_rate} WPM ({int(round((p_rate / 200.0) * 100))}%)"
-                )
-        print()
-    elif subaction in ("speed-talk", "speedtalk", "speed_talk"):
-        cmd_speed_talk(args)
-        return
-    else:
-        print("Use: vg voice [list|test|audition|set|get|rate|speed|speed-talk|train] --help")
+from voicefi.cli_commands.speed_talk import cmd_speed_talk as _cmd_speed_talk
 
 
 def cmd_speed_talk(args):
     """Handle Speed Talking acceleration, preset configuration, testing, and analytics."""
-    config = load_config(getattr(args, "config", None))
-    from voicefi.audio.speed_talk import (
-        SPEED_PRESETS,
-        resolve_speed_multiplier,
-        multiplier_to_wpm,
-        multiplier_to_edge_rate,
-        calculate_time_saved,
-    )
-    from voicefi.analytics.queries import get_speed_talking_analytics
-
-    action = getattr(args, "action", None)
-    if action:
-        action = action.lower().strip()
-
-    # Direct flag overrides
-    if getattr(args, "enable", False) or getattr(args, "on", False):
-        action = "on"
-    elif getattr(args, "disable", False) or getattr(args, "off", False):
-        action = "off"
-    elif getattr(args, "stats", False):
-        action = "stats"
-    elif getattr(args, "demo", False):
-        action = "demo"
-    elif getattr(args, "ramp", False):
-        action = "ramp"
-    elif getattr(args, "test", False):
-        action = "test"
-
-    # If first argument is a preset name or multiplier e.g. 'vifi speed-talk fast' or 'vifi speed-talk 1.75x'
-    if action in SPEED_PRESETS or (
-        action
-        and (
-            action.endswith("x")
-            or action.endswith("%")
-            or action.replace(".", "", 1).isdigit()
-        )
-    ):
-        target_preset = action
-        action = "set"
-        args.preset_or_multiplier = target_preset
-
-    if action in ("on", "enable", "start"):
-        config.speed_talking.enabled = True
-        val = getattr(args, "preset_or_multiplier", None) or getattr(args, "preset", None)
-        if val:
-            mult = resolve_speed_multiplier(val)
-            config.speed_talking.multiplier = mult
-            matched_preset = "fast"
-            for pk, pv in SPEED_PRESETS.items():
-                if abs(pv["multiplier"] - mult) < 0.05:
-                    matched_preset = pk
-                    break
-            config.speed_talking.preset = matched_preset
-
-        save_config(config)
-        wpm = multiplier_to_wpm(config.speed_talking.multiplier)
-        print("\n⚡ \033[1;32mSpeed Talking Enabled!\033[0m")
-        print(f"  • Multiplier: \033[1;36m{config.speed_talking.multiplier}x\033[0m ({wpm} WPM)")
-        print(f"  • Preset:     \033[1m{config.speed_talking.preset.title()}\033[0m")
-        print(
-            f"  • Pauses:     {'Tight Micro-Compression (150ms)' if config.speed_talking.compress_pauses else 'Standard'}"
-        )
-        print("  All agent responses and turn summaries will now stream at high velocity.\n")
-
-        if not getattr(args, "silent", False) and not getattr(args, "quiet", False):
-            try:
-                eng = get_tts_engine(config, speed_override=config.speed_talking.multiplier)
-                eng.speak(
-                    f"Speed talking is active at {config.speed_talking.multiplier}x speed.",
-                    block=True,
-                )
-            except Exception:
-                pass
-        return
-
-    if action in ("off", "disable", "stop"):
-        config.speed_talking.enabled = False
-        save_config(config)
-        print("\n🛑 \033[1;33mSpeed Talking Disabled.\033[0m")
-        print("  Speech rate restored to baseline 1.0x (200 WPM).\n")
-        return
-
-    if action in ("set", "preset"):
-        val = getattr(args, "preset_or_multiplier", None) or getattr(args, "preset", None)
-        if not val:
-            print(
-                "⚠️ Please specify a speed preset or multiplier (e.g. 'vifi speed-talk set turbo' or 'vifi speed-talk 1.75x')."
-            )
-            return
-        mult = resolve_speed_multiplier(val)
-        config.speed_talking.multiplier = mult
-        config.speed_talking.enabled = True
-        matched_preset = "fast"
-        for pk, pv in SPEED_PRESETS.items():
-            if abs(pv["multiplier"] - mult) < 0.05:
-                matched_preset = pk
-                break
-        config.speed_talking.preset = matched_preset
-        save_config(config)
-        wpm = multiplier_to_wpm(mult)
-        print(f"\n⚡ \033[1;32mSpeed Talking set to {matched_preset.upper()} ({mult}x / {wpm} WPM)\033[0m")
-        print("  Configuration saved to ~/.voicefi/config.yaml.\n")
-        if not getattr(args, "silent", False) and not getattr(args, "quiet", False):
-            try:
-                eng = get_tts_engine(config, speed_override=mult)
-                eng.speak(f"Speed set to {mult}x velocity.", block=True)
-            except Exception:
-                pass
-        return
-
-    if action in ("list", "presets"):
-        print("\n⚡ Curated Speed Talking Presets:")
-        print(f"{'Preset':<14} {'Multiplier':<12} {'WPM':<10} {'Edge Rate':<12} {'Description'}")
-        print("-" * 80)
-        for pk, pv in SPEED_PRESETS.items():
-            active_marker = (
-                " 👈 ACTIVE"
-                if (
-                    config.speed_talking.enabled
-                    and abs(config.speed_talking.multiplier - pv["multiplier"]) < 0.05
-                )
-                else ""
-            )
-            print(
-                f"{pv['icon']} {pk:<12} {pv['multiplier']:<12.2f} {pv['wpm']:<10} {pv['edge_rate']:<12} {pv['description']}{active_marker}"
-            )
-        print()
-        return
-
-    if action == "test":
-        target_val = (
-            getattr(args, "preset_or_multiplier", None)
-            or getattr(args, "preset", None)
-            or config.speed_talking.multiplier
-        )
-        mult = resolve_speed_multiplier(target_val)
-        wpm = multiplier_to_wpm(mult)
-        sample_text = (
-            getattr(args, "text", None)
-            or f"Testing VoiceFi speed talking at {mult}x velocity. Consonants remain crisp, natural, and highly intelligible."
-        )
-        print(f"\n🎙️ Testing Speed Talking: \033[1;36m{mult}x\033[0m ({wpm} WPM)")
-        print(f'💬 Phrase: "{sample_text}"\n')
-        eng = get_tts_engine(config, speed_override=mult)
-        eng.speak(sample_text, block=True)
-        return
-
-    if action == "ramp":
-        target_val = (
-            getattr(args, "preset_or_multiplier", None)
-            or getattr(args, "preset", None)
-            or 1.75
-        )
-        target_mult = resolve_speed_multiplier(target_val)
-        sample_text = getattr(args, "text", None) or (
-            "This phrase demonstrates dynamic speed ramping in VoiceFi. "
-            "We start at normal conversational pace so your ears tune in easily, "
-            "and smoothly escalate into high velocity turbo playback without losing any syllable clarity."
-        )
-        print(f"\n🚀 Auditioning Dynamic Speed Ramping (1.0x ➔ {target_mult}x)...")
-        print(f'💬 Phrase: "{sample_text}"\n')
-        from voicefi.audio.speed_talk import dynamic_ramp_audio
-        import tempfile
-        import subprocess
-
-        with tempfile.NamedTemporaryFile(
-            suffix=".mp3", delete=False
-        ) as tf_in, tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf_out:
-            in_p = Path(tf_in.name)
-            out_p = Path(tf_out.name)
-        try:
-            eng = get_tts_engine(config, speed_override=1.0)
-            if hasattr(eng, "speak_to_file") and eng.speak_to_file(sample_text, in_p):
-                dynamic_ramp_audio(
-                    in_p,
-                    out_p,
-                    start_multiplier=1.0,
-                    target_multiplier=target_mult,
-                    ramp_duration_s=2.5,
-                )
-                subprocess.run(["afplay", str(out_p)], check=True)
-            else:
-                eng_fast = get_tts_engine(config, speed_override=target_mult)
-                eng_fast.speak(sample_text, block=True)
-        finally:
-            in_p.unlink(missing_ok=True)
-            out_p.unlink(missing_ok=True)
-        return
-
-    if action == "demo":
-        print("\n🎬 \033[1mVoiceFi Speed Talking Multi-Velocity Showcase\033[0m")
-        print("Escalating across speed presets to demonstrate intelligibility:\n")
-        demo_steps = [
-            ("normal", 1.0, "1.0x Normal baseline: standard conversational delivery."),
-            ("breezy", 1.25, "1.25x Breezy pace: effortless acceleration with zero cognitive load."),
-            (
-                "fast",
-                1.5,
-                "1.5x Developer fast: the recommended sweet spot saving thirty-three percent time.",
-            ),
-            (
-                "turbo",
-                1.75,
-                "1.75x Turbo velocity: high-speed response streaming with full clarity.",
-            ),
-            (
-                "sonic",
-                2.0,
-                "2.0x Double speed sonic: cutting your audio listening duration strictly in half.",
-            ),
-            (
-                "warp",
-                2.5,
-                "2.5x Warp speed: ultra-rapid soundbite delivery for power developers.",
-            ),
-        ]
-        for name, mult, phrase in demo_steps:
-            wpm = multiplier_to_wpm(mult)
-            print(f"  • \033[1;36m{name.upper()} ({mult}x / {wpm} WPM)\033[0m: \"{phrase}\"")
-            try:
-                eng = get_tts_engine(config, speed_override=mult)
-                eng.speak(phrase, block=True)
-            except Exception as e:
-                print(f"    ⚠️ Playback error: {e}")
-            import time
-
-            time.sleep(0.3)
-        print("\n✨ Speed Talking showcase complete!\n")
-        return
-
-    if action == "stats":
-        analytics = get_speed_talking_analytics(days=30)
-        print("\n⚡ \033[1mVoiceFi Speed Talking Analytics (Last 30 Days)\033[0m")
-        print("==================================================================")
-        print(
-            f"  • Active Status:          {'🟢 Enabled' if config.speed_talking.enabled else '⚪ Disabled'}"
-        )
-        print(
-            f"  • Configured Multiplier:  {config.speed_talking.multiplier}x ({multiplier_to_wpm(config.speed_talking.multiplier)} WPM)"
-        )
-        print(f"  • Active Preset:          {config.speed_talking.preset.title()}")
-        print(f"  • Total Accelerated Turns:{analytics['total_speed_turns']}")
-        print(f"  • Average Speed Used:     {analytics['avg_multiplier']}x")
-        print(
-            f"  • Cumulative Time Saved:  \033[1;32m{analytics['total_minutes_saved']} minutes\033[0m ({analytics['total_hours_saved']} hours)"
-        )
-        print("==================================================================\n")
-        return
-
-    # Default: Show Speed Talking status overview card
-    analytics = get_speed_talking_analytics(days=30)
-    wpm = multiplier_to_wpm(config.speed_talking.multiplier)
-    print("\n╭" + "─" * 66 + "╮")
-    print("│ ⚡ \033[1mVoiceFi Speed Talking • Productivity Voice Engine\033[0m            │")
-    print("╰" + "─" * 66 + "╯")
-    print(
-        f"  • Status:           {'🟢 \033[1;32mACTIVE\033[0m' if config.speed_talking.enabled else '⚪ \033[2mDisabled\033[0m (1.0x baseline)'}"
-    )
-    print(
-        f"  • Speed Multiplier: \033[1;36m{config.speed_talking.multiplier}x\033[0m ({wpm} WPM / {multiplier_to_edge_rate(config.speed_talking.multiplier)})"
-    )
-    print(f"  • Preset:           \033[1m{config.speed_talking.preset.title()}\033[0m")
-    print(
-        f"  • Pause Reduction:  {'Tight Micro-Compression (150ms)' if config.speed_talking.compress_pauses else 'Disabled'}"
-    )
-    print(
-        f"  • Clarity Boost:    {'High-Frequency Consonant Presence EQ' if config.speed_talking.enhance_clarity else 'Off'}"
-    )
-    print(
-        f"  • 30-Day Time Saved:\033[1;32m+{analytics['total_minutes_saved']} mins\033[0m ({analytics['total_hours_saved']} hrs saved)"
-    )
-    print("\n👉 \033[1mQuick Commands:\033[0m")
-    print("   • \033[1;36mvifi speed-talk on\033[0m           Enable speed talking globally")
-    print(
-        "   • \033[1;36mvifi speed-talk set turbo\033[0m    Set preset (normal, breezy, fast, turbo, sonic, warp)"
-    )
-    print("   • \033[1;36mvifi speed-talk 1.75x\033[0m        Set exact speed multiplier")
-    print("   • \033[1;36mvifi speed-talk test\033[0m         Audition at current speed")
-    print("   • \033[1;36mvifi speed-talk demo\033[0m         Play multi-speed showcase")
-    print("   • \033[1;36mvifi speed-talk off\033[0m          Restore standard 1.0x speed\n")
-
-
+    return _cmd_speed_talk(args)
 def cmd_feedback(args):
     """Handle feedback, bug reports, and diagnostic submissions."""
     subaction = getattr(args, "feedback_action", "submit")
@@ -3538,311 +1318,12 @@ def cmd_record(args):
     print("=" * 60 + "\n")
 
 
+from voicefi.cli_commands.memo import cmd_memo as _cmd_memo
+
+
 def cmd_memo(args):
     """Handle voice memo buffer recording, synthesis, and management."""
-    config = load_config(args.config)
-    store = MemoStore()
-    action = getattr(args, "memo_action", None) or "record"
-
-    if action == "record":
-        duration_arg = getattr(args, "duration", None)
-        if duration_arg is not None:
-            duration_str = str(duration_arg).strip().lower()
-            if duration_str.endswith("m"):
-                duration = float(duration_str[:-1]) * 60
-            elif duration_str.endswith("s"):
-                duration = float(duration_str[:-1])
-            else:
-                duration = float(duration_str)
-        else:
-            duration = config.memo.default_duration_seconds
-
-        title = getattr(args, "title", None) or "Voice Memo"
-        no_synth = getattr(args, "no_synth", False)
-        out_path = getattr(args, "out", None)
-        clipboard = getattr(args, "clipboard", False) or config.memo.export_to_clipboard
-
-        recorder = MemoBufferRecorder(
-            target_duration_seconds=duration,
-            sample_rate=config.vad.sample_rate,
-            energy_threshold=config.memo.energy_threshold,
-            auto_extend_seconds=config.memo.auto_extend_seconds,
-        )
-
-        audio_data, temp_wav, actual_duration = recorder.record_memo_session(interactive=True)
-
-        print("\n⏳ Transcribing developer stream of consciousness...")
-        stt = get_stt_engine(config)
-        raw_transcript = ""
-        try:
-            raw_transcript = stt.transcribe(temp_wav)
-        except Exception as e:
-            print(f"❌ Transcription error: {e}")
-            return
-
-        if not raw_transcript.strip():
-            print("⚠️ No speech detected in recorded audio.")
-            return
-
-        word_count = len(raw_transcript.split())
-        recording = MemoRecording(
-            title=title,
-            duration_seconds=actual_duration,
-            target_duration_seconds=duration,
-            audio_path=str(temp_wav),
-            raw_transcript=raw_transcript,
-            word_count=word_count,
-        )
-
-        synthesis = None
-        if not no_synth and config.memo.auto_synthesize:
-            print("🧠 Synthesizing Implementation Plan, Mermaid Diagram, and PR Checklist...\n")
-            synthesizer = MemoSynthesizer(config)
-            synthesis = synthesizer.synthesize(
-                raw_speech=raw_transcript,
-                memo_id=recording.id,
-                custom_title=title if title != "Voice Memo" else None,
-            )
-            recording.title = synthesis.title
-
-        memo_dir = store.save_memo(recording, synthesis)
-        print(f"💾 Saved Voice Memo `{recording.id}` ({recording.title}) to {memo_dir}")
-
-        if synthesis:
-            print("\n" + "=" * 70)
-            print(synthesis.to_markdown())
-            print("=" * 70 + "\n")
-
-            if out_path:
-                dest = Path(out_path)
-                dest.parent.mkdir(parents=True, exist_ok=True)
-                dest.write_text(synthesis.to_markdown(), encoding="utf-8")
-                print(f"📄 Exported plan to {dest}")
-
-            if clipboard:
-                try:
-                    import subprocess
-
-                    subprocess.run(
-                        ["pbcopy"], input=synthesis.to_markdown().encode("utf-8"), check=True
-                    )
-                    print("📋 Copied synthesized plan to clipboard!")
-                except Exception:
-                    pass
-
-    elif action in ("synth", "synthesize", "clean"):
-        memo_id = getattr(args, "memo_id", None)
-        text_arg = getattr(args, "text", None)
-        file_arg = getattr(args, "file", None)
-        title = getattr(args, "title", None)
-        out_path = getattr(args, "out", None)
-        clipboard = getattr(args, "clipboard", False) or config.memo.export_to_clipboard
-
-        raw_speech = ""
-        recording = None
-
-        if text_arg:
-            raw_speech = " ".join(text_arg) if isinstance(text_arg, list) else str(text_arg)
-        elif file_arg:
-            f_path = Path(file_arg)
-            if not f_path.is_file():
-                print(f"❌ File not found: {file_arg}")
-                return
-            raw_speech = f_path.read_text(encoding="utf-8")
-        elif memo_id:
-            res = store.get_memo(memo_id)
-            if not res:
-                print(f"❌ Memo `{memo_id}` not found.")
-                return
-            recording, _ = res
-            raw_speech = recording.raw_transcript
-            if not title:
-                title = recording.title
-        else:
-            print("❌ Please specify a memo ID, --text '...', or --file <path> to synthesize.")
-            return
-
-        if not raw_speech.strip():
-            print("❌ No speech text to synthesize.")
-            return
-
-        print("🧠 Synthesizing Implementation Plan, Architectural Diagram, and PR Checklist...\n")
-        synthesizer = MemoSynthesizer(config)
-        mid = recording.id if recording else None
-        synthesis = synthesizer.synthesize(raw_speech=raw_speech, memo_id=mid, custom_title=title)
-
-        if recording:
-            recording.title = synthesis.title
-            store.save_memo(recording, synthesis)
-        else:
-            recording = MemoRecording(
-                id=synthesis.memo_id,
-                title=synthesis.title,
-                duration_seconds=0.0,
-                target_duration_seconds=180.0,
-                raw_transcript=raw_speech,
-                word_count=len(raw_speech.split()),
-            )
-            store.save_memo(recording, synthesis)
-
-        print("=" * 70)
-        print(synthesis.to_markdown())
-        print("=" * 70 + "\n")
-
-        if out_path:
-            dest = Path(out_path)
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            dest.write_text(synthesis.to_markdown(), encoding="utf-8")
-            print(f"📄 Exported plan to {dest}")
-
-        if clipboard:
-            try:
-                import subprocess
-
-                subprocess.run(
-                    ["pbcopy"], input=synthesis.to_markdown().encode("utf-8"), check=True
-                )
-                print("📋 Copied synthesized plan to clipboard!")
-            except Exception:
-                pass
-
-    elif action == "list":
-        limit = getattr(args, "limit", 20)
-        memos = store.list_memos(limit=limit)
-        if not memos:
-            print("📭 No voice memos recorded yet.")
-            print(
-                "👉 Run 'vg memo record' or 'vg memo record --duration 3m' to capture a brain dump!"
-            )
-            return
-
-        print(f"\n{'ID':<10} {'CREATED':<20} {'DURATION':<10} {'WORDS':<8} {'SYNTH':<7} {'TITLE'}")
-        print("─" * 78)
-        for m in memos:
-            created = m.get("created_at", "")[:19].replace("T", " ")
-            dur = f"{int(m.get('duration_seconds', 0)) // 60:02d}:{int(m.get('duration_seconds', 0)) % 60:02d}"
-            synth_icon = "✅ Yes" if m.get("has_synthesis") else "❌ No"
-            words = str(m.get("word_count", 0))
-            title = m.get("title", "Voice Memo")[:25]
-            mid = m.get("id", "")
-            print(f"{mid:<10} {created:<20} {dur:<10} {words:<8} {synth_icon:<7} {title}")
-        print("─" * 78 + "\n")
-
-    elif action == "show":
-        memo_id = args.memo_id
-        res = store.get_memo(memo_id)
-        if not res:
-            print(f"❌ Memo `{memo_id}` not found.")
-            return
-        recording, synthesis = res
-
-        if getattr(args, "transcript_only", False):
-            print(recording.raw_transcript)
-        elif getattr(args, "diagram_only", False) and synthesis:
-            if hasattr(synthesis, "architectural_diagram") and synthesis.architectural_diagram:
-                print("```mermaid")
-                print(synthesis.architectural_diagram.mermaid_code)
-                print("```")
-            else:
-                print("No architectural diagram in this memo.")
-        elif getattr(args, "checklist_only", False) and synthesis:
-            if hasattr(synthesis, "pr_checklist") and synthesis.pr_checklist:
-                for task in synthesis.pr_checklist.core_tasks:
-                    print(f"- [ ] {task}")
-                for test in synthesis.pr_checklist.testing_and_verification:
-                    print(f"- [ ] {test}")
-                for edge in synthesis.pr_checklist.edge_cases_and_security:
-                    print(f"- [ ] {edge}")
-            else:
-                print("No PR checklist in this memo.")
-        elif synthesis:
-            print(synthesis.to_markdown())
-        else:
-            print(f"# Voice Memo: {recording.title} (`{recording.id}`)")
-            print(
-                f"Duration: {int(recording.duration_seconds) // 60:02d}:{int(recording.duration_seconds) % 60:02d} | Words: {recording.word_count}"
-            )
-            print("\n## Raw Transcript")
-            print(recording.raw_transcript)
-            print(
-                "\n💡 Run 'vg memo synth "
-                + recording.id
-                + "' to generate structured implementation plan."
-            )
-
-    elif action == "export":
-        memo_id = args.memo_id
-        res = store.get_memo(memo_id)
-        if not res:
-            print(f"❌ Memo `{memo_id}` not found.")
-            return
-        recording, synthesis = res
-        content = synthesis.to_markdown() if synthesis else recording.raw_transcript
-
-        out_path = getattr(args, "out", None)
-        if out_path:
-            dest = Path(out_path)
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            dest.write_text(content, encoding="utf-8")
-            print(f"📄 Exported memo `{memo_id}` to {dest}")
-
-        if getattr(args, "clipboard", False) or not out_path:
-            try:
-                import subprocess
-
-                subprocess.run(["pbcopy"], input=content.encode("utf-8"), check=True)
-                print(f"📋 Copied memo `{memo_id}` to clipboard!")
-            except Exception:
-                pass
-
-    elif action == "import":
-        file_path = Path(args.file)
-        if not file_path.is_file():
-            print(f"❌ File not found: {file_path}")
-            return
-
-        title = getattr(args, "title", None) or file_path.stem.replace("_", " ").title()
-        print(f"📥 Importing {file_path.name}...")
-
-        is_audio = file_path.suffix.lower() in (".wav", ".mp3", ".m4a", ".ogg", ".flac", ".aac")
-        if is_audio:
-            print("⏳ Transcribing imported audio...")
-            stt = get_stt_engine(config)
-            raw_speech = stt.transcribe(file_path)
-        else:
-            raw_speech = file_path.read_text(encoding="utf-8")
-
-        if not raw_speech.strip():
-            print("❌ No speech or text content found in file.")
-            return
-
-        print("🧠 Synthesizing Implementation Plan, Mermaid Diagram, and PR Checklist...\n")
-        synthesizer = MemoSynthesizer(config)
-        synthesis = synthesizer.synthesize(raw_speech=raw_speech, custom_title=title)
-
-        recording = MemoRecording(
-            id=synthesis.memo_id,
-            title=synthesis.title,
-            duration_seconds=0.0,
-            target_duration_seconds=180.0,
-            audio_path=str(file_path) if is_audio else None,
-            raw_transcript=raw_speech,
-            word_count=len(raw_speech.split()),
-        )
-        memo_dir = store.save_memo(recording, synthesis)
-        print(f"💾 Imported and saved memo `{recording.id}` ({recording.title}) to {memo_dir}")
-        print("\n" + "=" * 70)
-        print(synthesis.to_markdown())
-        print("=" * 70 + "\n")
-
-    elif action == "delete":
-        memo_id = args.memo_id
-        if store.delete_memo(memo_id):
-            print(f"🗑️ Deleted voice memo `{memo_id}`.")
-        else:
-            print(f"❌ Memo `{memo_id}` not found.")
-
-
+    return _cmd_memo(args)
 def cmd_bias(args):
     """Test and inspect developer STT vocabulary biasing and phonetic normalization."""
     from voicefi.stt.biasing import ProjectContextExtractor, PhoneticNormalizer
@@ -5227,110 +2708,40 @@ def cmd_bridge(args):
         asyncio.run(bridge.stop())
 
 
+from voicefi.cli_commands.local import (
+    cmd_spark as _cmd_spark,
+    cmd_scout as _cmd_scout,
+    cmd_benchmark as _cmd_benchmark,
+    cmd_local as _cmd_local,
+)
+
+
 def cmd_spark(args):
     """Run Gemini Spark agent runner with voice IPC bridge and turn-end hooks."""
-    import asyncio
-    from voicefi.integrations.spark import GeminiSparkRunner
+    return _cmd_spark(args)
 
-    config = load_config(getattr(args, "config", None))
-    sock_path = getattr(args, "socket", None) or config.ipc.socket_path
-    persona = getattr(args, "persona", None) or getattr(config.spark, "persona", "Viv")
-    prompt = " ".join(args.prompt).strip() if getattr(args, "prompt", None) else None
 
-    runner = GeminiSparkRunner(
-        config=config,
-        persona=persona,
-    )
+def cmd_scout(args):
+    """Run on-device Recon Scout to pre-digest logs, code, or directories."""
+    return _cmd_scout(args)
 
-    if prompt:
-        print(f'⚡ Executing Spark prompt in {persona} persona: "{prompt}"')
 
-        async def _run_single():
-            await runner.bridge.start()
-            await asyncio.sleep(0.1)
-            soundbite = await runner.execute_prompt(prompt)
-            print(f'🏁 Spoken Soundbite: "{soundbite}"')
-            await runner.stop()
+def cmd_benchmark(args):
+    """Run on-device model and latency benchmark suite."""
+    return _cmd_benchmark(args)
 
-        asyncio.run(_run_single())
-        return
 
-    print(f"🚀 Gemini Spark Voice Agent running (persona: {persona}). Listening on IPC bridge...")
+def cmd_local(args):
+    """Inspect and manage on-device LiteRT and Gemma models."""
+    return _cmd_local(args)
 
-    async def _run_loop():
-        await runner.start()
-        while True:
-            await asyncio.sleep(1)
 
-    try:
-        asyncio.run(_run_loop())
-    except KeyboardInterrupt:
-        print("\n🛑 Stopping Gemini Spark...")
-        asyncio.run(runner.stop())
+from voicefi.cli_commands.live import cmd_live as _cmd_live
 
 
 def cmd_live(args):
     """Run real-time Gemini 3.8 Live voice/comedy session."""
-    import asyncio
-    from voicefi.integrations.gemini_live import GeminiLiveRunner, VALID_GEMINI_LIVE_VOICES
-
-    prompt = " ".join(args.prompt).strip() if getattr(args, "prompt", None) else None
-    voice = getattr(args, "voice", "Puck") or "Puck"
-    mode = getattr(args, "mode", "comedy") or "comedy"
-    use_thinking = getattr(args, "thinking", False)
-    thinking_level = getattr(args, "thinking_level", "LOW") or "LOW"
-    enable_sfx = not getattr(args, "no_sfx", False)
-    play_audio = not getattr(args, "no_play", False)
-    direct_live = getattr(args, "direct_live", False) or getattr(args, "root_live", False)
-    enable_tools = getattr(args, "tools", True)
-    model = getattr(args, "model", None) or ("gemini-3.8-live-extended-thinking" if use_thinking else "gemini-2.5-flash-native-audio-latest")
-
-    if direct_live:
-        from voicefi.live_studio import GeminiLiveStudio
-
-        try:
-            studio = GeminiLiveStudio(
-                model=model,
-                voice=voice,
-                use_thinking=use_thinking,
-                thinking_level=thinking_level,
-                enable_tools=enable_tools,
-            )
-            asyncio.run(studio.run())
-        except KeyboardInterrupt:
-            pass
-        return
-
-    try:
-        runner = GeminiLiveRunner(
-            voice=voice,
-            mode=mode,
-            use_thinking=use_thinking,
-            thinking_level=thinking_level,
-            enable_sfx=enable_sfx,
-            play_audio=play_audio,
-        )
-    except Exception as e:
-        print(f"❌ Error initializing Gemini 3.8 Live runner: {e}")
-        return
-
-    if prompt:
-        asyncio.run(runner.run_prompt(prompt))
-    else:
-        print(f"\n🎭 Gemini 3.8 Live Studio (Model: {runner.model} | Voice: {runner.voice} | Mode: {runner.mode})")
-        print("Type your joke prompt or topic below. Type 'exit' to quit.\n")
-        while True:
-            try:
-                line = input("🎤 You > ").strip()
-                if not line:
-                    continue
-                if line.lower() in ("exit", "quit", "q"):
-                    print("👋 Exiting Gemini Live Studio.")
-                    break
-                asyncio.run(runner.run_prompt(line))
-            except (KeyboardInterrupt, EOFError):
-                print("\n👋 Exiting Gemini Live Studio.")
-                break
+    return _cmd_live(args)
 
 
 
@@ -7054,6 +4465,108 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
         help="Launch native macOS Welcome & License Activation Window",
     )
 
+    # scout / recon
+    scout_p = subparsers.add_parser(
+        "scout",
+        aliases=["recon"],
+        help="Run on-device Recon Scout to pre-digest logs/files and save context tokens",
+    )
+    scout_p.add_argument(
+        "target",
+        nargs="?",
+        default=".",
+        help="File or directory path to scout (default: current directory)",
+    )
+    scout_p.add_argument("-q", "--query", default=None, help="Query or anomaly detection objective")
+    scout_p.add_argument(
+        "--max-bytes",
+        type=int,
+        default=500_000,
+        help="Maximum bytes to scan (default: 500,000)",
+    )
+
+    # benchmark
+    bench_p = subparsers.add_parser(
+        "benchmark",
+        aliases=["bench"],
+        help="Measure on-device model throughput (tok/s), TTFB latency, and context efficiency",
+    )
+    bench_p.add_argument("prompt", nargs="*", default=None, help="Custom prompt to benchmark")
+    bench_p.add_argument("--name", default="CLI Benchmark", help="Benchmark run label")
+    bench_p.add_argument(
+        "--history", action="store_true", help="Display previous benchmark scorecard history"
+    )
+    bench_p.add_argument(
+        "-c",
+        "--compare",
+        action="store_true",
+        help="Run empirical Time on Task (ToT) Benchmark: Local vs All-Cloud",
+    )
+    bench_p.add_argument(
+        "-t",
+        "--target",
+        type=str,
+        default="src/voicefi/local/engine.py",
+        help="Target file or directory to benchmark",
+    )
+    bench_p.add_argument(
+        "--turns", type=int, default=3, help="Number of multi-turn interactions (1-5, default: 3)"
+    )
+    bench_p.add_argument(
+        "--cloud",
+        type=str,
+        default="gemini",
+        choices=["gemini", "claude"],
+        help="Cloud provider to compare against (default: gemini)",
+    )
+    bench_p.add_argument(
+        "--json", action="store_true", help="Output machine-readable JSON comparison profile"
+    )
+
+    # eval (direct alias for benchmark --compare)
+    eval_p = subparsers.add_parser(
+        "eval",
+        help="Run empirical Time on Task (ToT) Benchmark comparing Local vs All-Cloud",
+    )
+    eval_p.add_argument("prompt", nargs="*", default=None, help="Custom prompt or diagnostic query")
+    eval_p.add_argument(
+        "-t",
+        "--target",
+        type=str,
+        default="src/voicefi/local/engine.py",
+        help="Target file or directory to benchmark",
+    )
+    eval_p.add_argument(
+        "--turns", type=int, default=3, help="Number of multi-turn interactions (1-5, default: 3)"
+    )
+    eval_p.add_argument(
+        "--cloud",
+        type=str,
+        default="gemini",
+        choices=["gemini", "claude"],
+        help="Cloud provider to compare against (default: gemini)",
+    )
+    eval_p.add_argument(
+        "--history", action="store_true", help="Display previous ToT scorecard history"
+    )
+    eval_p.add_argument(
+        "--json", action="store_true", help="Output machine-readable JSON comparison profile"
+    )
+
+    # local model management
+    local_p = subparsers.add_parser(
+        "local",
+        aliases=["litert", "gemma"],
+        help="Inspect and manage on-device LiteRT and Gemma models",
+    )
+    local_p.add_argument(
+        "action",
+        nargs="?",
+        default="status",
+        choices=["status", "list", "download"],
+        help="Action (status, list, download)",
+    )
+
     # help
     subparsers.add_parser("help", help="Display help and command usage")
 
@@ -7129,6 +4642,14 @@ def main():
         "get-ava": cmd_download_ava,
         "setup-offline": cmd_download_ava,
         "offline-ava": cmd_download_ava,
+        "scout": cmd_scout,
+        "recon": cmd_scout,
+        "benchmark": cmd_benchmark,
+        "bench": cmd_benchmark,
+        "eval": cmd_benchmark,
+        "local": cmd_local,
+        "litert": cmd_local,
+        "gemma": cmd_local,
         "help": lambda a: parser.print_help(),
         "new": cmd_new,
         "new-conversation": cmd_new,

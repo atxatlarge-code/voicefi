@@ -47,6 +47,10 @@ from voicefi.integrations.conversations import (
     find_recent_claude_sessions,
     parse_claude_session,
 )
+from voicefi.integrations.codex import (
+    find_recent_codex_sessions,
+    parse_codex_session,
+)
 from voicefi.integrations.injector import (
     send_message_to_antigravity,
     send_message_to_agent,
@@ -71,6 +75,10 @@ from voicefi.companion.qr import (
     generate_qr_base64_png,
 )
 from voicefi.companion.relay_client import RelayClient, RelaySessionCredentials
+from voicefi.companion.handlers.peers import PeerHandlersMixin
+from voicefi.companion.handlers.vault import VaultHandlersMixin
+from voicefi.companion.handlers.audio import AudioHandlersMixin
+from voicefi.companion.handlers.studio import StudioHandlersMixin
 
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -78,10 +86,12 @@ RECORDINGS_DIR = Path.home() / ".voicefi" / "recordings"
 MOCKS_DIR = Path(__file__).resolve().parent.parent.parent.parent / "mocks"
 
 
-class CompanionServer:
+class CompanionServer(PeerHandlersMixin, VaultHandlersMixin, AudioHandlersMixin, StudioHandlersMixin):
     """Async web and WebSocket companion hub."""
 
     def __init__(
+
+
         self,
         config: Optional[VoiceFiConfig] = None,
         port: int = 5141,
@@ -1168,7 +1178,22 @@ class CompanionServer:
             engine = data.get("engine", "antigravity")
             active = None
 
-            if engine == "claude":
+            if engine == "codex":
+                from voicefi.integrations.codex import execute_codex_cli, get_codex_cli_path
+                from voicefi.integrations.injector import inject_text_to_chatgpt
+                cli_path = get_codex_cli_path()
+                if cli_path:
+                    disp = execute_codex_cli(
+                        prompt=prompt,
+                        conv_id=None,
+                        origin="mobile",
+                        async_execution=True,
+                    )
+                    active_id = getattr(disp, "target_conv_id", None) or f"codex_{int(time.time())}"
+                else:
+                    inject_text_to_chatgpt(prompt, submit_enter=True)
+                    active_id = f"codex_session_{int(time.time())}"
+            elif engine == "claude":
                 from voicefi.integrations.claude_runner import ClaudeHeadlessRunner
 
                 runner = ClaudeHeadlessRunner.get_instance()
@@ -1295,6 +1320,17 @@ class CompanionServer:
             if not target_engine:
                 if conv_id and (conv_id.startswith("claude_") or "claude" in conv_id.lower()):
                     target_engine = "claude"
+                elif conv_id and (conv_id.startswith("codex_") or "codex" in conv_id.lower()):
+                    target_engine = "codex"
+                elif bool(
+                    re.search(
+                        r"\b(?:hey|ask|tell|can\s+you\s+ask|could\s+you\s+ask|send\s+to|talk\s+to|switch\s+to)\s+codex\b",
+                        lower_text,
+                    )
+                ):
+                    target_engine = "codex"
+                    if conv_id and not conv_id.startswith("codex_") and "codex" not in conv_id.lower():
+                        conv_id = None
                 elif bool(
                     re.search(
                         r"\b(?:hey|ask|tell|can\s+you\s+ask|could\s+you\s+ask|send\s+to|talk\s+to|switch\s+to)\s+claude\b",
@@ -2507,215 +2543,7 @@ class CompanionServer:
 
         threading.Thread(target=_speak_worker, daemon=True).start()
 
-    async def handle_vault_query(self, request: web.Request) -> web.Response:
-        """Process conversational Q&A and active note queries from Obsidian."""
-        try:
-            data = await request.json()
-            query = data.get("query", "").strip()
-            note_title = data.get("note_title", "")
-            note_content = data.get("note_content", "")
-            speak = data.get("speak", True)
 
-            from voicefi.integrations.vault_agent import VaultAgent
-
-            agent = VaultAgent(self.config)
-            result = agent.answer_vault_query(
-                query=query, note_title=note_title, note_content=note_content
-            )
-            spoken = result.get("spoken_response", "")
-
-            if speak and spoken:
-                # Notify connected Obsidian / web clients that agent is speaking
-                self.broadcast_event(
-                    {
-                        "type": "agent_speaking_started",
-                        "text": spoken,
-                    }
-                )
-
-                def _speak_worker():
-                    try:
-                        tts = get_tts_engine(self.config)
-                        tts.speak(spoken)
-                    except Exception as ex:
-                        print(f"[VaultAgent] TTS playback error: {ex}")
-                    finally:
-                        self.broadcast_event({"type": "agent_speaking_finished"})
-
-                threading.Thread(target=_speak_worker, daemon=True).start()
-
-            return web.json_response(result)
-        except Exception as e:
-            return web.json_response({"error": str(e)}, status=500)
-
-    async def handle_vault_capture(self, request: web.Request) -> web.Response:
-        """Append a quick voice capture note directly into today's Obsidian daily note."""
-        try:
-            data = await request.json()
-            text = data.get("text", "").strip()
-            if not text:
-                return web.json_response({"error": "No text provided"}, status=400)
-
-            vault_path_str = data.get("vault_path")
-            vault_path = Path(vault_path_str) if vault_path_str else None
-
-            from voicefi.integrations.obsidian import append_quick_capture_to_vault
-
-            res = await asyncio.to_thread(
-                append_quick_capture_to_vault, text=text, vault_path=vault_path, config=self.config
-            )
-
-            if res.get("status") == "ok":
-                self.broadcast_event(
-                    {
-                        "type": "vault_capture_appended",
-                        "vault_name": res.get("vault_name"),
-                        "daily_note_name": res.get("daily_note_name"),
-                        "entry": res.get("entry"),
-                        "time": res.get("time"),
-                    }
-                )
-            return web.json_response(res)
-        except Exception as e:
-            logger.exception("handle_vault_capture error: %s", e)
-            return web.json_response({"error": str(e)}, status=500)
-
-    async def handle_vault_memo(self, request: web.Request) -> web.Response:
-        """Save a synthesized voice memo to <vault>/Voice Memos/ and backlink in daily note."""
-        try:
-            data = await request.json()
-            raw_text = data.get("raw_text") or data.get("text", "")
-            markdown = data.get("markdown", "").strip()
-            title = data.get("title", "").strip()
-            vault_path_str = data.get("vault_path")
-            vault_path = Path(vault_path_str) if vault_path_str else None
-
-            if not markdown and raw_text:
-                synthesizer = MemoSynthesizer(self.config)
-                synth = await asyncio.to_thread(synthesizer.synthesize_memo, raw_text)
-                title = title or synth.title
-                memo_parts = [
-                    f"# {synth.title}\n",
-                    f"> Voice memo captured on {time.strftime('%Y-%m-%d %H:%M')}\n",
-                    f"## Summary\n{synth.summary}\n",
-                ]
-                if synth.key_points:
-                    memo_parts.append("## Key Takeaways\n" + "\n".join(f"- {kp}" for kp in synth.key_points) + "\n")
-                if synth.diagram_code:
-                    memo_parts.append(f"## Architecture\n```{synth.diagram_type}\n{synth.diagram_code}\n```\n")
-                if synth.action_items:
-                    memo_parts.append("## Action Items\n" + "\n".join(f"- [ ] {ai}" for ai in synth.action_items) + "\n")
-                if synth.pr_checklist:
-                    memo_parts.append("## PR / Implementation Checklist\n" + "\n".join(f"- [ ] {c}" for c in synth.pr_checklist) + "\n")
-                markdown = "\n".join(memo_parts)
-
-            if not title:
-                title = "Voice Memo"
-            if not markdown:
-                return web.json_response({"error": "No memo content or text provided"}, status=400)
-
-            from voicefi.integrations.obsidian import save_memo_to_vault
-
-            res = await asyncio.to_thread(
-                save_memo_to_vault,
-                memo_markdown=markdown,
-                title=title,
-                vault_path=vault_path,
-                config=self.config,
-            )
-
-            if res.get("status") == "ok":
-                self.broadcast_event(
-                    {
-                        "type": "vault_memo_saved",
-                        "vault_name": res.get("vault_name"),
-                        "memo_name": res.get("memo_name"),
-                        "backlink": res.get("backlink"),
-                    }
-                )
-            return web.json_response(res)
-        except Exception as e:
-            logger.exception("handle_vault_memo error: %s", e)
-            return web.json_response({"error": str(e)}, status=500)
-
-    async def handle_vault_today(self, request: web.Request) -> web.Response:
-        """Fetch today's daily note content from Obsidian."""
-        try:
-            vault_path_str = request.query.get("vault_path")
-            vault_path = Path(vault_path_str) if vault_path_str else None
-
-            from voicefi.integrations.obsidian import get_today_note_content
-
-            res = await asyncio.to_thread(get_today_note_content, vault_path=vault_path, config=self.config)
-            return web.json_response(res)
-        except Exception as e:
-            logger.exception("handle_vault_today error: %s", e)
-            return web.json_response({"error": str(e)}, status=500)
-
-    async def handle_vault_status(self, request: web.Request) -> web.Response:
-        """Get Obsidian installation, vault discovery, and plugin status."""
-        try:
-            from voicefi.integrations.obsidian import (
-                is_obsidian_installed,
-                find_obsidian_vaults,
-                get_primary_vault,
-                get_daily_note_path,
-                is_plugin_installed,
-            )
-
-            def _get_status():
-                installed = is_obsidian_installed()
-                vaults = find_obsidian_vaults()
-                primary = get_primary_vault(self.config)
-                primary_info = None
-                if primary:
-                    daily_p = get_daily_note_path(primary, config=self.config)
-                    plugin_ok = is_plugin_installed(primary)
-                    primary_info = {
-                        "name": primary.name,
-                        "path": str(primary),
-                        "daily_note_path": str(daily_p),
-                        "daily_note_exists": daily_p.is_file(),
-                        "plugin_installed": plugin_ok,
-                    }
-                return {
-                    "status": "ok",
-                    "installed": installed,
-                    "primary_vault": primary_info,
-                    "vaults": [
-                        {
-                            "id": v.get("id"),
-                            "name": v.get("name"),
-                            "path": str(v.get("path")),
-                            "open": v.get("open", False),
-                        }
-                        for v in vaults
-                    ],
-                }
-
-            data = await asyncio.to_thread(_get_status)
-            return web.json_response(data)
-        except Exception as e:
-            logger.exception("handle_vault_status error: %s", e)
-            return web.json_response({"error": str(e)}, status=500)
-
-    async def handle_vault_launch_agent(self, request: web.Request) -> web.Response:
-        """Launch an AI agent (Antigravity or Claude Code) rooted in the Obsidian vault."""
-        try:
-            data = await request.json()
-            engine = data.get("engine", "antigravity")
-            vault_path_str = data.get("vault_path")
-            vault_path = Path(vault_path_str) if vault_path_str else None
-
-            from voicefi.integrations.obsidian import launch_agent_in_vault
-
-            res = await asyncio.to_thread(
-                launch_agent_in_vault, engine=engine, vault_path=vault_path, config=self.config
-            )
-            return web.json_response(res)
-        except Exception as e:
-            logger.exception("handle_vault_launch_agent error: %s", e)
-            return web.json_response({"error": str(e)}, status=500)
 
     async def handle_screenshot(self, request: web.Request) -> web.Response:
         """Capture screenshot on Mac and save in the conversation's artifacts."""
@@ -2949,140 +2777,6 @@ class CompanionServer:
                 pass
         return web.json_response({"success": True})
 
-    async def handle_stt(self, request: web.Request) -> web.Response:
-        """Transcribe uploaded audio blob from phone via local Whisper."""
-        try:
-            content_type = request.headers.get("Content-Type", "").lower()
-            temp_ext = (
-                ".webm"
-                if "webm" in content_type
-                else (
-                    ".mp4"
-                    if "mp4" in content_type or "m4a" in content_type or "aac" in content_type
-                    else ".wav"
-                )
-            )
-            with tempfile.NamedTemporaryFile(suffix=temp_ext, delete=False) as tmp:
-                temp_path = Path(tmp.name)
-                if "multipart" in content_type:
-                    reader = await request.multipart()
-                    field = await reader.next()
-                    if not field:
-                        return web.json_response({"error": "No audio file provided"}, status=400)
-                    while True:
-                        chunk = await field.read_chunk()
-                        if not chunk:
-                            break
-                        tmp.write(chunk)
-                else:
-                    body = await request.read()
-                    if not body:
-                        return web.json_response({"error": "Empty audio body"}, status=400)
-                    tmp.write(body)
-
-            # Convert to clean 16kHz mono WAV using ffmpeg if available
-            wav_path = temp_path.with_suffix(".16k.wav")
-            transcribe_target = temp_path
-            if temp_path.suffix.lower() != ".wav":
-                try:
-                    res = subprocess.run(
-                        [
-                            "ffmpeg",
-                            "-y",
-                            "-i",
-                            str(temp_path),
-                            "-ar",
-                            "16000",
-                            "-ac",
-                            "1",
-                            "-c:a",
-                            "pcm_s16le",
-                            str(wav_path),
-                        ],
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                    )
-                    if res.returncode == 0 and wav_path.is_file() and wav_path.stat().st_size > 44:
-                        transcribe_target = wav_path
-                except Exception as e:
-                    print(f"[STT] ffmpeg conversion warning: {e}")
-
-            stt = get_stt_engine(self.config)
-            try:
-                transcript = stt.transcribe(transcribe_target)
-            finally:
-                temp_path.unlink(missing_ok=True)
-                wav_path.unlink(missing_ok=True)
-
-            return web.json_response({"transcript": transcript})
-        except Exception as e:
-            return web.json_response({"error": str(e)}, status=500)
-
-    async def handle_tts(self, request: web.Request) -> web.Response:
-        """Synthesize text to audio stream for phone playback using agent-specific voice persona."""
-        try:
-            data = await request.json()
-            text = data.get("text", "").strip()
-            agent_role = (
-                data.get("agent_role")
-                or data.get("agent")
-                or request.query.get("agent")
-                or "antigravity"
-            )
-            if not text:
-                return web.Response(text="Empty text", status=400)
-
-            from voicefi.config import load_config
-
-            cfg = load_config()
-            self.config = cfg
-            tts = get_tts_engine(cfg, agent_name=agent_role)
-
-            # Determine appropriate temp format: mp3 for async neural engines, aiff for macOS say
-            if hasattr(tts, "synthesize_to_file"):
-                temp_out = Path(tempfile.gettempdir()) / f"vg_tts_{int(time.time() * 1000)}.mp3"
-                await tts.synthesize_to_file(text, temp_out)
-            elif hasattr(tts, "speak_to_file"):
-                temp_out = Path(tempfile.gettempdir()) / f"vg_tts_{int(time.time() * 1000)}.aiff"
-                tts.speak_to_file(text, temp_out)
-            else:
-                # Fallback mac say to wav/aiff with safe argument passing
-                temp_out = Path(tempfile.gettempdir()) / f"vg_tts_{int(time.time() * 1000)}.aiff"
-                subprocess.run(
-                    ["say", "-o", str(temp_out), "--", text],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                )
-
-            if temp_out.is_file() and temp_out.suffix in (".aiff", ".wav"):
-                m4a_out = temp_out.with_suffix(".m4a")
-                try:
-                    res = subprocess.run(
-                        ["afconvert", "-f", "mp4f", "-d", "aac", str(temp_out), str(m4a_out)],
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                        timeout=5,
-                    )
-                    if res.returncode == 0 and m4a_out.is_file() and m4a_out.stat().st_size > 0:
-                        temp_out.unlink(missing_ok=True)
-                        temp_out = m4a_out
-                except Exception:
-                    pass
-
-            if temp_out.is_file():
-                audio_bytes = temp_out.read_bytes()
-                temp_out.unlink(missing_ok=True)
-                if temp_out.suffix == ".m4a":
-                    content_type = "audio/mp4"
-                elif temp_out.suffix == ".mp3":
-                    content_type = "audio/mpeg"
-                else:
-                    content_type = "audio/wav"
-                return web.Response(body=audio_bytes, content_type=content_type)
-            return web.Response(text="TTS synthesis failed", status=500)
-        except Exception as e:
-            return web.Response(text=f"TTS error: {e}", status=500)
-
     async def handle_qr(self, request: web.Request) -> web.Response:
         from voicefi.companion.relay_client import RelaySessionCredentials
 
@@ -3150,509 +2844,6 @@ class CompanionServer:
             },
             status=500,
         )
-
-    # =========================================================================
-    # Voice Recording Studio, Audio FX Transformer & Reel Generator APIs
-    # =========================================================================
-
-    async def handle_studio_presets(self, request: web.Request) -> web.Response:
-        """Return list of available voice FX presets, formats, and SFX cues."""
-        from voicefi.audio.effects import VoiceFXEngine
-        from voicefi.video.reel_builder import FORMAT_PRESETS, TYPOGRAPHY_PRESETS
-        from voicefi.audio.sfx import list_available_sfx
-
-        return web.json_response(
-            {
-                "presets": VoiceFXEngine.list_presets(),
-                "formats": list(FORMAT_PRESETS.keys()),
-                "format_details": FORMAT_PRESETS,
-                "typography": list(TYPOGRAPHY_PRESETS.keys()),
-                "available_sfx": list_available_sfx(),
-            }
-        )
-
-    async def handle_studio_recordings(self, request: web.Request) -> web.Response:
-        """List all recordings, uploaded audio files, voice memos, and master samples."""
-        RECORDINGS_DIR.mkdir(parents=True, exist_ok=True)
-        from voicefi.audio.effects import VoiceFXEngine
-
-        items = []
-        # 1. Scan ~/.voicefi/recordings/
-        for p in sorted(RECORDINGS_DIR.glob("*"), key=lambda f: f.stat().st_mtime, reverse=True):
-            if p.is_file() and p.suffix.lower() in (
-                ".wav",
-                ".mp3",
-                ".m4a",
-                ".ogg",
-                ".webm",
-                ".flac",
-                ".aac",
-            ):
-                try:
-                    info = VoiceFXEngine.get_audio_info(p)
-                    items.append(
-                        {
-                            "id": p.name,
-                            "filename": p.name,
-                            "path": str(p),
-                            "duration": info["duration"],
-                            "size_formatted": info["size_formatted"],
-                            "size_bytes": info["size_bytes"],
-                            "sample_rate": info["sample_rate"],
-                            "peaks": info["peaks"],
-                            "url": f"/api/studio/recording/{p.name}",
-                            "created_at": time.strftime(
-                                "%Y-%m-%d %H:%M:%S", time.localtime(p.stat().st_mtime)
-                            ),
-                            "is_fx_master": "_fx_" in p.name or "_master" in p.name,
-                            "source": "recording",
-                        }
-                    )
-                except Exception:
-                    pass
-
-        # 2. Check static/downloads for sample audio tracks
-        downloads_dir = STATIC_DIR / "downloads"
-        if downloads_dir.is_dir():
-            for p in sorted(
-                downloads_dir.glob("*.mp3"), key=lambda f: f.stat().st_mtime, reverse=True
-            ):
-                if p.is_file():
-                    try:
-                        info = VoiceFXEngine.get_audio_info(p)
-                        items.append(
-                            {
-                                "id": f"download_{p.name}",
-                                "filename": p.name,
-                                "path": str(p),
-                                "duration": info["duration"],
-                                "size_formatted": info["size_formatted"],
-                                "size_bytes": info["size_bytes"],
-                                "sample_rate": info["sample_rate"],
-                                "peaks": info["peaks"],
-                                "url": f"/downloads/{p.name}",
-                                "created_at": time.strftime(
-                                    "%Y-%m-%d %H:%M:%S", time.localtime(p.stat().st_mtime)
-                                ),
-                                "is_fx_master": True,
-                                "source": "downloads_sample",
-                            }
-                        )
-                    except Exception:
-                        pass
-
-        return web.json_response(
-            {
-                "recordings": items,
-                "count": len(items),
-            }
-        )
-
-    async def handle_studio_recording_stream(self, request: web.Request) -> web.Response:
-        """Stream an audio recording with HTTP range request support for waveform and browser playback."""
-        rec_id = request.match_info.get("rec_id", "")
-        RECORDINGS_DIR.mkdir(parents=True, exist_ok=True)
-        target = RECORDINGS_DIR / rec_id
-        if not target.is_file() or not target.resolve().is_relative_to(RECORDINGS_DIR.resolve()):
-            return web.Response(status=404, text="Recording not found")
-
-        ext = target.suffix.lower()
-        content_type = "audio/wav"
-        if ext == ".mp3":
-            content_type = "audio/mpeg"
-        elif ext in (".m4a", ".aac"):
-            content_type = "audio/mp4"
-        elif ext == ".ogg":
-            content_type = "audio/ogg"
-        elif ext == ".webm":
-            content_type = "audio/webm"
-
-        return web.FileResponse(
-            target,
-            headers={
-                "Accept-Ranges": "bytes",
-                "Content-Type": content_type,
-                "Access-Control-Allow-Origin": "*",
-            },
-        )
-
-    async def handle_studio_upload(self, request: web.Request) -> web.Response:
-        """Handle audio file upload from companion app or desktop."""
-        RECORDINGS_DIR.mkdir(parents=True, exist_ok=True)
-        from voicefi.audio.effects import VoiceFXEngine
-
-        raw_bytes = None
-        filename = None
-
-        try:
-            if request.content_type.startswith("multipart/"):
-                post_data = await request.post()
-                field = post_data.get("file") or post_data.get("audio")
-                if field is not None:
-                    filename = (
-                        getattr(field, "filename", None) or f"upload_{int(time.time() * 1000)}.wav"
-                    )
-                    if hasattr(field, "file"):
-                        raw_bytes = field.file.read()
-                    elif isinstance(field, (bytes, bytearray)):
-                        raw_bytes = bytes(field)
-            else:
-                try:
-                    data = await request.json()
-                except Exception:
-                    data = {}
-                b64 = data.get("audio_base64") or data.get("audio") or ""
-                filename = data.get("filename") or f"upload_{int(time.time() * 1000)}.wav"
-                if b64:
-                    if "," in b64:
-                        b64 = b64.split(",", 1)[1]
-                    import base64
-
-                    raw_bytes = base64.b64decode(b64)
-
-            if not raw_bytes:
-                return web.json_response(
-                    {"error": "No audio data received", "status": "error"}, status=400
-                )
-
-            p_raw = Path(filename)
-            stem = re.sub(r"[^a-zA-Z0-9_\-]", "_", p_raw.stem)
-            ext = p_raw.suffix.lower() if p_raw.suffix else ".wav"
-            if ext not in (".wav", ".mp3", ".m4a", ".ogg", ".webm", ".flac", ".aac"):
-                ext = ".wav"
-
-            target_filename = f"{stem}_{int(time.time() * 1000)}{ext}"
-            target_path = RECORDINGS_DIR / target_filename
-            target_path.write_bytes(raw_bytes)
-
-            # Convert webm to wav if needed for uniform processing
-            if ext == ".webm":
-                wav_path = target_path.with_suffix(".wav")
-                try:
-                    from voicefi.audio.effects import _get_bin
-
-                    subprocess.run(
-                        [_get_bin("ffmpeg"), "-y", "-i", str(target_path), str(wav_path)],
-                        check=True,
-                        capture_output=True,
-                    )
-                    if wav_path.is_file():
-                        target_path.unlink(missing_ok=True)
-                        target_path = wav_path
-                        target_filename = target_path.name
-                except Exception:
-                    pass
-
-            info = VoiceFXEngine.get_audio_info(target_path)
-            return web.json_response(
-                {
-                    "success": True,
-                    "id": target_filename,
-                    "filename": target_filename,
-                    "url": f"/api/studio/recording/{target_filename}",
-                    "info": info,
-                }
-            )
-        except Exception as e:
-            logger.exception(f"Studio upload error: {e}")
-            return web.json_response({"error": str(e), "success": False}, status=500)
-
-    async def handle_studio_record(self, request: web.Request) -> web.Response:
-        """Handle direct voice recording blob from browser MediaRecorder."""
-        return await self.handle_studio_upload(request)
-
-    async def handle_studio_trim(self, request: web.Request) -> web.Response:
-        """Trim audio file between start_sec and end_sec."""
-        RECORDINGS_DIR.mkdir(parents=True, exist_ok=True)
-        from voicefi.audio.effects import VoiceFXEngine
-
-        try:
-            data = await request.json()
-        except Exception:
-            return web.json_response({"error": "Invalid JSON payload"}, status=400)
-
-        rec_id = data.get("recording_id")
-        if not rec_id:
-            return web.json_response({"error": "Missing recording_id"}, status=400)
-
-        in_file = RECORDINGS_DIR / rec_id
-        if not in_file.is_file() and rec_id.startswith("download_"):
-            in_file = STATIC_DIR / "downloads" / rec_id.replace("download_", "")
-        if not in_file.is_file():
-            in_file = STATIC_DIR / "downloads" / rec_id
-        if not in_file.is_file():
-            return web.json_response({"error": f"Audio file not found: {rec_id}"}, status=404)
-
-        start_sec = float(data.get("start_sec", 0.0))
-        end_sec = data.get("end_sec")
-        if end_sec is not None and str(end_sec).strip():
-            end_sec = float(end_sec)
-        else:
-            end_sec = None
-
-        stem = in_file.stem
-        stem = re.sub(r"_trimmed_\d+", "", stem)
-        out_filename = f"{stem}_trimmed_{int(time.time() * 1000)}.mp3"
-        out_file = RECORDINGS_DIR / out_filename
-
-        try:
-            VoiceFXEngine.trim_audio(
-                input_audio=in_file, output_audio=out_file, start_sec=start_sec, end_sec=end_sec
-            )
-            info = VoiceFXEngine.get_audio_info(out_file)
-            return web.json_response(
-                {
-                    "success": True,
-                    "trimmed_id": out_filename,
-                    "filename": out_filename,
-                    "url": f"/api/studio/recording/{out_filename}",
-                    "duration": info["duration"],
-                    "info": info,
-                }
-            )
-        except Exception as e:
-            logger.exception(f"Studio trim error: {e}")
-            return web.json_response(
-                {"error": f"Trim failed: {str(e)}", "success": False}, status=500
-            )
-
-    async def handle_studio_apply_fx(self, request: web.Request) -> web.Response:
-        """Apply selected voice FX preset (or custom DSP sliders) and SFX overlays."""
-        data = await request.json()
-        rec_id = data.get("recording_id") or data.get("id") or ""
-        preset = data.get("preset", "radio_announcer")
-        custom_params = data.get("custom_params")
-        sfx_cues = data.get("sfx_cues", [])
-        bg_music = data.get("bg_music")
-        bg_volume = float(data.get("bg_volume", 0.15))
-        out_ext = data.get("format", "mp3").lower().lstrip(".")
-        if out_ext not in ("mp3", "wav", "m4a"):
-            out_ext = "mp3"
-
-        RECORDINGS_DIR.mkdir(parents=True, exist_ok=True)
-        in_path = RECORDINGS_DIR / rec_id
-        if not in_path.is_file() and rec_id.startswith("download_"):
-            in_path = STATIC_DIR / "downloads" / rec_id.replace("download_", "")
-
-        if not in_path.is_file():
-            return web.json_response(
-                {"error": f"Recording not found: {rec_id}", "status": "error"}, status=404
-            )
-
-        from voicefi.audio.effects import VoiceFXEngine
-
-        stem = re.sub(r"[^a-zA-Z0-9_\-]", "_", in_path.stem)
-        fx_slug = preset if preset else "custom"
-        ts = int(time.time() * 1000)
-        out_filename = f"{stem}_fx_{fx_slug}_{ts}.{out_ext}"
-        out_path = RECORDINGS_DIR / out_filename
-
-        VoiceFXEngine.apply_effect(
-            input_audio=in_path,
-            output_audio=out_path,
-            preset=preset,
-            custom_params=custom_params,
-            sfx_cues=sfx_cues,
-            bg_music_path=bg_music,
-            bg_music_volume=bg_volume,
-            normalize_loudness=True,
-        )
-
-        info = VoiceFXEngine.get_audio_info(out_path)
-        return web.json_response(
-            {
-                "success": True,
-                "master_id": out_filename,
-                "filename": out_filename,
-                "url": f"/api/studio/recording/{out_filename}",
-                "preset": preset,
-                "info": info,
-            }
-        )
-
-    async def handle_studio_transcribe(self, request: web.Request) -> web.Response:
-        """Transcribe an audio recording and auto-generate suggested slide cards."""
-        data = await request.json()
-        rec_id = data.get("recording_id") or data.get("id") or ""
-        speaker = data.get("speaker", "Radio Host")
-
-        RECORDINGS_DIR.mkdir(parents=True, exist_ok=True)
-        in_path = RECORDINGS_DIR / rec_id
-        if not in_path.is_file() and rec_id.startswith("download_"):
-            in_path = STATIC_DIR / "downloads" / rec_id.replace("download_", "")
-
-        if not in_path.is_file():
-            return web.json_response(
-                {"error": f"Audio file not found: {rec_id}", "status": "error"}, status=404
-            )
-
-        from voicefi.audio.effects import VoiceFXEngine
-        from voicefi.video.reel_builder import ReelBuilder
-
-        info = VoiceFXEngine.get_audio_info(in_path)
-        stt = get_stt_engine(self.config)
-        transcript = stt.transcribe(in_path)
-        try:
-            from voicefi.tts.normalizer import collapse_repetitive_artifacts
-
-            transcript = collapse_repetitive_artifacts(transcript)
-        except Exception:
-            pass
-
-        suggested_slides = ReelBuilder.auto_generate_slides_from_text(
-            transcript=transcript, total_duration=info["duration"], speaker=speaker
-        )
-
-        return web.json_response(
-            {
-                "transcript": transcript,
-                "duration": info["duration"],
-                "suggested_slides": suggested_slides,
-            }
-        )
-
-    async def handle_studio_generate_reel(self, request: web.Request) -> web.Response:
-        """Compile a multi-format social video reel from transformed master audio and slides."""
-        data = await request.json()
-        rec_id = data.get("recording_id") or data.get("id") or ""
-        slides = data.get("slides")
-        transcript = data.get("transcript")
-        format_type = data.get("format", "9:16")
-        preset_name = data.get("preset", "classic_ai")
-        font_multiplier = float(data.get("font_scale", 1.0))
-        speaker = data.get("speaker", "Radio Host")
-        title = data.get("title", "VoiceFi Studio Reel")
-
-        RECORDINGS_DIR.mkdir(parents=True, exist_ok=True)
-        in_path = RECORDINGS_DIR / rec_id
-        if not in_path.is_file() and rec_id.startswith("download_"):
-            in_path = STATIC_DIR / "downloads" / rec_id.replace("download_", "")
-
-        if not in_path.is_file():
-            return web.json_response(
-                {"error": f"Audio file not found: {rec_id}", "status": "error"}, status=404
-            )
-
-        from voicefi.video.reel_builder import ReelBuilder
-
-        slug = re.sub(r"[^a-zA-Z0-9_\-]", "_", in_path.stem)
-        fmt_clean = format_type.replace(":", "_")
-        ts = int(time.time() * 1000)
-        reel_filename = f"{slug}_{fmt_clean}_{ts}.mp4"
-
-        downloads_dir = STATIC_DIR / "downloads"
-        downloads_dir.mkdir(parents=True, exist_ok=True)
-        out_mp4 = downloads_dir / reel_filename
-
-        ReelBuilder.compile_reel(
-            output_mp4=out_mp4,
-            audio_file=in_path,
-            slides=slides,
-            transcript=transcript,
-            format_type=format_type,
-            preset_name=preset_name,
-            font_multiplier=font_multiplier,
-            speaker_name=speaker,
-        )
-
-        return web.json_response(
-            {
-                "success": True,
-                "title": title,
-                "reel_filename": reel_filename,
-                "download_url": f"/downloads/{reel_filename}",
-                "format": format_type,
-                "size_mb": round(out_mp4.stat().st_size / (1024 * 1024), 2),
-            }
-        )
-
-    # Local Network Peer Discovery & Cross-Mac Data Handoff Handlers
-    async def handle_peer_info(self, request: web.Request) -> web.Response:
-        """Provide local machine profile to authorized peer Macs on LAN."""
-        from voicefi.network.peers import get_local_peer_info
-        info = get_local_peer_info(self.config)
-        return web.json_response(info)
-
-    async def handle_peer_send(self, request: web.Request) -> web.Response:
-        """Receive cross-machine agent prompt from a peer Mac and inject into active agent."""
-        try:
-            data = await request.json()
-            text = (data.get("text") or "").strip()
-            if not text:
-                return web.json_response({"error": "Missing prompt text"}, status=400)
-
-            sender_device = data.get("sender_device", "Peer Mac")
-            sender_name = data.get("sender_name", "Developer")
-            target_engine = data.get("target_engine", "auto")
-            reply = data.get("reply", False)
-            from_conv_id = data.get("from_conv_id")
-
-            formatted_sender = f"{sender_name} @ {sender_device}"
-            res = send_message_to_agent(
-                text=text,
-                target_engine="claude" if target_engine == "claude" else "antigravity",
-                sender_name=formatted_sender,
-                conv_id="reply" if reply else None,
-                from_conv_id=from_conv_id,
-                from_engine="peer",
-            )
-            delivered = bool(res)
-
-            self.broadcast_event(
-                {
-                    "type": "peer_task_received",
-                    "text": text,
-                    "sender": formatted_sender,
-                    "delivered": delivered,
-                }
-            )
-
-            from voicefi.network.peers import get_computer_name
-            return web.json_response(
-                {
-                    "success": delivered,
-                    "delivered": delivered,
-                    "target_engine": target_engine,
-                    "delivery_type": getattr(res, "delivery_type", "ipc" if delivered else "none"),
-                    "device": get_computer_name(),
-                }
-            )
-        except Exception as e:
-            return web.json_response({"error": str(e)}, status=500)
-
-    async def handle_peer_clip_get(self, request: web.Request) -> web.Response:
-        """Read local macOS clipboard for a remote peer Mac."""
-        try:
-            res = subprocess.run(["pbpaste"], capture_output=True, text=True, timeout=1.5)
-            clip_text = res.stdout if res.returncode == 0 else ""
-            return web.json_response({"success": True, "text": clip_text, "chars": len(clip_text)})
-        except Exception as e:
-            return web.json_response({"error": str(e)}, status=500)
-
-    async def handle_peer_clip_post(self, request: web.Request) -> web.Response:
-        """Write remote clipboard text to local macOS pasteboard."""
-        try:
-            data = await request.json()
-            clip_text = data.get("text", "")
-            proc = subprocess.Popen(["pbcopy"], stdin=subprocess.PIPE, text=True)
-            proc.communicate(input=clip_text, timeout=2.0)
-            return web.json_response({"success": True, "chars": len(clip_text)})
-        except Exception as e:
-            return web.json_response({"error": str(e)}, status=500)
-
-    async def handle_peer_sync(self, request: web.Request) -> web.Response:
-        """Sync voice personas, brevity dictionaries, or speed settings between peer Macs."""
-        try:
-            data = await request.json()
-            return web.json_response({"success": True, "status": "synced"})
-        except Exception as e:
-            return web.json_response({"error": str(e)}, status=500)
-
-    async def handle_peers_list(self, request: web.Request) -> web.Response:
-        """Return all discovered VoiceFi peer Macs on the local Wi-Fi / LAN."""
-        from voicefi.network.peers import PeerDiscoveryEngine
-        peers = await PeerDiscoveryEngine.discover_all(timeout=1.0)
-        return web.json_response({"peers": [p.to_dict() for p in peers], "count": len(peers)})
 
     def _update_companion_heartbeat(self) -> None:
         has_relay = bool(self.relay_client and getattr(self.relay_client, "has_peer", False))
@@ -3771,6 +2962,8 @@ class CompanionServer:
                                     lower_text = text.lower().strip()
                                     if cid and (cid.startswith("claude_") or "claude" in cid.lower()):
                                         engine = "claude"
+                                    elif cid and (cid.startswith("codex_") or "codex" in cid.lower()):
+                                        engine = "codex"
 
                                     has_claude_intent = bool(
                                         re.search(
@@ -3778,7 +2971,17 @@ class CompanionServer:
                                             lower_text,
                                         )
                                     )
-                                    if has_claude_intent:
+                                    has_codex_intent = bool(
+                                        re.search(
+                                            r"\b(?:hey|ask|tell|all\s+right|alright|okay|so|can\s+you\s+ask|could\s+you\s+ask|send\s+to|talk\s+to|switch\s+to|have|message)?\s*codex\b",
+                                            lower_text,
+                                        )
+                                    )
+                                    if has_codex_intent:
+                                        engine = "codex"
+                                        if cid and not cid.startswith("codex_") and "codex" not in cid.lower():
+                                            cid = None
+                                    elif has_claude_intent:
                                         engine = "claude"
                                         if cid and not cid.startswith("claude_") and "claude" not in cid.lower():
                                             cid = None
@@ -4309,7 +3512,15 @@ class CompanionServer:
 
     def broadcast_event(self, event_data: Dict[str, Any]):
         """Broadcast event to all connected mobile clients."""
-        if not self.loop:
+        loop = self.loop
+        try:
+            running = asyncio.get_running_loop()
+            if running and running.is_running():
+                loop = running
+        except RuntimeError:
+            pass
+
+        if not loop or loop.is_closed():
             return
 
         def _json_safe(o):
@@ -4324,16 +3535,30 @@ class CompanionServer:
         except Exception as e:
             logger.debug(f"Failed to serialize broadcast event: {e}")
             return
+
+        is_same_loop = False
+        try:
+            if asyncio.get_running_loop() is loop:
+                is_same_loop = True
+        except RuntimeError:
+            pass
+
         if self.active_websockets:
             for ws in list(self.active_websockets):
                 if not ws.closed:
                     try:
-                        asyncio.run_coroutine_threadsafe(ws.send_str(msg), self.loop)
+                        if is_same_loop:
+                            loop.create_task(ws.send_str(msg))
+                        else:
+                            asyncio.run_coroutine_threadsafe(ws.send_str(msg), loop)
                     except Exception as e:
                         logger.debug(f"Failed to send to local websocket: {e}")
         if self.relay_client and self.relay_client.is_running:
             try:
-                asyncio.run_coroutine_threadsafe(self.relay_client.broadcast(event_data), self.loop)
+                if is_same_loop:
+                    loop.create_task(self.relay_client.broadcast(event_data))
+                else:
+                    asyncio.run_coroutine_threadsafe(self.relay_client.broadcast(event_data), loop)
             except Exception as e:
                 logger.debug(f"Failed to broadcast to relay client: {e}")
 
@@ -4358,9 +3583,8 @@ class CompanionServer:
         # Deduplication Guard: Check signature across conv_id + normalized summary text
         clean_summ = (summary or "").strip()
         norm_key = re.sub(r"[^a-zA-Z0-9]", "", clean_summ.lower())[:60]
-        # Always use conv_id + norm_key as canonical key so hook (step_index=None)
-        # and transcript watcher (step_index=idx) match and suppress each other reliably
-        turn_sig = f"{conv_id}:{norm_key}"
+        turn_sig = f"{conv_id}:{norm_key}:step_{step_index}" if step_index is not None else f"{conv_id}:{norm_key}"
+        generic_sig = f"{conv_id}:{norm_key}"
 
         if turn_sig in self._recent_broadcast_turns and (now - self._recent_broadcast_turns[turn_sig]) < 30.0:
             logger.info(
@@ -4368,19 +3592,14 @@ class CompanionServer:
             )
             return
 
-        # Also check if any recent broadcast in this conv_id had matching normalized prefix (first 25 chars) within 30s
-        if norm_key and len(norm_key) >= 20:
-            prefix = norm_key[:25]
-            for prev_sig, prev_ts in self._recent_broadcast_turns.items():
-                if (now - prev_ts) < 30.0:
-                    prev_cid, _, prev_norm = prev_sig.partition(":")
-                    if prev_cid == conv_id and prev_norm and (norm_key.startswith(prev_norm[:25]) or prev_norm.startswith(prefix)):
-                        logger.info(
-                            f"[CompanionServer] 🛡️ Suppressing duplicate turn completion by prefix match ({now - prev_ts:.2f}s): '{prev_norm[:25]}' matches '{prefix}'"
-                        )
-                        return
+        if step_index is None and generic_sig in self._recent_broadcast_turns and (now - self._recent_broadcast_turns[generic_sig]) < 3.0:
+            logger.info(
+                f"[CompanionServer] 🛡️ Suppressing duplicate unindexed turn completion broadcast: {generic_sig}"
+            )
+            return
 
         self._recent_broadcast_turns[turn_sig] = now
+        self._recent_broadcast_turns[generic_sig] = now
 
         if summary:
             from voicefi.audio.echo_canceller import record_agent_spoken
@@ -4388,7 +3607,11 @@ class CompanionServer:
             record_agent_spoken(summary)
 
         # Resolve configured voice for agent/conversation
-        resolved_voice = "Christopher" if "antigravity" in str(agent_role).lower() else "Viv"
+        resolved_voice = (
+            "Christopher"
+            if "antigravity" in str(agent_role).lower()
+            else ("Emma" if "codex" in str(agent_role).lower() else "Viv")
+        )
         try:
             fresh_cfg = self.config
             try:
@@ -4427,6 +3650,8 @@ class CompanionServer:
             self._processed_steps[str(p)] = self._get_highest_step_index(p)
         for p in find_recent_claude_sessions(limit=5):
             self._processed_steps[str(p)] = self._get_highest_claude_line_index(p)
+        for p in find_recent_codex_sessions(limit=5):
+            self._processed_steps[str(p)] = self._get_highest_codex_line_index(p)
 
         def _loop():
             while self._watcher_running:
@@ -4435,6 +3660,8 @@ class CompanionServer:
                         self._check_transcript_turn(p)
                     for p in find_recent_claude_sessions(limit=3):
                         self._check_claude_session_turn(p)
+                    for p in find_recent_codex_sessions(limit=3):
+                        self._check_codex_session_turn(p)
                 except Exception:
                     pass
                 time.sleep(0.5)
@@ -4721,6 +3948,171 @@ class CompanionServer:
                         "timestamp": time.time(),
                     }
                 )
+
+    def _get_highest_codex_line_index(self, path: Path) -> int:
+        highest = -1
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                for idx, line in enumerate(f):
+                    if line.strip():
+                        highest = idx
+        except Exception:
+            pass
+        return highest
+
+    def _check_codex_session_turn(self, path: Path):
+        p_str = str(path)
+        last_proc = self._processed_steps.get(p_str, -1)
+        new_lines = []
+        highest_idx = last_proc
+
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                for idx, line in enumerate(f):
+                    line = line.strip()
+                    if not line:
+                        continue
+                    if idx > last_proc:
+                        try:
+                            obj = json.loads(line)
+                            new_lines.append((idx, obj))
+                        except Exception:
+                            pass
+                    if idx > highest_idx:
+                        highest_idx = idx
+        except Exception:
+            return
+
+        if not new_lines or highest_idx <= last_proc:
+            return
+
+        self._processed_steps[p_str] = highest_idx
+
+        # Extract UUID
+        m = re.search(
+            r"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})",
+            path.stem,
+            re.IGNORECASE,
+        )
+        session_id = m.group(1) if m else path.stem
+        cid = f"codex_{session_id}" if not session_id.startswith("codex_") else session_id
+
+        for idx, obj in new_lines:
+            t = obj.get("type")
+            pld = obj.get("payload", {})
+            if not isinstance(pld, dict):
+                continue
+            pt = pld.get("type")
+
+            if pt == "custom_tool_call":
+                t_name = pld.get("name", "tool")
+                raw_inp = pld.get("input", "")
+                summary = f"{t_name} {str(raw_inp)[:40]}".strip()
+                self.broadcast_event(
+                    {
+                        "type": "agent_working_step",
+                        "conv_id": cid,
+                        "step_index": idx,
+                        "agent_role": "codex",
+                        "tool_name": t_name,
+                        "summary": summary,
+                        "action": t_name,
+                        "status": "running",
+                        "timestamp": time.time(),
+                    }
+                )
+            elif pt == "custom_tool_call_output":
+                self.broadcast_event(
+                    {
+                        "type": "conversation_updated",
+                        "conv_id": cid,
+                        "step_index": idx,
+                        "step_type": "tool_output",
+                        "timestamp": time.time(),
+                    }
+                )
+            elif pt == "task_complete" or (
+                pt == "item_completed"
+                and pld.get("item", {}).get("type") == "AgentMessage"
+            ):
+                agent_msg = ""
+                if pt == "task_complete":
+                    agent_msg = str(pld.get("last_agent_message") or "")
+                else:
+                    item = pld.get("item", {})
+                    parts = [
+                        c.get("text", "")
+                        for c in item.get("content", [])
+                        if isinstance(c, dict) and c.get("text")
+                    ]
+                    agent_msg = " ".join(parts).strip()
+
+                if agent_msg:
+                    summary = clean_markdown_for_speech(
+                        agent_msg,
+                        max_words=getattr(
+                            getattr(self.config, "codex", None), "max_spoken_words", 60
+                        ),
+                    )
+                    turn_sig = f"{cid}:{summary[:35]}"
+                    claimed_origin = get_claimed_turn_origin(
+                        cid, turn_sig
+                    ) or get_claimed_turn_origin(session_id, turn_sig)
+                    if claimed_origin:
+                        origin_tag = claimed_origin
+                    else:
+                        origin_tag = (
+                            "mobile"
+                            if (peek_mobile_turn_origin(cid) or peek_mobile_turn_origin(session_id))
+                            else "desktop"
+                        )
+                    delivery_info = get_turn_delivery_info(cid, turn_sig)
+                    if not delivery_info.get("delivered_via_hook"):
+                        alt_info = get_turn_delivery_info(session_id, turn_sig)
+                        if alt_info.get("delivered_via_hook"):
+                            delivery_info = alt_info
+                        else:
+                            # If not already claimed by a hook, trigger Codex stop hook asynchronously
+                            def _run_codex_hook():
+                                try:
+                                    from voicefi.integrations.codex import handle_codex_stop_hook
+                                    hook_payload = {
+                                        "thread_id": session_id,
+                                        "conversationId": cid,
+                                        "session_path": str(path),
+                                        "last-assistant-message": agent_msg,
+                                        "agent": "codex",
+                                    }
+                                    handle_codex_stop_hook(hook_payload, self.config)
+                                except Exception as hook_err:
+                                    logger.error(f"[CompanionServer] Error in watcher Codex stop hook: {hook_err}")
+                            threading.Thread(target=_run_codex_hook, daemon=True, name=f"CodexHookWatcher-{cid[:16]}").start()
+
+                    delivered_via = delivery_info.get("delivered_via", "otherwise")
+                    spoken_on_mac = delivery_info.get("spoken_on_mac", False)
+
+                    self.broadcast_turn_completion(
+                        summary=summary,
+                        conv_id=cid,
+                        agent_role="codex",
+                        full_response=agent_msg,
+                        origin=origin_tag,
+                        delivered_via=delivered_via,
+                        spoken_on_mac=spoken_on_mac,
+                    )
+            elif pt in ("user_message", "message") and (
+                pt == "user_message" or pld.get("role") == "user"
+            ):
+                self.broadcast_event(
+                    {
+                        "type": "conversation_updated",
+                        "conv_id": cid,
+                        "step_index": idx,
+                        "step_type": "user",
+                        "timestamp": time.time(),
+                    }
+                )
+
 
 
 def ensure_ssl_context() -> Optional[object]:

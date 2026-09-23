@@ -148,7 +148,7 @@ class ClaudeCompanionServerTestCase(AioHTTPTestCase):
         assert "conversations" in data
         for c in data["conversations"]:
             assert "engine" in c
-            assert c["engine"] in ("antigravity", "claude")
+            assert c["engine"] in ("antigravity", "claude", "codex")
 
     async def test_api_tts_claude_persona(self):
         """Test POST /api/tts with agent_role='claude' requests Guy Neural persona."""
@@ -206,6 +206,7 @@ def test_claude_stop_hook_skips_desktop_mic_for_mobile():
          patch("voicefi.integrations.claude.extract_latest_claude_summary", return_value="Task completed."), \
          patch("voicefi.integrations.claude.claim_turn", return_value=True), \
          patch("voicefi.integrations.claude.pop_mobile_turn_origin", return_value=True), \
+         patch("voicefi.audio.meeting_detection.is_user_on_call", return_value=False), \
          patch("voicefi.integrations.claude.AudioRecorder") as mock_recorder:
 
         result = handle_claude_stop_hook({"session_id": "test-123"}, config=mock_cfg)
