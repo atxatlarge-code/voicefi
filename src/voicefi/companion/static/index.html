@@ -58,6 +58,9 @@
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
+    #qrModalContainer img, #qrModalContainer canvas { margin: 0 auto; }
+    #qrModalContainer .hidden { display: none !important; }
+
     /* Minimalist Acoustic Breathing */
     @keyframes subtlePulse {
       0%, 100% { transform: scale(1); border-color: rgba(255, 255, 255, 0.4); }
@@ -214,8 +217,8 @@
 
     /* 5. IDLE: Standby Breathing (All White) */
     @keyframes idleStandby {
-      0%, 100% { opacity: 0.9; }
-      50% { opacity: 1; filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.5)); }
+      0%, 100% { opacity: 0.92; }
+      50% { opacity: 1; }
     }
 
     /* State-applied animation classes */
@@ -414,7 +417,7 @@
   <!-- Header with Session Switcher and View Tabs -->
   <!-- Header with Session Switcher and View Tabs (Option 1 Clean Layout) -->
   <!-- Header: Single Dynamic Row with Expanding Context Capsule -->
-  <header class="safe-top px-3 py-2 border-b border-white/10 bg-[#0b0b0e]/95 backdrop-blur-xl z-30 shrink-0 sticky top-0">
+  <header class="safe-top px-3 py-2 border-b border-white/10 bg-[#0b0b0e] z-30 shrink-0 sticky top-0">
     <div class="flex items-center justify-between gap-2 max-w-5xl mx-auto w-full">
       
       <!-- 1. Left: Brand Logo -->
@@ -460,10 +463,10 @@
       <!-- 2. Center: Dynamic Island Acoustic State Capsule (Mirrors macOS Desktop HUD) -->
       <button id="headerCapsuleBtn" type="button" class="flex-1 min-w-0 max-w-[240px] xs:max-w-[280px] sm:max-w-[360px] md:max-w-[440px] h-11 sm:h-12 px-3 sm:px-4 rounded-2xl bg-[#141418]/90 hover:bg-[#1c1c24] active:scale-95 border border-white/15 text-xs sm:text-sm font-bold text-zinc-200 flex items-center justify-between gap-2 transition cursor-pointer shadow-inner backdrop-blur-md" title="Tap to pause speech or open session switcher">
         <div class="flex items-center gap-2 min-w-0">
-          <span id="hudAvatarIcon" class="text-sm shrink-0">🤖</span>
+          <span id="hudAvatarIcon" class="hidden text-sm shrink-0"></span>
           <div class="flex items-center gap-1.5 min-w-0">
-            <span id="hudStateDot" class="w-2 h-2 rounded-full bg-emerald-400 shrink-0"></span>
-            <span id="headerCapsuleText" class="truncate font-bold text-xs sm:text-sm text-zinc-100 text-left">Ready</span>
+            <span id="hudStateDot" class="hidden w-2 h-2 rounded-full bg-emerald-400 shrink-0"></span>
+            <span id="headerCapsuleText" class="truncate font-bold text-xs sm:text-sm text-zinc-100 text-left">AGY • Ready</span>
           </div>
         </div>
         <div class="flex items-center gap-1.5 shrink-0">
@@ -487,7 +490,7 @@
           </button>
 
           <!-- Floating Dropdown Sub-Menu -->
-          <div id="headerViewDropdownMenu" class="hidden absolute right-0 top-14 sm:top-16 w-48 sm:w-52 bg-[#121216]/98 backdrop-blur-2xl border border-white/20 rounded-2xl p-1.5 shadow-[0_15px_50px_rgba(0,0,0,0.85)] z-50 space-y-1.5 transition-all">
+          <div id="headerViewDropdownMenu" class="hidden absolute right-0 top-14 sm:top-16 w-48 sm:w-52 bg-[#0d0d12] border border-white/20 rounded-2xl p-1.5 shadow-[0_20px_60px_rgba(0,0,0,0.95)] z-50 space-y-1.5 transition-all">
             <button id="tabVoice" type="button" class="w-full px-3.5 py-2.5 rounded-xl text-left transition flex items-center justify-between text-sm sm:text-base font-black cursor-pointer bg-white text-black shadow-md">
               <div class="flex items-center gap-3">
                 <span class="text-lg sm:text-xl">🎙️</span>
@@ -554,7 +557,7 @@
   <!-- Expanding Sub-Menu Drawer & Backdrop (Layers 2 & 3 inside) -->
   <div id="headerDrawerBackdrop" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity"></div>
 
-  <div id="headerDrawer" class="hidden fixed top-14 sm:top-16 inset-x-2 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 sm:w-[440px] bg-[#111115]/98 backdrop-blur-2xl border border-white/15 rounded-3xl p-4 shadow-[0_20px_60px_rgba(0,0,0,0.85)] z-50 space-y-3.5 transition-all">
+  <div id="headerDrawer" class="hidden fixed top-14 sm:top-16 inset-x-2 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 sm:w-[440px] bg-[#0d0d12] border border-white/20 rounded-3xl p-4 shadow-[0_25px_70px_rgba(0,0,0,0.95)] z-50 space-y-3.5 transition-all">
     
     <!-- Drawer Title & Dismiss -->
     <div class="flex items-center justify-between border-b border-white/10 pb-2">
@@ -563,17 +566,20 @@
     </div>
 
     <!-- App Filter Row (Layer 2) -->
-    <div id="appSelectorRow" class="grid grid-cols-4 gap-2">
-      <button type="button" id="appFilterAll" onclick="setAppFilter('all')" class="py-2.5 px-2 rounded-xl text-xs sm:text-sm font-black flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer bg-white text-black shadow-md">
-        <span>🌐</span> <span>All</span>
+    <div id="appSelectorRow" class="grid grid-cols-5 gap-1 sm:gap-2">
+      <button type="button" id="appFilterAll" onclick="setAppFilter('all')" class="py-2.5 px-1 sm:px-2 rounded-xl text-xs sm:text-sm font-black flex items-center justify-center gap-1 sm:gap-1.5 transition active:scale-95 cursor-pointer bg-white text-black shadow-md">
+        <span>All</span>
       </button>
-      <button type="button" id="appFilterAG" onclick="setAppFilter('antigravity')" class="py-2.5 px-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer bg-[#18181e] hover:bg-[#22222a] text-zinc-300 hover:text-white border border-white/10">
+      <button type="button" id="appFilterAG" onclick="setAppFilter('antigravity')" class="py-2.5 px-1 sm:px-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1 sm:gap-1.5 transition active:scale-95 cursor-pointer bg-[#18181e] hover:bg-[#22222a] text-zinc-300 hover:text-white border border-white/10">
         <span class="w-2 h-2 rounded-full bg-cyan-400"></span> <span>AGY</span>
       </button>
-      <button type="button" id="appFilterClaude" onclick="setAppFilter('claude')" class="py-2.5 px-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer bg-[#18181e] hover:bg-[#22222a] text-zinc-300 hover:text-white border border-white/10">
+      <button type="button" id="appFilterClaude" onclick="setAppFilter('claude')" class="py-2.5 px-1 sm:px-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1 sm:gap-1.5 transition active:scale-95 cursor-pointer bg-[#18181e] hover:bg-[#22222a] text-zinc-300 hover:text-white border border-white/10">
         <span class="w-2 h-2 rounded-full bg-amber-400"></span> <span>Claude</span>
       </button>
-      <button type="button" id="appFilterObsidian" onclick="setAppFilter('obsidian')" class="py-2.5 px-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer bg-[#18181e] hover:bg-[#22222a] text-zinc-300 hover:text-white border border-white/10">
+      <button type="button" id="appFilterCodex" onclick="setAppFilter('codex')" class="py-2.5 px-1 sm:px-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1 sm:gap-1.5 transition active:scale-95 cursor-pointer bg-[#18181e] hover:bg-[#22222a] text-zinc-300 hover:text-white border border-white/10">
+        <span class="w-2 h-2 rounded-full bg-emerald-400"></span> <span>Codex</span>
+      </button>
+      <button type="button" id="appFilterObsidian" onclick="setAppFilter('obsidian')" class="py-2.5 px-1 sm:px-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1 sm:gap-1.5 transition active:scale-95 cursor-pointer bg-[#18181e] hover:bg-[#22222a] text-zinc-300 hover:text-white border border-white/10">
         <span class="w-2 h-2 rounded-full bg-purple-400"></span> <span>Vault</span>
       </button>
     </div>
@@ -588,7 +594,7 @@
       <!-- Native select kept in DOM for accessibility, tests, and programmatic synchronization -->
       <div class="relative w-full hidden">
         <select id="convSelect" class="w-full h-12 px-4 rounded-2xl bg-[#18181f] hover:bg-[#202028] border border-white/15 text-sm font-semibold text-white appearance-none focus:outline-none focus:border-white transition pr-8 truncate cursor-pointer shadow-inner">
-          <option value="7ae2122d-0141-41d4-9745-b5eab9756688" selected>⏳ 🤖 AGY • voicefi.org: Troubleshooting Remote Companion Sync</option>
+          <option value="7ae2122d-0141-41d4-9745-b5eab9756688" selected>AGY • Troubleshooting Remote Companion</option>
         </select>
         <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3.5 text-zinc-400 text-xs">▼</div>
       </div>
@@ -598,7 +604,7 @@
           <span class="text-sm font-black">+</span> <span>New Conversation</span>
         </button>
         <button id="topNavQrBtn" type="button" class="h-11 px-3.5 rounded-xl bg-[#18181f] hover:bg-[#202028] text-zinc-300 hover:text-white text-xs sm:text-sm font-bold border border-white/10 flex items-center gap-1.5 cursor-pointer" title="Pair Mobile Companion (QR Code)">
-          <span>📱</span> <span>QR Pair</span>
+          <span>QR Pair</span>
         </button>
       </div>
     </div>
@@ -668,30 +674,6 @@
         </div>
       </div>
 
-      <!-- 4-Mode Intent Switcher -->
-      <div class="w-full max-w-sm mx-auto mb-2 p-1 rounded-2xl bg-[#121216] border border-white/10 flex items-center justify-between gap-1 shadow-md shrink-0">
-        <!-- Mode 1: Mac Agent -->
-        <button id="intentModeAgent" type="button" onclick="setIntentMode('agent')" class="flex-1 py-2 px-1 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition-all cursor-pointer bg-white text-black shadow-sm">
-          <span>🤖</span> <span>Agent</span>
-        </button>
-        <!-- Mode 2: Speed Demon -->
-        <button id="intentModeSpeed" type="button" onclick="setIntentMode('speed')" class="flex-1 py-2 px-1 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition-all cursor-pointer text-zinc-400 hover:text-white hover:bg-white/5 border-0">
-          <span>⚡</span> <span>Speed</span>
-        </button>
-        <!-- Mode 3: Standup Comic -->
-        <button id="intentModeComic" type="button" onclick="setIntentMode('comic')" class="flex-1 py-2 px-1 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition-all cursor-pointer text-zinc-400 hover:text-white hover:bg-white/5 border-0">
-          <span>🎭</span> <span>Comic</span>
-        </button>
-        <!-- Mode 4: Open Mic (2.5 Flash) -->
-        <button id="intentModeOpen" type="button" onclick="setIntentMode('open')" class="flex-1 py-2 px-1 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition-all cursor-pointer text-zinc-400 hover:text-white hover:bg-white/5 border-0">
-          <span>🎙️</span> <span>Open</span>
-        </button>
-      </div>
-
-      <!-- Voice Stage Demo Sparkler Chips Row -->
-      <div id="voiceSparklerRow" class="w-full max-w-sm mx-auto flex items-center gap-1.5 mb-2 overflow-x-auto no-scrollbar shrink-0 pb-0.5 select-none">
-        <!-- Populated dynamically by renderSparklerChips() -->
-      </div>
 
       <!-- Quick-Control Action Pills Row -->
       <div class="w-full flex items-center justify-center gap-2 mb-2 shrink-0 flex-wrap">
@@ -946,7 +928,7 @@
     <section id="viewLive" class="hidden flex-1 flex flex-col h-full overflow-hidden max-w-lg mx-auto w-full p-3 sm:p-4 bg-transparent no-scrollbar safe-bottom">
       
       <!-- 4-Mode Intent Switcher (Synced Across Live View) -->
-      <div class="w-full max-w-sm mx-auto mb-2 p-1 rounded-2xl bg-[#121216] border border-white/10 flex items-center justify-between gap-1 shadow-md shrink-0">
+      <div id="liveIntentSwitcherContainer" class="w-full max-w-sm mx-auto mb-2 p-1 rounded-2xl bg-[#121216] border border-white/10 flex items-center justify-between gap-1 shadow-md shrink-0">
         <button id="liveIntentModeAgent" type="button" onclick="setIntentMode('agent')" class="flex-1 py-2 px-1 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition-all cursor-pointer text-zinc-400 hover:text-white hover:bg-white/5 border-0">
           <span>🤖</span> <span>Agent</span>
         </button>
@@ -1478,8 +1460,8 @@
       </p>
 
       <!-- Crisp White Container for High-Contrast QR Code -->
-      <div class="flex justify-center p-2.5 bg-white rounded-2xl shadow-xl max-w-[210px] mx-auto border-4 border-zinc-900">
-        <img id="qrModalImg" src="" alt="Pairing QR Code" class="w-48 h-48 object-contain">
+      <div id="qrModalContainer" class="flex flex-col items-center justify-center p-2.5 bg-white rounded-2xl shadow-xl w-[212px] h-[212px] mx-auto border-4 border-zinc-900 overflow-hidden">
+        <img id="qrModalImg" src="" alt="Pairing QR Code" class="w-48 h-48 object-contain hidden">
       </div>
 
       <!-- Cloudflare Quick Tunnel Action inside QR Modal -->
@@ -2207,6 +2189,11 @@
       viewArtifacts.classList.add("hidden");
       if (viewDownloads) viewDownloads.classList.add("hidden");
 
+      if (tab !== 'live' && typeof liveWaveformAnim !== 'undefined' && liveWaveformAnim) {
+        cancelAnimationFrame(liveWaveformAnim);
+        liveWaveformAnim = null;
+      }
+
       const inactiveTab = "w-full px-3.5 py-2.5 rounded-xl text-left transition flex items-center justify-between text-sm sm:text-base font-semibold cursor-pointer text-zinc-300 hover:text-white hover:bg-white/10";
       const activeTab = "w-full px-3.5 py-2.5 rounded-xl text-left transition flex items-center justify-between text-sm sm:text-base font-black cursor-pointer bg-white text-black shadow-md";
 
@@ -2235,6 +2222,9 @@
         if (checkVoice) checkVoice.classList.remove("hidden");
         if (activeIcon) activeIcon.textContent = "🎙️";
         if (mainFooter) mainFooter.classList.remove("hidden");
+        if (currentIntentMode !== 'agent' && typeof setIntentMode === 'function') {
+          setIntentMode('agent', false);
+        }
         setTimeout(updateVoiceCenterCoordinates, 50);
       } else if (tab === 'chat') {
         viewChat.classList.remove("hidden");
@@ -2696,13 +2686,7 @@
     let currentIntentMode = localStorage.getItem("voicefi_companion_intent_mode") || 'agent'; // 'agent' | 'speed' | 'comic' | 'open'
 
     const SPARKLER_CHIPS = {
-      agent: [
-        { label: "🌿 Git Status", prompt: "Check git status and repo branch" },
-        { label: "🧪 Run Pytest", prompt: "Run pytest tests/test_companion.py -v" },
-        { label: "🔍 Search Audio", prompt: "Search codebase for LiveAudioStream" },
-        { label: "📄 Read Config", prompt: "Read src/voicefi/config.py and summarize it" },
-        { label: "🚀 Deploy Pages", prompt: "Check Cloudflare deployment status" },
-      ],
+      agent: [],
       speed: [
         { label: "⚡ Latency Benchmark", prompt: "Benchmark VoiceFi latency and speech speed" },
         { label: "⏱️ How fast are you?", prompt: "How fast is Gemini 3.8 Live compared to standard LLMs?" },
@@ -2728,16 +2712,9 @@
       const text = document.getElementById("headerCapsuleText");
       const wave = document.getElementById("hudMiniWave");
 
-      // 1. Avatar based on intent mode and active app
-      if (avatar) {
-        if (currentIntentMode === 'comic') avatar.innerText = "🎭";
-        else if (currentIntentMode === 'speed') avatar.innerText = "⚡";
-        else if (currentIntentMode === 'open') avatar.innerText = "🎙️";
-        else {
-          const activeApp = activeConversationData?.app_mode || 'antigravity';
-          avatar.innerText = activeApp === 'claude' ? "🎭" : (activeApp === 'obsidian' ? "💎" : "🤖");
-        }
-      }
+      // 1. Hide avatar icon and glowing state dot (keep clean title only)
+      if (avatar) avatar.className = "hidden";
+      if (dot) dot.className = "hidden";
 
       // 2. Miniature Waveform Bars
       if (wave) {
@@ -2750,22 +2727,7 @@
         }
       }
 
-      // 3. State Dot styling
-      if (dot) {
-        if (state === 'listening' || state === 'hearing') {
-          dot.className = "w-2 h-2 rounded-full bg-red-500 animate-ping shrink-0";
-        } else if (state === 'speaking') {
-          dot.className = "w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0";
-        } else if (state === 'thinking' || state === 'working') {
-          dot.className = "w-2 h-2 rounded-full bg-purple-400 animate-pulse shrink-0";
-        } else if (state === 'interrupted') {
-          dot.className = "w-2 h-2 rounded-full bg-amber-400 shrink-0";
-        } else {
-          dot.className = "w-2 h-2 rounded-full bg-emerald-400 shrink-0";
-        }
-      }
-
-      // 4. State Title / Action
+      // 3. State Title / Action
       if (text) {
         if (state === 'listening' || state === 'hearing') {
           text.innerText = "Listening...";
@@ -2791,21 +2753,52 @@
           text.innerText = "Interrupted";
           text.className = "truncate font-bold text-xs sm:text-sm text-amber-300 text-left";
         } else {
-          let idleTitle = "Ready";
-          if (currentIntentMode === 'comic') idleTitle = "Puck Standup • SFX On";
-          else if (currentIntentMode === 'speed') idleTitle = "Gemini Live • 528ms";
-          else if (currentIntentMode === 'open') idleTitle = "2.5 Flash • Open Mic";
-          else {
-            idleTitle = activeConversationData?.title || "Antigravity • Ready";
-          }
-          text.innerText = idleTitle;
+          updateHeaderCapsuleText();
           text.className = "truncate font-bold text-xs sm:text-sm text-zinc-100 text-left";
         }
       }
     }
 
+    function isAgySelectedConversation() {
+      if (typeof currentAppFilter !== 'undefined' && currentAppFilter && currentAppFilter !== 'antigravity' && currentAppFilter !== 'all') {
+        return false;
+      }
+      const convId = activeConvId || (convSelect && convSelect.value) || "";
+      if (!convId || convId === "obsidian") return false;
+      if (convId.startsWith("claude_") || convId.toLowerCase().includes("claude")) return false;
+      if (convId.startsWith("codex_") || convId.toLowerCase().includes("codex")) return false;
+      if (activeConversationData) {
+        const engine = (activeConversationData.engine || "").toLowerCase();
+        if (engine === "claude" || engine === "codex" || engine === "obsidian") return false;
+      }
+      return true;
+    }
+
+    function updateIntentSwitcherVisibility() {
+      const isAgy = isAgySelectedConversation();
+      const containers = [
+        document.getElementById("intentSwitcherContainer"),
+        document.getElementById("liveIntentSwitcherContainer")
+      ];
+      containers.forEach(el => {
+        if (el) {
+          if (isAgy) {
+            el.classList.remove("hidden");
+          } else {
+            el.classList.add("hidden");
+          }
+        }
+      });
+      // If switching to a non-AGY conversation while in a Gemini Live mode, gracefully revert to standard Agent mode
+      if (!isAgy && currentIntentMode !== 'agent') {
+        setIntentMode('agent', false);
+      }
+      renderSparklerChips();
+    }
+
     function renderSparklerChips() {
-      const chips = SPARKLER_CHIPS[currentIntentMode] || SPARKLER_CHIPS.agent;
+      const isAgy = isAgySelectedConversation();
+      const chips = isAgy ? (SPARKLER_CHIPS[currentIntentMode] || []) : [];
       const containers = [
         document.getElementById("voiceSparklerRow"),
         document.getElementById("chatSparklerRow"),
@@ -2815,6 +2808,11 @@
       containers.forEach(container => {
         if (!container) return;
         container.innerHTML = "";
+        if (!chips || chips.length === 0) {
+          container.classList.add("hidden");
+          return;
+        }
+        container.classList.remove("hidden");
         chips.forEach(chip => {
           const btn = document.createElement("button");
           btn.type = "button";
@@ -2956,6 +2954,27 @@
       });
     }
 
+    function formatConvoSnippet(title, engine = "antigravity") {
+      if (!title) return "AGY • Active Session";
+      let clean = String(title).trim();
+      clean = clean.replace(/^\[From:[^\]]+\]\s*/i, "").replace(/^\[Message[^\]]*\]\s*/i, "");
+      clean = clean.replace(/^\[Attached Screenshot:[^\]]+\]\s*/i, "");
+      clean = clean.replace(/^\[ATTACHED\s*\([0-9]+\):[^\]]+\]\s*/i, "");
+      clean = clean.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}]/gu, "");
+      clean = clean.replace(/^[⚪⏳🟢⚠️•\-]\s*/, "");
+      clean = clean.replace(/^(?:codex|cdx|claude|antigravity|agy)\s*[:•\-]?\s*/i, "");
+      clean = clean.replace(/^[A-Za-z0-9_.-]+:\s*/, "");
+      clean = clean.replace(/^•\s*/, "");
+      clean = clean.trim();
+      if (!clean) clean = "Active Session";
+
+      const words = clean.split(/\s+/).filter(Boolean);
+      const coupleWords = words.slice(0, 3).join(" ");
+
+      const eng = (engine === 'codex' || engine === 'cdx') ? 'Codex' : ((engine === 'claude') ? 'Claude' : 'AGY');
+      return `${eng} • ${coupleWords}`;
+    }
+
     function updateHeaderCapsuleText() {
       const capText = document.getElementById("headerCapsuleText");
       const select = document.getElementById("convSelect");
@@ -2967,9 +2986,11 @@
 
       if (selectedOpt && select && select.value) {
         const rawText = selectedOpt.text || "";
-        if (rawText && !rawText.includes("No active") && !rawText.startsWith("Loading") && !rawText.includes("Not connected") && !rawText.startsWith("⚠️")) {
-          let clean = rawText.replace(/^[⚪⏳🟢⚠️]\s*/, "");
-          clean = clean.replace(/•\s*[^:]+:\s*/, "• ");
+        if (rawText && !rawText.includes("No active") && !rawText.startsWith("Loading") && !rawText.includes("Not connected") && !rawText.startsWith("Failed")) {
+          const isClaude = select.value.startsWith("claude_") || (typeof currentAppFilter !== 'undefined' && currentAppFilter === 'claude');
+          const isCodex = select.value.startsWith("codex_") || (typeof currentAppFilter !== 'undefined' && currentAppFilter === 'codex');
+          const engine = isCodex ? 'codex' : (isClaude ? 'claude' : 'antigravity');
+          const clean = formatConvoSnippet(rawText, engine);
           capText.textContent = clean;
           try {
             localStorage.setItem("voicefi_last_conv_title", clean);
@@ -2983,7 +3004,8 @@
       try {
         const cached = localStorage.getItem("voicefi_last_conv_title");
         if (cached && cached !== "Select Context" && cached !== "Select Agent & Context") {
-          capText.textContent = cached;
+          const clean = formatConvoSnippet(cached, (typeof currentAppFilter !== 'undefined' ? currentAppFilter : 'antigravity'));
+          capText.textContent = clean;
           return;
         }
       } catch (e) {}
@@ -2994,27 +3016,27 @@
         const conv = cachedConversationsPayload.conversations.find(c => c.id === targetId) || cachedConversationsPayload.conversations[0];
         if (conv) {
           const isClaude = conv.engine === "claude" || (conv.id && conv.id.startsWith("claude_"));
-          const prefix = isClaude ? "🎭 Claude" : "🤖 AGY";
-          let clean = (conv.title || "Active Session").trim();
-          clean = clean.replace(/^\[From:[^\]]+\]\s*/i, "").replace(/^\[Message[^\]]*\]\s*/i, "").trim();
-          const proj = conv.project_name ? ` • ${conv.project_name}:` : " •";
-          capText.textContent = `${prefix}${proj} ${clean}`;
+          const isCodex = conv.engine === "codex" || (conv.id && conv.id.startsWith("codex_"));
+          const engine = isCodex ? 'codex' : (isClaude ? 'claude' : 'antigravity');
+          capText.textContent = formatConvoSnippet(conv.title || "Active Session", engine);
           return;
         }
       }
 
       if (typeof currentAppFilter !== 'undefined') {
-        if (currentAppFilter === 'claude') {
-          capText.textContent = "🎭 Claude • Active Session";
+        if (currentAppFilter === 'codex') {
+          capText.textContent = "Codex • Active Session";
+        } else if (currentAppFilter === 'claude') {
+          capText.textContent = "Claude • Active Session";
         } else if (currentAppFilter === 'antigravity') {
-          capText.textContent = "🤖 AGY • Active Session";
+          capText.textContent = "AGY • Active Session";
         } else if (currentAppFilter === 'obsidian') {
-          capText.textContent = "💎 Obsidian Vault";
+          capText.textContent = "Obsidian Vault";
         } else {
-          capText.textContent = "🤖 AGY • Active Session";
+          capText.textContent = "AGY • Active Session";
         }
       } else {
-        capText.textContent = "🤖 AGY • Active Session";
+        capText.textContent = "AGY • Active Session";
       }
     }
     window.updateHeaderCapsuleText = updateHeaderCapsuleText;
@@ -3357,51 +3379,37 @@
     let pendingAutoplayItem = null;
 
     function keepAudioContextAlive() {
+      if (!audioCtx) {
+        initAudioContext();
+      }
       if (!audioCtx) return;
       if (audioCtx.state === 'suspended') {
         try { audioCtx.resume().catch(() => {}); } catch (e) {}
       }
-      if (audioCtx.state !== 'running') return;
-      if (audioKeepAliveNode) return;
-      try {
-        const sampleRate = audioCtx.sampleRate || 44100;
-        // 2-second buffer with imperceptible dither (~ -90dB) prevents mobile OS CoreAudio / AAudio hardware sleep
-        const buffer = audioCtx.createBuffer(1, sampleRate * 2, sampleRate);
-        const data = buffer.getChannelData(0);
-        for (let i = 0; i < data.length; i++) {
-          data[i] = (Math.random() * 2 - 1) * 0.00004;
-        }
-        const source = audioCtx.createBufferSource();
-        source.buffer = buffer;
-        source.loop = true;
-        const gainNode = audioCtx.createGain();
-        gainNode.gain.value = 0.00004;
-        source.connect(gainNode);
-        gainNode.connect(audioCtx.destination);
-        source.start(0);
-        audioKeepAliveNode = source;
-
-        audioCtx.onstatechange = () => {
-          if (audioCtx.state === 'suspended') {
-            audioKeepAliveNode = null;
-          }
-        };
-      } catch (e) {
-        console.warn("keepAudioContextAlive notice:", e);
+      if (!audioKeepAliveNode && audioCtx && (audioCtx.state === 'running' || audioCtx.state === 'suspended')) {
+        try {
+          // Continuous inaudible buffer source keeps the CoreAudio/Android Audio HAL audio pipeline warm
+          // and prevents mobile browsers (iOS Safari, mobile Chrome) from auto-suspending the AudioContext.
+          const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate, audioCtx.sampleRate);
+          const source = audioCtx.createBufferSource();
+          source.buffer = buffer;
+          source.loop = true;
+          const gain = audioCtx.createGain();
+          gain.gain.value = 0.00001; // Inaudible non-zero gain
+          source.connect(gain);
+          gain.connect(audioCtx.destination);
+          source.start(0);
+          audioKeepAliveNode = source;
+        } catch (e) {}
       }
     }
 
     function unlockAudio() {
       initAudioContext();
-      if (audioCtx) {
-        if (audioCtx.state === 'suspended') {
-          audioCtx.resume().then(() => {
-            keepAudioContextAlive();
-          }).catch(() => {});
-        } else if (audioCtx.state === 'running') {
-          keepAudioContextAlive();
-        }
+      if (audioCtx && audioCtx.state === 'suspended') {
+        try { audioCtx.resume().catch(() => {}); } catch (e) {}
       }
+      keepAudioContextAlive();
 
       if (!audioUnlocked && ttsAudio) {
         try {
@@ -3419,6 +3427,11 @@
     document.addEventListener('touchend', unlockAudio, { passive: true });
     document.addEventListener('click', unlockAudio, { passive: true });
     document.addEventListener('keydown', unlockAudio, { passive: true });
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        keepAudioContextAlive();
+      }
+    });
 
     // Audio & Speech Synthesis with FIFO Turn Queue
     let currentTtsSourceNode = null;
@@ -3721,16 +3734,18 @@
       const normText = currentItem.normText || text.toLowerCase().replace(/[^a-z0-9]/g, '');
       const onComplete = currentItem.onComplete;
       const agentRole = currentItem.agentRole;
-      const voice = currentItem.voice || (agentRole === 'claude' ? 'Stefan' : 'Christopher');
+      const isCodex = agentRole === 'codex' || (agentRole && agentRole.toLowerCase().includes('codex'));
+      const isClaude = !isCodex && (agentRole === 'claude' || (agentRole && agentRole.toLowerCase().includes('claude')));
+      const voice = currentItem.voice || (isCodex ? 'Emma' : (isClaude ? 'Stefan' : 'Christopher'));
 
       isSpeaking = true;
       currentlySpeakingTextNorm = normText;
       recentSpokenNormsMap.set(normText, Date.now());
 
-      const isClaude = agentRole === 'claude' || (agentRole && agentRole.toLowerCase().includes('claude'));
-      setOrbState('speaking', isClaude ? 'Claude Speaking' : 'Agent Speaking', text.slice(0, 45) + (text.length > 45 ? '...' : ''));
+      const speakerLabel = isCodex ? 'Codex Speaking' : (isClaude ? 'Claude Speaking' : 'Agent Speaking');
+      setOrbState('speaking', speakerLabel, text.slice(0, 45) + (text.length > 45 ? '...' : ''));
 
-      const resolvedRole = agentRole || (activeConversationData && (activeConversationData.engine || activeConversationData.agent_role)) || (activeConvId && activeConvId.startsWith("claude_") ? "claude" : "antigravity");
+      const resolvedRole = agentRole || (activeConversationData && (activeConversationData.engine || activeConversationData.agent_role)) || (activeConvId && activeConvId.startsWith("codex_") ? "codex" : (activeConvId && activeConvId.startsWith("claude_") ? "claude" : "antigravity"));
 
       const finishCurrentTurn = () => {
         recordAgentSpokenText(text);
@@ -3783,6 +3798,7 @@
 
           // Tier 1: Web Audio Buffer Source (High-Fidelity 48kHz Neural Edge TTS)
           initAudioContext();
+          keepAudioContextAlive();
           if (audioCtx) {
             if (audioCtx.state === 'suspended') {
               try { await audioCtx.resume(); } catch (e) {}
@@ -3875,7 +3891,8 @@
           // Present an immediate one-tap playback prompt so user can listen without losing response.
           if (!playbackStarted && isSpeaking && isProcessingSpeechQueue) {
             console.warn("Autoplay blocked by mobile browser policy. Presenting tap-to-listen prompt.");
-            promptAutoplayUnlock(arrayBuffer, text, finishCurrentTurn);
+            const speakerName = isCodex ? 'Codex' : (isClaude ? 'Claude' : 'Viv');
+            promptAutoplayUnlock(arrayBuffer, text, finishCurrentTurn, speakerName);
             return;
           }
         }
@@ -3960,11 +3977,11 @@
       fallbackSpeechSynthesis(item.text, item.onComplete);
     }
 
-    function promptAutoplayUnlock(arrayBuffer, text, onComplete) {
+    function promptAutoplayUnlock(arrayBuffer, text, onComplete, speakerName = 'Viv') {
       pendingAutoplayItem = { arrayBuffer, text, onComplete };
 
       // Update Orb state
-      setOrbState('speaking', 'Tap to Hear Viv 🔊', 'Autoplay restricted — tap anywhere to listen');
+      setOrbState('speaking', `Tap to Hear ${speakerName} 🔊`, 'Autoplay restricted — tap anywhere to listen');
 
       // Show floating banners
       const globalBanner = document.getElementById("audioAutoplayBanner");
@@ -3972,11 +3989,15 @@
       const voiceBanner = document.getElementById("audioAutoplayVoiceBanner");
       if (voiceBanner) voiceBanner.classList.remove("hidden");
 
+      const txt = document.getElementById("audioAutoplayText");
+      if (txt) txt.textContent = `Tap to Hear ${speakerName} ▶`;
+
       document.addEventListener('click', executePendingAutoplay, { once: true, capture: true });
       document.addEventListener('touchstart', executePendingAutoplay, { once: true, capture: true });
 
       const playBtn = document.getElementById("audioAutoplayPlayBtn");
       if (playBtn) {
+        playBtn.textContent = `Tap to Hear ${speakerName} 🔊`;
         playBtn.onclick = (e) => {
           e.stopPropagation();
           executePendingAutoplay();
@@ -4871,19 +4892,30 @@
 
       const lowerFullText = fullText.toLowerCase().trim();
       const hasClaudeIntent = /\b(?:hey|ask|tell|all\s+right|alright|okay|so|can\s+you\s+ask|could\s+you\s+ask|send\s+to|talk\s+to|switch\s+to|have|message)?\s*claude\b/i.test(lowerFullText);
+      const hasCodexIntent = /\b(?:hey|ask|tell|all\s+right|alright|okay|so|can\s+you\s+ask|could\s+you\s+ask|send\s+to|talk\s+to|switch\s+to|have|message)?\s*codex\b/i.test(lowerFullText);
+      const isCodexFiltered = (typeof currentAppFilter !== 'undefined' && currentAppFilter === 'codex');
       const isClaudeFiltered = (typeof currentAppFilter !== 'undefined' && currentAppFilter === 'claude');
-      const isClaudeSession = Boolean(
+      const isCodexSession = Boolean(
+        hasCodexIntent ||
+        isCodexFiltered ||
+        (activeConvId && (activeConvId.startsWith("codex_") || activeConvId.toLowerCase().includes("codex"))) ||
+        (activeConversationData && (activeConversationData.engine === "codex" || (activeConversationData.id && activeConversationData.id.startsWith("codex_"))))
+      );
+      const isClaudeSession = !isCodexSession && Boolean(
         hasClaudeIntent ||
         isClaudeFiltered ||
         (activeConvId && (activeConvId.startsWith("claude_") || activeConvId.toLowerCase().includes("claude"))) ||
         (activeConversationData && (activeConversationData.engine === "claude" || (activeConversationData.id && activeConversationData.id.startsWith("claude_"))))
       );
-      const targetEngine = isClaudeSession ? "claude" : "antigravity";
-      const targetConvId = (isClaudeSession && activeConvId && !activeConvId.startsWith("claude_") && !activeConvId.toLowerCase().includes("claude"))
+      const targetEngine = isCodexSession ? "codex" : (isClaudeSession ? "claude" : "antigravity");
+      const targetConvId = (isCodexSession && activeConvId && !activeConvId.startsWith("codex_") && !activeConvId.toLowerCase().includes("codex"))
         ? null
-        : (activeConvId || null);
+        : ((isClaudeSession && activeConvId && !activeConvId.startsWith("claude_") && !activeConvId.toLowerCase().includes("claude"))
+          ? null
+          : (activeConvId || null));
 
-      showToast(`Command received — ${isClaudeSession ? "Claude" : "Antigravity"} processing...`, 3500);
+      const agentDisplayName = isCodexSession ? "Codex" : (isClaudeSession ? "Claude" : "Antigravity");
+      showToast(`Command received — ${agentDisplayName} processing...`, 3500);
       appendOptimisticUserMessage(displayMsg);
       startActiveTurnPolling(targetConvId || activeConvId);
 
@@ -4912,7 +4944,7 @@
 
       setTimeout(() => {
         if (!isListening && !isSpeaking) {
-          setOrbState('thinking', isClaudeSession ? 'Claude Thinking...' : 'Agent Thinking...', 'Processing your request...');
+          setOrbState('thinking', `${agentDisplayName} Thinking...`, 'Processing your request...');
         }
       }, 700);
     }
@@ -5395,6 +5427,7 @@
         if (!res.ok) return;
         const data = await res.json();
         activeConversationData = data;
+        updateIntentSwitcherVisibility();
         renderConversationDetails(data);
       } catch (err) {
         console.error("Fetch conversation detail error:", err);
@@ -5574,10 +5607,12 @@
                 <div class="flex items-center justify-between border-b border-[#1c1c1c] pb-2">
                   <div class="flex items-center gap-2">
                     ${(() => {
-                      const isClaudeTurn = (turn.agent_role || '').toLowerCase().includes('claude') || (data.engine === 'claude') || (data.id && data.id.startsWith('claude_'));
-                      const displayRole = turn.agent_role || (isClaudeTurn ? 'Claude' : 'Antigravity');
+                      const isCodexTurn = (turn.agent_role || '').toLowerCase().includes('codex') || (data.engine === 'codex') || (data.id && data.id.startsWith('codex_'));
+                      const isClaudeTurn = !isCodexTurn && ((turn.agent_role || '').toLowerCase().includes('claude') || (data.engine === 'claude') || (data.id && data.id.startsWith('claude_')));
+                      const displayRole = turn.agent_role || (isCodexTurn ? 'Codex' : (isClaudeTurn ? 'Claude' : 'Antigravity'));
+                      const roleBadge = isCodexTurn ? 'CDX' : (isClaudeTurn ? 'CC' : 'AG');
                       return `
-                        <span class="w-5 h-5 rounded-md bg-[#18181b] border border-[#27272a] flex items-center justify-center text-[9px] font-bold text-white mono">${isClaudeTurn ? 'CC' : 'AG'}</span>
+                        <span class="w-5 h-5 rounded-md bg-[#18181b] border border-[#27272a] flex items-center justify-center text-[9px] font-bold text-white mono">${roleBadge}</span>
                         <span class="font-bold text-xs text-white uppercase tracking-wider">${escapeHtml(displayRole)}</span>
                       `;
                     })()}
@@ -6754,10 +6789,11 @@
       } else if (data.type === "agent_speaking_started") {
         if (data.text) {
           if (latestText) latestText.innerText = data.text;
-          const isClaude = data.agent_role === "claude" || (data.conv_id && data.conv_id.startsWith("claude_"));
+          const isCodex = data.agent_role === "codex" || (data.conv_id && data.conv_id.startsWith("codex_"));
+          const isClaude = !isCodex && (data.agent_role === "claude" || (data.conv_id && data.conv_id.startsWith("claude_")));
           const isComic = data.intent_mode === "comic";
           const isSpeed = data.intent_mode === "speed";
-          const speakerName = isClaude ? 'Claude Speaking' : isComic ? 'Puck Speaking' : isSpeed ? 'Gemini Speaking' : 'Agent Speaking';
+          const speakerName = isCodex ? 'Codex Speaking' : (isClaude ? 'Claude Speaking' : isComic ? 'Puck Speaking' : isSpeed ? 'Gemini Speaking' : 'Agent Speaking');
           if (!isSpeaking) {
             setOrbState('speaking', speakerName, data.text.slice(0, 45) + (data.text.length > 45 ? '...' : ''));
           }
@@ -6769,23 +6805,27 @@
           });
         }
       } else if (data.type === "user_command_injected") {
-        const isClaude = data.conv_id && (data.conv_id.startsWith("claude_") || data.conv_id.toLowerCase().includes("claude"));
-        showToast(`Command received by ${isClaude ? "Claude Code" : "Antigravity"}`, 3000);
+        const isCodex = data.conv_id && (data.conv_id.startsWith("codex_") || data.conv_id.toLowerCase().includes("codex"));
+        const isClaude = !isCodex && (data.conv_id && (data.conv_id.startsWith("claude_") || data.conv_id.toLowerCase().includes("claude")));
+        const agentName = isCodex ? "Codex" : (isClaude ? "Claude Code" : "Antigravity");
+        showToast(`Command received by ${agentName}`, 3000);
         if (data.conv_id && data.conv_id !== "active") {
           activeConvId = data.conv_id;
         }
         if (!isListening && !isSpeaking) {
-          setOrbState('thinking', isClaude ? 'Claude Thinking...' : 'Agent Thinking...', 'Processing request...');
+          setOrbState('thinking', `${agentName} Thinking...`, 'Processing request...');
         }
         startActiveTurnPolling(activeConvId);
         fetchConversationDetails(activeConvId);
         fetchConversations();
       } else if (data.type === "agent_turn_completed") {
         stopActiveTurnPolling();
-        const isClaude = data.agent_role === "claude" || (data.conv_id && data.conv_id.startsWith("claude_"));
-        showToast(`${isClaude ? "Claude Code" : "Antigravity"} completed turn`, 2500);
+        const isCodex = data.agent_role === "codex" || (data.conv_id && data.conv_id.startsWith("codex_"));
+        const isClaude = !isCodex && (data.agent_role === "claude" || (data.conv_id && data.conv_id.startsWith("claude_")));
+        const agentName = isCodex ? "Codex" : (isClaude ? "Claude Code" : "Antigravity");
+        showToast(`${agentName} completed turn`, 2500);
         if (liveActivityBanner) liveActivityBanner.classList.add("hidden");
-        if (logType) logType.innerText = `AGENT FINISHED (${(data.agent_role || (isClaude ? 'claude' : 'antigravity')).toUpperCase()})`;
+        if (logType) logType.innerText = `AGENT FINISHED (${(data.agent_role || (isCodex ? 'codex' : (isClaude ? 'claude' : 'antigravity'))).toUpperCase()})`;
         if (latestText) latestText.innerText = data.summary || "";
         if (data.conv_id) activeConvId = data.conv_id;
 
@@ -6837,6 +6877,7 @@
         }
 
         if (shouldSpeakOnPhone) {
+          const defaultVoice = isCodex ? 'Emma' : (isClaude ? 'Stefan' : 'Christopher');
           speakTextAloud(data.summary, () => {
             if (autoListen && !isListening && speechQueue.length === 0 && currentView === 'voice') {
               setTimeout(() => {
@@ -6845,7 +6886,7 @@
                 }
               }, 600);
             }
-          }, data.agent_role || (isClaude ? 'claude' : 'antigravity'), data.voice || 'Christopher');
+          }, data.agent_role || (isCodex ? 'codex' : (isClaude ? 'claude' : 'antigravity')), data.voice || defaultVoice);
         } else {
           if (!isListening && !isSpeaking) {
             setOrbState('idle');
@@ -6949,7 +6990,7 @@
     }
 
     let cachedConversationsPayload = null;
-    let currentAppFilter = 'all'; // 'all' | 'antigravity' | 'claude' | 'obsidian'
+    let currentAppFilter = 'all'; // 'all' | 'antigravity' | 'claude' | 'codex' | 'obsidian'
     let currentObsidianMode = 'capture'; // 'capture' | 'memo'
     let currentVoiceSpeed = 1.0;
 
@@ -6961,16 +7002,20 @@
       const btnAll = document.getElementById("appFilterAll");
       const btnAG = document.getElementById("appFilterAG");
       const btnClaude = document.getElementById("appFilterClaude");
+      const btnCodex = document.getElementById("appFilterCodex");
       const btnObsidian = document.getElementById("appFilterObsidian");
 
       if (btnAll) btnAll.className = filter === 'all' ? activeClass : inactiveClass;
       if (btnAG) btnAG.className = filter === 'antigravity' ? activeClass : inactiveClass;
       if (btnClaude) btnClaude.className = filter === 'claude' ? activeClass : inactiveClass;
+      if (btnCodex) btnCodex.className = filter === 'codex' ? activeClass : inactiveClass;
       if (btnObsidian) btnObsidian.className = filter === 'obsidian' ? activeClass : inactiveClass;
 
       const newConvBtn = document.getElementById("newConvBtn");
       if (newConvBtn) {
-        if (filter === 'claude') {
+        if (filter === 'codex') {
+          newConvBtn.title = "Start a New Codex Conversation";
+        } else if (filter === 'claude') {
           newConvBtn.title = "Start a New Claude Conversation";
         } else if (filter === 'antigravity') {
           newConvBtn.title = "Start a New Antigravity Conversation";
@@ -6985,6 +7030,7 @@
         renderFilteredConversations(cachedConversationsPayload);
       }
       updateHeaderCapsuleText();
+      updateIntentSwitcherVisibility();
 
       if (activeConvId && activeConvId !== 'obsidian') {
         fetch('/api/switch', {
@@ -7248,6 +7294,7 @@
       updateHeaderCapsuleText();
       highlightActiveConvCard(convId);
       toggleHeaderDrawer(false);
+      updateIntentSwitcherVisibility();
 
       // Keep user on their current tab (never hijack voice mode)
       if (currentView === 'chat') {
@@ -7287,9 +7334,11 @@
 
       let conversations = data.conversations || [];
       if (currentAppFilter === 'antigravity') {
-        conversations = conversations.filter(c => c.engine !== 'claude' && !(c.id && c.id.startsWith('claude_')));
+        conversations = conversations.filter(c => c.engine !== 'claude' && c.engine !== 'codex' && !(c.id && (c.id.startsWith('claude_') || c.id.startsWith('codex_'))));
       } else if (currentAppFilter === 'claude') {
         conversations = conversations.filter(c => c.engine === 'claude' || (c.id && c.id.startsWith('claude_')));
+      } else if (currentAppFilter === 'codex') {
+        conversations = conversations.filter(c => c.engine === 'codex' || (c.id && c.id.startsWith('codex_')));
       } else if (currentAppFilter === 'obsidian') {
         conversations = [];
       }
@@ -7301,9 +7350,11 @@
         storedId = localStorage.getItem("voicefi_active_conv_id") || "";
       } catch (e) {}
       let preferredId = activeConvId || storedId || data.active_id;
-      if (currentAppFilter === 'claude' && preferredId && !preferredId.startsWith("claude_") && !preferredId.toLowerCase().includes("claude")) {
+      if (currentAppFilter === 'codex' && preferredId && !preferredId.startsWith("codex_") && !preferredId.toLowerCase().includes("codex")) {
         preferredId = (conversations.length > 0) ? conversations[0].id : "";
-      } else if (currentAppFilter === 'antigravity' && preferredId && (preferredId.startsWith("claude_") || preferredId.toLowerCase().includes("claude"))) {
+      } else if (currentAppFilter === 'claude' && preferredId && !preferredId.startsWith("claude_") && !preferredId.toLowerCase().includes("claude")) {
+        preferredId = (conversations.length > 0) ? conversations[0].id : "";
+      } else if (currentAppFilter === 'antigravity' && preferredId && (preferredId.startsWith("claude_") || preferredId.toLowerCase().includes("claude") || preferredId.startsWith("codex_") || preferredId.toLowerCase().includes("codex"))) {
         preferredId = (conversations.length > 0) ? conversations[0].id : "";
       }
 
@@ -7346,25 +7397,25 @@
           const opt = document.createElement("option");
           opt.value = c.id;
           const isClaude = c.engine === "claude" || (c.id && c.id.startsWith("claude_"));
-          const enginePrefix = isClaude ? "🎭 Claude" : "🤖 AGY";
+          const isCodex = c.engine === "codex" || (c.id && c.id.startsWith("codex_"));
+          const enginePrefix = isCodex ? "Codex" : (isClaude ? "Claude" : "AGY");
 
           let cleanTitle = (c.title || "Conversation").trim();
           cleanTitle = cleanTitle.replace(/^\[From:[^\]]+\]\s*/i, "");
           cleanTitle = cleanTitle.replace(/^\[Message[^\]]*\]\s*/i, "");
           cleanTitle = cleanTitle.replace(/^\[Attached Screenshot:[^\]]+\]\s*/i, "");
           cleanTitle = cleanTitle.replace(/^\[ATTACHED\s*\([0-9]+\):[^\]]+\]\s*/i, "");
-          if (isClaude) {
+          cleanTitle = cleanTitle.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}]/gu, "");
+          if (isCodex) {
+            cleanTitle = cleanTitle.replace(/^Codex\s*•?\s*/i, "");
+            cleanTitle = cleanTitle.replace(/^Codex:\s*/i, "");
+          } else if (isClaude) {
             cleanTitle = cleanTitle.replace(/^Claude\s*•?\s*/i, "");
             cleanTitle = cleanTitle.replace(/^Claude:\s*/i, "");
           }
           cleanTitle = cleanTitle.trim() || "Untitled";
 
-          let statusIcon = "⚪";
-          if (c.status === "agent_working") statusIcon = "⏳";
-          else if (c.status === "waiting_for_user") statusIcon = "🟢";
-
-          const proj = c.project_name ? `• ${c.project_name}` : "";
-          opt.innerText = `${statusIcon} ${enginePrefix} ${proj}: ${cleanTitle}`;
+          opt.innerText = `${enginePrefix} • ${cleanTitle}`;
 
           const isSelected = (c.id === preferredId);
           if (isSelected) {
@@ -7377,14 +7428,17 @@
           if (listContainer) {
             let statusDot = '<span class="w-2 h-2 rounded-full bg-zinc-500 shrink-0"></span>';
             if (c.status === "agent_working") {
-              statusDot = '<span class="w-2 h-2 rounded-full bg-amber-400 animate-ping shrink-0"></span>';
+              statusDot = '<span class="w-2 h-2 rounded-full bg-amber-400 shrink-0"></span>';
             } else if (c.status === "waiting_for_user") {
               statusDot = '<span class="w-2 h-2 rounded-full bg-emerald-400 shrink-0"></span>';
             }
 
-            const engineBadge = isClaude 
-              ? '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 shrink-0">Claude</span>'
-              : '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shrink-0">AGY</span>';
+            let engineBadge = '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shrink-0">AGY</span>';
+            if (isCodex) {
+              engineBadge = '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0">CDX</span>';
+            } else if (isClaude) {
+              engineBadge = '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 shrink-0">Claude</span>';
+            }
 
             const card = document.createElement("button");
             card.type = "button";
@@ -7420,7 +7474,7 @@
           const isSelected = (preferredId === "obsidian" || currentAppFilter === 'obsidian');
           const vaultOpt = document.createElement("option");
           vaultOpt.value = "obsidian";
-          vaultOpt.innerText = `💎 Obsidian • ${data.vault.name}`;
+          vaultOpt.innerText = `Obsidian • ${data.vault.name}`;
           if (isSelected) {
             vaultOpt.selected = true;
             activeConvId = "obsidian";
@@ -7442,7 +7496,7 @@
                 <span class="w-2 h-2 rounded-full bg-purple-400 shrink-0"></span>
                 <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 shrink-0">Vault</span>
                 <div class="min-w-0 flex-1">
-                  <div class="text-xs sm:text-sm font-semibold truncate text-zinc-100">💎 Obsidian • ${data.vault.name}</div>
+                  <div class="text-xs sm:text-sm font-semibold truncate text-zinc-100">Obsidian • ${data.vault.name}</div>
                   <div class="text-[10px] font-mono text-zinc-400 truncate">Daily Notes & Memos</div>
                 </div>
               </div>
@@ -7460,13 +7514,16 @@
 
         if (!matched && preferredId && preferredId !== "obsidian") {
           const isClaude = preferredId.startsWith("claude_") || preferredId.toLowerCase().includes("claude");
+          const isCodex = preferredId.startsWith("codex_") || preferredId.toLowerCase().includes("codex");
           const shouldInclude = (currentAppFilter === 'all') ||
+                                (currentAppFilter === 'codex' && isCodex) ||
                                 (currentAppFilter === 'claude' && isClaude) ||
-                                (currentAppFilter === 'antigravity' && !isClaude);
+                                (currentAppFilter === 'antigravity' && !isClaude && !isCodex);
           if (shouldInclude) {
             const pendingOpt = document.createElement("option");
             pendingOpt.value = preferredId;
-            pendingOpt.innerText = `⏳ ${isClaude ? "🎭 Claude" : "🤖 AGY"}: Active Session (${preferredId.slice(0, 10)}...)`;
+            const engPrefix = isCodex ? "Codex" : (isClaude ? "Claude" : "AGY");
+            pendingOpt.innerText = `${engPrefix}: Active Session (${preferredId.slice(0, 10)}...)`;
             pendingOpt.selected = true;
             convSelect.insertBefore(pendingOpt, convSelect.firstChild);
             matched = true;
@@ -7477,10 +7534,14 @@
               pendingCard.type = "button";
               pendingCard.setAttribute("data-conv-id", preferredId);
               pendingCard.className = "w-full text-left p-2.5 rounded-xl bg-white/15 border border-white/30 text-white flex items-center justify-between gap-2 shadow-sm transition cursor-pointer";
+              const badgeClass = isCodex
+                ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
+                : (isClaude ? "bg-amber-500/20 text-amber-300 border-amber-500/30" : "bg-cyan-500/20 text-cyan-300 border-cyan-500/30");
+              const badgeLabel = isCodex ? "CDX" : (isClaude ? "Claude" : "AGY");
               pendingCard.innerHTML = `
                 <div class="flex items-center gap-2 min-w-0 flex-1">
-                  <span class="w-2 h-2 rounded-full bg-amber-400 shrink-0"></span>
-                  <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 shrink-0">${isClaude ? "Claude" : "AGY"}</span>
+                  <span class="w-2 h-2 rounded-full ${isCodex ? 'bg-emerald-400' : (isClaude ? 'bg-amber-400' : 'bg-cyan-400')} shrink-0"></span>
+                  <span class="text-[10px] font-bold px-1.5 py-0.5 rounded ${badgeClass} border shrink-0">${badgeLabel}</span>
                   <div class="min-w-0 flex-1">
                     <div class="text-xs sm:text-sm font-semibold truncate text-zinc-100">Active Session (${preferredId.slice(0, 10)}...)</div>
                   </div>
@@ -7520,6 +7581,8 @@
       if (chatInput) {
         if (activeConvId === "obsidian" || currentAppFilter === 'obsidian') {
           chatInput.placeholder = currentObsidianMode === 'memo' ? "AI Voice Memo..." : "Daily Note bullet...";
+        } else if (currentAppFilter === 'codex' || (activeConvId && activeConvId.startsWith("codex_"))) {
+          chatInput.placeholder = window.innerWidth < 480 ? "Message Codex..." : "Message OpenAI Codex...";
         } else if (currentAppFilter === 'claude' || (activeConvId && activeConvId.startsWith("claude_"))) {
           chatInput.placeholder = window.innerWidth < 480 ? "Message Claude..." : "Message Claude Code...";
         } else {
@@ -7528,6 +7591,7 @@
       }
 
       updateHeaderCapsuleText();
+      updateIntentSwitcherVisibility();
     }
 
     async function fetchConversations() {
@@ -7704,30 +7768,48 @@
       }, 2500);
     }
 
+    function renderModalQr(url, dataUri) {
+      if (qrModalUrl) qrModalUrl.innerText = url;
+      if (!qrModalImg) return;
+      const parent = qrModalImg.parentElement;
+      if (!parent) return;
+
+      // Purge any previously generated dynamic canvases or extra images from QRCode library
+      const extras = parent.querySelectorAll('canvas, img:not(#qrModalImg)');
+      extras.forEach(el => el.remove());
+
+      if (dataUri && dataUri.length > 50) {
+        qrModalImg.src = dataUri;
+        qrModalImg.classList.remove('hidden');
+        qrModalImg.style.display = 'block';
+        return;
+      }
+
+      // Hide pre-rendered img and fallback to client-side QRCode generator
+      qrModalImg.classList.add('hidden');
+      qrModalImg.style.display = 'none';
+      qrModalImg.removeAttribute('src');
+
+      if (window.QRCode) {
+        new QRCode(parent, {
+          text: url,
+          width: 192,
+          height: 192,
+          colorDark: '#0f172a',
+          colorLight: '#ffffff',
+          correctLevel: QRCode.CorrectLevel.M
+        });
+      }
+    }
+
     async function loadAndShowQrModal() {
       const { sessionId, token } = getSessionParams();
       const curSession = sessionId || localStorage.getItem('vifi_session_id') || 'vifi_4d098c55';
       const curToken = token || localStorage.getItem('vifi_token') || 'MkNCI_F2Wczaf18jX4ZORQ';
-      let targetUrl = `https://companion.voicefi.app#s=${encodeURIComponent(curSession)}&t=${encodeURIComponent(curToken)}`;
+      let targetUrl = `https://companion.voicefi.app/?s=${encodeURIComponent(curSession)}&t=${encodeURIComponent(curToken)}#s=${encodeURIComponent(curSession)}&t=${encodeURIComponent(curToken)}`;
       
-      // Immediately display default Cloud Relay pairing URL
-      if (qrModalUrl) qrModalUrl.innerText = targetUrl;
-      if (window.QRCode && qrModalImg) {
-        const parent = qrModalImg.parentElement;
-        if (parent) {
-          const extras = parent.querySelectorAll('canvas, img:not(#qrModalImg)');
-          extras.forEach(el => el.remove());
-          qrModalImg.classList.add('hidden');
-          new QRCode(parent, {
-            text: targetUrl,
-            width: 192,
-            height: 192,
-            colorDark: '#0f172a',
-            colorLight: '#ffffff',
-            correctLevel: QRCode.CorrectLevel.M
-          });
-        }
-      }
+      // Immediately render default Cloud Relay pairing URL with client-side QR fallback
+      renderModalQr(targetUrl, null);
       qrPairModal?.classList.remove("hidden");
       checkPhoneConnection();
 
@@ -7752,17 +7834,13 @@
         if (res.ok) {
           const data = await res.json();
           const serverUrl = data.active_tunnel_url || data.cloud_relay_url || data.preferred_url || data.urls?.universal_url;
-          if (serverUrl && serverUrl !== targetUrl) {
+          if (serverUrl) {
             targetUrl = serverUrl;
-            if (qrModalUrl) qrModalUrl.innerText = targetUrl;
-            if (data.qr_data_uri && qrModalImg) {
-              qrModalImg.src = data.qr_data_uri;
-              qrModalImg.classList.remove('hidden');
-              const parent = qrModalImg.parentElement;
-              if (parent) {
-                parent.querySelectorAll('canvas').forEach(el => el.remove());
-              }
-            }
+          }
+          if (data.qr_data_uri) {
+            renderModalQr(targetUrl, data.qr_data_uri);
+          } else if (serverUrl) {
+            renderModalQr(targetUrl, null);
           }
           if (data.active_tunnel_url && modalLaunchTunnelText) {
             modalLaunchTunnelText.innerText = "🟢 Companion Tunnel: Active (HTTPS) ✅";
@@ -7782,13 +7860,7 @@
             if (data.tunnel_url) {
               if (modalLaunchTunnelText) modalLaunchTunnelText.innerText = "🟢 Companion Tunnel: Active (HTTPS) ✅";
               modalLaunchTunnelBtn.disabled = false;
-              if (qrModalUrl) qrModalUrl.innerText = data.tunnel_url;
-              if (data.qr_data_uri && qrModalImg) {
-                qrModalImg.src = data.qr_data_uri;
-                qrModalImg.classList.remove('hidden');
-                const parent = qrModalImg.parentElement;
-                if (parent) parent.querySelectorAll('canvas').forEach(el => el.remove());
-              }
+              renderModalQr(data.tunnel_url, data.qr_data_uri || null);
               showToast("Cloudflare HTTPS Tunnel active!", 2500);
               return;
             }
@@ -7819,6 +7891,10 @@
     if (closeQrPairModal && qrPairModal) {
       closeQrPairModal.addEventListener("click", () => {
         qrPairModal.classList.add("hidden");
+        if (qrPhonePollInterval) {
+          clearInterval(qrPhonePollInterval);
+          qrPhonePollInterval = null;
+        }
       });
     }
 
@@ -7826,6 +7902,10 @@
       btnContinueInBrowser.addEventListener("click", () => {
         localStorage.setItem("voicefi_desktop_onboarded_v1", "true");
         qrPairModal.classList.add("hidden");
+        if (qrPhonePollInterval) {
+          clearInterval(qrPhonePollInterval);
+          qrPhonePollInterval = null;
+        }
       });
     }
 
@@ -8083,7 +8163,12 @@
         newConvBtn.classList.add("opacity-70", "cursor-not-allowed");
         newConvBtn.innerHTML = `<span class="w-3.5 h-3.5 border-2 border-black border-t-transparent rounded-full animate-spin"></span>`;
 
-        const targetEngine = (currentAppFilter === 'claude' || (currentAppFilter === 'all' && activeConvId && activeConvId.startsWith("claude_"))) ? 'claude' : 'antigravity';
+        let targetEngine = 'antigravity';
+        if (currentAppFilter === 'codex' || (currentAppFilter === 'all' && activeConvId && activeConvId.startsWith("codex_"))) {
+          targetEngine = 'codex';
+        } else if (currentAppFilter === 'claude' || (currentAppFilter === 'all' && activeConvId && activeConvId.startsWith("claude_"))) {
+          targetEngine = 'claude';
+        }
         const promptText = (chatInput && chatInput.value.trim()) ? chatInput.value.trim() : "Hello";
 
         try {
@@ -8110,7 +8195,7 @@
               chatInput.value = "";
               if (currentView === 'chat') chatInput.focus();
             }
-            const engineLabel = targetEngine === 'claude' ? 'Claude' : 'Antigravity';
+            const engineLabel = targetEngine === 'codex' ? 'Codex' : (targetEngine === 'claude' ? 'Claude' : 'Antigravity');
             showToast(`✨ New ${engineLabel} conversation started`, 2500);
           } else {
             throw new Error(data.error || "No conversation ID returned");
@@ -8440,18 +8525,23 @@
       try {
         const canvas = document.getElementById('bgAntigravityCanvas');
         if (canvas && typeof AntigravityField !== 'undefined') {
+          const isMobile = isMobileCompanionClient();
           window.bgField = new AntigravityField(canvas, {
             theme: currentAgTheme,
             particleCount: 70,
             dustCount: 85,
-            connectionDistance: 130,
-            repulsionRadius: 150,
-            repulsionStrength: 1.4,
+            connectionDistance: 125,
+            repulsionRadius: 140,
+            repulsionStrength: 1.3,
             buoyancy: -0.012,
-            glowEnabled: true,
-            glowIntensity: 1.2,
+            glowEnabled: false,
+            glowIntensity: 1.0,
             connectConstellations: true,
             enableIdeaLightning: true,
+            isMobile: isMobile,
+            fpsLimit: 60,
+            idleFpsLimit: 30,
+            idlePauseSeconds: 20,
           });
         }
       } catch (err) {
@@ -8478,6 +8568,7 @@
       }
       fetchConversations();
       updateHeaderCapsuleText();
+      updateIntentSwitcherVisibility();
       connectWebSocket();
       initMarkdownCommenting();
       initImageMarkupStudio();
@@ -8533,7 +8624,6 @@
       document.getElementById("chatEmojiBtn")?.addEventListener("click", () => {
         const quickPrompts = [
           "Review these changes and verify",
-          "Run pytest unit tests",
           "Explain what this code is doing",
           "Proceed with the next step in the plan"
         ];
@@ -9138,6 +9228,10 @@
       ctx.scale(dpr, dpr);
 
       function draw() {
+        if (currentView !== 'live') {
+          liveWaveformAnim = null;
+          return;
+        }
         liveWaveformAnim = requestAnimationFrame(draw);
         const w = rect.width || 320;
         const h = rect.height || 44;

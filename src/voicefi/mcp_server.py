@@ -504,6 +504,53 @@ MCP_TOOLS: List[Dict[str, Any]] = [
             "properties": {},
         },
     },
+    {
+        "name": "voicefi_scout",
+        "description": "Run an on-device Recon Scout on a file or directory using local Gemma 4 on Apple Silicon GPU to extract root causes, key symbols, or answers without cloud token bloat.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "target_path": {
+                    "type": "string",
+                    "description": "Path to the file or directory to scout/pre-digest.",
+                },
+                "query": {
+                    "type": "string",
+                    "description": "Specific question, anomaly to detect, or code to inspect (optional).",
+                },
+                "max_bytes": {
+                    "type": "integer",
+                    "description": "Maximum bytes to inspect (default: 500,000).",
+                },
+            },
+            "required": ["target_path"],
+        },
+    },
+    {
+        "name": "voicefi_benchmark",
+        "description": "Measure on-device model performance (TTFB latency, tokens/sec throughput, and context tokens saved) on Apple Silicon Metal GPU.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "prompt": {
+                    "type": "string",
+                    "description": "Optional custom prompt to benchmark.",
+                },
+                "test_name": {
+                    "type": "string",
+                    "description": "Optional test label.",
+                },
+            },
+        },
+    },
+    {
+        "name": "voicefi_local_status",
+        "description": "Inspect local model runtime status, Apple Silicon Metal GPU acceleration, and imported LiteRT models.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+        },
+    },
 ]
 
 
@@ -821,6 +868,9 @@ class VoiceFiMCPServer:
             "live",
             "comedy",
             "gemini_live",
+            "scout",
+            "benchmark",
+            "local_status",
         ):
             canonical_name = "voicefi_" + name
 
@@ -861,6 +911,12 @@ class VoiceFiMCPServer:
                 res = self._tool_vault_memo(args)
             elif canonical_name == "voicefi_clone_list":
                 res = self._tool_clone_list(args)
+            elif canonical_name == "voicefi_scout":
+                res = self._tool_scout(args)
+            elif canonical_name == "voicefi_benchmark":
+                res = self._tool_benchmark(args)
+            elif canonical_name == "voicefi_local_status":
+                res = self._tool_local_status(args)
             else:
                 res = {
                     "content": [{"type": "text", "text": f"Unknown tool '{name}' (not recognized)."}],
@@ -1933,6 +1989,115 @@ class VoiceFiMCPServer:
                 {
                     "type": "text",
                     "text": json.dumps({"cloned_voices": result, "count": len(result)}, indent=2),
+                }
+            ],
+            "isError": False,
+        }
+
+    def _tool_scout(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        import asyncio
+        import concurrent.futures
+        from voicefi.local import ReconScout
+
+        target = args.get("target_path") or args.get("target") or args.get("path")
+        if not target:
+            return {
+                "content": [{"type": "text", "text": "Error: 'target_path' parameter is required for voicefi_scout."}],
+                "isError": True,
+            }
+        query = (
+            args.get("query")
+            or "Analyze this file, identify any errors or anomalies, and extract key functions/logic."
+        )
+        max_bytes = int(args.get("max_bytes") or 500_000)
+
+        scout = ReconScout()
+        try:
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        res = executor.submit(
+                            asyncio.run, scout.scout(target, query=query, max_bytes=max_bytes)
+                        ).result()
+                else:
+                    res = loop.run_until_complete(
+                        scout.scout(target, query=query, max_bytes=max_bytes)
+                    )
+            except RuntimeError:
+                res = asyncio.run(scout.scout(target, query=query, max_bytes=max_bytes))
+
+            text_output = (
+                f"🔭 **VoiceFi Recon Scout ({res.model_name})**\n\n"
+                f"**Target:** `{res.target}` | **Duration:** {res.duration_seconds}s\n"
+                f"**Token Savings:** {res.tokens_saved} tokens ({res.savings_pct}% context preserved)\n\n"
+                f"{res.findings}"
+            )
+            return {
+                "content": [{"type": "text", "text": text_output}],
+                "isError": bool(res.error),
+            }
+        except Exception as e:
+            return {
+                "content": [{"type": "text", "text": f"Scout error: {str(e)}"}],
+                "isError": True,
+            }
+
+    def _tool_benchmark(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        import asyncio
+        import concurrent.futures
+        from voicefi.local import LocalBenchmarkRunner
+
+        prompt = args.get("prompt") or "Explain how distributed locks work in three concise bullet points."
+        test_name = args.get("test_name") or "Standard Prompt Benchmark"
+
+        runner = LocalBenchmarkRunner()
+        try:
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        res = executor.submit(
+                            asyncio.run, runner.benchmark_prompt(prompt, test_name=test_name)
+                        ).result()
+                else:
+                    res = loop.run_until_complete(
+                        runner.benchmark_prompt(prompt, test_name=test_name)
+                    )
+            except RuntimeError:
+                res = asyncio.run(runner.benchmark_prompt(prompt, test_name=test_name))
+
+            table = runner.format_scorecard_table([res])
+            return {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": f"⚡ **VoiceFi Performance Benchmark**\n\n```\n{table}\n```\n\n"
+                                f"• Engine: {res.target_engine}\n"
+                                f"• Backend: {res.backend_desc}\n"
+                                f"• Latency (TTFB): {res.ttfb_ms} ms\n"
+                                f"• Throughput: {res.tok_per_sec} tok/s\n"
+                                f"• Cost: ${res.cost_usd:.4f}",
+                    }
+                ],
+                "isError": False,
+            }
+        except Exception as e:
+            return {
+                "content": [{"type": "text", "text": f"Benchmark error: {str(e)}"}],
+                "isError": True,
+            }
+
+    def _tool_local_status(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        from voicefi.local import LocalModelEngine
+
+        engine = LocalModelEngine()
+        status = engine.get_status()
+        return {
+            "content": [
+                {
+                    "type": "text",
+                    "text": json.dumps({"local_model_status": status}, indent=2),
                 }
             ],
             "isError": False,

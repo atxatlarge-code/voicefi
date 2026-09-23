@@ -1,5 +1,5 @@
 // Service Worker for VoiceFi Mobile Companion PWA
-const CACHE_NAME = 'voicefi-companion-v79';
+const CACHE_NAME = 'voicefi-companion-v89';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();

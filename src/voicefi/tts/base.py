@@ -132,6 +132,49 @@ def set_cross_process_hud_state(
             clear_cross_process_hud_state()
             return
 
+        # Auto-derive app_name if not provided
+        resolved_app = app_name
+        if not resolved_app and agent_name:
+            ag_lower = agent_name.lower().strip()
+            if ag_lower in ("antigravity", "gemini", "main"):
+                resolved_app = "Antigravity"
+            elif ag_lower in ("claude", "claude code", "claude_code", "claudecode"):
+                resolved_app = "Claude"
+            elif ag_lower in ("codex", "openai_codex", "openai-codex", "openaicodex"):
+                resolved_app = "Codex"
+            elif ag_lower in ("cursor", "cursor composer"):
+                resolved_app = "Cursor"
+            elif ag_lower in ("chatgpt", "openai"):
+                resolved_app = "ChatGPT"
+            elif ag_lower in ("windsurf", "cascade"):
+                resolved_app = "Windsurf"
+            elif ag_lower in ("obsidian",):
+                resolved_app = "Obsidian"
+            elif ag_lower in ("terminal", "iterm", "ghostty"):
+                resolved_app = "Terminal"
+            elif ag_lower in ("vscode", "code"):
+                resolved_app = "Visual Studio Code"
+            elif ag_lower not in ("voicefi", ""):
+                resolved_app = agent_name.capitalize()
+
+        if not resolved_app:
+            try:
+                from voicefi.integrations.conversations import load_session_cookie
+                cookie = load_session_cookie() or {}
+                c_eng = cookie.get("app_name") or cookie.get("engine")
+                if c_eng:
+                    c_str = str(c_eng).lower().strip()
+                    if c_str in ("codex", "openai_codex"):
+                        resolved_app = "Codex"
+                    elif c_str in ("claude", "claude_code"):
+                        resolved_app = "Claude"
+                    elif c_str == "antigravity":
+                        resolved_app = "Antigravity"
+                    else:
+                        resolved_app = c_str.capitalize()
+            except Exception:
+                pass
+
         payload = {
             "pid": os.getpid(),
             "timestamp": time.time(),
@@ -144,7 +187,7 @@ def set_cross_process_hud_state(
             "tool_action": tool_action or "",
             "tag_text": tag_text or "",
             "live_stream": live_stream,
-            "app_name": app_name or "",
+            "app_name": resolved_app or "",
             "conv_id": conv_id or "",
         }
         HUD_STATE_STATUS_FILE.write_text(json.dumps(payload))
@@ -203,13 +246,38 @@ def set_agent_speaking(
     try:
         global _LAST_AGENT_SPEAKING_INFO
         if speaking:
+            # Auto-derive app_name if not provided
+            speaking_app = app_name
+            if not speaking_app and agent_name:
+                ag_lower = agent_name.lower().strip()
+                if ag_lower in ("antigravity", "gemini", "main"):
+                    speaking_app = "Antigravity"
+                elif ag_lower in ("claude", "claude code", "claude_code", "claudecode"):
+                    speaking_app = "Claude"
+                elif ag_lower in ("codex", "openai_codex", "openai-codex", "openaicodex"):
+                    speaking_app = "Codex"
+                elif ag_lower in ("cursor", "cursor composer"):
+                    speaking_app = "Cursor"
+                elif ag_lower in ("chatgpt", "openai"):
+                    speaking_app = "ChatGPT"
+                elif ag_lower in ("windsurf", "cascade"):
+                    speaking_app = "Windsurf"
+                elif ag_lower in ("obsidian",):
+                    speaking_app = "Obsidian"
+                elif ag_lower in ("terminal", "iterm", "ghostty"):
+                    speaking_app = "Terminal"
+                elif ag_lower in ("vscode", "code"):
+                    speaking_app = "Visual Studio Code"
+                elif ag_lower not in ("voicefi", ""):
+                    speaking_app = agent_name.capitalize()
+
             payload = {
                 "pid": os.getpid(),
                 "timestamp": time.time(),
                 "text": text or "",
                 "agent_name": agent_name or "VoiceFi",
                 "persona_name": persona_name or "Viv",
-                "app_name": app_name or "",
+                "app_name": speaking_app or "",
                 "conv_id": conv_id or "",
                 "workspace_path": workspace_path or "",
             }
@@ -221,7 +289,7 @@ def set_agent_speaking(
                 text=text or "",
                 agent_name=agent_name or "VoiceFi",
                 persona_name=persona_name or "Viv",
-                app_name=app_name or "",
+                app_name=speaking_app or "",
                 conv_id=conv_id or "",
             )
             # Immediately update in-process UnifiedDynamicIslandHUD if active
@@ -233,7 +301,7 @@ def set_agent_speaking(
                         text=text or "Speaking aloud...",
                         agent_name=agent_name or "Antigravity",
                         persona_name=persona_name,
-                        app_name=app_name,
+                        app_name=speaking_app,
                         conv_id=conv_id,
                         linger=None,
                     )

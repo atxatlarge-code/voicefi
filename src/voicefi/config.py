@@ -501,6 +501,22 @@ class SpeedTalkingConfig(BaseModel):
     dynamic_ramp: bool = False
 
 
+class LocalModelConfig(BaseModel):
+    enabled: bool = True
+    model_name: str = "gemma4-26b"
+    model_path: str = "~/.litert-lm/models/gemma4-26b/model.litertlm"
+    backend: Literal["gpu", "cpu", "npu"] = "gpu"
+    max_context_tokens: int = 65536
+    enable_speculative_decoding: bool = True
+    port: int = 0
+    auto_download: bool = False
+    distill_spoken_turns: bool = False  # Opt-in: use local Gemma to distill spoken turn soundbites
+    telegraphic_mode: bool = False  # Opt-in: speed-talking 2.0 dense semantic compression
+    intent_routing: bool = False  # Opt-in: offline 'Hey Viv' intent classification & agent router
+    airgapped_memos: bool = False  # Opt-in: 100% private local vault memo & meeting structuring
+    measure_latency: bool = True  # Real-time TTFB, throughput, and duration tracking to ~/.voicefi/benchmarks.json
+
+
 class VoiceFiConfig(BaseModel):
     version: int = 1
     enabled: bool = True  # Global pause/resume kill-switch
@@ -540,6 +556,7 @@ class VoiceFiConfig(BaseModel):
     gemini: GeminiConfig = Field(default_factory=GeminiConfig)
     ipc: IPCConfig = Field(default_factory=IPCConfig)
     spark: SparkConfig = Field(default_factory=SparkConfig)
+    local_model: LocalModelConfig = Field(default_factory=LocalModelConfig)
     agents: dict[str, AgentVoiceProfile] = Field(default_factory=default_agents_catalog)
     subagents: dict[str, AgentVoiceProfile] = Field(default_factory=dict)
     projects: dict[str, AgentVoiceProfile] = Field(default_factory=dict)
@@ -742,19 +759,19 @@ class VoiceFiConfig(BaseModel):
         elif key == "cursor" or key.startswith("cursor"):
             return "edge_tts", "en-US-JennyNeural", default_rate
         elif (
-            key in (
-                "obsidian",
-                "aria",
-                "emma",
-                "openai",
-                "codex",
-                "chatgpt",
-                "debugger",
-                "tester",
-            )
+            key in ("codex", "chatgpt", "openai")
             or key.startswith("codex")
             or key.startswith("chatgpt")
             or key.startswith("openai")
+        ):
+            return "edge_tts", "en-US-EmmaNeural", default_rate
+        elif (
+            key in (
+                "obsidian",
+                "aria",
+                "debugger",
+                "tester",
+            )
         ):
             return "edge_tts", "en-US-AvaNeural", default_rate
         elif key in ("researcher", "architect"):
