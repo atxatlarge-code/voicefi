@@ -10,6 +10,7 @@ from voicefi.local.benchmark import LocalBenchmarkRunner, BenchmarkResult
 def test_benchmark_runner_prompt(tmp_path: Path):
     db_file = tmp_path / "test_benchmarks.json"
     runner = LocalBenchmarkRunner(db_path=db_file)
+    runner.engine.model_path = str(tmp_path / "nonexistent_model")
 
     res = asyncio.run(runner.benchmark_prompt(prompt="Test prompt", test_name="Unit Test"))
     assert isinstance(res, BenchmarkResult)
@@ -89,6 +90,7 @@ def test_tot_comparison_runner(tmp_path: Path, monkeypatch):
 
     tot_db = tmp_path / "tot_history.json"
     runner = LocalBenchmarkRunner(tot_db_path=tot_db)
+    runner.engine.model_path = str(tmp_path / "nonexistent_model")
 
     res = asyncio.run(
         runner.run_tot_comparison(
