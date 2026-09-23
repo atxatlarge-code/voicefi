@@ -347,7 +347,13 @@ def handle_claude_stop_hook(
 
         def _on_live(txt: str):
             set_cross_process_hud_state(
-                "listening", text=txt, agent_name="claude", user_name=cfg.user_name, live_stream=True
+                "listening",
+                text=txt,
+                agent_name="claude",
+                user_name=cfg.user_name,
+                live_stream=True,
+                app_name="Claude",
+                conv_id=conv_id,
             )
             try:
                 from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
@@ -369,7 +375,11 @@ def handle_claude_stop_hook(
         try:
             audio_data, temp_wav = recorder.record_speech_auto(
                 on_speech_start=lambda: set_cross_process_hud_state(
-                    "hearing", agent_name="claude", user_name=cfg.user_name
+                    "hearing",
+                    agent_name="claude",
+                    user_name=cfg.user_name,
+                    app_name="Claude",
+                    conv_id=conv_id,
                 ),
                 on_live_transcript=_on_live,
                 on_listening_tick=_on_tick,

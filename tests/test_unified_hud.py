@@ -210,12 +210,14 @@ def test_unified_hud_draggability_and_reset(mock_appkit):
         assert frame_br.size.width == 540.0
         assert frame_br.size.height == 58.0
 
-        # Expanded height (82.0) anchored above dock grows upward, origin y stays 80.0
+        # Expanded height (82.0) anchored above dock grows downward, keeping top edge locked at 138.0
         frame_br_exp = hud._get_target_frame(hud.STANDARD_WIDTH, hud.EXPANDED_HEIGHT)
         assert frame_br_exp.origin.x == 1360.0
-        assert frame_br_exp.origin.y == 80.0
+        assert frame_br_exp.origin.y == 80.0 - (hud.EXPANDED_HEIGHT - hud.STANDARD_HEIGHT)  # 56.0
         assert frame_br_exp.size.width == 540.0
         assert frame_br_exp.size.height == 82.0
+        # Verify top edge is locked
+        assert frame_br_exp.origin.y + frame_br_exp.size.height == frame_br.origin.y + frame_br.size.height
 
         # Pinned dock at bottom (visible.origin.y > 20.0)
         mock_visible.origin.y = 72.0
@@ -256,6 +258,98 @@ def test_unified_hud_dimensions_and_dynamic_expansion(mock_appkit):
     assert hud._needs_expanded_height("Line 1\nLine 2")
     long_phrase = "Refactoring the authentication middleware and verifying all 14 unit tests pass with zero regressions."
     assert hud._needs_expanded_height(long_phrase)
+
+    # By default, even when multi-line text is set, HUD stays at standard height (58px) without hover
+    hud.set_speaking(long_phrase, persona_name="Viv")
+    assert hud._current_height == hud.STANDARD_HEIGHT
+
+    # Hovering over the text triggers downward expansion to 82px
+    hud.handle_text_hover_entered()
+    assert hud._is_text_hovered is True
+    assert hud._current_height == hud.EXPANDED_HEIGHT
+
+    # Exiting hover collapses back to standard height (58px)
+    hud.handle_text_hover_exited()
+    assert hud._is_text_hovered is False
+    # Directly invoke collapse to verify collapse logic
+    hud._set_expanded(False)
+    assert hud._current_height == hud.STANDARD_HEIGHT
+
+    # Short single-line text does not expand on hover
+    hud.set_idle()
+    hud.handle_text_hover_entered()
+    assert hud._current_height == hud.STANDARD_HEIGHT
+
+
+def test_unified_hud_subview_stability_during_expansion():
+    """Verify that when expanding down, all top elements (avatar, app box, title, visualizer, gear)
+    remain at the EXACT same screen position, and top of body text stays locked."""
+    from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
+    hud = UnifiedDynamicIslandHUD.get_instance()
+
+    # Geometry for compact (58px)
+    hud._update_subview_geometry(hud.STANDARD_HEIGHT)
+    compact_window_y = 80.0
+    compact_top_screen = compact_window_y + hud.STANDARD_HEIGHT  # 138.0
+    compact_avatar_screen = compact_window_y + hud._avatar_box.frame().origin.y
+    compact_app_screen = compact_window_y + hud._app_box.frame().origin.y
+    compact_title_screen = compact_window_y + hud._title_lbl.frame().origin.y
+    compact_body_top_screen = compact_window_y + hud._body_lbl.frame().origin.y + hud._body_lbl.frame().size.height
+
+    # Geometry for expanded (82px)
+    hud._update_subview_geometry(hud.EXPANDED_HEIGHT)
+    exp_window_y = compact_top_screen - hud.EXPANDED_HEIGHT  # 56.0
+    exp_top_screen = exp_window_y + hud.EXPANDED_HEIGHT      # 138.0
+    exp_avatar_screen = exp_window_y + hud._avatar_box.frame().origin.y
+    exp_app_screen = exp_window_y + hud._app_box.frame().origin.y
+    exp_title_screen = exp_window_y + hud._title_lbl.frame().origin.y
+    exp_body_top_screen = exp_window_y + hud._body_lbl.frame().origin.y + hud._body_lbl.frame().size.height
+
+    # Verify screen positions are 100% frozen / locked
+    assert exp_top_screen == compact_top_screen == 138.0
+    assert exp_avatar_screen == compact_avatar_screen
+    assert exp_app_screen == compact_app_screen
+    assert exp_title_screen == compact_title_screen
+    assert exp_body_top_screen == compact_body_top_screen
+
+    # Verify extra space grows downward for body text
+    compact_body_bottom_screen = compact_window_y + hud._body_lbl.frame().origin.y
+    exp_body_bottom_screen = exp_window_y + hud._body_lbl.frame().origin.y
+    assert exp_body_bottom_screen < compact_body_bottom_screen  # Text extends lower!
+
+
+def test_unified_hud_seamless_state_transitions():
+    """Verify that state changes (speaking -> spoken -> idle) update content seamlessly
+    without repositioning or blinking when height is unchanged, and that programmatic moves
+    never contaminate user-dragged coordinates."""
+    from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD, HUDWindowDelegate
+    hud = UnifiedDynamicIslandHUD.get_instance()
+
+    # 1. Verify delegate ignores programmatic moves / mouse not pressed (pressedMouseButtons() is 0)
+    delegate = HUDWindowDelegate.alloc().initWithHUD_(hud)
+    hud._user_dragged_center_x = None
+    hud._user_dragged_top_y = None
+
+    # When mouse is not pressed (standard during programmatic frame updates), windowDidMove does not set coordinates
+    delegate.windowDidMove_(None)
+    assert hud._user_dragged_center_x is None
+    assert hud._user_dragged_top_y is None
+
+    # 2. Verify state transitions with standard height maintain height stability
+    hud.set_idle()
+    assert hud._current_height == hud.STANDARD_HEIGHT
+
+    hud.set_speaking("Testing seamless transition", persona_name="Viv")
+    assert hud._current_height == hud.STANDARD_HEIGHT
+    assert hud._current_state == "speaking"
+
+    hud.set_spoken("Testing seamless transition", speaker="Viv")
+    assert hud._current_height == hud.STANDARD_HEIGHT
+    assert hud._current_state == "spoken"
+
+    hud.set_idle()
+    assert hud._current_height == hud.STANDARD_HEIGHT
+    assert hud._current_state == "idle"
 
 
 def test_cmd_hud_actions(mock_appkit):
@@ -428,4 +522,31 @@ def test_unified_hud_emoji_free_and_user_prompt(mock_appkit):
     for c in all_calls:
         for em in disallowed_emojis:
             assert em not in c, f"Disallowed emoji {em} found in text: {c}"
+
+
+def test_unified_hud_hover_expand_collapse(mock_appkit):
+    """Verify that hover enter expands downward and hover exit collapses smoothly."""
+    from AppKit import NSAnimationContext
+    hud = UnifiedDynamicIslandHUD.get_instance()
+    long_text = "This is a very long multiline spoken response from the AI assistant that definitely exceeds sixty-five characters and needs more space."
+
+    # Set speaking state with long text
+    hud.set_speaking(text=long_text, persona_name="Christopher")
+    assert hud._current_height == hud.STANDARD_HEIGHT
+    assert hud._needs_expanded_height(long_text) is True
+
+    # Mouse hover entered
+    hud.handle_text_hover_entered()
+    assert hud._is_text_hovered is True
+    assert hud._current_height == hud.EXPANDED_HEIGHT
+
+    # Mouse hover exited
+    hud.handle_text_hover_exited()
+    assert hud._is_text_hovered is False
+    assert hud._collapse_timer is not None
+
+    # Trigger collapse callback directly
+    hud._set_expanded(False)
+    assert hud._current_height == hud.STANDARD_HEIGHT
+
 

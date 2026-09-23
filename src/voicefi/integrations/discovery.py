@@ -92,6 +92,28 @@ class AgentToolDetector:
         return False
 
     @staticmethod
+    def is_codex_hook_installed() -> bool:
+        """Check if OpenAI Codex lifecycle stop hook or config.toml notify is registered."""
+        codex_home = Path.home() / ".codex"
+        hooks_file = codex_home / "hooks.json"
+        if hooks_file.is_file():
+            try:
+                content = hooks_file.read_text(encoding="utf-8")
+                if "voicefi" in content or "vifi" in content:
+                    return True
+            except Exception:
+                pass
+        config_file = codex_home / "config.toml"
+        if config_file.is_file():
+            try:
+                content = config_file.read_text(encoding="utf-8")
+                if "voicefi" in content or "vifi" in content:
+                    return True
+            except Exception:
+                pass
+        return False
+
+    @staticmethod
     def is_mcp_configured() -> bool:
         """Check if VoiceFi MCP server is configured in Antigravity or Claude."""
         ag_mcp = Path.home() / ".gemini" / "antigravity" / "mcp" / "voicefi"
@@ -151,6 +173,10 @@ class AgentToolDetector:
         cl_detected = cls.detect_claude_code()
         cl_running = cls.is_process_running("Claude")
 
+        codex_hook = cls.is_codex_hook_installed()
+        codex_detected = cls.detect_codex()
+        codex_running = cls.is_process_running("Codex") or cls.is_process_running("ChatGPT")
+
         cursor_detected = cls.detect_cursor()
         cursor_running = cls.is_process_running("Cursor")
 
@@ -208,6 +234,20 @@ class AgentToolDetector:
                 "running": False,
                 "hook_installed": False,
                 "detail": "Not Detected",
+            })
+
+        if codex_detected or codex_running:
+            status = "connected" if codex_hook else "ready"
+            detail = "Hook Active • Transcripts Linked" if codex_hook else "Detected • Hook Inactive"
+            if codex_running:
+                detail += " (Running)"
+            agents.append({
+                "id": "codex",
+                "name": "OpenAI Codex",
+                "status": status,
+                "running": codex_running,
+                "hook_installed": codex_hook,
+                "detail": detail,
             })
 
         if cursor_detected or cursor_running:

@@ -17,6 +17,11 @@
 }(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
+  const isMobileClient = (typeof navigator !== 'undefined') && (
+    /iPhone|iPad|iPod|Android|Mobile/i.test(navigator.userAgent || '') ||
+    (typeof navigator.maxTouchPoints === 'number' && navigator.maxTouchPoints > 1 && /Macintosh/i.test(navigator.userAgent || ''))
+  );
+
   const THEMES = {
     google: {
       name: 'Google Antigravity Glow',
@@ -31,7 +36,6 @@
       lineColor: 'rgba(100, 149, 237, ',
       particleAlpha: 0.85,
       glowAlpha: 0.35,
-      ambientGlow: 'rgba(66, 133, 244, 0.04)',
     },
     monochrome: {
       name: 'Cyber Monochrome',
@@ -45,7 +49,6 @@
       lineColor: 'rgba(255, 255, 255, ',
       particleAlpha: 0.75,
       glowAlpha: 0.25,
-      ambientGlow: 'rgba(255, 255, 255, 0.02)',
     },
     broadcast: {
       name: 'Studio Broadcast Red',
@@ -59,7 +62,6 @@
       lineColor: 'rgba(255, 51, 51, ',
       particleAlpha: 0.85,
       glowAlpha: 0.35,
-      ambientGlow: 'rgba(255, 51, 51, 0.05)',
     },
     emerald: {
       name: 'Neural Matrix',
@@ -73,7 +75,6 @@
       lineColor: 'rgba(52, 211, 153, ',
       particleAlpha: 0.8,
       glowAlpha: 0.3,
-      ambientGlow: 'rgba(16, 185, 129, 0.04)',
     }
   };
 
@@ -349,51 +350,11 @@
         }
       }
 
-      // Luminescent glow halo for primary nodes (blooms with volume and neural state)
-      if (!this.isDust && this.field.options.glowEnabled && this.radius > 1.1) {
-        let glowMultiplier = 3.5;
-        let peakAlpha = alpha * 0.45;
-
-        if (state === 'speaking' || audio > 0.02) {
-          glowMultiplier = 3.5 + (audio * 7.5 * glowIntensity);
-          peakAlpha = Math.min(0.95, (alpha * 0.45) + (audio * 0.85 * glowIntensity));
-        } else if (state === 'thinking') {
-          const neuralP = Math.sin((this.field.time || 0) * 1.5 + this.neuralPhase);
-          const neuralGlow = Math.max(0, neuralP) * 0.35;
-          glowMultiplier = 3.8 + neuralGlow * 2.0;
-          peakAlpha = Math.min(0.85, (alpha * 0.5) + neuralGlow);
-        }
-
-        const glowRadius = this.radius * glowMultiplier;
-        const gradient = ctx.createRadialGradient(this.x, this.y, this.radius * 0.2, this.x, this.y, glowRadius);
-        gradient.addColorStop(0, `rgba(${c.r}, ${c.g}, ${c.b}, ${peakAlpha})`);
-        gradient.addColorStop(0.35, `rgba(${c.r}, ${c.g}, ${c.b}, ${peakAlpha * 0.4})`);
-        gradient.addColorStop(1, `rgba(${c.r}, ${c.g}, ${c.b}, 0)`);
-        
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, glowRadius, 0, Math.PI * 2);
-        ctx.fillStyle = gradient;
-        ctx.fill();
-      }
-
-      // Synaptic Idea Flash Flare (electric flare when idea lightning strikes this node)
+      // Synaptic Idea Flash Flare (crisp electric spark when idea lightning strikes this node)
       if (this.synapticFlash > 0.02) {
         const flash = this.synapticFlash;
-        const flashRadius = this.radius * (4.0 + flash * 5.0);
-        const flashGrad = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, flashRadius);
-        flashGrad.addColorStop(0, `rgba(255, 255, 255, ${Math.min(1.0, flash * 0.98)})`);
-        flashGrad.addColorStop(0.25, `rgba(${c.r}, ${c.g}, ${c.b}, ${Math.min(1.0, flash * 0.8)})`);
-        flashGrad.addColorStop(0.7, `rgba(${c.r}, ${c.g}, ${c.b}, ${flash * 0.3})`);
-        flashGrad.addColorStop(1, `rgba(${c.r}, ${c.g}, ${c.b}, 0)`);
-
         ctx.beginPath();
-        ctx.arc(this.x, this.y, flashRadius, 0, Math.PI * 2);
-        ctx.fillStyle = flashGrad;
-        ctx.fill();
-
-        // White-hot core specular spark
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, Math.max(1.0, this.radius * (0.9 + flash * 0.6)), 0, Math.PI * 2);
+        ctx.arc(this.x, this.y, Math.max(1.0, this.radius * (1.1 + flash * 0.7)), 0, Math.PI * 2);
         ctx.fillStyle = `rgba(255, 255, 255, ${Math.min(1.0, flash * 0.95)})`;
         ctx.fill();
       }
@@ -526,18 +487,22 @@
       // Configuration defaults
       this.options = Object.assign({
         theme: 'google',               // 'google' | 'monochrome' | 'broadcast' | 'emerald'
-        particleCount: 75,
-        dustCount: 90,
-        connectionDistance: 130,
-        repulsionRadius: 150,
-        repulsionStrength: 1.5,
+        isMobile: isMobileClient,
+        particleCount: 70,             // Rich, full density
+        dustCount: 85,                 // Full starry 3D cosmic depth
+        connectionDistance: 125,       // Sweet blue constellation web links
+        repulsionRadius: 140,
+        repulsionStrength: 1.3,
         buoyancy: -0.012,              // Gentle upward lift (zero-g float)
-        glowEnabled: true,
-        glowIntensity: 1.2,
-        connectConstellations: true,
+        glowEnabled: false,            // Zero blooming halos when speaking
+        glowIntensity: 1.0,
+        connectConstellations: true,   // The sweet blue lines!
         enablePointerGravity: true,
         autoResize: true,
         reducedMotion: false,
+        fpsLimit: 60,
+        idleFpsLimit: 30,
+        idlePauseSeconds: 20,
         listeningPullStrength: 2.0,    // Gravitational pull intensity in listening state (black hole)
         listeningSwirl: 1.2,           // Orbital vortex / swirl factor around singularity
         thinkingSwirlSpeed: 1.0,       // Active orbital neural constellation swirl speed
@@ -583,6 +548,7 @@
     _bindEvents() {
       this._onResize = () => this.resize();
       this._onPointerMove = (e) => {
+        this.wake();
         if (!this.options.enablePointerGravity) return;
         const rect = this.canvas.getBoundingClientRect();
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -633,7 +599,7 @@
     }
 
     resize() {
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
       
       let w = window.innerWidth;
       let h = window.innerHeight;
@@ -692,6 +658,7 @@
     }
 
     setState(stateName) {
+      this.wake();
       const prevState = this.state;
       this.state = stateName; // 'idle' | 'listening' | 'thinking' | 'speaking'
       this.stateTimer = 0;
@@ -743,9 +710,13 @@
 
     setAudioLevel(rms) {
       this.audioLevel = Math.max(0, Math.min(1.0, rms));
+      if (this.audioLevel > 0.02) {
+        this.wake();
+      }
     }
 
     pulse(intensity = 1.0, x, y) {
+      this.wake();
       const center = this.getPullCenter();
       const px = x !== undefined ? x : center.x;
       const py = y !== undefined ? y : center.y;
@@ -958,34 +929,8 @@
       const audio = this.effectiveAudio !== undefined ? this.effectiveAudio : (this.audioLevel || 0);
       const glowIntensity = this.options.glowIntensity || 1.2;
 
-      // 1. Draw subtle ambient zero-g gradient orb in center (swells and blooms with voice volume and states)
-      if (this.theme.ambientGlow) {
-        const center = this.getPullCenter();
-        const cx = center.x;
-        const cy = center.y;
-        let auraRadius = Math.max(this.width, this.height) * (0.7 + audio * 0.35);
-
-        if (this.state === 'thinking') {
-          const breathing = 1.0 + Math.sin(this.time * 0.8) * 0.07;
-          auraRadius = Math.min(this.width, this.height) * 0.55 * breathing;
-        }
-
-        const grad = ctx.createRadialGradient(cx, cy, 20, cx, cy, auraRadius);
-        if (audio > 0.05 && this.theme.colors && this.theme.colors.length > 0) {
-          const c = this.theme.colors[0];
-          const auraAlpha = Math.min(0.32, 0.04 + audio * 0.24 * glowIntensity);
-          grad.addColorStop(0, `rgba(${c.r}, ${c.g}, ${c.b}, ${auraAlpha})`);
-        } else if (this.state === 'thinking' && this.theme.colors && this.theme.colors.length > 0) {
-          const c = this.theme.colors[0];
-          const pulseAlpha = 0.04 + Math.max(0, Math.sin(this.time * 0.8)) * 0.06;
-          grad.addColorStop(0, `rgba(${c.r}, ${c.g}, ${c.b}, ${pulseAlpha})`);
-        } else {
-          grad.addColorStop(0, this.theme.ambientGlow);
-        }
-        grad.addColorStop(1, 'transparent');
-        ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, this.width, this.height);
-      }
+      // 1. Ambient gradient pulse light REMOVED as requested ("Remove the gradient pulse light")
+      // Pure OLED black background provides crisp contrast, infinite depth, and zero GPU fillrate load.
 
       // 2. Draw shockwaves
       for (let i = 0; i < this.shockwaves.length; i++) {
@@ -999,7 +944,7 @@
         ctx.restore();
       }
 
-      // 3. Draw Constellation Links (Neural Network Web - reacts dynamically to states)
+      // 3. Draw Constellation Links (The Sweet Blue Lines! Batched for 60fps fluid performance)
       if (this.options.connectConstellations && !this.options.reducedMotion) {
         let maxDist = this.options.connectionDistance;
         let lineWidth = 0.75;
@@ -1017,6 +962,11 @@
 
         const maxDistSq = maxDist * maxDist;
         const len = this.particles.length;
+
+        // 3-tier alpha batching: executes entire constellation web in exactly 3 GPU draw calls
+        const b0 = []; // Faint distance links (alpha ~ 0.16)
+        const b1 = []; // Medium links (alpha ~ 0.38)
+        const b2 = []; // Bright / active links (alpha ~ 0.72)
 
         for (let i = 0; i < len; i++) {
           const pi = this.particles[i];
@@ -1039,12 +989,13 @@
                 alpha = Math.min(1.0, alpha * (0.8 + audio * 1.8 * glowIntensity));
               }
 
-              ctx.beginPath();
-              ctx.moveTo(pi.x, pi.y);
-              ctx.lineTo(pj.x, pj.y);
-              ctx.strokeStyle = `${this.theme.lineColor}${Math.min(1.0, alpha)})`;
-              ctx.lineWidth = lineWidth;
-              ctx.stroke();
+              if (alpha < 0.26) {
+                b0.push(pi.x, pi.y, pj.x, pj.y);
+              } else if (alpha < 0.52) {
+                b1.push(pi.x, pi.y, pj.x, pj.y);
+              } else {
+                b2.push(pi.x, pi.y, pj.x, pj.y);
+              }
             }
           }
 
@@ -1057,15 +1008,30 @@
             if (distSq < pointerMax * pointerMax) {
               const dist = Math.sqrt(distSq);
               const alpha = (1 - dist / pointerMax) * (0.45 + audio * 0.5 * glowIntensity);
-              ctx.beginPath();
-              ctx.moveTo(pi.x, pi.y);
-              ctx.lineTo(this.pointer.x, this.pointer.y);
-              ctx.strokeStyle = `${this.theme.lineColor}${Math.min(1.0, alpha)})`;
-              ctx.lineWidth = lineWidth + 0.5;
-              ctx.stroke();
+              if (alpha < 0.38) {
+                b1.push(pi.x, pi.y, this.pointer.x, this.pointer.y);
+              } else {
+                b2.push(pi.x, pi.y, this.pointer.x, this.pointer.y);
+              }
             }
           }
         }
+
+        ctx.lineWidth = lineWidth;
+        const renderBucket = (coords, alphaVal) => {
+          if (coords.length === 0) return;
+          ctx.beginPath();
+          for (let k = 0; k < coords.length; k += 4) {
+            ctx.moveTo(coords[k], coords[k + 1]);
+            ctx.lineTo(coords[k + 2], coords[k + 3]);
+          }
+          ctx.strokeStyle = `${this.theme.lineColor}${alphaVal})`;
+          ctx.stroke();
+        };
+
+        renderBucket(b0, 0.16);
+        renderBucket(b1, 0.38);
+        renderBucket(b2, 0.72);
       }
 
       // 4. Draw Idea Lightning Arcs (Synaptic sparks flashing between bits like ideas)
@@ -1073,9 +1039,16 @@
         this.lightningArcs[i].draw(ctx);
       }
 
-      // 5. Draw dust particles
-      for (let i = 0; i < this.dust.length; i++) {
-        this.dust[i].draw(ctx);
+      // 5. Draw dust particles (batched into 1 draw call for deep starry cosmic parallax depth)
+      if (this.dust.length > 0) {
+        ctx.beginPath();
+        for (let i = 0; i < this.dust.length; i++) {
+          const d = this.dust[i];
+          ctx.moveTo(d.x + d.radius, d.y);
+          ctx.arc(d.x, d.y, Math.max(0.5, d.radius), 0, Math.PI * 2);
+        }
+        ctx.fillStyle = 'rgba(180, 205, 255, 0.28)';
+        ctx.fill();
       }
 
       // 6. Draw primary floating nodes (with synaptic flash flares on endpoints)
@@ -1084,14 +1057,51 @@
       }
     }
 
+    wake() {
+      this.idleTime = 0;
+      if (!this.running) {
+        this.start();
+      }
+    }
+
     start() {
       if (this.running) return;
       this.running = true;
       this.lastTime = performance.now();
+      this.lastFrameTime = performance.now();
+      this.idleTime = 0;
 
       const loop = (currentTime) => {
         if (!this.running) return;
         const now = (typeof currentTime === 'number' && currentTime > 0) ? currentTime : performance.now();
+
+        // Calculate target FPS: 60 FPS active, 30 FPS idle drift, 20s auto-pause for LTPO OLED sleep
+        let targetFps = this.options.fpsLimit || 60;
+        const isSilentIdle = (this.state === 'idle') && ((this.audioLevel || 0) < 0.02) && !this.pointer.active;
+        if (isSilentIdle) {
+          targetFps = this.options.idleFpsLimit || 30;
+          this.idleTime = (this.idleTime || 0) + ((now - (this.lastTime || now)) / 1000);
+          if (this.options.idlePauseSeconds && this.idleTime >= this.options.idlePauseSeconds) {
+            this.pause();
+            return;
+          }
+        } else {
+          this.idleTime = 0;
+          targetFps = this.options.fpsLimit || 60;
+        }
+
+        if (targetFps > 0) {
+          const frameInterval = 1000 / targetFps;
+          const elapsedSinceLastFrame = now - this.lastFrameTime;
+          if (elapsedSinceLastFrame < frameInterval - 1) {
+            this._animationFrame = requestAnimationFrame(loop);
+            return;
+          }
+          this.lastFrameTime = now - (elapsedSinceLastFrame % frameInterval);
+        } else {
+          this.lastFrameTime = now;
+        }
+
         const elapsed = now - (this.lastTime || now);
         const dt = (isNaN(elapsed) || elapsed <= 0) ? 16.6 : Math.min(elapsed, 50);
         this.lastTime = now;

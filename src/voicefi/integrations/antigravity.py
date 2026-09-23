@@ -578,6 +578,7 @@ def handle_antigravity_stop_hook(
         should_listen = bool(cfg.antigravity.auto_listen and summary)
         hook_start_time = time.time()
         user_transcribed_chars: int = 0
+        temp_wav: Optional[Path] = None
 
         from voicefi.audio.recorder import resolve_barge_in_mode
 
@@ -647,6 +648,8 @@ def handle_antigravity_stop_hook(
                     agent_name=active_agent,
                     user_name=cfg.user_name,
                     live_stream=True,
+                    app_name="Antigravity",
+                    conv_id=conv_id,
                 )
                 try:
                     from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
@@ -670,12 +673,18 @@ def handle_antigravity_stop_hook(
 
             audio_data, temp_wav = recorder.record_speech_auto(
                 on_speech_start=lambda: set_cross_process_hud_state(
-                    "hearing", agent_name=active_agent, user_name=cfg.user_name
+                    "hearing",
+                    agent_name=active_agent,
+                    user_name=cfg.user_name,
+                    app_name="Antigravity",
+                    conv_id=conv_id,
                 ),
                 on_pause_change=lambda paused: set_cross_process_hud_state(
                     "hearing" if not paused else "listening",
                     agent_name=active_agent,
                     user_name=cfg.user_name,
+                    app_name="Antigravity",
+                    conv_id=conv_id,
                 ),
                 on_barge_in=_on_barge_in,
                 on_live_transcript=_on_live,
@@ -744,6 +753,7 @@ def handle_antigravity_stop_hook(
                     "listening",
                     agent_name=active_agent,
                     user_name=cfg.user_name,
+                    app_name="Antigravity",
                     conv_id=conv_id,
                 )
 
@@ -754,6 +764,7 @@ def handle_antigravity_stop_hook(
                         agent_name=active_agent,
                         user_name=cfg.user_name,
                         live_stream=True,
+                        app_name="Antigravity",
                         conv_id=conv_id,
                     )
                     try:
@@ -789,7 +800,11 @@ def handle_antigravity_stop_hook(
                 listen_start_time = time.time()
                 audio_data, temp_wav = recorder.record_speech_auto(
                     on_speech_start=lambda: set_cross_process_hud_state(
-                        "hearing", agent_name=active_agent, user_name=cfg.user_name
+                        "hearing",
+                        agent_name=active_agent,
+                        user_name=cfg.user_name,
+                        app_name="Antigravity",
+                        conv_id=conv_id,
                     ),
                     on_live_transcript=_on_live,
                     on_listening_tick=_on_tick,
@@ -812,7 +827,12 @@ def handle_antigravity_stop_hook(
             return {}
 
         if temp_wav and Path(temp_wav).is_file():
-            set_cross_process_hud_state("transcribing", agent_name=active_agent)
+            set_cross_process_hud_state(
+                "transcribing",
+                agent_name=active_agent,
+                app_name="Antigravity",
+                conv_id=conv_id,
+            )
             stt = get_stt_engine(cfg)
             try:
                 transcription = stt.transcribe(temp_wav)

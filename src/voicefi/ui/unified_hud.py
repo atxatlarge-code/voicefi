@@ -63,6 +63,9 @@ from AppKit import (
     NSBezierPath,
     NSLineBreakByTruncatingTail,
     NSLineBreakByWordWrapping,
+    NSViewWidthSizable,
+    NSViewHeightSizable,
+    NSViewMinYMargin,
 )
 from Foundation import NSData
 import objc
@@ -118,7 +121,20 @@ except objc.nosuchclass_error:
             return self
 
         def windowDidMove_(self, notification):
-            if self.hud and self.hud._panel and not getattr(self.hud, "_is_animating", False):
+            if (
+                self.hud
+                and self.hud._panel
+                and not getattr(self.hud, "_is_animating", False)
+                and not getattr(self.hud, "_is_programmatic_move", False)
+            ):
+                try:
+                    from AppKit import NSEvent
+
+                    # Only register as a user drag if the user is actively pressing the left mouse button
+                    if not (NSEvent.pressedMouseButtons() & 1):
+                        return
+                except Exception:
+                    pass
                 frame = self.hud._panel.frame()
                 self.hud._user_dragged_center_x = frame.origin.x + (frame.size.width / 2.0)
                 self.hud._user_dragged_top_y = frame.origin.y + frame.size.height
@@ -563,6 +579,70 @@ except objc.nosuchclass_error:
                 path.fill()
 
 
+try:
+    HUDBodyTextView = objc.lookUpClass("HUDBodyTextView")
+except objc.nosuchclass_error:
+
+    class HUDBodyTextView(objc.lookUpClass("NSTextField")):
+        """
+        Interactive body text label that detects mouse hover.
+        When cursor hovers over the text, if the text has multiple lines,
+        the HUD expands downward to reveal the full content.
+        When the cursor exits, the HUD smoothly collapses back to compact single line.
+        """
+
+        def initWithFrame_(self, frame):
+            self = objc.super(HUDBodyTextView, self).initWithFrame_(frame)
+            if self is not None:
+                self._hovered = False
+                self._tracking_area = None
+                self._setupTrackingArea()
+            return self
+
+        def _setupTrackingArea(self):
+            try:
+                if getattr(self, "_tracking_area", None) is not None:
+                    self.removeTrackingArea_(self._tracking_area)
+                    self._tracking_area = None
+                options = (
+                    0x01 | 0x02 | 0x80 | 0x200
+                )  # NSTrackingMouseEnteredAndExited | NSTrackingMouseMoved | NSTrackingActiveAlways | NSTrackingInVisibleRect
+                self._tracking_area = (
+                    objc.lookUpClass("NSTrackingArea")
+                    .alloc()
+                    .initWithRect_options_owner_userInfo_(
+                        self.bounds(), options, self, None
+                    )
+                )
+                self.addTrackingArea_(self._tracking_area)
+            except Exception:
+                pass
+
+        def updateTrackingAreas(self):
+            objc.super(HUDBodyTextView, self).updateTrackingAreas()
+            self._setupTrackingArea()
+
+        def acceptsFirstMouse_(self, event):
+            return True
+
+        def mouseDownCanMoveWindow(self):
+            return True
+
+        def mouseEntered_(self, event):
+            self._hovered = True
+            try:
+                UnifiedDynamicIslandHUD.get_instance().handle_text_hover_entered()
+            except Exception:
+                pass
+
+        def mouseExited_(self, event):
+            self._hovered = False
+            try:
+                UnifiedDynamicIslandHUD.get_instance().handle_text_hover_exited()
+            except Exception:
+                pass
+
+
 class UnifiedDynamicIslandHUD:
     """
     Singleton Native Apple-Style Unified Dynamic Island HUD for macOS.
@@ -647,6 +727,11 @@ class UnifiedDynamicIslandHUD:
         self._hide_timer: Optional[threading.Timer] = None
         self._is_visible = False
         self._is_animating = False
+        self._is_programmatic_move: bool = False
+        self._is_text_hovered: bool = False
+        self._collapse_timer: Optional[threading.Timer] = None
+        self._active_body_text: str = ""
+        self._current_height: float = self.STANDARD_HEIGHT
         self._user_dragged_center_x: Optional[float] = None
         self._user_dragged_top_y: Optional[float] = None
         self._window_delegate: Optional[Any] = None
@@ -775,67 +860,242 @@ class UnifiedDynamicIslandHUD:
             pass
         return None
 
+    def _resolve_active_conversation_app(self, conv_id: Optional[str] = None) -> Optional[str]:
+        """Resolve the originating application name for the active or given conversation."""
+        target_cid = conv_id or getattr(self, "_active_conv_id", None)
+        if target_cid:
+            cid_str = str(target_cid).lower().strip()
+            if cid_str.startswith("codex_") or "codex" in cid_str:
+                return "Codex"
+            if cid_str.startswith("claude_") or "claude" in cid_str:
+                return "Claude"
+            if cid_str.startswith("cursor_") or "cursor" in cid_str:
+                return "Cursor"
+            if cid_str.startswith("chatgpt_") or "chatgpt" in cid_str:
+                return "ChatGPT"
+
+        # Check active session cookie
+        try:
+            from voicefi.integrations.conversations import load_session_cookie
+
+            cookie = load_session_cookie() or {}
+            eng = cookie.get("engine") or cookie.get("app_name")
+            cid = cookie.get("conversationId") or cookie.get("conv_id")
+            if (not target_cid or target_cid == cid) and eng:
+                eng_str = str(eng).lower().strip()
+                if eng_str in ("codex", "openai_codex", "openai-codex"):
+                    return "Codex"
+                elif eng_str in ("claude", "claude_code", "claude code", "claude-code"):
+                    return "Claude"
+                elif eng_str in ("antigravity", "gemini"):
+                    return "Antigravity"
+                elif eng_str in ("cursor", "chatgpt", "windsurf", "vscode", "obsidian", "terminal"):
+                    return eng_str.capitalize()
+        except Exception:
+            pass
+
+        # Check ConversationTracker
+        try:
+            from voicefi.integrations.conversations import ConversationTracker
+
+            tracker = ConversationTracker()
+            info = tracker.get_active_or_latest()
+            if info:
+                if getattr(info, "engine", None):
+                    eng_str = str(info.engine).lower().strip()
+                    if eng_str in ("codex", "openai_codex"):
+                        return "Codex"
+                    elif eng_str in ("claude", "claude_code"):
+                        return "Claude"
+                    elif eng_str == "antigravity":
+                        return "Antigravity"
+                if info.id:
+                    cid_str = str(info.id).lower().strip()
+                    if cid_str.startswith("codex_") or "codex" in cid_str:
+                        return "Codex"
+                    elif cid_str.startswith("claude_") or "claude" in cid_str:
+                        return "Claude"
+                    elif cid_str.startswith("cursor_") or "cursor" in cid_str:
+                        return "Cursor"
+        except Exception:
+            pass
+
+        if getattr(self, "_active_app_name", None):
+            return getattr(self, "_active_app_name", None)
+
+        try:
+            from voicefi.integrations.discovery import AgentToolDetector
+
+            if AgentToolDetector.detect_antigravity():
+                return "Antigravity"
+        except Exception:
+            pass
+
+        return "Antigravity"
+
+    def _resolve_app_emoji(self, name: Optional[str]) -> str:
+        """Resolve fallback emoji for an application or agent."""
+        if not name:
+            return "🤖"
+        key = name.lower().strip()
+        if key in ("antigravity", "gemini", "main"):
+            return "🤖"
+        if key in ("claude", "claude code", "claude_code", "claude-code"):
+            return "🎭"
+        if key in ("codex", "openai_codex", "openai-codex", "chatgpt", "openai"):
+            return "✳️"
+        if key in ("cursor", "cursor composer"):
+            return "⚡"
+        if key in ("windsurf", "windsurf cascade"):
+            return "🏄"
+        if key in ("terminal", "iterm", "ghostty"):
+            return "💻"
+        if key in ("obsidian",):
+            return "💎"
+        if key in ("vscode", "code", "visual studio code"):
+            return "💻"
+        return AVATAR_ICONS.get(key, "🤖")
+
     def _resolve_app_icon(self, name: Optional[str]) -> Optional[Any]:
         """Resolve native macOS application icon or asset bundle image for a given program or agent."""
         if not name:
             return None
-        key = name.lower().strip()
+        raw_key = name.lower().strip()
 
         if not hasattr(self, "_icon_cache"):
             self._icon_cache = {}
 
-        if key in self._icon_cache:
-            return self._icon_cache[key]
+        if raw_key in self._icon_cache:
+            return self._icon_cache[raw_key]
+
+        # Canonical normalization
+        if raw_key in (
+            "antigravity",
+            "main",
+            "researcher",
+            "debugger",
+            "qa",
+            "tester",
+            "architect",
+            "devops",
+            "gemini",
+        ):
+            canonical = "antigravity"
+        elif raw_key in ("claude", "claude code", "claude_code", "claude-code", "claudecode"):
+            canonical = "claude"
+        elif raw_key in ("codex", "openai_codex", "openai-codex", "openaicodex"):
+            canonical = "codex"
+        elif raw_key in ("chatgpt", "openai"):
+            canonical = "chatgpt"
+        elif raw_key in ("cursor", "cursor composer"):
+            canonical = "cursor"
+        elif raw_key in ("windsurf", "windsurf cascade"):
+            canonical = "windsurf"
+        elif raw_key in ("vscode", "code", "visual studio code", "visualstudiocode"):
+            canonical = "vscode"
+        elif raw_key in ("terminal", "iterm", "iterm2", "ghostty"):
+            canonical = "terminal"
+        elif raw_key in ("obsidian",):
+            canonical = "obsidian"
+        elif raw_key in ("voicefi", "voicegency", "vf"):
+            canonical = "voicefi"
+        else:
+            canonical = raw_key
 
         icon = None
         try:
             import os
+            from pathlib import Path
 
-            # 1. Check VoiceFi bundle assets
-            if key in ("voicefi", "voicegency", "vf"):
-                base_dir = os.path.dirname(
-                    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-                )
-                candidates = [
-                    os.path.join(base_dir, "assets", "VoiceFi.icns"),
-                    os.path.join(base_dir, "assets", "VoiceFi.iconset", "icon_32x32@2x.png"),
-                ]
-                for p in candidates:
-                    if os.path.exists(p):
-                        img = NSImage.alloc().initWithContentsOfFile_(p)
-                        if img and hasattr(img, "isValid") and img.isValid():
-                            icon = img
-                            break
+            hud_file = Path(__file__).resolve()
+            asset_dirs = [
+                hud_file.parent.parent / "assets",
+                hud_file.parent.parent.parent.parent / "assets",
+                Path.home() / ".voicefi" / "assets",
+            ]
 
-            # 2. Check native macOS app bundles
+            # 1. Custom app logos (Codex, VoiceFi, Claude, Antigravity, Obsidian)
+            if canonical == "codex":
+                # Check bundled assets
+                for ad in asset_dirs:
+                    for cand_name in ("logo-codex.png", "logo-codex-light.png"):
+                        p = ad / cand_name
+                        if p.is_file():
+                            img = NSImage.alloc().initWithContentsOfFile_(str(p))
+                            if img and hasattr(img, "isValid") and img.isValid():
+                                icon = img
+                                break
+                    if icon:
+                        break
+                # Check bundled resources in ChatGPT.app
+                if not icon:
+                    codex_candidates = [
+                        "/Applications/ChatGPT.app/Contents/Resources/icon-codex-dark-color.png",
+                        "/Applications/ChatGPT.app/Contents/Resources/icon-codex-light.png",
+                        str(
+                            Path.home()
+                            / "Applications/ChatGPT.app/Contents/Resources/icon-codex-dark-color.png"
+                        ),
+                        "/Applications/ChatGPT.app/Contents/Resources/cua_node/lib/node_modules/@oai/sky/Codex Computer Use.app/Contents/Resources/CUAAppIcon.icns",
+                    ]
+                    for cand in codex_candidates:
+                        if os.path.exists(cand):
+                            img = NSImage.alloc().initWithContentsOfFile_(cand)
+                            if img and hasattr(img, "isValid") and img.isValid():
+                                icon = img
+                                break
+
+            elif canonical == "voicefi":
+                for ad in asset_dirs:
+                    for cand in ("VoiceFi.icns", "VoiceFi.iconset/icon_32x32@2x.png"):
+                        p = ad / cand
+                        if p.is_file():
+                            img = NSImage.alloc().initWithContentsOfFile_(str(p))
+                            if img and hasattr(img, "isValid") and img.isValid():
+                                icon = img
+                                break
+                    if icon:
+                        break
+
+            # 2. Check native macOS app bundles via NSWorkspace
             if not icon:
                 ws = NSWorkspace.sharedWorkspace()
                 app_map = {
-                    "cursor": "Cursor",
+                    "antigravity": "Antigravity",
                     "claude": "Claude",
-                    "claude code": "Claude",
-                    "obsidian": "Obsidian",
-                    "vscode": "Visual Studio Code",
-                    "code": "Visual Studio Code",
-                    "visual studio code": "Visual Studio Code",
+                    "cursor": "Cursor",
+                    "chatgpt": "ChatGPT",
+                    "codex": "ChatGPT",
                     "windsurf": "Windsurf",
+                    "vscode": "Visual Studio Code",
                     "terminal": "Terminal",
                     "iterm": "iTerm",
                     "ghostty": "Ghostty",
-                    "chatgpt": "ChatGPT",
-                    "openai": "ChatGPT",
-                    "antigravity": "Antigravity",
+                    "obsidian": "Obsidian",
                 }
-                target_app = app_map.get(key, name)
+                target_app = app_map.get(canonical, name)
                 app_path = ws.fullPathForApplication_(target_app)
                 if app_path and os.path.exists(app_path):
                     img = ws.iconForFile_(app_path)
                     if img and hasattr(img, "isValid") and img.isValid():
                         icon = img
+
+            # 3. Fallback to vector SVGs or bundled marks in asset dirs
+            if not icon:
+                for ad in asset_dirs:
+                    for ext in (".svg", ".png"):
+                        p = ad / f"logo-{canonical}{ext}"
+                        if p.is_file():
+                            img = NSImage.alloc().initWithContentsOfFile_(str(p))
+                            if img and hasattr(img, "isValid") and img.isValid():
+                                icon = img
+                                break
+                    if icon:
+                        break
         except Exception:
             icon = None
 
-        self._icon_cache[key] = icon
+        self._icon_cache[raw_key] = icon
         return icon
 
     def reset_position(self):
@@ -965,6 +1225,10 @@ class UnifiedDynamicIslandHUD:
         self._panel.setReleasedWhenClosed_(False)
         self._panel.setMovableByWindowBackground_(True)
         self._panel.setMovable_(True)
+        try:
+            self._panel.setAcceptsMouseMovedEvents_(True)
+        except Exception:
+            pass
 
         self.fullscreen_overlay = True
         self._update_window_level_and_collection()
@@ -982,6 +1246,7 @@ class UnifiedDynamicIslandHUD:
         self._root_view.layer().setBorderColor_(
             NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 1.0, 1.0, 0.20).CGColor()
         )
+        self._root_view.setAutoresizesSubviews_(True)
 
         # Apple standard HUD frosted blur (Background layer)
         self._effect_view = NSVisualEffectView.alloc().initWithFrame_(
@@ -992,6 +1257,7 @@ class UnifiedDynamicIslandHUD:
         self._effect_view.setState_(1)
         self._effect_view.setWantsLayer_(True)
         self._effect_view.layer().setCornerRadius_(24.0)
+        self._effect_view.setAutoresizingMask_(NSViewWidthSizable | NSViewHeightSizable)
         self._root_view.addSubview_(self._effect_view)
 
         # Quick Controls Settings button (⚙️)
@@ -1000,6 +1266,7 @@ class UnifiedDynamicIslandHUD:
                 NSRect(NSPoint(454, 27), NSSize(32, 26))
             )
             self._gear_btn.setToolTip_("VoiceFi Quick Controls")
+            self._gear_btn.setAutoresizingMask_(NSViewMinYMargin)
         except Exception:
             self._gear_btn = None
 
@@ -1009,6 +1276,7 @@ class UnifiedDynamicIslandHUD:
         self._avatar_box.layer().setCornerRadius_(19.0)
         self._avatar_box.layer().setMasksToBounds_(True)
         self._avatar_box.layer().setBackgroundColor_(NSColor.clearColor().CGColor())
+        self._avatar_box.setAutoresizingMask_(NSViewMinYMargin)
 
         try:
             self._avatar_img = NSImageView.alloc().initWithFrame_(
@@ -1044,6 +1312,7 @@ class UnifiedDynamicIslandHUD:
         self._title_lbl.setDrawsBackground_(False)
         self._title_lbl.setEditable_(False)
         self._title_lbl.setSelectable_(False)
+        self._title_lbl.setAutoresizingMask_(NSViewMinYMargin)
         self._root_view.addSubview_(self._title_lbl)
 
         # Conversation Breadcrumb Label (e.g. › Cloudflare Bot at y=32)
@@ -1059,6 +1328,7 @@ class UnifiedDynamicIslandHUD:
         self._conv_lbl.setEditable_(False)
         self._conv_lbl.setSelectable_(False)
         self._conv_lbl.setHidden_(True)
+        self._conv_lbl.setAutoresizingMask_(NSViewMinYMargin)
         if hasattr(self._conv_lbl, "setUsesSingleLineMode_"):
             self._conv_lbl.setUsesSingleLineMode_(True)
         if hasattr(self._conv_lbl, "cell") and hasattr(self._conv_lbl.cell(), "setLineBreakMode_"):
@@ -1078,6 +1348,7 @@ class UnifiedDynamicIslandHUD:
         self._tag_lbl.setDrawsBackground_(False)
         self._tag_lbl.setEditable_(False)
         self._tag_lbl.setSelectable_(False)
+        self._tag_lbl.setAutoresizingMask_(NSViewMinYMargin)
         self._root_view.addSubview_(self._tag_lbl)
 
         # Title Click Target (Interactive overlay covering app title)
@@ -1085,6 +1356,7 @@ class UnifiedDynamicIslandHUD:
             self._title_click_target = HUDAppClickTargetView.alloc().initWithFrame_(
                 NSRect(NSPoint(56, 28), NSSize(125, 24))
             )
+            self._title_click_target.setAutoresizingMask_(NSViewMinYMargin)
             self._root_view.addSubview_(self._title_click_target)
         except Exception:
             self._title_click_target = None
@@ -1094,6 +1366,7 @@ class UnifiedDynamicIslandHUD:
             self._visualizer = VADAudioVisualizerView.alloc().initWithFrame_(
                 NSRect(NSPoint(404, 30), NSSize(46, 20))
             )
+            self._visualizer.setAutoresizingMask_(NSViewMinYMargin)
             self._visualizer.setHidden_(False)
             self._vad_btn = None
         except Exception:
@@ -1102,7 +1375,10 @@ class UnifiedDynamicIslandHUD:
 
         # Body Text Label (Subtitles, recognized speech, tool actions, hints)
         # 430px width (x=60 to x=490) with single-line truncation default
-        self._body_lbl = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(60, 7), NSSize(430, 20)))
+        try:
+            self._body_lbl = HUDBodyTextView.alloc().initWithFrame_(NSRect(NSPoint(60, 7), NSSize(430, 20)))
+        except Exception:
+            self._body_lbl = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(60, 7), NSSize(430, 20)))
         self._body_lbl.setFont_(NSFont.systemFontOfSize_(11.5))
         self._body_lbl.setTextColor_(
             NSColor.colorWithCalibratedRed_green_blue_alpha_(0.9, 0.92, 0.96, 0.95)
@@ -1112,6 +1388,7 @@ class UnifiedDynamicIslandHUD:
         self._body_lbl.setDrawsBackground_(False)
         self._body_lbl.setEditable_(False)
         self._body_lbl.setSelectable_(False)
+        self._body_lbl.setAutoresizingMask_(NSViewMinYMargin)
         if hasattr(self._body_lbl, "setUsesSingleLineMode_"):
             self._body_lbl.setUsesSingleLineMode_(True)
         if hasattr(self._body_lbl, "cell") and hasattr(self._body_lbl.cell(), "setLineBreakMode_"):
@@ -1127,6 +1404,7 @@ class UnifiedDynamicIslandHUD:
         self._app_box.layer().setCornerRadius_(16.0)
         self._app_box.layer().setMasksToBounds_(True)
         self._app_box.layer().setBackgroundColor_(NSColor.clearColor().CGColor())
+        self._app_box.setAutoresizingMask_(NSViewMinYMargin)
 
         try:
             self._app_img = NSImageView.alloc().initWithFrame_(
@@ -1156,6 +1434,7 @@ class UnifiedDynamicIslandHUD:
             self._app_click_target = HUDAppClickTargetView.alloc().initWithFrame_(
                 NSRect(NSPoint(490, 9), NSSize(40, 40))
             )
+            self._app_click_target.setAutoresizingMask_(NSViewMinYMargin)
             self._root_view.addSubview_(self._app_click_target)
         except Exception:
             self._app_click_target = None
@@ -1380,9 +1659,13 @@ class UnifiedDynamicIslandHUD:
                     dock_offset = vis_y if vis_y > 20.0 else self._get_dock_height()
                 else:
                     dock_offset = vis_y
-                y = dock_offset + margin_b
+                standard_bottom = dock_offset + margin_b
+                standard_top = standard_bottom + self.STANDARD_HEIGHT
+                y = standard_top - height
         else:
-            x, y = 1200, 80
+            standard_bottom = 80.0
+            standard_top = standard_bottom + self.STANDARD_HEIGHT
+            x, y = 1200.0, standard_top - height
         return NSRect(NSPoint(x, y), NSSize(width, height))
 
     def _position_top_right(self):
@@ -1395,6 +1678,233 @@ class UnifiedDynamicIslandHUD:
     def _position_top_center(self):
         """Ensure HUD is positioned (compatibility wrapper)."""
         self._position_top_right()
+
+    def handle_text_hover_entered(self):
+        """Called when mouse cursor hovers over the HUD body text area."""
+        with self._lock:
+            self._is_text_hovered = True
+            if self._collapse_timer:
+                self._collapse_timer.cancel()
+                self._collapse_timer = None
+
+        if self._current_state == "editing":
+            return
+
+        body = getattr(self, "_active_body_text", "") or ""
+        if not self._needs_expanded_height(body):
+            return
+
+        curr_h = getattr(self, "_current_height", self.STANDARD_HEIGHT)
+        if abs(curr_h - self.EXPANDED_HEIGHT) <= 1.0:
+            return
+
+        self._set_expanded(True)
+
+    def handle_text_hover_exited(self):
+        """Called when mouse cursor exits the HUD body text area."""
+        with self._lock:
+            self._is_text_hovered = False
+            if self._collapse_timer:
+                self._collapse_timer.cancel()
+                self._collapse_timer = None
+
+        if self._current_state == "editing":
+            return
+
+        curr_h = getattr(self, "_current_height", self.STANDARD_HEIGHT)
+        if abs(curr_h - self.STANDARD_HEIGHT) <= 1.0:
+            return
+
+        def _do_collapse():
+            with self._lock:
+                if getattr(self, "_is_text_hovered", False):
+                    return
+            self._set_expanded(False)
+
+        timer = threading.Timer(0.20, _do_collapse)
+        timer.daemon = True
+        with self._lock:
+            self._collapse_timer = timer
+        timer.start()
+
+    def _animate_to_frame(self, target_rect: NSRect, target_h: float):
+        """Smoothly animate panel frame and subviews to target_rect without flicker, jumping, or gaps."""
+        if not self._panel:
+            self._update_subview_geometry(target_h, animate=False)
+            return
+
+        self._is_programmatic_move = True
+        self._is_animating = True
+        try:
+            curr = self._panel.frame()
+            if (
+                abs(float(curr.size.height) - target_h) <= 1.0
+                and abs(float(curr.size.width) - float(target_rect.size.width)) <= 1.0
+                and abs(float(curr.origin.y) - float(target_rect.origin.y)) <= 1.0
+            ):
+                self._update_subview_geometry(target_h, animate=False)
+                return
+
+            try:
+                from AppKit import NSAnimationContext
+
+                is_expanded = (target_h >= 75.0)
+                body_y = 9.0 if is_expanded else 7.0
+                body_h = 42.0 if is_expanded else 20.0
+
+                def _on_animation_complete():
+                    self._update_subview_geometry(target_h, animate=False)
+
+                NSAnimationContext.beginGrouping()
+                ctx = NSAnimationContext.currentContext()
+                ctx.setDuration_(0.16)
+                try:
+                    ctx.setCompletionHandler_(_on_animation_complete)
+                except Exception:
+                    pass
+
+                self._panel.animator().setFrame_display_(target_rect, True)
+                if self._body_lbl:
+                    try:
+                        self._body_lbl.animator().setFrame_(
+                            NSRect(NSPoint(60.0, body_y), NSSize(430.0, body_h))
+                        )
+                    except Exception:
+                        pass
+                NSAnimationContext.endGrouping()
+            except Exception:
+                self._panel.setFrame_display_(target_rect, True)
+                self._update_subview_geometry(target_h, animate=False)
+        finally:
+            def _clear_flags():
+                self._is_programmatic_move = False
+                self._is_animating = False
+
+            timer = threading.Timer(0.20, _clear_flags)
+            timer.daemon = True
+            timer.start()
+
+    def _set_expanded(self, expanded: bool):
+        """Smoothly expand or collapse the HUD height downward while keeping the top locked."""
+        target_h = self.EXPANDED_HEIGHT if expanded else self.STANDARD_HEIGHT
+        self._current_height = target_h
+
+        def _do_update():
+            if not self._panel:
+                self._update_subview_geometry(target_h, animate=False)
+                return
+            target_rect = self._get_target_frame(self.STANDARD_WIDTH, target_h)
+            self._animate_to_frame(target_rect, target_h)
+
+        if threading.current_thread() is threading.main_thread():
+            _do_update()
+        else:
+            AppHelper.callAfter(_do_update)
+
+    def _update_subview_geometry(self, h: float, animate: bool = False):
+        """Update frames and vertical offsets of all subviews according to height h, locking the top edge."""
+        is_expanded = (h >= 75.0)
+        delta_y = h - self.STANDARD_HEIGHT
+
+        top_y = 32.0 + delta_y
+        avatar_y = 10.0 + delta_y
+        app_y = 13.0 + delta_y
+        app_click_y = 9.0 + delta_y
+        vis_y = 30.0 + delta_y
+        gear_y = 27.0 + delta_y
+        body_y = 9.0 if is_expanded else 7.0
+        body_h = 42.0 if is_expanded else 20.0
+
+        def _apply_f(view, rect):
+            if not view:
+                return
+            try:
+                view.setFrame_(rect)
+            except Exception:
+                pass
+
+        if self._root_view:
+            try:
+                rf = self._root_view.frame()
+                if abs(float(rf.size.height) - h) > 1.0:
+                    self._root_view.setFrame_(NSRect(NSPoint(0, 0), NSSize(self.STANDARD_WIDTH, h)))
+            except Exception:
+                pass
+        if self._effect_view:
+            try:
+                ef = self._effect_view.frame()
+                if abs(float(ef.size.height) - h) > 1.0:
+                    self._effect_view.setFrame_(NSRect(NSPoint(0, 0), NSSize(self.STANDARD_WIDTH, h)))
+            except Exception:
+                pass
+
+        _apply_f(self._avatar_box, NSRect(NSPoint(14.0, avatar_y), NSSize(38.0, 38.0)))
+        _apply_f(self._app_box, NSRect(NSPoint(494.0, app_y), NSSize(32.0, 32.0)))
+        if getattr(self, "_app_click_target", None):
+            _apply_f(self._app_click_target, NSRect(NSPoint(490.0, app_click_y), NSSize(40.0, 40.0)))
+
+        title_w = 75.0
+        if self._title_lbl:
+            try:
+                f = self._title_lbl.frame()
+                if hasattr(f, "size") and hasattr(f.size, "width"):
+                    title_w = max(40.0, min(float(f.size.width), 120.0))
+                _apply_f(self._title_lbl, NSRect(NSPoint(60.0, top_y), NSSize(title_w, 18.0)))
+            except Exception:
+                pass
+
+        if getattr(self, "_title_click_target", None):
+            try:
+                _apply_f(
+                    self._title_click_target,
+                    NSRect(NSPoint(56.0, top_y - 4.0), NSSize(title_w + 8.0, 26.0)),
+                )
+            except Exception:
+                pass
+
+        curr_x = 60.0 + title_w + 6.0
+        if getattr(self, "_conv_lbl", None) and not self._conv_lbl.isHidden():
+            try:
+                cf = self._conv_lbl.frame()
+                conv_w = (
+                    max(30.0, min(float(cf.size.width), 120.0))
+                    if hasattr(cf, "size") and hasattr(cf.size, "width")
+                    else 60.0
+                )
+                _apply_f(self._conv_lbl, NSRect(NSPoint(curr_x, top_y), NSSize(conv_w, 18.0)))
+                curr_x += conv_w + 6.0
+            except Exception:
+                pass
+
+        if self._tag_lbl and not self._tag_lbl.isHidden():
+            tag_max_w = max(0.0, min(160.0, 400.0 - curr_x))
+            try:
+                _apply_f(self._tag_lbl, NSRect(NSPoint(curr_x, top_y), NSSize(tag_max_w, 18.0)))
+            except Exception:
+                pass
+
+        if getattr(self, "_visualizer", None):
+            try:
+                _apply_f(self._visualizer, NSRect(NSPoint(404.0, vis_y), NSSize(46.0, 20.0)))
+            except Exception:
+                pass
+
+        if getattr(self, "_gear_btn", None):
+            try:
+                _apply_f(self._gear_btn, NSRect(NSPoint(454.0, gear_y), NSSize(32.0, 26.0)))
+            except Exception:
+                pass
+
+        if self._body_lbl:
+            try:
+                _apply_f(self._body_lbl, NSRect(NSPoint(60.0, body_y), NSSize(430.0, body_h)))
+                if hasattr(self._body_lbl, "setUsesSingleLineMode_"):
+                    self._body_lbl.setUsesSingleLineMode_(not is_expanded)
+                if hasattr(self._body_lbl, "cell") and hasattr(self._body_lbl.cell(), "setLineBreakMode_"):
+                    mode = NSLineBreakByWordWrapping if is_expanded else NSLineBreakByTruncatingTail
+                    self._body_lbl.cell().setLineBreakMode_(mode)
+            except Exception:
+                pass
 
     def _apply_rich_state(
         self,
@@ -1419,10 +1929,12 @@ class UnifiedDynamicIslandHUD:
         w = width or self.STANDARD_WIDTH
         if height is not None:
             h = height
-        elif self._needs_expanded_height(body_text):
+        elif getattr(self, "_is_text_hovered", False) and self._needs_expanded_height(body_text):
             h = self.EXPANDED_HEIGHT
         else:
             h = self.STANDARD_HEIGHT
+        self._active_body_text = body_text or ""
+        self._current_height = h
         bg_col = avatar_bg if avatar_bg is not None else NSColor.clearColor()
         tag_col = tag_color if tag_color is not None else NSColor.whiteColor()
         border_col = border_color if border_color is not None else NSColor.clearColor()
@@ -1475,33 +1987,43 @@ class UnifiedDynamicIslandHUD:
             target_rect = self._get_target_frame(w, h)
 
             if not self._panel.isVisible():
-                self._panel.setFrame_display_(target_rect, True)
+                self._is_programmatic_move = True
+                try:
+                    self._panel.setFrame_display_(target_rect, True)
+                finally:
+                    self._is_programmatic_move = False
             else:
                 curr = self._panel.frame()
-                if (
-                    abs(float(curr.size.height) - h) > 1.0
-                    or abs(float(curr.size.width) - w) > 1.0
-                    or abs(float(curr.origin.y) - float(target_rect.origin.y)) > 1.0
-                ):
-                    try:
-                        self._panel.setFrame_display_animate_(target_rect, True, True)
-                    except Exception:
-                        self._panel.setFrame_display_(target_rect, True)
+                h_diff = abs(float(curr.size.height) - h)
+                w_diff = abs(float(curr.size.width) - w)
+                y_diff = abs(float(curr.origin.y) - float(target_rect.origin.y))
+                x_diff = abs(float(curr.origin.x) - float(target_rect.origin.x))
 
-            self._root_view.setFrame_(NSRect(NSPoint(0, 0), NSSize(w, h)))
-            self._effect_view.setFrame_(NSRect(NSPoint(0, 0), NSSize(w, h)))
+                if h_diff > 1.0 or w_diff > 1.0:
+                    self._animate_to_frame(target_rect, h)
+                elif y_diff > 10.0 or x_diff > 10.0:
+                    self._is_programmatic_move = True
+                    try:
+                        self._panel.setFrameOrigin_(target_rect.origin)
+                    finally:
+                        self._is_programmatic_move = False
+
+            if not self._panel.isVisible() or (h_diff <= 1.0 and w_diff <= 1.0):
+                self._root_view.setFrame_(NSRect(NSPoint(0, 0), NSSize(w, h)))
+                self._effect_view.setFrame_(NSRect(NSPoint(0, 0), NSSize(w, h)))
 
             self._root_view.layer().setBorderColor_(border_col.CGColor())
 
             is_expanded = (h >= 75.0)
-            top_y = 56.0 if is_expanded else 32.0
-            avatar_y = 22.0 if is_expanded else 10.0
-            app_y = 25.0 if is_expanded else 13.0
-            app_click_y = 21.0 if is_expanded else 9.0
-            vis_y = 54.0 if is_expanded else 30.0
-            gear_y = 51.0 if is_expanded else 27.0
-            body_y = 10.0 if is_expanded else 7.0
-            body_h = 36.0 if is_expanded else 20.0
+            delta_y = h - self.STANDARD_HEIGHT
+            top_y = 32.0 + delta_y
+            avatar_y = 10.0 + delta_y
+            app_y = 13.0 + delta_y
+            app_click_y = 9.0 + delta_y
+            vis_y = 30.0 + delta_y
+            gear_y = 27.0 + delta_y
+            body_y = 9.0 if is_expanded else 7.0
+            body_h = 42.0 if is_expanded else 20.0
 
             # 1. Left Avatar Box: Always the VoiceFi Reactive Character Status Icon!
             if self._avatar_box:
@@ -1523,22 +2045,40 @@ class UnifiedDynamicIslandHUD:
                     if self._avatar_img:
                         self._avatar_img.setHidden_(True)
 
-            # 2. Right App Box: Shows connected App Logo (Antigravity, Cursor, Claude, etc.) or Persona Emoji
+            # 2. Right App Box: Shows connected App Logo (Antigravity, Cursor, Claude, Codex, etc.) or Persona Emoji
+            eff_target_app = (
+                app_name
+                or getattr(self, "_active_app_name", None)
+                or agent_name
+                or getattr(self, "_active_agent_name", None)
+                or self._resolve_active_conversation_app(conv_id or getattr(self, "_active_conv_id", None))
+                or "antigravity"
+            )
+
             if self._app_box:
                 self._app_box.setFrame_(NSRect(NSPoint(494.0, app_y), NSSize(32.0, 32.0)))
                 if getattr(self, "_app_click_target", None):
                     self._app_click_target.setFrame_(NSRect(NSPoint(490.0, app_click_y), NSSize(40.0, 40.0)))
-                if avatar_image and self._app_img:
+
+                eff_image = avatar_image
+                eff_emoji = avatar_emoji
+                if eff_image is None and not eff_emoji:
+                    if eff_target_app:
+                        eff_image = self._resolve_app_icon(eff_target_app)
+                        if eff_image is None:
+                            eff_emoji = self._resolve_app_emoji(eff_target_app)
+
+                if eff_image and self._app_img:
                     try:
-                        self._app_img.setImage_(avatar_image)
+                        self._app_img.setImage_(eff_image)
                         self._app_img.setHidden_(False)
                         self._app_box.setHidden_(False)
                     except Exception:
                         pass
                     if self._app_lbl:
                         self._app_lbl.setHidden_(True)
-                elif avatar_emoji and self._app_lbl:
-                    self._app_lbl.setStringValue_(avatar_emoji)
+                elif eff_emoji and self._app_lbl:
+                    self._app_lbl.setStringValue_(eff_emoji)
                     self._app_lbl.setHidden_(False)
                     self._app_box.setHidden_(False)
                     if self._app_img:
@@ -1577,8 +2117,9 @@ class UnifiedDynamicIslandHUD:
 
             if getattr(self, "_app_box", None):
                 try:
+                    display_target = eff_target_app.capitalize() if eff_target_app else (title or "active app")
                     self._app_box.setToolTip_(
-                        f"Click to focus {title} & conversation (⌥Tab)"
+                        f"Click to focus {display_target} & conversation (⌥Tab)"
                     )
                 except Exception:
                     pass
@@ -1679,7 +2220,8 @@ class UnifiedDynamicIslandHUD:
 
             is_mock = hasattr(self._panel, "assert_called") or type(self._panel).__name__ == "MagicMock"
             if self._panel and not is_headless() and not getattr(self, "_is_proxy", False):
-                self._panel.orderFrontRegardless()
+                if not self._panel.isVisible():
+                    self._panel.orderFrontRegardless()
                 self._is_visible = True
             elif is_mock:
                 self._panel.orderFrontRegardless()
@@ -1743,25 +2285,26 @@ class UnifiedDynamicIslandHUD:
 
             target_rect = self._get_target_frame(self.STANDARD_WIDTH, self.STANDARD_HEIGHT)
             if not self._panel.isVisible():
-                self._panel.setFrame_display_(target_rect, True)
+                self._is_programmatic_move = True
+                try:
+                    self._panel.setFrame_display_(target_rect, True)
+                finally:
+                    self._is_programmatic_move = False
             else:
                 curr = self._panel.frame()
                 if (
                     abs(float(curr.size.height) - self.STANDARD_HEIGHT) > 1.0
                     or abs(float(curr.size.width) - self.STANDARD_WIDTH) > 1.0
-                    or abs(float(curr.origin.y) - float(target_rect.origin.y)) > 1.0
                 ):
-                    try:
-                        self._panel.setFrame_display_animate_(target_rect, True, True)
-                    except Exception:
-                        self._panel.setFrame_display_(target_rect, True)
+                    self._animate_to_frame(target_rect, self.STANDARD_HEIGHT)
 
             self._root_view.setFrame_(NSRect(NSPoint(0, 0), NSSize(self.STANDARD_WIDTH, self.STANDARD_HEIGHT)))
             self._effect_view.setFrame_(NSRect(NSPoint(0, 0), NSSize(self.STANDARD_WIDTH, self.STANDARD_HEIGHT)))
 
             is_mock = hasattr(self._panel, "assert_called") or type(self._panel).__name__ == "MagicMock"
             if self._panel and not is_headless() and not getattr(self, "_is_proxy", False):
-                self._panel.orderFrontRegardless()
+                if not self._panel.isVisible():
+                    self._panel.orderFrontRegardless()
                 self._is_visible = True
             elif is_mock:
                 self._panel.orderFrontRegardless()
@@ -1822,7 +2365,13 @@ class UnifiedDynamicIslandHUD:
     # Lifecycle State Handlers (Fixed 480x58)
     # -------------------------------------------------------------------------
 
-    def set_idle(self, linger: Optional[float] = None):
+    def set_idle(
+        self,
+        linger: Optional[float] = None,
+        app_name: Optional[str] = None,
+        conv_id: Optional[str] = None,
+        agent_name: Optional[str] = None,
+    ):
         """Set to Idle State (Fixed 480x58 persistent capsule)."""
         antigravity_mic = True
         try:
@@ -1856,6 +2405,10 @@ class UnifiedDynamicIslandHUD:
                 else "Standing by • Dictate (⌃T) or speak to agent (⌃R)"
             )
 
+        resolved_app = app_name or getattr(self, "_active_app_name", None)
+        resolved_cid = conv_id or getattr(self, "_active_conv_id", None)
+        resolved_agent = agent_name or getattr(self, "_active_agent_name", None)
+
         self._apply_rich_state(
             state="idle",
             avatar_emoji="",
@@ -1867,22 +2420,35 @@ class UnifiedDynamicIslandHUD:
             body_text=body,
             border_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 1.0, 1.0, 0.20),
             linger=linger,
+            app_name=resolved_app,
+            conv_id=resolved_cid,
+            agent_name=resolved_agent,
         )
 
-    def set_thinking(self, agent_name: str = "Antigravity", detail: str = "Reasoning..."):
+    def set_thinking(
+        self,
+        agent_name: str = "Antigravity",
+        detail: str = "Reasoning...",
+        app_name: Optional[str] = None,
+        conv_id: Optional[str] = None,
+    ):
         """Set to Thinking State with rich reasoning card (fixed 480x58)."""
         display_detail = detail or "Reasoning..."
-        app_icon = self._resolve_app_icon(agent_name)
+        resolved_app = app_name or agent_name
+        app_icon = self._resolve_app_icon(resolved_app)
         self._apply_rich_state(
             state="thinking",
             avatar_emoji="",
             avatar_bg=NSColor.clearColor(),
             avatar_image=app_icon,
-            title=agent_name.capitalize(),
+            title=resolved_app.capitalize(),
             tag_text="Reasoning",
             tag_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.8, 0.65, 1.0, 0.95),
             body_text=display_detail,
             border_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.65, 0.45, 0.98, 0.75),
+            agent_name=agent_name,
+            app_name=resolved_app,
+            conv_id=conv_id,
         )
 
     def set_working(
@@ -1890,10 +2456,13 @@ class UnifiedDynamicIslandHUD:
         agent_name: str = "Antigravity",
         tool_action: str = "Running tool...",
         tag_text: Optional[str] = None,
+        app_name: Optional[str] = None,
+        conv_id: Optional[str] = None,
     ):
         """Set to Working / Tool Execution State with rich tool card (fixed 480x58)."""
         display_tool = tool_action or "Running tool..."
-        app_icon = self._resolve_app_icon(agent_name)
+        resolved_app = app_name or agent_name
+        app_icon = self._resolve_app_icon(resolved_app)
 
         # Derive tag_text if not explicitly provided
         resolved_tag = tag_text
@@ -1930,11 +2499,14 @@ class UnifiedDynamicIslandHUD:
             avatar_emoji="",
             avatar_bg=NSColor.clearColor(),
             avatar_image=app_icon,
-            title=agent_name.capitalize(),
+            title=resolved_app.capitalize(),
             tag_text=resolved_tag,
             tag_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.5, 0.8, 1.0, 0.95),
             body_text=display_tool,
             border_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.3, 0.6, 1.0, 0.8),
+            agent_name=agent_name,
+            app_name=resolved_app,
+            conv_id=conv_id,
         )
 
     def set_speaking(
@@ -2028,6 +2600,8 @@ class UnifiedDynamicIslandHUD:
         source: Optional[str] = None,
         conv_id: Optional[str] = None,
         conv_title: Optional[str] = None,
+        app_name: Optional[str] = None,
+        agent_name: Optional[str] = None,
     ):
         """Set to Listening State with microphone badge and live typing preview (540x82)."""
         if prompt_preview:
@@ -2053,6 +2627,8 @@ class UnifiedDynamicIslandHUD:
             border_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.92, 0.22, 0.26, 0.85),
             conv_id=conv_id,
             conv_title=conv_title,
+            app_name=app_name,
+            agent_name=agent_name,
         )
 
     def set_hearing(
@@ -2061,6 +2637,8 @@ class UnifiedDynamicIslandHUD:
         user_name: str = "Jake",
         conv_id: Optional[str] = None,
         conv_title: Optional[str] = None,
+        app_name: Optional[str] = None,
+        agent_name: Optional[str] = None,
     ):
         """Set to Hearing State with active voice energy detection indicator (540x82)."""
         body = (
@@ -2079,6 +2657,8 @@ class UnifiedDynamicIslandHUD:
             border_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 0.20, 0.25, 0.9),
             conv_id=conv_id,
             conv_title=conv_title,
+            app_name=app_name,
+            agent_name=agent_name,
         )
 
     def set_user_prompt(
@@ -2089,6 +2669,8 @@ class UnifiedDynamicIslandHUD:
         linger: float = 1.8,
         conv_id: Optional[str] = None,
         conv_title: Optional[str] = None,
+        app_name: Optional[str] = None,
+        agent_name: Optional[str] = None,
     ):
         """Display submitted user prompt preview before transitioning to agent thinking (clean, no emoji)."""
         clean = prompt.strip() or "User prompt received"
@@ -2105,6 +2687,8 @@ class UnifiedDynamicIslandHUD:
             linger=linger,
             conv_id=conv_id,
             conv_title=conv_title,
+            app_name=app_name,
+            agent_name=agent_name,
         )
 
     def set_new_conversation(
@@ -2113,6 +2697,8 @@ class UnifiedDynamicIslandHUD:
         user_name: str = "Jake",
         agent_name: str = "Antigravity",
         live_stream: bool = False,
+        app_name: Optional[str] = None,
+        conv_id: Optional[str] = None,
     ):
         """Set to New Conversation State with Connected Tools indicator (fixed 480x58)."""
         if prompt_preview:
@@ -2124,7 +2710,8 @@ class UnifiedDynamicIslandHUD:
             body = "Speak initial prompt to start conversation with connected tools..."
             tag = "Connected Tools"
 
-        app_icon = self._resolve_app_icon(agent_name)
+        resolved_app = app_name or agent_name
+        app_icon = self._resolve_app_icon(resolved_app)
         self._apply_rich_state(
             state="new_conversation",
             avatar_emoji="",
@@ -2135,6 +2722,9 @@ class UnifiedDynamicIslandHUD:
             tag_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.3, 0.95, 0.8, 0.98),
             body_text=body,
             border_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.2, 0.85, 0.7, 0.85),
+            app_name=resolved_app,
+            conv_id=conv_id,
+            agent_name=agent_name,
         )
 
     def set_meeting(
@@ -2358,21 +2948,22 @@ class UnifiedDynamicIslandHUD:
 
             target_rect = self._get_target_frame(self.STANDARD_WIDTH, self.EXPANDED_HEIGHT)
             if not self._panel.isVisible():
-                self._panel.setFrame_display_(target_rect, True)
+                self._is_programmatic_move = True
+                try:
+                    self._panel.setFrame_display_(target_rect, True)
+                finally:
+                    self._is_programmatic_move = False
             else:
                 curr = self._panel.frame()
                 if (
                     abs(float(curr.size.height) - self.EXPANDED_HEIGHT) > 1.0
                     or abs(float(curr.size.width) - self.STANDARD_WIDTH) > 1.0
-                    or abs(float(curr.origin.y) - float(target_rect.origin.y)) > 1.0
                 ):
-                    try:
-                        self._panel.setFrame_display_animate_(target_rect, True, True)
-                    except Exception:
-                        self._panel.setFrame_display_(target_rect, True)
+                    self._animate_to_frame(target_rect, self.EXPANDED_HEIGHT)
 
-            self._root_view.setFrame_(NSRect(NSPoint(0, 0), NSSize(self.STANDARD_WIDTH, self.EXPANDED_HEIGHT)))
-            self._effect_view.setFrame_(NSRect(NSPoint(0, 0), NSSize(self.STANDARD_WIDTH, self.EXPANDED_HEIGHT)))
+            if not self._panel.isVisible():
+                self._root_view.setFrame_(NSRect(NSPoint(0, 0), NSSize(self.STANDARD_WIDTH, self.EXPANDED_HEIGHT)))
+                self._effect_view.setFrame_(NSRect(NSPoint(0, 0), NSSize(self.STANDARD_WIDTH, self.EXPANDED_HEIGHT)))
             self._edit_container.setFrame_(NSRect(NSPoint(0, 0), NSSize(self.STANDARD_WIDTH, self.EXPANDED_HEIGHT)))
 
             # Hide standard labels and show edit container
@@ -2480,9 +3071,16 @@ class UnifiedDynamicIslandHUD:
         linger_seconds: float = 2.0,
         text: Optional[str] = None,
         speaker: Optional[str] = None,
+        app_name: Optional[str] = None,
+        conv_id: Optional[str] = None,
+        agent_name: Optional[str] = None,
     ):
         """Conclude speech turn and transition into settled spoken state before idle/auto-hide."""
         self._is_speaking = False
+        resolved_app = app_name or getattr(self, "_active_app_name", None)
+        resolved_cid = conv_id or getattr(self, "_active_conv_id", None)
+        resolved_agent = agent_name or getattr(self, "_active_agent_name", None)
+
         body_to_settle = text
         if not body_to_settle and self._body_lbl:
             try:
@@ -2497,8 +3095,11 @@ class UnifiedDynamicIslandHUD:
         if body_to_settle and self._current_state in ("speaking", "spoken"):
             self.set_spoken(
                 text=body_to_settle,
-                speaker=speaker or getattr(self, "_active_agent_name", "Viv") or "Viv",
+                speaker=speaker or resolved_agent or "Viv",
                 linger=linger_seconds,
+                agent_name=resolved_agent or "Antigravity",
+                app_name=resolved_app,
+                conv_id=resolved_cid,
             )
             return
 
@@ -2506,7 +3107,10 @@ class UnifiedDynamicIslandHUD:
             if self._hide_timer:
                 self._hide_timer.cancel()
             if self.persistent:
-                self._hide_timer = threading.Timer(linger_seconds, self.set_idle)
+                self._hide_timer = threading.Timer(
+                    linger_seconds,
+                    lambda: self.set_idle(app_name=resolved_app, conv_id=resolved_cid, agent_name=resolved_agent),
+                )
             else:
                 self._hide_timer = threading.Timer(linger_seconds, self.hide)
             self._hide_timer.daemon = True
@@ -2593,7 +3197,12 @@ class UnifiedDynamicIslandHUD:
             linger=None,
         )
 
-    def show_listening(self, prompt_preview: str = ""):
+    def show_listening(
+        self,
+        prompt_preview: str = "",
+        app_name: Optional[str] = None,
+        conv_id: Optional[str] = None,
+    ):
         """Compatibility bridge for DictationHUD.show_listening."""
         self._apply_rich_state(
             state="listening",
@@ -2604,16 +3213,30 @@ class UnifiedDynamicIslandHUD:
             tag_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 0.3, 0.3, 0.95),
             body_text=prompt_preview or "Listening...",
             border_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 0.2, 0.2, 0.8),
+            app_name=app_name,
+            conv_id=conv_id,
         )
 
-    def show_hearing(self, prompt_preview: str = ""):
+    def show_hearing(
+        self,
+        prompt_preview: str = "",
+        app_name: Optional[str] = None,
+        conv_id: Optional[str] = None,
+    ):
         """Compatibility bridge for DictationHUD.show_hearing."""
         self.set_hearing(
             prompt_preview=prompt_preview,
             user_name=getattr(self.config, "user_name", "Jake"),
+            app_name=app_name,
+            conv_id=conv_id,
         )
 
-    def show_paused(self, message: str = "Agent Speaking (Paused)..."):
+    def show_paused(
+        self,
+        message: str = "Agent Speaking (Paused)...",
+        app_name: Optional[str] = None,
+        conv_id: Optional[str] = None,
+    ):
         """Compatibility bridge for DictationHUD.show_paused."""
         self._apply_rich_state(
             state="paused",
@@ -2624,9 +3247,16 @@ class UnifiedDynamicIslandHUD:
             tag_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 0.65, 0.2, 0.95),
             body_text=message,
             border_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.9, 0.55, 0.15, 0.85),
+            app_name=app_name,
+            conv_id=conv_id,
         )
 
-    def show_transcribing(self, linger: Optional[float] = 7.0):
+    def show_transcribing(
+        self,
+        linger: Optional[float] = 7.0,
+        app_name: Optional[str] = None,
+        conv_id: Optional[str] = None,
+    ):
         """Compatibility bridge for DictationHUD.show_transcribing with safety timeout guard."""
         self._apply_rich_state(
             state="transcribing",
@@ -2638,6 +3268,8 @@ class UnifiedDynamicIslandHUD:
             body_text="Converting speech to text...",
             border_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.9, 0.8, 0.25, 0.85),
             linger=linger,
+            app_name=app_name,
+            conv_id=conv_id,
         )
 
     def toggle_quick_controls(self):
@@ -2662,7 +3294,12 @@ class UnifiedDynamicIslandHUD:
         except Exception as e:
             print(f"[HUD] Error toggling Expert VAD panel: {e}")
 
-    def show_done(self, preview_text: str = ""):
+    def show_done(
+        self,
+        preview_text: str = "",
+        app_name: Optional[str] = None,
+        conv_id: Optional[str] = None,
+    ):
         """Compatibility bridge for DictationHUD.show_done."""
         disp = f"{preview_text[:25]}..." if preview_text else "Done"
         self._apply_rich_state(
@@ -2675,4 +3312,6 @@ class UnifiedDynamicIslandHUD:
             body_text=disp,
             border_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.25, 0.85, 0.45, 0.85),
             linger=1.5,
+            app_name=app_name,
+            conv_id=conv_id,
         )

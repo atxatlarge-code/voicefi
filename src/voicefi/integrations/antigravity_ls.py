@@ -105,8 +105,9 @@ def discover_antigravity_ls_credentials(
         token = cand["token"]
 
         try:
+            lsof_bin = "/usr/sbin/lsof" if os.path.isfile("/usr/sbin/lsof") else "lsof"
             lsof_res = subprocess.run(
-                ["lsof", "-nP", "-a", "-p", str(pid), "-iTCP", "-sTCP:LISTEN"],
+                [lsof_bin, "-nP", "-a", "-p", str(pid), "-iTCP", "-sTCP:LISTEN"],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
                 text=True,

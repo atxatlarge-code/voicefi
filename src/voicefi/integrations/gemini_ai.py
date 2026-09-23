@@ -268,6 +268,54 @@ class GeminiIntelligenceEngine:
         if len(bounded_text) > 3000:
             bounded_text = bounded_text[:1000] + "\n...\n" + bounded_text[-1500:]
 
+        # 0. Check if on-device LocalModelEngine distillation is enabled (opt-in)
+        if getattr(getattr(self.config, "local_model", None), "distill_spoken_turns", False):
+            try:
+                from voicefi.local.engine import LocalModelEngine
+
+                local_engine = LocalModelEngine()
+                if local_engine.is_installed and local_engine.model_exists:
+                    telegraphic = getattr(self.config.local_model, "telegraphic_mode", False)
+                    measure = getattr(self.config.local_model, "measure_latency", True)
+                    import asyncio
+                    import concurrent.futures
+
+                    try:
+                        loop = asyncio.get_event_loop()
+                        if loop.is_running():
+                            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                                distilled, _ = pool.submit(
+                                    asyncio.run,
+                                    local_engine.distill_turn(
+                                        agent_output=bounded_text,
+                                        max_words=effective_max_words,
+                                        telegraphic=telegraphic,
+                                        measure=measure,
+                                    ),
+                                ).result(timeout=timeout + 4.0)
+                        else:
+                            distilled, _ = loop.run_until_complete(
+                                local_engine.distill_turn(
+                                    agent_output=bounded_text,
+                                    max_words=effective_max_words,
+                                    telegraphic=telegraphic,
+                                    measure=measure,
+                                )
+                            )
+                    except RuntimeError:
+                        distilled, _ = asyncio.run(
+                            local_engine.distill_turn(
+                                agent_output=bounded_text,
+                                max_words=effective_max_words,
+                                telegraphic=telegraphic,
+                                measure=measure,
+                            )
+                        )
+                    if distilled and len(distilled.strip()) > 3:
+                        return distilled
+            except Exception as e:
+                logger.debug("On-device local model distillation fallback: %s", e)
+
         system_prompt = (
             "You are VoiceFi's spoken voice synthesizer for AI coding agents. "
             f"Your job is to read the agent's output and condense it into a single punchy spoken sentence (under {effective_max_words} words). "
@@ -315,6 +363,47 @@ class GeminiIntelligenceEngine:
         """
         if not raw_transcript or not raw_transcript.strip():
             return None
+
+        # 0. Check if on-device LocalModelEngine air-gapped memo structuring is enabled (opt-in)
+        if getattr(getattr(self.config, "local_model", None), "airgapped_memos", False):
+            try:
+                from voicefi.local.engine import LocalModelEngine
+
+                local_engine = LocalModelEngine()
+                if local_engine.is_installed and local_engine.model_exists:
+                    measure = getattr(self.config.local_model, "measure_latency", True)
+                    import asyncio
+                    import concurrent.futures
+
+                    try:
+                        loop = asyncio.get_event_loop()
+                        if loop.is_running():
+                            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                                memo_data, _ = pool.submit(
+                                    asyncio.run,
+                                    local_engine.structure_memo(
+                                        raw_transcript=raw_transcript,
+                                        measure=measure,
+                                    ),
+                                ).result(timeout=timeout + 4.0)
+                        else:
+                            memo_data, _ = loop.run_until_complete(
+                                local_engine.structure_memo(
+                                    raw_transcript=raw_transcript,
+                                    measure=measure,
+                                )
+                            )
+                    except RuntimeError:
+                        memo_data, _ = asyncio.run(
+                            local_engine.structure_memo(
+                                raw_transcript=raw_transcript,
+                                measure=measure,
+                            )
+                        )
+                    if memo_data and isinstance(memo_data, dict):
+                        return memo_data
+            except Exception as e:
+                logger.debug("On-device local model memo structuring fallback: %s", e)
 
         system_prompt = (
             "You are an expert software architect analyzing a developer's voice memo brain dump. "

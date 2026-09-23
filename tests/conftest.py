@@ -165,24 +165,25 @@ def prevent_real_audio_playback(monkeypatch):
 
     orig_popen = subprocess.Popen
 
-    def safe_subprocess_popen(args, *pargs, **kwargs):
-        if is_audio_cmd(args):
-            mock_proc = MagicMock()
-            mock_proc.returncode = 0
-            mock_proc.pid = 99999
-            mock_proc.args = args
-            mock_proc.wait.return_value = 0
-            mock_proc.poll.return_value = 0
-            mock_proc.communicate.return_value = (b"", b"")
-            mock_proc.terminate.return_value = None
-            mock_proc.kill.return_value = None
-            mock_proc.__enter__.return_value = mock_proc
-            mock_proc.__exit__.return_value = None
-            mock_proc.stdin = MagicMock()
-            mock_proc.stdout = MagicMock()
-            mock_proc.stderr = MagicMock()
-            return mock_proc
-        return orig_popen(args, *pargs, **kwargs)
+    class safe_subprocess_popen(orig_popen):
+        def __new__(cls, args, *pargs, **kwargs):
+            if is_audio_cmd(args):
+                mock_proc = MagicMock()
+                mock_proc.returncode = 0
+                mock_proc.pid = 99999
+                mock_proc.args = args
+                mock_proc.wait.return_value = 0
+                mock_proc.poll.return_value = 0
+                mock_proc.communicate.return_value = (b"", b"")
+                mock_proc.terminate.return_value = None
+                mock_proc.kill.return_value = None
+                mock_proc.__enter__.return_value = mock_proc
+                mock_proc.__exit__.return_value = None
+                mock_proc.stdin = MagicMock()
+                mock_proc.stdout = MagicMock()
+                mock_proc.stderr = MagicMock()
+                return mock_proc
+            return orig_popen(args, *pargs, **kwargs)
 
     monkeypatch.setattr(subprocess, "run", safe_subprocess_run)
     monkeypatch.setattr(subprocess, "call", safe_subprocess_call)

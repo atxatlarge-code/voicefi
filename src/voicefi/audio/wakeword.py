@@ -332,6 +332,33 @@ class WakeWordListener:
                         self.on_wake(matched_phrase, prompt)
                     except Exception as ex:
                         print(f"[WakeWord] on_wake handler error: {ex}", flush=True)
+                elif (
+                    getattr(getattr(self.config, "local_model", None), "intent_routing", False)
+                    and prompt
+                ):
+                    try:
+                        from voicefi.local.intent import LocalIntentRouter
+
+                        router = LocalIntentRouter(config=self.config)
+                        route = router.route_prompt(prompt)
+                        if route.get("status") in ("handled_local", "routed_obsidian"):
+                            spoken = route.get("spoken_response")
+                            if spoken:
+                                from voicefi.tts import get_tts_engine
+
+                                tts = get_tts_engine(self.config)
+                                tts.speak(spoken, block=False)
+                        elif route.get("target") in ("antigravity", "claude", "codex"):
+                            from voicefi.integrations.injector import send_message_to_agent
+
+                            send_message_to_agent(
+                                text=prompt,
+                                sender_name=f"{self.config.user_name} ({matched_phrase})",
+                                title=f"Prompt via {matched_phrase}",
+                                target_engine=route.get("target"),
+                            )
+                    except Exception as ex:
+                        print(f"[WakeWord] Default intent routing error: {ex}", flush=True)
 
         except Exception as ex:
             print(f"[WakeWord] Audio processing error: {ex}", flush=True)

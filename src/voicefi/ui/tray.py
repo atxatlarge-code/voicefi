@@ -2004,17 +2004,28 @@ class VoiceFiTrayApp(rumps.App):
         try:
             hud = UnifiedDynamicIslandHUD.get_instance()
             if state == "idle":
-                hud.set_idle(linger=kwargs.get("linger", 1.5))
+                hud.set_idle(
+                    linger=kwargs.get("linger", 1.5),
+                    app_name=kwargs.get("app_name"),
+                    conv_id=kwargs.get("conv_id"),
+                    agent_name=kwargs.get("agent_name"),
+                )
             elif state in ("listening", "ptt_listening"):
                 hud.set_listening(
                     prompt_preview=kwargs.get("text", ""),
                     user_name=kwargs.get("user_name", getattr(self.config, "user_name", "Jake")),
                     live_stream=kwargs.get("live_stream", False),
+                    app_name=kwargs.get("app_name"),
+                    conv_id=kwargs.get("conv_id"),
+                    agent_name=kwargs.get("agent_name"),
                 )
             elif state == "hearing":
                 hud.set_hearing(
                     prompt_preview=kwargs.get("text", ""),
                     user_name=kwargs.get("user_name", getattr(self.config, "user_name", "Jake")),
+                    app_name=kwargs.get("app_name"),
+                    conv_id=kwargs.get("conv_id"),
+                    agent_name=kwargs.get("agent_name"),
                 )
             elif state == "speaking":
                 hud.set_speaking(
@@ -2038,12 +2049,16 @@ class VoiceFiTrayApp(rumps.App):
                 hud.set_thinking(
                     agent_name=kwargs.get("agent_name", "Antigravity"),
                     detail=kwargs.get("detail", "Thinking..."),
+                    app_name=kwargs.get("app_name"),
+                    conv_id=kwargs.get("conv_id"),
                 )
             elif state == "working":
                 hud.set_working(
                     agent_name=kwargs.get("agent_name", "Antigravity"),
                     tool_action=kwargs.get("tool_action", "Running tools..."),
                     tag_text=kwargs.get("tag_text"),
+                    app_name=kwargs.get("app_name"),
+                    conv_id=kwargs.get("conv_id"),
                 )
             elif state == "user_prompt":
                 hud.set_user_prompt(
@@ -2051,13 +2066,28 @@ class VoiceFiTrayApp(rumps.App):
                     user_name=kwargs.get("user_name", getattr(self.config, "user_name", "Jake")),
                     source=kwargs.get("source", "Antigravity (⌃M)"),
                     linger=kwargs.get("linger", 1.8),
+                    app_name=kwargs.get("app_name"),
+                    conv_id=kwargs.get("conv_id"),
+                    agent_name=kwargs.get("agent_name"),
                 )
             elif state in ("paused", "paused_agent_speaking"):
-                hud.show_paused(kwargs.get("message", "Agent Speaking (Paused)..."))
+                hud.show_paused(
+                    message=kwargs.get("message", "Agent Speaking (Paused)..."),
+                    app_name=kwargs.get("app_name"),
+                    conv_id=kwargs.get("conv_id"),
+                )
             elif state == "transcribing":
-                hud.show_transcribing()
+                hud.show_transcribing(
+                    linger=kwargs.get("linger", 7.0),
+                    app_name=kwargs.get("app_name"),
+                    conv_id=kwargs.get("conv_id"),
+                )
             elif state == "done":
-                hud.show_done(preview_text=kwargs.get("text", ""))
+                hud.show_done(
+                    preview_text=kwargs.get("text", ""),
+                    app_name=kwargs.get("app_name"),
+                    conv_id=kwargs.get("conv_id"),
+                )
             elif state == "meeting":
                 hud.set_meeting(
                     title=kwargs.get("title", "Meeting Notes"),
@@ -2071,6 +2101,8 @@ class VoiceFiTrayApp(rumps.App):
                     user_name=kwargs.get("user_name", getattr(self.config, "user_name", "Jake")),
                     agent_name=kwargs.get("agent_name", "Antigravity"),
                     live_stream=kwargs.get("live_stream", False),
+                    app_name=kwargs.get("app_name"),
+                    conv_id=kwargs.get("conv_id"),
                 )
         except Exception:
             pass
@@ -2284,49 +2316,27 @@ class VoiceFiTrayApp(rumps.App):
                     )
 
                     def _send_action(payload_text: str):
+                        target_eng = target_engine
                         if is_claude:
-                            send_message_to_agent(
-                                conv_id=conv_id,
-                                text=payload_text,
-                                sender_name=f"{self.config.user_name} (Voice)",
-                                target_engine="claude",
-                                use_headless=True,
+                            target_eng = "claude"
+                        elif not target_eng and active_conv:
+                            target_eng = getattr(active_conv, "engine", None)
+
+                        res = send_message_to_agent(
+                            conv_id=conv_id,
+                            text=payload_text,
+                            sender_name=f"{self.config.user_name} (Voice)" if is_claude else self.config.user_name,
+                            target_engine=target_eng,
+                            use_headless=True if is_claude else None,
+                            allow_foreground_fallback=True,
+                        )
+                        if res and getattr(res, "success", False):
+                            print(
+                                f"[VoiceFi] 🚀 Delivered prompt to {target_eng or 'agent'} ({getattr(res, 'delivery_type', 'direct')}): \"{payload_text[:40]}...\""
                             )
                         else:
-                            from voicefi.integrations.injector import (
-                                get_frontmost_app_name,
-                                inject_text_to_active_app,
-                            )
-
-                            front_app = get_frontmost_app_name().lower()
-                            is_editor_focused = any(
-                                k in front_app for k in ("antigravity", "cursor", "code", "windsurf")
-                            )
-
-                            if is_editor_focused:
-                                # User is looking directly at an open conversation in Antigravity -> inject into focused tab!
-                                injected = inject_text_to_active_app(
-                                    payload_text,
-                                    submit_enter=True,
-                                    preserve_clipboard=self.config.global_hotkey.preserve_clipboard,
-                                )
-                                if injected:
-                                    print(
-                                        f"[VoiceFi] 🎯 Injected prompt directly into active {front_app} conversation"
-                                    )
-                                else:
-                                    send_message_to_agent(
-                                        conv_id=conv_id,
-                                        text=payload_text,
-                                        sender_name=self.config.user_name,
-                                    )
-                            else:
-                                # User is in Chrome / background app -> deliver via zero-focus background agentapi IPC
-                                send_message_to_agent(
-                                    conv_id=conv_id,
-                                    text=payload_text,
-                                    sender_name=self.config.user_name,
-                                )
+                            err = getattr(res, "error", None) or "Dispatch failed"
+                            print(f"[VoiceFi] ⚠️ Dispatch notice: {err}")
 
                         if self.config.audio_cues.enabled:
                             play_chime(self.config.audio_cues.sent_chime, block=False)

@@ -1661,9 +1661,11 @@ def send_message_to_agent(
     engine = target_engine or engine
     cleaned_lower = text.strip().lower()
 
-    # 1. If conversation ID is explicitly a Claude session, always route to Claude
+    # 1. If conversation ID is explicitly a Claude or Codex session
     if conv_id and (conv_id.startswith("claude_") or "claude" in conv_id.lower()):
         engine = "claude"
+    elif conv_id and (conv_id.startswith("codex_") or "codex" in conv_id.lower()):
+        engine = "codex"
     elif conv_id and (
         conv_id.startswith("chatgpt_")
         or "chatgpt" in conv_id.lower()
@@ -1671,14 +1673,22 @@ def send_message_to_agent(
     ):
         engine = "chatgpt"
 
-    # 2. Resilient spoken intent detection for Claude (e.g. 'all right Claude can you tell me a joke')
+    # 2. Resilient spoken intent detection for Claude and Codex
     explicit_claude = bool(
         re.search(
             r"\b(?:hey|ask|tell|all\s+right|alright|okay|so|can\s+you\s+ask|could\s+you\s+ask|send\s+to|talk\s+to|switch\s+to|have|message)?\s*claude\b",
             cleaned_lower,
         )
     )
-    if explicit_claude:
+    explicit_codex = bool(
+        re.search(
+            r"\b(?:hey|ask|tell|all\s+right|alright|okay|so|can\s+you\s+ask|could\s+you\s+ask|send\s+to|talk\s+to|switch\s+to|have|message)?\s*codex\b",
+            cleaned_lower,
+        )
+    )
+    if explicit_codex:
+        engine = "codex"
+    elif explicit_claude:
         engine = "claude"
 
     if not engine and conv_id:
@@ -1765,8 +1775,69 @@ def send_message_to_agent(
             error=None if pasted else "Failed to inject keystrokes into Claude terminal window",
             engine="claude",
         )
-    elif engine in ("chatgpt", "openai", "codex"):
+    elif engine == "codex":
+        from voicefi.config import load_config
+        cfg = load_config()
+        codex_cfg = getattr(cfg, "codex", None)
+        mode = getattr(codex_cfg, "dispatch_mode", "auto")
+
+        from voicefi.integrations.conversations import (
+            has_active_companion_client,
+            peek_mobile_turn_origin,
+        )
+
+        is_mobile = (
+            sender_name in ("Pixel Remote", "Mobile Companion", "ViFi Companion")
+            or (conv_id and peek_mobile_turn_origin(conv_id))
+            or has_active_companion_client()
+        )
+
+        run_headless = False
+        if use_headless is True:
+            run_headless = True
+        elif use_headless is False:
+            run_headless = False
+        elif mode == "headless":
+            run_headless = True
+        elif mode == "auto":
+            run_headless = bool(
+                is_mobile
+                or (conv_id and conv_id.startswith("codex_"))
+                or target_engine == "codex"
+                or explicit_codex
+            )
+
+        resolved_from = from_conv_id
+        if not resolved_from and include_envelope:
+            from voicefi.integrations.conversations import get_latest_antigravity_conversation_id
+            resolved_from = get_latest_antigravity_conversation_id()
+
+        from voicefi.integrations.codex import get_codex_cli_path, execute_codex_cli
+
+        cli_path = get_codex_cli_path()
+        if run_headless and cli_path:
+            turn_origin = "mobile" if is_mobile else "desktop"
+            return execute_codex_cli(
+                prompt=text,
+                conv_id=conv_id,
+                cwd=cwd,
+                origin=turn_origin,
+                async_execution=True,
+                from_conv_id=resolved_from,
+                from_engine=from_engine or "antigravity",
+                include_envelope=include_envelope,
+            )
+
         print(f'[Injector] 🤖 Injecting prompt into ChatGPT / Codex Desktop: "{text[:50]}..."')
+        pasted = inject_text_to_chatgpt(text, submit_enter=True)
+        return DispatchResult(
+            success=pasted,
+            delivery_type="foreground_paste" if pasted else "none",
+            error=None if pasted else "Failed to inject prompt into ChatGPT for Mac",
+            engine="codex",
+        )
+    elif engine in ("chatgpt", "openai"):
+        print(f'[Injector] 🤖 Injecting prompt into ChatGPT Desktop: "{text[:50]}..."')
         pasted = inject_text_to_chatgpt(text, submit_enter=True)
         return DispatchResult(
             success=pasted,

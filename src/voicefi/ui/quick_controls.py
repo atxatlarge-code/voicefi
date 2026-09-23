@@ -101,7 +101,7 @@ class HUDQuickControlsPanel:
     _lock = threading.Lock()
 
     PANEL_WIDTH: float = 480.0
-    PANEL_HEIGHT: float = 460.0
+    PANEL_HEIGHT: float = 630.0
 
     @classmethod
     def get_instance(cls) -> "HUDQuickControlsPanel":
@@ -126,6 +126,10 @@ class HUDQuickControlsPanel:
         self.lbl_mic_level = None
         self.btn_persistent = None
         self.btn_fullscreen = None
+        self.seg_local_distill = None
+        self.seg_telegraphic = None
+        self.seg_intent_routing = None
+        self.lbl_local_model_status = None
 
         if HAS_APPKIT and not is_headless():
             self._build_panel()
@@ -175,7 +179,16 @@ class HUDQuickControlsPanel:
         )
 
         def _make_lbl(
-            text, x, y, width, height, font_size=11.5, bold=False, alpha=0.95, color=None
+            text,
+            x,
+            y,
+            width,
+            height,
+            font_size=11.5,
+            bold=False,
+            alpha=0.95,
+            color=None,
+            alignment=None,
         ):
             lbl = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(x, y), NSSize(width, height)))
             lbl.setStringValue_(text)
@@ -187,6 +200,8 @@ class HUDQuickControlsPanel:
                 lbl.setTextColor_(color)
             else:
                 lbl.setTextColor_(NSColor.colorWithCalibratedWhite_alpha_(1.0, alpha))
+            if alignment is not None:
+                lbl.setAlignment_(alignment)
             lbl.setBezeled_(False)
             lbl.setDrawsBackground_(False)
             lbl.setEditable_(False)
@@ -456,10 +471,143 @@ class HUDQuickControlsPanel:
             color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.3, 0.9, 0.7, 0.95),
         )
 
-        cur_y -= 45
+        # ---------------------------------------------------------------------
+        # 9. 🧠 Local Intelligence (Gemma 4 on Metal GPU)
+        # ---------------------------------------------------------------------
+        cur_y -= 46
+        sep_local = NSView.alloc().initWithFrame_(NSRect(NSPoint(14, cur_y + 35), NSSize(w - 28, 1)))
+        sep_local.setWantsLayer_(True)
+        sep_local.layer().setBackgroundColor_(
+            NSColor.colorWithCalibratedRed_green_blue_alpha_(0.3, 0.6, 1.0, 0.25).CGColor()
+        )
+        root_view.addSubview_(sep_local)
+
+        cur_y -= 4
+        _make_lbl(
+            "🧠 Local Intelligence (Gemma)",
+            18,
+            cur_y + 12,
+            230,
+            18,
+            font_size=11.5,
+            bold=True,
+            color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.4, 0.8, 1.0, 0.95),
+        )
+
+        try:
+            from voicefi.local.engine import LocalModelEngine
+            _engine = LocalModelEngine()
+            _st = _engine.get_status()
+            if _st["model_exists"]:
+                status_text = f"● {_st['model_name']} (Metal GPU)"
+                status_color = NSColor.colorWithCalibratedRed_green_blue_alpha_(0.3, 0.95, 0.6, 0.95)
+            else:
+                status_text = "○ Offline / Not loaded"
+                status_color = NSColor.colorWithCalibratedRed_green_blue_alpha_(0.8, 0.8, 0.8, 0.6)
+        except Exception:
+            status_text = "○ Offline"
+            status_color = NSColor.colorWithCalibratedRed_green_blue_alpha_(0.8, 0.8, 0.8, 0.6)
+
+        self.lbl_local_model_status = _make_lbl(
+            status_text,
+            250,
+            cur_y + 12,
+            w - 250 - 18,
+            18,
+            font_size=10.5,
+            bold=True,
+            color=status_color,
+            alignment=NSTextAlignmentRight,
+        )
+
+        cur_y -= 46
+        _make_lbl("🗣️ Spoken Distillation", 18, cur_y + 12, 220, 18, font_size=11.0, bold=True)
+        _make_lbl(
+            "↳ Distill turn soundbites on Metal GPU",
+            18,
+            cur_y - 6,
+            260,
+            16,
+            font_size=9.5,
+            alpha=0.65,
+        )
+
+        self.seg_local_distill = NSSegmentedControl.alloc().initWithFrame_(
+            NSRect(NSPoint(310, cur_y), NSSize(152, 24))
+        )
+        self.seg_local_distill.setSegmentCount_(2)
+        self.seg_local_distill.setLabel_forSegment_("OFF", 0)
+        self.seg_local_distill.setLabel_forSegment_("ON", 1)
+        self.seg_local_distill.setSegmentStyle_(NSSegmentStyleTexturedRounded)
+        is_distill = getattr(getattr(self.config, "local_model", None), "distill_spoken_turns", False)
+        self.seg_local_distill.setSelectedSegment_(1 if is_distill else 0)
+
+        t_distill = QuickControlsActionTarget.alloc().initWithCallback_(self._on_local_distill_toggle)
+        self._targets.append(t_distill)
+        self.seg_local_distill.setTarget_(t_distill)
+        self.seg_local_distill.setAction_("actionHandler:")
+        root_view.addSubview_(self.seg_local_distill)
+
+        cur_y -= 48
+        _make_lbl("⏩ Telegraphic Mode", 18, cur_y + 12, 220, 18, font_size=11.0, bold=True)
+        _make_lbl(
+            "↳ Speed-talking ultra-dense soundbites",
+            18,
+            cur_y - 6,
+            260,
+            16,
+            font_size=9.5,
+            alpha=0.65,
+        )
+
+        self.seg_telegraphic = NSSegmentedControl.alloc().initWithFrame_(
+            NSRect(NSPoint(310, cur_y), NSSize(152, 24))
+        )
+        self.seg_telegraphic.setSegmentCount_(2)
+        self.seg_telegraphic.setLabel_forSegment_("OFF", 0)
+        self.seg_telegraphic.setLabel_forSegment_("ON", 1)
+        self.seg_telegraphic.setSegmentStyle_(NSSegmentStyleTexturedRounded)
+        is_tele = getattr(getattr(self.config, "local_model", None), "telegraphic_mode", False)
+        self.seg_telegraphic.setSelectedSegment_(1 if is_tele else 0)
+
+        t_tele = QuickControlsActionTarget.alloc().initWithCallback_(self._on_telegraphic_toggle)
+        self._targets.append(t_tele)
+        self.seg_telegraphic.setTarget_(t_tele)
+        self.seg_telegraphic.setAction_("actionHandler:")
+        root_view.addSubview_(self.seg_telegraphic)
+
+        cur_y -= 48
+        _make_lbl("⚡ Intent Router", 18, cur_y + 12, 220, 18, font_size=11.0, bold=True)
+        _make_lbl(
+            "↳ Offline Hey Viv triage (+Claude, Codex, Obsidian)",
+            18,
+            cur_y - 6,
+            290,
+            16,
+            font_size=9.5,
+            alpha=0.65,
+        )
+
+        self.seg_intent_routing = NSSegmentedControl.alloc().initWithFrame_(
+            NSRect(NSPoint(310, cur_y), NSSize(152, 24))
+        )
+        self.seg_intent_routing.setSegmentCount_(2)
+        self.seg_intent_routing.setLabel_forSegment_("OFF", 0)
+        self.seg_intent_routing.setLabel_forSegment_("ON", 1)
+        self.seg_intent_routing.setSegmentStyle_(NSSegmentStyleTexturedRounded)
+        is_intent = getattr(getattr(self.config, "local_model", None), "intent_routing", False)
+        self.seg_intent_routing.setSelectedSegment_(1 if is_intent else 0)
+
+        t_intent = QuickControlsActionTarget.alloc().initWithCallback_(self._on_intent_routing_toggle)
+        self._targets.append(t_intent)
+        self.seg_intent_routing.setTarget_(t_intent)
+        self.seg_intent_routing.setAction_("actionHandler:")
+        root_view.addSubview_(self.seg_intent_routing)
+
+        cur_y -= 44
 
         # ---------------------------------------------------------------------
-        # 9. Footer Action Bar (Persistent, Fullscreen, Reset Pos, Web Panel)
+        # 10. Footer Action Bar (Persistent, Fullscreen, Reset Pos, Web Panel)
         # ---------------------------------------------------------------------
         # Separator line
         sep = NSView.alloc().initWithFrame_(NSRect(NSPoint(14, cur_y + 35), NSSize(w - 28, 1)))
@@ -686,6 +834,30 @@ class HUDQuickControlsPanel:
         except Exception:
             pass
 
+    def _on_local_distill_toggle(self, sender):
+        idx = sender.selectedSegment()
+        distill_on = (idx == 1)
+        self.config = load_config()
+        self.config.local_model.distill_spoken_turns = distill_on
+        save_config(self.config)
+        print(f"[QuickControls] 🧠 Local Spoken Distillation: {'ON' if distill_on else 'OFF'}")
+
+    def _on_telegraphic_toggle(self, sender):
+        idx = sender.selectedSegment()
+        telegraphic_on = (idx == 1)
+        self.config = load_config()
+        self.config.local_model.telegraphic_mode = telegraphic_on
+        save_config(self.config)
+        print(f"[QuickControls] ⏩ Telegraphic Mode: {'ON' if telegraphic_on else 'OFF'}")
+
+    def _on_intent_routing_toggle(self, sender):
+        idx = sender.selectedSegment()
+        intent_on = (idx == 1)
+        self.config = load_config()
+        self.config.local_model.intent_routing = intent_on
+        save_config(self.config)
+        print(f"[QuickControls] ⚡ Offline Intent Router: {'ON' if intent_on else 'OFF'}")
+
     # -------------------------------------------------------------------------
     # Presentation Handlers
     # -------------------------------------------------------------------------
@@ -734,6 +906,24 @@ class HUDQuickControlsPanel:
             if self.btn_fullscreen:
                 is_full = getattr(getattr(self.config, "hud", None), "fullscreen_overlay", True)
                 self.btn_fullscreen.setTitle_(f"🎮 Overlay: {'ON' if is_full else 'OFF'}")
+
+            if self.seg_local_distill:
+                is_distill = getattr(
+                    getattr(self.config, "local_model", None), "distill_spoken_turns", False
+                )
+                self.seg_local_distill.setSelectedSegment_(1 if is_distill else 0)
+
+            if self.seg_telegraphic:
+                is_tele = getattr(
+                    getattr(self.config, "local_model", None), "telegraphic_mode", False
+                )
+                self.seg_telegraphic.setSelectedSegment_(1 if is_tele else 0)
+
+            if self.seg_intent_routing:
+                is_intent = getattr(
+                    getattr(self.config, "local_model", None), "intent_routing", False
+                )
+                self.seg_intent_routing.setSelectedSegment_(1 if is_intent else 0)
         except Exception as e:
             print(f"[QuickControls] Error refreshing values: {e}")
 
