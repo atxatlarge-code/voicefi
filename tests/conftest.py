@@ -29,6 +29,7 @@ if sys.platform != "darwin":
                     mock_mod.python_method = lambda fn: fn
                     mock_mod.IBAction = lambda fn: fn
                 elif mod_name == "rumps":
+
                     class _StubRumpsApp:
                         def __init__(self, *args, **kwargs):
                             self.title = args[0] if args else kwargs.get("name", "VoiceFi")
@@ -433,4 +434,3 @@ def pytest_unconfigure(config):
         sd._terminate()
     except Exception:
         pass
-
