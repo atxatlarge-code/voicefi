@@ -3,6 +3,7 @@ macOS Menu Bar Tray, Quick Prompt Bar, Welcome Window, and Dynamic Island HUD CL
 """
 
 import os
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -85,6 +86,8 @@ def cmd_hud(args):
     hud = UnifiedDynamicIslandHUD.get_instance()
 
     def _pump(duration: float):
+        if os.environ.get("VOICEFI_HEADLESS") == "1" or os.environ.get("VOICEFI_TESTING") == "1":
+            return
         start = time.time()
         while time.time() - start < duration:
             NSRunLoop.currentRunLoop().runUntilDate_(NSDate.dateWithTimeIntervalSinceNow_(0.04))
@@ -97,10 +100,6 @@ def cmd_hud(args):
         save_config(cfg)
 
         # Check if background LaunchAgent server is running
-        import subprocess
-        import shutil
-        import os
-
         res = subprocess.run(
             ["launchctl", "list", "com.voicefi.menubar"],
             stdout=subprocess.PIPE,

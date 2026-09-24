@@ -374,20 +374,24 @@ class VoiceCloneManager:
         if ref_text and ref_text.strip():
             labels_dict["ref_text"] = ref_text.strip()
         elif "ref_text" not in labels_dict:
-            try:
-                from voicefi.stt import get_stt_engine
-                from voicefi.config import load_config
-
-                cfg = load_config()
-                stt = get_stt_engine(cfg)
-                transcribed = stt.transcribe(str(stored_samples[0]))
-                if transcribed and transcribed.strip():
-                    labels_dict["ref_text"] = transcribed.strip()
-                elif TRAINING_PROMPTS:
-                    labels_dict["ref_text"] = TRAINING_PROMPTS[0]["text"]
-            except Exception:
+            if os.environ.get("VOICEFI_MOCK_AUDIO") == "1" or os.environ.get("VOICEFI_TESTING") == "1":
                 if TRAINING_PROMPTS:
                     labels_dict["ref_text"] = TRAINING_PROMPTS[0]["text"]
+            else:
+                try:
+                    from voicefi.stt import get_stt_engine
+                    from voicefi.config import load_config
+
+                    cfg = load_config()
+                    stt = get_stt_engine(cfg)
+                    transcribed = stt.transcribe(str(stored_samples[0]))
+                    if transcribed and transcribed.strip():
+                        labels_dict["ref_text"] = transcribed.strip()
+                    elif TRAINING_PROMPTS:
+                        labels_dict["ref_text"] = TRAINING_PROMPTS[0]["text"]
+                except Exception:
+                    if TRAINING_PROMPTS:
+                        labels_dict["ref_text"] = TRAINING_PROMPTS[0]["text"]
 
         if api_key and provider == "elevenlabs":
             try:

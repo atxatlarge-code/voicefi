@@ -523,11 +523,14 @@ def test_standalone_client_cli_entrypoint_subprocess():
     assert client_script.is_file()
 
     # Test --help
+    env = os.environ.copy()
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
     res = subprocess.run(
-        [sys.executable, str(client_script), "--help"],
+        [sys.executable, "-S", str(client_script), "--help"],
         capture_output=True,
         text=True,
         timeout=5,
+        env=env,
     )
     assert res.returncode == 0
     assert "Standalone VoiceFi Third-Party Integration Client" in res.stdout

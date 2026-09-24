@@ -8,7 +8,7 @@ if sys.platform != "darwin":
 from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD, HUDActionDelegate
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def mock_appkit():
     UnifiedDynamicIslandHUD._instance = None
     with patch("voicefi.ui.unified_hud.NSApplication"), \

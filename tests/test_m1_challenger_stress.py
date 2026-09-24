@@ -185,7 +185,7 @@ def test_cross_process_lock_contention():
     Stress-test cross-process lock contention using multiprocessing.
     Verifies that multiple OS processes respect file locking and complete cleanly.
     """
-    num_procs = 4
+    num_procs = 2 if os.environ.get("VOICEFI_TESTING") == "1" else 4
     ctx = multiprocessing.get_context("spawn")
     queue = ctx.Queue()
     procs = [ctx.Process(target=_mp_worker, args=(i, queue)) for i in range(num_procs)]

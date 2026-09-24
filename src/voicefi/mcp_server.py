@@ -2159,7 +2159,10 @@ class VoiceFiMCPServer:
         sys.stdout = sys.stderr
 
         try:
-            for line in sys.stdin:
+            while True:
+                line = sys.stdin.readline()
+                if not line:
+                    break
                 line_str = line.strip()
                 if not line_str:
                     continue
@@ -2201,6 +2204,7 @@ class VoiceFiMCPServer:
                     raw_stdout.write(json.dumps(resp) + "\n")
                     raw_stdout.flush()
         finally:
+            sys.stdout = raw_stdout
             shutdown_mcp_posthog()
 
 

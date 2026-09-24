@@ -177,6 +177,7 @@ def isolate_test_config(tmp_path, monkeypatch):
     monkeypatch.setenv("DO_NOT_TRACK", "1")
     monkeypatch.setenv("VOICEFI_HEADLESS", "1")
     monkeypatch.setenv("VOICEFI_TESTING", "1")
+    monkeypatch.setenv("VOICEFI_MOCK_AUDIO", "1")
     monkeypatch.setenv("ANTIGRAVITY_LS_ADDRESS", "127.0.0.1:54321")
     monkeypatch.setenv("ANTIGRAVITY_CSRF_TOKEN", "test-token")
     monkeypatch.setenv("OMP_NUM_THREADS", "1")
@@ -192,6 +193,17 @@ def isolate_test_config(tmp_path, monkeypatch):
     mcp_mod._mcp_posthog = None
     mcp_mod._mcp_posthog_initialized = False
     monkeypatch.setattr("voicefi.mcp_server.get_mcp_posthog", lambda: None)
+
+    # Isolate analytics store to tmp_path and mock default store to prevent SQLite lock contention
+    import voicefi.analytics.store as store_mod
+
+    store_mod._LOCAL_STORE_INSTANCE = None
+    test_analytics_db = tmp_path / "analytics.db"
+    monkeypatch.setattr("voicefi.analytics.store.get_default_db_path", lambda: test_analytics_db)
+    mock_analytics_store = MagicMock()
+    mock_analytics_store.record_local_event.return_value = 1
+    mock_analytics_store.db_path = test_analytics_db
+    monkeypatch.setattr("voicefi.analytics.store.get_analytics_store", lambda db_path=None: mock_analytics_store)
 
     # Isolate speech dedup, turns, and spoken history per test
     test_speech_lock = tmp_path / "voicefi_speech.lock"
@@ -387,7 +399,7 @@ def prevent_real_audio_playback(monkeypatch):
         monkeypatch.setattr(sd, "play", lambda *a, **kw: None)
         monkeypatch.setattr(sd, "stop", lambda *a, **kw: None)
 
-        if os.getenv("VOICEFI_MOCK_AUDIO") == "1":
+        if os.getenv("VOICEFI_MOCK_AUDIO") == "1" or os.getenv("VOICEFI_TESTING") == "1":
 
             class MockAudioStream(MagicMock):
                 def __enter__(self):
@@ -412,6 +424,9 @@ def prevent_real_audio_playback(monkeypatch):
 
             monkeypatch.setattr(sd, "OutputStream", lambda *a, **kw: MockAudioStream())
             monkeypatch.setattr(sd, "RawOutputStream", lambda *a, **kw: MockAudioStream())
+            monkeypatch.setattr(sd, "InputStream", lambda *a, **kw: MockAudioStream())
+            monkeypatch.setattr(sd, "RawInputStream", lambda *a, **kw: MockAudioStream())
+            monkeypatch.setattr(sd, "Stream", lambda *a, **kw: MockAudioStream())
             default_fake_devices = [
                 {
                     "name": "Built-in Mic",

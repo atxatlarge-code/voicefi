@@ -65,6 +65,8 @@ class F5TTS(BaseTTS):
     @classmethod
     def is_available(cls) -> bool:
         """Check if f5_tts and torchcodec packages are installed and functional."""
+        if os.environ.get("VOICEFI_MOCK_AUDIO") == "1" or os.environ.get("VOICEFI_TESTING") == "1":
+            return False
         try:
             import f5_tts  # noqa: F401
             import torchcodec  # noqa: F401

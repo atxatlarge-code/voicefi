@@ -38,6 +38,10 @@ class VoiceFiHTTPHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory="website", **kwargs)
 
+    def address_string(self):
+        # Avoid slow socket.getfqdn reverse DNS lookups on 127.0.0.1 in CI
+        return self.client_address[0] if self.client_address else "127.0.0.1"
+
     def do_OPTIONS(self):
         self.send_response(200)
         self.send_header("Access-Control-Allow-Origin", "*")

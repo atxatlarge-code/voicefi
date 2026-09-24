@@ -607,7 +607,10 @@ class TestMultiProtocolConcurrencyStress(AioHTTPTestCase):
              patch("voicefi.tts.base.speech_turn_lock"), \
              patch("voicefi.audio.sfx.play_sfx", return_value=True), \
              patch("voicefi.companion.server.send_message_to_agent") as mock_rest_send, \
-             patch("voicefi.integrations.injector.send_message_to_agent") as mock_mcp_send:
+             patch("voicefi.integrations.injector.send_message_to_agent") as mock_mcp_send, \
+             patch("voicefi.server.get_port_listener", return_value=None), \
+             patch("voicefi.server.find_running_voicefi_processes", return_value=[]), \
+             patch("voicefi.tts.cloning.VoiceCloneManager.list_cloned_voices", return_value=[]):
 
             mock_rest_send.return_value = DispatchResult(success=True, delivery_type="ipc", engine="antigravity")
             mock_mcp_send.return_value = DispatchResult(success=True, delivery_type="ipc", engine="antigravity")

@@ -2403,6 +2403,10 @@ class VoicePanelRequestHandler(http.server.BaseHTTPRequestHandler):
 
     config: VoiceFiConfig
 
+    def address_string(self):
+        # Avoid slow socket.getfqdn reverse DNS lookups on 127.0.0.1 in CI
+        return self.client_address[0] if self.client_address else "127.0.0.1"
+
     def log_message(self, format, *args):
         # Suppress noisy standard request logs
         return

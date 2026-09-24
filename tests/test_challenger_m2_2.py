@@ -420,7 +420,10 @@ class ChallengerM2ParityStressTestCase(AioHTTPTestCase):
              patch("voicefi.audio.sfx.play_sfx", return_value=True), \
              patch("voicefi.integrations.injector.send_message_to_agent", return_value=mock_disp), \
              patch("voicefi.tts.base.speech_turn_lock"), \
-             patch("voicefi.tts.stop_all_speech"):
+             patch("voicefi.tts.stop_all_speech"), \
+             patch("voicefi.server.get_port_listener", return_value=None), \
+             patch("voicefi.server.find_running_voicefi_processes", return_value=[]), \
+             patch("voicefi.tts.cloning.VoiceCloneManager.list_cloned_voices", return_value=[]):
 
             results = []
             errors = []

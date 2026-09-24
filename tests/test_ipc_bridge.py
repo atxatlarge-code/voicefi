@@ -200,6 +200,6 @@ def test_ipc_bridge_barge_in_sigint_cancellation(monkeypatch):
 def test_subprocess_lifecycle_group_isolation():
     bridge = VoiceFiIPCBridge(auto_reconnect=False)
     # Test running a fast subprocess command in new process group
-    res = bridge.run_subprocess_command([sys.executable, "-c", "print('hello from spark child')"])
+    res = bridge.run_subprocess_command([sys.executable, "-S", "-c", "print('hello from spark child')"])
     assert res["success"]
     assert "hello from spark child" in res["stdout"]

@@ -240,7 +240,8 @@ print('BOUND', flush=True)
 while True:
     time.sleep(0.5)
 """
-        proc = subprocess.Popen([sys.executable, "-c", subproc_code], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        fast_env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
+        proc = subprocess.Popen([sys.executable, "-S", "-c", subproc_code], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=fast_env)
         try:
             # Wait for socket bind
             line = proc.stdout.readline()
@@ -489,8 +490,9 @@ with open(lock_path, "a+") as f:
         fcntl.flock(f, fcntl.LOCK_UN)
 """
         procs = []
+        fast_env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
         for _ in range(6):
-            p = subprocess.Popen([sys.executable, "-c", worker_script])
+            p = subprocess.Popen([sys.executable, "-S", "-c", worker_script], env=fast_env)
             procs.append(p)
 
         # Wait for all processes to complete with timeout
