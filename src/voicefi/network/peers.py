@@ -25,6 +25,7 @@ DEFAULT_PORT = 5141
 @dataclass
 class PeerDevice:
     """Represents a discovered VoiceFi instance on the local network."""
+
     hostname: str
     friendly_name: str
     ip: str
@@ -102,7 +103,9 @@ def get_local_peer_info(config=None) -> Dict[str, Any]:
         "hostname": socket.gethostname(),
         "friendly_name": get_computer_name(),
         "ip": get_local_ip(),
-        "port": getattr(cfg.companion, "port", DEFAULT_PORT) if hasattr(cfg, "companion") else DEFAULT_PORT,
+        "port": getattr(cfg.companion, "port", DEFAULT_PORT)
+        if hasattr(cfg, "companion")
+        else DEFAULT_PORT,
         "os_info": f"macOS {platform.mac_ver()[0]} ({platform.machine()})",
         "agents": active_agents,
         "tier": f"{tier_info.get('tier', 'Community')} ({tier_info.get('status', 'Active')})",
@@ -138,7 +141,9 @@ class PeerDiscoveryEngine:
             logger.debug(f"Failed to save cached peers: {e}")
 
     @classmethod
-    async def probe_host(cls, ip: str, port: int = DEFAULT_PORT, timeout: float = 0.5) -> Optional[PeerDevice]:
+    async def probe_host(
+        cls, ip: str, port: int = DEFAULT_PORT, timeout: float = 0.5
+    ) -> Optional[PeerDevice]:
         """Probe a specific IP address for VoiceFi peer endpoints."""
         import urllib.request
         import urllib.error
@@ -169,7 +174,9 @@ class PeerDiscoveryEngine:
                 url = f"http://{ip}:{p}{endpoint}"
 
                 def _fetch(u=url):
-                    req = urllib.request.Request(u, headers={"User-Agent": "VoiceFi-PeerDiscovery/1.0"})
+                    req = urllib.request.Request(
+                        u, headers={"User-Agent": "VoiceFi-PeerDiscovery/1.0"}
+                    )
                     try:
                         with urllib.request.urlopen(req, timeout=timeout) as response:
                             if response.status == 200:
@@ -181,7 +188,7 @@ class PeerDiscoveryEngine:
                 data = await loop.run_in_executor(None, _fetch)
                 if data and isinstance(data, dict):
                     latency = round((time.time() - start_time) * 1000, 1)
-                    is_local = (ip == "127.0.0.1" or ip == "localhost" or ip == local_ip)
+                    is_local = ip == "127.0.0.1" or ip == "localhost" or ip == local_ip
                     friendly_name = data.get("friendly_name")
                     if not friendly_name:
                         # Fallback heuristic from hostname or status
@@ -220,7 +227,11 @@ class PeerDiscoveryEngine:
                 targets.add(p.ip)
 
         # 3. Add local subnet IPs if on a standard LAN
-        if local_ip.startswith("192.168.") or local_ip.startswith("10.") or local_ip.startswith("172."):
+        if (
+            local_ip.startswith("192.168.")
+            or local_ip.startswith("10.")
+            or local_ip.startswith("172.")
+        ):
             parts = local_ip.split(".")
             if len(parts) == 4:
                 prefix = f"{parts[0]}.{parts[1]}.{parts[2]}"
@@ -246,7 +257,9 @@ class PeerDiscoveryEngine:
         return peer_list
 
     @classmethod
-    def resolve_target(cls, target_query: str, peers: Optional[List[PeerDevice]] = None) -> Optional[PeerDevice]:
+    def resolve_target(
+        cls, target_query: str, peers: Optional[List[PeerDevice]] = None
+    ) -> Optional[PeerDevice]:
         """Fuzzy match a peer name, substring, or IP address (e.g. 'mba', 'pro', '192.168.1.45')."""
         target_clean = target_query.strip().lower()
         if not target_clean:
@@ -331,7 +344,10 @@ class PeerClient:
             req = urllib.request.Request(
                 url,
                 data=json.dumps(payload).encode("utf-8"),
-                headers={"Content-Type": "application/json", "User-Agent": "VoiceFi-PeerClient/1.0"},
+                headers={
+                    "Content-Type": "application/json",
+                    "User-Agent": "VoiceFi-PeerClient/1.0",
+                },
                 method="POST",
             )
             try:
@@ -344,11 +360,17 @@ class PeerClient:
                 if e.code in (404, 405):
                     last_err = e
                     continue
-                return {"success": False, "error": f"HTTP {e.code} from {peer.friendly_name}: {e.reason}"}
+                return {
+                    "success": False,
+                    "error": f"HTTP {e.code} from {peer.friendly_name}: {e.reason}",
+                }
             except Exception as e:
                 last_err = e
 
-        return {"success": False, "error": f"Connection failed to {peer.friendly_name} ({peer.ip}): {last_err}"}
+        return {
+            "success": False,
+            "error": f"Connection failed to {peer.friendly_name} ({peer.ip}): {last_err}",
+        }
 
     @staticmethod
     def push_clipboard(peer: PeerDevice, text: str) -> Dict[str, Any]:

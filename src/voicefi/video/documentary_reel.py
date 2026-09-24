@@ -65,7 +65,12 @@ def format_documentary_script(text: str) -> str:
         t = re.sub(pat, rep, t, flags=re.IGNORECASE)
 
     # 4. Insert dramatic pauses at major clause boundaries
-    t = re.sub(r",\s*(we discover|we find|lies|awaits|emerges|survives)\b", r"... \1", t, flags=re.IGNORECASE)
+    t = re.sub(
+        r",\s*(we discover|we find|lies|awaits|emerges|survives)\b",
+        r"... \1",
+        t,
+        flags=re.IGNORECASE,
+    )
 
     # 5. Clean redundant ellipses and spaces
     t = re.sub(r"(?:\s*\.+){2,}\s*", "... ", t)
@@ -88,7 +93,12 @@ def render_baskerville_subtitle_card(
     from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
     cleaned = [
-        l.replace("“", "").replace("”", "").replace('"', "").replace("(", "").replace(")", "").strip()
+        l.replace("“", "")
+        .replace("”", "")
+        .replace('"', "")
+        .replace("(", "")
+        .replace(")", "")
+        .strip()
         for l in lines
     ]
 
@@ -157,6 +167,7 @@ def synthesize_documentary_acts(
     tts_engine = None
     try:
         from voicefi.tts.f5_tts import F5TTS
+
         if F5TTS.is_available():
             tts_engine = F5TTS(device=device)
             tts_engine.persona_name = persona
@@ -178,6 +189,7 @@ def synthesize_documentary_acts(
             # Fallback to high-fidelity EdgeTTS with BBC mastering
             import asyncio
             from voicefi.tts.edge_tts import EdgeTTS
+
             edge = EdgeTTS(voice="en-GB-ThomasNeural", rate="-5%", pitch="-4Hz")
             loop = asyncio.new_event_loop()
             try:
@@ -235,6 +247,7 @@ def build_documentary_soundtrack(
             zen_data = zen_data.mean(axis=1)
         if z_sr != sr:
             import scipy.signal
+
             zen_data = scipy.signal.resample(zen_data, int(len(zen_data) * sr / z_sr))
 
         # Load Trap track
@@ -243,6 +256,7 @@ def build_documentary_soundtrack(
             trap_data = trap_data.mean(axis=1)
         if t_sr != sr:
             import scipy.signal
+
             trap_data = scipy.signal.resample(trap_data, int(len(trap_data) * sr / t_sr))
 
         trap_peak = np.max(np.abs(trap_data))
@@ -265,19 +279,23 @@ def build_documentary_soundtrack(
         if len(zen_slice) > zen_fi_len:
             zen_slice[:zen_fi_len] *= np.linspace(0, 1, zen_fi_len)
 
-        music_track[:len(zen_slice)] += zen_slice * 0.55
+        music_track[: len(zen_slice)] += zen_slice * 0.55
 
         # Trap part with pre-drop riser
         trap_start_reel_sec = max(0.0, climax_drop_sec - 1.30)
         trap_start_samp = int(trap_start_reel_sec * sr)
         trap_src_start_samp = int((trap_start_reel_sec + offset) * sr)
 
-        silence_start_sec = punchline_pause_start if punchline_pause_start is not None else (total_duration - 4.6)
+        silence_start_sec = (
+            punchline_pause_start if punchline_pause_start is not None else (total_duration - 4.6)
+        )
         silence_samp = int(silence_start_sec * sr)
 
         trap_chunk_len = max(0, silence_samp - trap_start_samp)
         if trap_chunk_len > 0 and trap_src_start_samp + trap_chunk_len <= len(trap_data):
-            trap_chunk = trap_data[trap_src_start_samp : trap_src_start_samp + trap_chunk_len].copy()
+            trap_chunk = trap_data[
+                trap_src_start_samp : trap_src_start_samp + trap_chunk_len
+            ].copy()
             # Riser fade in
             riser_len = int(0.25 * sr)
             if len(trap_chunk) > riser_len:
@@ -287,7 +305,7 @@ def build_documentary_soundtrack(
             if len(trap_chunk) > stop_fade_len:
                 trap_chunk[-stop_fade_len:] *= np.linspace(1, 0, stop_fade_len)
 
-            music_track[trap_start_samp : silence_samp] += trap_chunk * 0.75
+            music_track[trap_start_samp:silence_samp] += trap_chunk * 0.75
 
         # Sub bass resolve tail after punchline
         if punchline_pause_end is not None and punchline_pause_end < total_duration:
@@ -299,15 +317,20 @@ def build_documentary_soundtrack(
                 tail_fo = int(1.4 * sr)
                 if len(kick_chunk) > tail_fo:
                     kick_chunk[-tail_fo:] *= np.linspace(1, 0, tail_fo)
-                music_track[tail_start_samp : tail_start_samp + len(kick_chunk)] += kick_chunk * 0.65
+                music_track[tail_start_samp : tail_start_samp + len(kick_chunk)] += (
+                    kick_chunk * 0.65
+                )
 
     elif classical_src.exists():
         # Classical Vivaldi Winter
-        c_data, c_sr = sf.read(str(classical_src), start=int(1.78 * 44100), frames=int(total_duration * 44100))
+        c_data, c_sr = sf.read(
+            str(classical_src), start=int(1.78 * 44100), frames=int(total_duration * 44100)
+        )
         if len(c_data.shape) > 1:
             c_data = c_data.mean(axis=1)
         if c_sr != sr:
             import scipy.signal
+
             c_data = scipy.signal.resample(c_data, int(len(c_data) * sr / c_sr))
 
         c_peak = np.max(np.abs(c_data))
@@ -324,30 +347,44 @@ def build_documentary_soundtrack(
 
     # 2. Mix with speech stem and optional camera foley via ffmpeg
     filter_parts = []
-    filter_parts.append(f"[1:a][0:a]sidechaincompress=threshold=0.06:ratio=2.2:attack=25:release=200[ducked]")
+    filter_parts.append(
+        "[1:a][0:a]sidechaincompress=threshold=0.06:ratio=2.2:attack=25:release=200[ducked]"
+    )
 
     if camera_audio and Path(camera_audio).is_file():
         filter_parts.append(f"[2:a]volume={camera_vol},aloop=loop=-1:size=2e+09[foley]")
-        filter_parts.append(f"[0:a][ducked][foley]amix=inputs=3:normalize=0:duration=first:dropout_transition=0[mix]")
+        filter_parts.append(
+            "[0:a][ducked][foley]amix=inputs=3:normalize=0:duration=first:dropout_transition=0[mix]"
+        )
     else:
-        filter_parts.append(f"[0:a][ducked]amix=inputs=2:normalize=0:duration=first:dropout_transition=0[mix]")
+        filter_parts.append(
+            "[0:a][ducked]amix=inputs=2:normalize=0:duration=first:dropout_transition=0[mix]"
+        )
 
-    filter_parts.append(f"[mix]alimiter=limit=-1.0dB:attack=5:release=50[out]")
+    filter_parts.append("[mix]alimiter=limit=-1.0dB:attack=5:release=50[out]")
 
     cmd = [
-        "ffmpeg", "-y",
-        "-i", str(speech_stem),
-        "-i", str(temp_music),
+        "ffmpeg",
+        "-y",
+        "-i",
+        str(speech_stem),
+        "-i",
+        str(temp_music),
     ]
     if camera_audio and Path(camera_audio).is_file():
         cmd.extend(["-i", str(camera_audio)])
 
-    cmd.extend([
-        "-filter_complex", ";".join(filter_parts),
-        "-map", "[out]",
-        "-c:a", "pcm_s16le",
-        str(out_p)
-    ])
+    cmd.extend(
+        [
+            "-filter_complex",
+            ";".join(filter_parts),
+            "-map",
+            "[out]",
+            "-c:a",
+            "pcm_s16le",
+            str(out_p),
+        ]
+    )
 
     try:
         subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
@@ -361,7 +398,7 @@ def cmd_documentary_reel(args) -> int:
     """CLI handler for VoiceFi Documentary Mode (vifi reel --doc / vifi doc)."""
     print("🎙️ VoiceFi™ Documentary Reel Engine (BBC Natural History Unit Mode)")
     print("=" * 66)
-    
+
     in_file = getattr(args, "input", None)
     script_text = getattr(args, "script", None)
     persona = getattr(args, "persona", "documentary_broadcaster") or "documentary_broadcaster"
@@ -370,15 +407,15 @@ def cmd_documentary_reel(args) -> int:
 
     print(f"• Persona:             {persona.title()} (BBC Neural Diffusion)")
     print(f"• Scoring Style:       {score_style.title()} (Zen -> 808 Trap Drop / Tape-Stop)")
-    print(f"• Typography:          Baskerville Classic BBC (Gaussian Soft Dropshadow)")
-    print(f"• Broadcast Mastering: BBC Silk (70Hz highpass, 125Hz warmth, 5.6kHz de-esser)")
+    print("• Typography:          Baskerville Classic BBC (Gaussian Soft Dropshadow)")
+    print("• Broadcast Mastering: BBC Silk (70Hz highpass, 125Hz warmth, 5.6kHz de-esser)")
 
     if script_text:
         formatted = format_documentary_script(script_text)
-        print(f"\n📜 Formatted Documentary Script:\n   \"{formatted}\"")
+        print(f'\n📜 Formatted Documentary Script:\n   "{formatted}"')
         tmp_dir = Path("/tmp/vifi_doc_render")
         tmp_dir.mkdir(parents=True, exist_ok=True)
-        print(f"\n⏳ Synthesizing voice stem with BBC broadcast mastering...")
+        print("\n⏳ Synthesizing voice stem with BBC broadcast mastering...")
         stems = synthesize_documentary_acts([("act1", formatted)], tmp_dir, persona=persona)
         if stems:
             print(f"✅ Voice stem generated & mastered: {stems[0]}")
@@ -388,15 +425,29 @@ def cmd_documentary_reel(args) -> int:
 
     if in_file and Path(in_file).is_file():
         in_path = Path(in_file).resolve()
-        out_path = Path(out_file).resolve() if out_file else in_path.parent / f"{in_path.stem}_doc_mastered.mp4"
+        out_path = (
+            Path(out_file).resolve()
+            if out_file
+            else in_path.parent / f"{in_path.stem}_doc_mastered.mp4"
+        )
         print(f"\n🎧 Scoring & mastering documentary video: {in_path.name}...")
         # Get video duration
-        res = subprocess.run([
-            "ffprobe", "-v", "error", "-show_entries", "format=duration",
-            "-of", "default=noprint_wrappers=1:nokey=1", str(in_path)
-        ], capture_output=True, text=True)
+        res = subprocess.run(
+            [
+                "ffprobe",
+                "-v",
+                "error",
+                "-show_entries",
+                "format=duration",
+                "-of",
+                "default=noprint_wrappers=1:nokey=1",
+                str(in_path),
+            ],
+            capture_output=True,
+            text=True,
+        )
         dur = float(res.stdout.strip()) if res.stdout.strip() else 60.0
-        
+
         # Build soundtrack
         temp_audio = Path(tempfile.mktemp(prefix="doc_audio_", suffix=".wav"))
         build_documentary_soundtrack(
@@ -405,17 +456,28 @@ def cmd_documentary_reel(args) -> int:
             score_style=score_style,
             output_wav=temp_audio,
         )
-        
+
         # Mux with video copy
         cmd_mux = [
-            "ffmpeg", "-y",
-            "-i", str(in_path),
-            "-i", str(temp_audio),
-            "-map", "0:v:0", "-map", "1:a:0",
-            "-c:v", "copy",
-            "-c:a", "aac", "-b:a", "256k",
-            "-movflags", "+faststart",
-            str(out_path)
+            "ffmpeg",
+            "-y",
+            "-i",
+            str(in_path),
+            "-i",
+            str(temp_audio),
+            "-map",
+            "0:v:0",
+            "-map",
+            "1:a:0",
+            "-c:v",
+            "copy",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "256k",
+            "-movflags",
+            "+faststart",
+            str(out_path),
         ]
         subprocess.run(cmd_mux, check=True)
         temp_audio.unlink(missing_ok=True)
@@ -425,9 +487,11 @@ def cmd_documentary_reel(args) -> int:
         return 0
 
     print("\n💡 Usage Examples:")
-    print("   vifi reel --doc --script 'Here... high atop the summit... a peculiar migration is underway.'")
+    print(
+        "   vifi reel --doc --script 'Here... high atop the summit... a peculiar migration is underway.'"
+    )
     print("   vifi reel --doc my_video.mp4 --score beatdrop -o my_doc_reel.mp4")
-    print("   vifi doc --script 'Notice how... the feral developer bargains for exit code zero.' --open")
+    print(
+        "   vifi doc --script 'Notice how... the feral developer bargains for exit code zero.' --open"
+    )
     return 0
-
-

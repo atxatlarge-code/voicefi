@@ -160,7 +160,9 @@ def build_app_bundle(version: str = "0.2.0"):
                 shutil.move(f, dest)
                 shelved_files.append((f, dest))
     if shelved_files:
-        print(f"🎬 Shelved {len(shelved_files)} heavy video files during packaging to optimize bundle size...")
+        print(
+            f"🎬 Shelved {len(shelved_files)} heavy video files during packaging to optimize bundle size..."
+        )
 
     try:
         subprocess.run(cmd, check=True, cwd=ROOT_DIR)
@@ -213,8 +215,9 @@ def build_app_bundle(version: str = "0.2.0"):
         )
 
         # Re-sign ad-hoc if not signed with identity to restore sealed resource signature
-        subprocess.run(["codesign", "--deep", "--force", "-s", "-", str(APP_BUNDLE)], stderr=subprocess.DEVNULL)
-
+        subprocess.run(
+            ["codesign", "--deep", "--force", "-s", "-", str(APP_BUNDLE)], stderr=subprocess.DEVNULL
+        )
 
 
 def sign_app_bundle(identity: str):
@@ -268,6 +271,7 @@ def build_dmg(version: str, identity: str = None) -> Path:
     if not dmg_bg_file.is_file():
         try:
             from scripts.render_dmg_background import render_dmg_background
+
             render_dmg_background()
         except Exception:
             pass
@@ -317,7 +321,10 @@ def build_dmg(version: str, identity: str = None) -> Path:
             if f"/Volumes/{APP_NAME}" in line:
                 idx = line.find("/Volumes/")
                 if idx != -1:
-                    subprocess.run(["hdiutil", "detach", line[idx:].strip(), "-force", "-quiet"], stderr=subprocess.DEVNULL)
+                    subprocess.run(
+                        ["hdiutil", "detach", line[idx:].strip(), "-force", "-quiet"],
+                        stderr=subprocess.DEVNULL,
+                    )
     except Exception:
         pass
 
@@ -377,7 +384,13 @@ def build_dmg(version: str, identity: str = None) -> Path:
     end tell
     """
     try:
-        subprocess.run(["osascript", "-e", apple_script], capture_output=True, text=True, timeout=15, check=True)
+        subprocess.run(
+            ["osascript", "-e", apple_script],
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=True,
+        )
         print("  ✓ Configured Finder window layout and icon positions.")
     except Exception as e:
         print(f"  ⚠️ Note on AppleScript Finder styling: {e}")
@@ -385,9 +398,13 @@ def build_dmg(version: str, identity: str = None) -> Path:
         # Detach temporary volume cleanly
         time.sleep(1)
         if dev_node:
-            subprocess.run(["hdiutil", "detach", dev_node, "-force", "-quiet"], stderr=subprocess.DEVNULL)
+            subprocess.run(
+                ["hdiutil", "detach", dev_node, "-force", "-quiet"], stderr=subprocess.DEVNULL
+            )
         if mount_point:
-            subprocess.run(["hdiutil", "detach", mount_point, "-force", "-quiet"], stderr=subprocess.DEVNULL)
+            subprocess.run(
+                ["hdiutil", "detach", mount_point, "-force", "-quiet"], stderr=subprocess.DEVNULL
+            )
         time.sleep(2)
         # Ensure temp_dmg is no longer attached before conversion
         for _ in range(5):
@@ -430,7 +447,13 @@ def build_dmg(version: str, identity: str = None) -> Path:
     return dmg_path
 
 
-def notarize_dmg(dmg_path: Path, keychain_profile: str = None, apple_id: str = None, team_id: str = None, password: str = None):
+def notarize_dmg(
+    dmg_path: Path,
+    keychain_profile: str = None,
+    apple_id: str = None,
+    team_id: str = None,
+    password: str = None,
+):
     print(f"☁️ Submitting {dmg_path.name} to Apple Notary Service...")
     cmd = ["xcrun", "notarytool", "submit", str(dmg_path), "--wait"]
     if keychain_profile:
@@ -438,7 +461,9 @@ def notarize_dmg(dmg_path: Path, keychain_profile: str = None, apple_id: str = N
     elif apple_id and team_id and password:
         cmd.extend(["--apple-id", apple_id, "--team-id", team_id, "--password", password])
     else:
-        raise ValueError("Must provide either keychain_profile or apple_id/team_id/password for notarization")
+        raise ValueError(
+            "Must provide either keychain_profile or apple_id/team_id/password for notarization"
+        )
 
     subprocess.run(cmd, check=True)
     print("📎 Stapling notarization ticket to DMG...")
@@ -477,9 +502,7 @@ def verify_dmg(dmg_path: Path):
         app_symlink = mount_point / "Applications"
         assert app_in_dmg.exists(), f"{APP_NAME}.app missing in DMG"
         assert app_symlink.is_symlink(), "Applications symlink missing in DMG"
-        print(
-            "✅ Verified DMG contents: App bundle and Applications shortcut present."
-        )
+        print("✅ Verified DMG contents: App bundle and Applications shortcut present.")
 
         dmg_exe = app_in_dmg / "Contents" / "MacOS" / APP_NAME
         assert dmg_exe.is_file(), "Executable binary missing inside DMG .app"
@@ -598,4 +621,3 @@ if __name__ == "__main__":
         print("⚠️ No notarization credentials provided or detected. Skipping notarization.")
 
     verify_dmg(dmg_file)
-

@@ -395,6 +395,19 @@ VoiceFi exposes over 45 subcommands and aliases through the unified `vifi` CLI (
 | `vifi feedback submit "<title>"` | — | Submit zero-PII diagnostic report and telemetry feedback |
 | `vifi feedback list` | — | List recent feedback submissions |
 
+### 9. On-Device Local Intelligence & Time on Task (ToT) Benchmark
+
+Empirically compare On-Device Local Models (Gemma 4 on Apple Silicon Metal GPU via LiteRT / `ReconScout`) against All-Cloud Models (Gemini / Claude over WAN) measuring ingress transport latency, TTFT, throughput, multi-turn compounding bloat, bandwidth, and cost saved. Full technical analysis in [`docs/TIME_ON_TASK_BENCHMARK_ANALYSIS.md`](docs/TIME_ON_TASK_BENCHMARK_ANALYSIS.md).
+
+| Command | Aliases | Description |
+| :--- | :--- | :--- |
+| `vifi benchmark --compare` | `vifi eval`, `vifi bench -c` | Run empirical side-by-side Time on Task (ToT) benchmark on local files (`-t` target, `--turns 3`, `--cloud gemini/claude`, `--json`) |
+| `vifi eval --history` | `vifi benchmark --compare --history` | View historical ToT benchmark scorecards and speedup ratios |
+| `vifi scout <path>` | `vifi recon` | Pre-digest large files (>150 lines), crash logs, or directories on-device to eliminate context bloat (`-q` query) |
+| `vifi local status` | `vifi litert`, `vifi gemma` | Inspect active on-device LiteRT runtime, Metal GPU memory, and imported local models |
+| `vifi benchmark [prompt]` | `vifi bench` | Run on-device inference speed test (TTFT, tokens/sec throughput, prompt/output tokens) |
+| `vifi spark [prompt]` | — | Execute Gemini Spark agent runner with spoken soundbite distillation and IPC bridge |
+
 ---
 
 ## 🧠 Ergonomics, Flow & Cognitive Relief

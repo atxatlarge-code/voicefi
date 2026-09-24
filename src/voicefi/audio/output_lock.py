@@ -13,7 +13,13 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Optional
 
-AUDIO_LOCK_FILE = Path(os.environ.get("VOICEFI_AUDIO_LOCK", "/tmp/voicefi_audio_output.lock"))
+
+def get_audio_lock_path() -> Path:
+    """Return the active cross-process audio output lock path."""
+    return Path(os.environ.get("VOICEFI_AUDIO_LOCK", "/tmp/voicefi_audio_output.lock"))
+
+
+AUDIO_LOCK_FILE = get_audio_lock_path()
 _IN_PROCESS_LOCK = threading.RLock()
 _LOCK_DEPTH = 0
 _CURRENT_LOCK_FD: Optional[int] = None
@@ -48,14 +54,15 @@ def exclusive_audio(timeout: float = 30.0, owner: str = ""):
                 _LOCK_DEPTH -= 1
         return
 
-    AUDIO_LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = get_audio_lock_path()
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
     lock_fd = None
     lock_file_obj = None
     start_time = time.time()
     acquired = False
 
     try:
-        lock_file_obj = open(AUDIO_LOCK_FILE, "a+")
+        lock_file_obj = open(lock_path, "a+")
         lock_fd = lock_file_obj.fileno()
         with _IN_PROCESS_LOCK:
             _CURRENT_LOCK_FD = lock_fd
@@ -114,11 +121,12 @@ def is_audio_output_locked() -> bool:
         if _LOCK_DEPTH > 0:
             return True
 
-    if not AUDIO_LOCK_FILE.exists():
+    lock_path = get_audio_lock_path()
+    if not lock_path.exists():
         return False
 
     try:
-        with open(AUDIO_LOCK_FILE, "a+") as f:
+        with open(lock_path, "a+") as f:
             try:
                 fcntl.flock(f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
                 fcntl.flock(f.fileno(), fcntl.LOCK_UN)

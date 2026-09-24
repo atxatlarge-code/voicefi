@@ -115,9 +115,7 @@ def draw_voicefi_character(rect: NSRect):
 
     # 3. USB-C Port Nose
     nose_rect = NSRect(NSPoint(sx(184.0), sy(234.0)), NSSize(sw(32.0), sw(14.0)))
-    nose_bg = NSBezierPath.bezierPathWithRoundedRect_xRadius_yRadius_(
-        nose_rect, sw(7.0), sw(7.0)
-    )
+    nose_bg = NSBezierPath.bezierPathWithRoundedRect_xRadius_yRadius_(nose_rect, sw(7.0), sw(7.0))
     white_color.setFill()
     nose_bg.fill()
     red_color.setStroke()
@@ -220,9 +218,7 @@ def render_icon(size: int) -> bytes:
     img = NSImage.alloc().initWithSize_(NSSize(size, size))
     img.lockFocus()
 
-    NSGraphicsContext.currentContext().setImageInterpolation_(
-        AppKit.NSImageInterpolationHigh
-    )
+    NSGraphicsContext.currentContext().setImageInterpolation_(AppKit.NSImageInterpolationHigh)
 
     # 1. macOS Squircle Tile Geometry
     margin = size * 0.088
@@ -247,9 +243,7 @@ def render_icon(size: int) -> bytes:
     white_bg.setFill()
     squircle_path.fill()
 
-    stroke_color = NSColor.colorWithCalibratedRed_green_blue_alpha_(
-        0.0, 0.0, 0.0, 0.07
-    )
+    stroke_color = NSColor.colorWithCalibratedRed_green_blue_alpha_(0.0, 0.0, 0.0, 0.07)
     stroke_color.setStroke()
     squircle_path.setLineWidth_(max(1.0, size * 0.003))
     squircle_path.stroke()

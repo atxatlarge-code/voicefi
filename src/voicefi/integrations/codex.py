@@ -101,7 +101,7 @@ def execute_codex_cli(
         canonical_id = f"codex_session_{int(time.time())}"
 
     if include_envelope and from_conv_id:
-        clean_text = f"""[From: {from_engine.capitalize() if from_engine else 'Antigravity'} | Conversation: {from_conv_id}]
+        clean_text = f"""[From: {from_engine.capitalize() if from_engine else "Antigravity"} | Conversation: {from_conv_id}]
 {clean_text}
 
 💡 To return your findings to Antigravity, run:
@@ -144,7 +144,11 @@ curl -s -X POST http://localhost:5141/api/send -H "Content-Type: application/jso
             # Check if clean_tid is valid UUID
             is_uuid = False
             if clean_tid:
-                uuid_match = re.match(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", clean_tid, re.I)
+                uuid_match = re.match(
+                    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                    clean_tid,
+                    re.I,
+                )
                 is_uuid = bool(uuid_match)
 
             if is_uuid:
@@ -178,9 +182,15 @@ curl -s -X POST http://localhost:5141/api/send -H "Content-Type: application/jso
                         try:
                             item = json.loads(line)
                             pld = item.get("payload", {})
-                            if item.get("type") == "task_complete" or pld.get("type") == "task_complete":
+                            if (
+                                item.get("type") == "task_complete"
+                                or pld.get("type") == "task_complete"
+                            ):
                                 last_msg = pld.get("last_agent_message") or ""
-                            elif pld.get("type") == "item_completed" and pld.get("item", {}).get("type") == "AgentMessage":
+                            elif (
+                                pld.get("type") == "item_completed"
+                                and pld.get("item", {}).get("type") == "AgentMessage"
+                            ):
                                 parts = [
                                     c.get("text", "")
                                     for c in pld.get("item", {}).get("content", [])
@@ -617,14 +627,22 @@ def parse_codex_session(session_path: Path) -> Optional[ConversationInfo]:
         if not title:
             if first_user_text:
                 clean_first = clean_user_message(first_user_text)
-                first_line = clean_first.split("\n")[0].strip() if clean_first else first_user_text.split("\n")[0].strip()
+                first_line = (
+                    clean_first.split("\n")[0].strip()
+                    if clean_first
+                    else first_user_text.split("\n")[0].strip()
+                )
                 clean_first = first_line[:40] + ("..." if len(first_line) > 40 else "")
                 if project_name:
                     title = f"{project_name}: {clean_first}"
                 else:
                     title = clean_first
             else:
-                title = f"{project_name} ({session_id[:8]})" if project_name else f"Codex ({session_id[:8]})"
+                title = (
+                    f"{project_name} ({session_id[:8]})"
+                    if project_name
+                    else f"Codex ({session_id[:8]})"
+                )
 
         status = "idle"
         if last_msg_type == "user" or has_tool_calls_pending:
@@ -718,7 +736,9 @@ def parse_full_codex_conversation_details(session_path: Path) -> Dict[str, Any]:
                 current_turn.get("user_message") == user_text
                 or (not current_turn.get("agent_response") and not current_turn.get("agent_steps"))
             ):
-                current_turn["user_message"] = clean_user_message(user_text) if user_text else "User prompt"
+                current_turn["user_message"] = (
+                    clean_user_message(user_text) if user_text else "User prompt"
+                )
                 current_turn["raw_user_message"] = user_text
                 current_turn["user_timestamp"] = created_at
                 continue
@@ -764,7 +784,11 @@ def parse_full_codex_conversation_details(session_path: Path) -> Dict[str, Any]:
                 out_str = ""
                 if isinstance(out_raw, list):
                     out_str = " ".join(
-                        [b.get("text", "") for b in out_raw if isinstance(b, dict) and b.get("text")]
+                        [
+                            b.get("text", "")
+                            for b in out_raw
+                            if isinstance(b, dict) and b.get("text")
+                        ]
                     )
                 elif isinstance(out_raw, str):
                     out_str = out_raw
@@ -850,9 +874,7 @@ def parse_full_codex_conversation_details(session_path: Path) -> Dict[str, Any]:
     }
 
 
-def extract_latest_codex_summary(
-    session_path: Optional[Path] = None, max_words: int = 60
-) -> str:
+def extract_latest_codex_summary(session_path: Optional[Path] = None, max_words: int = 60) -> str:
     """Extract and summarize the latest assistant response from a Codex session rollout."""
     target_path = session_path or find_latest_codex_session()
     if not target_path or not target_path.is_file():
@@ -1000,7 +1022,9 @@ def handle_codex_stop_hook(
         thread_id = uuid_match.group(1) if uuid_match else session_file.stem
 
     cid_key = f"codex_{thread_id}" if not thread_id.startswith("codex_") else thread_id
-    if not claim_turn(thread_id, cleaned, delivered_via="hook") and not claim_turn(cid_key, cleaned, delivered_via="hook"):
+    if not claim_turn(thread_id, cleaned, delivered_via="hook") and not claim_turn(
+        cid_key, cleaned, delivered_via="hook"
+    ):
         return {"status": "skipped_duplicate"}
 
     # Update session cookie so Mobile Companion knows Codex is the active agent
@@ -1061,7 +1085,10 @@ def handle_codex_stop_hook(
     respect_media = getattr(getattr(cfg, "tts", None), "respect_media_playback", True)
     if respect_media:
         try:
-            from voicefi.audio.media_detection import is_active_media_playing, wait_for_media_completion
+            from voicefi.audio.media_detection import (
+                is_active_media_playing,
+                wait_for_media_completion,
+            )
 
             if is_active_media_playing():
                 media_timeout = getattr(getattr(cfg, "tts", None), "media_pause_timeout", 600.0)
@@ -1077,9 +1104,7 @@ def handle_codex_stop_hook(
     # Speak the soundbite aloud using Codex's voice persona (Emma)
     hook_start_time = time.time()
     agent_name = (
-        payload.get("agent")
-        if isinstance(payload, dict) and payload.get("agent")
-        else "codex"
+        payload.get("agent") if isinstance(payload, dict) and payload.get("agent") else "codex"
     )
     voice_override = payload.get("voice") if isinstance(payload, dict) else None
     tts_engine = None
@@ -1100,9 +1125,7 @@ def handle_codex_stop_hook(
                 app_name="Codex",
                 conv_id=thread_id,
             )
-            with escape_to_stop_speech(
-                agent_name=agent_name, app_name="Codex", conv_id=thread_id
-            ):
+            with escape_to_stop_speech(agent_name=agent_name, app_name="Codex", conv_id=thread_id):
                 tts_engine.speak(cleaned, block=True)
             mark_turn_spoken_on_mac(thread_id, cleaned)
             mark_turn_spoken_on_mac(cid_key, cleaned)

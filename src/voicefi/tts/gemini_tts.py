@@ -74,8 +74,9 @@ class GeminiTTS(BaseTTS):
         self,
         api_key: Optional[str] = None,
         voice: str = "Puck",
-        model: str = "gemini-3.8-live",
+        model: str = "gemini-3.8-flash-tts",
         temperature: float = 0.3,
+        style: Optional[str] = None,
     ):
         super().__init__()
         from voicefi.config import resolve_gemini_api_key
@@ -88,8 +89,9 @@ class GeminiTTS(BaseTTS):
             or ""
         )
         self.voice = self._normalize_voice_name(voice)
-        self.model = model or "gemini-3.8-live"
+        self.model = model or "gemini-3.8-flash-tts"
         self.temperature = temperature
+        self.style = style
         self._current_process: Optional[subprocess.Popen] = None
         self._stop_requested = False
 
@@ -178,9 +180,7 @@ class GeminiTTS(BaseTTS):
                 response_modalities=["AUDIO"],
                 speech_config=types.SpeechConfig(
                     voice_config=types.VoiceConfig(
-                        prebuilt_voice_config=types.PrebuiltVoiceConfig(
-                            voice_name=self.voice
-                        )
+                        prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=self.voice)
                     )
                 ),
             )
@@ -212,8 +212,10 @@ class GeminiTTS(BaseTTS):
             logger.debug("Gemini Live synthesis failed: %s", e)
             return None
 
-    def _generate_audio_bytes(self, text: str, timeout: float = 4.0) -> Optional[bytes]:
-        """Request audio synthesis from Gemini API."""
+    def _generate_audio_bytes(
+        self, text: str, style: Optional[str] = None, timeout: float = 15.0
+    ) -> Optional[bytes]:
+        """Request audio synthesis from Gemini API with optional style tags."""
         if not self.api_key:
             return None
 
@@ -225,8 +227,13 @@ class GeminiTTS(BaseTTS):
         url = f"{GEMINI_API_URL}/{self.model}:generateContent?key={self.api_key}"
         headers = {"Content-Type": "application/json"}
 
+        effective_style = style or self.style
+        part_dict: Dict[str, Any] = {"text": text}
+        if effective_style:
+            part_dict["speech_metadata"] = {"style": str(effective_style)}
+
         body: Dict[str, Any] = {
-            "contents": [{"parts": [{"text": text}]}],
+            "contents": [{"parts": [part_dict]}],
             "generationConfig": {
                 "responseModalities": ["AUDIO"],
                 "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": self.voice}}},
@@ -255,25 +262,126 @@ class GeminiTTS(BaseTTS):
 
         return None
 
-    def speak_to_file(self, text: str, output_path: Path) -> bool:
+    def generate_dialogue_bytes(
+        self,
+        turns: list[Dict[str, Any]],
+        speakers: Optional[Dict[str, str]] = None,
+        timeout: float = 30.0,
+    ) -> Optional[bytes]:
+        """Synthesize multi-speaker scripted dialogue from Gemini 3.8 Flash TTS."""
+        if not self.api_key or not turns:
+            return None
+
+        # Collect unique speakers
+        unique_speakers: list[str] = []
+        for t in turns:
+            spk = t.get("speaker", "Speaker")
+            if spk not in unique_speakers:
+                unique_speakers.append(spk)
+
+        resolved_speakers: Dict[str, str] = {}
+        if speakers:
+            resolved_speakers = {k: self._normalize_voice_name(v) for k, v in speakers.items()}
+        else:
+            default_voices = [self.voice, "Charon" if self.voice != "Charon" else "Puck"]
+            for i, spk in enumerate(unique_speakers):
+                resolved_speakers[spk] = default_voices[i % len(default_voices)]
+
+        # Gemini MultiSpeakerVoiceConfig requires exactly 2 speaker configurations
+        speaker_configs = [
+            {"speaker": spk_name, "voiceConfig": {"prebuiltVoiceConfig": {"voiceName": voice_name}}}
+            for spk_name, voice_name in list(resolved_speakers.items())[:2]
+        ]
+
+        script_parts = []
+        for turn in turns:
+            spk = turn.get("speaker", unique_speakers[0] if unique_speakers else "Speaker")
+            txt = normalize_tts_text(turn.get("text", ""))
+            if not txt:
+                continue
+            meta: Dict[str, Any] = {"speaker": spk}
+            if turn.get("style"):
+                meta["style"] = str(turn["style"])
+            script_parts.append({"text": txt, "speech_metadata": meta})
+
+        if not script_parts:
+            return None
+
+        url = f"{GEMINI_API_URL}/{self.model}:generateContent?key={self.api_key}"
+        headers = {"Content-Type": "application/json"}
+        body: Dict[str, Any] = {
+            "contents": [{"parts": script_parts}],
+            "generationConfig": {
+                "responseModalities": ["AUDIO"],
+                "speechConfig": {
+                    "multi_speaker_voice_config": {"speaker_voice_configs": speaker_configs}
+                },
+            },
+        }
+
+        try:
+            resp = requests.post(url, headers=headers, json=body, timeout=timeout)
+            if resp.status_code == 200:
+                data = resp.json()
+                candidates = data.get("candidates", [])
+                if candidates:
+                    parts = candidates[0].get("content", {}).get("parts", [])
+                    for part in parts:
+                        inline_data = part.get("inlineData", {})
+                        if inline_data.get("mimeType", "").startswith("audio/") and inline_data.get(
+                            "data"
+                        ):
+                            return base64.b64decode(inline_data["data"])
+            else:
+                logger.debug(
+                    "Gemini TTS dialogue non-200 response [%s]: %s",
+                    resp.status_code,
+                    resp.text[:200],
+                )
+        except Exception as e:
+            logger.debug("Gemini TTS dialogue request failed: %s", e)
+
+        return None
+
+    def speak_to_file(self, text: str, output_path: Path, style: Optional[str] = None) -> bool:
         """Synthesize audio directly to a file without playing through speakers."""
         if not text or not text.strip():
             return False
         clean_text = normalize_tts_text(text)
-        audio_bytes = self._generate_audio_bytes(clean_text)
+        audio_bytes = self._generate_audio_bytes(clean_text, style=style)
         if audio_bytes:
             try:
+                output_path.parent.mkdir(parents=True, exist_ok=True)
                 output_path.write_bytes(audio_bytes)
                 return True
             except Exception:
                 pass
         return False
 
-    async def synthesize_to_file(self, text: str, output_path: Path) -> bool:
+    async def synthesize_to_file(
+        self, text: str, output_path: Path, style: Optional[str] = None
+    ) -> bool:
         """Asynchronously synthesize speech directly to an audio file."""
-        return self.speak_to_file(text, output_path)
+        return self.speak_to_file(text, output_path, style=style)
 
-    def speak(self, text: str, block: bool = True) -> None:
+    def synthesize_dialogue_to_file(
+        self,
+        turns: list[Dict[str, Any]],
+        output_path: Path,
+        speakers: Optional[Dict[str, str]] = None,
+    ) -> bool:
+        """Synthesize multi-speaker scripted dialogue directly to audio file."""
+        audio_bytes = self.generate_dialogue_bytes(turns, speakers=speakers)
+        if audio_bytes:
+            try:
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+                output_path.write_bytes(audio_bytes)
+                return True
+            except Exception as e:
+                logger.error("Failed writing dialogue audio to %s: %s", output_path, e)
+        return False
+
+    def speak(self, text: str, block: bool = True, style: Optional[str] = None) -> None:
         """Synthesize and play speech via Gemini Neural Voice with instant offline fallback."""
         if not text or not text.strip():
             return
@@ -303,7 +411,7 @@ class GeminiTTS(BaseTTS):
                     if self._stop_requested or is_speech_interrupted(turn_start_time):
                         return
 
-                    audio_bytes = self._generate_audio_bytes(clean_text)
+                    audio_bytes = self._generate_audio_bytes(clean_text, style=style)
                     if (
                         not audio_bytes
                         or self._stop_requested
@@ -349,6 +457,81 @@ class GeminiTTS(BaseTTS):
             t = threading.Thread(target=_run, daemon=True)
             t.start()
 
-    def stream_speak(self, text: str, block: bool = True) -> None:
+    def speak_dialogue(
+        self,
+        turns: list[Dict[str, Any]],
+        speakers: Optional[Dict[str, str]] = None,
+        block: bool = True,
+    ) -> None:
+        """Synthesize and play multi-speaker dialogue with turn locking."""
+        if not turns:
+            return
+        if is_user_on_call():
+            print("[GeminiTTS] User is on a call. Skipping dialogue playback.")
+            return
+
+        full_transcript = " ".join(t.get("text", "") for t in turns)
+        self._stop_requested = False
+        turn_start_time = time.time()
+
+        def _run():
+            try:
+                with speech_turn_lock(
+                    text=full_transcript,
+                    agent_name=getattr(self, "agent_name", "VoiceFi"),
+                    persona_name="Dialogue",
+                    app_name=getattr(self, "app_name", "Antigravity"),
+                    conv_id=getattr(self, "conv_id", ""),
+                    workspace_path=getattr(self, "workspace_path", ""),
+                ):
+                    nonlocal turn_start_time
+                    turn_start_time = time.time()
+                    self._stop_requested = False
+
+                    if self._stop_requested or is_speech_interrupted(turn_start_time):
+                        return
+
+                    audio_bytes = self.generate_dialogue_bytes(turns, speakers=speakers)
+                    if (
+                        not audio_bytes
+                        or self._stop_requested
+                        or is_speech_interrupted(turn_start_time)
+                    ):
+                        return
+
+                    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
+                        temp_path = Path(f.name)
+                        temp_path.write_bytes(audio_bytes)
+
+                    try:
+                        if (
+                            not self._stop_requested
+                            and not is_speech_interrupted(turn_start_time)
+                            and is_agent_speaking()
+                        ):
+                            set_agent_audio_playing(True)
+                            proc = subprocess.Popen(
+                                ["afplay", str(temp_path)],
+                                stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL,
+                            )
+                            self._current_process = proc
+                            proc.wait()
+                    finally:
+                        set_agent_audio_playing(False)
+                        self._current_process = None
+                        temp_path.unlink(missing_ok=True)
+            except DuplicateSpeechSuppressed:
+                pass
+            except Exception as e:
+                logger.debug("GeminiTTS speak_dialogue error: %s", e)
+
+        if block:
+            _run()
+        else:
+            t = threading.Thread(target=_run, daemon=True)
+            t.start()
+
+    def stream_speak(self, text: str, block: bool = True, style: Optional[str] = None) -> None:
         """Stream and speak audio with minimal latency."""
-        self.speak(text, block=block)
+        self.speak(text, block=block, style=style)

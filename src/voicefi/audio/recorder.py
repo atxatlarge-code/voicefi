@@ -245,7 +245,9 @@ class AudioRecorder:
             is_paused = False
             is_barge_in_on, _ = resolve_barge_in_mode(self.barge_in)
             is_test = bool(os.environ.get("PYTEST_CURRENT_TEST"))
-            cooldown_remaining_chunks = 0 if (is_barge_in_on or is_test) else 3  # 150ms acoustic settle margin
+            cooldown_remaining_chunks = (
+                0 if (is_barge_in_on or is_test) else 3
+            )  # 150ms acoustic settle margin
             barge_in_candidate_chunks = 0
             agent_speaking_chunks = 0
             speaker_bleed_floor = 0.0
@@ -283,7 +285,9 @@ class AudioRecorder:
                                 else audio_to_transcribe
                             )
 
-                            txt = stt_instance.transcribe(preview_audio, sample_rate=self.sample_rate)
+                            txt = stt_instance.transcribe(
+                                preview_audio, sample_rate=self.sample_rate
+                            )
                             if txt:
                                 try:
                                     from voicefi.tts.normalizer import collapse_repetitive_artifacts
@@ -850,7 +854,9 @@ class AudioRecorder:
                                 else audio_to_transcribe
                             )
 
-                            txt = stt_instance.transcribe(preview_audio, sample_rate=self.sample_rate)
+                            txt = stt_instance.transcribe(
+                                preview_audio, sample_rate=self.sample_rate
+                            )
                             if txt:
                                 try:
                                     from voicefi.tts.normalizer import collapse_repetitive_artifacts

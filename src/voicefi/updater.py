@@ -304,7 +304,9 @@ def upgrade_dmg_app_bundle(
         }
 
     except Exception as e:
-        print(f"⚠️ [Updater] In-place DMG upgrade failed: {e}. Falling back to standard DMG download...")
+        print(
+            f"⚠️ [Updater] In-place DMG upgrade failed: {e}. Falling back to standard DMG download..."
+        )
         return download_and_open_dmg(dmg_url=dmg_url, version=ver, timeout_seconds=timeout_seconds)
 
 

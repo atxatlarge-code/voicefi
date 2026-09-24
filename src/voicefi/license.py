@@ -106,9 +106,7 @@ def load_secondary_receipt() -> Optional[Dict[str, Any]]:
 
 
 # Master Ed25519 Public Verification Key (Safe to commit to public open-source)
-PUBLIC_VERIFICATION_KEY_HEX = (
-    "964b998cb1d6721a9b674c820031454f8213d0a038aa18c792792d550ae66426"
-)
+PUBLIC_VERIFICATION_KEY_HEX = "964b998cb1d6721a9b674c820031454f8213d0a038aa18c792792d550ae66426"
 
 
 def generate_license_key(
@@ -120,7 +118,7 @@ def generate_license_key(
     """
     Generate an unforgeable, Ed25519 cryptographically signed VoiceFi license token.
     Requires private signing key (from argument, env var VOICEFI_SIGNING_PRIVATE_KEY, or ~/.voicefi/admin_keys/).
-    
+
     Format: VF1-<TIER>-<EXPIRATION>-<TAG>.<SIGNATURE_B64>
     - TIER: PRO, ORG, ENTERPRISE, VIP, BETA
     - EXPIRATION: PERP (perpetual) or YYYYMMDD
@@ -132,9 +130,7 @@ def generate_license_key(
 
     tier_clean = tier.upper().strip()
     expires_clean = expires.upper().strip()
-    tag_clean = "".join(
-        c for c in tag.upper().strip().replace(" ", "_") if c.isalnum() or c == "_"
-    )
+    tag_clean = "".join(c for c in tag.upper().strip().replace(" ", "_") if c.isalnum() or c == "_")
     if not tag_clean:
         tag_clean = "GIFT"
 
@@ -253,7 +249,10 @@ def verify_license_key(key: str) -> Dict[str, Any]:
 
     prefix_parts = prefix.split("-")
     if len(prefix_parts) < 4 or prefix_parts[0] != "VF1":
-        return {"is_valid": False, "error": "Invalid license prefix (expected VF1-<TIER>-<EXP>-<TAG>)"}
+        return {
+            "is_valid": False,
+            "error": "Invalid license prefix (expected VF1-<TIER>-<EXP>-<TAG>)",
+        }
 
     tier = prefix_parts[1]
     expires_str = prefix_parts[2]
@@ -312,8 +311,12 @@ class FeatureGate:
     PRO_ANNUAL_MONTHLY_EQUIVALENT_USD = 5.75
     TRIAL_DURATION_DAYS = 14
 
-    CHECKOUT_URL_MONTHLY = "https://buy.polar.sh/polar_cl_tuzY4BeC8xUOOBTihmRwU2HPzSdPlG2KHSwSC4RJND7"
-    CHECKOUT_URL_ANNUAL = "https://buy.polar.sh/polar_cl_CUG0WaMQ6H38cmU1hlwnmcyf63Oj9Js4N1myZ34MEcU"
+    CHECKOUT_URL_MONTHLY = (
+        "https://buy.polar.sh/polar_cl_tuzY4BeC8xUOOBTihmRwU2HPzSdPlG2KHSwSC4RJND7"
+    )
+    CHECKOUT_URL_ANNUAL = (
+        "https://buy.polar.sh/polar_cl_CUG0WaMQ6H38cmU1hlwnmcyf63Oj9Js4N1myZ34MEcU"
+    )
     UPGRADE_URL = "https://voicefi.org#pricing"
 
     PRO_PROVIDERS = {
@@ -333,9 +336,7 @@ class FeatureGate:
         return verify_license_key(license_key)
 
     @classmethod
-    def activate_license(
-        cls, key: str, config: Optional[VoiceFiConfig] = None
-    ) -> Dict[str, Any]:
+    def activate_license(cls, key: str, config: Optional[VoiceFiConfig] = None) -> Dict[str, Any]:
         """
         Validate and activate an Ed25519 license key on config, save configuration,
         and emit a sanitized zero-PII license_activated telemetry event.
@@ -347,6 +348,7 @@ class FeatureGate:
             err = "Empty license key provided"
             try:
                 from voicefi.telemetry import capture_license_activated
+
                 capture_license_activated(tier="unknown", success=False, error=err)
             except Exception:
                 pass
@@ -357,6 +359,7 @@ class FeatureGate:
             err = validation.get("error") or "Invalid license key signature."
             try:
                 from voicefi.telemetry import capture_license_activated
+
                 capture_license_activated(
                     tier=validation.get("tier", "unknown"),
                     success=False,
@@ -380,6 +383,7 @@ class FeatureGate:
 
         try:
             from voicefi.telemetry import capture_license_activated
+
             capture_license_activated(
                 tier=cfg.tier,
                 expires_at=validation.get("expires_at", "Perpetual"),
@@ -398,7 +402,6 @@ class FeatureGate:
             "validation": validation,
             "config": cfg,
         }
-
 
     @classmethod
     def get_license_status(cls, config: VoiceFiConfig) -> Dict[str, Any]:
@@ -775,4 +778,3 @@ def sync_license_with_cloud(
         return {"synced": False, "offline": True, "error": str(e)}
 
     return {"synced": True, "renewed": False}
-

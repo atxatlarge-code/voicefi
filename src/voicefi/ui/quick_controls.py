@@ -475,7 +475,9 @@ class HUDQuickControlsPanel:
         # 9. 🧠 Local Intelligence (Gemma 4 on Metal GPU)
         # ---------------------------------------------------------------------
         cur_y -= 46
-        sep_local = NSView.alloc().initWithFrame_(NSRect(NSPoint(14, cur_y + 35), NSSize(w - 28, 1)))
+        sep_local = NSView.alloc().initWithFrame_(
+            NSRect(NSPoint(14, cur_y + 35), NSSize(w - 28, 1))
+        )
         sep_local.setWantsLayer_(True)
         sep_local.layer().setBackgroundColor_(
             NSColor.colorWithCalibratedRed_green_blue_alpha_(0.3, 0.6, 1.0, 0.25).CGColor()
@@ -496,11 +498,14 @@ class HUDQuickControlsPanel:
 
         try:
             from voicefi.local.engine import LocalModelEngine
+
             _engine = LocalModelEngine()
             _st = _engine.get_status()
             if _st["model_exists"]:
                 status_text = f"● {_st['model_name']} (Metal GPU)"
-                status_color = NSColor.colorWithCalibratedRed_green_blue_alpha_(0.3, 0.95, 0.6, 0.95)
+                status_color = NSColor.colorWithCalibratedRed_green_blue_alpha_(
+                    0.3, 0.95, 0.6, 0.95
+                )
             else:
                 status_text = "○ Offline / Not loaded"
                 status_color = NSColor.colorWithCalibratedRed_green_blue_alpha_(0.8, 0.8, 0.8, 0.6)
@@ -539,10 +544,14 @@ class HUDQuickControlsPanel:
         self.seg_local_distill.setLabel_forSegment_("OFF", 0)
         self.seg_local_distill.setLabel_forSegment_("ON", 1)
         self.seg_local_distill.setSegmentStyle_(NSSegmentStyleTexturedRounded)
-        is_distill = getattr(getattr(self.config, "local_model", None), "distill_spoken_turns", False)
+        is_distill = getattr(
+            getattr(self.config, "local_model", None), "distill_spoken_turns", False
+        )
         self.seg_local_distill.setSelectedSegment_(1 if is_distill else 0)
 
-        t_distill = QuickControlsActionTarget.alloc().initWithCallback_(self._on_local_distill_toggle)
+        t_distill = QuickControlsActionTarget.alloc().initWithCallback_(
+            self._on_local_distill_toggle
+        )
         self._targets.append(t_distill)
         self.seg_local_distill.setTarget_(t_distill)
         self.seg_local_distill.setAction_("actionHandler:")
@@ -598,7 +607,9 @@ class HUDQuickControlsPanel:
         is_intent = getattr(getattr(self.config, "local_model", None), "intent_routing", False)
         self.seg_intent_routing.setSelectedSegment_(1 if is_intent else 0)
 
-        t_intent = QuickControlsActionTarget.alloc().initWithCallback_(self._on_intent_routing_toggle)
+        t_intent = QuickControlsActionTarget.alloc().initWithCallback_(
+            self._on_intent_routing_toggle
+        )
         self._targets.append(t_intent)
         self.seg_intent_routing.setTarget_(t_intent)
         self.seg_intent_routing.setAction_("actionHandler:")
@@ -836,7 +847,7 @@ class HUDQuickControlsPanel:
 
     def _on_local_distill_toggle(self, sender):
         idx = sender.selectedSegment()
-        distill_on = (idx == 1)
+        distill_on = idx == 1
         self.config = load_config()
         self.config.local_model.distill_spoken_turns = distill_on
         save_config(self.config)
@@ -844,7 +855,7 @@ class HUDQuickControlsPanel:
 
     def _on_telegraphic_toggle(self, sender):
         idx = sender.selectedSegment()
-        telegraphic_on = (idx == 1)
+        telegraphic_on = idx == 1
         self.config = load_config()
         self.config.local_model.telegraphic_mode = telegraphic_on
         save_config(self.config)
@@ -852,7 +863,7 @@ class HUDQuickControlsPanel:
 
     def _on_intent_routing_toggle(self, sender):
         idx = sender.selectedSegment()
-        intent_on = (idx == 1)
+        intent_on = idx == 1
         self.config = load_config()
         self.config.local_model.intent_routing = intent_on
         save_config(self.config)

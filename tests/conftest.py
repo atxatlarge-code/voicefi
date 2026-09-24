@@ -1,7 +1,25 @@
 import os
-import pytest
+import sys
 from pathlib import Path
+from unittest.mock import MagicMock
+import pytest
 from voicefi.config import VoiceFiConfig, save_config
+
+# On Linux / non-darwin platforms or headless CI where macOS UI frameworks
+# (AppKit, rumps, Cocoa, Quartz, objc) are not available, provide stub modules
+# so test collection and headless execution succeed without ModuleNotFoundError.
+if sys.platform != "darwin":
+    for mod_name in ["AppKit", "rumps", "Cocoa", "Quartz", "objc"]:
+        if mod_name not in sys.modules:
+            try:
+                __import__(mod_name)
+            except ImportError:
+                mock_mod = MagicMock()
+                mock_mod.__name__ = mod_name
+                if mod_name == "objc":
+                    mock_mod.python_method = lambda fn: fn
+                    mock_mod.IBAction = lambda fn: fn
+                sys.modules[mod_name] = mock_mod
 
 
 @pytest.fixture(autouse=True)
@@ -25,6 +43,7 @@ def isolate_test_config(tmp_path, monkeypatch):
 
     # Ensure PostHog telemetry is never dispatched during test runs
     import voicefi.mcp_server as mcp_mod
+
     mcp_mod._mcp_posthog = None
     mcp_mod._mcp_posthog_initialized = False
     monkeypatch.setattr("voicefi.mcp_server.get_mcp_posthog", lambda: None)
@@ -192,11 +211,30 @@ def prevent_real_audio_playback(monkeypatch):
 
     try:
         import sounddevice as sd
+
         monkeypatch.setattr(sd, "play", lambda *a, **kw: None)
         monkeypatch.setattr(sd, "stop", lambda *a, **kw: None)
+
+        if os.getenv("VOICEFI_MOCK_AUDIO") == "1":
+
+            class MockAudioStream(MagicMock):
+                def __enter__(self):
+                    return self
+
+                def __exit__(self, *args):
+                    pass
+
+                def start(self):
+                    pass
+
+                def stop(self):
+                    pass
+
+                def close(self):
+                    pass
+
+            monkeypatch.setattr(sd, "OutputStream", lambda *a, **kw: MockAudioStream())
     except Exception:
         pass
 
     yield
-
-

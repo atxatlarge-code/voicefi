@@ -54,8 +54,8 @@ def render_dmg_background():
     transform.concat()
 
     # 1. Background Canvas Gradient (Modern Dark Obsidian Glass)
-    c1 = NSColor.colorWithCalibratedRed_green_blue_alpha_(0.035, 0.035, 0.045, 1.0) # #09090C
-    c2 = NSColor.colorWithCalibratedRed_green_blue_alpha_(0.065, 0.065, 0.080, 1.0) # #111114
+    c1 = NSColor.colorWithCalibratedRed_green_blue_alpha_(0.035, 0.035, 0.045, 1.0)  # #09090C
+    c2 = NSColor.colorWithCalibratedRed_green_blue_alpha_(0.065, 0.065, 0.080, 1.0)  # #111114
     bg_gradient = NSGradient.alloc().initWithStartingColor_endingColor_(c1, c2)
     bg_rect = NSRect(NSPoint(0, 0), NSSize(pt_w, pt_h))
     bg_gradient.drawInRect_angle_(bg_rect, -90.0)
@@ -72,7 +72,9 @@ def render_dmg_background():
         for r, a in [(85.0, 0.04), (65.0, 0.08), (45.0, 0.12)]:
             glow = color.colorWithAlphaComponent_(a)
             glow.setFill()
-            path = NSBezierPath.bezierPathWithOvalInRect_(NSRect(NSPoint(cx - r, cy - r), NSSize(r * 2, r * 2)))
+            path = NSBezierPath.bezierPathWithOvalInRect_(
+                NSRect(NSPoint(cx - r, cy - r), NSSize(r * 2, r * 2))
+            )
             path.fill()
 
     red_glow = NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 0.165, 0.165, 1.0)
@@ -82,7 +84,9 @@ def render_dmg_background():
 
     # 3. Center Directional Electric Red Arrow Pill Badge
     badge_w, badge_h = 144.0, 32.0
-    badge_rect = NSRect(NSPoint(center_x - badge_w / 2.0, appkit_icon_y - badge_h / 2.0), NSSize(badge_w, badge_h))
+    badge_rect = NSRect(
+        NSPoint(center_x - badge_w / 2.0, appkit_icon_y - badge_h / 2.0), NSSize(badge_w, badge_h)
+    )
     badge_path = NSBezierPath.bezierPathWithRoundedRect_xRadius_yRadius_(badge_rect, 16.0, 16.0)
 
     # Red badge background
@@ -100,13 +104,13 @@ def render_dmg_background():
     arrow_path.setLineWidth_(2.8)
     arrow_path.setLineCapStyle_(AppKit.NSLineCapStyleRound)
     arrow_path.setLineJoinStyle_(AppKit.NSLineJoinStyleRound)
-    
+
     arrow_path.moveToPoint_(NSPoint(center_x - 18.0, appkit_icon_y))
     arrow_path.lineToPoint_(NSPoint(center_x + 18.0, appkit_icon_y))
     arrow_path.moveToPoint_(NSPoint(center_x + 10.0, appkit_icon_y + 6.0))
     arrow_path.lineToPoint_(NSPoint(center_x + 18.0, appkit_icon_y))
     arrow_path.lineToPoint_(NSPoint(center_x + 10.0, appkit_icon_y - 6.0))
-    
+
     red_arrow_color = NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 0.28, 0.28, 1.0)
     red_arrow_color.setStroke()
     arrow_path.stroke()
@@ -125,12 +129,14 @@ def render_dmg_background():
     inst_str = AppKit.NSAttributedString.alloc().initWithString_attributes_(
         "Drag to Applications", inst_attrs
     )
-    inst_str.drawInRect_(NSRect(NSPoint(center_x - 100.0, appkit_icon_y - 32.0), NSSize(200.0, 18.0)))
+    inst_str.drawInRect_(
+        NSRect(NSPoint(center_x - 100.0, appkit_icon_y - 32.0), NSSize(200.0, 18.0))
+    )
 
     # 4. Header Section at Top
     title_font = NSFont.systemFontOfSize_weight_(27.0, NSFontWeightBlack)
     title_white = NSColor.colorWithCalibratedRed_green_blue_alpha_(0.98, 0.98, 1.0, 1.0)
-    
+
     title_attrs_white = {
         AppKit.NSFontAttributeName: title_font,
         AppKit.NSForegroundColorAttributeName: title_white,
@@ -142,8 +148,12 @@ def render_dmg_background():
         AppKit.NSParagraphStyleAttributeName: para,
     }
 
-    title_str = AppKit.NSMutableAttributedString.alloc().initWithString_attributes_("Voice", title_attrs_white)
-    title_str.appendAttributedString_(AppKit.NSAttributedString.alloc().initWithString_attributes_("Fi", title_attrs_red))
+    title_str = AppKit.NSMutableAttributedString.alloc().initWithString_attributes_(
+        "Voice", title_attrs_white
+    )
+    title_str.appendAttributedString_(
+        AppKit.NSAttributedString.alloc().initWithString_attributes_("Fi", title_attrs_red)
+    )
     title_str.drawInRect_(NSRect(NSPoint(0, pt_h - 60.0), NSSize(pt_w, 35.0)))
 
     # Subtitle: "Universal Voice Layer for AI Agents & macOS"

@@ -169,7 +169,10 @@ def handle_claude_stop_hook(
     respect_media = getattr(getattr(cfg, "tts", None), "respect_media_playback", True)
     if respect_media:
         try:
-            from voicefi.audio.media_detection import is_active_media_playing, wait_for_media_completion
+            from voicefi.audio.media_detection import (
+                is_active_media_playing,
+                wait_for_media_completion,
+            )
 
             if is_active_media_playing():
                 media_timeout = getattr(getattr(cfg, "tts", None), "media_pause_timeout", 600.0)
@@ -216,7 +219,9 @@ def handle_claude_stop_hook(
         engine="claude",
     )
 
-    if not claim_turn(conv_id, text_to_speak, delivered_via="hook") and not claim_turn(cid_key, text_to_speak, delivered_via="hook"):
+    if not claim_turn(conv_id, text_to_speak, delivered_via="hook") and not claim_turn(
+        cid_key, text_to_speak, delivered_via="hook"
+    ):
         return {"status": "skipped_duplicate"}
 
     try:
@@ -261,9 +266,7 @@ def handle_claude_stop_hook(
         # 2. Speak the soundbite aloud using Claude's voice persona (Guy / Steffan)
         hook_start_time = time.time()
         agent_name = (
-            payload.get("agent")
-            if isinstance(payload, dict) and payload.get("agent")
-            else "claude"
+            payload.get("agent") if isinstance(payload, dict) and payload.get("agent") else "claude"
         )
         voice_override = payload.get("voice") if isinstance(payload, dict) else None
         if cfg.claude.read_summary_aloud:
@@ -442,12 +445,17 @@ def handle_claude_stop_hook(
             return {"status": "filler_ignored"}
 
         target_channel = getattr(eval_res, "target_channel", SpokenTargetChannel.CLAUDE)
-        routed_text = getattr(eval_res, "routed_prompt", None) or eval_res.normalized_text or clean_t
+        routed_text = (
+            getattr(eval_res, "routed_prompt", None) or eval_res.normalized_text or clean_t
+        )
 
         # 7. Safe Window Injection / Cross-Agent Routing
         set_cross_process_hud_state("done", text=routed_text[:20], agent_name="claude")
         if (eval_res.target_metadata or {}).get("routed_to") == "antigravity":
-            print(f"[Claude Hook] 🔀 Routing spoken prompt to Antigravity: '{routed_text}'", flush=True)
+            print(
+                f"[Claude Hook] 🔀 Routing spoken prompt to Antigravity: '{routed_text}'",
+                flush=True,
+            )
             from voicefi.integrations.conversations import get_latest_antigravity_conversation_id
 
             target_conv = get_latest_antigravity_conversation_id()

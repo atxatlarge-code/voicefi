@@ -108,7 +108,9 @@ def can_deliver_nudge(
     return True
 
 
-def record_nudge_delivered(nudge_id: str, state: Dict[str, Any], now_ts: Optional[float] = None) -> None:
+def record_nudge_delivered(
+    nudge_id: str, state: Dict[str, Any], now_ts: Optional[float] = None
+) -> None:
     """Record that a nudge was shown and update the last notification timestamp."""
     delivered = set(state.get("delivered_nudges", []))
     delivered.add(nudge_id)
@@ -154,7 +156,11 @@ def check_and_trigger_lifecycle_nudges(
     cfg = config or load_config()
     tier_info = FeatureGate.get_tier_summary(cfg)
     is_trial = tier_info.get("is_trial", False) or (trial_days_override is not None)
-    days_left = trial_days_override if trial_days_override is not None else tier_info.get("trial_days_remaining", 14)
+    days_left = (
+        trial_days_override
+        if trial_days_override is not None
+        else tier_info.get("trial_days_remaining", 14)
+    )
 
     installed_at = state.get("installed_at", current_ts)
     elapsed_seconds = current_ts - installed_at
@@ -162,7 +168,9 @@ def check_and_trigger_lifecycle_nudges(
     # --- Rule Evaluation in Priority Order ---
 
     # 1. Milestone 25 Turns
-    if (total_turns >= 25 or force_nudge == "milestone_turn_25") and can_deliver_nudge("milestone_turn_25", state, current_ts, min_interval_hours, force=bool(force_nudge)):
+    if (total_turns >= 25 or force_nudge == "milestone_turn_25") and can_deliver_nudge(
+        "milestone_turn_25", state, current_ts, min_interval_hours, force=bool(force_nudge)
+    ):
         show_notification(
             title="⚡ Productivity Milestone: 25 Turns",
             subtitle="VoiceFi Analytics",
@@ -172,7 +180,9 @@ def check_and_trigger_lifecycle_nudges(
         return "milestone_turn_25"
 
     # 2. Milestone 5 Turns (GitHub Star Celebration)
-    if (total_turns >= 5 or force_nudge == "milestone_turn_5") and can_deliver_nudge("milestone_turn_5", state, current_ts, min_interval_hours, force=bool(force_nudge)):
+    if (total_turns >= 5 or force_nudge == "milestone_turn_5") and can_deliver_nudge(
+        "milestone_turn_5", state, current_ts, min_interval_hours, force=bool(force_nudge)
+    ):
         show_notification(
             title="🎉 5 Spoken Agent Turns Completed!",
             subtitle="Pair Programming Hands-Free",
@@ -182,7 +192,9 @@ def check_and_trigger_lifecycle_nudges(
         return "milestone_turn_5"
 
     # 3. Pro Trial Day 14 (Expiry / Fallback)
-    if (is_trial and days_left <= 1 or force_nudge == "trial_day_14") and can_deliver_nudge("trial_day_14", state, current_ts, min_interval_hours, force=bool(force_nudge)):
+    if (is_trial and days_left <= 1 or force_nudge == "trial_day_14") and can_deliver_nudge(
+        "trial_day_14", state, current_ts, min_interval_hours, force=bool(force_nudge)
+    ):
         show_notification(
             title="VoiceFi Pro Trial Ends Today 🎙️",
             subtitle="Free Forever Fallback Active",
@@ -192,7 +204,9 @@ def check_and_trigger_lifecycle_nudges(
         return "trial_day_14"
 
     # 4. Pro Trial Day 11 (3 Days Remaining)
-    if (is_trial and days_left <= 3 or force_nudge == "trial_day_11") and can_deliver_nudge("trial_day_11", state, current_ts, min_interval_hours, force=bool(force_nudge)):
+    if (is_trial and days_left <= 3 or force_nudge == "trial_day_11") and can_deliver_nudge(
+        "trial_day_11", state, current_ts, min_interval_hours, force=bool(force_nudge)
+    ):
         show_notification(
             title="⏳ 3 Days Left on Pro Trial",
             subtitle="VoiceFi Developer Pro",
@@ -202,7 +216,9 @@ def check_and_trigger_lifecycle_nudges(
         return "trial_day_11"
 
     # 5. Pro Trial Day 7 (Halfway Check-in)
-    if (is_trial and days_left <= 7 or force_nudge == "trial_day_7") and can_deliver_nudge("trial_day_7", state, current_ts, min_interval_hours, force=bool(force_nudge)):
+    if (is_trial and days_left <= 7 or force_nudge == "trial_day_7") and can_deliver_nudge(
+        "trial_day_7", state, current_ts, min_interval_hours, force=bool(force_nudge)
+    ):
         show_notification(
             title="✨ 7 Days Remaining on Pro Trial",
             subtitle="VoiceFi Developer Pro",
@@ -214,7 +230,11 @@ def check_and_trigger_lifecycle_nudges(
     # 6. Speed Talking Discovery (after 10 normal-speed turns)
     speed_cfg = getattr(cfg, "speed_talk", None)
     speed_enabled = getattr(speed_cfg, "enabled", False)
-    if (total_turns >= 10 and not speed_enabled or force_nudge == "nudge_speed_talk") and can_deliver_nudge("nudge_speed_talk", state, current_ts, min_interval_hours, force=bool(force_nudge)):
+    if (
+        total_turns >= 10 and not speed_enabled or force_nudge == "nudge_speed_talk"
+    ) and can_deliver_nudge(
+        "nudge_speed_talk", state, current_ts, min_interval_hours, force=bool(force_nudge)
+    ):
         show_notification(
             title="⚡ Save 40% of Listening Time",
             subtitle="VoiceFi Speed Talking",
@@ -224,7 +244,11 @@ def check_and_trigger_lifecycle_nudges(
         return "nudge_speed_talk"
 
     # 7. Wake Word Discovery (Day 3 of usage)
-    if (elapsed_seconds >= 2 * 86400 and total_turns >= 3 or force_nudge == "nudge_wakeword") and can_deliver_nudge("nudge_wakeword", state, current_ts, min_interval_hours, force=bool(force_nudge)):
+    if (
+        elapsed_seconds >= 2 * 86400 and total_turns >= 3 or force_nudge == "nudge_wakeword"
+    ) and can_deliver_nudge(
+        "nudge_wakeword", state, current_ts, min_interval_hours, force=bool(force_nudge)
+    ):
         show_notification(
             title="Hands-Free Wake Word 🗣️",
             subtitle="Say 'Hey Viv'",
@@ -234,7 +258,9 @@ def check_and_trigger_lifecycle_nudges(
         return "nudge_wakeword"
 
     # 8. First Agent Turn Completion Tip
-    if (total_turns >= 1 or force_nudge == "nudge_first_turn_tips") and can_deliver_nudge("nudge_first_turn_tips", state, current_ts, min_interval_hours, force=bool(force_nudge)):
+    if (total_turns >= 1 or force_nudge == "nudge_first_turn_tips") and can_deliver_nudge(
+        "nudge_first_turn_tips", state, current_ts, min_interval_hours, force=bool(force_nudge)
+    ):
         show_notification(
             title="🎙️ Spoken Turn Active",
             subtitle="VoiceFi Shortcuts",
@@ -244,7 +270,11 @@ def check_and_trigger_lifecycle_nudges(
         return "nudge_first_turn_tips"
 
     # 9. First Hotkey Reminder (15 minutes after install if 0 turns taken)
-    if (elapsed_seconds >= 900 and total_turns == 0 or force_nudge == "nudge_first_hotkey") and can_deliver_nudge("nudge_first_hotkey", state, current_ts, min_interval_hours, force=bool(force_nudge)):
+    if (
+        elapsed_seconds >= 900 and total_turns == 0 or force_nudge == "nudge_first_hotkey"
+    ) and can_deliver_nudge(
+        "nudge_first_hotkey", state, current_ts, min_interval_hours, force=bool(force_nudge)
+    ):
         show_notification(
             title="VoiceFi is Live & Ready 🎙️",
             subtitle="Universal Dictation Hotkey",

@@ -274,11 +274,7 @@ class TranscriptWatcher:
                         ask_q_tool = tc
                         break
 
-            if (
-                step_type == "PLANNER_RESPONSE"
-                and step_source == "MODEL"
-                and ask_q_tool
-            ):
+            if step_type == "PLANNER_RESPONSE" and step_source == "MODEL" and ask_q_tool:
                 args = ask_q_tool.get("args") or {}
                 if isinstance(args, str):
                     try:
@@ -292,9 +288,13 @@ class TranscriptWatcher:
                     raw_opts = q0.get("options") or []
                     clean_opts = [str(o).strip() for o in raw_opts if str(o).strip()]
                     if len(clean_opts) == 2:
-                        synthesized_q = f"{q_text} Would you prefer {clean_opts[0]}, or {clean_opts[1]}?"
+                        synthesized_q = (
+                            f"{q_text} Would you prefer {clean_opts[0]}, or {clean_opts[1]}?"
+                        )
                     elif len(clean_opts) > 2:
-                        opt_str = ". ".join(f"Option {i+1}: {opt}" for i, opt in enumerate(clean_opts))
+                        opt_str = ". ".join(
+                            f"Option {i + 1}: {opt}" for i, opt in enumerate(clean_opts)
+                        )
                         synthesized_q = f"{q_text} {opt_str}."
                     else:
                         synthesized_q = q_text
@@ -463,7 +463,9 @@ class TranscriptWatcher:
 
             turn_sig = f"{turn_cid}:{summary[:35]}"
             try:
-                claimed = claim_turn(turn_cid, turn_sig, step_index=step_index, delivered_via="watcher")
+                claimed = claim_turn(
+                    turn_cid, turn_sig, step_index=step_index, delivered_via="watcher"
+                )
             except TypeError:
                 claimed = claim_turn(turn_cid, turn_sig, delivered_via="watcher")
 
@@ -472,17 +474,20 @@ class TranscriptWatcher:
                 return
 
             # Track pending clarifying question / options if present
-            if summary and summary.strip().endswith("?") and (" or " in summary.lower() or '"' in summary):
+            if (
+                summary
+                and summary.strip().endswith("?")
+                and (" or " in summary.lower() or '"' in summary)
+            ):
                 set_pending_question(turn_cid, summary)
 
             routing = getattr(getattr(cfg, "companion", None), "audio_routing", "smart")
             mute_mac_active = getattr(
                 getattr(cfg, "companion", None), "mute_mac_when_companion_active", True
             )
-            is_mobile = (
-                get_claimed_turn_origin(turn_cid, turn_sig, step_index=step_index) == "mobile"
-                or peek_mobile_turn_origin(turn_cid)
-            )
+            is_mobile = get_claimed_turn_origin(
+                turn_cid, turn_sig, step_index=step_index
+            ) == "mobile" or peek_mobile_turn_origin(turn_cid)
 
             if routing == "phone_only":
                 # Suppress local Mac playback when all speech is routed to phone
@@ -517,10 +522,15 @@ class TranscriptWatcher:
             respect_media = getattr(getattr(cfg, "tts", None), "respect_media_playback", True)
             if respect_media:
                 try:
-                    from voicefi.audio.media_detection import is_active_media_playing, wait_for_media_completion
+                    from voicefi.audio.media_detection import (
+                        is_active_media_playing,
+                        wait_for_media_completion,
+                    )
 
                     if is_active_media_playing():
-                        media_timeout = getattr(getattr(cfg, "tts", None), "media_pause_timeout", 600.0)
+                        media_timeout = getattr(
+                            getattr(cfg, "tts", None), "media_pause_timeout", 600.0
+                        )
                         cleared = wait_for_media_completion(max_wait_seconds=media_timeout)
                         if not cleared:
                             print(
@@ -588,6 +598,9 @@ class TranscriptWatcher:
                             except Exception:
                                 pass
 
+                self._notify_state(
+                    "speaking", persona_name=pname, agent_role=target_agent, text=spoken_text
+                )
                 tts_thread = threading.Thread(
                     target=_speak_and_finish_hud,
                     daemon=True,
@@ -874,9 +887,7 @@ class TranscriptWatcher:
                 try:
                     from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
 
-                    UnifiedDynamicIslandHUD.get_instance().show_done(
-                        preview_text=text_to_send[:20]
-                    )
+                    UnifiedDynamicIslandHUD.get_instance().show_done(preview_text=text_to_send[:20])
                 except Exception:
                     pass
             else:
@@ -885,13 +896,9 @@ class TranscriptWatcher:
 
                     hud = UnifiedDynamicIslandHUD.get_instance()
                     target_title = (
-                        conv_info.title[:20]
-                        if (conv_info and conv_info.title)
-                        else "Antigravity"
+                        conv_info.title[:20] if (conv_info and conv_info.title) else "Antigravity"
                     )
-                    hud.set_editing(
-                        text_to_send, on_submit=_send_payload, target_name=target_title
-                    )
+                    hud.set_editing(text_to_send, on_submit=_send_payload, target_name=target_title)
                 except Exception:
                     _send_payload(text_to_send)
         finally:
@@ -902,10 +909,17 @@ class TranscriptWatcher:
             except Exception:
                 pass
             try:
-                from voicefi.tts.base import get_cross_process_hud_state, clear_cross_process_hud_state
+                from voicefi.tts.base import (
+                    get_cross_process_hud_state,
+                    clear_cross_process_hud_state,
+                )
 
                 state_info = get_cross_process_hud_state()
-                if state_info and state_info.get("state") in ("listening", "hearing", "transcribing"):
+                if state_info and state_info.get("state") in (
+                    "listening",
+                    "hearing",
+                    "transcribing",
+                ):
                     clear_cross_process_hud_state()
             except Exception:
                 pass

@@ -88,7 +88,6 @@ def get_tier_properties() -> Dict[str, Any]:
         }
 
 
-
 def set_active_command(command: str):
     """Set the active command context for crash diagnostics and error tracking."""
     global _active_command
@@ -197,7 +196,10 @@ def init_telemetry():
     global _posthog_initialized
     if not is_telemetry_enabled():
         return
-    if os.getenv("VOICEFI_TESTING", "").lower() in ("1", "true", "yes") or "PYTEST_CURRENT_TEST" in os.environ:
+    if (
+        os.getenv("VOICEFI_TESTING", "").lower() in ("1", "true", "yes")
+        or "PYTEST_CURRENT_TEST" in os.environ
+    ):
         return
 
     try:
@@ -306,7 +308,10 @@ def capture_event(event_name: str, properties: Optional[Dict[str, Any]] = None):
     """Capture a sanitized telemetry/diagnostic event if telemetry is enabled."""
     if not is_telemetry_enabled():
         return
-    if os.getenv("VOICEFI_TESTING", "").lower() in ("1", "true", "yes") or "PYTEST_CURRENT_TEST" in os.environ:
+    if (
+        os.getenv("VOICEFI_TESTING", "").lower() in ("1", "true", "yes")
+        or "PYTEST_CURRENT_TEST" in os.environ
+    ):
         return
 
     if not _posthog_initialized:
@@ -462,12 +467,14 @@ def check_and_record_first_spoken_turn(props: Dict[str, Any]) -> bool:
     try:
         marker_file.parent.mkdir(parents=True, exist_ok=True)
         marker_file.write_text(
-            json.dumps({
-                "timestamp": time.time(),
-                "trigger": props.get("trigger", "unknown"),
-                "agent": props.get("agent", "unknown"),
-                "voice": props.get("voice", "unknown"),
-            }),
+            json.dumps(
+                {
+                    "timestamp": time.time(),
+                    "trigger": props.get("trigger", "unknown"),
+                    "agent": props.get("agent", "unknown"),
+                    "voice": props.get("voice", "unknown"),
+                }
+            ),
             encoding="utf-8",
         )
         milestone_props = {
@@ -513,11 +520,13 @@ def check_and_prompt_milestones(
         if total_turns >= 5:
             marker_file.parent.mkdir(parents=True, exist_ok=True)
             marker_file.write_text(
-                json.dumps({
-                    "timestamp": time.time(),
-                    "total_turns": total_turns,
-                    "milestone": "turn_5",
-                }),
+                json.dumps(
+                    {
+                        "timestamp": time.time(),
+                        "total_turns": total_turns,
+                        "milestone": "turn_5",
+                    }
+                ),
                 encoding="utf-8",
             )
             record_event(
@@ -721,4 +730,3 @@ def capture_license_activated(
         props["error"] = str(error)[:60]
 
     record_event("license_activated", props)
-

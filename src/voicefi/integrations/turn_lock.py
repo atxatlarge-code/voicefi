@@ -48,6 +48,7 @@ def _atomic_write_json(target_path: Path, data: Any) -> None:
             except OSError:
                 pass
 
+
 def is_pid_alive(pid: int) -> bool:
     """Check if process with given PID is currently active."""
     try:
@@ -324,6 +325,7 @@ def claim_active_conversation_turn(
     if not cid:
         try:
             from voicefi.integrations.conversations import load_session_cookie
+
             cookie = load_session_cookie()
             if cookie:
                 cid = cookie.get("conv_id")
@@ -334,7 +336,6 @@ def claim_active_conversation_turn(
     norm = _normalize_turn_signature(text)
     turn_sig = f"{cid}:explicit_{norm}"
     return claim_turn(cid, turn_sig, origin=origin, step_index=step_index)
-
 
 
 def get_claimed_turn_origin(
@@ -356,12 +357,7 @@ def get_claimed_turn_origin(
                 e_norm = e.get("norm_sig") or _normalize_turn_signature(e_sig)
                 e_cid = e.get("conv_id", "")
                 e_step = e.get("step_index")
-                if (
-                    conv_id
-                    and e_cid == conv_id
-                    and step_index is not None
-                    and e_step is not None
-                ):
+                if conv_id and e_cid == conv_id and step_index is not None and e_step is not None:
                     if e_step == step_index:
                         return e.get("origin")
                     continue
@@ -410,12 +406,7 @@ def get_turn_delivery_info(
                 e_cid = e.get("conv_id", "")
                 e_step = e.get("step_index")
                 match = False
-                if (
-                    conv_id
-                    and e_cid == conv_id
-                    and step_index is not None
-                    and e_step is not None
-                ):
+                if conv_id and e_cid == conv_id and step_index is not None and e_step is not None:
                     if e_step == step_index:
                         match = True
                     else:
@@ -474,9 +465,13 @@ def _matches_mobile_turn(cid: Optional[str], conv_id: Optional[str]) -> bool:
     clean_conv = str(conv_id).replace("claude_", "").replace("codex_", "")
     if clean_cid == clean_conv:
         return True
-    if (str(cid).startswith("claude") or "claude" in str(cid)) and (str(conv_id).startswith("claude") or "claude" in str(conv_id)):
+    if (str(cid).startswith("claude") or "claude" in str(cid)) and (
+        str(conv_id).startswith("claude") or "claude" in str(conv_id)
+    ):
         return True
-    if (str(cid).startswith("codex") or "codex" in str(cid)) and (str(conv_id).startswith("codex") or "codex" in str(conv_id)):
+    if (str(cid).startswith("codex") or "codex" in str(cid)) and (
+        str(conv_id).startswith("codex") or "codex" in str(conv_id)
+    ):
         return True
     return False
 
@@ -542,11 +537,16 @@ def record_companion_heartbeat(
             is_mobile_active = (num_mobile_clients > 0) and (num_clients > 0)
         else:
             # Backward-compatible default: single client parameter implies active mobile companion
-            is_mobile_active = (num_clients > 0)
+            is_mobile_active = num_clients > 0
 
         data = {
             "clients": max(0, num_clients),
-            "mobile_clients": max(0, num_mobile_clients if num_mobile_clients is not None else (1 if is_mobile_active else 0)),
+            "mobile_clients": max(
+                0,
+                num_mobile_clients
+                if num_mobile_clients is not None
+                else (1 if is_mobile_active else 0),
+            ),
             "has_mobile": is_mobile_active,
             "timestamp": time.time(),
         }
@@ -556,7 +556,9 @@ def record_companion_heartbeat(
         pass
 
 
-def has_active_companion_client(max_age_seconds: float = 25.0, require_mobile: bool = False) -> bool:
+def has_active_companion_client(
+    max_age_seconds: float = 25.0, require_mobile: bool = False
+) -> bool:
     """
     Return True if at least one companion client is connected and active.
     If require_mobile=False (default), any active companion (remote phone or browser) returns True
@@ -570,7 +572,11 @@ def has_active_companion_client(max_age_seconds: float = 25.0, require_mobile: b
             data = json.load(f)
         ts = data.get("timestamp", 0)
         count = data.get("clients", 0)
-        has_mobile = data.get("has_mobile", True) if "has_mobile" in data else (data.get("mobile_clients", 1) > 0)
+        has_mobile = (
+            data.get("has_mobile", True)
+            if "has_mobile" in data
+            else (data.get("mobile_clients", 1) > 0)
+        )
         if (time.time() - ts) < max_age_seconds and count > 0:
             if require_mobile:
                 return bool(has_mobile)

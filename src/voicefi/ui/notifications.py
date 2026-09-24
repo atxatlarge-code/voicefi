@@ -9,6 +9,7 @@ import subprocess
 _orig_rumps_notify = None
 try:
     import rumps
+
     _orig_rumps_notify = getattr(rumps, "notification", None)
 except Exception:
     pass

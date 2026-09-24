@@ -26,7 +26,19 @@ class ProjectContextExtractor:
         symbols: Set[str] = set()
 
         # 1. Common core dev & project keywords
-        symbols.update(["VoiceFi", "Antigravity", "Claude", "Hey Claude", "Python", "TypeScript", "macOS", "CLI", "API"])
+        symbols.update(
+            [
+                "VoiceFi",
+                "Antigravity",
+                "Claude",
+                "Hey Claude",
+                "Python",
+                "TypeScript",
+                "macOS",
+                "CLI",
+                "API",
+            ]
+        )
 
         # 2. Git branch name if available
         try:

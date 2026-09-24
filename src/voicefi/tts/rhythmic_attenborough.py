@@ -19,24 +19,34 @@ if sys.platform == "darwin":
     _brew_ffmpeg8 = "/opt/homebrew/Cellar/ffmpeg/8.1.2/lib"
     _cur_dyld = os.environ.get("DYLD_FALLBACK_LIBRARY_PATH", "")
     if _brew_ffmpeg8 not in _cur_dyld:
-        os.environ["DYLD_FALLBACK_LIBRARY_PATH"] = f"{_brew_ffmpeg8}:/opt/homebrew/lib:{_cur_dyld}".strip(":")
+        os.environ["DYLD_FALLBACK_LIBRARY_PATH"] = (
+            f"{_brew_ffmpeg8}:/opt/homebrew/lib:{_cur_dyld}".strip(":")
+        )
 
 from voicefi.audio.mastering import apply_broadcast_silk_mastering
 from voicefi.audio.rhythmic_beat_engine import RhythmicGrid, SAMPLE_RATE
 
 
-
-def load_wav_as_float32(path: Union[str, Path], target_sr: int = SAMPLE_RATE) -> Tuple[np.ndarray, int]:
+def load_wav_as_float32(
+    path: Union[str, Path], target_sr: int = SAMPLE_RATE
+) -> Tuple[np.ndarray, int]:
     """Reads a WAV file, converts to mono float32 (-1.0 to 1.0), and resamples if needed."""
     p = str(path)
     # Use ffmpeg for robust reading and automatic resampling to target_sr
     cmd = [
-        "ffmpeg", "-y", "-v", "error",
-        "-i", p,
-        "-ac", "1",
-        "-ar", str(target_sr),
-        "-f", "f32le",
-        "-"
+        "ffmpeg",
+        "-y",
+        "-v",
+        "error",
+        "-i",
+        p,
+        "-ac",
+        "1",
+        "-ar",
+        str(target_sr),
+        "-f",
+        "f32le",
+        "-",
     ]
     raw = subprocess.check_output(cmd)
     audio = np.frombuffer(raw, dtype=np.float32)
@@ -103,10 +113,13 @@ class RhythmicAttenboroughEngine:
         if self._f5_engine is None and self.use_f5_neural:
             try:
                 from voicefi.tts.f5_tts import F5TTS
+
                 if F5TTS.is_available():
                     self._f5_engine = F5TTS(device=self.device, persona_name="attenborough")
                 else:
-                    print("[RhythmicAttenborough] F5TTS is_available() returned False. Falling back to EdgeTTS.")
+                    print(
+                        "[RhythmicAttenborough] F5TTS is_available() returned False. Falling back to EdgeTTS."
+                    )
                     self._f5_engine = None
             except Exception as e:
                 print(f"[RhythmicAttenborough] F5TTS init notice: {e}. Falling back to EdgeTTS.")
@@ -141,7 +154,9 @@ class RhythmicAttenboroughEngine:
             try:
                 f5.speed = 0.92
                 f5.nfe_step = 32
-                print(f"[RhythmicAttenborough] Synthesizing clause with F5-TTS clone: '{clean_text}'")
+                print(
+                    f"[RhythmicAttenborough] Synthesizing clause with F5-TTS clone: '{clean_text}'"
+                )
                 ok = f5.speak_to_file(clean_text, temp_raw)
                 if ok and temp_raw.is_file() and temp_raw.stat().st_size > 500:
                     apply_broadcast_silk_mastering(temp_raw, output_wav)
@@ -158,7 +173,10 @@ class RhythmicAttenboroughEngine:
             import asyncio
             import edge_tts
 
-            print(f"[RhythmicAttenborough] Synthesizing clause with EdgeTTS fallback: '{clean_text}'")
+            print(
+                f"[RhythmicAttenborough] Synthesizing clause with EdgeTTS fallback: '{clean_text}'"
+            )
+
             async def _synth():
                 communicate = edge_tts.Communicate(
                     text=clean_text,
@@ -207,10 +225,10 @@ class RhythmicAttenboroughEngine:
             bar = item["bar"]
             beat = item.get("beat", 1.0)
             text = item["text"]
-            label = item.get("label", f"clause_{idx+1:02d}")
+            label = item.get("label", f"clause_{idx + 1:02d}")
 
             stem_path = work_dir / f"{label}.wav"
-            print(f"[RhythmicAttenborough] Synthesizing [{bar}.{beat:.1f}]: \"{text}\"...")
+            print(f'[RhythmicAttenborough] Synthesizing [{bar}.{beat:.1f}]: "{text}"...')
             success = self.synthesize_clause(text, stem_path)
 
             if success and stem_path.is_file():
@@ -233,18 +251,20 @@ class RhythmicAttenboroughEngine:
                 if actual_len > 0:
                     vocal_track[s_idx:end_idx] += audio[:actual_len]
 
-                manifest.append({
-                    "label": label,
-                    "bar": bar,
-                    "beat": beat,
-                    "grid_start_sec": grid_start_sec,
-                    "start_sec": start_sec,
-                    "end_sec": end_sec,
-                    "duration_sec": dur_sec,
-                    "text": text,
-                    "stem_path": str(stem_path),
-                })
+                manifest.append(
+                    {
+                        "label": label,
+                        "bar": bar,
+                        "beat": beat,
+                        "grid_start_sec": grid_start_sec,
+                        "start_sec": start_sec,
+                        "end_sec": end_sec,
+                        "duration_sec": dur_sec,
+                        "text": text,
+                        "stem_path": str(stem_path),
+                    }
+                )
             else:
-                print(f"[RhythmicAttenborough] ⚠️ Warning: Failed to synthesize clause {idx+1}")
+                print(f"[RhythmicAttenborough] ⚠️ Warning: Failed to synthesize clause {idx + 1}")
 
         return vocal_track, manifest

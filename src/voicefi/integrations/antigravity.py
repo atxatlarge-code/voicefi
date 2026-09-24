@@ -323,7 +323,9 @@ def extract_latest_agent_summary(
                             if len(clean_opts) == 2:
                                 synthesized_q = f"{q_text} Would you prefer {clean_opts[0]}, or {clean_opts[1]}?"
                             elif len(clean_opts) > 2:
-                                opt_str = ". ".join(f"Option {i+1}: {opt}" for i, opt in enumerate(clean_opts))
+                                opt_str = ". ".join(
+                                    f"Option {i + 1}: {opt}" for i, opt in enumerate(clean_opts)
+                                )
                                 synthesized_q = f"{q_text} {opt_str}."
                             else:
                                 synthesized_q = q_text
@@ -521,7 +523,11 @@ def handle_antigravity_stop_hook(
 
     try:
         # Track pending clarifying question / options if present
-        if summary and summary.strip().endswith("?") and (" or " in summary.lower() or '"' in summary):
+        if (
+            summary
+            and summary.strip().endswith("?")
+            and (" or " in summary.lower() or '"' in summary)
+        ):
             set_pending_question(conv_id, summary)
 
         if summary:
@@ -533,10 +539,9 @@ def handle_antigravity_stop_hook(
         mute_mac_active = getattr(
             getattr(cfg, "companion", None), "mute_mac_when_companion_active", True
         )
-        is_mobile = (
-            get_claimed_turn_origin(conv_id, turn_sig, step_index=step_index) == "mobile"
-            or peek_mobile_turn_origin(conv_id)
-        )
+        is_mobile = get_claimed_turn_origin(
+            conv_id, turn_sig, step_index=step_index
+        ) == "mobile" or peek_mobile_turn_origin(conv_id)
 
         if routing == "phone_only":
             return {}
@@ -561,13 +566,18 @@ def handle_antigravity_stop_hook(
         respect_media = getattr(getattr(cfg, "tts", None), "respect_media_playback", True)
         if respect_media:
             try:
-                from voicefi.audio.media_detection import is_active_media_playing, wait_for_media_completion
+                from voicefi.audio.media_detection import (
+                    is_active_media_playing,
+                    wait_for_media_completion,
+                )
 
                 if is_active_media_playing():
                     media_timeout = getattr(getattr(cfg, "tts", None), "media_pause_timeout", 600.0)
                     cleared = wait_for_media_completion(max_wait_seconds=media_timeout)
                     if not cleared:
-                        print("[AntigravityHook] 🎬 Media clip still playing after timeout. Skipping speech and auto-listen.")
+                        print(
+                            "[AntigravityHook] 🎬 Media clip still playing after timeout. Skipping speech and auto-listen."
+                        )
                         return {}
             except Exception:
                 pass
@@ -780,7 +790,9 @@ def handle_antigravity_stop_hook(
                     try:
                         from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
 
-                        UnifiedDynamicIslandHUD.get_instance().update_audio_level(energy, conf, is_spk)
+                        UnifiedDynamicIslandHUD.get_instance().update_audio_level(
+                            energy, conf, is_spk
+                        )
                     except Exception:
                         pass
 

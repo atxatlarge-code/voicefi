@@ -198,12 +198,19 @@ class EdgeTTS(BaseTTS):
 
         clean_text = normalize_tts_text(text)
         is_documentary_broadcaster = (
-            any(k in str(getattr(self, "persona_name", "")).lower() for k in ("documentary", "broadcaster", "attenborough"))
-            or any(k in str(getattr(self, "agent_name", "")).lower() for k in ("documentary", "broadcaster", "attenborough"))
+            any(
+                k in str(getattr(self, "persona_name", "")).lower()
+                for k in ("documentary", "broadcaster", "attenborough")
+            )
+            or any(
+                k in str(getattr(self, "agent_name", "")).lower()
+                for k in ("documentary", "broadcaster", "attenborough")
+            )
             or "thomas" in str(self.voice).lower()
         )
         if is_documentary_broadcaster:
             from voicefi.tts.normalizer import inject_documentary_breathing_pauses
+
             clean_text = inject_documentary_breathing_pauses(clean_text)
 
         self._stop_requested = False
@@ -264,7 +271,10 @@ class EdgeTTS(BaseTTS):
                                 play_path = temp_path
                                 if is_documentary_broadcaster:
                                     try:
-                                        from voicefi.audio.mastering import apply_bbc_documentary_mastering
+                                        from voicefi.audio.mastering import (
+                                            apply_bbc_documentary_mastering,
+                                        )
+
                                         play_path = str(apply_bbc_documentary_mastering(temp_path))
                                     except Exception:
                                         pass
@@ -325,11 +335,18 @@ class EdgeTTS(BaseTTS):
                             tp = tf.name
                             tf.close()
                             try:
+
                                 async def _run_with_timeout(txt, out):
                                     try:
-                                        await asyncio.wait_for(self._generate_audio(txt, out), timeout=15.0)
+                                        await asyncio.wait_for(
+                                            self._generate_audio(txt, out), timeout=15.0
+                                        )
                                     except asyncio.TimeoutError:
-                                        print(f"[EdgeTTS] Timeout generating chunk for '{txt}'", file=sys.stderr)
+                                        print(
+                                            f"[EdgeTTS] Timeout generating chunk for '{txt}'",
+                                            file=sys.stderr,
+                                        )
+
                                 asyncio.run(_run_with_timeout(s, tp))
                                 if Path(tp).is_file() and Path(tp).stat().st_size > 0:
                                     audio_queue.put(tp)
@@ -380,8 +397,13 @@ class EdgeTTS(BaseTTS):
                                     play_chunk = chunk_path
                                     if is_documentary_broadcaster:
                                         try:
-                                            from voicefi.audio.mastering import apply_bbc_documentary_mastering
-                                            play_chunk = str(apply_bbc_documentary_mastering(chunk_path))
+                                            from voicefi.audio.mastering import (
+                                                apply_bbc_documentary_mastering,
+                                            )
+
+                                            play_chunk = str(
+                                                apply_bbc_documentary_mastering(chunk_path)
+                                            )
                                         except Exception:
                                             pass
                                     set_agent_audio_playing(True)
@@ -439,18 +461,26 @@ class EdgeTTS(BaseTTS):
             return False
         clean_text = normalize_tts_text(text)
         is_documentary_broadcaster = (
-            any(k in str(getattr(self, "persona_name", "")).lower() for k in ("documentary", "broadcaster", "attenborough"))
-            or any(k in str(getattr(self, "agent_name", "")).lower() for k in ("documentary", "broadcaster", "attenborough"))
+            any(
+                k in str(getattr(self, "persona_name", "")).lower()
+                for k in ("documentary", "broadcaster", "attenborough")
+            )
+            or any(
+                k in str(getattr(self, "agent_name", "")).lower()
+                for k in ("documentary", "broadcaster", "attenborough")
+            )
             or "thomas" in str(self.voice).lower()
         )
         if is_documentary_broadcaster:
             from voicefi.tts.normalizer import inject_documentary_breathing_pauses
+
             clean_text = inject_documentary_breathing_pauses(clean_text)
         try:
             await self._generate_audio(clean_text, str(output_path))
             if is_documentary_broadcaster and Path(output_path).is_file():
                 try:
                     from voicefi.audio.mastering import apply_bbc_documentary_mastering
+
                     apply_bbc_documentary_mastering(output_path, output_path)
                 except Exception:
                     pass

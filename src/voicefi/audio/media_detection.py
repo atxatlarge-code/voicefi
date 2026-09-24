@@ -78,7 +78,9 @@ def is_quicktime_running() -> bool:
     try:
         from AppKit import NSRunningApplication
 
-        apps = NSRunningApplication.runningApplicationsWithBundleIdentifier_("com.apple.QuickTimePlayerX")
+        apps = NSRunningApplication.runningApplicationsWithBundleIdentifier_(
+            "com.apple.QuickTimePlayerX"
+        )
         if apps and len(apps) > 0:
             return True
         return False
@@ -223,7 +225,15 @@ def is_finder_quicklook_active() -> Tuple[bool, Optional[str]]:
             alpha = float(w.get("kCGWindowAlpha", 1.0))
 
             # 1. QuickLook UI service / qlmanage preview (must be active floating/presentation layer)
-            if ("quicklook" in owner_lower or owner.startswith("QuickLookUIService") or owner == "qlmanage") and alpha > 0.5 and layer in (3, 102, 1000):
+            if (
+                (
+                    "quicklook" in owner_lower
+                    or owner.startswith("QuickLookUIService")
+                    or owner == "qlmanage"
+                )
+                and alpha > 0.5
+                and layer in (3, 102, 1000)
+            ):
                 return True, f"Quick Look preview ({owner}) is open"
 
             # 2. Finder Quick Look: Floating (layer 3) or Presentation/Slideshow (layer 102 / 1000)
@@ -247,7 +257,11 @@ def is_dedicated_video_player_active() -> Tuple[bool, Optional[str]]:
     app_info = _get_frontmost_app_info()
     if app_info:
         bid, name = app_info
-        if bid in ("com.colliderli.iina", "org.videolan.vlc", "io.mpv") or name.lower() in ("iina", "vlc", "mpv"):
+        if bid in ("com.colliderli.iina", "org.videolan.vlc", "io.mpv") or name.lower() in (
+            "iina",
+            "vlc",
+            "mpv",
+        ):
             return True, f"{name} is active"
 
     # Cached mpv check (cached for 2.0s to avoid process fork churn)
@@ -264,7 +278,7 @@ def is_dedicated_video_player_active() -> Tuple[bool, Optional[str]]:
                 stderr=subprocess.DEVNULL,
                 timeout=0.1,
             )
-            _CACHED_MPV_ACTIVE = (res.returncode == 0)
+            _CACHED_MPV_ACTIVE = res.returncode == 0
             if _CACHED_MPV_ACTIVE:
                 return True, "mpv video player is active"
         except Exception:
@@ -386,7 +400,9 @@ def wait_for_media_completion(
             detail = info.get("detail", "media clip")
 
             if not logged_waiting:
-                print(f"[VoiceFi] 🎬 Active media playback detected ({detail}). Pausing speech until clip finishes...")
+                print(
+                    f"[VoiceFi] 🎬 Active media playback detected ({detail}). Pausing speech until clip finishes..."
+                )
                 logged_waiting = True
 
             if on_wait_tick:

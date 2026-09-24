@@ -114,6 +114,7 @@ class RelayClient:
             self.has_peer = False
             try:
                 from voicefi.integrations.conversations import record_companion_heartbeat
+
                 record_companion_heartbeat(0)
             except Exception:
                 pass
@@ -210,6 +211,7 @@ class RelayClient:
             if self.has_peer:
                 try:
                     from voicefi.integrations.conversations import record_companion_heartbeat
+
                     record_companion_heartbeat(1, num_mobile_clients=1, has_mobile=True)
                 except Exception:
                     pass
@@ -220,6 +222,7 @@ class RelayClient:
             self.has_peer = True
             try:
                 from voicefi.integrations.conversations import record_companion_heartbeat
+
                 record_companion_heartbeat(1, num_mobile_clients=1, has_mobile=True)
             except Exception:
                 pass
@@ -231,6 +234,7 @@ class RelayClient:
             self.has_peer = False
             try:
                 from voicefi.integrations.conversations import record_companion_heartbeat
+
                 record_companion_heartbeat(0, num_mobile_clients=0, has_mobile=False)
             except Exception:
                 pass
@@ -244,7 +248,10 @@ class RelayClient:
 
         elif msg_type in ("user_voice_command", "send_prompt"):
             from voicefi.integrations.injector import send_message_to_agent
-            from voicefi.integrations.conversations import set_mobile_turn_origin, record_companion_heartbeat
+            from voicefi.integrations.conversations import (
+                set_mobile_turn_origin,
+                record_companion_heartbeat,
+            )
 
             try:
                 record_companion_heartbeat(1, num_mobile_clients=1, has_mobile=True)
@@ -335,6 +342,7 @@ class RelayClient:
             if self.has_peer:
                 try:
                     from voicefi.integrations.conversations import record_companion_heartbeat
+
                     record_companion_heartbeat(1)
                 except Exception:
                     pass
@@ -366,10 +374,14 @@ class RelayClient:
                 self.session = aiohttp.ClientSession()
             self.live_ws = await self.session.ws_connect(url, heartbeat=15.0)
             self.live_task = asyncio.create_task(self._pipe_live_ws())
-            logger.info("[RelayClient] ⚡ Connected to local Gemini Live WS on Port %s", self.local_port)
+            logger.info(
+                "[RelayClient] ⚡ Connected to local Gemini Live WS on Port %s", self.local_port
+            )
         except Exception as e:
             logger.error("[RelayClient] Failed to connect to local live WS: %s", e)
-            await self.broadcast({"type": "error", "message": f"Could not connect to Gemini Live: {e}"})
+            await self.broadcast(
+                {"type": "error", "message": f"Could not connect to Gemini Live: {e}"}
+            )
 
     async def _stop_live_session(self) -> None:
         """Close the active Gemini Live proxy session."""

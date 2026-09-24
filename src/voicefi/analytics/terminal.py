@@ -198,9 +198,7 @@ def format_stats_dashboard(days: int = 7, store: Optional[AnalyticsStore] = None
         gaze_pct = flow_data.get("gaze_retention_pct", 100.0)
 
         saved_focus_str = (
-            f"+{mins_saved / 60.0:.1f} hrs"
-            if mins_saved >= 60.0
-            else f"+{mins_saved:.1f} mins"
+            f"+{mins_saved / 60.0:.1f} hrs" if mins_saved >= 60.0 else f"+{mins_saved:.1f} mins"
         )
         polling_str = (
             f"+{polling_mins / 60.0:.1f} hrs"
@@ -242,7 +240,7 @@ def format_stats_dashboard(days: int = 7, store: Optional[AnalyticsStore] = None
             lines.append(f"  {BOLD}• Physical & Cognitive Relief:{RESET}")
             if keystrokes > 0:
                 lines.append(
-                    f"    {DIM}↳ Mechanical Keystrokes:{RESET} {GREEN}{keystrokes:,} keys eliminated{RESET} {DIM}(~{int(round(keystrokes/5.0)):,} words spoken instead of typed){RESET}"
+                    f"    {DIM}↳ Mechanical Keystrokes:{RESET} {GREEN}{keystrokes:,} keys eliminated{RESET} {DIM}(~{int(round(keystrokes / 5.0)):,} words spoken instead of typed){RESET}"
                 )
             if window_swaps > 0:
                 lines.append(
@@ -271,7 +269,7 @@ def format_stats_dashboard(days: int = 7, store: Optional[AnalyticsStore] = None
         f"  ⭐ {BOLD}Star on GitHub:{RESET}      {CYAN}https://github.com/atxatlarge-code/voicefi{RESET}"
     )
     lines.append(
-        f"  💬 {BOLD}Feedback & Ideas:{RESET}    {DIM}vifi feedback submit \"<your thoughts>\"{RESET}"
+        f'  💬 {BOLD}Feedback & Ideas:{RESET}    {DIM}vifi feedback submit "<your thoughts>"{RESET}'
     )
     lines.append(f"{DIM}{'─' * 74}{RESET}")
     lines.append(

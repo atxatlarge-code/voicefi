@@ -24,7 +24,11 @@ SAMPLE_RATE = 48000
 
 BACKING_TRACKS = {
     "1": ROOT_DIR / "assets" / "audio" / "backing_tracks" / "track_01_einaudi_experience.mp3",
-    "2": ROOT_DIR / "assets" / "audio" / "backing_tracks" / "track_02_social_network_hand_covers_bruise.mp3",
+    "2": ROOT_DIR
+    / "assets"
+    / "audio"
+    / "backing_tracks"
+    / "track_02_social_network_hand_covers_bruise.mp3",
     "3": ROOT_DIR / "assets" / "audio" / "backing_tracks" / "track_03_m83_outro.mp3",
     "4": ROOT_DIR / "assets" / "audio" / "backing_tracks" / "track_04_kavinsky_nightcall.mp3",
     "5": ROOT_DIR / "assets" / "audio" / "backing_tracks" / "track_05_bittersweet_symphony.mp3",
@@ -36,7 +40,7 @@ SCRIPT_ACTS = [
         "Intro Runway",
         0.0,
         2.2,
-        "Catch the rhythm. Dice clatter rolls into the tray... Vocal starts at 0:02!"
+        "Catch the rhythm. Dice clatter rolls into the tray... Vocal starts at 0:02!",
     ),
     (
         "Act 1: The Spark & Bankruptcy",
@@ -44,72 +48,74 @@ SCRIPT_ACTS = [
         18.0,
         "9 months ago: after 3 years of severe underemployment, I filed for bankruptcy.\n"
         "Soon after, I started getting a flood of texts about my home,\n"
-        "and I started exploring what public data I could access."
+        "and I started exploring what public data I could access.",
     ),
     (
         "Act 2: The Pilot Kickoff",
         18.0,
         26.0,
-        "6 months ago: I started a pilot with a potential client to see if I could deliver tax delinquency lists."
+        "6 months ago: I started a pilot with a potential client to see if I could deliver tax delinquency lists.",
     ),
     (
         "Act 3: The County Auction",
         26.0,
         34.0,
-        "5 months ago: my home went to the county auction.\n"
-        "It sold for 40% of what I paid."
+        "5 months ago: my home went to the county auction.\nIt sold for 40% of what I paid.",
     ),
     (
         "Act 4: The Turnaround",
         34.0,
         46.0,
         "3 months ago: the pilot passed, and I was getting orders and beginning to make money again.\n"
-        "The orders were taking between 2 and 14 days to fulfill."
+        "The orders were taking between 2 and 14 days to fulfill.",
     ),
-    (
-        "Act 5: Speeding Up",
-        46.0,
-        52.0,
-        "1 month ago: orders were taking 1 to 7 days to fulfill."
-    ),
+    ("Act 5: Speeding Up", 46.0, 52.0, "1 month ago: orders were taking 1 to 7 days to fulfill."),
     (
         "Act 6: The Scale Today",
         52.0,
         58.0,
-        "Today: I just delivered 9 orders in less than 24 hours."
+        "Today: I just delivered 9 orders in less than 24 hours.",
     ),
     (
         "Act 7: The Antigravity Transformation",
         58.0,
         64.0,
-        "In the past 6 months, I built a real estate data pipeline by coding with Google Antigravity."
+        "In the past 6 months, I built a real estate data pipeline by coding with Google Antigravity.",
     ),
     (
         "Act 8: The 3-Year Contrast",
         64.0,
         69.5,
-        "The 3 years prior, I couldn't land a job in tech, despite a 13-year career."
+        "The 3 years prior, I couldn't land a job in tech, despite a 13-year career.",
     ),
     (
         "Act 9: The Wall Breakthrough & AI",
         69.5,
         76.0,
         "So what happens when a PMP gets a TBI and his professional life falls apart\n"
-        "until he starts coding with AI?"
+        "until he starts coding with AI?",
     ),
-    (
-        "Act 10: The Magic Hat Reveal & CTA",
-        76.0,
-        80.0,
-        "Follow me to find out ;)"
-    ),
+    ("Act 10: The Magic Hat Reveal & CTA", 76.0, 80.0, "Follow me to find out ;)"),
 ]
 
 TOTAL_EXPECTED_DUR = 84.0
 
+
 def restore_vocal(raw_wav: Path, clean_wav: Path) -> float:
     """Apply high-pass filter, dead-air trimming, and broadcast peak normalization."""
-    cmd = ["ffmpeg", "-y", "-i", str(raw_wav), "-f", "f32le", "-ac", "1", "-ar", str(SAMPLE_RATE), "pipe:1"]
+    cmd = [
+        "ffmpeg",
+        "-y",
+        "-i",
+        str(raw_wav),
+        "-f",
+        "f32le",
+        "-ac",
+        "1",
+        "-ar",
+        str(SAMPLE_RATE),
+        "pipe:1",
+    ]
     res = subprocess.run(cmd, capture_output=True, check=True)
     raw = np.frombuffer(res.stdout, dtype=np.float32).copy()
 
@@ -119,12 +125,12 @@ def restore_vocal(raw_wav: Path, clean_wav: Path) -> float:
     alpha = RC / (RC + dt)
     y = np.zeros_like(raw)
     for i in range(1, len(raw)):
-        y[i] = alpha * (y[i-1] + raw[i] - raw[i-1])
+        y[i] = alpha * (y[i - 1] + raw[i] - raw[i - 1])
     raw = y
 
     # 2. Dead-air trimming (50ms RMS window)
     win = int(0.05 * SAMPLE_RATE)
-    rms = np.array([np.sqrt(np.mean(raw[i:i+win]**2)) for i in range(0, len(raw)-win, win)])
+    rms = np.array([np.sqrt(np.mean(raw[i : i + win] ** 2)) for i in range(0, len(raw) - win, win)])
     thresh = 0.0030
     indices = np.where(rms > thresh)[0]
     if len(indices) > 0:
@@ -158,10 +164,12 @@ def restore_vocal(raw_wav: Path, clean_wav: Path) -> float:
 
     return len(trimmed) / SAMPLE_RATE
 
+
 def format_time(seconds: float) -> str:
     m = int(seconds // 60)
     s = int(seconds % 60)
     return f"{m:02d}:{s:02d}"
+
 
 def print_stationary_teleprompter():
     """Prints the entire teleprompter script once so it never flickers or scrolls."""
@@ -176,11 +184,16 @@ def print_stationary_teleprompter():
         print()
     print("=" * 76)
 
+
 def main():
     parser = argparse.ArgumentParser(description="VoiceFi Rock-Solid Studio Vocal Recorder")
-    parser.add_argument("-t", "--track", default="5", help="Backing track choice (1-5 or path, default: 5)")
+    parser.add_argument(
+        "-t", "--track", default="5", help="Backing track choice (1-5 or path, default: 5)"
+    )
     parser.add_argument("--take", type=int, default=2, help="Take number (default: 2)")
-    parser.add_argument("--no-backing", action="store_true", help="Record in silence without playing backing track")
+    parser.add_argument(
+        "--no-backing", action="store_true", help="Record in silence without playing backing track"
+    )
     args = parser.parse_args()
 
     track_choice = str(args.track)
@@ -193,7 +206,7 @@ def main():
     print(f"🎬 Current Take:     Take {args.take:02d}")
     print(f"🎵 Backing Track:    {track_title}")
     print(f"⏱️  Target Duration:  ~{TOTAL_EXPECTED_DUR:.0f}s (with 4s instrumental runway)")
-    print(f"🎧 Audio Monitor:    Please wear HEADPHONES so track does not bleed into mic!")
+    print("🎧 Audio Monitor:    Please wear HEADPHONES so track does not bleed into mic!")
     print("=" * 76)
 
     # Print teleprompter cleanly once
@@ -219,6 +232,7 @@ def main():
         )
 
     import sounddevice as sd
+
     audio_frames = []
     stop_event = threading.Event()
 
@@ -246,7 +260,7 @@ def main():
 
             sys.stdout.write(
                 f"\r🔴 \033[1;31mRECORDING\033[0m [\033[1;36m{format_time(elapsed)}\033[0m/{format_time(TOTAL_EXPECTED_DUR)}] "
-                f"[{bar}] {int(pct*100):2d}% | 🎯 \033[1;32m{active_name:<20}\033[0m | [Hit \033[1;33mENTER\033[0m to finish] "
+                f"[{bar}] {int(pct * 100):2d}% | 🎯 \033[1;32m{active_name:<20}\033[0m | [Hit \033[1;33mENTER\033[0m to finish] "
             )
             sys.stdout.flush()
             time.sleep(0.1)
@@ -294,9 +308,9 @@ def main():
     dur = restore_vocal(raw_path, clean_path)
     print(f"\n✅ Studio Vocal Restored: \033[1;32m{clean_path}\033[0m")
     print(f"   • Duration: {dur:.2f}s")
-    print(f"   • Level:    -0.9 dBFS True Peak (Broadcasting Silk)")
-    print(f"   • Filter:   85Hz High-Pass (plosives & desk thumps removed)")
-    print(f"   • Edits:    Clean lead-in & lead-out silence trimmed")
+    print("   • Level:    -0.9 dBFS True Peak (Broadcasting Silk)")
+    print("   • Filter:   85Hz High-Pass (plosives & desk thumps removed)")
+    print("   • Edits:    Clean lead-in & lead-out silence trimmed")
 
     # Link master vocal take
     master_symlink = ROOT_DIR / "assets" / "audio" / "jake_lienlogic_take_master.wav"
@@ -313,6 +327,7 @@ def main():
     print("\n" + "=" * 76)
     print(f"🎉 Take {args.take:02d} is locked and ready for video compilation!")
     print("=" * 76 + "\n")
+
 
 if __name__ == "__main__":
     main()

@@ -47,7 +47,9 @@ def play_sound_effect(name: str) -> str:
     if sfx_file and sfx_file.is_file():
         logger.info("🥁 [SFX] Triggered: %s (%s)", clean_name.upper(), sfx_file.name)
         try:
-            subprocess.Popen(["afplay", str(sfx_file)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.Popen(
+                ["afplay", str(sfx_file)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
             return f"Played sound effect '{clean_name}'"
         except Exception as e:
             return f"Error playing sound effect: {e}"
@@ -104,10 +106,13 @@ class GeminiLiveRunner:
         try:
             from google import genai
             from google.genai import types
+
             self._genai = genai
             self._types = types
         except ImportError:
-            raise ImportError("google-genai is required. Install with: pip install google-genai>=1.65.0")
+            raise ImportError(
+                "google-genai is required. Install with: pip install google-genai>=1.65.0"
+            )
 
         self.model = "gemini-3.8-live-extended-thinking" if use_thinking else model
         self.voice = voice if voice in VALID_GEMINI_LIVE_VOICES else "Puck"
@@ -125,7 +130,9 @@ class GeminiLiveRunner:
 
         thinking_cfg = None
         if self.use_thinking or "extended-thinking" in self.model:
-            t_level = getattr(self._types.ThinkingLevel, self.thinking_level, self._types.ThinkingLevel.LOW)
+            t_level = getattr(
+                self._types.ThinkingLevel, self.thinking_level, self._types.ThinkingLevel.LOW
+            )
             thinking_cfg = self._types.ThinkingConfig(thinking_level=t_level)
 
         return self._types.LiveConnectConfig(
@@ -135,9 +142,7 @@ class GeminiLiveRunner:
             ),
             speech_config=self._types.SpeechConfig(
                 voice_config=self._types.VoiceConfig(
-                    prebuilt_voice_config=self._types.PrebuiltVoiceConfig(
-                        voice_name=self.voice
-                    )
+                    prebuilt_voice_config=self._types.PrebuiltVoiceConfig(voice_name=self.voice)
                 )
             ),
             thinking_config=thinking_cfg,
@@ -214,8 +219,11 @@ class GeminiLiveRunner:
 
             try:
                 import base64
+
                 wav_bytes = out_wav.read_bytes()
-                audio_data_uri = f"data:audio/wav;base64,{base64.b64encode(wav_bytes).decode('ascii')}"
+                audio_data_uri = (
+                    f"data:audio/wav;base64,{base64.b64encode(wav_bytes).decode('ascii')}"
+                )
             except Exception as e:
                 logger.debug("Failed to encode audio_data_uri: %s", e)
 
@@ -231,6 +239,6 @@ class GeminiLiveRunner:
             "audio_data_uri": audio_data_uri,
             "duration_sec": duration_sec,
             "ttfa_ms": first_audio_ms,
-            "conn_ms": conn_ms if 'conn_ms' in locals() else None,
+            "conn_ms": conn_ms if "conn_ms" in locals() else None,
             "triggered_sfx": triggered_sfx,
         }

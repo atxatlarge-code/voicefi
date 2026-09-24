@@ -149,7 +149,15 @@ class MacSayTTS(BaseTTS):
                         if res.returncode != 0:
                             # Fallback without voice flag
                             subprocess.run(
-                                ["say", "-r", str(self.rate), "-o", str(temp_path), "--", clean_text],
+                                [
+                                    "say",
+                                    "-r",
+                                    str(self.rate),
+                                    "-o",
+                                    str(temp_path),
+                                    "--",
+                                    clean_text,
+                                ],
                                 stdout=subprocess.DEVNULL,
                                 stderr=subprocess.DEVNULL,
                             )

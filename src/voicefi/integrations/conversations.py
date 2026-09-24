@@ -41,8 +41,6 @@ def get_session_cookie_path() -> Path:
     return cookie_dir / "active_session.json"
 
 
-
-
 @dataclass
 class PendingQuestion:
     conv_id: str
@@ -210,9 +208,6 @@ def clear_pending_question(conv_id: Optional[str] = None) -> None:
             _PENDING_QUESTIONS_FILE.write_text(json.dumps(current, indent=2))
     except Exception:
         pass
-
-
-
 
 
 def save_session_cookie(
@@ -407,7 +402,11 @@ def get_latest_antigravity_conversation_id() -> Optional[str]:
             return str(active.id)
 
         for c in tracker.get_all_conversations(limit=10):
-            if getattr(c, "engine", "") == "antigravity" and not str(c.id).startswith("claude_") and not str(c.id).startswith("codex_"):
+            if (
+                getattr(c, "engine", "") == "antigravity"
+                and not str(c.id).startswith("claude_")
+                and not str(c.id).startswith("codex_")
+            ):
                 return str(c.id)
     except Exception:
         pass
@@ -476,7 +475,11 @@ class ConversationTracker:
                 p = Path(f)
                 try:
                     full = p.parent / "transcript_full.jsonl"
-                    m = max(os.path.getmtime(f), os.path.getmtime(str(full))) if full.is_file() else os.path.getmtime(f)
+                    m = (
+                        max(os.path.getmtime(f), os.path.getmtime(str(full)))
+                        if full.is_file()
+                        else os.path.getmtime(f)
+                    )
                 except Exception:
                     m = 0.0
                 candidates.append((m, p))
@@ -555,7 +558,9 @@ class ConversationTracker:
                     step_data = json.loads(l_str)
                     content_str = step_data.get("content", "")
                     if content_str and not workspace_path:
-                        m_ws = re.search(r"(/Users/[^\s\n\r\'\"<>]+/Projects/[A-Za-z0-9_.-]+)", content_str)
+                        m_ws = re.search(
+                            r"(/Users/[^\s\n\r\'\"<>]+/Projects/[A-Za-z0-9_.-]+)", content_str
+                        )
                         if m_ws:
                             workspace_path = m_ws.group(1)
                     for tc in step_data.get("tool_calls", []):
@@ -566,10 +571,18 @@ class ConversationTracker:
                             except Exception:
                                 args = {}
                         if isinstance(args, dict):
-                            for k in ("Cwd", "SearchPath", "DirectoryPath", "AbsolutePath", "TargetFile"):
+                            for k in (
+                                "Cwd",
+                                "SearchPath",
+                                "DirectoryPath",
+                                "AbsolutePath",
+                                "TargetFile",
+                            ):
                                 val = args.get(k)
                                 if val and isinstance(val, str) and "/Projects/" in val:
-                                    m_ws = re.search(r"(/Users/[^/]+/Projects/[A-Za-z0-9_.-]+)", val)
+                                    m_ws = re.search(
+                                        r"(/Users/[^/]+/Projects/[A-Za-z0-9_.-]+)", val
+                                    )
                                     if m_ws:
                                         workspace_path = m_ws.group(1)
                                         break
@@ -598,7 +611,9 @@ class ConversationTracker:
                             if clean:
                                 first_line = clean.split("\n")[0].strip()
                                 if first_line:
-                                    title = first_line[:45] + ("..." if len(first_line) > 45 else "")
+                                    title = first_line[:45] + (
+                                        "..." if len(first_line) > 45 else ""
+                                    )
                                     break
                     except Exception:
                         continue
@@ -690,7 +705,9 @@ class ConversationTracker:
                     else "antigravity"
                 )
             )
-            c_title = (cookie.get("title") if cookie else None) or f"{focus_engine.capitalize()} Session"
+            c_title = (
+                cookie.get("title") if cookie else None
+            ) or f"{focus_engine.capitalize()} Session"
             synth_info = ConversationInfo(
                 id=target_focus,
                 title=c_title,
@@ -723,6 +740,7 @@ class ConversationTracker:
             if engine == "codex":
                 try:
                     from voicefi.integrations.codex import find_recent_codex_sessions
+
                     clean_id = conv_id.replace("codex_", "")
                     for p in find_recent_codex_sessions(limit=30):
                         if clean_id in p.name or conv_id in p.name:
@@ -745,6 +763,7 @@ class ConversationTracker:
         if not title and transcript_path:
             if engine == "codex":
                 from voicefi.integrations.codex import parse_codex_session
+
                 info = parse_codex_session(transcript_path)
             elif engine == "claude":
                 info = parse_claude_session(transcript_path)
@@ -769,9 +788,17 @@ class ConversationTracker:
         if engine:
             clean_eng = engine.lower().strip()
             if clean_eng in ("claude", "claude_code"):
-                convs = [c for c in convs if getattr(c, "engine", "") == "claude" or c.id.startswith("claude_")]
+                convs = [
+                    c
+                    for c in convs
+                    if getattr(c, "engine", "") == "claude" or c.id.startswith("claude_")
+                ]
             elif clean_eng in ("codex", "chatgpt", "openai"):
-                convs = [c for c in convs if getattr(c, "engine", "") == "codex" or c.id.startswith("codex_")]
+                convs = [
+                    c
+                    for c in convs
+                    if getattr(c, "engine", "") == "codex" or c.id.startswith("codex_")
+                ]
             elif clean_eng in ("antigravity", "agy"):
                 convs = [
                     c
@@ -794,12 +821,16 @@ class ConversationTracker:
             now = time.time()
 
             # If the newest conversation on disk matches the cookie, it's definitely active
-            if latest_conv.id == cid or (
-                latest_conv.id.startswith("claude_")
-                and latest_conv.id.replace("claude_", "") == cid
-            ) or (
-                latest_conv.id.startswith("codex_")
-                and latest_conv.id.replace("codex_", "") == cid
+            if (
+                latest_conv.id == cid
+                or (
+                    latest_conv.id.startswith("claude_")
+                    and latest_conv.id.replace("claude_", "") == cid
+                )
+                or (
+                    latest_conv.id.startswith("codex_")
+                    and latest_conv.id.replace("codex_", "") == cid
+                )
             ):
                 self.active_focus_id = latest_conv.id
                 return latest_conv
@@ -834,6 +865,7 @@ class ConversationTracker:
                     engine = cookie.get("engine", "antigravity")
                     if engine == "codex" or "codex" in str(p) or "sessions" in str(p):
                         from voicefi.integrations.codex import parse_codex_session
+
                         info = parse_codex_session(p)
                         if info:
                             self.active_focus_id = info.id
@@ -869,6 +901,7 @@ class ConversationTracker:
                     parse_full_codex_conversation_details,
                     find_recent_codex_sessions,
                 )
+
                 for p in find_recent_codex_sessions(limit=50):
                     if clean_id in p.name or clean_id in str(p):
                         return parse_full_codex_conversation_details(p)
@@ -899,8 +932,13 @@ class ConversationTracker:
                 find_recent_codex_sessions,
                 parse_full_codex_conversation_details,
             )
+
             for p in find_recent_codex_sessions(limit=30):
-                if conv_id in p.name or p.stem == conv_id or (conv_id.startswith("codex_") and p.stem in conv_id):
+                if (
+                    conv_id in p.name
+                    or p.stem == conv_id
+                    or (conv_id.startswith("codex_") and p.stem in conv_id)
+                ):
                     return parse_full_codex_conversation_details(p)
         except Exception:
             pass
@@ -1397,14 +1435,22 @@ def parse_claude_session(session_path: Path) -> Optional[ConversationInfo]:
         # Generate human-friendly title
         if first_user_text:
             clean_first = clean_user_message(first_user_text)
-            first_line = clean_first.split("\n")[0].strip() if clean_first else first_user_text.split("\n")[0].strip()
+            first_line = (
+                clean_first.split("\n")[0].strip()
+                if clean_first
+                else first_user_text.split("\n")[0].strip()
+            )
             clean_first = first_line[:40] + ("..." if len(first_line) > 40 else "")
             if project_name:
                 title = f"{project_name}: {clean_first}"
             else:
                 title = clean_first
         else:
-            title = f"{project_name} ({session_id[:8]})" if project_name else f"Claude ({session_id[:8]})"
+            title = (
+                f"{project_name} ({session_id[:8]})"
+                if project_name
+                else f"Claude ({session_id[:8]})"
+            )
 
         status = "idle"
         if last_msg_type == "user" or has_tool_calls_pending:

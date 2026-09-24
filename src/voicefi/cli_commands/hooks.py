@@ -279,18 +279,25 @@ def cmd_hook(args: Any) -> None:
         return
 
     # Standalone fallback: execute in-process if background server is offline
+    cli_mod = sys.modules.get("voicefi.cli")
     if is_claude:
-        from voicefi.integrations.claude import handle_claude_stop_hook
+        hook_fn = getattr(cli_mod, "handle_claude_stop_hook", None) if cli_mod else None
+        if hook_fn is None:
+            from voicefi.integrations.claude import handle_claude_stop_hook as hook_fn
 
-        result = handle_claude_stop_hook(payload, config)
+        result = hook_fn(payload, config)
     elif is_codex:
-        from voicefi.integrations.codex import handle_codex_stop_hook
+        hook_fn = getattr(cli_mod, "handle_codex_stop_hook", None) if cli_mod else None
+        if hook_fn is None:
+            from voicefi.integrations.codex import handle_codex_stop_hook as hook_fn
 
-        result = handle_codex_stop_hook(payload, config)
+        result = hook_fn(payload, config)
     else:
-        from voicefi.integrations.antigravity import handle_antigravity_stop_hook
+        hook_fn = getattr(cli_mod, "handle_antigravity_stop_hook", None) if cli_mod else None
+        if hook_fn is None:
+            from voicefi.integrations.antigravity import handle_antigravity_stop_hook as hook_fn
 
-        result = handle_antigravity_stop_hook(payload, config)
+        result = hook_fn(payload, config)
 
     # Output clean JSON object as required by hook contract
     out = result if isinstance(result, dict) else {}

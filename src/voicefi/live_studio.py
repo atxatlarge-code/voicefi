@@ -58,10 +58,13 @@ class GeminiLiveStudio:
         try:
             from google import genai
             from google.genai import types
+
             self._genai = genai
             self._types = types
         except ImportError:
-            raise ImportError("google-genai is required. Install with: pip install google-genai>=1.65.0")
+            raise ImportError(
+                "google-genai is required. Install with: pip install google-genai>=1.65.0"
+            )
 
         self.model = "gemini-3.8-live-extended-thinking" if use_thinking else model
         self.voice = voice if voice in VALID_GEMINI_LIVE_VOICES else "Puck"
@@ -84,6 +87,7 @@ class GeminiLiveStudio:
         if self.needs_stt_bridge:
             try:
                 from voicefi.stt import get_stt_engine
+
                 self._stt_engine = get_stt_engine(self.config)
             except Exception as e:
                 logger.warning("Failed to initialize STT bridge engine: %s", e)
@@ -99,7 +103,11 @@ class GeminiLiveStudio:
         thinking_cfg = None
         if self.use_thinking or "extended-thinking" in self.model:
             level_enum = getattr(self._types, "ThinkingLevel", None)
-            t_level = getattr(level_enum, self.thinking_level, "LOW") if level_enum else self.thinking_level
+            t_level = (
+                getattr(level_enum, self.thinking_level, "LOW")
+                if level_enum
+                else self.thinking_level
+            )
             thinking_cfg = self._types.ThinkingConfig(thinking_level=t_level)
 
         return self._types.LiveConnectConfig(
@@ -109,9 +117,7 @@ class GeminiLiveStudio:
             ),
             speech_config=self._types.SpeechConfig(
                 voice_config=self._types.VoiceConfig(
-                    prebuilt_voice_config=self._types.PrebuiltVoiceConfig(
-                        voice_name=self.voice
-                    )
+                    prebuilt_voice_config=self._types.PrebuiltVoiceConfig(voice_name=self.voice)
                 )
             ),
             thinking_config=thinking_cfg,
@@ -135,9 +141,7 @@ class GeminiLiveStudio:
             self._send_lock = asyncio.Lock()
         async with self._send_lock:
             if self.session and self.is_running:
-                await self.session.send_realtime_input(
-                    activity_start=self._types.ActivityStart()
-                )
+                await self.session.send_realtime_input(activity_start=self._types.ActivityStart())
 
     async def _safe_send_media(self, chunk: bytes):
         if not self._send_lock:
@@ -228,6 +232,7 @@ class GeminiLiveStudio:
         """Continuously capture 20ms 16kHz PCM audio chunks and stream to Gemini."""
         logger.debug("Starting mic streaming loop...")
         from voicefi.audio.live_stream import calculate_rms
+
         MAX_SPEECH_CHUNKS = 500  # Cap utterance at 10 seconds (500 * 20ms)
 
         while self.is_running and self.stream and self.stream.is_running:
@@ -256,7 +261,10 @@ class GeminiLiveStudio:
                         self._speech_buffer.append(chunk)
                         self._silence_count += 1
                         # 25 chunks @ 20ms = 500ms trailing silence
-                        if self._silence_count >= 25 or len(self._speech_buffer) >= MAX_SPEECH_CHUNKS:
+                        if (
+                            self._silence_count >= 25
+                            or len(self._speech_buffer) >= MAX_SPEECH_CHUNKS
+                        ):
                             self._is_speaking_user = False
                             audio_bytes = b"".join(self._speech_buffer)
                             self._speech_buffer.clear()
@@ -345,7 +353,11 @@ class GeminiLiveStudio:
         config = self._build_live_config()
 
         # Print banner
-        tools_desc = "read_code_file, search_codebase, run_shell_check, trigger_sound_effect" if self.enable_tools else "None"
+        tools_desc = (
+            "read_code_file, search_codebase, run_shell_check, trigger_sound_effect"
+            if self.enable_tools
+            else "None"
+        )
         print("\n" + "=" * 68)
         print("🎙️   VoiceFi — Gemini Live Studio (Direct Audio Loop)")
         print("=" * 68)
@@ -353,8 +365,8 @@ class GeminiLiveStudio:
         print(f"  • Persona Voice:    {self.voice}")
         print(f"  • Thinking Level:   {self.thinking_level if self.use_thinking else 'Disabled'}")
         print(f"  • Background Tools: {tools_desc}")
-        print(f"  • Full-Duplex I/O:  16kHz Mic In ──► Gemini ──► 24kHz Speaker Out (20ms frames)")
-        print(f"  • Barge-In:         Enabled (<150ms cut-off)")
+        print("  • Full-Duplex I/O:  16kHz Mic In ──► Gemini ──► 24kHz Speaker Out (20ms frames)")
+        print("  • Barge-In:         Enabled (<150ms cut-off)")
         print("=" * 68)
         print("\nSpeak into your microphone. Say 'Tell me a joke', 'Check git status',")
         print("or ask any question about your codebase.")

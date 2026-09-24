@@ -3,8 +3,12 @@ Unit tests for Native macOS HUD Quick Controls and Fibonacci Pause Delay scale.
 """
 
 import os
+import sys
 import pytest
 from unittest.mock import MagicMock, patch
+
+if sys.platform != "darwin":
+    pytest.skip("macOS-only UI test requiring AppKit", allow_module_level=True)
 
 from voicefi.config import load_config, save_config, FIBONACCI_PAUSE_DELAYS
 from voicefi.ui.quick_controls import HUDQuickControlsPanel
@@ -21,7 +25,7 @@ def test_quick_controls_singleton():
     panel2 = HUDQuickControlsPanel.get_instance()
     assert panel1 is panel2
     assert panel1.PANEL_WIDTH == 480.0
-    assert panel1.PANEL_HEIGHT == 460.0
+    assert panel1.PANEL_HEIGHT == 630.0
 
 
 def test_quick_controls_proactive_listening_toggle(tmp_path, monkeypatch):

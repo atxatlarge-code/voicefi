@@ -18,6 +18,7 @@ class PeerHandlersMixin:
     async def handle_peer_info(self, request: web.Request) -> web.Response:
         """Provide local machine profile to authorized peer Macs on LAN."""
         from voicefi.network.peers import get_local_peer_info
+
         info = get_local_peer_info(self.config)
         return web.json_response(info)
 
@@ -56,6 +57,7 @@ class PeerHandlersMixin:
             )
 
             from voicefi.network.peers import get_computer_name
+
             return web.json_response(
                 {
                     "success": delivered,
@@ -99,5 +101,6 @@ class PeerHandlersMixin:
     async def handle_peers_list(self, request: web.Request) -> web.Response:
         """Return all discovered VoiceFi peer Macs on the local Wi-Fi / LAN."""
         from voicefi.network.peers import PeerDiscoveryEngine
+
         peers = await PeerDiscoveryEngine.discover_all(timeout=1.0)
         return web.json_response({"peers": [p.to_dict() for p in peers], "count": len(peers)})

@@ -21,6 +21,7 @@ def is_litert_available() -> bool:
     try:
         import litert_lm  # noqa: F401
         from google.antigravity import LiteRTAgentConfig  # noqa: F401
+
         return True
     except (ImportError, ModuleNotFoundError):
         return False
@@ -69,14 +70,16 @@ def list_imported_models() -> List[Dict[str, Any]]:
 
                 if model_file and model_file.exists():
                     stat = model_file.stat()
-                    results.append({
-                        "name": entry.name,
-                        "path": str(model_file.resolve()),
-                        "size_bytes": stat.st_size,
-                        "size_mb": round(stat.st_size / (1024 * 1024), 1),
-                        "size_gb": round(stat.st_size / (1024 * 1024 * 1024), 2),
-                        "modified_at": stat.st_mtime,
-                    })
+                    results.append(
+                        {
+                            "name": entry.name,
+                            "path": str(model_file.resolve()),
+                            "size_bytes": stat.st_size,
+                            "size_mb": round(stat.st_size / (1024 * 1024), 1),
+                            "size_gb": round(stat.st_size / (1024 * 1024 * 1024), 2),
+                            "modified_at": stat.st_mtime,
+                        }
+                    )
     except Exception as e:
         logger.warning(f"Error scanning LiteRT models directory: {e}")
 
@@ -377,7 +380,9 @@ class LocalModelEngine:
             # Fallback heuristic
             target = "antigravity"
             low = prompt.lower()
-            if any(w in low for w in ("battery", "time", "branch", "volume", "pause", "stop audio")):
+            if any(
+                w in low for w in ("battery", "time", "branch", "volume", "pause", "stop audio")
+            ):
                 target = "local_command"
             elif "claude" in low:
                 target = "claude"

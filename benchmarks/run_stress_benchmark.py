@@ -180,8 +180,11 @@ class BenchmarkRunner:
             patch("voicefi.telemetry.record_event", return_value=None),
             patch("voicefi.tts.get_tts_engine", return_value=mock_tts),
             patch("voicefi.cli.get_tts_engine", return_value=mock_tts),
+            patch("voicefi.cli_commands.audio.get_tts_engine", return_value=mock_tts),
             patch("voicefi.tts.base.is_duplicate_speech", return_value=False),
             patch("voicefi.tts.base.speech_turn_lock", side_effect=_mock_null_cm),
+            patch("benchmarks.run_stress_benchmark.speech_turn_lock", side_effect=_mock_null_cm),
+            patch("voicefi.tts.base.get_last_speech_stop_time", return_value=0.0),
             patch("voicefi.audio.output_lock.exclusive_audio", side_effect=_mock_null_cm),
             patch(
                 "voicefi.troubleshoot.AudioTroubleshooter.ping_voice_silently",
@@ -562,44 +565,41 @@ class BenchmarkRunner:
 
         def _cli_worker(idx: int):
             nonlocal errors_conc, total_chars_conc
-            buf_out = io.StringIO()
-            buf_err = io.StringIO()
             st = time.perf_counter()
             try:
-                with contextlib.redirect_stdout(buf_out), contextlib.redirect_stderr(buf_err):
-                    mode = idx % 4
-                    if mode == 0:
-                        cmd_server(argparse.Namespace(server_action="status", config=None))
-                    elif mode == 1:
-                        cmd_sfx(argparse.Namespace(name="boing", volume=0.5))
-                    elif mode == 2:
-                        txt = f"Parallel CLI #{idx}"
-                        with lock:
-                            total_chars_conc += len(txt)
-                        cmd_speak(
-                            argparse.Namespace(
-                                text=[txt],
-                                config=None,
-                                agent="antigravity",
-                                voice=None,
-                                provider=None,
-                                rate=None,
-                            )
+                mode = idx % 4
+                if mode == 0:
+                    cmd_server(argparse.Namespace(server_action="status", config=None))
+                elif mode == 1:
+                    cmd_sfx(argparse.Namespace(name="boing", volume=0.5))
+                elif mode == 2:
+                    txt = f"Parallel CLI #{idx}"
+                    with lock:
+                        total_chars_conc += len(txt)
+                    cmd_speak(
+                        argparse.Namespace(
+                            text=[txt],
+                            config=None,
+                            agent="antigravity",
+                            voice=None,
+                            provider=None,
+                            rate=None,
                         )
-                    else:
-                        cmd_send(
-                            argparse.Namespace(
-                                text=[f"Parallel send #{idx}"],
-                                to="antigravity",
-                                conv_id=None,
-                                reply=False,
-                                from_conv_id=None,
-                                from_engine="claude",
-                                sender_name=None,
-                                title=None,
-                                no_envelope=False,
-                            )
+                    )
+                else:
+                    cmd_send(
+                        argparse.Namespace(
+                            text=[f"Parallel send #{idx}"],
+                            to="antigravity",
+                            conv_id=None,
+                            reply=False,
+                            from_conv_id=None,
+                            from_engine="claude",
+                            sender_name=None,
+                            title=None,
+                            no_envelope=False,
                         )
+                    )
             except Exception:
                 with lock:
                     errors_conc += 1
@@ -609,10 +609,11 @@ class BenchmarkRunner:
                 latencies_conc.append(elapsed_ms)
 
         t0_conc = time.perf_counter()
-        with ThreadPoolExecutor(max_workers=15) as executor:
-            futures = [executor.submit(_cli_worker, i) for i in range(50)]
-            for f in as_completed(futures):
-                f.result()
+        with patch("builtins.print"):
+            with ThreadPoolExecutor(max_workers=15) as executor:
+                futures = [executor.submit(_cli_worker, i) for i in range(50)]
+                for f in as_completed(futures):
+                    f.result()
         total_time_conc = time.perf_counter() - t0_conc
 
         return {

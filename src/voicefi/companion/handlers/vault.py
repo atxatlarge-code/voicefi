@@ -113,13 +113,27 @@ class VaultHandlersMixin:
                     f"## Summary\n{synth.summary}\n",
                 ]
                 if synth.key_points:
-                    memo_parts.append("## Key Takeaways\n" + "\n".join(f"- {kp}" for kp in synth.key_points) + "\n")
+                    memo_parts.append(
+                        "## Key Takeaways\n"
+                        + "\n".join(f"- {kp}" for kp in synth.key_points)
+                        + "\n"
+                    )
                 if synth.diagram_code:
-                    memo_parts.append(f"## Architecture\n```{synth.diagram_type}\n{synth.diagram_code}\n```\n")
+                    memo_parts.append(
+                        f"## Architecture\n```{synth.diagram_type}\n{synth.diagram_code}\n```\n"
+                    )
                 if synth.action_items:
-                    memo_parts.append("## Action Items\n" + "\n".join(f"- [ ] {ai}" for ai in synth.action_items) + "\n")
+                    memo_parts.append(
+                        "## Action Items\n"
+                        + "\n".join(f"- [ ] {ai}" for ai in synth.action_items)
+                        + "\n"
+                    )
                 if synth.pr_checklist:
-                    memo_parts.append("## PR / Implementation Checklist\n" + "\n".join(f"- [ ] {c}" for c in synth.pr_checklist) + "\n")
+                    memo_parts.append(
+                        "## PR / Implementation Checklist\n"
+                        + "\n".join(f"- [ ] {c}" for c in synth.pr_checklist)
+                        + "\n"
+                    )
                 markdown = "\n".join(memo_parts)
 
             if not title:
@@ -159,7 +173,9 @@ class VaultHandlersMixin:
 
             from voicefi.integrations.obsidian import get_today_note_content
 
-            res = await asyncio.to_thread(get_today_note_content, vault_path=vault_path, config=self.config)
+            res = await asyncio.to_thread(
+                get_today_note_content, vault_path=vault_path, config=self.config
+            )
             return web.json_response(res)
         except Exception as e:
             logger.exception("handle_vault_today error: %s", e)

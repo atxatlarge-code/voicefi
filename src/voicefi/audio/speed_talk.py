@@ -236,7 +236,11 @@ def calculate_time_saved(
     mult = max(multiplier, 0.1)
     accelerated_seconds = baseline_seconds / mult
     seconds_saved = max(baseline_seconds - accelerated_seconds, 0.0)
-    time_saved_pct = ((baseline_seconds - accelerated_seconds) / baseline_seconds) * 100.0 if baseline_seconds > 0 else 0.0
+    time_saved_pct = (
+        ((baseline_seconds - accelerated_seconds) / baseline_seconds) * 100.0
+        if baseline_seconds > 0
+        else 0.0
+    )
 
     return {
         "char_count": char_count,
@@ -290,7 +294,7 @@ def build_intelligibility_filter_chain(
         pause_s = max(max_pause_ms / 1000.0, 0.05)
         # silenceremove: trim silence durations longer than pause_s to tight cadence
         filter_parts.append(
-            f"silenceremove=stop_periods=-1:stop_duration={pause_s:.3f}:stop_threshold=-40dB:leave_silence={pause_s/2.0:.3f}"
+            f"silenceremove=stop_periods=-1:stop_duration={pause_s:.3f}:stop_threshold=-40dB:leave_silence={pause_s / 2.0:.3f}"
         )
 
     # 2. Time stretch (atempo)
@@ -300,18 +304,12 @@ def build_intelligibility_filter_chain(
     # 3. High-frequency presence boost for consonant intelligibility at fast speeds
     if enhance_clarity and speed_multiplier >= 1.25:
         presence_db = min((speed_multiplier - 1.0) * 3.5, 4.5)  # +1.5dB to +4.5dB
-        filter_parts.append(
-            f"equalizer=f=3500:width_type=o:width=1.5:g={presence_db:.1f}"
-        )
-        filter_parts.append(
-            f"highshelf=f=8000:g={min(presence_db * 0.6, 2.5):.1f}"
-        )
+        filter_parts.append(f"equalizer=f=3500:width_type=o:width=1.5:g={presence_db:.1f}")
+        filter_parts.append(f"highshelf=f=8000:g={min(presence_db * 0.6, 2.5):.1f}")
 
     # 4. Level compression and peak limiter
     if speed_multiplier >= 1.25:
-        filter_parts.append(
-            "acompressor=threshold=-18dB:ratio=3:attack=10:release=80:makeup=2dB"
-        )
+        filter_parts.append("acompressor=threshold=-18dB:ratio=3:attack=10:release=80:makeup=2dB")
     filter_parts.append("alimiter=limit=-0.5dB:attack=5:release=50")
 
     return ",".join(filter_parts)
@@ -337,11 +335,7 @@ def accelerate_audio(
         raise FileNotFoundError(f"Input audio file not found: {in_p}")
 
     # If speed is 1.0 and no pause compression or clarity boost is requested, copy directly
-    if (
-        abs(speed_multiplier - 1.0) <= 0.01
-        and not compress_pauses
-        and not enhance_clarity
-    ):
+    if abs(speed_multiplier - 1.0) <= 0.01 and not compress_pauses and not enhance_clarity:
         shutil.copyfile(str(in_p), str(out_p))
         return out_p
 
@@ -513,7 +507,9 @@ def dynamic_ramp_audio(
             accelerate_audio(seg3_in, seg3_out, speed_multiplier=target_multiplier)
 
         # Concatenate segments using concat filter
-        valid_segs = [s for s in (seg1_out, seg2_out, seg3_out) if s.is_file() and s.stat().st_size > 0]
+        valid_segs = [
+            s for s in (seg1_out, seg2_out, seg3_out) if s.is_file() and s.stat().st_size > 0
+        ]
         if not valid_segs:
             return accelerate_audio(in_p, out_p, speed_multiplier=target_multiplier)
 

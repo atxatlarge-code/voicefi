@@ -3,8 +3,10 @@ Speed Talking acceleration, preset configuration, testing, and analytics subcomm
 """
 
 import time
+from pathlib import Path
 from typing import Any
 from voicefi.config import load_config, save_config
+from voicefi.tts import get_tts_engine
 
 
 def cmd_speed_talk(args):
@@ -40,11 +42,7 @@ def cmd_speed_talk(args):
     # If first argument is a preset name or multiplier e.g. 'vifi speed-talk fast' or 'vifi speed-talk 1.75x'
     if action in SPEED_PRESETS or (
         action
-        and (
-            action.endswith("x")
-            or action.endswith("%")
-            or action.replace(".", "", 1).isdigit()
-        )
+        and (action.endswith("x") or action.endswith("%") or action.replace(".", "", 1).isdigit())
     ):
         target_preset = action
         action = "set"
@@ -109,7 +107,9 @@ def cmd_speed_talk(args):
         config.speed_talking.preset = matched_preset
         save_config(config)
         wpm = multiplier_to_wpm(mult)
-        print(f"\n⚡ \033[1;32mSpeed Talking set to {matched_preset.upper()} ({mult}x / {wpm} WPM)\033[0m")
+        print(
+            f"\n⚡ \033[1;32mSpeed Talking set to {matched_preset.upper()} ({mult}x / {wpm} WPM)\033[0m"
+        )
         print("  Configuration saved to ~/.voicefi/config.yaml.\n")
         if not getattr(args, "silent", False) and not getattr(args, "quiet", False):
             try:
@@ -158,9 +158,7 @@ def cmd_speed_talk(args):
 
     if action == "ramp":
         target_val = (
-            getattr(args, "preset_or_multiplier", None)
-            or getattr(args, "preset", None)
-            or 1.75
+            getattr(args, "preset_or_multiplier", None) or getattr(args, "preset", None) or 1.75
         )
         target_mult = resolve_speed_multiplier(target_val)
         sample_text = getattr(args, "text", None) or (
@@ -174,9 +172,10 @@ def cmd_speed_talk(args):
         import tempfile
         import subprocess
 
-        with tempfile.NamedTemporaryFile(
-            suffix=".mp3", delete=False
-        ) as tf_in, tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf_out:
+        with (
+            tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tf_in,
+            tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf_out,
+        ):
             in_p = Path(tf_in.name)
             out_p = Path(tf_out.name)
         try:
@@ -203,7 +202,11 @@ def cmd_speed_talk(args):
         print("Escalating across speed presets to demonstrate intelligibility:\n")
         demo_steps = [
             ("normal", 1.0, "1.0x Normal baseline: standard conversational delivery."),
-            ("breezy", 1.25, "1.25x Breezy pace: effortless acceleration with zero cognitive load."),
+            (
+                "breezy",
+                1.25,
+                "1.25x Breezy pace: effortless acceleration with zero cognitive load.",
+            ),
             (
                 "fast",
                 1.5,
@@ -227,7 +230,7 @@ def cmd_speed_talk(args):
         ]
         for name, mult, phrase in demo_steps:
             wpm = multiplier_to_wpm(mult)
-            print(f"  • \033[1;36m{name.upper()} ({mult}x / {wpm} WPM)\033[0m: \"{phrase}\"")
+            print(f'  • \033[1;36m{name.upper()} ({mult}x / {wpm} WPM)\033[0m: "{phrase}"')
             try:
                 eng = get_tts_engine(config, speed_override=mult)
                 eng.speak(phrase, block=True)
@@ -264,9 +267,12 @@ def cmd_speed_talk(args):
     print("\n╭" + "─" * 66 + "╮")
     print("│ ⚡ \033[1mVoiceFi Speed Talking • Productivity Voice Engine\033[0m            │")
     print("╰" + "─" * 66 + "╯")
-    print(
-        f"  • Status:           {'🟢 \033[1;32mACTIVE\033[0m' if config.speed_talking.enabled else '⚪ \033[2mDisabled\033[0m (1.0x baseline)'}"
+    status_label = (
+        "🟢 \033[1;32mACTIVE\033[0m"
+        if config.speed_talking.enabled
+        else "⚪ \033[2mDisabled\033[0m (1.0x baseline)"
     )
+    print(f"  • Status:           {status_label}")
     print(
         f"  • Speed Multiplier: \033[1;36m{config.speed_talking.multiplier}x\033[0m ({wpm} WPM / {multiplier_to_edge_rate(config.speed_talking.multiplier)})"
     )
@@ -289,5 +295,3 @@ def cmd_speed_talk(args):
     print("   • \033[1;36mvifi speed-talk test\033[0m         Audition at current speed")
     print("   • \033[1;36mvifi speed-talk demo\033[0m         Play multi-speed showcase")
     print("   • \033[1;36mvifi speed-talk off\033[0m          Restore standard 1.0x speed\n")
-
-

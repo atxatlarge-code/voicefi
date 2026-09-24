@@ -115,7 +115,9 @@ def test_parse_full_claude_conversation_details(tmp_path):
 def test_send_message_to_agent_routing():
     """Test unified message dispatcher routes to Claude or Antigravity appropriately."""
     with patch("voicefi.integrations.injector.inject_text_to_claude", return_value=True) as mock_claude, \
-         patch("voicefi.integrations.injector.send_message_to_antigravity", return_value=True) as mock_ag:
+         patch("voicefi.integrations.injector.send_message_to_antigravity", return_value=True) as mock_ag, \
+         patch("voicefi.integrations.conversations.peek_mobile_turn_origin", return_value=False), \
+         patch("voicefi.integrations.conversations.has_active_companion_client", return_value=False):
 
         # 1. Claude session ID
         send_message_to_agent(conv_id="claude_12345", text="Run tests")
@@ -123,12 +125,15 @@ def test_send_message_to_agent_routing():
         mock_ag.assert_not_called()
 
     with patch("voicefi.integrations.injector.inject_text_to_claude", return_value=True) as mock_claude, \
-         patch("voicefi.integrations.injector.send_message_to_antigravity", return_value=True) as mock_ag:
+         patch("voicefi.integrations.injector.send_message_to_antigravity", return_value=True) as mock_ag, \
+         patch("voicefi.integrations.conversations.peek_mobile_turn_origin", return_value=False), \
+         patch("voicefi.integrations.conversations.has_active_companion_client", return_value=False):
 
         # 2. Antigravity session ID
         send_message_to_agent(conv_id="ag-conv-987", text="Create plan")
         mock_ag.assert_called_once_with(conv_id="ag-conv-987", text="Create plan", sender_name=None, title=None, from_conv_id=None, allow_foreground_fallback=False)
         mock_claude.assert_not_called()
+
 
 
 class ClaudeCompanionServerTestCase(AioHTTPTestCase):

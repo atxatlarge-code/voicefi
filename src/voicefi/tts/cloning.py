@@ -79,7 +79,9 @@ class ClonedVoiceProfile(BaseModel):
 
     @property
     def suggested_neural_base(self) -> str:
-        return self.acoustic_metrics.get("suggested_neural_base", self.calibrated_voice or "Ava (Premium)")
+        return self.acoustic_metrics.get(
+            "suggested_neural_base", self.calibrated_voice or "Ava (Premium)"
+        )
 
 
 def estimate_pitch_f0(audio_data: np.ndarray, sample_rate: int = 16000) -> float:
@@ -259,9 +261,18 @@ class VoiceCloneManager:
                 return p
 
         # Fallback alias mapping for documentary broadcaster
-        if target in ("attenborough", "sir david attenborough", "david attenborough", "documentary", "documentary_broadcaster"):
+        if target in (
+            "attenborough",
+            "sir david attenborough",
+            "david attenborough",
+            "documentary",
+            "documentary_broadcaster",
+        ):
             for p in self.list_cloned_voices():
-                if any(k in p.id.lower() or k in p.name.lower() for k in ("documentary", "broadcaster", "attenborough")):
+                if any(
+                    k in p.id.lower() or k in p.name.lower()
+                    for k in ("documentary", "broadcaster", "attenborough")
+                ):
                     return p
 
         return None
@@ -358,7 +369,7 @@ class VoiceCloneManager:
         labels_dict = labels or {}
         labels_dict.setdefault("cloned_by", "voicefi")
         labels_dict.setdefault("vocal_range", acoustics.get("vocal_range", "Unknown"))
-        
+
         # Auto-transcribe reference audio if not provided
         if ref_text and ref_text.strip():
             labels_dict["ref_text"] = ref_text.strip()
@@ -366,6 +377,7 @@ class VoiceCloneManager:
             try:
                 from voicefi.stt import get_stt_engine
                 from voicefi.config import load_config
+
                 cfg = load_config()
                 stt = get_stt_engine(cfg)
                 transcribed = stt.transcribe(str(stored_samples[0]))

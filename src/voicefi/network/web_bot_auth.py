@@ -23,6 +23,7 @@ import urllib.request
 try:
     from cryptography.hazmat.primitives.asymmetric import ed25519
     from cryptography.hazmat.primitives import serialization
+
     HAS_CRYPTOGRAPHY = True
 except ImportError:
     HAS_CRYPTOGRAPHY = False
@@ -48,6 +49,7 @@ def compute_jwk_thumbprint(x_b64: str) -> str:
 @dataclass
 class WebBotKeyPair:
     """Ed25519 keypair for Web Bot Auth signing and verification."""
+
     kid: str
     public_key_x: str
     private_key_d: Optional[str] = None
@@ -135,10 +137,10 @@ def sign_bot_headers(
 
     sig_input = (
         f'sig1=("@authority" "signature-agent");'
-        f'created={now};'
+        f"created={now};"
         f'keyid="{kp.kid}";'
         f'alg="ed25519";'
-        f'expires={expires};'
+        f"expires={expires};"
         f'nonce="{nonce}";'
         f'tag="{DEFAULT_TAG}"'
     )
@@ -188,7 +190,7 @@ def verify_bot_request(
 ) -> Tuple[bool, str]:
     """
     Verify incoming Web Bot Auth HTTP Message Signatures.
-    
+
     Returns (is_valid, reason).
     """
     if not HAS_CRYPTOGRAPHY:

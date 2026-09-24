@@ -8,7 +8,12 @@ Verifies:
 4. Active app context is preserved when transitioning from speaking -> finish_speech -> set_idle/listening.
 """
 
+import sys
 import pytest
+
+if sys.platform != "darwin":
+    pytest.skip("macOS-only UI test requiring AppKit", allow_module_level=True)
+
 from AppKit import NSImage, NSRunLoop, NSDate
 from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
 from voicefi.tts.base import clear_cross_process_hud_state, set_cross_process_hud_state, get_cross_process_hud_state

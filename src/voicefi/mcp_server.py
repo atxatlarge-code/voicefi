@@ -554,7 +554,6 @@ MCP_TOOLS: List[Dict[str, Any]] = [
 ]
 
 
-
 CLIENT_ID_ENV_VARS = ("VOICEFI_CLIENT_ID", "VOICEBOX_CLIENT_ID")
 
 
@@ -689,9 +688,7 @@ class VoiceFiMCPServer:
                         MCP_TOOLS, context=True, report_missing=True
                     )
                     tool_names = [
-                        t.get("name")
-                        for t in MCP_TOOLS
-                        if isinstance(t, dict) and t.get("name")
+                        t.get("name") for t in MCP_TOOLS if isinstance(t, dict) and t.get("name")
                     ]
                     ph.capture_tools_list(
                         tool_names=tool_names,
@@ -919,7 +916,9 @@ class VoiceFiMCPServer:
                 res = self._tool_local_status(args)
             else:
                 res = {
-                    "content": [{"type": "text", "text": f"Unknown tool '{name}' (not recognized)."}],
+                    "content": [
+                        {"type": "text", "text": f"Unknown tool '{name}' (not recognized)."}
+                    ],
                     "isError": True,
                 }
         except Exception as e:
@@ -940,7 +939,12 @@ class VoiceFiMCPServer:
                     txt = (err_msg or "").lower()
                     if "escape key" in txt or "interrupted" in txt or "stopping all speech" in txt:
                         err_type = "user_interrupted"
-                    elif "no text provided" in txt or "required" in txt or "invalid" in txt or "empty message" in txt:
+                    elif (
+                        "no text provided" in txt
+                        or "required" in txt
+                        or "invalid" in txt
+                        or "empty message" in txt
+                    ):
                         err_type = "validation_error"
                     elif "not recognized" in txt or "unknown" in txt:
                         err_type = "not_found"
@@ -985,9 +989,7 @@ class VoiceFiMCPServer:
                     from voicefi.telemetry import get_telemetry_id
 
                     intent = getattr(call_info, "intent", None) if call_info else None
-                    intent_source = (
-                        getattr(call_info, "intent_source", None) if call_info else None
-                    )
+                    intent_source = getattr(call_info, "intent_source", None) if call_info else None
                     props = {
                         "$mcp_server_name": SERVER_NAME,
                         "$mcp_server_version": SERVER_VERSION,
@@ -1069,6 +1071,7 @@ class VoiceFiMCPServer:
             pass
 
         import time
+
         start_time = time.time()
         err = None
         try:
@@ -1080,6 +1083,7 @@ class VoiceFiMCPServer:
             dur_ms = int((time.time() - start_time) * 1000)
             try:
                 from voicefi.telemetry import capture_voice_interaction
+
                 capture_voice_interaction(
                     trigger="mcp",
                     duration_ms=dur_ms,
@@ -1088,12 +1092,13 @@ class VoiceFiMCPServer:
                     voice=args.get("_resolved_persona"),
                     provider=args.get("_resolved_provider"),
                     chars_count=len(text),
-                    error_type=err
+                    error_type=err,
                 )
             except Exception:
                 pass
-        
+
         from voicefi.tts.base import is_speech_interrupted
+
         if is_speech_interrupted(start_time):
             return {
                 "content": [
@@ -1362,6 +1367,7 @@ class VoiceFiMCPServer:
 
         try:
             from voicefi.tts.cloning import VoiceCloneManager
+
             status_info["cloned_voices"] = [
                 {
                     "name": cv.name,
@@ -1405,6 +1411,7 @@ class VoiceFiMCPServer:
         cloned = None
         try:
             from voicefi.tts.cloning import VoiceCloneManager
+
             cloned = VoiceCloneManager().get_cloned_voice(persona_name)
         except Exception:
             pass
@@ -1636,10 +1643,14 @@ class VoiceFiMCPServer:
 
             result = asyncio.run(runner.run_prompt(prompt))
 
-            sfx_str = f"\n🥁 Co-timed SFX: {', '.join(result['triggered_sfx'])}" if result.get("triggered_sfx") else ""
+            sfx_str = (
+                f"\n🥁 Co-timed SFX: {', '.join(result['triggered_sfx'])}"
+                if result.get("triggered_sfx")
+                else ""
+            )
             summary_msg = (
                 f"🎙️ [Gemini 3.8 Live ({runner.model} | Voice: {runner.voice})]\n\n"
-                f"\"{result['transcript']}\"\n\n"
+                f'"{result["transcript"]}"\n\n'
                 f"⏱️ TTFA: {result['ttfa_ms']}ms | Audio: {result['duration_sec']:.2f}s{sfx_str}"
             )
             return {
@@ -1866,7 +1877,12 @@ class VoiceFiMCPServer:
         text = args.get("text", "")
         if not text or not isinstance(text, str):
             return {
-                "content": [{"type": "text", "text": "Error: 'text' parameter is required for vault_append."}],
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Error: 'text' parameter is required for vault_append.",
+                    }
+                ],
                 "isError": True,
             }
 
@@ -1876,7 +1892,9 @@ class VoiceFiMCPServer:
         res = append_quick_capture_to_vault(text, vault_path=vp)
         if res.get("status") != "ok":
             return {
-                "content": [{"type": "text", "text": f"Error: {res.get('error', 'Unknown vault error')}"}],
+                "content": [
+                    {"type": "text", "text": f"Error: {res.get('error', 'Unknown vault error')}"}
+                ],
                 "isError": True,
             }
 
@@ -1918,7 +1936,9 @@ class VoiceFiMCPServer:
         res = get_today_note_content(vault_path=vp)
         if res.get("status") != "ok":
             return {
-                "content": [{"type": "text", "text": f"Error: {res.get('error', 'Unknown vault error')}"}],
+                "content": [
+                    {"type": "text", "text": f"Error: {res.get('error', 'Unknown vault error')}"}
+                ],
                 "isError": True,
             }
 
@@ -1940,7 +1960,12 @@ class VoiceFiMCPServer:
         markdown = args.get("markdown", "").strip()
         if not title or not markdown:
             return {
-                "content": [{"type": "text", "text": "Error: 'title' and 'markdown' parameters are required for vault_memo."}],
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Error: 'title' and 'markdown' parameters are required for vault_memo.",
+                    }
+                ],
                 "isError": True,
             }
 
@@ -1950,7 +1975,9 @@ class VoiceFiMCPServer:
         res = save_memo_to_vault(memo_markdown=markdown, title=title, vault_path=vp)
         if res.get("status") != "ok":
             return {
-                "content": [{"type": "text", "text": f"Error: {res.get('error', 'Unknown vault error')}"}],
+                "content": [
+                    {"type": "text", "text": f"Error: {res.get('error', 'Unknown vault error')}"}
+                ],
                 "isError": True,
             }
 
@@ -2002,7 +2029,12 @@ class VoiceFiMCPServer:
         target = args.get("target_path") or args.get("target") or args.get("path")
         if not target:
             return {
-                "content": [{"type": "text", "text": "Error: 'target_path' parameter is required for voicefi_scout."}],
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Error: 'target_path' parameter is required for voicefi_scout.",
+                    }
+                ],
                 "isError": True,
             }
         query = (
@@ -2048,7 +2080,10 @@ class VoiceFiMCPServer:
         import concurrent.futures
         from voicefi.local import LocalBenchmarkRunner
 
-        prompt = args.get("prompt") or "Explain how distributed locks work in three concise bullet points."
+        prompt = (
+            args.get("prompt")
+            or "Explain how distributed locks work in three concise bullet points."
+        )
         test_name = args.get("test_name") or "Standard Prompt Benchmark"
 
         runner = LocalBenchmarkRunner()
@@ -2073,11 +2108,11 @@ class VoiceFiMCPServer:
                     {
                         "type": "text",
                         "text": f"⚡ **VoiceFi Performance Benchmark**\n\n```\n{table}\n```\n\n"
-                                f"• Engine: {res.target_engine}\n"
-                                f"• Backend: {res.backend_desc}\n"
-                                f"• Latency (TTFB): {res.ttfb_ms} ms\n"
-                                f"• Throughput: {res.tok_per_sec} tok/s\n"
-                                f"• Cost: ${res.cost_usd:.4f}",
+                        f"• Engine: {res.target_engine}\n"
+                        f"• Backend: {res.backend_desc}\n"
+                        f"• Latency (TTFB): {res.ttfb_ms} ms\n"
+                        f"• Throughput: {res.tok_per_sec} tok/s\n"
+                        f"• Cost: ${res.cost_usd:.4f}",
                     }
                 ],
                 "isError": False,
@@ -2205,11 +2240,7 @@ def test_posthog_mcp_analytics() -> Dict[str, Any]:
 
     host = (
         os.environ.get("POSTHOG_HOST")
-        or (
-            cfg.posthog_host
-            if cfg and hasattr(cfg, "posthog_host") and cfg.posthog_host
-            else ""
-        )
+        or (cfg.posthog_host if cfg and hasattr(cfg, "posthog_host") and cfg.posthog_host else "")
         or "https://us.i.posthog.com"
     )
 
@@ -2241,9 +2272,7 @@ def test_posthog_mcp_analytics() -> Dict[str, Any]:
         )
 
         # 2. Capture test tools list event
-        tool_names = [
-            t.get("name") for t in MCP_TOOLS if isinstance(t, dict) and t.get("name")
-        ]
+        tool_names = [t.get("name") for t in MCP_TOOLS if isinstance(t, dict) and t.get("name")]
         ph.capture_tools_list(
             tool_names=tool_names,
             distinct_id=distinct_id,
@@ -2278,9 +2307,7 @@ def test_posthog_mcp_analytics() -> Dict[str, Any]:
         elapsed_ms = (time.time() - start_time) * 1000
 
         masked_key = (
-            api_key[:8] + "..." + api_key[-4:]
-            if len(api_key) > 12
-            else (api_key[:4] + "...")
+            api_key[:8] + "..." + api_key[-4:] if len(api_key) > 12 else (api_key[:4] + "...")
         )
 
         return {
@@ -2313,4 +2340,3 @@ def run_mcp_server():
 
 if __name__ == "__main__":
     run_mcp_server()
-

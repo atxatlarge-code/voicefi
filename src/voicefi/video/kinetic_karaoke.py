@@ -346,7 +346,9 @@ function setActiveWord(activeIdx) {
         # Fallback: Chrome CLI per frame
         chrome_path = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
         if not os.path.exists(chrome_path):
-            chrome_path = shutil.which("google-chrome") or shutil.which("chromium") or "google-chrome"
+            chrome_path = (
+                shutil.which("google-chrome") or shutil.which("chromium") or "google-chrome"
+            )
 
         for state_idx in unique_states:
             png_file = state_png_map[state_idx]
@@ -412,4 +414,3 @@ function setActiveWord(activeIdx) {
         res = subprocess.run(cmd, capture_output=True, text=True)
         if res.returncode != 0:
             raise RuntimeError(f"Section compilation failed: {res.stderr}")
-

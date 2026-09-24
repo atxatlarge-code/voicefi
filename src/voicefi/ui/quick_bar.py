@@ -226,6 +226,7 @@ SUPPORTED_AGENTS = [
 # QuickPromptBarWindow Class
 # =========================================================================
 
+
 class QuickPromptBarWindow:
     """
     Floating stadium pill prompt window for VoiceFi.
@@ -276,7 +277,9 @@ class QuickPromptBarWindow:
         # Load persisted default agent
         try:
             cfg = load_config()
-            self.current_agent_id = getattr(cfg.global_hotkey, "quick_bar_agent", "antigravity") or "antigravity"
+            self.current_agent_id = (
+                getattr(cfg.global_hotkey, "quick_bar_agent", "antigravity") or "antigravity"
+            )
         except Exception:
             self.current_agent_id = "antigravity"
 
@@ -372,7 +375,9 @@ class QuickPromptBarWindow:
 
         # 4. Prompt Input Field
         agent_info = self._get_agent_info(self.current_agent_id)
-        self._text_field = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(48, 11), NSSize(360, 30)))
+        self._text_field = NSTextField.alloc().initWithFrame_(
+            NSRect(NSPoint(48, 11), NSSize(360, 30))
+        )
         self._text_field.setFont_(NSFont.systemFontOfSize_(15.0))
         self._text_field.setTextColor_(NSColor.whiteColor())
         self._text_field.setPlaceholderString_(agent_info["placeholder"])
@@ -413,7 +418,9 @@ class QuickPromptBarWindow:
 
         # Load VoiceFi Logo Asset
         icon_paths = [
-            Path(__file__).resolve().parent.parent.parent.parent / "assets" / "logo-voicefi-avatar-bold-dark-1024.png",
+            Path(__file__).resolve().parent.parent.parent.parent
+            / "assets"
+            / "logo-voicefi-avatar-bold-dark-1024.png",
             Path(__file__).resolve().parent.parent.parent.parent / "assets" / "VoiceFi.icns",
             Path.home() / ".voicefi" / "assets" / "VoiceFi.icns",
         ]
@@ -449,7 +456,9 @@ class QuickPromptBarWindow:
 
         action_img = NSImage.imageWithSystemSymbolName_accessibilityDescription_("waveform", None)
         if not action_img:
-            action_img = NSImage.imageWithSystemSymbolName_accessibilityDescription_("sparkles", None)
+            action_img = NSImage.imageWithSystemSymbolName_accessibilityDescription_(
+                "sparkles", None
+            )
         if action_img:
             cfg = NSImageSymbolConfiguration.configurationWithPointSize_weight_(16.0, 5)
             action_img = action_img.imageWithSymbolConfiguration_(cfg)
@@ -497,6 +506,7 @@ class QuickPromptBarWindow:
         item_speed = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
             "⚡ Toggle Speed Talking", None, ""
         )
+
         def _toggle_speed():
             try:
                 cfg = load_config()
@@ -504,6 +514,7 @@ class QuickPromptBarWindow:
                 save_config(cfg)
             except Exception:
                 pass
+
         target_speed = QuickBarActionTarget.alloc().initWithCallback_(_toggle_speed)
         self._targets.append(target_speed)
         item_speed.setTarget_(target_speed)
@@ -513,9 +524,12 @@ class QuickPromptBarWindow:
         item_settings = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
             "⚙️ VoiceFi Settings...", None, ""
         )
+
         def _open_settings():
             import subprocess
+
             subprocess.Popen(["open", "http://localhost:5141"])
+
         target_settings = QuickBarActionTarget.alloc().initWithCallback_(_open_settings)
         self._targets.append(target_settings)
         item_settings.setTarget_(target_settings)
@@ -538,7 +552,7 @@ class QuickPromptBarWindow:
         for agent in SUPPORTED_AGENTS:
             title = f"{agent['icon']} {agent['name']}"
             item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(title, None, "")
-            
+
             # Submenu or custom target to switch agent
             target = QuickBarActionTarget.alloc().initWithCallback_(
                 lambda a_id=agent["id"]: self.select_agent(a_id)
@@ -646,6 +660,7 @@ class QuickPromptBarWindow:
                     stt = get_stt_engine(cfg)
                     final_text = stt.transcribe(audio_data)
                     if final_text and final_text.strip():
+
                         def _set_final():
                             if self._text_field:
                                 self._text_field.setStringValue_(final_text.strip())
@@ -773,6 +788,7 @@ class QuickPromptBarWindow:
 
     def show(self, initial_text: Optional[str] = None):
         """Present floating prompt bar centered on active screen with text field focused."""
+
         def _do_show():
             if not self._panel:
                 self._build_panel()
@@ -795,6 +811,7 @@ class QuickPromptBarWindow:
             self._last_show_time = time.time()
             try:
                 from AppKit import NSRunningApplication
+
                 NSRunningApplication.currentApplication().activateWithOptions_(1 << 1)
             except Exception:
                 pass
@@ -817,6 +834,7 @@ class QuickPromptBarWindow:
 
     def hide(self):
         """Dismiss floating prompt bar."""
+
         def _do_hide():
             print("[QuickBar] 🪄 Hiding Quick Prompt Bar window", flush=True)
             if self.is_voice_active:
@@ -831,6 +849,7 @@ class QuickPromptBarWindow:
 
     def toggle(self, initial_text: Optional[str] = None):
         """Toggle prompt bar visibility."""
+
         def _do_toggle():
             if self._panel and self._panel.isVisible():
                 self.hide()

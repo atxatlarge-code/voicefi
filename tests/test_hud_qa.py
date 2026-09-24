@@ -9,8 +9,13 @@ Validates:
 """
 
 import os
+import sys
 from pathlib import Path
 import pytest
+
+if sys.platform != "darwin":
+    pytest.skip("macOS-only UI test requiring AppKit", allow_module_level=True)
+
 from AppKit import NSImage, NSData, NSRunLoop, NSDate
 from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
 

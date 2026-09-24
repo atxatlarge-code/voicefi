@@ -178,7 +178,11 @@ class WakeWordListener:
         while not self._stop_event.is_set():
             from voicefi.tts.base import is_mic_recording_active
 
-            if self._paused or is_mic_recording_active() or not getattr(self.config.wakeword, "enabled", True):
+            if (
+                self._paused
+                or is_mic_recording_active()
+                or not getattr(self.config.wakeword, "enabled", True)
+            ):
                 time.sleep(0.1)
                 continue
 
@@ -197,7 +201,11 @@ class WakeWordListener:
                         # Suppress listening while agent is speaking, audio is playing, or recently interrupted
                         from voicefi.tts.base import is_speech_interrupted
 
-                        if is_agent_speaking() or is_agent_audio_playing() or is_speech_interrupted():
+                        if (
+                            is_agent_speaking()
+                            or is_agent_audio_playing()
+                            or is_speech_interrupted()
+                        ):
                             recorded_frames.clear()
                             pre_roll.clear()
                             speech_started = False
@@ -251,7 +259,11 @@ class WakeWordListener:
                                 from voicefi.audio.meeting_detection import is_user_on_call
                                 from voicefi.audio.media_detection import is_active_media_playing
 
-                                if not is_user_on_call() and not is_active_media_playing() and len(recorded_frames) >= min_speech_chunks:
+                                if (
+                                    not is_user_on_call()
+                                    and not is_active_media_playing()
+                                    and len(recorded_frames) >= min_speech_chunks
+                                ):
                                     full_audio = np.concatenate(recorded_frames, axis=0)
                                     threading.Thread(
                                         target=self._process_candidate_audio,
@@ -284,7 +296,13 @@ class WakeWordListener:
         from voicefi.audio.meeting_detection import is_user_on_call
         from voicefi.audio.media_detection import is_active_media_playing
 
-        if is_user_on_call() or is_active_media_playing() or is_agent_speaking() or is_agent_audio_playing() or is_speech_interrupted():
+        if (
+            is_user_on_call()
+            or is_active_media_playing()
+            or is_agent_speaking()
+            or is_agent_audio_playing()
+            or is_speech_interrupted()
+        ):
             return
 
         try:
@@ -306,7 +324,6 @@ class WakeWordListener:
                     flush=True,
                 )
                 return
-
 
             # Check for wake word prefix
             matched_phrase, prompt = ActiveListeningEngine.extract_wakeword_and_prompt(

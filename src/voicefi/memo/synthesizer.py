@@ -86,4 +86,3 @@ class MemoSynthesizer(MemoCleaner):
             raw_transcript=raw_text,
             cleaned_transcript=cleaned,
         )
-

@@ -119,7 +119,13 @@ class AgentToolDetector:
         ag_mcp = Path.home() / ".gemini" / "antigravity" / "mcp" / "voicefi"
         if ag_mcp.is_dir():
             return True
-        cl_desktop = Path.home() / "Library" / "Application Support" / "Claude" / "claude_desktop_config.json"
+        cl_desktop = (
+            Path.home()
+            / "Library"
+            / "Application Support"
+            / "Claude"
+            / "claude_desktop_config.json"
+        )
         if cl_desktop.is_file():
             try:
                 if "voicefi" in cl_desktop.read_text(encoding="utf-8"):
@@ -140,6 +146,7 @@ class AgentToolDetector:
         """Check if process has macOS accessibility permissions."""
         try:
             import ApplicationServices
+
             return bool(ApplicationServices.AXIsProcessTrusted())
         except Exception:
             return True
@@ -149,8 +156,11 @@ class AgentToolDetector:
         """Check if a named macOS application is currently running."""
         try:
             from AppKit import NSWorkspace
+
             ws = NSWorkspace.sharedWorkspace()
-            running = [app.localizedName() for app in ws.runningApplications() if app.localizedName()]
+            running = [
+                app.localizedName() for app in ws.runningApplications() if app.localizedName()
+            ]
             return any(app_name.lower() in r.lower() for r in running)
         except Exception:
             return False
@@ -195,90 +205,108 @@ class AgentToolDetector:
             detail = "Hook Active • Transcripts Linked" if ag_hook else "Installed • Hook Inactive"
             if ag_running:
                 detail += " (Running)"
-            agents.append({
-                "id": "antigravity",
-                "name": "Google Antigravity",
-                "status": status,
-                "running": ag_running,
-                "hook_installed": ag_hook,
-                "detail": detail,
-            })
+            agents.append(
+                {
+                    "id": "antigravity",
+                    "name": "Google Antigravity",
+                    "status": status,
+                    "running": ag_running,
+                    "hook_installed": ag_hook,
+                    "detail": detail,
+                }
+            )
         else:
-            agents.append({
-                "id": "antigravity",
-                "name": "Google Antigravity",
-                "status": "offline",
-                "running": False,
-                "hook_installed": False,
-                "detail": "Not Detected",
-            })
+            agents.append(
+                {
+                    "id": "antigravity",
+                    "name": "Google Antigravity",
+                    "status": "offline",
+                    "running": False,
+                    "hook_installed": False,
+                    "detail": "Not Detected",
+                }
+            )
 
         if cl_detected or cl_running:
             status = "connected" if cl_hook else "ready"
             detail = "Hook Active • Desktop AX Ready" if cl_hook else "Detected • Hook Inactive"
             if cl_running:
                 detail += " (Running)"
-            agents.append({
-                "id": "claude_code",
-                "name": "Claude Code CLI & Desktop",
-                "status": status,
-                "running": cl_running,
-                "hook_installed": cl_hook,
-                "detail": detail,
-            })
+            agents.append(
+                {
+                    "id": "claude_code",
+                    "name": "Claude Code CLI & Desktop",
+                    "status": status,
+                    "running": cl_running,
+                    "hook_installed": cl_hook,
+                    "detail": detail,
+                }
+            )
         else:
-            agents.append({
-                "id": "claude_code",
-                "name": "Claude Code CLI & Desktop",
-                "status": "offline",
-                "running": False,
-                "hook_installed": False,
-                "detail": "Not Detected",
-            })
+            agents.append(
+                {
+                    "id": "claude_code",
+                    "name": "Claude Code CLI & Desktop",
+                    "status": "offline",
+                    "running": False,
+                    "hook_installed": False,
+                    "detail": "Not Detected",
+                }
+            )
 
         if codex_detected or codex_running:
             status = "connected" if codex_hook else "ready"
-            detail = "Hook Active • Transcripts Linked" if codex_hook else "Detected • Hook Inactive"
+            detail = (
+                "Hook Active • Transcripts Linked" if codex_hook else "Detected • Hook Inactive"
+            )
             if codex_running:
                 detail += " (Running)"
-            agents.append({
-                "id": "codex",
-                "name": "OpenAI Codex",
-                "status": status,
-                "running": codex_running,
-                "hook_installed": codex_hook,
-                "detail": detail,
-            })
+            agents.append(
+                {
+                    "id": "codex",
+                    "name": "OpenAI Codex",
+                    "status": status,
+                    "running": codex_running,
+                    "hook_installed": codex_hook,
+                    "detail": detail,
+                }
+            )
 
         if cursor_detected or cursor_running:
-            agents.append({
-                "id": "cursor",
-                "name": "Cursor Composer",
-                "status": "ready",
-                "running": cursor_running,
-                "hook_installed": False,
-                "detail": "Editor Running • Ready for Voice" if cursor_running else "Installed",
-            })
+            agents.append(
+                {
+                    "id": "cursor",
+                    "name": "Cursor Composer",
+                    "status": "ready",
+                    "running": cursor_running,
+                    "hook_installed": False,
+                    "detail": "Editor Running • Ready for Voice" if cursor_running else "Installed",
+                }
+            )
 
         if chatgpt_detected or chatgpt_running:
-            agents.append({
-                "id": "chatgpt",
-                "name": "ChatGPT for Mac",
-                "status": "ready",
-                "running": chatgpt_running,
-                "hook_installed": False,
-                "detail": "App Running • Ready for Voice" if chatgpt_running else "Installed",
-            })
+            agents.append(
+                {
+                    "id": "chatgpt",
+                    "name": "ChatGPT for Mac",
+                    "status": "ready",
+                    "running": chatgpt_running,
+                    "hook_installed": False,
+                    "detail": "App Running • Ready for Voice" if chatgpt_running else "Installed",
+                }
+            )
 
         if windsurf_detected or windsurf_running:
-            agents.append({
-                "id": "windsurf",
-                "name": "Windsurf Cascade",
-                "status": "ready",
-                "running": windsurf_running,
-                "hook_installed": False,
-                "detail": "Cascade Available",
-            })
+            agents.append(
+                {
+                    "id": "windsurf",
+                    "name": "Windsurf Cascade",
+                    "status": "ready",
+                    "running": windsurf_running,
+                    "hook_installed": False,
+                    "detail": "Cascade Available",
+                }
+            )
 
         comp = companion_summary or {}
         port = comp.get("port", 5141)
@@ -311,7 +339,9 @@ class AgentToolDetector:
                 "id": "accessibility",
                 "name": "Accessibility (Auto-Paste)",
                 "granted": ax_trusted,
-                "detail": "Window Focus & Paste Active" if ax_trusted else "Missing (Grant in macOS)",
+                "detail": "Window Focus & Paste Active"
+                if ax_trusted
+                else "Missing (Grant in macOS)",
             },
             {
                 "id": "microphone",
@@ -373,4 +403,3 @@ class AgentToolDetector:
                 "description": "Universal Ctrl+T dictation across all macOS apps",
             },
         }
-

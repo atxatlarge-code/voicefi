@@ -13,5 +13,3 @@ if os.environ.get("PYTHONHASHSEED") == "":
 from voicefi.compat import patch_pynput_darwin
 
 patch_pynput_darwin()
-
-

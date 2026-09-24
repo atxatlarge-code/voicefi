@@ -93,7 +93,9 @@ def cmd_benchmark(args: Any) -> None:
             print(runner.format_tot_history_table())
             return
 
-        target = getattr(args, "target", "src/voicefi/local/engine.py") or "src/voicefi/local/engine.py"
+        target = (
+            getattr(args, "target", "src/voicefi/local/engine.py") or "src/voicefi/local/engine.py"
+        )
         turns = getattr(args, "turns", 3) or 3
         cloud = getattr(args, "cloud", "gemini") or "gemini"
         prompt_words = getattr(args, "prompt", None)

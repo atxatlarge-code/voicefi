@@ -91,10 +91,16 @@ def get_tts_engine(
                 provider = persona.provider
     if speed_override is not None:
         from voicefi.audio.speed_talk import resolve_speed_multiplier, multiplier_to_wpm
+
         mult = resolve_speed_multiplier(speed_override)
         rate = multiplier_to_wpm(mult)
     elif rate_override is not None:
-        from voicefi.audio.speed_talk import resolve_speed_multiplier, multiplier_to_wpm, SPEED_PRESETS
+        from voicefi.audio.speed_talk import (
+            resolve_speed_multiplier,
+            multiplier_to_wpm,
+            SPEED_PRESETS,
+        )
+
         if isinstance(rate_override, str) and (
             rate_override.lower().strip() in SPEED_PRESETS
             or rate_override.lower().strip().endswith("x")
@@ -186,7 +192,9 @@ def get_tts_engine(
             if "Neural" in str(calibrated_v):
                 eng = EdgeTTS(
                     voice=calibrated_v,
-                    rate=f"{effective_rate}wpm" if isinstance(effective_rate, int) else effective_rate,
+                    rate=f"{effective_rate}wpm"
+                    if isinstance(effective_rate, int)
+                    else effective_rate,
                     pitch=getattr(clone_prof, "calibrated_pitch", "+0Hz") or "+0Hz",
                     volume=getattr(config.tts, "volume", 1.0),
                     streaming=config.tts.streaming,
@@ -203,12 +211,18 @@ def get_tts_engine(
             is_british = clone_prof and (
                 "British" in getattr(clone_prof, "vocal_range", "")
                 or "GB" in getattr(clone_prof, "calibrated_voice", "")
-                or any(k in getattr(clone_prof, "name", "").lower() for k in ("documentary", "broadcaster", "attenborough"))
+                or any(
+                    k in getattr(clone_prof, "name", "").lower()
+                    for k in ("documentary", "broadcaster", "attenborough")
+                )
             )
             if is_british:
                 kokoro_v = "bm_george"
                 kokoro_speed = 0.88
-            elif clone_prof and ("Bass" in getattr(clone_prof, "vocal_range", "") or "Baritone" in getattr(clone_prof, "vocal_range", "")):
+            elif clone_prof and (
+                "Bass" in getattr(clone_prof, "vocal_range", "")
+                or "Baritone" in getattr(clone_prof, "vocal_range", "")
+            ):
                 kokoro_v = "am_michael"
                 kokoro_speed = 1.0
             else:
@@ -217,11 +231,15 @@ def get_tts_engine(
 
             eng = KokoroTTS(
                 voice=kokoro_v,
-                speed=float(rate) / 200.0 if (rate and isinstance(rate, (int, float))) else kokoro_speed,
+                speed=float(rate) / 200.0
+                if (rate and isinstance(rate, (int, float)))
+                else kokoro_speed,
             )
         else:
             calibrated_v = (clone_prof.calibrated_voice if clone_prof else None) or (
-                voice if ("Neural" in str(voice) or "Premium" in str(voice)) else "en-GB-ThomasNeural"
+                voice
+                if ("Neural" in str(voice) or "Premium" in str(voice))
+                else "en-GB-ThomasNeural"
             )
             if "Neural" in str(calibrated_v):
                 eng = EdgeTTS(
@@ -251,19 +269,42 @@ def get_tts_engine(
             api_key=config.tts.elevenlabs_api_key or "",
             voice_id=resolved_voice_id,
         )
-    elif provider in ("gemini", "gemini_live"):
+    elif provider in (
+        "gemini",
+        "gemini_tts",
+        "gemini_flash",
+        "gemini_flash_tts",
+        "gemini_lite",
+        "gemini_flash_lite_tts",
+        "gemini_live",
+    ):
         from voicefi.config import resolve_gemini_api_key
 
         resolved_key = resolve_gemini_api_key(config)
-        live_model = (
-            getattr(getattr(config, "gemini", None), "live_model", "gemini-3.8-live")
-            if hasattr(config, "gemini")
-            else "gemini-3.8-live"
-        )
+        if provider == "gemini_live":
+            chosen_model = (
+                getattr(getattr(config, "gemini", None), "live_model", "gemini-3.8-live")
+                if hasattr(config, "gemini")
+                else "gemini-3.8-live"
+            )
+        elif provider in ("gemini_lite", "gemini_flash_lite_tts"):
+            chosen_model = (
+                getattr(
+                    getattr(config, "gemini", None), "tts_lite_model", "gemini-3.8-flash-lite-tts"
+                )
+                if hasattr(config, "gemini")
+                else "gemini-3.8-flash-lite-tts"
+            )
+        else:
+            chosen_model = (
+                getattr(getattr(config, "gemini", None), "tts_model", "gemini-3.8-flash-tts")
+                if hasattr(config, "gemini")
+                else "gemini-3.8-flash-tts"
+            )
         eng = GeminiTTS(
             api_key=resolved_key,
             voice=voice,
-            model=live_model,
+            model=chosen_model,
         )
     elif provider == "edge_tts":
         offline_v = None
@@ -286,9 +327,7 @@ def get_tts_engine(
         )
     else:
         # Default to native macOS say
-        eng = MacSayTTS(
-            voice=voice, rate=rate, volume=getattr(config.tts, "volume", 1.0)
-        )
+        eng = MacSayTTS(voice=voice, rate=rate, volume=getattr(config.tts, "volume", 1.0))
 
     persona = find_persona(voice)
     eng.agent_name = agent_name or "VoiceFi"

@@ -494,10 +494,7 @@ class ExpertVADPanel:
         def _do_show():
             w, h = self.PANEL_WIDTH, self.PANEL_HEIGHT
             if relative_to_rect:
-                x = (
-                    relative_to_rect.origin.x
-                    + (relative_to_rect.size.width - w) / 2.0
-                )
+                x = relative_to_rect.origin.x + (relative_to_rect.size.width - w) / 2.0
                 y = relative_to_rect.origin.y - h - 10.0
                 if y < 20.0:
                     y = relative_to_rect.origin.y + relative_to_rect.size.height + 10.0

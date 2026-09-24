@@ -10,11 +10,17 @@ import threading
 import time
 from pathlib import Path
 from typing import Optional, Dict, Any, List
-import rumps
+
+try:
+    import rumps
+except ImportError:
+    rumps = None
+
 from voicefi.ui.notifications import show_notification
 
-# Ensure all tray notifications fall back to AppleScript if rumps lacks CFBundleIdentifier
-rumps.notification = show_notification
+if rumps is not None:
+    # Ensure all tray notifications fall back to AppleScript if rumps lacks CFBundleIdentifier
+    rumps.notification = show_notification
 
 from voicefi import __version__
 from voicefi.config import load_config, save_config, get_default_config_path
@@ -147,7 +153,10 @@ def _safe_clear(menu_item):
             pass
 
 
-class VoiceFiTrayApp(rumps.App):
+_TrayAppBase = rumps.App if rumps is not None else object
+
+
+class VoiceFiTrayApp(_TrayAppBase):
     """macOS Status Bar Menu Application for VoiceFi."""
 
     _safe_clear = staticmethod(_safe_clear)
@@ -410,22 +419,24 @@ class VoiceFiTrayApp(rumps.App):
             )
             menu_items.extend([self.ax_warning_item, rumps.separator])
 
-        menu_items.extend([
-            self.companion_menu,
-            self.connected_tools_menu,
-            rumps.separator,
-            self.quick_bar_item,
-            self.talk_to_agent_item,
-            self.stop_speaking_item,
-            self.focus_agent_item,
-            self.listen_anywhere_item,
-            self.conversations_menu,
-            rumps.separator,
-            self.preferences_menu,
-            rumps.separator,
-            self.version_menu,
-            rumps.separator,
-        ])
+        menu_items.extend(
+            [
+                self.companion_menu,
+                self.connected_tools_menu,
+                rumps.separator,
+                self.quick_bar_item,
+                self.talk_to_agent_item,
+                self.stop_speaking_item,
+                self.focus_agent_item,
+                self.listen_anywhere_item,
+                self.conversations_menu,
+                rumps.separator,
+                self.preferences_menu,
+                rumps.separator,
+                self.version_menu,
+                rumps.separator,
+            ]
+        )
         self.menu = menu_items
 
         self._update_barge_in_menu_item()
@@ -476,7 +487,9 @@ class VoiceFiTrayApp(rumps.App):
 
                     def _set_title():
                         if is_avail:
-                            self.update_item.title = f"✨ Update Available (v{new_ver}) • Click to Update"
+                            self.update_item.title = (
+                                f"✨ Update Available (v{new_ver}) • Click to Update"
+                            )
                             if hasattr(self, "version_menu") and self.version_menu:
                                 self.version_menu.title = f"✨ Update Available (v{new_ver})"
                         else:
@@ -542,7 +555,9 @@ class VoiceFiTrayApp(rumps.App):
                     if res.get("in_place"):
                         self.update_item.title = f"✅ Updated to v{res.get('new_version', new_ver)}"
                     elif res.get("is_dmg"):
-                        self.update_item.title = f"💿 Installer Opened (v{res.get('new_version', new_ver)})"
+                        self.update_item.title = (
+                            f"💿 Installer Opened (v{res.get('new_version', new_ver)})"
+                        )
                     else:
                         try:
                             rumps.notification(
@@ -556,7 +571,9 @@ class VoiceFiTrayApp(rumps.App):
                 else:
                     try:
                         rumps.notification(
-                            "VoiceFi Update Error ⚠️", "Update Failed", str(res.get("error", "Error"))
+                            "VoiceFi Update Error ⚠️",
+                            "Update Failed",
+                            str(res.get("error", "Error")),
                         )
                     except Exception:
                         pass
@@ -644,14 +661,19 @@ class VoiceFiTrayApp(rumps.App):
         self._companion_target_engine = "claude" if is_claude else "antigravity"
 
         if is_claude:
-            from voicefi.integrations.injector import focus_terminal_app, _focus_and_click_claude_desktop
+            from voicefi.integrations.injector import (
+                focus_terminal_app,
+                _focus_and_click_claude_desktop,
+            )
 
             if not _focus_and_click_claude_desktop():
                 focus_terminal_app()
             display_title = title[:40] if title else f"Session {conv_id[:8]}"
             try:
                 rumps.notification(
-                    "VoiceFi • Claude Code Active", display_title, "Switched active agent to Claude Code"
+                    "VoiceFi • Claude Code Active",
+                    display_title,
+                    "Switched active agent to Claude Code",
                 )
             except Exception:
                 pass
@@ -667,7 +689,9 @@ class VoiceFiTrayApp(rumps.App):
             display_title = title[:40] if title else f"Conversation {conv_id[:8]}"
             try:
                 rumps.notification(
-                    "VoiceFi • Antigravity Linked", display_title, "Active thread switched in Antigravity"
+                    "VoiceFi • Antigravity Linked",
+                    display_title,
+                    "Active thread switched in Antigravity",
                 )
             except Exception:
                 pass
@@ -929,7 +953,6 @@ class VoiceFiTrayApp(rumps.App):
         self._ensure_companion_server_running()
         webbrowser.open(urls["localhost_url"] + "/rc")
 
-
     def copy_companion_link(self, _=None):
         """Copy companion pairing link to macOS clipboard."""
         from voicefi.companion.qr import get_companion_urls
@@ -945,6 +968,7 @@ class VoiceFiTrayApp(rumps.App):
 
         try:
             from voicefi.companion.relay_client import RelaySessionCredentials
+
             creds = RelaySessionCredentials.load_or_create()
             pair_url = creds.get_pairing_url()
         except Exception:
@@ -960,7 +984,11 @@ class VoiceFiTrayApp(rumps.App):
 
     def _get_companion_status_summary(self) -> Dict[str, Any]:
         """Get summary of companion connectivity from running server or relay."""
-        if hasattr(self, "server") and self.server and hasattr(self.server, "get_connectivity_summary"):
+        if (
+            hasattr(self, "server")
+            and self.server
+            and hasattr(self.server, "get_connectivity_summary")
+        ):
             try:
                 return self.server.get_connectivity_summary()
             except Exception:
@@ -987,6 +1015,7 @@ class VoiceFiTrayApp(rumps.App):
         if threading.current_thread() is not threading.main_thread():
             try:
                 from PyObjCTools import AppHelper
+
                 AppHelper.callAfter(self._build_companion_submenu)
             except Exception:
                 pass
@@ -1016,7 +1045,11 @@ class VoiceFiTrayApp(rumps.App):
             except Exception:
                 pass
             self._build_companion_submenu()
-            status_text = "Laptop muted while companion is connected" if new_val else "Laptop speakers active alongside companion"
+            status_text = (
+                "Laptop muted while companion is connected"
+                if new_val
+                else "Laptop speakers active alongside companion"
+            )
             rumps.notification("VoiceFi Audio Routing", "Laptop Speakers", status_text)
 
         mute_item = rumps.MenuItem(
@@ -1028,7 +1061,10 @@ class VoiceFiTrayApp(rumps.App):
         # Pairing QR code goes at top per user request
         items = [
             rumps.MenuItem("📷 Show Pairing QR Code...", callback=self.open_mobile_companion),
-            rumps.MenuItem("📱 Open in Browser (localhost:5141/rc)", callback=self.open_mobile_companion_browser),
+            rumps.MenuItem(
+                "📱 Open in Browser (localhost:5141/rc)",
+                callback=self.open_mobile_companion_browser,
+            ),
             rumps.MenuItem("📋 Copy Pairing Link", callback=self.copy_companion_link),
             rumps.separator,
             mute_item,
@@ -1041,7 +1077,11 @@ class VoiceFiTrayApp(rumps.App):
             def _cb(sender):
                 self._companion_target_engine = eng
                 try:
-                    from voicefi.integrations.conversations import save_session_cookie, load_session_cookie
+                    from voicefi.integrations.conversations import (
+                        save_session_cookie,
+                        load_session_cookie,
+                    )
+
                     cookie = load_session_cookie() or {}
                     save_session_cookie(
                         conv_id=cookie.get("conv_id"),
@@ -1054,9 +1094,14 @@ class VoiceFiTrayApp(rumps.App):
                 self._build_companion_submenu()
                 try:
                     name = "Claude Code" if eng == "claude" else "Antigravity"
-                    rumps.notification("VoiceFi Companion", "Target Agent Changed", f"Mobile & voice prompts route to {name}")
+                    rumps.notification(
+                        "VoiceFi Companion",
+                        "Target Agent Changed",
+                        f"Mobile & voice prompts route to {name}",
+                    )
                 except Exception:
                     pass
+
             return _cb
 
         active_name = "Google Antigravity" if active_engine == "antigravity" else "Claude Code"
@@ -1087,6 +1132,7 @@ class VoiceFiTrayApp(rumps.App):
         if threading.current_thread() is not threading.main_thread():
             try:
                 from PyObjCTools import AppHelper
+
                 AppHelper.callAfter(self._build_connected_tools_submenu)
             except Exception:
                 pass
@@ -1107,7 +1153,11 @@ class VoiceFiTrayApp(rumps.App):
         # Section: AI Coding Agents
         items.append(rumps.MenuItem("── AI Coding Agents ──", callback=None))
         for agent in matrix.get("agents", []):
-            icon = "🟢" if agent["status"] == "connected" else ("⚪" if agent["status"] == "ready" else "🔴")
+            icon = (
+                "🟢"
+                if agent["status"] == "connected"
+                else ("⚪" if agent["status"] == "ready" else "🔴")
+            )
             label = f"{icon} {agent['name']} ({agent['detail']})"
             items.append(rumps.MenuItem(label, callback=None))
 
@@ -1116,7 +1166,11 @@ class VoiceFiTrayApp(rumps.App):
         # Section: Bridges & Remote
         items.append(rumps.MenuItem("── Bridges & Protocols ──", callback=None))
         for bridge in matrix.get("bridges", []):
-            icon = "🟢" if bridge["status"] == "connected" else ("⚪" if bridge["status"] == "ready" else "🔴")
+            icon = (
+                "🟢"
+                if bridge["status"] == "connected"
+                else ("⚪" if bridge["status"] == "ready" else "🔴")
+            )
             label = f"{icon} {bridge['name']} ({bridge['detail']})"
             items.append(rumps.MenuItem(label, callback=None))
 
@@ -1127,15 +1181,23 @@ class VoiceFiTrayApp(rumps.App):
         for perm in matrix.get("permissions", []):
             icon = "✅" if perm["granted"] else "⚠️"
             label = f"{icon} {perm['name']} ({perm['detail']})"
-            cb = self.open_permissions if (not perm["granted"] and perm["id"] == "accessibility") else None
+            cb = (
+                self.open_permissions
+                if (not perm["granted"] and perm["id"] == "accessibility")
+                else None
+            )
             items.append(rumps.MenuItem(label, callback=cb))
 
         items.append(rumps.separator)
         items.append(
-            rumps.MenuItem("🔄 Test & Verify All Connections", callback=self.refresh_connected_tools)
+            rumps.MenuItem(
+                "🔄 Test & Verify All Connections", callback=self.refresh_connected_tools
+            )
         )
         items.append(
-            rumps.MenuItem("🪝 Link / Repair Agent Hooks (vifi setup --dev)", callback=self.repair_agent_hooks)
+            rumps.MenuItem(
+                "🪝 Link / Repair Agent Hooks (vifi setup --dev)", callback=self.repair_agent_hooks
+            )
         )
 
         self._safe_clear(self.connected_tools_menu)
@@ -1146,6 +1208,7 @@ class VoiceFiTrayApp(rumps.App):
         if threading.current_thread() is not threading.main_thread():
             try:
                 from PyObjCTools import AppHelper
+
                 AppHelper.callAfter(self.refresh_connected_tools)
             except Exception:
                 pass
@@ -1173,7 +1236,9 @@ class VoiceFiTrayApp(rumps.App):
             tools_active = []
             for ag in matrix.get("agents", []):
                 if ag.get("status") == "connected":
-                    tools_active.append(ag.get("name", "").replace("Google ", "").replace(" CLI & Desktop", ""))
+                    tools_active.append(
+                        ag.get("name", "").replace("Google ", "").replace(" CLI & Desktop", "")
+                    )
             for br in matrix.get("bridges", []):
                 if br.get("status") == "connected" and br.get("id") in ("mcp", "local_server"):
                     tools_active.append(br.get("name", "").replace("VoiceFi ", ""))
@@ -1220,6 +1285,7 @@ class VoiceFiTrayApp(rumps.App):
             try:
                 import argparse
                 from voicefi.cli import cmd_setup
+
                 args = argparse.Namespace(
                     all=True,
                     claude=True,
@@ -1246,7 +1312,13 @@ class VoiceFiTrayApp(rumps.App):
             except Exception as e:
                 print(f"[TrayApp] Notice linking hooks: {e}")
                 import subprocess
-                venv_vifi = Path(__file__).resolve().parent.parent.parent.parent / ".venv" / "bin" / "voicefi"
+
+                venv_vifi = (
+                    Path(__file__).resolve().parent.parent.parent.parent
+                    / ".venv"
+                    / "bin"
+                    / "voicefi"
+                )
                 cmd = [str(venv_vifi) if venv_vifi.is_file() else "voicefi", "setup", "--dev"]
                 subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             self.refresh_connected_tools()
@@ -1258,6 +1330,7 @@ class VoiceFiTrayApp(rumps.App):
         if threading.current_thread() is not threading.main_thread():
             try:
                 from PyObjCTools import AppHelper
+
                 AppHelper.callAfter(self._build_preferences_submenu)
             except Exception:
                 pass
@@ -1288,7 +1361,9 @@ class VoiceFiTrayApp(rumps.App):
             self.voice_memo_menu,
             rumps.separator,
             self.panel_item,
-            rumps.MenuItem("📝 Open Config File (~/.voicefi/config.yaml)", callback=self.open_config_file),
+            rumps.MenuItem(
+                "📝 Open Config File (~/.voicefi/config.yaml)", callback=self.open_config_file
+            ),
             self.troubleshoot_menu,
         ]
         self._safe_clear(self.preferences_menu)
@@ -1299,6 +1374,7 @@ class VoiceFiTrayApp(rumps.App):
         if threading.current_thread() is not threading.main_thread():
             try:
                 from PyObjCTools import AppHelper
+
                 AppHelper.callAfter(self._build_version_submenu)
             except Exception:
                 pass
@@ -1349,7 +1425,6 @@ class VoiceFiTrayApp(rumps.App):
                 loop.run_until_complete(app_runner.setup())
                 site = web.TCPSite(app_runner, "0.0.0.0", port)
                 loop.run_until_complete(site.start())
-
 
                 # Connect to Cloudflare Relay Session (companion.voicefi.app)
                 try:
@@ -2119,7 +2194,10 @@ class VoiceFiTrayApp(rumps.App):
     def toggle_quick_bar(self, _=None):
         """Toggle the floating Quick Prompt Bar window (debounced)."""
         now = time.time()
-        if hasattr(self, "_last_quick_bar_toggle_time") and (now - self._last_quick_bar_toggle_time) < 0.35:
+        if (
+            hasattr(self, "_last_quick_bar_toggle_time")
+            and (now - self._last_quick_bar_toggle_time) < 0.35
+        ):
             return
         self._last_quick_bar_toggle_time = now
         print("[VoiceFi] ⚡ toggle_quick_bar invoked", flush=True)
@@ -2142,10 +2220,7 @@ class VoiceFiTrayApp(rumps.App):
         Instantly stops all speech synthesis, cancels any active recording/dictation,
         and resets VoiceFi to idle.
         """
-        is_speaking = (
-            self._current_status == "speaking"
-            or is_agent_speaking()
-        )
+        is_speaking = self._current_status == "speaking" or is_agent_speaking()
         is_recording = (
             self._current_status in ("listening", "hearing", "ptt_listening", "new_conversation")
             or self.active_recorder is not None
@@ -2220,7 +2295,9 @@ class VoiceFiTrayApp(rumps.App):
 
         threading.Thread(target=_worker, daemon=True).start()
 
-    def trigger_talk_to_antigravity(self, ptt_mode: bool = False, target_engine: Optional[str] = None):
+    def trigger_talk_to_antigravity(
+        self, ptt_mode: bool = False, target_engine: Optional[str] = None
+    ):
         """Record voice prompt for active agent (Antigravity or Claude Code) without stealing window focus."""
         with self._listen_lock:
             if self._current_status in ("listening", "hearing", "ptt_listening"):
@@ -2230,7 +2307,7 @@ class VoiceFiTrayApp(rumps.App):
                 return
             self._current_status = "ptt_listening" if ptt_mode else "listening"
 
-        is_claude = (target_engine == "claude")
+        is_claude = target_engine == "claude"
         agent_label = "Claude Code" if is_claude else "Active Agent"
         print(f"[VoiceFi] 🎙️ Triggered Talk to {agent_label} (keeping current window focus)")
         stop_all_speech()
@@ -2238,7 +2315,9 @@ class VoiceFiTrayApp(rumps.App):
             self.watcher.interrupt()
 
         hud = UnifiedDynamicIslandHUD.get_instance()
-        hud.set_listening(user_name="Claude" if is_claude else getattr(self.config, "user_name", "Jake"))
+        hud.set_listening(
+            user_name="Claude" if is_claude else getattr(self.config, "user_name", "Jake")
+        )
 
         self._ptt_stop_event = threading.Event()
 
@@ -2247,7 +2326,11 @@ class VoiceFiTrayApp(rumps.App):
             if self.wakeword_listener:
                 self.wakeword_listener.pause()
             try:
-                active_conv = self.watcher.tracker.get_active_or_latest(engine=target_engine) if self.watcher else None
+                active_conv = (
+                    self.watcher.tracker.get_active_or_latest(engine=target_engine)
+                    if self.watcher
+                    else None
+                )
                 if self.config.audio_cues.enabled:
                     play_chime("start", block=False)
                 time.sleep(0.25)
@@ -2265,15 +2348,26 @@ class VoiceFiTrayApp(rumps.App):
                         hud.show_paused("⏸️ Agent Speaking (Paused)...")
                     else:
                         self._current_status = "ptt_listening" if ptt_mode else "listening"
-                        hud.set_listening(user_name="Claude" if is_claude else getattr(self.config, "user_name", "Jake"))
+                        hud.set_listening(
+                            user_name="Claude"
+                            if is_claude
+                            else getattr(self.config, "user_name", "Jake")
+                        )
 
                 def _on_speech_start():
                     self._current_status = "hearing"
-                    hud.set_hearing(user_name="Claude" if is_claude else getattr(self.config, "user_name", "Jake"))
+                    hud.set_hearing(
+                        user_name="Claude"
+                        if is_claude
+                        else getattr(self.config, "user_name", "Jake")
+                    )
 
                 def _on_live(txt: str):
                     hud.update_live_transcription(
-                        txt, user_name="Claude" if is_claude else getattr(self.config, "user_name", "Jake")
+                        txt,
+                        user_name="Claude"
+                        if is_claude
+                        else getattr(self.config, "user_name", "Jake"),
                     )
 
                 def _on_tick(energy: float, conf: float = 0.0, is_spk: bool = False):
@@ -2325,14 +2419,16 @@ class VoiceFiTrayApp(rumps.App):
                         res = send_message_to_agent(
                             conv_id=conv_id,
                             text=payload_text,
-                            sender_name=f"{self.config.user_name} (Voice)" if is_claude else self.config.user_name,
+                            sender_name=f"{self.config.user_name} (Voice)"
+                            if is_claude
+                            else self.config.user_name,
                             target_engine=target_eng,
                             use_headless=True if is_claude else None,
                             allow_foreground_fallback=True,
                         )
                         if res and getattr(res, "success", False):
                             print(
-                                f"[VoiceFi] 🚀 Delivered prompt to {target_eng or 'agent'} ({getattr(res, 'delivery_type', 'direct')}): \"{payload_text[:40]}...\""
+                                f'[VoiceFi] 🚀 Delivered prompt to {target_eng or "agent"} ({getattr(res, "delivery_type", "direct")}): "{payload_text[:40]}..."'
                             )
                         else:
                             err = getattr(res, "error", None) or "Dispatch failed"
@@ -2341,7 +2437,11 @@ class VoiceFiTrayApp(rumps.App):
                         if self.config.audio_cues.enabled:
                             play_chime(self.config.audio_cues.sent_chime, block=False)
                         try:
-                            title = active_conv.title if active_conv else ("Claude Code" if is_claude else "Active Agent")
+                            title = (
+                                active_conv.title
+                                if active_conv
+                                else ("Claude Code" if is_claude else "Active Agent")
+                            )
                             rumps.notification(
                                 f"VoiceFi • {title[:30]}", "Prompt Sent", payload_text[:80]
                             )
@@ -2614,11 +2714,10 @@ class VoiceFiTrayApp(rumps.App):
                         alt = "alt" in modifiers
                         mod = ctrl or cmd
 
-                        is_speaking = (
-                            self._current_status == "speaking"
-                            or is_agent_speaking()
+                        is_speaking = self._current_status == "speaking" or is_agent_speaking()
+                        is_recently_speaking = is_speaking or bool(
+                            get_recent_speaking_info(window_seconds=3.0)
                         )
-                        is_recently_speaking = is_speaking or bool(get_recent_speaking_info(window_seconds=3.0))
                         is_recording = (
                             self._current_status
                             in ("listening", "hearing", "ptt_listening", "new_conversation")
@@ -2635,20 +2734,28 @@ class VoiceFiTrayApp(rumps.App):
 
                         # 1. Escape: stop speech or cancel recording (dispatched asynchronously off event tap thread)
                         if is_escape_key(key):
-                            if (is_speaking or is_recording) and _debounce("esc_stop", interval=0.2):
-                                threading.Thread(target=self.handle_escape_press, daemon=True).start()
+                            if (is_speaking or is_recording) and _debounce(
+                                "esc_stop", interval=0.2
+                            ):
+                                threading.Thread(
+                                    target=self.handle_escape_press, daemon=True
+                                ).start()
                             return
 
                         # 1.5 Option+Tab while speaking: focus the window where speech originated
                         if is_option_tab_event(key, modifiers):
                             if is_recently_speaking and _debounce("tab_focus", interval=0.35):
-                                threading.Thread(target=focus_speaking_agent_window, daemon=True).start()
+                                threading.Thread(
+                                    target=focus_speaking_agent_window, daemon=True
+                                ).start()
                             return
 
                         # 2. Enter while recording: finish active recording immediately
                         if key == Key.enter or vk in (36, 76):
                             if is_recording:
-                                threading.Thread(target=self.finish_active_recording, daemon=True).start()
+                                threading.Thread(
+                                    target=self.finish_active_recording, daemon=True
+                                ).start()
                                 return
 
                         # 2.5 Quick Prompt Bar (Control+Space only)
@@ -2658,13 +2765,7 @@ class VoiceFiTrayApp(rumps.App):
                             or char in (" ", "\x00", "\x20")
                             or str(key) == "Key.space"
                         )
-                        is_ctrl_space = (
-                            ctrl
-                            and not shift
-                            and not alt
-                            and not cmd
-                            and is_space
-                        )
+                        is_ctrl_space = ctrl and not shift and not alt and not cmd and is_space
                         if is_ctrl_space and getattr(
                             self.config.global_hotkey, "quick_bar_enabled", True
                         ):
@@ -2802,6 +2903,7 @@ class VoiceFiTrayApp(rumps.App):
 
                 try:
                     import Quartz
+
                     _k_key_down = Quartz.kCGEventKeyDown
                     _k_key_up = Quartz.kCGEventKeyUp
                     _k_keycode = Quartz.kCGKeyboardEventKeycode
@@ -3115,7 +3217,9 @@ class VoiceFiTrayApp(rumps.App):
 
             norm_prompt = PhoneticNormalizer.normalize(prompt.strip())
 
-            hud.set_hearing(user_name="Claude" if is_claude else getattr(self.config, "user_name", "Developer"))
+            hud.set_hearing(
+                user_name="Claude" if is_claude else getattr(self.config, "user_name", "Developer")
+            )
             time.sleep(0.2)
 
             def _send_action(payload_text: str):
@@ -3129,16 +3233,18 @@ class VoiceFiTrayApp(rumps.App):
                 if self.config.audio_cues.enabled:
                     play_chime(self.config.audio_cues.sent_chime, block=False)
                 try:
-                    title = active_conv.title if active_conv else ("Claude Code" if is_claude else "Antigravity")
+                    title = (
+                        active_conv.title
+                        if active_conv
+                        else ("Claude Code" if is_claude else "Antigravity")
+                    )
                     rumps.notification(
                         f"VoiceFi • {title[:30]}", f"Prompt Sent via '{phrase}'", payload_text[:80]
                     )
                 except Exception:
                     pass
 
-            is_auto_send = getattr(
-                getattr(self.config, "hud", None), "auto_send", True
-            ) and (
+            is_auto_send = getattr(getattr(self.config, "hud", None), "auto_send", True) and (
                 getattr(self.config.claude, "auto_send", True)
                 if is_claude
                 else getattr(self.config.antigravity, "auto_send", True)
@@ -3264,7 +3370,9 @@ class VoiceFiTrayApp(rumps.App):
 
                 AppHelper.callAfter(self.open_welcome_window)
                 return
-            VoiceFiWelcomeWindow.get_instance(on_activated=self._on_welcome_license_activated).show()
+            VoiceFiWelcomeWindow.get_instance(
+                on_activated=self._on_welcome_license_activated
+            ).show()
         except Exception as e:
             print(f"[VoiceFi] Error opening welcome window: {e}")
 
@@ -3279,6 +3387,7 @@ class VoiceFiTrayApp(rumps.App):
             self.tier_item.title = f"✨ Pro Trial: {days}d left (Activate Key...)"
         if hasattr(self, "version_menu") and self.version_menu:
             from voicefi import __version__
+
             tier_name = tier_info.get("tier", "Pro")
             self.version_menu.title = f"✨ VoiceFi v{__version__} ({tier_name})"
         print(f"[VoiceFi] License activated via Welcome Window: {key_or_mode}")

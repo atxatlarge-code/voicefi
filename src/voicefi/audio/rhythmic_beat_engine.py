@@ -57,6 +57,7 @@ class RhythmicGrid:
 
 # --- Procedural Drum & Instrument Synthesis (Pure NumPy) ---
 
+
 def synth_808_kick(dur: float = 0.55, sr: int = SAMPLE_RATE) -> np.ndarray:
     """Deep 808 sub kick with pitch sweep and subtle punch transient."""
     t = np.linspace(0, dur, int(sr * dur), False)
@@ -99,7 +100,9 @@ def synth_hihat(dur: float = 0.07, open_hat: bool = False, sr: int = SAMPLE_RATE
     return (noise * env * 0.35).astype(np.float32)
 
 
-def synth_riser_snare_roll(dur: float = 1.33, bpm: float = 90.0, sr: int = SAMPLE_RATE) -> np.ndarray:
+def synth_riser_snare_roll(
+    dur: float = 1.33, bpm: float = 90.0, sr: int = SAMPLE_RATE
+) -> np.ndarray:
     """Accelerating snare roll build-up for pre-drop tension (quarter ➔ 8th ➔ 16th ➔ 32nd notes)."""
     total_samples = int(dur * sr)
     buffer = np.zeros(total_samples, dtype=np.float32)
@@ -146,6 +149,7 @@ def synth_rhodes_chord(
 
 # --- Modular Backing Bed Producers ---
 
+
 def generate_lofi_boombap_bed(
     bars: int = 4,
     bpm: float = 90.0,
@@ -170,7 +174,7 @@ def generate_lofi_boombap_bed(
     # Chords: Dm9, G13, Cmaj9, A7alt
     chord_prog = [
         [146.83, 220.00, 261.63, 329.63, 349.23],  # Dm9
-        [98.00, 196.00, 246.94, 293.66, 329.63],   # G13
+        [98.00, 196.00, 246.94, 293.66, 329.63],  # G13
         [130.81, 196.00, 246.94, 293.66, 329.63],  # Cmaj9
         [110.00, 164.81, 220.00, 277.18, 329.63],  # A7alt
     ]
@@ -193,17 +197,17 @@ def generate_lofi_boombap_bed(
             # Hi-hat with gentle swing
             hat_sample = open_hat if beat == 2.5 else hihat
             hat_len = min(len(hat_sample), total_samples - idx)
-            mix[idx: idx + hat_len] += hat_sample[:hat_len] * 0.32
+            mix[idx : idx + hat_len] += hat_sample[:hat_len] * 0.32
 
             # Kick
             if beat in [1.0, 2.75]:
                 k_len = min(len(kick), total_samples - idx)
-                mix[idx: idx + k_len] += kick[:k_len] * 0.65
+                mix[idx : idx + k_len] += kick[:k_len] * 0.65
 
             # Snare
             if beat in [2.0, 4.0]:
                 s_len = min(len(snare), total_samples - idx)
-                mix[idx: idx + s_len] += snare[:s_len] * 0.58
+                mix[idx : idx + s_len] += snare[:s_len] * 0.58
 
     # Apply hard-mute void drop if requested
     if drop_bar is not None and drop_bar <= bars:
@@ -304,7 +308,9 @@ def generate_dub_reggae_bed(
     snare = synth_snare(dur=0.28, rim=True, sr=sr)
 
     # Skank chords (short staccato chop with tape delay)
-    skank_chord = synth_rhodes_chord([174.61, 220.00, 261.63, 329.63], dur=0.18, velocity=0.55, sr=sr)
+    skank_chord = synth_rhodes_chord(
+        [174.61, 220.00, 261.63, 329.63], dur=0.18, velocity=0.55, sr=sr
+    )
 
     for bar_idx in range(1, bars + 1):
         # Kick on Beat 1 and Beat 3
@@ -336,6 +342,7 @@ def generate_dub_reggae_bed(
 
 
 # --- Comedic Hard Mute & Dynamic Ducking ---
+
 
 def apply_hard_mute(
     audio: np.ndarray,
@@ -463,22 +470,30 @@ def load_real_backing_bed(
 
     track_configs = {
         "boombap": {
-            "path": Path("/Users/jaketrigg/Projects/vifi.co/assets/reels/baby_armadillo/Baby_Armadillo_Beat_87BPM (Prod. MerlovwBeatZ).wav"),
+            "path": Path(
+                "/Users/jaketrigg/Projects/vifi.co/assets/reels/baby_armadillo/Baby_Armadillo_Beat_87BPM (Prod. MerlovwBeatZ).wav"
+            ),
             "offset_sec": 11.0726,  # Downbeat of Bar 5 when drums drop
             "native_bpm": 87.0,
         },
         "lofi": {
-            "path": Path("/Users/jaketrigg/Projects/vifi.co/assets/reels/baby_armadillo/Baby_Armadillo_Beat_87BPM (Prod. MerlovwBeatZ).wav"),
+            "path": Path(
+                "/Users/jaketrigg/Projects/vifi.co/assets/reels/baby_armadillo/Baby_Armadillo_Beat_87BPM (Prod. MerlovwBeatZ).wav"
+            ),
             "offset_sec": 11.0726,
             "native_bpm": 87.0,
         },
         "chillhop": {
-            "path": Path("/Users/jaketrigg/Projects/VoiceFi/assets/audio/auditions/01_lofi_chillhop_music_only.mp3"),
+            "path": Path(
+                "/Users/jaketrigg/Projects/VoiceFi/assets/audio/auditions/01_lofi_chillhop_music_only.mp3"
+            ),
             "offset_sec": 0.0,
             "native_bpm": 87.0,
         },
         "acoustic": {
-            "path": Path("/Users/jaketrigg/Projects/VoiceFi/assets/audio/auditions/03_acoustic_guitar_music_only.mp3"),
+            "path": Path(
+                "/Users/jaketrigg/Projects/VoiceFi/assets/audio/auditions/03_acoustic_guitar_music_only.mp3"
+            ),
             "offset_sec": 0.0,
             "native_bpm": 87.0,
         },
@@ -490,18 +505,35 @@ def load_real_backing_bed(
 
     if not track_path.exists():
         # Fallback to procedural synthesis if file is missing
-        print(f"[RhythmicBeatEngine] Track {track_path} not found, falling back to procedural boombap.")
-        return generate_lofi_boombap_bed(bars=int(math.ceil(bars)), bpm=bpm, drop_bar=drop_bar, drop_duration_beats=drop_duration_beats, sr=sr)[:target_samples]
+        print(
+            f"[RhythmicBeatEngine] Track {track_path} not found, falling back to procedural boombap."
+        )
+        return generate_lofi_boombap_bed(
+            bars=int(math.ceil(bars)),
+            bpm=bpm,
+            drop_bar=drop_bar,
+            drop_duration_beats=drop_duration_beats,
+            sr=sr,
+        )[:target_samples]
 
     cmd = [
-        "ffmpeg", "-y", "-v", "error",
-        "-ss", f"{offset:.4f}",
-        "-i", str(track_path),
-        "-t", f"{target_dur + 1.0:.4f}",
-        "-ac", "1",
-        "-ar", str(sr),
-        "-f", "f32le",
-        "-"
+        "ffmpeg",
+        "-y",
+        "-v",
+        "error",
+        "-ss",
+        f"{offset:.4f}",
+        "-i",
+        str(track_path),
+        "-t",
+        f"{target_dur + 1.0:.4f}",
+        "-ac",
+        "1",
+        "-ar",
+        str(sr),
+        "-f",
+        "f32le",
+        "-",
     ]
     raw = subprocess.check_output(cmd)
     audio = np.frombuffer(raw, dtype=np.float32)

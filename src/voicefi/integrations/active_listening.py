@@ -110,11 +110,26 @@ class ActiveListeningEngine:
         return False
 
     ORDINAL_INDEX_MAP = {
-        "first": 0, "1st": 0, "one": 0, "1": 0,
-        "second": 1, "2nd": 1, "two": 1, "2": 1,
-        "third": 2, "3rd": 2, "three": 2, "3": 2,
-        "fourth": 3, "4th": 3, "four": 3, "4": 3,
-        "fifth": 4, "5th": 4, "five": 4, "5": 4,
+        "first": 0,
+        "1st": 0,
+        "one": 0,
+        "1": 0,
+        "second": 1,
+        "2nd": 1,
+        "two": 1,
+        "2": 1,
+        "third": 2,
+        "3rd": 2,
+        "three": 2,
+        "3": 2,
+        "fourth": 3,
+        "4th": 3,
+        "four": 3,
+        "4": 3,
+        "fifth": 4,
+        "5th": 4,
+        "five": 4,
+        "5": 4,
     }
 
     @classmethod
@@ -148,7 +163,9 @@ class ActiveListeningEngine:
                 re.IGNORECASE,
             )
             if idx_match:
-                word = (idx_match.group(1) or idx_match.group(2) or idx_match.group(3) or "").lower()
+                word = (
+                    idx_match.group(1) or idx_match.group(2) or idx_match.group(3) or ""
+                ).lower()
                 if word in ("last", "final"):
                     return options[-1]
                 mapped_idx = cls.ORDINAL_INDEX_MAP.get(word)
@@ -168,9 +185,15 @@ class ActiveListeningEngine:
                     if any(w in opt.lower() for w in ("no", "cancel", "abort", "skip", "stop")):
                         return opt
                 return options[1]
-            elif re.search(r"\b(?:yes|yeah|yep|sure|go\s+ahead|do\s+it|proceed|confirm|sounds\s+good)\b", clean_text):
+            elif re.search(
+                r"\b(?:yes|yeah|yep|sure|go\s+ahead|do\s+it|proceed|confirm|sounds\s+good)\b",
+                clean_text,
+            ):
                 for opt in options:
-                    if any(w in opt.lower() for w in ("yes", "proceed", "continue", "stage", "confirm", "ship")):
+                    if any(
+                        w in opt.lower()
+                        for w in ("yes", "proceed", "continue", "stage", "confirm", "ship")
+                    ):
                         return opt
                 return options[0]
 
@@ -260,10 +283,16 @@ class ActiveListeningEngine:
             return SpokenTargetChannel.LINEAR, title, {"title": title}
 
         # 4. Antigravity Direct Routing
-        ag_pattern = r"^(?:(?:ask|tell|have|send\s+to)\s+)?antigravity(?:\s+to|\s*:\s*|\s*,\s*|\s+)\s*(.+)$"
+        ag_pattern = (
+            r"^(?:(?:ask|tell|have|send\s+to)\s+)?antigravity(?:\s+to|\s*:\s*|\s*,\s*|\s+)\s*(.+)$"
+        )
         m_ag = re.match(ag_pattern, clean, re.IGNORECASE)
         if m_ag:
-            return SpokenTargetChannel.ANTIGRAVITY, m_ag.group(1).strip(), {"routed_to": "antigravity"}
+            return (
+                SpokenTargetChannel.ANTIGRAVITY,
+                m_ag.group(1).strip(),
+                {"routed_to": "antigravity"},
+            )
 
         return SpokenTargetChannel.ANTIGRAVITY, clean, {}
 
@@ -427,7 +456,9 @@ class ActiveListeningEngine:
                 if any(c in mp_lower for c in claude_names):
                     has_pfx = any(p in mp_lower for p in prefixes) or "hague" in mp_lower
                     matched_phrase = "hey claude" if has_pfx else "claude"
-                elif any(v in mp_lower for v in ("viv", "vive", "vifi", "vivi", "wi-fi", "voicefi")):
+                elif any(
+                    v in mp_lower for v in ("viv", "vive", "vifi", "vivi", "wi-fi", "voicefi")
+                ):
                     has_pfx = any(p in mp_lower for p in prefixes)
                     matched_phrase = "hey viv" if has_pfx else "viv"
 

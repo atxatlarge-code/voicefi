@@ -84,7 +84,11 @@ class KokoroTTS(BaseTTS):
 
             models_dir = cls.get_models_dir()
             model_file = models_dir / "kokoro-v0_19.onnx"
-            voices_file = models_dir / "voices.bin" if (models_dir / "voices.bin").exists() else models_dir / "voices.json"
+            voices_file = (
+                models_dir / "voices.bin"
+                if (models_dir / "voices.bin").exists()
+                else models_dir / "voices.json"
+            )
             return model_file.exists() and voices_file.exists()
         except ImportError:
             return False
@@ -100,7 +104,11 @@ class KokoroTTS(BaseTTS):
 
             models_dir = cls.get_models_dir()
             model_file = models_dir / "kokoro-v0_19.onnx"
-            voices_file = models_dir / "voices.bin" if (models_dir / "voices.bin").exists() else models_dir / "voices.json"
+            voices_file = (
+                models_dir / "voices.bin"
+                if (models_dir / "voices.bin").exists()
+                else models_dir / "voices.json"
+            )
 
             if not model_file.exists() or not voices_file.exists():
                 raise FileNotFoundError(
@@ -135,7 +143,6 @@ class KokoroTTS(BaseTTS):
     def speak_to_file(self, text: str, output_path: Any) -> bool:
         """Synthesize text and write to output audio file."""
         return self.synthesize_to_wav(text, str(output_path))
-
 
     def speak(
         self,
@@ -184,4 +191,3 @@ class KokoroTTS(BaseTTS):
         stop_all_speech()
         set_agent_speaking(False)
         set_agent_audio_playing(False)
-

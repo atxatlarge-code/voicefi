@@ -630,6 +630,7 @@ class ReelBuilder:
         # Fast path: Playwright single browser session (20x-100x faster than cold-starting Chrome)
         try:
             from playwright.sync_api import sync_playwright
+
             with sync_playwright() as p:
                 browser = p.chromium.launch(headless=True)
                 page = browser.new_page(viewport={"width": width, "height": height})
@@ -650,7 +651,9 @@ class ReelBuilder:
         # Fallback: Sequential Chrome CLI
         chrome_path = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
         if not os.path.exists(chrome_path):
-            chrome_path = shutil.which("google-chrome") or shutil.which("chromium") or "google-chrome"
+            chrome_path = (
+                shutil.which("google-chrome") or shutil.which("chromium") or "google-chrome"
+            )
 
         for idx, html_code in enumerate(html_contents):
             html_file = tmp_dir / f"slide_{idx}.html"
@@ -770,17 +773,8 @@ def get_video_encoder_args(quality: str = "high") -> List[str]:
     """
     if sys.platform == "darwin":
         bitrate = "12M" if quality == "high" else "8M"
-        return [
-            "-c:v", "h264_videotoolbox",
-            "-b:v", bitrate,
-            "-pix_fmt", "yuv420p"
-        ]
+        return ["-c:v", "h264_videotoolbox", "-b:v", bitrate, "-pix_fmt", "yuv420p"]
     else:
         preset = "fast" if quality == "high" else "veryfast"
         crf = "18" if quality == "high" else "22"
-        return [
-            "-c:v", "libx264",
-            "-preset", preset,
-            "-crf", crf,
-            "-pix_fmt", "yuv420p"
-        ]
+        return ["-c:v", "libx264", "-preset", preset, "-crf", crf, "-pix_fmt", "yuv420p"]

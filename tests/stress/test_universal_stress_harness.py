@@ -47,6 +47,7 @@ from voicefi.tts.base import (
     is_agent_speaking,
     stop_all_speech,
     clear_recent_speech_history,
+    clear_speech_stopped_time,
 )
 import voicefi.tts.base as tts_base
 from voicefi.audio.sfx import play_sfx, list_available_sfx
@@ -553,8 +554,12 @@ class TestUniversalMixedSwarmStress:
 
         for i in range(50):
             # 1. Speak turn
-            with speech_turn_lock(text=f"Alternating turn #{i} {time.time_ns()}"):
-                mock_tts.speak(f"Turn #{i}")
+            try:
+                clear_speech_stopped_time()
+                with speech_turn_lock(text=f"Alternating turn #{i} {time.time_ns()}"):
+                    mock_tts.speak(f"Turn #{i}")
+            except tts_base.DuplicateSpeechSuppressed:
+                pass
 
             # 2. SFX chime
             play_sfx("honk", block=False)

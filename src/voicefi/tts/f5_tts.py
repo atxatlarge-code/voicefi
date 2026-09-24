@@ -68,6 +68,7 @@ class F5TTS(BaseTTS):
         try:
             import f5_tts  # noqa: F401
             import torchcodec  # noqa: F401
+
             return True
         except ImportError:
             return False
@@ -217,6 +218,7 @@ class F5TTS(BaseTTS):
                 ref_text = f5_inst.transcribe(ref_file)
 
             import random
+
             safe_seed = random.randint(0, 4294967295)
 
             output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -281,8 +283,14 @@ class F5TTS(BaseTTS):
                     from voicefi.tts.mac_say import MacSayTTS
 
                     vcm = VoiceCloneManager()
-                    c_prof = vcm.get_cloned_voice(getattr(self, "persona_name", "documentary_broadcaster")) or vcm.get_cloned_voice("attenborough")
-                    if c_prof and c_prof.calibrated_voice and "Neural" in str(c_prof.calibrated_voice):
+                    c_prof = vcm.get_cloned_voice(
+                        getattr(self, "persona_name", "documentary_broadcaster")
+                    ) or vcm.get_cloned_voice("attenborough")
+                    if (
+                        c_prof
+                        and c_prof.calibrated_voice
+                        and "Neural" in str(c_prof.calibrated_voice)
+                    ):
                         print(
                             f"[F5-TTS] Notice: Falling back to calibrated neural voice '{c_prof.calibrated_voice}' with BBC studio mastering."
                         )
@@ -293,7 +301,9 @@ class F5TTS(BaseTTS):
                         )
                         eng.speak(text, block=block)
                     else:
-                        print("[F5-TTS] Failed to generate audio. Falling back to native macOS say.")
+                        print(
+                            "[F5-TTS] Failed to generate audio. Falling back to native macOS say."
+                        )
                         MacSayTTS().speak(text, block=block)
                     return
 

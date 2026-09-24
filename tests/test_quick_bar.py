@@ -8,9 +8,13 @@ Tests:
 - Hotkey configuration defaults and validation
 """
 
+import sys
 import time
 from unittest.mock import MagicMock, patch
 import pytest
+
+if sys.platform != "darwin":
+    pytest.skip("macOS-only UI test requiring AppKit", allow_module_level=True)
 
 from voicefi.config import load_config, GlobalHotkeyConfig
 from voicefi.ui.quick_bar import (

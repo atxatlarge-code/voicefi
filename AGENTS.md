@@ -33,6 +33,7 @@ Universal Voice Layer for AI Agents, MCP, and macOS.
 | `vifi speed-talk` / `vifi turbo` | **Speed Talking Productivity Engine**: Toggle 1.25x-3.0x velocity, pause compression, dynamic ramping, and time-saved metrics (`on`, `off`, `set`, `test`, `demo`, `stats`). |
 | `vifi ping [voice]` | **Silent Voice Connection & Speed Test**: Measures TTFB latency, throughput (chars/s), payload size, and rate limits silently without audio output. |
 | `vifi ping --all` | **Silent Multi-Voice Benchmark**: Runs silent connection and speed tests across all curated neural and local voices. |
+| `vifi benchmark --compare` / `vifi eval` | **Time on Task (ToT) Benchmark**: Empirical side-by-side comparison of On-Device Local Models (Gemma 4 on Apple Silicon Metal GPU / `vifi scout`) vs All-Cloud Models (Gemini / Claude over WAN) measuring ingress transport latency, TTFT, throughput, multi-turn compounding bloat, bandwidth, and cost saved. |
 | `vifi feedback-loop` | **Simultaneous Speak + Listen Test**: Speaks over speakers while monitoring microphone. |
 | `vifi hearing-test` | **Acoustic Verification**: Plays phrase over speakers and tests room microphone STT match %. |
 | `vifi feedback submit "<title>"` | Logs sanitized zero-PII diagnostic report and dispatches to telemetry. |
@@ -235,6 +236,24 @@ When diagnosing audio, turn completion speech, or stop behavior, run checks in t
 * **When to Invoke `voicefi_speak`:**
   - ONLY when the user explicitly asks to speak aloud (e.g. *"speak to me"*, *"say this out loud"*, *"test the Viv voice"*).
   - When explicitly auditing or demonstrating voice synthesis capabilities upon user prompt.
+
+---
+
+### 11. Time on Task (ToT) Benchmark & Context Bloat Prevention
+*(Full empirical analysis in [`docs/TIME_ON_TASK_BENCHMARK_ANALYSIS.md`](file:///Users/jaketrigg/Projects/VoiceFi/docs/TIME_ON_TASK_BENCHMARK_ANALYSIS.md))*
+* **The Problem**: In multi-turn coding sessions, re-transmitting raw 20KB–250KB source files across WAN causes compounding quadratic prefill latency, high cloud billing, and context degradation.
+* **On-Device Pre-Digestion**: AI agents should use `vifi scout <target>` or on-device Gemma 4 via LiteRT on Apple Silicon Metal GPU to pre-digest large files into concise findings (~200 tokens).
+* **Empirical Speedup**:
+  - Ingress transport: 0.04 ms (Unified RAM) vs 31.9 ms (WAN RTT) -> **700x faster**.
+  - Follow-up turns (Turns 2 & 3): 0.36s vs 6.11s -> **16x–17x faster**.
+  - Context bloat: 87%+ reduction (1,033 tokens vs 8,033 tokens).
+  - 100% WAN bandwidth saved and $0 cloud cost.
+* **Running Live ToT Benchmark**:
+  ```bash
+  vifi eval --target src/voicefi/local/benchmark.py --turns 3
+  # or inspect historical scorecards:
+  vifi eval --history
+  ```
 
 ---
 

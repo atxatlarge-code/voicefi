@@ -70,7 +70,9 @@ def patch_pynput_darwin() -> None:
         if hasattr(pynput_darwin, "CarbonExtra"):
             carbon = pynput_darwin.CarbonExtra
             _orig_tis_copy = getattr(carbon, "TISCopyCurrentKeyboardInputSource", None)
-            _orig_tis_ascii = getattr(carbon, "TISCopyCurrentASCIICapableKeyboardLayoutInputSource", None)
+            _orig_tis_ascii = getattr(
+                carbon, "TISCopyCurrentASCIICapableKeyboardLayoutInputSource", None
+            )
             _orig_tis_prop = getattr(carbon, "TISGetInputSourceProperty", None)
 
             def _safe_tis_copy():
@@ -98,7 +100,9 @@ def patch_pynput_darwin() -> None:
                 return None
 
             carbon.TISCopyCurrentKeyboardInputSource = staticmethod(_safe_tis_copy)
-            carbon.TISCopyCurrentASCIICapableKeyboardLayoutInputSource = staticmethod(_safe_tis_ascii)
+            carbon.TISCopyCurrentASCIICapableKeyboardLayoutInputSource = staticmethod(
+                _safe_tis_ascii
+            )
             carbon.TISGetInputSourceProperty = staticmethod(_safe_tis_prop)
 
         # Patch keyboard._darwin module if already or subsequently imported
@@ -225,4 +229,3 @@ def patch_pynput_darwin() -> None:
         pass
     except Exception:
         pass
-

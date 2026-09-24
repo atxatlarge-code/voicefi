@@ -27,9 +27,33 @@ from voicefi.cli_commands.troubleshoot import (
     cmd_troubleshoot,
     cmd_barge_in,
 )
-from voicefi.cli_commands.speed_talk import cmd_speed_talk
+import sys
 
 logger = logging.getLogger(__name__)
+
+
+def _resolve_load_config(*args, **kwargs):
+    cli_mod = sys.modules.get("voicefi.cli")
+    fn = getattr(cli_mod, "load_config", load_config) if cli_mod else load_config
+    return fn(*args, **kwargs)
+
+
+def _resolve_save_config(*args, **kwargs):
+    cli_mod = sys.modules.get("voicefi.cli")
+    fn = getattr(cli_mod, "save_config", save_config) if cli_mod else save_config
+    return fn(*args, **kwargs)
+
+
+def _resolve_get_tts_engine(*args, **kwargs):
+    cli_mod = sys.modules.get("voicefi.cli")
+    fn = getattr(cli_mod, "get_tts_engine", get_tts_engine) if cli_mod else get_tts_engine
+    return fn(*args, **kwargs)
+
+
+def _resolve_cmd_download_ava(*args, **kwargs):
+    cli_mod = sys.modules.get("voicefi.cli")
+    fn = getattr(cli_mod, "cmd_download_ava", cmd_download_ava) if cli_mod else cmd_download_ava
+    return fn(*args, **kwargs)
 
 
 def cmd_download_ava(args: Any) -> None:
@@ -52,7 +76,7 @@ def cmd_download_ava(args: Any) -> None:
 def cmd_clone(args: Any) -> None:
     """Train, record, import, test, assign, and manage custom cloned voices."""
     manager = VoiceCloneManager()
-    config = load_config(args.config)
+    config = _resolve_load_config(args.config)
     subaction = getattr(args, "clone_action", None)
 
     # If no explicit subcommand was provided, check direct flags (e.g. from `vifi voice clone ...`)
@@ -211,14 +235,14 @@ def cmd_clone(args: Any) -> None:
         )
         if profile:
             print(f"\n🔊 Auditioning custom cloned voice: '{profile.name}' ({profile.provider})")
-            engine = get_tts_engine(
+            engine = _resolve_get_tts_engine(
                 config, voice_override=profile.id, provider_override=profile.provider
             )
         else:
             persona = find_persona(name)
             if persona:
                 print(f"\n🔊 Auditioning voice: '{persona.name}' ({persona.provider})")
-                engine = get_tts_engine(
+                engine = _resolve_get_tts_engine(
                     config, voice_override=persona.id, provider_override=persona.provider
                 )
             else:
@@ -276,7 +300,7 @@ def cmd_clone(args: Any) -> None:
 def cmd_voice(args: Any) -> None:
     """Handle voice inspection, testing, auditioning, assignment, and voice commands."""
     subaction = getattr(args, "voice_action", None)
-    config = load_config(args.config)
+    config = _resolve_load_config(args.config)
 
     if subaction in (
         "download-ava",
@@ -287,7 +311,7 @@ def cmd_voice(args: Any) -> None:
         "setup-offline",
         "offline",
     ):
-        cmd_download_ava(args)
+        _resolve_cmd_download_ava(args)
         return
 
     if subaction in ("ping", "check", "speed-test"):
@@ -323,13 +347,13 @@ def cmd_voice(args: Any) -> None:
             vid = result.get("voice_id", result.get("voice"))
             prov = result.get("provider", "edge_tts")
             stext = result.get("sample_text", "Auditioning.")
-            eng = get_tts_engine(config, voice_override=vid, provider_override=prov)
+            eng = _resolve_get_tts_engine(config, voice_override=vid, provider_override=prov)
             eng.speak(stext, block=True)
         elif result.get("speech_feedback"):
             target_agent = result.get("target", "antigravity")
             vid = result.get("voice_id") or result.get("voice")
             prov = result.get("provider")
-            eng = get_tts_engine(
+            eng = _resolve_get_tts_engine(
                 config,
                 agent_name=target_agent,
                 voice_override=vid,
@@ -401,9 +425,7 @@ def cmd_voice(args: Any) -> None:
                     else "Error"
                 )
                 speed_str = (
-                    f" | {b['chars_per_sec']:.1f} chars/s"
-                    if b.get("chars_per_sec", 0) > 0
-                    else ""
+                    f" | {b['chars_per_sec']:.1f} chars/s" if b.get("chars_per_sec", 0) > 0 else ""
                 )
                 print(
                     f"  • {status_icon} {b['name']:<12} [{b['provider']}]: {lat_str}{speed_str} ({b['recommended_role']})"
@@ -462,9 +484,7 @@ def cmd_voice(args: Any) -> None:
                     num = float(val_s)
                     resolved_rate = max(
                         min(
-                            int(round(200 * (num / 100.0)))
-                            if 0 < num <= 120
-                            else int(round(num)),
+                            int(round(200 * (num / 100.0))) if 0 < num <= 120 else int(round(num)),
                             350,
                         ),
                         80,
@@ -648,7 +668,7 @@ def cmd_voice(args: Any) -> None:
             print(f"🎙️ Playing Persona: {name} [{vid}] — Recommended for: {role}")
             print(f'   "{text}"')
             try:
-                eng = get_tts_engine(config, voice_override=vid, provider_override=prov)
+                eng = _resolve_get_tts_engine(config, voice_override=vid, provider_override=prov)
                 eng.speak(text, block=True)
             except Exception as e:
                 print(f"   ⚠️ Could not speak {name}: {e}")
@@ -728,9 +748,7 @@ def cmd_voice(args: Any) -> None:
                     num = float(val_s)
                     resolved_rate = max(
                         min(
-                            int(round(200 * (num / 100.0)))
-                            if 0 < num <= 120
-                            else int(round(num)),
+                            int(round(200 * (num / 100.0))) if 0 < num <= 120 else int(round(num)),
                             350,
                         ),
                         80,
@@ -774,7 +792,7 @@ def cmd_voice(args: Any) -> None:
             config.agents[target] = profile
             target_desc = f"agent '{target}'"
 
-        save_config(config)
+        _resolve_save_config(config)
         rate_info = f" at {resolved_rate} WPM" if resolved_rate else ""
         print(
             f"✅ Successfully assigned {target_desc} to voice: '{resolved_voice}' ({resolved_provider}){rate_info}"
@@ -797,9 +815,7 @@ def cmd_voice(args: Any) -> None:
             elif is_project or target in config.projects:
                 clean_p_name = target.replace("project.", "").replace("project_", "").title()
                 if user_name:
-                    phrase = (
-                        f"Hi {user_name}! I'm {display_name}, and I'm ready to speak for project {clean_p_name}."
-                    )
+                    phrase = f"Hi {user_name}! I'm {display_name}, and I'm ready to speak for project {clean_p_name}."
                 else:
                     phrase = f"Hi! I'm {display_name}, and I'm ready to speak for project {clean_p_name}."
             elif target in ("default", "global", "all"):
@@ -816,7 +832,7 @@ def cmd_voice(args: Any) -> None:
 
             print(f'🔊 Playing confirmation: "{phrase}"')
             try:
-                eng = get_tts_engine(
+                eng = _resolve_get_tts_engine(
                     config,
                     agent_name="antigravity" if target in ("default", "global", "all") else target,
                     voice_override=resolved_voice,
@@ -895,7 +911,7 @@ def cmd_voice(args: Any) -> None:
                 config.agents["antigravity"].rate = new_rate
             print(f"✅ Set global voice speed to {desc}")
 
-        save_config(config)
+        _resolve_save_config(config)
 
     elif subaction == "get":
         print("\n🎙️ Active Voice Assignments:")
@@ -925,6 +941,8 @@ def cmd_voice(args: Any) -> None:
                 )
         print()
     elif subaction in ("speed-talk", "speedtalk", "speed_talk"):
+        from voicefi.cli_commands.speed_talk import cmd_speed_talk
+
         cmd_speed_talk(args)
         return
     else:

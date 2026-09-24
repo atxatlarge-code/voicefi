@@ -155,7 +155,10 @@ def focus_antigravity(focus_input: bool = True) -> bool:
         for app in ws.runningApplications():
             loc_name = (app.localizedName() or "").lower()
             bundle_id = (app.bundleIdentifier() or "").lower()
-            if loc_name in ("antigravity", "antigravity ide") or bundle_id == "com.google.antigravity":
+            if (
+                loc_name in ("antigravity", "antigravity ide")
+                or bundle_id == "com.google.antigravity"
+            ):
                 activated = cooperative_activate_app(app)
                 break
     except Exception:
@@ -451,9 +454,7 @@ def select_claude_conversation_window(
                     from pathlib import Path
 
                     clean_cid = conv_id.replace("claude_", "")
-                    pattern = str(
-                        Path.home() / ".claude" / "projects" / "*" / f"{clean_cid}.jsonl"
-                    )
+                    pattern = str(Path.home() / ".claude" / "projects" / "*" / f"{clean_cid}.jsonl")
                     matched_files = glob.glob(pattern)
                     if matched_files:
                         with open(matched_files[0], "r", encoding="utf-8") as fp:
@@ -1022,11 +1023,17 @@ def send_message_to_antigravity(
 
         # If project permission denied (e.g. conversation created outside current project),
         # retry against the active workspace conversation ID rather than dropping the message
-        if any(token in last_stderr for token in ("outside-of-project", "PermissionDenied", "permission_denied")):
+        if any(
+            token in last_stderr
+            for token in ("outside-of-project", "PermissionDenied", "permission_denied")
+        ):
             from voicefi.integrations.conversations import get_latest_antigravity_conversation_id
+
             latest_id = get_latest_antigravity_conversation_id()
             if latest_id and str(latest_id) != str(target_id):
-                print(f"[Injector] 🔄 Rescuing turn with active workspace conversation: {str(latest_id)[:8]}")
+                print(
+                    f"[Injector] 🔄 Rescuing turn with active workspace conversation: {str(latest_id)[:8]}"
+                )
                 cmd_latest = [str(agentapi_bin), "send-message"]
                 if resolved_title:
                     cmd_latest.append(f"--title={resolved_title}")
@@ -1182,8 +1189,19 @@ def create_new_antigravity_conversation(
 def focus_terminal_app() -> Optional[str]:
     """Find and focus the running terminal, coding editor, or Claude app."""
     term_priority = [
-        "claude", "ghostty", "iterm2", "iterm", "warp",
-        "cursor", "code", "visual studio code", "windsurf", "alacritty", "kitty", "wezterm", "terminal"
+        "claude",
+        "ghostty",
+        "iterm2",
+        "iterm",
+        "warp",
+        "cursor",
+        "code",
+        "visual studio code",
+        "windsurf",
+        "alacritty",
+        "kitty",
+        "wezterm",
+        "terminal",
     ]
     try:
         from AppKit import (
@@ -1440,6 +1458,7 @@ curl -s -X POST http://localhost:5141/api/send -H "Content-Type: application/jso
     is_claude_desktop = False
     try:
         from AppKit import NSWorkspace
+
         ws = NSWorkspace.sharedWorkspace()
         is_claude_desktop = any(app.localizedName() == "Claude" for app in ws.runningApplications())
     except Exception:
@@ -1716,6 +1735,7 @@ def send_message_to_agent(
 
     if engine in ("claude", "claude_code"):
         from voicefi.config import load_config
+
         cfg = load_config()
         claude_cfg = getattr(cfg, "claude", None)
         mode = getattr(claude_cfg, "dispatch_mode", "auto")
@@ -1744,10 +1764,12 @@ def send_message_to_agent(
         resolved_from = from_conv_id
         if not resolved_from and include_envelope:
             from voicefi.integrations.conversations import get_latest_antigravity_conversation_id
+
             resolved_from = get_latest_antigravity_conversation_id()
 
         if run_headless:
             from voicefi.integrations.claude_runner import ClaudeHeadlessRunner
+
             runner = ClaudeHeadlessRunner.get_instance()
             turn_origin = "mobile" if is_mobile else "desktop"
             return runner.dispatch(
@@ -1777,6 +1799,7 @@ def send_message_to_agent(
         )
     elif engine == "codex":
         from voicefi.config import load_config
+
         cfg = load_config()
         codex_cfg = getattr(cfg, "codex", None)
         mode = getattr(codex_cfg, "dispatch_mode", "auto")
@@ -1810,6 +1833,7 @@ def send_message_to_agent(
         resolved_from = from_conv_id
         if not resolved_from and include_envelope:
             from voicefi.integrations.conversations import get_latest_antigravity_conversation_id
+
             resolved_from = get_latest_antigravity_conversation_id()
 
         from voicefi.integrations.codex import get_codex_cli_path, execute_codex_cli
@@ -2047,4 +2071,3 @@ def focus_speaking_agent_window(
     if not focused:
         focused = bool(focus_terminal_app())
     return focused
-

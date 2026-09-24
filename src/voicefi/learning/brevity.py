@@ -50,7 +50,9 @@ class BrevityLearner:
                     self.total_turns = data.get("total_turns", 0)
                     self.total_interruptions = data.get("total_interruptions", 0)
                     raw_words = data.get("learned_max_words", self.DEFAULT_MAX_WORDS)
-                    self.learned_max_words = max(self.MIN_MAX_WORDS, min(self.MAX_MAX_WORDS, raw_words))
+                    self.learned_max_words = max(
+                        self.MIN_MAX_WORDS, min(self.MAX_MAX_WORDS, raw_words)
+                    )
             except Exception:
                 self.total_turns = 0
                 self.total_interruptions = 0

@@ -100,11 +100,11 @@ def resolve_claude_auth_token(config: Optional[VoiceFiConfig] = None) -> Optiona
                     if not line or line.startswith("#"):
                         continue
                     if line.startswith("CLAUDE_CODE_OAUTH_TOKEN="):
-                        val = line.split("=", 1)[1].strip().strip("\"\'")
+                        val = line.split("=", 1)[1].strip().strip("\"'")
                         if val:
                             return val
                     elif line.startswith("ANTHROPIC_API_KEY="):
-                        val = line.split("=", 1)[1].strip().strip("\"\'")
+                        val = line.split("=", 1)[1].strip().strip("\"'")
                         if val:
                             return val
             except Exception:
@@ -114,7 +114,9 @@ def resolve_claude_auth_token(config: Optional[VoiceFiConfig] = None) -> Optiona
     if sys.platform == "darwin":
         try:
             ps_cmd = ["pgrep", "-f", "Claude.app|claude"]
-            pids_out = subprocess.run(ps_cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True).stdout
+            pids_out = subprocess.run(
+                ps_cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True
+            ).stdout
             pids = [p.strip() for p in pids_out.splitlines() if p.strip()]
             for pid in pids:
                 try:
@@ -289,7 +291,16 @@ curl -s -X POST http://localhost:5141/api/send -H "Content-Type: application/jso
         if async_execution:
             thread = threading.Thread(
                 target=self._execute_headless,
-                args=(clean_text, canonical_id, session_uuid, is_new, resolved_cwd, cfg, resolved_timeout, origin),
+                args=(
+                    clean_text,
+                    canonical_id,
+                    session_uuid,
+                    is_new,
+                    resolved_cwd,
+                    cfg,
+                    resolved_timeout,
+                    origin,
+                ),
                 daemon=True,
                 name=f"ClaudeHeadless-{session_uuid[:8]}",
             )
@@ -302,7 +313,14 @@ curl -s -X POST http://localhost:5141/api/send -H "Content-Type: application/jso
             )
 
         return self._execute_headless(
-            clean_text, canonical_id, session_uuid, is_new, resolved_cwd, cfg, resolved_timeout, origin
+            clean_text,
+            canonical_id,
+            session_uuid,
+            is_new,
+            resolved_cwd,
+            cfg,
+            resolved_timeout,
+            origin,
         )
 
     def _execute_headless(
@@ -397,9 +415,18 @@ curl -s -X POST http://localhost:5141/api/send -H "Content-Type: application/jso
             if proc.returncode != 0:
                 combined_err = f"{stderr_text} {stdout_text}".strip()
                 # If resume failed because session was not found, retry once with --session-id
-                if not is_new and "--resume" in cmd and any(
-                    k in combined_err.lower()
-                    for k in ("not found", "no session", "does not exist", "failed to load session")
+                if (
+                    not is_new
+                    and "--resume" in cmd
+                    and any(
+                        k in combined_err.lower()
+                        for k in (
+                            "not found",
+                            "no session",
+                            "does not exist",
+                            "failed to load session",
+                        )
+                    )
                 ):
                     print(
                         f"[ClaudeRunner] 🔄 Session {session_uuid[:8]} not found on disk; retrying with --session-id..."
@@ -425,7 +452,10 @@ curl -s -X POST http://localhost:5141/api/send -H "Content-Type: application/jso
 
             if proc.returncode != 0:
                 combined_err = f"{stderr_text} {stdout_text}".strip()
-                if "not logged in" in combined_err.lower() or "please run /login" in combined_err.lower():
+                if (
+                    "not logged in" in combined_err.lower()
+                    or "please run /login" in combined_err.lower()
+                ):
                     diag_err = (
                         "Claude Code authentication required. Set CLAUDE_CODE_OAUTH_TOKEN, "
                         "add oauth_token to ~/.voicefi/config.yaml, or log into Claude."
@@ -475,7 +505,10 @@ curl -s -X POST http://localhost:5141/api/send -H "Content-Type: application/jso
             )
 
             # If desktop voice origin, speak the soundbite aloud on Mac speakers
-            if origin != "mobile" and getattr(getattr(config, "claude", None), "read_summary_aloud", True):
+            if origin != "mobile" and getattr(
+                getattr(config, "claude", None), "read_summary_aloud", True
+            ):
+
                 def _speak_on_mac():
                     try:
                         from voicefi.tts import get_tts_engine
@@ -483,6 +516,7 @@ curl -s -X POST http://localhost:5141/api/send -H "Content-Type: application/jso
                             set_cross_process_hud_state,
                             clear_cross_process_hud_state,
                         )
+
                         set_cross_process_hud_state("speaking", summary, agent_name="Claude")
                         try:
                             from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
@@ -528,13 +562,15 @@ curl -s -X POST http://localhost:5141/api/send -H "Content-Type: application/jso
                 import json
                 import urllib.request
 
-                payload = json.dumps({
-                    "summary": summary,
-                    "full_response": full_response,
-                    "conv_id": canonical_id,
-                    "agent_role": "claude",
-                    "origin": origin,
-                }).encode("utf-8")
+                payload = json.dumps(
+                    {
+                        "summary": summary,
+                        "full_response": full_response,
+                        "conv_id": canonical_id,
+                        "agent_role": "claude",
+                        "origin": origin,
+                    }
+                ).encode("utf-8")
                 req = urllib.request.Request(
                     "http://127.0.0.1:5141/api/turn_notify",
                     data=payload,

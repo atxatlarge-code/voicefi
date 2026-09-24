@@ -57,7 +57,9 @@ def _generate_rimshot(sample_rate: int = SAMPLE_RATE) -> np.ndarray:
     stick1 = np.random.normal(0, 1, n1) * np.exp(-t1 / 0.002)
     f1 = 215.0 + 140.0 * np.exp(-t1 / 0.012)
     p1 = 2.0 * np.pi * np.cumsum(f1) / sample_rate
-    head1 = (0.7 * np.sin(p1) + 0.28 * np.sin(p1 * 1.59) + 0.15 * np.sin(p1 * 2.14)) * np.exp(-t1 / 0.032)
+    head1 = (0.7 * np.sin(p1) + 0.28 * np.sin(p1 * 1.59) + 0.15 * np.sin(p1 * 2.14)) * np.exp(
+        -t1 / 0.032
+    )
     rim1 = np.sin(2 * np.pi * 840 * t1) * np.exp(-t1 / 0.010)
     wires1 = bandpass_noise(n1, 2400, 9500) * np.exp(-t1 / 0.042)
     hit1 = (0.6 * head1 + 0.45 * rim1 + 0.55 * wires1 + 0.5 * stick1) * 0.85
@@ -70,7 +72,9 @@ def _generate_rimshot(sample_rate: int = SAMPLE_RATE) -> np.ndarray:
     stick2 = np.random.normal(0, 1, n2) * np.exp(-t2 / 0.003)
     f2 = 120.0 + 70.0 * np.exp(-t2 / 0.018)
     p2 = 2.0 * np.pi * np.cumsum(f2) / sample_rate
-    head2 = (0.8 * np.sin(p2) + 0.3 * np.sin(p2 * 1.58) + 0.15 * np.sin(p2 * 2.24)) * np.exp(-t2 / 0.055)
+    head2 = (0.8 * np.sin(p2) + 0.3 * np.sin(p2 * 1.58) + 0.15 * np.sin(p2 * 2.24)) * np.exp(
+        -t2 / 0.055
+    )
     shell2 = bandpass_noise(n2, 500, 2200) * np.exp(-t2 / 0.025)
     hit2 = (0.9 * head2 + 0.25 * stick2 + 0.2 * shell2) * 0.88
 
@@ -89,14 +93,28 @@ def _generate_rimshot(sample_rate: int = SAMPLE_RATE) -> np.ndarray:
 
     # Crash Cymbal with inharmonic bronze modes (tight, snappy decay)
     cym_modes = [
-        587.0, 845.0, 1120.0, 1390.0, 1780.0, 2240.0, 2790.0,
-        3450.0, 4280.0, 5260.0, 6420.0, 7750.0, 9300.0, 11500.0,
+        587.0,
+        845.0,
+        1120.0,
+        1390.0,
+        1780.0,
+        2240.0,
+        2790.0,
+        3450.0,
+        4280.0,
+        5260.0,
+        6420.0,
+        7750.0,
+        9300.0,
+        11500.0,
     ]
     ring = np.zeros(n3, dtype=np.float32)
     for idx, fm in enumerate(cym_modes):
         decay = 0.22 + 0.25 * (1.0 - idx / len(cym_modes))
         mod = np.sin(2 * np.pi * 4.0 * t3) * 0.01
-        ring += np.sin(2 * np.pi * fm * (t3 + mod)) * np.exp(-t3 / decay) * (1.0 / (idx ** 0.35 + 1.0))
+        ring += (
+            np.sin(2 * np.pi * fm * (t3 + mod)) * np.exp(-t3 / decay) * (1.0 / (idx**0.35 + 1.0))
+        )
     ring /= len(cym_modes)
 
     burst = bandpass_noise(n3, 2200, 13000) * ((1.0 - np.exp(-t3 / 0.004)) * np.exp(-t3 / 0.20))
@@ -457,7 +475,9 @@ def strip_inline_sfx_tags(text: str) -> str:
     if not text:
         return ""
     # Strip [sfx:name], [sfx name], (sfx:name), {sfx:name}
-    cleaned = re.sub(r"[\[\(\{]\s*sfx:?\s*([a-zA-Z0-9_-]+)\s*[\]\)\}]", "", text, flags=re.IGNORECASE)
+    cleaned = re.sub(
+        r"[\[\(\{]\s*sfx:?\s*([a-zA-Z0-9_-]+)\s*[\]\)\}]", "", text, flags=re.IGNORECASE
+    )
     # Strip standalone [rimshot], [honk], [applause], [sad_trombone], [boing], [crickets], [drum_smash], etc.
     try:
         known = "|".join(list_available_sfx() + list(ALIASES.keys()))
@@ -467,4 +487,3 @@ def strip_inline_sfx_tags(text: str) -> str:
     # Clean inline spaces while preserving newlines for markdown line-by-line structure
     lines = [re.sub(r"[ \t]+", " ", line).strip() for line in cleaned.splitlines()]
     return "\n".join(lines).strip()
-

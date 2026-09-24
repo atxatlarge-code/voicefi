@@ -67,6 +67,7 @@ def capture_nsimage(ns_img, output_path, width=256, height=256):
 def main():
     app = NSApplication.sharedApplication()
     from unittest.mock import patch
+
     with patch("voicefi.ui.unified_hud._get_active_hud_owner_pid", return_value=None):
         UnifiedDynamicIslandHUD._instance = None
         hud = UnifiedDynamicIslandHUD.get_instance()

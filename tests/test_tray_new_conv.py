@@ -2,8 +2,13 @@
 Unit tests for starting new conversation with connected tools via Tray companion and CLI.
 """
 
+import sys
 from unittest.mock import MagicMock, patch
 import pytest
+
+if sys.platform != "darwin":
+    pytest.skip("macOS-only UI test requiring rumps", allow_module_level=True)
+
 from voicefi.config import VoiceFiConfig
 from voicefi.ui.tray import VoiceFiTrayApp
 from voicefi.cli import cmd_new

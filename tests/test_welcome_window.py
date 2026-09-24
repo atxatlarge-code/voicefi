@@ -4,7 +4,12 @@ Verifies clipboard auto-detection, Ed25519 validation, and activation state chan
 """
 
 import os
+import sys
 import pytest
+
+if sys.platform != "darwin":
+    pytest.skip("macOS-only UI test requiring AppKit", allow_module_level=True)
+
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 

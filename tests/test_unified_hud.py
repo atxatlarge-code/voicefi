@@ -360,7 +360,7 @@ def test_cmd_hud_actions(mock_appkit):
     # Test 'on' action
     args_on = argparse.Namespace(hud_action="on")
     with patch("subprocess.run") as mock_run, \
-         patch("voicefi.cli.cmd_autostart") as mock_autostart:
+         patch("voicefi.cli_commands.ui.cmd_autostart") as mock_autostart:
         mock_run.return_value.returncode = 1 # daemon not running -> starts autostart
         cmd_hud(args_on)
         mock_autostart.assert_called_once()

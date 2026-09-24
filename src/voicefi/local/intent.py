@@ -23,7 +23,9 @@ class LocalIntentRouter:
     On-device intent classifier and action dispatcher for VoiceFi.
     """
 
-    def __init__(self, config: Optional[VoiceFiConfig] = None, engine: Optional[LocalModelEngine] = None):
+    def __init__(
+        self, config: Optional[VoiceFiConfig] = None, engine: Optional[LocalModelEngine] = None
+    ):
         self.config = config or load_config()
         self.engine = engine or LocalModelEngine()
 
@@ -144,15 +146,29 @@ class LocalIntentRouter:
         low = prompt.lower().strip()
 
         # Check for local commands
-        if any(w in low for w in (
-            "battery", "what time", "what day", "what date",
-            "what branch", "git branch", "git status",
-            "stop speech", "stop talking", "mute audio", "pause audio"
-        )):
+        if any(
+            w in low
+            for w in (
+                "battery",
+                "what time",
+                "what day",
+                "what date",
+                "what branch",
+                "git branch",
+                "git status",
+                "stop speech",
+                "stop talking",
+                "mute audio",
+                "pause audio",
+            )
+        ):
             return {"target": "local_command", "action": prompt}
 
         # Check for Obsidian notes
-        if any(w in low for w in ("obsidian", "daily note", "add to journal", "log this note", "note that")):
+        if any(
+            w in low
+            for w in ("obsidian", "daily note", "add to journal", "log this note", "note that")
+        ):
             return {"target": "obsidian", "action": prompt}
 
         # Check for Codex / ChatGPT
@@ -193,7 +209,9 @@ class LocalIntentRouter:
         # Git branch
         if "branch" in low:
             try:
-                out = subprocess.check_output(["git", "branch", "--show-current"], text=True).strip()
+                out = subprocess.check_output(
+                    ["git", "branch", "--show-current"], text=True
+                ).strip()
                 if out:
                     return f"You are on git branch {out}."
             except Exception:
@@ -222,6 +240,7 @@ class LocalIntentRouter:
         # Stop / Pause
         if any(w in low for w in ("stop", "pause", "quiet", "hush", "shut up")):
             from voicefi.tts.base import stop_all_speech
+
             stop_all_speech()
             return "Speech stopped."
 
@@ -231,9 +250,15 @@ class LocalIntentRouter:
         """Append spoken note directly to active Obsidian vault's daily note."""
         try:
             from voicefi.integrations.obsidian import append_to_daily_note, get_primary_vault
+
             vault = get_primary_vault(self.config)
             if vault and vault.is_dir():
-                clean_note = re.sub(r"^(?:add to obsidian|note that|log note|daily note)[:,\s]*", "", prompt, flags=re.IGNORECASE).strip()
+                clean_note = re.sub(
+                    r"^(?:add to obsidian|note that|log note|daily note)[:,\s]*",
+                    "",
+                    prompt,
+                    flags=re.IGNORECASE,
+                ).strip()
                 res = append_to_daily_note(clean_note, vault_path=vault, config=self.config)
                 if res.get("status") == "ok":
                     return f"Appended note to your Obsidian daily note in {vault.name}."

@@ -66,14 +66,18 @@ def main():
     cmd = [
         sys.executable,
         str(vifi_script),
-        "--style", args.style,
-        "--duration", args.duration,
-        "--drop-style", args.drop_style,
+        "--style",
+        args.style,
+        "--duration",
+        args.duration,
+        "--drop-style",
+        args.drop_style,
     ]
     if args.output:
         cmd.extend(["--output", args.output])
 
     import subprocess
+
     sys.exit(subprocess.run(cmd).returncode)
 
 

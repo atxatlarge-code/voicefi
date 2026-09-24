@@ -76,3 +76,57 @@ def cmd_live(args: Any) -> None:
             except (KeyboardInterrupt, EOFError):
                 print("\n👋 Exiting Gemini Live Studio.")
                 break
+
+
+def cmd_bridge(args: Any) -> None:
+    """Run or manage the VoiceFi local IPC bridge service."""
+    import asyncio
+    from voicefi.config import load_config
+    from voicefi.ipc import VoiceFiIPCBridge, VoiceFiIPCServer
+
+    config = load_config(getattr(args, "config", None))
+    sock_path = getattr(args, "socket", None) or config.ipc.socket_path
+    ws_port = getattr(args, "ws_port", None) or config.ipc.ws_port
+    agent_name = getattr(args, "agent", None) or "Spark"
+    persona = getattr(args, "persona", None) or getattr(config.spark, "persona", "Viv")
+
+    if getattr(args, "server", False):
+        print(f"🚀 Starting VoiceFi IPC Server at {sock_path} (WS: ws://127.0.0.1:{ws_port})...")
+        server = VoiceFiIPCServer(
+            socket_path=sock_path,
+            ws_port=ws_port,
+            config=config,
+        )
+
+        async def _run_srv():
+            await server.start()
+            while server.is_running:
+                await asyncio.sleep(1)
+
+        try:
+            asyncio.run(_run_srv())
+        except KeyboardInterrupt:
+            print("\n🛑 Stopping IPC Server...")
+            asyncio.run(server.stop())
+        return
+
+    print(f"🔗 Starting VoiceFi IPC Bridge for {agent_name} ({persona} persona) -> {sock_path}...")
+    bridge = VoiceFiIPCBridge(
+        socket_path=sock_path,
+        ws_url=f"ws://127.0.0.1:{ws_port}/ws",
+        agent_name=agent_name,
+        persona=persona,
+        config=config,
+    )
+
+    async def _run():
+        await bridge.start()
+        print("✅ IPC Bridge connected and listening for spoken prompts. Press Ctrl+C to exit.")
+        while True:
+            await asyncio.sleep(1)
+
+    try:
+        asyncio.run(_run())
+    except KeyboardInterrupt:
+        print("\n🛑 Disconnecting IPC Bridge...")
+        asyncio.run(bridge.stop())

@@ -76,8 +76,10 @@ def apply_broadcast_silk_mastering(
         cmd = [
             ffmpeg_bin,
             "-y",
-            "-i", str(in_p),
-            "-af", filter_str,
+            "-i",
+            str(in_p),
+            "-af",
+            filter_str,
             str(tmp_out),
         ]
         try:
@@ -129,9 +131,7 @@ def apply_bbc_documentary_mastering(
     ext = target_p.suffix if target_p else in_p.suffix
     if not ext:
         ext = ".wav"
-    tf = tempfile.NamedTemporaryFile(
-        prefix="bbc_mastered_", suffix=ext, delete=False
-    )
+    tf = tempfile.NamedTemporaryFile(prefix="bbc_mastered_", suffix=ext, delete=False)
     tmp_out = Path(tf.name).resolve()
     tf.close()
 
@@ -144,10 +144,19 @@ def apply_bbc_documentary_mastering(
             sox_bin,
             str(in_p),
             str(tmp_out),
-            "highpass", "70",
-            "equalizer", "125", "0.7q", "+3.0",
-            "equalizer", "5600", "1.8q", "-2.5",
-            "gain", "-n", "-1.2",
+            "highpass",
+            "70",
+            "equalizer",
+            "125",
+            "0.7q",
+            "+3.0",
+            "equalizer",
+            "5600",
+            "1.8q",
+            "-2.5",
+            "gain",
+            "-n",
+            "-1.2",
         ]
         try:
             res = subprocess.run(
@@ -173,8 +182,10 @@ def apply_bbc_documentary_mastering(
         cmd = [
             ffmpeg_bin,
             "-y",
-            "-i", str(in_p),
-            "-af", filter_str,
+            "-i",
+            str(in_p),
+            "-af",
+            filter_str,
             str(tmp_out),
         ]
         try:

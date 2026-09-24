@@ -2727,7 +2727,9 @@ class VoicePanelRequestHandler(http.server.BaseHTTPRequestHandler):
                 from voicefi.ui.speech_hud import AgentSpeechHUD
 
                 hud = AgentSpeechHUD.get_instance()
-                pos = getattr(self.server.config.antigravity, "speech_popup_position", "bottom_right")
+                pos = getattr(
+                    self.server.config.antigravity, "speech_popup_position", "bottom_right"
+                )
                 hud.show_speech(
                     text, agent_name=agent, persona_name=persona, is_speaking=True, position=pos
                 )

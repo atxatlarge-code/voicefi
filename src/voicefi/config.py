@@ -283,6 +283,8 @@ class GeminiConfig(BaseModel):
     model: str = "gemini-2.5-flash"
     live_model: str = "gemini-3.8-live"
     live_extended_thinking_model: str = "gemini-3.8-live-extended-thinking"
+    tts_model: str = "gemini-3.8-flash-tts"
+    tts_lite_model: str = "gemini-3.8-flash-lite-tts"
     live_voice: str = "Puck"  # Puck, Aoede, Charon, Kore, Fenrir
     default_demo_voice: str = "Puck"
     thinking_level: Literal["MINIMAL", "LOW", "MEDIUM", "HIGH"] = "LOW"
@@ -514,7 +516,9 @@ class LocalModelConfig(BaseModel):
     telegraphic_mode: bool = False  # Opt-in: speed-talking 2.0 dense semantic compression
     intent_routing: bool = False  # Opt-in: offline 'Hey Viv' intent classification & agent router
     airgapped_memos: bool = False  # Opt-in: 100% private local vault memo & meeting structuring
-    measure_latency: bool = True  # Real-time TTFB, throughput, and duration tracking to ~/.voicefi/benchmarks.json
+    measure_latency: bool = (
+        True  # Real-time TTFB, throughput, and duration tracking to ~/.voicefi/benchmarks.json
+    )
 
 
 class VoiceFiConfig(BaseModel):
@@ -659,9 +663,7 @@ class VoiceFiConfig(BaseModel):
                 p = find_persona(str(v_str))
                 raw_rate = prof.get("rate")
                 scaled_rate = (
-                    int(round(raw_rate * speed_mult))
-                    if raw_rate is not None
-                    else default_rate
+                    int(round(raw_rate * speed_mult)) if raw_rate is not None else default_rate
                 )
                 return (
                     prof.get("provider") or (p.provider if p else default_provider),
@@ -671,9 +673,7 @@ class VoiceFiConfig(BaseModel):
             elif isinstance(prof, AgentVoiceProfile):
                 raw_rate = prof.rate
                 scaled_rate = (
-                    int(round(raw_rate * speed_mult))
-                    if raw_rate is not None
-                    else default_rate
+                    int(round(raw_rate * speed_mult)) if raw_rate is not None else default_rate
                 )
                 return (
                     prof.provider or default_provider,
@@ -697,7 +697,9 @@ class VoiceFiConfig(BaseModel):
                 else:
                     for pk, prof in self.projects.items():
                         pk_clean = pk.lower().strip()
-                        if pk_clean and (pk_clean == p_clean or pk_clean in p_clean or p_clean in pk_clean):
+                        if pk_clean and (
+                            pk_clean == p_clean or pk_clean in p_clean or p_clean in pk_clean
+                        ):
                             matched_project_profile = prof
                             break
 
@@ -711,7 +713,9 @@ class VoiceFiConfig(BaseModel):
                 else:
                     for pk, prof in self.projects.items():
                         pk_clean = pk.lower().strip()
-                        if pk_clean and (pk_clean == ws_name or pk_clean in ws_full or ws_name in pk_clean):
+                        if pk_clean and (
+                            pk_clean == ws_name or pk_clean in ws_full or ws_name in pk_clean
+                        ):
                             matched_project_profile = prof
                             break
 
@@ -732,7 +736,9 @@ class VoiceFiConfig(BaseModel):
                                 p = find_persona(str(v_val))
                                 matched_project_profile = AgentVoiceProfile(
                                     voice=p.id if p else str(v_val),
-                                    provider=p.provider if p else ws_data.get("provider", default_provider),
+                                    provider=p.provider
+                                    if p
+                                    else ws_data.get("provider", default_provider),
                                     rate=ws_data.get("rate"),
                                 )
                                 break
@@ -765,13 +771,11 @@ class VoiceFiConfig(BaseModel):
             or key.startswith("openai")
         ):
             return "edge_tts", "en-US-EmmaNeural", default_rate
-        elif (
-            key in (
-                "obsidian",
-                "aria",
-                "debugger",
-                "tester",
-            )
+        elif key in (
+            "obsidian",
+            "aria",
+            "debugger",
+            "tester",
         ):
             return "edge_tts", "en-US-AvaNeural", default_rate
         elif key in ("researcher", "architect"):
@@ -878,11 +882,10 @@ def resolve_gemini_api_key(config: Optional[VoiceFiConfig] = None) -> str:
                         continue
                     for prefix in ("GEMINI_API_KEY=", "GOOGLE_API_KEY=", "GOOGLE_GENAI_API_KEY="):
                         if line.startswith(prefix):
-                            candidate_val = line[len(prefix):].strip().strip('"').strip("'")
+                            candidate_val = line[len(prefix) :].strip().strip('"').strip("'")
                             if candidate_val:
                                 return candidate_val
             except Exception:
                 pass
 
     return ""
-

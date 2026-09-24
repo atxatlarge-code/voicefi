@@ -62,7 +62,9 @@ def play_sound_effect(name: str) -> str:
     if sfx_file and sfx_file.is_file():
         print(f"\n🥁 [SFX] Triggered: {clean_name.upper()} ({sfx_file.name})")
         try:
-            subprocess.Popen(["afplay", str(sfx_file)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.Popen(
+                ["afplay", str(sfx_file)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
             return f"Played sound effect '{clean_name}'"
         except Exception as e:
             return f"Error playing sound effect: {e}"
@@ -142,9 +144,7 @@ class GeminiLiveComedianRunner:
             ),
             speech_config=types.SpeechConfig(
                 voice_config=types.VoiceConfig(
-                    prebuilt_voice_config=types.PrebuiltVoiceConfig(
-                        voice_name=self.voice
-                    )
+                    prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=self.voice)
                 )
             ),
             thinking_config=thinking_cfg,
@@ -215,7 +215,7 @@ class GeminiLiveComedianRunner:
         duration_sec = len(total_audio) / (24000 * 2) if total_audio else 0.0
         full_transcript = "".join(transcript_chunks).strip()
 
-        print(f"\n📊 Performance Metrics:")
+        print("\n📊 Performance Metrics:")
         print(f"   • Time to First Audio (TTFA): {first_audio_ms or 0}ms")
         print(f"   • Audio Duration: {duration_sec:.2f}s ({len(total_audio):,} bytes)")
         if triggered_sfx:
@@ -246,9 +246,11 @@ class GeminiLiveComedianRunner:
 
     async def run_interactive_loop(self):
         """Interactive terminal session: prompt or type jokes in real time."""
-        print(f"\n🎭 Welcome to the Gemini 3.8 Live Comedy Studio!")
+        print("\n🎭 Welcome to the Gemini 3.8 Live Comedy Studio!")
         print(f"   Model: {self.model} | Voice: {self.voice} | Mode: {self.mode}")
-        print("   Type your topic, joke prompt, or heckle below. Type 'exit' or press Ctrl+C to quit.\n")
+        print(
+            "   Type your topic, joke prompt, or heckle below. Type 'exit' or press Ctrl+C to quit.\n"
+        )
 
         while True:
             try:

@@ -15,7 +15,9 @@ import aiohttp
 
 
 async def run_smoke_test(timeout_sec: float = 15.0):
-    url = "ws://localhost:5141/ws/live?model=gemini-2.5-flash-native-audio-latest&voice=Puck&tools=1"
+    url = (
+        "ws://localhost:5141/ws/live?model=gemini-2.5-flash-native-audio-latest&voice=Puck&tools=1"
+    )
     print(f"📡 Connecting to live WebSocket: {url} ...")
 
     tool_started = False
@@ -26,7 +28,9 @@ async def run_smoke_test(timeout_sec: float = 15.0):
     try:
         async with aiohttp.ClientSession() as session:
             async with session.ws_connect(url, timeout=timeout_sec) as ws:
-                print("🟢 WebSocket connected! Sending tool prompt: 'Run git status check please'...")
+                print(
+                    "🟢 WebSocket connected! Sending tool prompt: 'Run git status check please'..."
+                )
                 await ws.send_json({"type": "text", "text": "Run git status check please."})
 
                 async def read_loop():
@@ -46,7 +50,9 @@ async def run_smoke_test(timeout_sec: float = 15.0):
                                 print(f"🛠️ Tool started: {data.get('name')} (id={data.get('id')})")
                             elif mtype == "tool_done":
                                 tool_completed = True
-                                print(f"✅ Tool completed: {data.get('name')} in {data.get('duration_ms')}ms")
+                                print(
+                                    f"✅ Tool completed: {data.get('name')} in {data.get('duration_ms')}ms"
+                                )
                             elif mtype == "model_transcript":
                                 print(f"🗣️ Model: {data.get('text')}")
                             elif mtype == "turn_complete":
@@ -56,7 +62,11 @@ async def run_smoke_test(timeout_sec: float = 15.0):
                             elif mtype == "error":
                                 print(f"❌ Server returned error event: {data.get('message')}")
                                 return False
-                        elif msg.type in (aiohttp.WSMsgType.CLOSE, aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
+                        elif msg.type in (
+                            aiohttp.WSMsgType.CLOSE,
+                            aiohttp.WSMsgType.CLOSED,
+                            aiohttp.WSMsgType.ERROR,
+                        ):
                             print(f"⚠️ WebSocket closed unexpectedly: {msg}")
                             break
                     return True
@@ -73,7 +83,9 @@ async def run_smoke_test(timeout_sec: float = 15.0):
 
     print("\n📋 Smoke Test Results:")
     print(f"  • Connected Handshake: {'✅' if got_connected else '❌'}")
-    print(f"  • Tool Execution:      {'✅' if (tool_started and tool_completed) else '⚠️ (no tool called)'}")
+    print(
+        f"  • Tool Execution:      {'✅' if (tool_started and tool_completed) else '⚠️ (no tool called)'}"
+    )
     print(f"  • Turn Complete:       {'✅' if turn_completed else '❌'}")
 
     return got_connected and turn_completed

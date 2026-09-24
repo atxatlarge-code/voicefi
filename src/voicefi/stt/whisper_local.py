@@ -127,4 +127,3 @@ class WhisperLocalSTT(BaseSTT):
             pass
 
         return stripped
-

@@ -161,7 +161,6 @@ def measure_wan_ingress(payload_bytes: int = 50_000, endpoint: Optional[str] = N
         return round(base_rtt_ms + upload_ms, 2)
 
 
-
 def record_inference_metrics(
     test_name: str,
     target_engine: str,
@@ -258,6 +257,7 @@ class LocalBenchmarkRunner:
         # Dispatch non-PII telemetry event
         try:
             from voicefi.telemetry import record_event
+
             record_event(
                 "tot_benchmark_comparison",
                 properties={
@@ -314,12 +314,8 @@ class LocalBenchmarkRunner:
             gen_time = max(0.001, total_time - ttfb)
 
             usage = getattr(agent.conversation, "total_usage", None)
-            prompt_tokens = (
-                getattr(usage, "prompt_token_count", None) or max(1, len(prompt) // 4)
-            )
-            output_tokens = (
-                getattr(usage, "candidates_token_count", None) or token_count or 1
-            )
+            prompt_tokens = getattr(usage, "prompt_token_count", None) or max(1, len(prompt) // 4)
+            output_tokens = getattr(usage, "candidates_token_count", None) or token_count or 1
             tok_per_sec = round(output_tokens / gen_time, 1)
 
             res = BenchmarkResult(
@@ -371,14 +367,16 @@ class LocalBenchmarkRunner:
         headers = ["Test", "Engine", "TTFB", "Speed", "Tokens", "Cost"]
         rows = []
         for r in results:
-            rows.append([
-                r.test_name[:20],
-                r.target_engine[:20],
-                f"{r.ttfb_ms} ms",
-                f"{r.tok_per_sec} tok/s",
-                f"{r.prompt_tokens} in / {r.output_tokens} out",
-                "$0.00" if r.cost_usd == 0 else f"${r.cost_usd:.4f}",
-            ])
+            rows.append(
+                [
+                    r.test_name[:20],
+                    r.target_engine[:20],
+                    f"{r.ttfb_ms} ms",
+                    f"{r.tok_per_sec} tok/s",
+                    f"{r.prompt_tokens} in / {r.output_tokens} out",
+                    "$0.00" if r.cost_usd == 0 else f"${r.cost_usd:.4f}",
+                ]
+            )
 
         # Compute column widths
         col_widths = [len(h) for h in headers]
@@ -388,8 +386,10 @@ class LocalBenchmarkRunner:
 
         # Build ASCII table
         sep = "+-" + "-+-".join("-" * w for w in col_widths) + "-+"
-        header_line = "| " + " | ".join(h.ljust(col_widths[i]) for i, h in enumerate(headers)) + " |"
-        
+        header_line = (
+            "| " + " | ".join(h.ljust(col_widths[i]) for i, h in enumerate(headers)) + " |"
+        )
+
         table_lines = [sep, header_line, sep]
         for row in rows:
             line = "| " + " | ".join(cell.ljust(col_widths[i]) for i, cell in enumerate(row)) + " |"
@@ -450,7 +450,9 @@ class LocalBenchmarkRunner:
             local_ttfb_ms = 48.0
             local_tok_per_sec = 34.5
         else:
-            local_ttfb_ms = round(scout_res.read_latency_ms if scout_res.read_latency_ms > 0 else 12.0, 2)
+            local_ttfb_ms = round(
+                scout_res.read_latency_ms if scout_res.read_latency_ms > 0 else 12.0, 2
+            )
             local_tok_per_sec = 65.0
 
         local_turns: List[Dict[str, Any]] = []
@@ -571,9 +573,7 @@ class LocalBenchmarkRunner:
         tokens_saved = max(0, cloud_prompt_tokens - local_prompt_tokens)
         tokens_saved_pct = round((tokens_saved / max(1, cloud_prompt_tokens)) * 100, 1)
         tot_speedup_ratio = round(cloud_total_seconds / max(0.001, local_total_seconds), 2)
-        bloat_factor = round(
-            final_turn_prompt_cloud / max(1, final_turn_prompt_local), 1
-        )
+        bloat_factor = round(final_turn_prompt_cloud / max(1, final_turn_prompt_local), 1)
 
         result = ToTComparisonResult(
             task_name=task_name,
@@ -677,7 +677,14 @@ class LocalBenchmarkRunner:
             speedup = (
                 f"{round(ct['turn_duration_sec'] / max(0.001, lt['turn_duration_sec']), 1)}x Faster"
             )
-            rows.append((label, f"{lt['turn_duration_sec']:.2f}s", f"{ct['turn_duration_sec']:.2f}s", speedup))
+            rows.append(
+                (
+                    label,
+                    f"{lt['turn_duration_sec']:.2f}s",
+                    f"{ct['turn_duration_sec']:.2f}s",
+                    speedup,
+                )
+            )
 
         bloat_pct = round(
             (
@@ -687,38 +694,40 @@ class LocalBenchmarkRunner:
             * 100,
             1,
         )
-        rows.extend([
-            (
-                "Context Bloat (Final Prompt)",
-                f"{res.final_turn_prompt_tokens_local:,} tokens",
-                f"{res.final_turn_prompt_tokens_cloud:,} tokens",
-                f"{bloat_pct}% Leaner ({res.bloat_factor_cloud_vs_local}x)",
-            ),
-            (
-                "Total End-to-End ToT",
-                f"{res.local_total_seconds:.2f}s",
-                f"{res.cloud_total_seconds:.2f}s",
-                f"{res.tot_speedup_ratio}x Faster",
-            ),
-            (
-                "WAN Bandwidth Consumed",
-                "0 KB (100% Air-Gapped)",
-                f"{(res.cloud_bandwidth_bytes / 1024.0):.1f} KB",
-                "100% Saved",
-            ),
-            (
-                "Total Cost (USD)",
-                "$0.0000",
-                f"${res.cloud_cost_usd:.4f}",
-                f"${res.cost_saved_usd:.4f} Saved",
-            ),
-        ])
+        rows.extend(
+            [
+                (
+                    "Context Bloat (Final Prompt)",
+                    f"{res.final_turn_prompt_tokens_local:,} tokens",
+                    f"{res.final_turn_prompt_tokens_cloud:,} tokens",
+                    f"{bloat_pct}% Leaner ({res.bloat_factor_cloud_vs_local}x)",
+                ),
+                (
+                    "Total End-to-End ToT",
+                    f"{res.local_total_seconds:.2f}s",
+                    f"{res.cloud_total_seconds:.2f}s",
+                    f"{res.tot_speedup_ratio}x Faster",
+                ),
+                (
+                    "WAN Bandwidth Consumed",
+                    "0 KB (100% Air-Gapped)",
+                    f"{(res.cloud_bandwidth_bytes / 1024.0):.1f} KB",
+                    "100% Saved",
+                ),
+                (
+                    "Total Cost (USD)",
+                    "$0.0000",
+                    f"${res.cloud_cost_usd:.4f}",
+                    f"${res.cost_saved_usd:.4f} Saved",
+                ),
+            ]
+        )
 
         col_w = [30, 26, 26, 20]
         header_row = (
             f" {'Metric'.ljust(col_w[0])} "
-            f"{res.local_engine[:col_w[1]].ljust(col_w[1])} "
-            f"{res.cloud_engine[:col_w[2]].ljust(col_w[2])} "
+            f"{res.local_engine[: col_w[1]].ljust(col_w[1])} "
+            f"{res.cloud_engine[: col_w[2]].ljust(col_w[2])} "
             f"{'Advantage'.ljust(col_w[3])}"
         )
         lines.append(header_row)
@@ -743,9 +752,7 @@ class LocalBenchmarkRunner:
         lines.append("=" * 92)
         return "\n".join(lines)
 
-    def format_tot_history_table(
-        self, results: Optional[List[ToTComparisonResult]] = None
-    ) -> str:
+    def format_tot_history_table(self, results: Optional[List[ToTComparisonResult]] = None) -> str:
         """
         Format past side-by-side ToT comparison runs into a terminal table.
         """
@@ -755,19 +762,29 @@ class LocalBenchmarkRunner:
                 return "No ToT benchmark comparisons recorded yet. Run `vifi benchmark --compare` to start."
             results = [ToTComparisonResult(**r) for r in raw_history[-10:]]
 
-        headers = ["Target", "Turns", "Local ToT", "Cloud ToT", "Speedup", "Bloat Cut", "Cost Saved"]
+        headers = [
+            "Target",
+            "Turns",
+            "Local ToT",
+            "Cloud ToT",
+            "Speedup",
+            "Bloat Cut",
+            "Cost Saved",
+        ]
         rows = []
         for r in results:
             target_short = Path(r.target_path).name[:16]
-            rows.append([
-                target_short,
-                str(r.turns_count),
-                f"{r.local_total_seconds:.2f}s",
-                f"{r.cloud_total_seconds:.2f}s",
-                f"{r.tot_speedup_ratio}x",
-                f"{r.tokens_saved_pct}%",
-                f"${r.cost_saved_usd:.4f}",
-            ])
+            rows.append(
+                [
+                    target_short,
+                    str(r.turns_count),
+                    f"{r.local_total_seconds:.2f}s",
+                    f"{r.cloud_total_seconds:.2f}s",
+                    f"{r.tot_speedup_ratio}x",
+                    f"{r.tokens_saved_pct}%",
+                    f"${r.cost_saved_usd:.4f}",
+                ]
+            )
 
         col_widths = [len(h) for h in headers]
         for row in rows:
@@ -775,7 +792,9 @@ class LocalBenchmarkRunner:
                 col_widths[i] = max(col_widths[i], len(cell))
 
         sep = "+-" + "-+-".join("-" * w for w in col_widths) + "-+"
-        header_line = "| " + " | ".join(h.ljust(col_widths[i]) for i, h in enumerate(headers)) + " |"
+        header_line = (
+            "| " + " | ".join(h.ljust(col_widths[i]) for i, h in enumerate(headers)) + " |"
+        )
         table_lines = [sep, header_line, sep]
         for row in rows:
             line = "| " + " | ".join(cell.ljust(col_widths[i]) for i, cell in enumerate(row)) + " |"

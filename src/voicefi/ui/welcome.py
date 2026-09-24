@@ -137,7 +137,11 @@ class VoiceFiWelcomeWindow:
         tier_info = FeatureGate.get_tier_summary(config)
 
         # Show if explicitly forced, if marker doesn't exist, or if unactivated trial expired
-        if force or not marker_file.exists() or (not tier_info.get("is_licensed") and tier_info.get("trial_expired")):
+        if (
+            force
+            or not marker_file.exists()
+            or (not tier_info.get("is_licensed") and tier_info.get("trial_expired"))
+        ):
             AppHelper.callAfter(cls.show_window)
 
     @classmethod
@@ -190,9 +194,7 @@ class VoiceFiWelcomeWindow:
 
         frame = NSRect(NSPoint(x, y), NSSize(win_w, win_h))
         style_mask = (
-            NSWindowStyleMaskTitled
-            | NSWindowStyleMaskClosable
-            | NSWindowStyleMaskMiniaturizable
+            NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskMiniaturizable
         )
 
         self.window = NSPanel.alloc().initWithContentRect_styleMask_backing_defer_(
@@ -201,7 +203,8 @@ class VoiceFiWelcomeWindow:
         self.window.setTitle_("Welcome to VoiceFi")
         self.window.setLevel_(NSFloatingWindowLevel)
         self.window.setCollectionBehavior_(
-            NSWindowCollectionBehaviorMoveToActiveSpace | NSWindowCollectionBehaviorFullScreenAuxiliary
+            NSWindowCollectionBehaviorMoveToActiveSpace
+            | NSWindowCollectionBehaviorFullScreenAuxiliary
         )
         self.window.setReleasedWhenClosed_(False)
 
@@ -209,12 +212,16 @@ class VoiceFiWelcomeWindow:
         self.window.setContentView_(content_view)
 
         # 1. Top Bar: App Icon & Brand Title
-        icon_view = NSImageView.alloc().initWithFrame_(NSRect(NSPoint(24.0, win_h - 70.0), NSSize(52.0, 52.0)))
+        icon_view = NSImageView.alloc().initWithFrame_(
+            NSRect(NSPoint(24.0, win_h - 70.0), NSSize(52.0, 52.0))
+        )
         icon_view.setImageScaling_(NSImageScaleProportionallyUpOrDown)
 
         icon_paths = [
             Path(__file__).resolve().parent.parent.parent.parent / "assets" / "VoiceFi.icns",
-            Path(__file__).resolve().parent.parent.parent.parent / "assets" / "logo-voicefi-avatar-bold-light-1024.png",
+            Path(__file__).resolve().parent.parent.parent.parent
+            / "assets"
+            / "logo-voicefi-avatar-bold-light-1024.png",
             Path.home() / ".voicefi" / "assets" / "VoiceFi.icns",
         ]
         app_icon = None
@@ -227,7 +234,9 @@ class VoiceFiWelcomeWindow:
             icon_view.setImage_(app_icon)
         content_view.addSubview_(icon_view)
 
-        title_label = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(84.0, win_h - 46.0), NSSize(380.0, 26.0)))
+        title_label = NSTextField.alloc().initWithFrame_(
+            NSRect(NSPoint(84.0, win_h - 46.0), NSSize(380.0, 26.0))
+        )
         title_label.setStringValue_("Welcome to VoiceFi")
         title_label.setFont_(NSFont.systemFontOfSize_weight_(20.0, NSFontWeightBold))
         title_label.setEditable_(False)
@@ -236,7 +245,9 @@ class VoiceFiWelcomeWindow:
         title_label.setDrawsBackground_(False)
         content_view.addSubview_(title_label)
 
-        sub_label = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(84.0, win_h - 68.0), NSSize(380.0, 18.0)))
+        sub_label = NSTextField.alloc().initWithFrame_(
+            NSRect(NSPoint(84.0, win_h - 68.0), NSSize(380.0, 18.0))
+        )
         sub_label.setStringValue_("Universal Voice Layer for AI Agents & macOS")
         sub_label.setFont_(NSFont.systemFontOfSize_weight_(12.0, NSFontWeightMedium))
         sub_label.setTextColor_(NSColor.secondaryLabelColor())
@@ -247,10 +258,14 @@ class VoiceFiWelcomeWindow:
         content_view.addSubview_(sub_label)
 
         # 2. Live Status Badge (Top Right)
-        self.app_status_badge = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(win_w - 274.0, win_h - 48.0), NSSize(250.0, 26.0)))
+        self.app_status_badge = NSTextField.alloc().initWithFrame_(
+            NSRect(NSPoint(win_w - 274.0, win_h - 48.0), NSSize(250.0, 26.0))
+        )
         self.app_status_badge.setStringValue_("🟢 VoiceFi is Live & Running")
         self.app_status_badge.setFont_(NSFont.systemFontOfSize_weight_(12.5, NSFontWeightBold))
-        self.app_status_badge.setTextColor_(NSColor.colorWithCalibratedRed_green_blue_alpha_(0.1, 0.85, 0.4, 1.0))
+        self.app_status_badge.setTextColor_(
+            NSColor.colorWithCalibratedRed_green_blue_alpha_(0.1, 0.85, 0.4, 1.0)
+        )
         self.app_status_badge.setAlignment_(NSTextAlignmentCenter)
         self.app_status_badge.setEditable_(False)
         self.app_status_badge.setSelectable_(False)
@@ -259,16 +274,28 @@ class VoiceFiWelcomeWindow:
         content_view.addSubview_(self.app_status_badge)
 
         # 3. macOS Menu Bar Guidance Callout (Top Callout Banner)
-        menu_box = NSBox.alloc().initWithFrame_(NSRect(NSPoint(24.0, win_h - 114.0), NSSize(win_w - 48.0, 36.0)))
+        menu_box = NSBox.alloc().initWithFrame_(
+            NSRect(NSPoint(24.0, win_h - 114.0), NSSize(win_w - 48.0, 36.0))
+        )
         menu_box.setBoxType_(4)  # NSBoxCustom
         menu_box.setTitlePosition_(0)  # NSNoTitle
-        menu_box.setFillColor_(NSColor.colorWithCalibratedRed_green_blue_alpha_(0.08, 0.12, 0.18, 0.95))
-        menu_box.setBorderColor_(NSColor.colorWithCalibratedRed_green_blue_alpha_(0.2, 0.5, 0.9, 0.5))
+        menu_box.setFillColor_(
+            NSColor.colorWithCalibratedRed_green_blue_alpha_(0.08, 0.12, 0.18, 0.95)
+        )
+        menu_box.setBorderColor_(
+            NSColor.colorWithCalibratedRed_green_blue_alpha_(0.2, 0.5, 0.9, 0.5)
+        )
         menu_box.setCornerRadius_(10.0)
 
-        self.menu_callout_banner = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(12.0, 7.0), NSSize(win_w - 72.0, 22.0)))
-        self.menu_callout_banner.setStringValue_("☝️ Look up at the top right of your macOS Menu Bar for the VoiceFi icon to find the menu, switch voices, or open settings anytime.")
-        self.menu_callout_banner.setFont_(NSFont.systemFontOfSize_weight_(12.0, NSFontWeightSemibold))
+        self.menu_callout_banner = NSTextField.alloc().initWithFrame_(
+            NSRect(NSPoint(12.0, 7.0), NSSize(win_w - 72.0, 22.0))
+        )
+        self.menu_callout_banner.setStringValue_(
+            "☝️ Look up at the top right of your macOS Menu Bar for the VoiceFi icon to find the menu, switch voices, or open settings anytime."
+        )
+        self.menu_callout_banner.setFont_(
+            NSFont.systemFontOfSize_weight_(12.0, NSFontWeightSemibold)
+        )
         self.menu_callout_banner.setTextColor_(NSColor.whiteColor())
         self.menu_callout_banner.setEditable_(False)
         self.menu_callout_banner.setSelectable_(False)
@@ -280,7 +307,9 @@ class VoiceFiWelcomeWindow:
         # =========================================================================
         # LEFT COLUMN: System Permissions, AI Agents & Pro Activation (w = 360)
         # =========================================================================
-        perm_title = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(24.0, win_h - 146.0), NSSize(360.0, 18.0)))
+        perm_title = NSTextField.alloc().initWithFrame_(
+            NSRect(NSPoint(24.0, win_h - 146.0), NSSize(360.0, 18.0))
+        )
         perm_title.setStringValue_("System Permissions (Local & Private):")
         perm_title.setFont_(NSFont.systemFontOfSize_weight_(11.5, NSFontWeightSemibold))
         perm_title.setEditable_(False)
@@ -289,7 +318,9 @@ class VoiceFiWelcomeWindow:
         perm_title.setDrawsBackground_(False)
         content_view.addSubview_(perm_title)
 
-        self.mic_status_btn = NSButton.alloc().initWithFrame_(NSRect(NSPoint(24.0, win_h - 180.0), NSSize(175.0, 30.0)))
+        self.mic_status_btn = NSButton.alloc().initWithFrame_(
+            NSRect(NSPoint(24.0, win_h - 180.0), NSSize(175.0, 30.0))
+        )
         self.mic_status_btn.setBezelStyle_(NSBezelStyleRounded)
         self.mic_status_btn.setFont_(NSFont.systemFontOfSize_weight_(11.0, NSFontWeightMedium))
         mic_target = WelcomeActionTarget.alloc().initWithCallback_(self._on_check_mic_clicked)
@@ -298,7 +329,9 @@ class VoiceFiWelcomeWindow:
         self.mic_status_btn.setAction_(objc.selector(mic_target.buttonClicked_, signature=b"v@:@"))
         content_view.addSubview_(self.mic_status_btn)
 
-        self.ax_status_btn = NSButton.alloc().initWithFrame_(NSRect(NSPoint(209.0, win_h - 180.0), NSSize(175.0, 30.0)))
+        self.ax_status_btn = NSButton.alloc().initWithFrame_(
+            NSRect(NSPoint(209.0, win_h - 180.0), NSSize(175.0, 30.0))
+        )
         self.ax_status_btn.setBezelStyle_(NSBezelStyleRounded)
         self.ax_status_btn.setFont_(NSFont.systemFontOfSize_weight_(11.0, NSFontWeightMedium))
         ax_target = WelcomeActionTarget.alloc().initWithCallback_(self._on_check_ax_clicked)
@@ -309,8 +342,12 @@ class VoiceFiWelcomeWindow:
 
         self._update_permission_badges()
 
-        perm_note = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(24.0, win_h - 204.0), NSSize(360.0, 16.0)))
-        perm_note.setStringValue_("Accessibility is used strictly for global hotkeys (Control+T dictation, Esc stop).")
+        perm_note = NSTextField.alloc().initWithFrame_(
+            NSRect(NSPoint(24.0, win_h - 204.0), NSSize(360.0, 16.0))
+        )
+        perm_note.setStringValue_(
+            "Accessibility is used strictly for global hotkeys (Control+T dictation, Esc stop)."
+        )
         perm_note.setFont_(NSFont.systemFontOfSize_weight_(10.5, NSFontWeightRegular))
         perm_note.setTextColor_(NSColor.secondaryLabelColor())
         perm_note.setEditable_(False)
@@ -319,20 +356,30 @@ class VoiceFiWelcomeWindow:
         perm_note.setDrawsBackground_(False)
         content_view.addSubview_(perm_note)
 
-        eco_box = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(24.0, win_h - 228.0), NSSize(360.0, 20.0)))
+        eco_box = NSTextField.alloc().initWithFrame_(
+            NSRect(NSPoint(24.0, win_h - 228.0), NSSize(360.0, 20.0))
+        )
         eco_box.setStringValue_("🤖 Antigravity: Ready  •  🟣 Claude Code: Ready")
         eco_box.setFont_(NSFont.systemFontOfSize_weight_(10.5, NSFontWeightSemibold))
-        eco_box.setTextColor_(NSColor.colorWithCalibratedRed_green_blue_alpha_(0.2, 0.65, 0.85, 1.0))
+        eco_box.setTextColor_(
+            NSColor.colorWithCalibratedRed_green_blue_alpha_(0.2, 0.65, 0.85, 1.0)
+        )
         eco_box.setEditable_(False)
         eco_box.setSelectable_(False)
         eco_box.setBezeled_(False)
         eco_box.setDrawsBackground_(False)
         content_view.addSubview_(eco_box)
 
-        self.detected_banner = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(24.0, win_h - 252.0), NSSize(360.0, 20.0)))
-        self.detected_banner.setStringValue_("✨ Detected Pro key on clipboard — Ready to activate!")
+        self.detected_banner = NSTextField.alloc().initWithFrame_(
+            NSRect(NSPoint(24.0, win_h - 252.0), NSSize(360.0, 20.0))
+        )
+        self.detected_banner.setStringValue_(
+            "✨ Detected Pro key on clipboard — Ready to activate!"
+        )
         self.detected_banner.setFont_(NSFont.systemFontOfSize_weight_(11.0, NSFontWeightSemibold))
-        self.detected_banner.setTextColor_(NSColor.colorWithCalibratedRed_green_blue_alpha_(0.1, 0.75, 0.35, 1.0))
+        self.detected_banner.setTextColor_(
+            NSColor.colorWithCalibratedRed_green_blue_alpha_(0.1, 0.75, 0.35, 1.0)
+        )
         self.detected_banner.setEditable_(False)
         self.detected_banner.setSelectable_(False)
         self.detected_banner.setBezeled_(False)
@@ -340,7 +387,9 @@ class VoiceFiWelcomeWindow:
         self.detected_banner.setHidden_(True)
         content_view.addSubview_(self.detected_banner)
 
-        key_label = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(24.0, win_h - 274.0), NSSize(220.0, 18.0)))
+        key_label = NSTextField.alloc().initWithFrame_(
+            NSRect(NSPoint(24.0, win_h - 274.0), NSSize(220.0, 18.0))
+        )
         key_label.setStringValue_("License Key (Pro or Free Trial):")
         key_label.setFont_(NSFont.systemFontOfSize_weight_(11.5, NSFontWeightSemibold))
         key_label.setTextColor_(NSColor.labelColor())
@@ -350,7 +399,9 @@ class VoiceFiWelcomeWindow:
         key_label.setDrawsBackground_(False)
         content_view.addSubview_(key_label)
 
-        self.key_help_btn = NSButton.alloc().initWithFrame_(NSRect(NSPoint(250.0, win_h - 278.0), NSSize(134.0, 24.0)))
+        self.key_help_btn = NSButton.alloc().initWithFrame_(
+            NSRect(NSPoint(250.0, win_h - 278.0), NSSize(134.0, 24.0))
+        )
         self.key_help_btn.setTitle_("❓ Where's My Key?")
         self.key_help_btn.setBezelStyle_(NSBezelStyleRounded)
         self.key_help_btn.setFont_(NSFont.systemFontOfSize_weight_(11.0, NSFontWeightMedium))
@@ -360,12 +411,16 @@ class VoiceFiWelcomeWindow:
         self.key_help_btn.setAction_(objc.selector(help_target.buttonClicked_, signature=b"v@:@"))
         content_view.addSubview_(self.key_help_btn)
 
-        self.key_field = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(24.0, win_h - 312.0), NSSize(250.0, 30.0)))
+        self.key_field = NSTextField.alloc().initWithFrame_(
+            NSRect(NSPoint(24.0, win_h - 312.0), NSSize(250.0, 30.0))
+        )
         self.key_field.setFont_(NSFont.userFixedPitchFontOfSize_(12.0))
         self.key_field.setPlaceholderString_("VF1-PRO-...")
         content_view.addSubview_(self.key_field)
 
-        self.paste_btn = NSButton.alloc().initWithFrame_(NSRect(NSPoint(280.0, win_h - 313.0), NSSize(104.0, 32.0)))
+        self.paste_btn = NSButton.alloc().initWithFrame_(
+            NSRect(NSPoint(280.0, win_h - 313.0), NSSize(104.0, 32.0))
+        )
         self.paste_btn.setTitle_("📋 Paste Key")
         self.paste_btn.setBezelStyle_(NSBezelStyleRounded)
         self.paste_btn.setFont_(NSFont.systemFontOfSize_weight_(11.0, NSFontWeightMedium))
@@ -375,7 +430,9 @@ class VoiceFiWelcomeWindow:
         self.paste_btn.setAction_(objc.selector(paste_target.buttonClicked_, signature=b"v@:@"))
         content_view.addSubview_(self.paste_btn)
 
-        key_hint = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(24.0, win_h - 334.0), NSSize(360.0, 16.0)))
+        key_hint = NSTextField.alloc().initWithFrame_(
+            NSRect(NSPoint(24.0, win_h - 334.0), NSSize(360.0, 16.0))
+        )
         key_hint.setStringValue_("🔑 Emailed upon purchase • Free trial requires no key or card.")
         key_hint.setFont_(NSFont.systemFontOfSize_weight_(10.5, NSFontWeightRegular))
         key_hint.setTextColor_(NSColor.secondaryLabelColor())
@@ -385,7 +442,9 @@ class VoiceFiWelcomeWindow:
         key_hint.setDrawsBackground_(False)
         content_view.addSubview_(key_hint)
 
-        act_btn = NSButton.alloc().initWithFrame_(NSRect(NSPoint(24.0, win_h - 376.0), NSSize(360.0, 36.0)))
+        act_btn = NSButton.alloc().initWithFrame_(
+            NSRect(NSPoint(24.0, win_h - 376.0), NSSize(360.0, 36.0))
+        )
         act_btn.setTitle_("⚡ Activate Pro License")
         act_btn.setBezelStyle_(NSBezelStyleRounded)
         act_btn.setFont_(NSFont.systemFontOfSize_weight_(13.0, NSFontWeightBold))
@@ -395,7 +454,9 @@ class VoiceFiWelcomeWindow:
         act_btn.setAction_(objc.selector(act_target.buttonClicked_, signature=b"v@:@"))
         content_view.addSubview_(act_btn)
 
-        self.status_label = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(24.0, win_h - 402.0), NSSize(360.0, 20.0)))
+        self.status_label = NSTextField.alloc().initWithFrame_(
+            NSRect(NSPoint(24.0, win_h - 402.0), NSSize(360.0, 20.0))
+        )
         self.status_label.setStringValue_("")
         self.status_label.setFont_(NSFont.systemFontOfSize_weight_(11.0, NSFontWeightMedium))
         self.status_label.setAlignment_(NSTextAlignmentCenter)
@@ -405,7 +466,9 @@ class VoiceFiWelcomeWindow:
         self.status_label.setDrawsBackground_(False)
         content_view.addSubview_(self.status_label)
 
-        trial_btn = NSButton.alloc().initWithFrame_(NSRect(NSPoint(24.0, win_h - 442.0), NSSize(175.0, 34.0)))
+        trial_btn = NSButton.alloc().initWithFrame_(
+            NSRect(NSPoint(24.0, win_h - 442.0), NSSize(175.0, 34.0))
+        )
         trial_btn.setTitle_("✨ Start 14-Day Free Trial")
         trial_btn.setBezelStyle_(NSBezelStyleRounded)
         trial_btn.setFont_(NSFont.systemFontOfSize_weight_(11.5, NSFontWeightSemibold))
@@ -415,7 +478,9 @@ class VoiceFiWelcomeWindow:
         trial_btn.setAction_(objc.selector(trial_target.buttonClicked_, signature=b"v@:@"))
         content_view.addSubview_(trial_btn)
 
-        test_btn = NSButton.alloc().initWithFrame_(NSRect(NSPoint(209.0, win_h - 442.0), NSSize(175.0, 34.0)))
+        test_btn = NSButton.alloc().initWithFrame_(
+            NSRect(NSPoint(209.0, win_h - 442.0), NSSize(175.0, 34.0))
+        )
         test_btn.setTitle_("🔊 Test Voice (0ms Speech)")
         test_btn.setBezelStyle_(NSBezelStyleRounded)
         test_btn.setFont_(NSFont.systemFontOfSize_weight_(11.0, NSFontWeightMedium))
@@ -425,7 +490,9 @@ class VoiceFiWelcomeWindow:
         test_btn.setAction_(objc.selector(test_target.buttonClicked_, signature=b"v@:@"))
         content_view.addSubview_(test_btn)
 
-        practice_btn = NSButton.alloc().initWithFrame_(NSRect(NSPoint(24.0, win_h - 482.0), NSSize(360.0, 32.0)))
+        practice_btn = NSButton.alloc().initWithFrame_(
+            NSRect(NSPoint(24.0, win_h - 482.0), NSSize(360.0, 32.0))
+        )
         practice_btn.setTitle_("🎙️ Test Audio Loopback (Dictation Check)")
         practice_btn.setBezelStyle_(NSBezelStyleRounded)
         practice_btn.setFont_(NSFont.systemFontOfSize_weight_(11.0, NSFontWeightMedium))
@@ -435,10 +502,16 @@ class VoiceFiWelcomeWindow:
         practice_btn.setAction_(objc.selector(practice_target.buttonClicked_, signature=b"v@:@"))
         content_view.addSubview_(practice_btn)
 
-        hotkey_strip = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(24.0, win_h - 510.0), NSSize(360.0, 18.0)))
-        hotkey_strip.setStringValue_("⌨️ Universal Hotkeys: ⌃T to speak  •  ⎋ to stop  •  ⇥ to focus")
+        hotkey_strip = NSTextField.alloc().initWithFrame_(
+            NSRect(NSPoint(24.0, win_h - 510.0), NSSize(360.0, 18.0))
+        )
+        hotkey_strip.setStringValue_(
+            "⌨️ Universal Hotkeys: ⌃T to speak  •  ⎋ to stop  •  ⇥ to focus"
+        )
         hotkey_strip.setFont_(NSFont.systemFontOfSize_weight_(10.5, NSFontWeightSemibold))
-        hotkey_strip.setTextColor_(NSColor.colorWithCalibratedRed_green_blue_alpha_(0.2, 0.65, 0.85, 1.0))
+        hotkey_strip.setTextColor_(
+            NSColor.colorWithCalibratedRed_green_blue_alpha_(0.2, 0.65, 0.85, 1.0)
+        )
         hotkey_strip.setAlignment_(NSTextAlignmentCenter)
         hotkey_strip.setEditable_(False)
         hotkey_strip.setSelectable_(False)
@@ -449,14 +522,20 @@ class VoiceFiWelcomeWindow:
         # =========================================================================
         # RIGHT COLUMN: Instant Phone Companion & Companion Tunnel QR (w = 352)
         # =========================================================================
-        card = NSBox.alloc().initWithFrame_(NSRect(NSPoint(404.0, 48.0), NSSize(352.0, win_h - 170.0)))
+        card = NSBox.alloc().initWithFrame_(
+            NSRect(NSPoint(404.0, 48.0), NSSize(352.0, win_h - 170.0))
+        )
         card.setBoxType_(4)  # NSBoxCustom
         card.setTitlePosition_(0)  # NSNoTitle
         card.setFillColor_(NSColor.colorWithCalibratedRed_green_blue_alpha_(0.06, 0.08, 0.12, 0.95))
-        card.setBorderColor_(NSColor.colorWithCalibratedRed_green_blue_alpha_(0.22, 0.26, 0.35, 0.8))
+        card.setBorderColor_(
+            NSColor.colorWithCalibratedRed_green_blue_alpha_(0.22, 0.26, 0.35, 0.8)
+        )
         card.setCornerRadius_(16.0)
 
-        card_title = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(16.0, 474.0), NSSize(320.0, 24.0)))
+        card_title = NSTextField.alloc().initWithFrame_(
+            NSRect(NSPoint(16.0, 474.0), NSSize(320.0, 24.0))
+        )
         card_title.setStringValue_("📱 Connect Your Phone in Seconds")
         card_title.setFont_(NSFont.systemFontOfSize_weight_(13.5, NSFontWeightBold))
         card_title.setEditable_(False)
@@ -465,8 +544,12 @@ class VoiceFiWelcomeWindow:
         card_title.setDrawsBackground_(False)
         card.addSubview_(card_title)
 
-        card_sub = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(16.0, 436.0), NSSize(320.0, 32.0)))
-        card_sub.setStringValue_("Scan with your iPhone or Android camera to connect hands-free voice to your Mac:")
+        card_sub = NSTextField.alloc().initWithFrame_(
+            NSRect(NSPoint(16.0, 436.0), NSSize(320.0, 32.0))
+        )
+        card_sub.setStringValue_(
+            "Scan with your iPhone or Android camera to connect hands-free voice to your Mac:"
+        )
         card_sub.setFont_(NSFont.systemFontOfSize_weight_(10.5, NSFontWeightRegular))
         card_sub.setTextColor_(NSColor.secondaryLabelColor())
         card_sub.setEditable_(False)
@@ -480,16 +563,22 @@ class VoiceFiWelcomeWindow:
         qr_box.setBoxType_(4)  # NSBoxCustom
         qr_box.setTitlePosition_(0)  # NSNoTitle
         qr_box.setFillColor_(NSColor.whiteColor())
-        qr_box.setBorderColor_(NSColor.colorWithCalibratedRed_green_blue_alpha_(0.3, 0.3, 0.35, 1.0))
+        qr_box.setBorderColor_(
+            NSColor.colorWithCalibratedRed_green_blue_alpha_(0.3, 0.3, 0.35, 1.0)
+        )
         qr_box.setCornerRadius_(14.0)
 
-        self.qr_image_view = NSImageView.alloc().initWithFrame_(NSRect(NSPoint(6.0, 6.0), NSSize(188.0, 188.0)))
+        self.qr_image_view = NSImageView.alloc().initWithFrame_(
+            NSRect(NSPoint(6.0, 6.0), NSSize(188.0, 188.0))
+        )
         self.qr_image_view.setImageScaling_(NSImageScaleProportionallyUpOrDown)
         qr_box.addSubview_(self.qr_image_view)
         card.addSubview_(qr_box)
 
         # Tunnel Status & Restart/Start Button
-        self.tunnel_btn = NSButton.alloc().initWithFrame_(NSRect(NSPoint(16.0, 186.0), NSSize(320.0, 32.0)))
+        self.tunnel_btn = NSButton.alloc().initWithFrame_(
+            NSRect(NSPoint(16.0, 186.0), NSSize(320.0, 32.0))
+        )
         self.tunnel_btn.setTitle_("🌐 Companion Tunnel: Active (HTTPS) ✅")
         self.tunnel_btn.setBezelStyle_(NSBezelStyleRounded)
         self.tunnel_btn.setFont_(NSFont.systemFontOfSize_weight_(11.0, NSFontWeightSemibold))
@@ -500,14 +589,18 @@ class VoiceFiWelcomeWindow:
         card.addSubview_(self.tunnel_btn)
 
         # URL text field & Copy button
-        self.qr_url_field = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(16.0, 150.0), NSSize(232.0, 28.0)))
+        self.qr_url_field = NSTextField.alloc().initWithFrame_(
+            NSRect(NSPoint(16.0, 150.0), NSSize(232.0, 28.0))
+        )
         self.qr_url_field.setFont_(NSFont.userFixedPitchFontOfSize_(10.5))
         self.qr_url_field.setStringValue_("Loading...")
         self.qr_url_field.setEditable_(False)
         self.qr_url_field.setSelectable_(True)
         card.addSubview_(self.qr_url_field)
 
-        self.copy_qr_btn = NSButton.alloc().initWithFrame_(NSRect(NSPoint(254.0, 150.0), NSSize(82.0, 30.0)))
+        self.copy_qr_btn = NSButton.alloc().initWithFrame_(
+            NSRect(NSPoint(254.0, 150.0), NSSize(82.0, 30.0))
+        )
         self.copy_qr_btn.setTitle_("📋 Copy")
         self.copy_qr_btn.setBezelStyle_(NSBezelStyleRounded)
         self.copy_qr_btn.setFont_(NSFont.systemFontOfSize_weight_(11.0, NSFontWeightMedium))
@@ -518,10 +611,16 @@ class VoiceFiWelcomeWindow:
         card.addSubview_(self.copy_qr_btn)
 
         # Live Phone Connection Status Label
-        self.phone_status_label = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(16.0, 118.0), NSSize(320.0, 22.0)))
+        self.phone_status_label = NSTextField.alloc().initWithFrame_(
+            NSRect(NSPoint(16.0, 118.0), NSSize(320.0, 22.0))
+        )
         self.phone_status_label.setStringValue_("⏳ Waiting for phone camera scan...")
-        self.phone_status_label.setFont_(NSFont.systemFontOfSize_weight_(11.0, NSFontWeightSemibold))
-        self.phone_status_label.setTextColor_(NSColor.colorWithCalibratedRed_green_blue_alpha_(0.9, 0.7, 0.2, 1.0))
+        self.phone_status_label.setFont_(
+            NSFont.systemFontOfSize_weight_(11.0, NSFontWeightSemibold)
+        )
+        self.phone_status_label.setTextColor_(
+            NSColor.colorWithCalibratedRed_green_blue_alpha_(0.9, 0.7, 0.2, 1.0)
+        )
         self.phone_status_label.setAlignment_(NSTextAlignmentCenter)
         self.phone_status_label.setEditable_(False)
         self.phone_status_label.setSelectable_(False)
@@ -530,18 +629,26 @@ class VoiceFiWelcomeWindow:
         card.addSubview_(self.phone_status_label)
 
         # Open in Mac Browser Button
-        self.open_browser_btn = NSButton.alloc().initWithFrame_(NSRect(NSPoint(16.0, 78.0), NSSize(320.0, 32.0)))
+        self.open_browser_btn = NSButton.alloc().initWithFrame_(
+            NSRect(NSPoint(16.0, 78.0), NSSize(320.0, 32.0))
+        )
         self.open_browser_btn.setTitle_("🖥️ Open Companion in Mac Browser ↗")
         self.open_browser_btn.setBezelStyle_(NSBezelStyleRounded)
         self.open_browser_btn.setFont_(NSFont.systemFontOfSize_weight_(11.0, NSFontWeightMedium))
         open_target = WelcomeActionTarget.alloc().initWithCallback_(self._on_open_browser_clicked)
         self._targets.append(open_target)
         self.open_browser_btn.setTarget_(open_target)
-        self.open_browser_btn.setAction_(objc.selector(open_target.buttonClicked_, signature=b"v@:@"))
+        self.open_browser_btn.setAction_(
+            objc.selector(open_target.buttonClicked_, signature=b"v@:@")
+        )
         card.addSubview_(self.open_browser_btn)
 
-        tip_label = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(16.0, 24.0), NSSize(320.0, 44.0)))
-        tip_label.setStringValue_("💡 Tip: After opening on your phone, tap \"Share → Add to Home Screen\" to run as a full-screen standalone app.")
+        tip_label = NSTextField.alloc().initWithFrame_(
+            NSRect(NSPoint(16.0, 24.0), NSSize(320.0, 44.0))
+        )
+        tip_label.setStringValue_(
+            '💡 Tip: After opening on your phone, tap "Share → Add to Home Screen" to run as a full-screen standalone app.'
+        )
         tip_label.setFont_(NSFont.systemFontOfSize_weight_(10.0, NSFontWeightRegular))
         tip_label.setTextColor_(NSColor.secondaryLabelColor())
         tip_label.setAlignment_(NSTextAlignmentCenter)
@@ -556,8 +663,12 @@ class VoiceFiWelcomeWindow:
         # =========================================================================
         # BOTTOM STRIP: Local Privacy & Website Link
         # =========================================================================
-        footer_note = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(24.0, 16.0), NSSize(420.0, 22.0)))
-        footer_note.setStringValue_("🎙️ VoiceFi runs locally on your Mac • Press Control+T in any app to speak.")
+        footer_note = NSTextField.alloc().initWithFrame_(
+            NSRect(NSPoint(24.0, 16.0), NSSize(420.0, 22.0))
+        )
+        footer_note.setStringValue_(
+            "🎙️ VoiceFi runs locally on your Mac • Press Control+T in any app to speak."
+        )
         footer_note.setFont_(NSFont.systemFontOfSize_weight_(10.5, NSFontWeightMedium))
         footer_note.setTextColor_(NSColor.secondaryLabelColor())
         footer_note.setEditable_(False)
@@ -566,7 +677,9 @@ class VoiceFiWelcomeWindow:
         footer_note.setDrawsBackground_(False)
         content_view.addSubview_(footer_note)
 
-        get_btn = NSButton.alloc().initWithFrame_(NSRect(NSPoint(win_w - 290.0, 14.0), NSSize(266.0, 26.0)))
+        get_btn = NSButton.alloc().initWithFrame_(
+            NSRect(NSPoint(win_w - 290.0, 14.0), NSSize(266.0, 26.0))
+        )
         get_btn.setTitle_("Get a License Key on VoiceFi.org ➔")
         get_btn.setBezelStyle_(NSBezelStyleRounded)
         get_btn.setFont_(NSFont.systemFontOfSize_weight_(11.0, NSFontWeightMedium))
@@ -577,7 +690,6 @@ class VoiceFiWelcomeWindow:
         content_view.addSubview_(get_btn)
 
     def _update_permission_badges(self):
-
         """Update Microphone and Accessibility permission badge buttons."""
         if self.mic_status_btn:
             mic_ok = check_microphone_permission()
@@ -621,8 +733,12 @@ class VoiceFiWelcomeWindow:
         config = load_config()
         if getattr(config, "license_key", ""):
             self.key_field.setStringValue_(mask_license_key(config.license_key))
-            self.status_label.setStringValue_(f"⚡ Pro Active ({getattr(config, 'tier', 'pro').upper()})")
-            self.status_label.setTextColor_(NSColor.colorWithCalibratedRed_green_blue_alpha_(0.1, 0.75, 0.35, 1.0))
+            self.status_label.setStringValue_(
+                f"⚡ Pro Active ({getattr(config, 'tier', 'pro').upper()})"
+            )
+            self.status_label.setTextColor_(
+                NSColor.colorWithCalibratedRed_green_blue_alpha_(0.1, 0.75, 0.35, 1.0)
+            )
 
         self.window.center()
         self.window.makeKeyAndOrderFront_(None)
@@ -634,14 +750,17 @@ class VoiceFiWelcomeWindow:
         # Spoken audio greeting once on first run
         if not self._greeting_played:
             self._greeting_played = True
+
             def _greet():
                 try:
                     time.sleep(0.4)
                     from voicefi.tts import get_tts_engine
+
                     engine = get_tts_engine("ava")
                     engine.speak_text("Welcome to VoiceFi! Your voice layer is ready.")
                 except Exception:
                     pass
+
             threading.Thread(target=_greet, daemon=True).start()
 
         try:
@@ -698,10 +817,14 @@ class VoiceFiWelcomeWindow:
                 url = NSURL.URLWithString_("https://polar.sh/purchases")
                 NSWorkspace.sharedWorkspace().openURL_(url)
             elif resp == 1001:  # Second button: Support
-                url = NSURL.URLWithString_("mailto:support@voicefi.org?subject=VoiceFi%20License%20Key%20Recovery")
+                url = NSURL.URLWithString_(
+                    "mailto:support@voicefi.org?subject=VoiceFi%20License%20Key%20Recovery"
+                )
                 NSWorkspace.sharedWorkspace().openURL_(url)
         except Exception as e:
-            self._set_status("ℹ️ Check your email from notifications@polar.sh for key.", is_error=False)
+            self._set_status(
+                "ℹ️ Check your email from notifications@polar.sh for key.", is_error=False
+            )
 
     def _on_paste_key_clicked(self):
         """Read macOS pasteboard and paste directly into the license key input field."""
@@ -713,11 +836,17 @@ class VoiceFiWelcomeWindow:
                 if self.key_field:
                     self.key_field.setStringValue_(clip_clean)
                 if clip_clean.startswith("VF1-"):
-                    self._set_status("📋 Key pasted from clipboard! Click 'Activate Pro License'.", is_error=False)
+                    self._set_status(
+                        "📋 Key pasted from clipboard! Click 'Activate Pro License'.",
+                        is_error=False,
+                    )
                     if self.detected_banner:
                         self.detected_banner.setHidden_(False)
                 else:
-                    self._set_status("📋 Pasted text from clipboard. Ensure format begins with VF1-PRO-...", is_error=False)
+                    self._set_status(
+                        "📋 Pasted text from clipboard. Ensure format begins with VF1-PRO-...",
+                        is_error=False,
+                    )
                 return
         except Exception as e:
             self._set_status(f"⚠️ Clipboard error: {e}", is_error=True)
@@ -733,6 +862,7 @@ class VoiceFiWelcomeWindow:
             self._set_status("🎙️ Opening microphone stream to prompt access...", is_error=False)
             try:
                 import sounddevice as sd
+
                 with sd.InputStream(channels=1, samplerate=16000):
                     pass
             except Exception as e:
@@ -743,9 +873,13 @@ class VoiceFiWelcomeWindow:
         """Prompt or check accessibility permission."""
         ax_ok = check_accessibility_permission()
         if ax_ok:
-            self._set_status("✅ Accessibility hotkeys (<Ctrl>+T, <Esc>) are active!", is_error=False)
+            self._set_status(
+                "✅ Accessibility hotkeys (<Ctrl>+T, <Esc>) are active!", is_error=False
+            )
         else:
-            self._set_status("👉 Opening System Settings... Please toggle VoiceFi to ON.", is_error=False)
+            self._set_status(
+                "👉 Opening System Settings... Please toggle VoiceFi to ON.", is_error=False
+            )
             try:
                 from voicefi.integrations.injector import open_accessibility_settings
 
@@ -786,12 +920,17 @@ class VoiceFiWelcomeWindow:
 
             tier_name = res.get("tier", "pro").upper()
             tag = res.get("tag", "")
-            desc = f"⚡ Pro Activated ({tier_name} - {tag})" if tag else f"⚡ Pro Activated ({tier_name})"
+            desc = (
+                f"⚡ Pro Activated ({tier_name} - {tag})"
+                if tag
+                else f"⚡ Pro Activated ({tier_name})"
+            )
             self._set_status(f"✅ {desc}! All neural voices unlocked.", is_error=False)
 
             # Play success chime
             try:
                 from voicefi.audio.chimes import play_chime
+
                 play_chime("success")
             except Exception:
                 pass
@@ -821,6 +960,7 @@ class VoiceFiWelcomeWindow:
             # Play success chime
             try:
                 from voicefi.audio.chimes import play_chime
+
                 play_chime("success")
             except Exception:
                 pass
@@ -835,12 +975,16 @@ class VoiceFiWelcomeWindow:
 
     def _on_test_voice_clicked(self):
         """Speak sample soundbite in background thread."""
+
         def _speak():
             try:
                 from voicefi.tts import get_tts_engine, stop_all_speech
+
                 stop_all_speech()
                 engine = get_tts_engine("ava")
-                engine.speak_text("Welcome to VoiceFi! Speech synthesis is running smoothly on your Mac.")
+                engine.speak_text(
+                    "Welcome to VoiceFi! Speech synthesis is running smoothly on your Mac."
+                )
             except Exception as e:
                 print(f"[Welcome] Voice test error: {e}")
 
@@ -863,12 +1007,17 @@ class VoiceFiWelcomeWindow:
                     txt = stt.transcribe(wav_path).strip()
                     wav_path.unlink(missing_ok=True)
                     feedback = f'✅ Transcribed: "{txt}"' if txt else "✅ Audio captured cleanly!"
+
                     def _update_ui():
                         self._set_status(feedback, is_error=False)
+
                     AppHelper.callAfter(_update_ui)
             except Exception as e:
+                err_msg = str(e)
+
                 def _err_ui():
-                    self._set_status(f"⚠️ Audio test notice: {e}", is_error=True)
+                    self._set_status(f"⚠️ Audio test notice: {err_msg}", is_error=True)
+
                 AppHelper.callAfter(_err_ui)
 
         threading.Thread(target=_run_test, daemon=True).start()
@@ -883,9 +1032,13 @@ class VoiceFiWelcomeWindow:
             return
         self.status_label.setStringValue_(text)
         if is_error:
-            self.status_label.setTextColor_(NSColor.colorWithCalibratedRed_green_blue_alpha_(0.95, 0.2, 0.2, 1.0))
+            self.status_label.setTextColor_(
+                NSColor.colorWithCalibratedRed_green_blue_alpha_(0.95, 0.2, 0.2, 1.0)
+            )
         else:
-            self.status_label.setTextColor_(NSColor.colorWithCalibratedRed_green_blue_alpha_(0.1, 0.75, 0.35, 1.0))
+            self.status_label.setTextColor_(
+                NSColor.colorWithCalibratedRed_green_blue_alpha_(0.1, 0.75, 0.35, 1.0)
+            )
 
     def _create_nsimage_from_url(self, url: str) -> Optional[NSImage]:
         """Generate high-contrast QR code NSImage from URL."""
@@ -915,6 +1068,7 @@ class VoiceFiWelcomeWindow:
                 print(f"[WelcomeWindow] Tunnel start error: {e}")
 
             if tunnel_url:
+
                 def _update_ui():
                     self._current_pairing_url = tunnel_url
                     if self.qr_url_field:
@@ -926,21 +1080,30 @@ class VoiceFiWelcomeWindow:
                     if self.tunnel_btn:
                         self.tunnel_btn.setTitle_("🟢 Companion Tunnel: Active (HTTPS) ✅")
                         self.tunnel_btn.setEnabled_(True)
-                    if self.phone_status_label and not "Connected" in (self.phone_status_label.stringValue() or ""):
-                        self.phone_status_label.setStringValue_("📱 Point phone camera at QR code...")
+                    if self.phone_status_label and "Connected" not in (
+                        self.phone_status_label.stringValue() or ""
+                    ):
+                        self.phone_status_label.setStringValue_(
+                            "📱 Point phone camera at QR code..."
+                        )
+
                 AppHelper.callAfter(_update_ui)
             else:
+
                 def _fail_ui():
                     if self.tunnel_btn:
                         self.tunnel_btn.setTitle_("🌐 Start Cloudflare Tunnel (Click to Retry)")
                         self.tunnel_btn.setEnabled_(True)
+
                 AppHelper.callAfter(_fail_ui)
 
         threading.Thread(target=_worker, daemon=True).start()
 
     def _on_copy_link_clicked(self):
         """Copy pairing URL to macOS pasteboard."""
-        url = self._current_pairing_url or (self.qr_url_field.stringValue() if self.qr_url_field else "")
+        url = self._current_pairing_url or (
+            self.qr_url_field.stringValue() if self.qr_url_field else ""
+        )
         if url:
             try:
                 pb = NSPasteboard.generalPasteboard()
@@ -948,12 +1111,16 @@ class VoiceFiWelcomeWindow:
                 pb.setString_forType_(url, NSPasteboardTypeString)
                 if self.copy_qr_btn:
                     self.copy_qr_btn.setTitle_("Copied! ✅")
+
                     def _reset():
                         time.sleep(2.0)
+
                         def _set_back():
                             if self.copy_qr_btn:
                                 self.copy_qr_btn.setTitle_("📋 Copy")
+
                         AppHelper.callAfter(_set_back)
+
                     threading.Thread(target=_reset, daemon=True).start()
             except Exception as e:
                 print(f"[WelcomeWindow] Copy link error: {e}")
@@ -997,14 +1164,16 @@ class VoiceFiWelcomeWindow:
         # 2. Start background status polling for phone connection
         if not self._poll_active:
             self._poll_active = True
+
             def _poll_phone_connection():
                 import urllib.request
                 import json
+
                 while self._poll_active:
                     try:
                         req = urllib.request.Request(
                             "http://127.0.0.1:5141/api/status",
-                            headers={"User-Agent": "VoiceFi-Welcome"}
+                            headers={"User-Agent": "VoiceFi-Welcome"},
                         )
                         with urllib.request.urlopen(req, timeout=1.5) as resp:
                             if resp.status == 200:
@@ -1015,15 +1184,22 @@ class VoiceFiWelcomeWindow:
                                     or data.get("total_connected_devices", 0) > 0
                                 )
                                 if connected:
+
                                     def _phone_connected():
                                         if self.phone_status_label:
-                                            self.phone_status_label.setStringValue_("🎉 Phone Connected! (Hands-Free Voice Active)")
-                                            self.phone_status_label.setTextColor_(
-                                                NSColor.colorWithCalibratedRed_green_blue_alpha_(0.1, 0.85, 0.4, 1.0)
+                                            self.phone_status_label.setStringValue_(
+                                                "🎉 Phone Connected! (Hands-Free Voice Active)"
                                             )
+                                            self.phone_status_label.setTextColor_(
+                                                NSColor.colorWithCalibratedRed_green_blue_alpha_(
+                                                    0.1, 0.85, 0.4, 1.0
+                                                )
+                                            )
+
                                     AppHelper.callAfter(_phone_connected)
                                     break
                     except Exception:
                         pass
                     time.sleep(2.5)
+
             threading.Thread(target=_poll_phone_connection, daemon=True).start()

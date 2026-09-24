@@ -241,7 +241,7 @@ def test_gemini_live_sfx_trigger():
     res_invalid = play_sound_effect("non_existent_sfx_123")
     assert "not found" in res_invalid
 
-    with patch("subprocess.Popen") as mock_popen:
+    with patch("pathlib.Path.is_file", return_value=True), patch("subprocess.Popen") as mock_popen:
         res = play_sound_effect("rimshot")
         assert "Played sound effect 'rimshot'" in res
         mock_popen.assert_called_once()

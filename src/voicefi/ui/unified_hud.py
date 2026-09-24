@@ -175,9 +175,6 @@ except objc.nosuchclass_error:
 
 def is_headless() -> bool:
     """Return True if running in headless / testing mode where screen popups must be suppressed."""
-    import os
-    import sys
-
     return bool(
         os.getenv("VOICEFI_HEADLESS") == "1"
         or os.getenv("HEADLESS") == "1"
@@ -204,6 +201,7 @@ def _is_pid_alive(pid: int) -> bool:
 def _get_active_hud_owner_pid() -> Optional[int]:
     """Return PID of another active process owning the Dynamic Island HUD window, or None."""
     import json
+
     my_pid = os.getpid()
 
     # 1. Check HUD owner lock/marker file
@@ -301,6 +299,7 @@ except objc.nosuchclass_error:
                 return None
             try:
                 from Foundation import NSPointInRect
+
                 if NSPointInRect(point, self.frame()):
                     return self
             except Exception:
@@ -329,6 +328,7 @@ except objc.nosuchclass_error:
                 gear_str = objc.lookUpClass("NSString").stringWithString_("⚙️")
                 font = NSFont.systemFontOfSize_(13.0)
                 import AppKit
+
                 attrs = {
                     AppKit.NSFontAttributeName: font,
                 }
@@ -479,6 +479,7 @@ except objc.nosuchclass_error:
                 return None
             try:
                 from Foundation import NSPointInRect
+
                 if NSPointInRect(point, self.frame()):
                     return self
             except Exception:
@@ -610,9 +611,7 @@ except objc.nosuchclass_error:
                 self._tracking_area = (
                     objc.lookUpClass("NSTrackingArea")
                     .alloc()
-                    .initWithRect_options_owner_userInfo_(
-                        self.bounds(), options, self, None
-                    )
+                    .initWithRect_options_owner_userInfo_(self.bounds(), options, self, None)
                 )
                 self.addTrackingArea_(self._tracking_area)
             except Exception:
@@ -667,6 +666,7 @@ class UnifiedDynamicIslandHUD:
             return True
         try:
             from AppKit import NSFont, NSString, NSFontAttributeName
+
             font = NSFont.systemFontOfSize_(11.5)
             attrs = {NSFontAttributeName: font}
             s = NSString.stringWithString_(clean)
@@ -1174,6 +1174,7 @@ class UnifiedDynamicIslandHUD:
             self._is_owner = True
             try:
                 import json
+
                 HUD_OWNER_FILE.write_text(
                     json.dumps({"pid": os.getpid(), "created_at": time.time()}),
                     encoding="utf-8",
@@ -1186,6 +1187,7 @@ class UnifiedDynamicIslandHUD:
             def _cleanup_owner():
                 try:
                     import json
+
                     if HUD_OWNER_FILE.is_file():
                         raw = HUD_OWNER_FILE.read_text(encoding="utf-8").strip()
                         if raw:
@@ -1376,9 +1378,13 @@ class UnifiedDynamicIslandHUD:
         # Body Text Label (Subtitles, recognized speech, tool actions, hints)
         # 430px width (x=60 to x=490) with single-line truncation default
         try:
-            self._body_lbl = HUDBodyTextView.alloc().initWithFrame_(NSRect(NSPoint(60, 7), NSSize(430, 20)))
+            self._body_lbl = HUDBodyTextView.alloc().initWithFrame_(
+                NSRect(NSPoint(60, 7), NSSize(430, 20))
+            )
         except Exception:
-            self._body_lbl = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(60, 7), NSSize(430, 20)))
+            self._body_lbl = NSTextField.alloc().initWithFrame_(
+                NSRect(NSPoint(60, 7), NSSize(430, 20))
+            )
         self._body_lbl.setFont_(NSFont.systemFontOfSize_(11.5))
         self._body_lbl.setTextColor_(
             NSColor.colorWithCalibratedRed_green_blue_alpha_(0.9, 0.92, 0.96, 0.95)
@@ -1504,7 +1510,9 @@ class UnifiedDynamicIslandHUD:
         self._edit_text_field.setSelectable_(True)
         self._edit_container.addSubview_(self._edit_text_field)
 
-        self._send_button = NSButton.alloc().initWithFrame_(NSRect(NSPoint(454, 14), NSSize(72, 32)))
+        self._send_button = NSButton.alloc().initWithFrame_(
+            NSRect(NSPoint(454, 14), NSSize(72, 32))
+        )
         self._send_button.setTitle_("Send ↵")
         self._send_button.setBezelStyle_(NSBezelStyleRounded)
         self._edit_container.addSubview_(self._send_button)
@@ -1583,11 +1591,15 @@ class UnifiedDynamicIslandHUD:
         try:
             import subprocess
 
-            out = subprocess.check_output(
-                ["defaults", "read", "com.apple.dock", "tilesize"],
-                stderr=subprocess.DEVNULL,
-                timeout=0.5,
-            ).decode().strip()
+            out = (
+                subprocess.check_output(
+                    ["defaults", "read", "com.apple.dock", "tilesize"],
+                    stderr=subprocess.DEVNULL,
+                    timeout=0.5,
+                )
+                .decode()
+                .strip()
+            )
             tilesize = float(out)
             cls._dock_height_cache = max(50.0, min(140.0, tilesize + 18.0))
         except Exception:
@@ -1602,11 +1614,16 @@ class UnifiedDynamicIslandHUD:
         try:
             import subprocess
 
-            out = subprocess.check_output(
-                ["defaults", "read", "com.apple.dock", "orientation"],
-                stderr=subprocess.DEVNULL,
-                timeout=0.5,
-            ).decode().strip().lower()
+            out = (
+                subprocess.check_output(
+                    ["defaults", "read", "com.apple.dock", "orientation"],
+                    stderr=subprocess.DEVNULL,
+                    timeout=0.5,
+                )
+                .decode()
+                .strip()
+                .lower()
+            )
             cls._dock_orientation_cache = out
             return out == "bottom"
         except Exception:
@@ -1748,7 +1765,7 @@ class UnifiedDynamicIslandHUD:
             try:
                 from AppKit import NSAnimationContext
 
-                is_expanded = (target_h >= 75.0)
+                is_expanded = target_h >= 75.0
                 body_y = 9.0 if is_expanded else 7.0
                 body_h = 42.0 if is_expanded else 20.0
 
@@ -1776,6 +1793,7 @@ class UnifiedDynamicIslandHUD:
                 self._panel.setFrame_display_(target_rect, True)
                 self._update_subview_geometry(target_h, animate=False)
         finally:
+
             def _clear_flags():
                 self._is_programmatic_move = False
                 self._is_animating = False
@@ -1803,7 +1821,7 @@ class UnifiedDynamicIslandHUD:
 
     def _update_subview_geometry(self, h: float, animate: bool = False):
         """Update frames and vertical offsets of all subviews according to height h, locking the top edge."""
-        is_expanded = (h >= 75.0)
+        is_expanded = h >= 75.0
         delta_y = h - self.STANDARD_HEIGHT
 
         top_y = 32.0 + delta_y
@@ -1834,14 +1852,18 @@ class UnifiedDynamicIslandHUD:
             try:
                 ef = self._effect_view.frame()
                 if abs(float(ef.size.height) - h) > 1.0:
-                    self._effect_view.setFrame_(NSRect(NSPoint(0, 0), NSSize(self.STANDARD_WIDTH, h)))
+                    self._effect_view.setFrame_(
+                        NSRect(NSPoint(0, 0), NSSize(self.STANDARD_WIDTH, h))
+                    )
             except Exception:
                 pass
 
         _apply_f(self._avatar_box, NSRect(NSPoint(14.0, avatar_y), NSSize(38.0, 38.0)))
         _apply_f(self._app_box, NSRect(NSPoint(494.0, app_y), NSSize(32.0, 32.0)))
         if getattr(self, "_app_click_target", None):
-            _apply_f(self._app_click_target, NSRect(NSPoint(490.0, app_click_y), NSSize(40.0, 40.0)))
+            _apply_f(
+                self._app_click_target, NSRect(NSPoint(490.0, app_click_y), NSSize(40.0, 40.0))
+            )
 
         title_w = 75.0
         if self._title_lbl:
@@ -1900,7 +1922,9 @@ class UnifiedDynamicIslandHUD:
                 _apply_f(self._body_lbl, NSRect(NSPoint(60.0, body_y), NSSize(430.0, body_h)))
                 if hasattr(self._body_lbl, "setUsesSingleLineMode_"):
                     self._body_lbl.setUsesSingleLineMode_(not is_expanded)
-                if hasattr(self._body_lbl, "cell") and hasattr(self._body_lbl.cell(), "setLineBreakMode_"):
+                if hasattr(self._body_lbl, "cell") and hasattr(
+                    self._body_lbl.cell(), "setLineBreakMode_"
+                ):
                     mode = NSLineBreakByWordWrapping if is_expanded else NSLineBreakByTruncatingTail
                     self._body_lbl.cell().setLineBreakMode_(mode)
             except Exception:
@@ -2014,7 +2038,7 @@ class UnifiedDynamicIslandHUD:
 
             self._root_view.layer().setBorderColor_(border_col.CGColor())
 
-            is_expanded = (h >= 75.0)
+            is_expanded = h >= 75.0
             delta_y = h - self.STANDARD_HEIGHT
             top_y = 32.0 + delta_y
             avatar_y = 10.0 + delta_y
@@ -2051,14 +2075,18 @@ class UnifiedDynamicIslandHUD:
                 or getattr(self, "_active_app_name", None)
                 or agent_name
                 or getattr(self, "_active_agent_name", None)
-                or self._resolve_active_conversation_app(conv_id or getattr(self, "_active_conv_id", None))
+                or self._resolve_active_conversation_app(
+                    conv_id or getattr(self, "_active_conv_id", None)
+                )
                 or "antigravity"
             )
 
             if self._app_box:
                 self._app_box.setFrame_(NSRect(NSPoint(494.0, app_y), NSSize(32.0, 32.0)))
                 if getattr(self, "_app_click_target", None):
-                    self._app_click_target.setFrame_(NSRect(NSPoint(490.0, app_click_y), NSSize(40.0, 40.0)))
+                    self._app_click_target.setFrame_(
+                        NSRect(NSPoint(490.0, app_click_y), NSSize(40.0, 40.0))
+                    )
 
                 eff_image = avatar_image
                 eff_emoji = avatar_emoji
@@ -2098,7 +2126,9 @@ class UnifiedDynamicIslandHUD:
                         if hasattr(f, "size") and hasattr(f.size, "width"):
                             title_w = max(40.0, min(float(f.size.width), 120.0))
                     if hasattr(self._title_lbl, "setFrame_"):
-                        self._title_lbl.setFrame_(NSRect(NSPoint(60.0, top_y), NSSize(title_w, 18.0)))
+                        self._title_lbl.setFrame_(
+                            NSRect(NSPoint(60.0, top_y), NSSize(title_w, 18.0))
+                        )
                 except Exception:
                     pass
 
@@ -2117,7 +2147,9 @@ class UnifiedDynamicIslandHUD:
 
             if getattr(self, "_app_box", None):
                 try:
-                    display_target = eff_target_app.capitalize() if eff_target_app else (title or "active app")
+                    display_target = (
+                        eff_target_app.capitalize() if eff_target_app else (title or "active app")
+                    )
                     self._app_box.setToolTip_(
                         f"Click to focus {display_target} & conversation (⌥Tab)"
                     )
@@ -2152,13 +2184,19 @@ class UnifiedDynamicIslandHUD:
                     tag_max_w = max(0.0, min(160.0, 400.0 - curr_x))
                     try:
                         if hasattr(self._tag_lbl, "setFrame_"):
-                            self._tag_lbl.setFrame_(NSRect(NSPoint(curr_x, top_y), NSSize(tag_max_w, 18.0)))
+                            self._tag_lbl.setFrame_(
+                                NSRect(NSPoint(curr_x, top_y), NSSize(tag_max_w, 18.0))
+                            )
                     except Exception:
                         pass
                 else:
                     self._tag_lbl.setHidden_(True)
 
-            if hasattr(self, "_root_view") and self._root_view and hasattr(self._root_view, "setToolTip_"):
+            if (
+                hasattr(self, "_root_view")
+                and self._root_view
+                and hasattr(self._root_view, "setToolTip_")
+            ):
                 if state == "speaking":
                     self._root_view.setToolTip_("Speaking • Press Esc to stop (or click HUD)")
                 elif state == "spoken":
@@ -2172,15 +2210,23 @@ class UnifiedDynamicIslandHUD:
                 self._body_lbl.setStringValue_(body_text)
                 if hasattr(self._body_lbl, "setUsesSingleLineMode_"):
                     self._body_lbl.setUsesSingleLineMode_(not is_expanded)
-                if hasattr(self._body_lbl, "cell") and hasattr(self._body_lbl.cell(), "setLineBreakMode_"):
+                if hasattr(self._body_lbl, "cell") and hasattr(
+                    self._body_lbl.cell(), "setLineBreakMode_"
+                ):
                     try:
-                        mode = NSLineBreakByWordWrapping if is_expanded else NSLineBreakByTruncatingTail
+                        mode = (
+                            NSLineBreakByWordWrapping
+                            if is_expanded
+                            else NSLineBreakByTruncatingTail
+                        )
                         self._body_lbl.cell().setLineBreakMode_(mode)
                     except Exception:
                         pass
                 try:
                     if hasattr(self._body_lbl, "setFrame_"):
-                        self._body_lbl.setFrame_(NSRect(NSPoint(60.0, body_y), NSSize(430.0, body_h)))
+                        self._body_lbl.setFrame_(
+                            NSRect(NSPoint(60.0, body_y), NSSize(430.0, body_h))
+                        )
                 except Exception:
                     pass
 
@@ -2193,14 +2239,18 @@ class UnifiedDynamicIslandHUD:
                 hud_cfg = getattr(self.config, "hud", None) if hasattr(self, "config") else None
                 always_on = getattr(hud_cfg, "always_on_vad", True) if hud_cfg is not None else True
 
-                if (always_on or state in (
-                    "listening",
-                    "new_conversation",
-                    "speaking",
-                    "idle",
-                    "working",
-                    "hearing",
-                )) and state not in ("auditing", "verified", "repairing", "repaired"):
+                if (
+                    always_on
+                    or state
+                    in (
+                        "listening",
+                        "new_conversation",
+                        "speaking",
+                        "idle",
+                        "working",
+                        "hearing",
+                    )
+                ) and state not in ("auditing", "verified", "repairing", "repaired"):
                     self._visualizer.setHidden_(False)
                     if getattr(self, "_vad_btn", None):
                         self._vad_btn.setHidden_(False)
@@ -2218,7 +2268,9 @@ class UnifiedDynamicIslandHUD:
                     pass
                 self._gear_btn.setHidden_(False)
 
-            is_mock = hasattr(self._panel, "assert_called") or type(self._panel).__name__ == "MagicMock"
+            is_mock = (
+                hasattr(self._panel, "assert_called") or type(self._panel).__name__ == "MagicMock"
+            )
             if self._panel and not is_headless() and not getattr(self, "_is_proxy", False):
                 if not self._panel.isVisible():
                     self._panel.orderFrontRegardless()
@@ -2298,10 +2350,16 @@ class UnifiedDynamicIslandHUD:
                 ):
                     self._animate_to_frame(target_rect, self.STANDARD_HEIGHT)
 
-            self._root_view.setFrame_(NSRect(NSPoint(0, 0), NSSize(self.STANDARD_WIDTH, self.STANDARD_HEIGHT)))
-            self._effect_view.setFrame_(NSRect(NSPoint(0, 0), NSSize(self.STANDARD_WIDTH, self.STANDARD_HEIGHT)))
+            self._root_view.setFrame_(
+                NSRect(NSPoint(0, 0), NSSize(self.STANDARD_WIDTH, self.STANDARD_HEIGHT))
+            )
+            self._effect_view.setFrame_(
+                NSRect(NSPoint(0, 0), NSSize(self.STANDARD_WIDTH, self.STANDARD_HEIGHT))
+            )
 
-            is_mock = hasattr(self._panel, "assert_called") or type(self._panel).__name__ == "MagicMock"
+            is_mock = (
+                hasattr(self._panel, "assert_called") or type(self._panel).__name__ == "MagicMock"
+            )
             if self._panel and not is_headless() and not getattr(self, "_is_proxy", False):
                 if not self._panel.isVisible():
                     self._panel.orderFrontRegardless()
@@ -2353,7 +2411,12 @@ class UnifiedDynamicIslandHUD:
 
         def _update():
             self._update_window_level_and_collection()
-            if not is_headless() and not getattr(self, "_is_proxy", False) and self._is_visible and self._panel:
+            if (
+                not is_headless()
+                and not getattr(self, "_is_proxy", False)
+                and self._is_visible
+                and self._panel
+            ):
                 self._panel.orderFrontRegardless()
 
         if threading.current_thread() is threading.main_thread():
@@ -2962,9 +3025,15 @@ class UnifiedDynamicIslandHUD:
                     self._animate_to_frame(target_rect, self.EXPANDED_HEIGHT)
 
             if not self._panel.isVisible():
-                self._root_view.setFrame_(NSRect(NSPoint(0, 0), NSSize(self.STANDARD_WIDTH, self.EXPANDED_HEIGHT)))
-                self._effect_view.setFrame_(NSRect(NSPoint(0, 0), NSSize(self.STANDARD_WIDTH, self.EXPANDED_HEIGHT)))
-            self._edit_container.setFrame_(NSRect(NSPoint(0, 0), NSSize(self.STANDARD_WIDTH, self.EXPANDED_HEIGHT)))
+                self._root_view.setFrame_(
+                    NSRect(NSPoint(0, 0), NSSize(self.STANDARD_WIDTH, self.EXPANDED_HEIGHT))
+                )
+                self._effect_view.setFrame_(
+                    NSRect(NSPoint(0, 0), NSSize(self.STANDARD_WIDTH, self.EXPANDED_HEIGHT))
+                )
+            self._edit_container.setFrame_(
+                NSRect(NSPoint(0, 0), NSSize(self.STANDARD_WIDTH, self.EXPANDED_HEIGHT))
+            )
 
             # Hide standard labels and show edit container
             if self._label:
@@ -3045,7 +3114,9 @@ class UnifiedDynamicIslandHUD:
             self._send_button.setAction_("submitAction:")
 
             self._panel.setBecomesKeyOnlyIfNeeded_(False)
-            is_mock = hasattr(self._panel, "assert_called") or type(self._panel).__name__ == "MagicMock"
+            is_mock = (
+                hasattr(self._panel, "assert_called") or type(self._panel).__name__ == "MagicMock"
+            )
             if self._panel and not is_headless() and not getattr(self, "_is_proxy", False):
                 self._panel.makeKeyAndOrderFront_(None)
                 self._panel.makeFirstResponder_(self._edit_text_field)
@@ -3109,7 +3180,9 @@ class UnifiedDynamicIslandHUD:
             if self.persistent:
                 self._hide_timer = threading.Timer(
                     linger_seconds,
-                    lambda: self.set_idle(app_name=resolved_app, conv_id=resolved_cid, agent_name=resolved_agent),
+                    lambda: self.set_idle(
+                        app_name=resolved_app, conv_id=resolved_cid, agent_name=resolved_agent
+                    ),
                 )
             else:
                 self._hide_timer = threading.Timer(linger_seconds, self.hide)

@@ -550,5 +550,5 @@ pytest tests/test_custom_neural_tts.py -v
 
 For visual prototyping, emotion tag testing, and rapid auditioning of neural TTS models:
 * **[Google AI Studio — Generate Speech](https://aistudio.google.com/generate-speech)**: Interactive web sandbox for testing Gemini 3.1 Flash TTS and Gemini 3.8 Live neural voices (Aoede, Puck, Charon, Kore, Fenrir) with inline direction tags (`[whispers]`, `[sighs]`, `[excited]`, `[pause]`) and multi-speaker dialogues.
-* **[Google AI Studio Testing Guide & Showcase](file:///Users/jaketrigg/Projects/VoiceFi/docs/GOOGLE_AI_STUDIO_SPEECH_TESTING.md)**: Curated prompts, multi-speaker banter scripts, nature documentary presets, and speed-talking benchmarks.
+* **[Google AI Studio Testing Guide & Showcase](GOOGLE_AI_STUDIO_SPEECH_TESTING.md)**: Curated prompts, multi-speaker banter scripts, nature documentary presets, and speed-talking benchmarks.
 

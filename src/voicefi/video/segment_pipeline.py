@@ -81,6 +81,7 @@ class SegmentCache:
             return ""
         try:
             import inspect
+
             src = inspect.getsource(fn)
             return hashlib.sha256(src.encode("utf-8")).hexdigest()[:16]
         except Exception:
@@ -121,7 +122,9 @@ class SegmentCache:
             p = Path(inp).resolve()
             if p.exists():
                 stat = p.stat()
-                input_sigs.append(f"{p.as_posix()}:{stat.st_size}:{stat.st_mtime_ns}:{getattr(stat, 'st_ino', 0)}")
+                input_sigs.append(
+                    f"{p.as_posix()}:{stat.st_size}:{stat.st_mtime_ns}:{getattr(stat, 'st_ino', 0)}"
+                )
             else:
                 input_sigs.append(f"{p.as_posix()}:MISSING:0:0")
 
@@ -212,7 +215,9 @@ class SegmentCache:
         tmp_meta = self.cache_dir / f".tmp_sub_meta_{sub_id}_{os.getpid()}_{time.time_ns()}.json"
         try:
             with open(tmp_meta, "w", encoding="utf-8") as f:
-                json.dump({"fingerprint": fingerprint, "rendered_at": datetime.now().isoformat()}, f)
+                json.dump(
+                    {"fingerprint": fingerprint, "rendered_at": datetime.now().isoformat()}, f
+                )
             tmp_meta.replace(meta_path)
         finally:
             tmp_meta.unlink(missing_ok=True)
@@ -247,9 +252,14 @@ class SegmentCache:
         if mp4_path.is_file() and mp4_path.stat().st_size > 1024:
             try:
                 cmd = [
-                    "ffprobe", "-v", "error",
-                    "-show_entries", "stream=codec_type,codec_name,width,height,pix_fmt,r_frame_rate,sample_rate,channels",
-                    "-of", "json", str(mp4_path)
+                    "ffprobe",
+                    "-v",
+                    "error",
+                    "-show_entries",
+                    "stream=codec_type,codec_name,width,height,pix_fmt,r_frame_rate,sample_rate,channels",
+                    "-of",
+                    "json",
+                    str(mp4_path),
                 ]
                 res = subprocess.run(cmd, capture_output=True, text=True)
                 if res.returncode == 0:
@@ -318,10 +328,24 @@ class SegmentPipeline:
         self.segments: Dict[str, SegmentDefinition] = {}
 
         self.default_v_flags = default_v_flags or [
-            "-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "fast", "-crf", "18"
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            "-preset",
+            "fast",
+            "-crf",
+            "18",
         ]
         self.default_a_flags = default_a_flags or [
-            "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2"
+            "-c:a",
+            "aac",
+            "-b:a",
+            "192k",
+            "-ar",
+            "48000",
+            "-ac",
+            "2",
         ]
 
     def register(
@@ -349,7 +373,9 @@ class SegmentPipeline:
         if params is None:
             params = {}
         if render_fn is None and not (video_fn and audio_fn):
-            raise ValueError(f"Segment '{segment_id}' must provide render_fn or (video_fn and audio_fn).")
+            raise ValueError(
+                f"Segment '{segment_id}' must provide render_fn or (video_fn and audio_fn)."
+            )
 
         resolved_inputs = [Path(p).resolve() for p in inputs]
         resolved_v_inputs = [Path(p).resolve() for p in (video_inputs or [])]
@@ -419,25 +445,30 @@ class SegmentPipeline:
             description=f"VoiceFi Segment-Isolated Video Pipeline [{self.name}]"
         )
         parser.add_argument(
-            "-s", "--only", "--segment",
+            "-s",
+            "--only",
+            "--segment",
             dest="only",
             default=None,
             help="Render ONLY specified segment ID(s) (comma-separated, e.g. --only seg4)",
         )
         parser.add_argument(
-            "-p", "--preview",
+            "-p",
+            "--preview",
             action="store_true",
             help="Automatically open rendered segment or master reel in macOS QuickTime",
         )
         parser.add_argument(
-            "-f", "--force",
+            "-f",
+            "--force",
             nargs="?",
             const="__ALL__",
             default=None,
             help="Force re-rendering without cache (all segments or specific segment)",
         )
         parser.add_argument(
-            "-j", "--jobs",
+            "-j",
+            "--jobs",
             type=int,
             default=min(4, max(1, (os.cpu_count() or 4) // 2)),
             help="Number of concurrent worker threads for parallel compilation (default: auto)",
@@ -453,7 +484,8 @@ class SegmentPipeline:
             help="Purge cache before running",
         )
         parser.add_argument(
-            "-l", "--list",
+            "-l",
+            "--list",
             action="store_true",
             help="List all segments and their cache statuses, then exit",
         )
@@ -484,7 +516,9 @@ class SegmentPipeline:
         dirty_count = 0
 
         for seg_id, seg in self.segments.items():
-            fp = self.cache.compute_fingerprint(seg_id, seg.inputs, seg.params, seg.dependencies, self)
+            fp = self.cache.compute_fingerprint(
+                seg_id, seg.inputs, seg.params, seg.dependencies, self
+            )
             cached = self.cache.is_cached(seg_id, fp)
             dur_str = f"{seg.expected_duration:.1f}s" if seg.expected_duration else "N/A"
             if seg.expected_duration:
@@ -500,7 +534,9 @@ class SegmentPipeline:
             print(f"{seg_id:<16} {status_str:<14} {dur_str:<10} {seg.description[:38]}")
 
         print("-" * 80)
-        print(f"Summary: {cached_count} cached (0.00s), {dirty_count} need render | Est. Duration: {total_dur:.1f}s")
+        print(
+            f"Summary: {cached_count} cached (0.00s), {dirty_count} need render | Est. Duration: {total_dur:.1f}s"
+        )
         print("=" * 80 + "\n")
 
     def run_segment(
@@ -515,7 +551,9 @@ class SegmentPipeline:
         Returns: (output_path, was_cache_hit, elapsed_seconds)
         """
         if segment_id not in self.segments:
-            raise KeyError(f"Segment '{segment_id}' not found in pipeline '{self.name}'. Available: {list(self.segments.keys())}")
+            raise KeyError(
+                f"Segment '{segment_id}' not found in pipeline '{self.name}'. Available: {list(self.segments.keys())}"
+            )
 
         seg = self.segments[segment_id]
 
@@ -543,7 +581,9 @@ class SegmentPipeline:
             if not force and self.cache.is_cached(segment_id, combo_fp):
                 meta = self.cache.get_metadata(segment_id)
                 prev_time = meta.get("render_time_s", 0.0) if meta else 0.0
-                print(f"⚡ [CACHE HIT] {segment_id} ({seg.description}) — 0.00s (Saved ~{prev_time:.1f}s)")
+                print(
+                    f"⚡ [CACHE HIT] {segment_id} ({seg.description}) — 0.00s (Saved ~{prev_time:.1f}s)"
+                )
                 return out_path, True, 0.0
 
             if dry_run:
@@ -557,7 +597,9 @@ class SegmentPipeline:
             # 1. Video Layer (Heavy visual work: 80-90% of time)
             if force or not self.cache.is_sub_cached(f"{segment_id}_v", v_fp, v_cached_mp4):
                 print(f"🎨 [VIDEO RENDER] {segment_id}: Re-rendering visual layer...")
-                tmp_v = self.cache.cache_dir / f".tmp_{segment_id}_v_{os.getpid()}_{time.time_ns()}.mp4"
+                tmp_v = (
+                    self.cache.cache_dir / f".tmp_{segment_id}_v_{os.getpid()}_{time.time_ns()}.mp4"
+                )
                 try:
                     seg.video_fn(tmp_v)
                     tmp_v.replace(v_cached_mp4)
@@ -570,7 +612,9 @@ class SegmentPipeline:
             # 2. Audio Layer (Ultra-fast mixdown: <0.1s)
             if force or not self.cache.is_sub_cached(f"{segment_id}_a", a_fp, a_cached_wav):
                 print(f"🎚️ [AUDIO MIX] {segment_id}: Rendering audio stems & delays...")
-                tmp_a = self.cache.cache_dir / f".tmp_{segment_id}_a_{os.getpid()}_{time.time_ns()}.wav"
+                tmp_a = (
+                    self.cache.cache_dir / f".tmp_{segment_id}_a_{os.getpid()}_{time.time_ns()}.wav"
+                )
                 try:
                     seg.audio_fn(tmp_a)
                     tmp_a.replace(a_cached_wav)
@@ -582,15 +626,27 @@ class SegmentPipeline:
 
             # 3. Stream-Copy Fast Remux (<100ms)
             t_remux = time.time()
-            tmp_final = self.cache.cache_dir / f".tmp_{segment_id}_{os.getpid()}_{time.time_ns()}.mp4"
+            tmp_final = (
+                self.cache.cache_dir / f".tmp_{segment_id}_{os.getpid()}_{time.time_ns()}.mp4"
+            )
             try:
                 cmd_remux = [
-                    "ffmpeg", "-y",
-                    "-i", str(v_cached_mp4),
-                    "-i", str(a_cached_wav),
-                    "-c:v", "copy",
-                    "-c:a", "aac", "-b:a", "192k", "-ar", "48000",
-                    "-movflags", "+faststart",
+                    "ffmpeg",
+                    "-y",
+                    "-i",
+                    str(v_cached_mp4),
+                    "-i",
+                    str(a_cached_wav),
+                    "-c:v",
+                    "copy",
+                    "-c:a",
+                    "aac",
+                    "-b:a",
+                    "192k",
+                    "-ar",
+                    "48000",
+                    "-movflags",
+                    "+faststart",
                     str(tmp_final),
                 ]
                 self.run_ffmpeg(cmd_remux, desc=f"Fast Remux {segment_id}")
@@ -605,7 +661,9 @@ class SegmentPipeline:
                     description=seg.description,
                     dependencies=seg.dependencies,
                 )
-                print(f"⚡ Fast Remuxed {segment_id} in {time.time()-t_remux:.2f}s (Total: {elapsed:.2f}s) -> {out_path.name}")
+                print(
+                    f"⚡ Fast Remuxed {segment_id} in {time.time() - t_remux:.2f}s (Total: {elapsed:.2f}s) -> {out_path.name}"
+                )
                 return out_path, False, elapsed
             finally:
                 tmp_final.unlink(missing_ok=True)
@@ -620,7 +678,9 @@ class SegmentPipeline:
         if not force and self.cache.is_cached(segment_id, fingerprint):
             meta = self.cache.get_metadata(segment_id)
             prev_time = meta.get("render_time_s", 0.0) if meta else 0.0
-            print(f"⚡ [CACHE HIT] {segment_id} ({seg.description}) — 0.00s (Saved ~{prev_time:.1f}s)")
+            print(
+                f"⚡ [CACHE HIT] {segment_id} ({seg.description}) — 0.00s (Saved ~{prev_time:.1f}s)"
+            )
             return out_path, True, 0.0
 
         if dry_run:
@@ -631,7 +691,10 @@ class SegmentPipeline:
         t0 = time.time()
 
         # Thread-unique, process-unique, timestamped temporary file
-        temp_out = self.cache.cache_dir / f".tmp_{segment_id}_{os.getpid()}_{threading.get_ident()}_{time.time_ns()}.mp4"
+        temp_out = (
+            self.cache.cache_dir
+            / f".tmp_{segment_id}_{os.getpid()}_{threading.get_ident()}_{time.time_ns()}.mp4"
+        )
 
         try:
             # Check if render_fn accepts dependencies argument
@@ -644,7 +707,9 @@ class SegmentPipeline:
                 seg.render_fn(temp_out)
 
             if not temp_out.is_file() or temp_out.stat().st_size < 1024:
-                raise RuntimeError(f"Segment '{segment_id}' render did not produce valid output file.")
+                raise RuntimeError(
+                    f"Segment '{segment_id}' render did not produce valid output file."
+                )
 
             # Atomically move into place
             temp_out.replace(out_path)
@@ -735,8 +800,12 @@ class SegmentPipeline:
         dirty_ids = []
         for seg_id in active_ids:
             seg = self.segments[seg_id]
-            fp = self.cache.compute_fingerprint(seg_id, seg.inputs, seg.params, seg.dependencies, self)
-            force_seg = force_all or (cli_args and (cli_args.force == "__ALL__" or cli_args.force == seg_id))
+            fp = self.cache.compute_fingerprint(
+                seg_id, seg.inputs, seg.params, seg.dependencies, self
+            )
+            force_seg = force_all or (
+                cli_args and (cli_args.force == "__ALL__" or cli_args.force == seg_id)
+            )
             if force_seg or not self.cache.is_cached(seg_id, fp):
                 dirty_ids.append(seg_id)
 
@@ -747,7 +816,9 @@ class SegmentPipeline:
 
         if not no_parallel and len(independent_dirty) > 1 and max_workers > 1 and not dry_run:
             worker_count = min(len(independent_dirty), max_workers)
-            print(f"⚡ Parallel Rendering {len(independent_dirty)} independent dirty segments across {worker_count} worker threads...")
+            print(
+                f"⚡ Parallel Rendering {len(independent_dirty)} independent dirty segments across {worker_count} worker threads..."
+            )
             with concurrent.futures.ThreadPoolExecutor(max_workers=worker_count) as pool:
                 fut_map = {
                     pool.submit(self.run_segment, sid, force=True, dry_run=False): sid
@@ -758,7 +829,9 @@ class SegmentPipeline:
                     try:
                         fut.result()
                     except Exception as e:
-                        print(f"❌ Parallel render failed for segment '{sid}': {e}", file=sys.stderr)
+                        print(
+                            f"❌ Parallel render failed for segment '{sid}': {e}", file=sys.stderr
+                        )
                         raise
 
         # ---------------------------------------------------------------------
@@ -770,7 +843,9 @@ class SegmentPipeline:
         render_seconds = 0.0
 
         for seg_id in active_ids:
-            force_seg = force_all or (cli_args and (cli_args.force == "__ALL__" or cli_args.force == seg_id))
+            force_seg = force_all or (
+                cli_args and (cli_args.force == "__ALL__" or cli_args.force == seg_id)
+            )
             seg_out, was_hit, elapsed = self.run_segment(seg_id, force=force_seg, dry_run=dry_run)
             rendered_paths.append(seg_out)
             if was_hit:
@@ -814,17 +889,27 @@ class SegmentPipeline:
         t_concat_start = time.time()
 
         # Atomic master assembly: write to temporary file in same folder, then rename
-        tmp_master = final_out.parent / f".tmp_master_{final_out.stem}_{os.getpid()}_{time.time_ns()}{final_out.suffix}"
+        tmp_master = (
+            final_out.parent
+            / f".tmp_master_{final_out.stem}_{os.getpid()}_{time.time_ns()}{final_out.suffix}"
+        )
 
         try:
             cmd_concat = [
-                "ffmpeg", "-y",
-                "-f", "concat",
-                "-safe", "0",
-                "-i", str(concat_plan),
-                "-c", "copy",
-                "-avoid_negative_ts", "make_zero",
-                "-movflags", "+faststart",
+                "ffmpeg",
+                "-y",
+                "-f",
+                "concat",
+                "-safe",
+                "0",
+                "-i",
+                str(concat_plan),
+                "-c",
+                "copy",
+                "-avoid_negative_ts",
+                "make_zero",
+                "-movflags",
+                "+faststart",
                 str(tmp_master),
             ]
             self.run_ffmpeg(cmd_concat, desc="Master Concat Demuxer")

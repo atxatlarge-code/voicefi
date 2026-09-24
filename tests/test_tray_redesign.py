@@ -10,8 +10,13 @@ Validates:
 7. Backward compatibility of all legacy menu attributes.
 """
 
+import sys
 from unittest.mock import MagicMock, patch
 import pytest
+
+if sys.platform != "darwin":
+    pytest.skip("macOS-only UI test requiring rumps", allow_module_level=True)
+
 import rumps
 from voicefi.config import VoiceFiConfig, HUDConfig
 from voicefi.ui.tray import VoiceFiTrayApp

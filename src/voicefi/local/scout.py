@@ -81,7 +81,9 @@ class ReconScout:
             file_count = 0
             for root, dirs, files in os.walk(path):
                 # Ignore git and venv dirs
-                dirs[:] = [d for d in dirs if d not in (".git", ".venv", "__pycache__", "node_modules")]
+                dirs[:] = [
+                    d for d in dirs if d not in (".git", ".venv", "__pycache__", "node_modules")
+                ]
                 for file in files[:30]:  # Cap at 30 files
                     fp = Path(root) / file
                     try:
@@ -108,7 +110,9 @@ class ReconScout:
 
         read_start = time.perf_counter()
         try:
-            raw_content, file_size, truncated = self.read_target_content(target_path, max_bytes=max_bytes)
+            raw_content, file_size, truncated = self.read_target_content(
+                target_path, max_bytes=max_bytes
+            )
             read_latency_ms = round((time.perf_counter() - read_start) * 1000.0, 3)
         except Exception as e:
             duration = time.perf_counter() - start_time
@@ -131,9 +135,10 @@ class ReconScout:
 
         # Formulate prompt
         truncation_note = " [Content truncated to 500KB]" if truncated else ""
+        resolved_path = Path(os.path.expanduser(str(target_path))).resolve()
         prompt = (
             f"Objective: {query}\n\n"
-            f"Target: {target_path}{truncation_note} ({file_size} bytes, ~{input_tokens} tokens)\n\n"
+            f"Target: {resolved_path}{truncation_note} ({file_size} bytes, ~{input_tokens} tokens)\n\n"
             f"```\n{raw_content}\n```\n\n"
             "Provide: 1) One-line Diagnosis/Summary, 2) Key Functions/Lines, 3) Actionable Fix or Findings."
         )
@@ -144,6 +149,7 @@ class ReconScout:
                 findings = await self.engine.chat_text(
                     prompt=prompt,
                     system_instructions=self.DEFAULT_SCOUT_INSTRUCTIONS,
+                    tools=[],
                 )
                 output_tokens = estimate_tokens(findings)
                 tokens_saved = max(0, input_tokens - output_tokens)
@@ -165,7 +171,9 @@ class ReconScout:
                     ingress_mode="unified_ram",
                 )
             except Exception as e:
-                logger.warning(f"Local scout execution error: {e}. Falling back to heuristic extraction.")
+                logger.warning(
+                    f"Local scout execution error: {e}. Falling back to heuristic extraction."
+                )
 
         # Fallback / Fast Rule-Based Scout (if model checkpoint not yet downloaded)
         duration = time.perf_counter() - start_time
@@ -199,8 +207,10 @@ class ReconScout:
         errors = []
         for i, line in enumerate(lines[:1000]):
             low = line.lower()
-            if any(k in low for k in ("error", "exception", "traceback", "fail", "critical", "panic")):
-                errors.append(f"Line {i+1}: {line.strip()[:140]}")
+            if any(
+                k in low for k in ("error", "exception", "traceback", "fail", "critical", "panic")
+            ):
+                errors.append(f"Line {i + 1}: {line.strip()[:140]}")
                 if len(errors) >= 8:
                     break
 

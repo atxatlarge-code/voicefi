@@ -710,18 +710,27 @@ def find_persona(name_or_id: Optional[str]) -> Optional[VoicePersona]:
                 if cloned.acoustic_metrics
                 else "Custom Cloned Voice"
             )
-            gender = "Male" if any(
-                w in v_style.lower()
-                for w in ("male", "bass", "baritone", "tenor", "british rp")
-            ) or "thomas" in str(cloned.calibrated_voice).lower() else "Custom"
-            locale = "en-GB" if ("british" in v_style.lower() or "gb" in str(cloned.calibrated_voice).lower()) else "en-US"
+            gender = (
+                "Male"
+                if any(
+                    w in v_style.lower()
+                    for w in ("male", "bass", "baritone", "tenor", "british rp")
+                )
+                or "thomas" in str(cloned.calibrated_voice).lower()
+                else "Custom"
+            )
+            locale = (
+                "en-GB"
+                if ("british" in v_style.lower() or "gb" in str(cloned.calibrated_voice).lower())
+                else "en-US"
+            )
             return VoicePersona(
                 id=cloned.name,
                 name=cloned.name,
                 provider=cloned.provider,
                 gender=gender,
                 locale=locale,
-                style=cloned.description or desc,
+                style=cloned.description or v_style,
                 sample_text=f"Hey there! This is {cloned.name}, speaking with my custom cloned voice.",
                 recommended_role="Personal Voice Clone",
             )

@@ -154,6 +154,8 @@ def cmd_troubleshoot(args):
 
 def cmd_hearing_test(args):
     """Run acoustic hearing test (speak aloud -> listen via mic -> STT verification)."""
+    from voicefi.cli_commands.voice import cmd_voice
+
     args.voice_action = "test"
     args.hearing = True
     cmd_voice(args)
@@ -201,6 +203,8 @@ def cmd_feedback_loop(args):
         return
 
     # Otherwise run acoustic roundtrip verification test
+    from voicefi.cli_commands.voice import cmd_voice
+
     args.voice_action = "test"
     args.feedback_loop = True
     cmd_voice(args)
@@ -218,7 +222,6 @@ def cmd_barge_in(args):
     from voicefi.tts import get_tts_engine, stop_all_speech, find_persona
     from voicefi.audio.device import get_audio_device_profile
     from voicefi.stt.whisper_local import WhisperLocalSTT
-    import threading
 
     config = load_config()
     prof = get_audio_device_profile()
@@ -328,6 +331,8 @@ def cmd_barge_in(args):
 
 def cmd_ping(args):
     """Silently test voice connection, latency, speed, and health."""
+    from voicefi.cli_commands.voice import cmd_voice
+
     args.voice_action = "ping"
     cmd_voice(args)
 
@@ -479,5 +484,3 @@ def run_silent_voice_ping(args, config):
         print(f"  • Status:      🔴 {status_label}")
         print(f"  • Latency:     {res.latency_ms:.1f} ms")
         print(f"  • Error:       {res.error}\n")
-
-

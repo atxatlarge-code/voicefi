@@ -419,9 +419,9 @@ def collapse_repetitive_artifacts(text: str, min_run: int = _REPETITION_RUN_THRE
         if result.strip() and result.strip() == unit:
             result = ""
         elif result.endswith(unit):
-            result = result[:-len(unit)].rstrip()
+            result = result[: -len(unit)].rstrip()
         elif result.startswith(unit):
-            result = result[len(unit):].lstrip()
+            result = result[len(unit) :].lstrip()
         text = re.sub(r"\s+", " ", result).strip()
 
     # 3. Sentence & multi-word clause duplicate pass (collapses 2-run repetitions of sentences or >=4 word phrases)
@@ -437,7 +437,7 @@ def _collapse_sentence_and_clause_duplicates(text: str) -> str:
         return text
 
     # Pass A: Punctuation-delimited sentences
-    parts = re.split(r'([.!?;\n]+(?:\s+|$))', text)
+    parts = re.split(r"([.!?;\n]+(?:\s+|$))", text)
     if len(parts) > 2:
         reconstructed = []
         last_norm = ""
@@ -501,7 +501,12 @@ def inject_documentary_breathing_pauses(text: str) -> str:
         t = re.sub(pat, rep, t, flags=re.IGNORECASE)
 
     # Insert dramatic pauses at major clause boundaries if not already punctuated with ellipsis
-    t = re.sub(r",\s*(we discover|we find|lies|awaits|emerges|survives)\b", r"... \1", t, flags=re.IGNORECASE)
+    t = re.sub(
+        r",\s*(we discover|we find|lies|awaits|emerges|survives)\b",
+        r"... \1",
+        t,
+        flags=re.IGNORECASE,
+    )
 
     # Normalize multiple ellipses or spaces (e.g. '... ...' or '... .' -> '...')
     t = re.sub(r"(?:\s*\.+){2,}\s*", "... ", t)

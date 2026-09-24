@@ -2,10 +2,14 @@
 Unit tests for ConversationHubWindow and Activity Hub hotkey toggle debouncing.
 """
 
+import sys
 import time
 import threading
 from unittest.mock import MagicMock, patch
 import pytest
+
+if sys.platform != "darwin":
+    pytest.skip("macOS-only UI test requiring AppKit", allow_module_level=True)
 
 from AppKit import NSRect, NSPoint, NSSize
 from voicefi.integrations.conversations import ConversationTracker, ConversationInfo

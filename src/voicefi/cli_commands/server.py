@@ -234,11 +234,19 @@ def cmd_server(args: Any) -> None:
         print("\n🔄 Restarting VoiceFi background server...")
         stop_all_voicefi_servers()
         clean_caches()
-        cmd_autostart(args)
+        cli_mod = sys.modules.get("voicefi.cli")
+        autostart_fn = (
+            getattr(cli_mod, "cmd_autostart", cmd_autostart) if cli_mod else cmd_autostart
+        )
+        autostart_fn(args)
         print("✅ VoiceFi background server restarted.\n")
 
     elif action in ("start", "autostart"):
-        cmd_autostart(args)
+        cli_mod = sys.modules.get("voicefi.cli")
+        autostart_fn = (
+            getattr(cli_mod, "cmd_autostart", cmd_autostart) if cli_mod else cmd_autostart
+        )
+        autostart_fn(args)
 
     else:
         print(f"Unknown server action: {action}. Use: status, stop, restart, start.")

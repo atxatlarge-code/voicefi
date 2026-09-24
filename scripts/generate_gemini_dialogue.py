@@ -75,7 +75,9 @@ def parse_script_lines(text: str) -> List[Tuple[str, str]]:
             # Clean up speaker name, e.g. "Speaker 1 (Aoede)" -> "Aoede" or "Speaker 1"
             clean_speaker = raw_speaker
             if "(" in clean_speaker and ")" in clean_speaker:
-                inside = clean_speaker[clean_speaker.find("(") + 1 : clean_speaker.find(")")].strip()
+                inside = clean_speaker[
+                    clean_speaker.find("(") + 1 : clean_speaker.find(")")
+                ].strip()
                 if inside.capitalize() in VALID_GEMINI_VOICES:
                     clean_speaker = inside.capitalize()
                 else:
@@ -126,20 +128,24 @@ def generate_gemini_dialogue(
     # Build speaker-to-voice mapping
     s_map = speaker_map or {}
     assigned_configs = []
-    
+
     # We assign voices to speakers in order
     fallback_voices = ["Aoede", "Puck", "Charon", "Kore", "Fenrir"]
-    
+
     # Format a clean standardized prompt for Gemini TTS
     formatted_lines = []
-    
+
     # Gemini multi-speaker supports up to 2 distinct speakers in multi_speaker_voice_config
     # Standardize speaker labels to Speaker1 and Speaker2 if there are 2 speakers
     if len(unique_speakers) == 2:
         spk1_orig, spk2_orig = unique_speakers[0], unique_speakers[1]
-        voice1 = s_map.get(spk1_orig) or DEFAULT_VOICE_MAP.get(spk1_orig.lower(), fallback_voices[0])
-        voice2 = s_map.get(spk2_orig) or DEFAULT_VOICE_MAP.get(spk2_orig.lower(), fallback_voices[1])
-        
+        voice1 = s_map.get(spk1_orig) or DEFAULT_VOICE_MAP.get(
+            spk1_orig.lower(), fallback_voices[0]
+        )
+        voice2 = s_map.get(spk2_orig) or DEFAULT_VOICE_MAP.get(
+            spk2_orig.lower(), fallback_voices[1]
+        )
+
         # Ensure voice1 and voice2 are valid
         voice1 = voice1.capitalize() if voice1.capitalize() in VALID_GEMINI_VOICES else "Aoede"
         voice2 = voice2.capitalize() if voice2.capitalize() in VALID_GEMINI_VOICES else "Puck"
@@ -176,7 +182,7 @@ def generate_gemini_dialogue(
         spk = unique_speakers[0]
         voice = s_map.get(spk) or DEFAULT_VOICE_MAP.get(spk.lower(), "Aoede")
         voice = voice.capitalize() if voice.capitalize() in VALID_GEMINI_VOICES else "Aoede"
-        
+
         prompt = "\n".join([utt for _, utt in parsed])
         speech_config = types.SpeechConfig(
             voice_config=types.VoiceConfig(
@@ -213,6 +219,7 @@ def generate_gemini_dialogue(
         output_dir = repo_root / "dist" / "generated_dialogues"
         output_dir.mkdir(parents=True, exist_ok=True)
         import time
+
         output_path = output_dir / f"dialogue_{int(time.time())}.wav"
     else:
         output_path = Path(output_path)
@@ -230,14 +237,23 @@ def generate_gemini_dialogue(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Programmatically synthesize multi-speaker dialogues with Gemini TTS.")
+    parser = argparse.ArgumentParser(
+        description="Programmatically synthesize multi-speaker dialogues with Gemini TTS."
+    )
     parser.add_argument("script", nargs="?", default="", help="Inline script text to synthesize.")
     parser.add_argument("-f", "--file", help="Path to text or markdown file containing the script.")
-    parser.add_argument("-o", "--out", help="Output WAV path (default: dist/generated_dialogues/dialogue_<ts>.wav).")
+    parser.add_argument(
+        "-o", "--out", help="Output WAV path (default: dist/generated_dialogues/dialogue_<ts>.wav)."
+    )
     parser.add_argument("--voice1", default="Aoede", help="Voice for Speaker 1 (default: Aoede).")
     parser.add_argument("--voice2", default="Puck", help="Voice for Speaker 2 (default: Puck).")
     parser.add_argument("--model", default="gemini-2.5-flash-preview-tts", help="TTS Model ID.")
-    parser.add_argument("-p", "--play", action="store_true", help="Automatically play synthesized audio aloud with afplay.")
+    parser.add_argument(
+        "-p",
+        "--play",
+        action="store_true",
+        help="Automatically play synthesized audio aloud with afplay.",
+    )
 
     args = parser.parse_args()
 

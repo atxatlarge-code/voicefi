@@ -48,18 +48,18 @@ def cmd_duel(args: Any) -> None:
 
     for i in range(min(turns, len(rounds))):
         joke_ag, joke_cl = rounds[i]
-        print(f"--- [Round {i+1}] Antigravity Speaks ---")
+        print(f"--- [Round {i + 1}] Antigravity Speaks ---")
         print(f'🤖 Ava: "{joke_ag}"')
         t0 = time.time()
         tts_antigravity.speak(joke_ag, block=True)
-        print(f"   ⏱️ Playback latency: {round((time.time() - t0)*1000)}ms\n")
+        print(f"   ⏱️ Playback latency: {round((time.time() - t0) * 1000)}ms\n")
         time.sleep(0.4)
 
-        print(f"--- [Round {i+1}] Claude Code Responds ---")
+        print(f"--- [Round {i + 1}] Claude Code Responds ---")
         print(f'🤖 Steffan: "{joke_cl}"')
         t0 = time.time()
         tts_claude.speak(joke_cl, block=True)
-        print(f"   ⏱️ Playback latency: {round((time.time() - t0)*1000)}ms\n")
+        print(f"   ⏱️ Playback latency: {round((time.time() - t0) * 1000)}ms\n")
         time.sleep(0.6)
 
     print("✨ Voice duel session completed successfully!\n")

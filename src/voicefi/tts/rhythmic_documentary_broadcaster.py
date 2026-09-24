@@ -22,16 +22,25 @@ from voicefi.audio.mastering import apply_broadcast_silk_mastering
 from voicefi.audio.rhythmic_beat_engine import RhythmicGrid, SAMPLE_RATE
 
 
-def load_wav_as_float32(path: Union[str, Path], target_sr: int = SAMPLE_RATE) -> Tuple[np.ndarray, int]:
+def load_wav_as_float32(
+    path: Union[str, Path], target_sr: int = SAMPLE_RATE
+) -> Tuple[np.ndarray, int]:
     """Reads a WAV file, converts to mono float32 (-1.0 to 1.0), and resamples if needed."""
     p = str(path)
     cmd = [
-        "ffmpeg", "-y", "-v", "error",
-        "-i", p,
-        "-ac", "1",
-        "-ar", str(target_sr),
-        "-f", "f32le",
-        "-"
+        "ffmpeg",
+        "-y",
+        "-v",
+        "error",
+        "-i",
+        p,
+        "-ac",
+        "1",
+        "-ar",
+        str(target_sr),
+        "-f",
+        "f32le",
+        "-",
     ]
     raw = subprocess.check_output(cmd)
     audio = np.frombuffer(raw, dtype=np.float32)
@@ -76,11 +85,14 @@ class RhythmicDocumentaryBroadcasterEngine:
         if self._f5_engine is None and self.use_f5_neural:
             try:
                 from voicefi.tts.f5_tts import F5TTS
+
                 if F5TTS.is_available():
                     self._f5_engine = F5TTS(device=self.device)
                     self._f5_engine.persona_name = self.persona_name
             except Exception as e:
-                print(f"[RhythmicDocumentaryBroadcaster] F5TTS init notice: {e}. Falling back to EdgeTTS.")
+                print(
+                    f"[RhythmicDocumentaryBroadcaster] F5TTS init notice: {e}. Falling back to EdgeTTS."
+                )
                 self._f5_engine = None
         return self._f5_engine
 
@@ -156,10 +168,10 @@ class RhythmicDocumentaryBroadcasterEngine:
             bar = item["bar"]
             beat = item.get("beat", 1.0)
             text = item["text"]
-            label = item.get("label", f"clause_{idx+1:02d}")
+            label = item.get("label", f"clause_{idx + 1:02d}")
 
             stem_path = work_dir / f"{label}.wav"
-            print(f"[RhythmicDocumentaryBroadcaster] Synthesizing [{bar}.{beat:.1f}]: \"{text}\"...")
+            print(f'[RhythmicDocumentaryBroadcaster] Synthesizing [{bar}.{beat:.1f}]: "{text}"...')
             success = self.synthesize_clause(text, stem_path)
 
             if success and stem_path.is_file():
@@ -176,18 +188,22 @@ class RhythmicDocumentaryBroadcasterEngine:
                 if actual_len > 0:
                     vocal_track[s_idx:end_idx] += audio[:actual_len]
 
-                manifest.append({
-                    "label": label,
-                    "bar": bar,
-                    "beat": beat,
-                    "start_sec": start_sec,
-                    "end_sec": start_sec + dur_sec,
-                    "duration_sec": dur_sec,
-                    "text": text,
-                    "stem_path": str(stem_path),
-                })
+                manifest.append(
+                    {
+                        "label": label,
+                        "bar": bar,
+                        "beat": beat,
+                        "start_sec": start_sec,
+                        "end_sec": start_sec + dur_sec,
+                        "duration_sec": dur_sec,
+                        "text": text,
+                        "stem_path": str(stem_path),
+                    }
+                )
             else:
-                print(f"[RhythmicDocumentaryBroadcaster] ⚠️ Warning: Failed to synthesize clause {idx+1}")
+                print(
+                    f"[RhythmicDocumentaryBroadcaster] ⚠️ Warning: Failed to synthesize clause {idx + 1}"
+                )
 
         return vocal_track, manifest
 

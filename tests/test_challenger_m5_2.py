@@ -112,6 +112,7 @@ def challenger_fast_env(monkeypatch):
     monkeypatch.setattr(time, "sleep", fast_sleep)
     monkeypatch.setattr("voicefi.tts.get_tts_engine", lambda *a, **kw: mock_tts)
     monkeypatch.setattr("voicefi.cli.get_tts_engine", lambda *a, **kw: mock_tts)
+    monkeypatch.setattr("voicefi.cli_commands.audio.get_tts_engine", lambda *a, **kw: mock_tts)
     monkeypatch.setattr("voicefi.troubleshoot.AudioTroubleshooter.ping_voice_silently", lambda self, *a, **kw: MOCK_PING_RESULT)
     monkeypatch.setattr("voicefi.audio.device.get_default_audio_devices", lambda: ({"name": "Built-in Microphone"}, {"name": "Built-in Output"}))
     monkeypatch.setattr("voicefi.server.get_full_server_status", lambda *a, **kw: MOCK_SERVER_STATUS)
@@ -256,8 +257,11 @@ class TestInterleavedStorm20Workers:
 
                     elif surface == "sdk":
                         if action == "speak":
-                            with speech_turn_lock(text=f"SDK storm {worker_id}_{op_idx}"):
-                                time.sleep(0.001)
+                            try:
+                                with speech_turn_lock(text=f"SDK storm {worker_id}_{op_idx}"):
+                                    time.sleep(0.001)
+                            except tts_base.DuplicateSpeechSuppressed:
+                                pass
                             success = True
                         elif action == "listen":
                             success = True

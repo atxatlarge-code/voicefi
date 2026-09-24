@@ -46,7 +46,11 @@ def read_code_file(path: str, max_lines: int = 50) -> str:
 
         lines = target.read_text(encoding="utf-8", errors="replace").splitlines()
         preview = "\n".join(lines[:max_lines])
-        truncated_note = f"\n... [Truncated: showing first {max_lines} of {len(lines)} lines]" if len(lines) > max_lines else ""
+        truncated_note = (
+            f"\n... [Truncated: showing first {max_lines} of {len(lines)} lines]"
+            if len(lines) > max_lines
+            else ""
+        )
         return f"File: {target.relative_to(PROJECT_ROOT)}\n```\n{preview}{truncated_note}\n```"
     except Exception as e:
         return f"Error reading file '{path}': {e}"
@@ -74,12 +78,28 @@ def run_shell_check(command: str) -> str:
     Destructive commands (rm, push, drop) are rejected.
     """
     clean_cmd = command.strip()
-    allowed_prefixes = ("git status", "git branch", "git log", "git diff --stat", "uptime", "date", "pytest -q", "pip list")
+    allowed_prefixes = (
+        "git status",
+        "git branch",
+        "git log",
+        "git diff --stat",
+        "uptime",
+        "date",
+        "pytest -q",
+        "pip list",
+    )
     if not any(clean_cmd.startswith(p) for p in allowed_prefixes):
         return f"Command '{command}' not in safe allowed list (status/check commands only)."
 
     try:
-        res = subprocess.run(clean_cmd, shell=True, cwd=str(PROJECT_ROOT), capture_output=True, text=True, timeout=5.0)
+        res = subprocess.run(
+            clean_cmd,
+            shell=True,
+            cwd=str(PROJECT_ROOT),
+            capture_output=True,
+            text=True,
+            timeout=5.0,
+        )
         out = (res.stdout + res.stderr).strip()
         return out[:500] if out else "Command completed with no output."
     except Exception as e:
@@ -94,7 +114,9 @@ def trigger_sound_effect(name: str) -> str:
     sfx_file = SFX_DIR / f"{clean_name}.wav"
     if sfx_file.is_file():
         try:
-            subprocess.Popen(["afplay", str(sfx_file)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.Popen(
+                ["afplay", str(sfx_file)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
             return f"Played sound effect '{clean_name}'"
         except Exception as e:
             return f"Error playing sound effect: {e}"
@@ -129,6 +151,7 @@ TOOL_PARAM_ALIASES = {
 async def execute_live_tool(name: str, args: Dict[str, Any]) -> str:
     """Execute a live agent tool in a thread pool with parameter alias normalization."""
     import asyncio
+
     clean_name = str(name).strip() if name else ""
     tool_fn = TOOL_MAP.get(clean_name)
     if not tool_fn:
@@ -145,8 +168,12 @@ async def execute_live_tool(name: str, args: Dict[str, Any]) -> str:
         res = await asyncio.to_thread(tool_fn, **normalized_args)
         return str(res)
     except TypeError as te:
-        logger.warning("Tool signature mismatch for %s with args %s: %s", clean_name, normalized_args, te)
+        logger.warning(
+            "Tool signature mismatch for %s with args %s: %s", clean_name, normalized_args, te
+        )
         return f"Invalid tool arguments for '{name}': {te}"
     except Exception as e:
-        logger.error("Error executing live tool '%s' with args %s: %s", clean_name, normalized_args, e)
+        logger.error(
+            "Error executing live tool '%s' with args %s: %s", clean_name, normalized_args, e
+        )
         return f"Error executing tool '{name}': {e}"

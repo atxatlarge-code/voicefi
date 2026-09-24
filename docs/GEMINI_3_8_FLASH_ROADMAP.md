@@ -167,7 +167,7 @@ VoiceFi is a high-performance, multi-threaded acoustic and command platform span
 
 #### 6.2 Headless AppKit & FFmpeg Compilation
 - Render pixel-perfect vector slides via headless WebKit/AppKit.
-- Compile broadcast-ready MP4s and update [`REELS_LOG.md`](../marketing/social/REELS_LOG.md) and `reels.json` automatically.
+- Compile broadcast-ready MP4s and update `REELS_LOG.md` and `reels.json` automatically.
 
 ---
 

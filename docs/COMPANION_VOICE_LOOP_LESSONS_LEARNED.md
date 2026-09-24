@@ -129,6 +129,7 @@ Destructive lifecycle endpoints (`POST /api/stop`, `{"type": "stop"}`) must enfo
 _last_stop_processed = 0.0
 STOP_DEBOUNCE_INTERVAL = 0.5  # 500ms sliding threshold
 
+
 async def handle_stop(request):
     global _last_stop_processed
     now = time.time()

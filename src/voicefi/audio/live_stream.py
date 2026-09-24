@@ -135,7 +135,11 @@ class LiveAudioStream:
                     if now - self._last_barge_in_time > 0.4:
                         self._last_barge_in_time = now
                         self._barge_in_candidate_frames = 0
-                        logger.info("⚡ User Barge-in detected! (RMS: %.4f > %.4f)", energy, self.effective_threshold)
+                        logger.info(
+                            "⚡ User Barge-in detected! (RMS: %.4f > %.4f)",
+                            energy,
+                            self.effective_threshold,
+                        )
                         self.flush_speaker()
                         if self.on_barge_in and self._loop and self._loop.is_running():
                             self._loop.call_soon_threadsafe(self.on_barge_in)

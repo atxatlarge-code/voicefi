@@ -231,7 +231,7 @@ vifi comedy
 
 ## ⚡ Zero-Click Programmatic Dialogue Generation (`scripts/generate_gemini_dialogue.py`)
 
-Rather than navigating the Google AI Studio web UI, creating speaker boxes, and clicking dropdowns and generate buttons 15+ times, VoiceFi provides a native zero-click programmatic synthesizer: [`scripts/generate_gemini_dialogue.py`](file:///Users/jaketrigg/Projects/VoiceFi/scripts/generate_gemini_dialogue.py).
+Rather than navigating the Google AI Studio web UI, creating speaker boxes, and clicking dropdowns and generate buttons 15+ times, VoiceFi provides a native zero-click programmatic synthesizer: [`scripts/generate_gemini_dialogue.py`](../scripts/generate_gemini_dialogue.py).
 
 ### Why Use It?
 * **Zero Button Clicking**: Feed in a dialogue script (inline string or `.txt` file) and get a finished broadcast-ready 24kHz `.wav` in ~3 seconds.
@@ -247,7 +247,7 @@ Rather than navigating the Google AI Studio web UI, creating speaker boxes, and 
 You can paste any script into your Antigravity chat prompt and say:
 > *"Synthesize this dialogue with Aoede and Puck and play it."*
 
-Antigravity executes [`scripts/generate_gemini_dialogue.py`](file:///Users/jaketrigg/Projects/VoiceFi/scripts/generate_gemini_dialogue.py) in the background and delivers the finished audio track.
+Antigravity executes [`scripts/generate_gemini_dialogue.py`](../scripts/generate_gemini_dialogue.py) in the background and delivers the finished audio track.
 
 #### Method 2: From a Text File (`-f`)
 Save your dialogue script in a text file (e.g. `podcast_take.txt`):
@@ -283,7 +283,7 @@ from scripts.generate_gemini_dialogue import generate_gemini_dialogue
 
 wav_path = generate_gemini_dialogue(
     script_text="Aoede: Ready? \nPuck: Let's ship it!",
-    speaker_map={"Aoede": "Aoede", "Puck": "Puck"}
+    speaker_map={"Aoede": "Aoede", "Puck": "Puck"},
 )
 print(f"Audio written to: {wav_path}")
 ```

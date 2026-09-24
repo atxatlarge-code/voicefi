@@ -160,6 +160,7 @@ def set_cross_process_hud_state(
         if not resolved_app:
             try:
                 from voicefi.integrations.conversations import load_session_cookie
+
                 cookie = load_session_cookie() or {}
                 c_eng = cookie.get("app_name") or cookie.get("engine")
                 if c_eng:
@@ -786,8 +787,6 @@ def is_speech_interrupted(turn_start_time: float = 0.0) -> bool:
     return False
 
 
-
-
 _LOCK_DEPTH = 0
 
 
@@ -838,11 +837,22 @@ def escape_to_stop_speech(
         def _on_press(key):
             try:
                 vk = getattr(key, "vk", None)
-                if key in (keyboard.Key.alt, keyboard.Key.alt_l, keyboard.Key.alt_r, keyboard.Key.alt_gr) or vk in (58, 61):
+                if key in (
+                    keyboard.Key.alt,
+                    keyboard.Key.alt_l,
+                    keyboard.Key.alt_r,
+                    keyboard.Key.alt_gr,
+                ) or vk in (58, 61):
                     modifiers.add("alt")
-                if key in (keyboard.Key.cmd, keyboard.Key.cmd_l, keyboard.Key.cmd_r) or vk in (54, 55):
+                if key in (keyboard.Key.cmd, keyboard.Key.cmd_l, keyboard.Key.cmd_r) or vk in (
+                    54,
+                    55,
+                ):
                     modifiers.add("cmd")
-                if key in (keyboard.Key.ctrl, keyboard.Key.ctrl_l, keyboard.Key.ctrl_r) or vk in (59, 62):
+                if key in (keyboard.Key.ctrl, keyboard.Key.ctrl_l, keyboard.Key.ctrl_r) or vk in (
+                    59,
+                    62,
+                ):
                     modifiers.add("ctrl")
 
                 if is_escape_key(key):
@@ -872,11 +882,22 @@ def escape_to_stop_speech(
         def _on_release(key):
             try:
                 vk = getattr(key, "vk", None)
-                if key in (keyboard.Key.alt, keyboard.Key.alt_l, keyboard.Key.alt_r, keyboard.Key.alt_gr) or vk in (58, 61):
+                if key in (
+                    keyboard.Key.alt,
+                    keyboard.Key.alt_l,
+                    keyboard.Key.alt_r,
+                    keyboard.Key.alt_gr,
+                ) or vk in (58, 61):
                     modifiers.discard("alt")
-                if key in (keyboard.Key.cmd, keyboard.Key.cmd_l, keyboard.Key.cmd_r) or vk in (54, 55):
+                if key in (keyboard.Key.cmd, keyboard.Key.cmd_l, keyboard.Key.cmd_r) or vk in (
+                    54,
+                    55,
+                ):
                     modifiers.discard("cmd")
-                if key in (keyboard.Key.ctrl, keyboard.Key.ctrl_l, keyboard.Key.ctrl_r) or vk in (59, 62):
+                if key in (keyboard.Key.ctrl, keyboard.Key.ctrl_l, keyboard.Key.ctrl_r) or vk in (
+                    59,
+                    62,
+                ):
                     modifiers.discard("ctrl")
             except Exception:
                 pass
@@ -890,18 +911,24 @@ def escape_to_stop_speech(
     stop_media_monitor = threading.Event()
     media_thread = None
     try:
+
         def _monitor_media():
             positive_hits = 0
             while not stop_media_monitor.is_set():
                 try:
-                    from voicefi.audio.media_detection import is_active_media_playing, get_active_media_info
+                    from voicefi.audio.media_detection import (
+                        is_active_media_playing,
+                        get_active_media_info,
+                    )
 
                     if is_active_media_playing(use_cache=False):
                         positive_hits += 1
                         if positive_hits >= 2:
                             info = get_active_media_info(use_cache=False) or {}
                             detail = info.get("detail", "media clip")
-                            print(f"[TTS] 🎬 Media playback confirmed ({detail}) while speaking. Stopping speech immediately.")
+                            print(
+                                f"[TTS] 🎬 Media playback confirmed ({detail}) while speaking. Stopping speech immediately."
+                            )
                             stop_all_speech()
                             break
                     else:
@@ -910,7 +937,9 @@ def escape_to_stop_speech(
                     pass
                 stop_media_monitor.wait(0.25)
 
-        media_thread = threading.Thread(target=_monitor_media, daemon=True, name="MediaPlaybackMonitor")
+        media_thread = threading.Thread(
+            target=_monitor_media, daemon=True, name="MediaPlaybackMonitor"
+        )
         media_thread.start()
     except Exception:
         pass
@@ -983,7 +1012,10 @@ def speech_turn_lock(
 
             if respect_media:
                 try:
-                    from voicefi.audio.media_detection import is_active_media_playing, wait_for_media_completion
+                    from voicefi.audio.media_detection import (
+                        is_active_media_playing,
+                        wait_for_media_completion,
+                    )
 
                     if is_active_media_playing(use_cache=True):
                         cleared = wait_for_media_completion(
@@ -1036,9 +1068,13 @@ def speech_turn_lock(
                     if mic_pid == os.getpid() and conv_id and mic_cid == conv_id:
                         break
                 if is_speech_interrupted(enqueue_time):
-                    raise DuplicateSpeechSuppressed("Interrupted by user while waiting for microphone")
+                    raise DuplicateSpeechSuppressed(
+                        "Interrupted by user while waiting for microphone"
+                    )
                 if (time.time() - mic_wait_start) > 40.0:
-                    print("[TTS] ⚠️ Timed out waiting for active mic recording to finish, proceeding...")
+                    print(
+                        "[TTS] ⚠️ Timed out waiting for active mic recording to finish, proceeding..."
+                    )
                     break
                 time.sleep(0.12)
 
@@ -1091,11 +1127,17 @@ def speech_turn_lock(
         finally:
             # If speech completed cleanly without interruption, record successful turn in BrevityLearner
             try:
-                if text and 'lock_start_time' in locals() and not is_speech_interrupted(lock_start_time):
+                if (
+                    text
+                    and "lock_start_time" in locals()
+                    and not is_speech_interrupted(lock_start_time)
+                ):
                     from voicefi.learning.brevity import BrevityLearner
 
                     word_cnt = len(text.split())
-                    BrevityLearner.get_instance().record_turn(word_count=word_cnt, was_interrupted=False)
+                    BrevityLearner.get_instance().record_turn(
+                        word_count=word_cnt, was_interrupted=False
+                    )
             except Exception:
                 pass
 
@@ -1243,7 +1285,9 @@ def stop_all_speech(broadcast_web: bool = True) -> None:
 
             try:
                 subprocess.run(
-                    ["killall", "-9", "afplay"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                    ["killall", "-9", "afplay"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
                 )
             except Exception:
                 pass
