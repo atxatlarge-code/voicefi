@@ -1705,10 +1705,11 @@ def send_message_to_agent(
             cleaned_lower,
         )
     )
-    if explicit_codex:
-        engine = "codex"
-    elif explicit_claude:
-        engine = "claude"
+    if not engine:
+        if explicit_codex:
+            engine = "codex"
+        elif explicit_claude:
+            engine = "claude"
 
     if not engine and conv_id:
         if conv_id == "reply":

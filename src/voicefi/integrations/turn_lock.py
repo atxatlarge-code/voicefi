@@ -59,6 +59,12 @@ def is_pid_alive(pid: int) -> bool:
         return e.errno == errno.EPERM
 
 
+_ACTIVE_TURNS_FILE = Path("/tmp/voicefi_active_turns.json")
+_ACTIVE_TURNS_LOCK = Path("/tmp/voicefi_active_turns.lock")
+_MOBILE_TURN_FILE = Path("/tmp/voicefi_mobile_turn.json")
+_COMPANION_CLIENTS_FILE = Path("/tmp/voicefi_companion_clients.json")
+
+
 def claim_turn(
     conv_id: Optional[str],
     signature: str,
@@ -74,8 +80,8 @@ def claim_turn(
     Validates process liveness so crashed server threads never cause permanent turn lockouts.
     Returns True if this caller claimed the turn, False if already claimed recently.
     """
-    turn_file = Path("/tmp/voicefi_active_turns.json")
-    lock_file = Path("/tmp/voicefi_active_turns.lock")
+    turn_file = _ACTIVE_TURNS_FILE
+    lock_file = _ACTIVE_TURNS_LOCK
     now = time.time()
     norm_sig = _normalize_turn_signature(signature)
 
@@ -444,7 +450,7 @@ def get_turn_delivery_info(
 
 def set_mobile_turn_origin(conv_id: Optional[str] = None) -> None:
     """Record that the current pending turn was initiated from mobile companion."""
-    origin_file = Path("/tmp/voicefi_mobile_turn.json")
+    origin_file = _MOBILE_TURN_FILE
     try:
         data = {
             "conv_id": conv_id or "active",
@@ -480,7 +486,7 @@ def peek_mobile_turn_origin(conv_id: Optional[str] = None, max_age_seconds: floa
     """
     Check if the pending turn originated from mobile companion without consuming the marker.
     """
-    origin_file = Path("/tmp/voicefi_mobile_turn.json")
+    origin_file = _MOBILE_TURN_FILE
     if not origin_file.is_file():
         return False
     try:
@@ -501,7 +507,7 @@ def pop_mobile_turn_origin(conv_id: Optional[str] = None, max_age_seconds: float
     Check and consume mobile turn origin marker.
     Returns True if the completed turn originated from mobile companion (and consumes the marker), False otherwise.
     """
-    origin_file = Path("/tmp/voicefi_mobile_turn.json")
+    origin_file = _MOBILE_TURN_FILE
     if not origin_file.is_file():
         return False
     try:
@@ -529,7 +535,7 @@ def record_companion_heartbeat(
     Record active companion client heartbeat to allow Mac to coordinate audio routing.
     Distinguishes between local laptop desktop browser companion tabs and remote phone companions.
     """
-    heartbeat_file = Path("/tmp/voicefi_companion_clients.json")
+    heartbeat_file = _COMPANION_CLIENTS_FILE
     try:
         if has_mobile is not None:
             is_mobile_active = bool(has_mobile) and (num_clients > 0)
@@ -564,7 +570,7 @@ def has_active_companion_client(
     If require_mobile=False (default), any active companion (remote phone or browser) returns True
     so that Mac desktop audio is muted when mute_mac_when_companion_active is enabled.
     """
-    heartbeat_file = Path("/tmp/voicefi_companion_clients.json")
+    heartbeat_file = _COMPANION_CLIENTS_FILE
     if not heartbeat_file.is_file():
         return False
     try:

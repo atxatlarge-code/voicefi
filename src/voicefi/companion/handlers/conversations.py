@@ -466,19 +466,24 @@ class ConversationsHandlersMixin:
                 cwd_arg = get_primary_vault(self.config)
                 target_engine = "claude"
 
+            send_kwargs = {
+                "conv_id": conv_id,
+                "text": text,
+                "sender_name": sender_name,
+                "title": title,
+                "target_engine": target_engine,
+                "from_conv_id": from_conv_id,
+                "from_engine": from_engine,
+                "include_envelope": include_envelope,
+                "allow_foreground_fallback": False,  # Strict: never blind-paste for API sends
+                "use_headless": True,
+            }
+            if cwd_arg:
+                send_kwargs["cwd"] = Path(cwd_arg)
+
             result = await asyncio.to_thread(
                 _resolve_send_message_to_agent,
-                conv_id=conv_id,
-                text=text,
-                sender_name=sender_name,
-                title=title,
-                target_engine=target_engine,
-                from_conv_id=from_conv_id,
-                from_engine=from_engine,
-                include_envelope=include_envelope,
-                allow_foreground_fallback=False,  # Strict: never blind-paste for API sends
-                use_headless=True,
-                cwd=Path(cwd_arg) if cwd_arg else None,
+                **send_kwargs,
             )
             is_success = bool(result)
             delivery_type = getattr(result, "delivery_type", "ipc" if is_success else "none")

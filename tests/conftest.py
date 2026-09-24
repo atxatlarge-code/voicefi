@@ -137,6 +137,18 @@ def isolate_test_config(tmp_path, monkeypatch):
     test_stop_ts = tmp_path / "voicefi_last_speech_stop.ts"
     monkeypatch.setattr("voicefi.tts.base._LAST_SPEECH_STOP_FILE", test_stop_ts)
 
+    # Isolate cross-process turn locks and companion markers per test
+    test_turn_file = tmp_path / "voicefi_active_turns.json"
+    test_turn_lock = tmp_path / "voicefi_active_turns.lock"
+    test_mobile_turn = tmp_path / "voicefi_mobile_turn.json"
+    test_companion_clients = tmp_path / "voicefi_companion_clients.json"
+    monkeypatch.setattr("voicefi.integrations.turn_lock._ACTIVE_TURNS_FILE", test_turn_file)
+    monkeypatch.setattr("voicefi.integrations.turn_lock._ACTIVE_TURNS_LOCK", test_turn_lock)
+    monkeypatch.setattr("voicefi.integrations.turn_lock._MOBILE_TURN_FILE", test_mobile_turn)
+    monkeypatch.setattr(
+        "voicefi.integrations.turn_lock._COMPANION_CLIENTS_FILE", test_companion_clients
+    )
+
     test_recent_speech = tmp_path / "recent_speech.json"
     monkeypatch.setattr("voicefi.tts.base.RECENT_SPEECH_FILE", test_recent_speech)
     monkeypatch.setenv("VOICEFI_RECENT_SPEECH", str(test_recent_speech))
