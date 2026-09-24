@@ -3,23 +3,59 @@ name: CI
 on:
   push:
     branches: [main, master, "release/**"]
+    tags: ["v*"]
+    paths-ignore:
+      - "docs/**"
+      - "*.md"
+      - "**/*.md"
+      - "assets/**"
+      - ".gitignore"
+      - "LICENSE"
   pull_request:
     branches: [main, master]
+    paths-ignore:
+      - "docs/**"
+      - "*.md"
+      - "**/*.md"
+      - "assets/**"
+      - ".gitignore"
+      - "LICENSE"
   workflow_dispatch:
+    inputs:
+      full_matrix:
+        description: "Run full Python version matrix (3.10, 3.11, 3.12)"
+        type: boolean
+        default: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  configure:
+    name: Configure Matrix
+    runs-on: ubuntu-latest
+    outputs:
+      python-versions: ${{ steps.set-matrix.outputs.python-versions }}
+    steps:
+      - id: set-matrix
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.full_matrix }}" = "true" ] || [[ "${{ github.ref }}" =~ ^refs/tags/v ]] || [[ "${{ github.ref }}" =~ ^refs/heads/release/ ]]; then
+            echo 'python-versions=["3.10", "3.11", "3.12"]' >> "$GITHUB_OUTPUT"
+          else
+            echo 'python-versions=["3.12"]' >> "$GITHUB_OUTPUT"
+          fi
+
   test:
     name: Test (${{ matrix.os }} - Py${{ matrix.python-version }})
+    needs: configure
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [macos-latest, ubuntu-latest]
-        python-version: ["3.10", "3.11", "3.12"]
+        python-version: ${{ fromJson(needs.configure.outputs.python-versions) }}
 
     steps:
       - name: Check out repository
@@ -40,7 +76,7 @@ jobs:
       - name: Install system dependencies (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew install portaudio ffmpeg || true
+          HOMEBREW_NO_AUTO_UPDATE=1 brew install portaudio ffmpeg || true
 
       - name: Install Python dependencies
         run: |

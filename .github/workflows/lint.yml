@@ -3,8 +3,22 @@ name: Lint & Quality
 on:
   push:
     branches: [main, master]
+    paths-ignore:
+      - "docs/**"
+      - "*.md"
+      - "**/*.md"
+      - "assets/**"
+      - ".gitignore"
+      - "LICENSE"
   pull_request:
     branches: [main, master]
+    paths-ignore:
+      - "docs/**"
+      - "*.md"
+      - "**/*.md"
+      - "assets/**"
+      - ".gitignore"
+      - "LICENSE"
   workflow_dispatch:
 
 concurrency:
