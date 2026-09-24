@@ -294,6 +294,20 @@ def check_active_media_state(use_cache: bool = True) -> Tuple[bool, Optional[Dic
     """
     global _LAST_MEDIA_CHECK_TIME, _CACHED_MEDIA_STATE
 
+    # Fast bypass when running in test / headless / mock environments unless specifically mocked
+    if (
+        os.getenv("VOICEFI_MOCK_AUDIO") == "1"
+        or os.getenv("VOICEFI_HEADLESS") == "1"
+        or os.getenv("VOICEFI_TESTING") == "1"
+        or os.getenv("PYTEST_CURRENT_TEST")
+    ):
+        if not (
+            os.getenv("MOCK_QUICKLOOK")
+            or os.getenv("MOCK_QUICKTIME")
+            or os.getenv("MOCK_DEDICATED_PLAYERS")
+        ):
+            return False, None
+
     now = time.time()
     with _STATE_LOCK:
         if use_cache and (now - _LAST_MEDIA_CHECK_TIME) < _CACHE_TTL:

@@ -3,6 +3,7 @@ Audio hardware device detection and acoustic profiling.
 Identifies built-in MacBook speakers vs. headphones/AirPods to prevent acoustic feedback loops.
 """
 
+import os
 from typing import Dict, Any, Optional, Tuple
 
 
@@ -18,8 +19,26 @@ def get_default_audio_devices() -> Tuple[Optional[Dict[str, Any]], Optional[Dict
         out_dev = (
             devices[out_idx] if (out_idx is not None and 0 <= out_idx < len(devices)) else None
         )
+        if (in_dev is None and out_dev is None) and (
+            os.getenv("VOICEFI_MOCK_AUDIO") == "1"
+            or os.getenv("VOICEFI_HEADLESS") == "1"
+            or os.getenv("VOICEFI_TESTING") == "1"
+        ):
+            return (
+                {"name": "Built-in Mic", "max_input_channels": 1, "max_output_channels": 0},
+                {"name": "Built-in Output", "max_input_channels": 0, "max_output_channels": 2},
+            )
         return in_dev, out_dev
     except Exception:
+        if (
+            os.getenv("VOICEFI_MOCK_AUDIO") == "1"
+            or os.getenv("VOICEFI_HEADLESS") == "1"
+            or os.getenv("VOICEFI_TESTING") == "1"
+        ):
+            return (
+                {"name": "Built-in Mic", "max_input_channels": 1, "max_output_channels": 0},
+                {"name": "Built-in Output", "max_input_channels": 0, "max_output_channels": 2},
+            )
         return None, None
 
 

@@ -94,7 +94,8 @@ class TestTroubleshoot(unittest.TestCase):
         mock_sd.query_devices.return_value = fake_devices
         mock_sd.default.device = (0, 1)
 
-        with patch.dict("sys.modules", {"sounddevice": mock_sd}):
+        with patch.dict("sys.modules", {"sounddevice": mock_sd}), \
+             patch("voicefi.audio.native_vpio.is_vpio_supported", return_value=False):
             diag = self.troubleshooter.get_hardware_diagnostics()
             self.assertEqual(diag["default_input"], "Built-in Mic")
             self.assertEqual(diag["default_output"], "Built-in Output")
@@ -103,14 +104,24 @@ class TestTroubleshoot(unittest.TestCase):
 
     def test_run_full_troubleshoot(self):
         """Test full troubleshooting report generation and recommendations."""
-        with patch.object(self.troubleshooter, "test_speaker_output", return_value={"success": True, "latency_ms": 1.0}):
-            with patch.object(self.troubleshooter, "test_voice", return_value=VoiceTestResult(voice="en-US-ChristopherNeural", provider="edge_tts", rate=200, text="test", success=True)):
-                report = self.troubleshooter.run_full_troubleshoot()
-                self.assertEqual(report["status"], "healthy")
-                self.assertIn("hardware", report)
-                self.assertIn("speaker_test", report)
-                self.assertIn("active_voice_test", report)
-                self.assertIn("recommendations", report)
+        fake_devices = [
+            {"name": "Built-in Mic", "hostapi": 0, "max_input_channels": 1, "max_output_channels": 0, "default_samplerate": 48000.0},
+            {"name": "Built-in Output", "hostapi": 0, "max_input_channels": 0, "max_output_channels": 2, "default_samplerate": 48000.0},
+        ]
+        mock_sd = MagicMock()
+        mock_sd.query_devices.return_value = fake_devices
+        mock_sd.default.device = (0, 1)
+
+        with patch.dict("sys.modules", {"sounddevice": mock_sd}), \
+             patch("voicefi.audio.native_vpio.is_vpio_supported", return_value=False), \
+             patch.object(self.troubleshooter, "test_speaker_output", return_value={"success": True, "latency_ms": 1.0}), \
+             patch.object(self.troubleshooter, "test_voice", return_value=VoiceTestResult(voice="en-US-ChristopherNeural", provider="edge_tts", rate=200, text="test", success=True)):
+            report = self.troubleshooter.run_full_troubleshoot()
+            self.assertEqual(report["status"], "healthy")
+            self.assertIn("hardware", report)
+            self.assertIn("speaker_test", report)
+            self.assertIn("active_voice_test", report)
+            self.assertIn("recommendations", report)
 
     def test_hearing_and_full_loop(self):
         """Test hearing test and full loopback with message delivery."""

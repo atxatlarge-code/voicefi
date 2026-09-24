@@ -7,6 +7,7 @@ Leverages Apple CoreAudio / AVAudioEngine AUVoiceProcessing hardware DSP:
 - Dynamic decimation/resampling to target 16kHz float32 audio.
 """
 
+import os
 import sys
 import time
 import ctypes
@@ -36,6 +37,15 @@ def is_vpio_supported() -> bool:
     global _VPIO_INITIALIZED, _VPIO_SUPPORTED, AVAudioEngine, AVAudioNode, AVAudioPCMBuffer
     if _VPIO_INITIALIZED:
         return _VPIO_SUPPORTED
+
+    if (
+        os.getenv("VOICEFI_MOCK_AUDIO") == "1"
+        or os.getenv("VOICEFI_HEADLESS") == "1"
+        or os.getenv("VOICEFI_TESTING") == "1"
+    ):
+        _VPIO_INITIALIZED = True
+        _VPIO_SUPPORTED = False
+        return False
 
     _VPIO_INITIALIZED = True
     if sys.platform != "darwin":

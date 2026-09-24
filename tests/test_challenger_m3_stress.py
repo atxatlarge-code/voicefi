@@ -125,6 +125,7 @@ class TestComedyDuelAndSFXAdversarial:
         with patch("voicefi.integrations.conversations._AGENT_ROUTES_FILE", test_routes), \
              patch("voicefi.integrations.injector.set_clipboard_text", return_value=True), \
              patch("voicefi.integrations.injector.focus_terminal_app", return_value="iTerm2"), \
+             patch("time.sleep"), \
              patch("subprocess.run", return_value=MagicMock(returncode=0, stdout="true")):
 
             from voicefi.audio.sfx import play_sfx, list_available_sfx
@@ -208,6 +209,7 @@ class TestProvenanceEnvelopeAndInjectionAttacks:
             with patch("voicefi.integrations.injector.set_clipboard_text", return_value=True) as mock_clip, \
                  patch("voicefi.integrations.injector.focus_terminal_app", return_value="Terminal"), \
                  patch("voicefi.integrations.conversations.record_agent_route") as mock_route, \
+                 patch("time.sleep"), \
                  patch("subprocess.run", return_value=MagicMock(returncode=0, stdout="true")):
 
                 success = inject_text_to_claude(
@@ -278,6 +280,10 @@ class TestProvenanceEnvelopeAndInjectionAttacks:
 class MockRESTServerHandler(BaseHTTPRequestHandler):
     """Mock HTTP server for testing VoiceFiRestClient against various HTTP behaviors."""
 
+    def address_string(self):
+        """Prevent slow DNS reverse lookups in tests/CI."""
+        return self.client_address[0]
+
     def do_GET(self):
         if self.path == "/api/status":
             self.send_response(200)
@@ -331,6 +337,7 @@ def live_mock_http_server():
     server_thread.start()
     yield host, port
     server.shutdown()
+    server.server_close()
 
 
 class TestIsolatedStandaloneClientAdversarial:
@@ -343,10 +350,11 @@ class TestIsolatedStandaloneClientAdversarial:
 
         env = os.environ.copy()
         env["PYTHONPATH"] = ""  # Strip pythonpath
+        env["PYTHONDONTWRITEBYTECODE"] = "1"
 
-        # 1. Test status via REST
+        # 1. Test status via REST with -S to avoid repeated cold site-packages scanning
         res1 = subprocess.run(
-            [sys.executable, str(client_path), "--mode", "rest", "--host", host, "--port", str(port), "--status", "--json"],
+            [sys.executable, "-S", str(client_path), "--mode", "rest", "--host", host, "--port", str(port), "--status", "--json"],
             capture_output=True,
             text=True,
             env=env,
@@ -358,7 +366,7 @@ class TestIsolatedStandaloneClientAdversarial:
 
         # 2. Test speak via REST
         res2 = subprocess.run(
-            [sys.executable, str(client_path), "--mode", "rest", "--host", host, "--port", str(port), "--speak", "Testing isolated client", "--json"],
+            [sys.executable, "-S", str(client_path), "--mode", "rest", "--host", host, "--port", str(port), "--speak", "Testing isolated client", "--json"],
             capture_output=True,
             text=True,
             env=env,
@@ -371,7 +379,7 @@ class TestIsolatedStandaloneClientAdversarial:
 
         # 3. Test send via REST
         res3 = subprocess.run(
-            [sys.executable, str(client_path), "--mode", "rest", "--host", host, "--port", str(port), "--send", "Deploy task", "--to", "antigravity", "--title", "TaskTitle", "--json"],
+            [sys.executable, "-S", str(client_path), "--mode", "rest", "--host", host, "--port", str(port), "--send", "Deploy task", "--to", "antigravity", "--title", "TaskTitle", "--json"],
             capture_output=True,
             text=True,
             env=env,

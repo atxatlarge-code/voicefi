@@ -198,6 +198,9 @@ def isolate_test_config(tmp_path, monkeypatch):
     monkeypatch.setattr("voicefi.tts.base.SPEECH_LOCK_FILE", test_speech_lock)
     monkeypatch.setenv("VOICEFI_SPEECH_LOCK", str(test_speech_lock))
 
+    test_audio_lock = tmp_path / "voicefi_audio_output.lock"
+    monkeypatch.setenv("VOICEFI_AUDIO_LOCK", str(test_audio_lock))
+
     test_stop_ts = tmp_path / "voicefi_last_speech_stop.ts"
     monkeypatch.setattr("voicefi.tts.base._LAST_SPEECH_STOP_FILE", test_stop_ts)
 
@@ -409,6 +412,24 @@ def prevent_real_audio_playback(monkeypatch):
 
             monkeypatch.setattr(sd, "OutputStream", lambda *a, **kw: MockAudioStream())
             monkeypatch.setattr(sd, "RawOutputStream", lambda *a, **kw: MockAudioStream())
+            default_fake_devices = [
+                {
+                    "name": "Built-in Mic",
+                    "hostapi": 0,
+                    "max_input_channels": 1,
+                    "max_output_channels": 0,
+                    "default_samplerate": 48000.0,
+                },
+                {
+                    "name": "Built-in Output",
+                    "hostapi": 0,
+                    "max_input_channels": 0,
+                    "max_output_channels": 2,
+                    "default_samplerate": 48000.0,
+                },
+            ]
+            monkeypatch.setattr(sd, "query_devices", lambda *a, **kw: default_fake_devices)
+            monkeypatch.setattr(sd.default, "device", (0, 1))
     except Exception:
         pass
 
