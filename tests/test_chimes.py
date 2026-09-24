@@ -1,7 +1,9 @@
 """Unit tests for VoiceFi audio feedback chimes and sound effects."""
 
 import os
+import sys
 from unittest.mock import patch
+import pytest
 from voicefi.audio.chimes import (
     SYSTEM_SOUNDS,
     DEFAULT_SENT_SOUND,
@@ -20,12 +22,14 @@ def test_system_sounds_keys():
     assert "alert" in SYSTEM_SOUNDS
 
 
+@pytest.mark.skipif(sys.platform != "darwin", reason="macOS system sounds only exist on darwin")
 def test_default_sent_sound():
     sound_path = get_default_sent_sound()
     assert os.path.exists(sound_path)
     assert DEFAULT_SENT_SOUND == sound_path
 
 
+@pytest.mark.skipif(sys.platform != "darwin", reason="afplay only available on darwin")
 @patch("subprocess.run")
 def test_play_chime_blocking(mock_run):
     play_chime("sent", block=True)
@@ -35,6 +39,7 @@ def test_play_chime_blocking(mock_run):
     assert args[1] == DEFAULT_SENT_SOUND
 
 
+@pytest.mark.skipif(sys.platform != "darwin", reason="afplay only available on darwin")
 @patch("subprocess.run")
 def test_play_chime_custom_path(mock_run):
     play_chime("/System/Library/Sounds/Tink.aiff", block=True)

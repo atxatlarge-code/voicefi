@@ -226,8 +226,8 @@ def mark_turn_completed(
     """Mark active turn as completed so its speech output is recorded."""
     if not turn_id and not conv_id:
         return
-    turn_file = Path("/tmp/voicefi_active_turns.json")
-    lock_file = Path("/tmp/voicefi_active_turns.lock")
+    turn_file = _ACTIVE_TURNS_FILE
+    lock_file = _ACTIVE_TURNS_LOCK
     try:
         if not turn_file.is_file():
             return
@@ -265,8 +265,8 @@ def mark_turn_spoken_on_mac(
     Mark that this turn's speech was synthesized and played aloud on Mac desktop CoreAudio.
     Used by Companion to suppress duplicate speech when running alongside a desktop coding agent.
     """
-    turn_file = Path("/tmp/voicefi_active_turns.json")
-    lock_file = Path("/tmp/voicefi_active_turns.lock")
+    turn_file = _ACTIVE_TURNS_FILE
+    lock_file = _ACTIVE_TURNS_LOCK
     try:
         if not turn_file.is_file():
             return False
@@ -350,7 +350,7 @@ def get_claimed_turn_origin(
     step_index: Optional[int] = None,
 ) -> Optional[str]:
     """Get the origin (mobile or desktop) recorded when this turn was claimed."""
-    turn_file = Path("/tmp/voicefi_active_turns.json")
+    turn_file = _ACTIVE_TURNS_FILE
     if not turn_file.is_file():
         return None
     try:
@@ -391,7 +391,7 @@ def get_turn_delivery_info(
     Get delivery provenance (hook vs otherwise/watcher, spoken_on_mac, origin) for a turn.
     Used by Companion to check if a coding agent turn was delivered via hook or otherwise.
     """
-    turn_file = Path("/tmp/voicefi_active_turns.json")
+    turn_file = _ACTIVE_TURNS_FILE
     default_info = {
         "delivered_via": "otherwise",
         "delivered_via_hook": False,
@@ -599,7 +599,7 @@ def has_active_mobile_companion(max_age_seconds: float = 25.0) -> bool:
 
 def clear_companion_heartbeat() -> None:
     """Clear companion client heartbeat."""
-    heartbeat_file = Path("/tmp/voicefi_companion_clients.json")
+    heartbeat_file = _COMPANION_CLIENTS_FILE
     try:
         heartbeat_file.unlink(missing_ok=True)
     except Exception:

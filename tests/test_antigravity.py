@@ -103,7 +103,7 @@ def test_handle_stop_hook_injects_with_target_antigravity(tmp_path: Path, monkey
 
     mock_send = MagicMock(return_value=True)
     monkeypatch.setattr("voicefi.integrations.antigravity.send_message_to_antigravity", mock_send)
-    monkeypatch.setattr("voicefi.integrations.antigravity.claim_turn", lambda cid, sig: True)
+    monkeypatch.setattr("voicefi.integrations.antigravity.claim_turn", lambda *a, **kw: True)
 
     payload = {"conversationId": "test-123", "transcriptPath": str(tfile)}
     handle_antigravity_stop_hook(payload, config=cfg)

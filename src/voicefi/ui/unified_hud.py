@@ -1006,6 +1006,7 @@ class UnifiedDynamicIslandHUD:
         try:
             import os
             from pathlib import Path
+            from AppKit import NSImage, NSWorkspace
 
             hud_file = Path(__file__).resolve()
             asset_dirs = [
@@ -1092,6 +1093,13 @@ class UnifiedDynamicIslandHUD:
                                 break
                     if icon:
                         break
+
+            # 4. Fallback to generic application icon so headless CI always returns a valid NSImage
+            if not icon:
+                try:
+                    icon = ws.iconForFileType_("app")
+                except Exception:
+                    pass
         except Exception:
             icon = None
 

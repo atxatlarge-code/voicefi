@@ -158,7 +158,7 @@ def test_cross_process_hud_state_sync():
 
 
 def test_exported_status_icon_assets():
-    assets_dir = Path("/Users/jaketrigg/Projects/VoiceFi/assets/status_icons")
+    assets_dir = Path(__file__).resolve().parent.parent / "assets" / "status_icons"
     assert assets_dir.exists(), "assets/status_icons directory does not exist"
     
     states = ["thinking", "listening", "speaking", "working", "idle"]

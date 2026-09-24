@@ -194,7 +194,11 @@ class TranscriptWatcher:
             except Exception:
                 pass
 
-            time.sleep(0.15)
+            try:
+                time.sleep(0.15)
+            except (KeyboardInterrupt, SystemExit):
+                self._running = False
+                break
 
     def _get_highest_step_index(self, path: Path) -> int:
         highest = -1

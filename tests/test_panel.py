@@ -221,7 +221,7 @@ def test_cli_panel_argument():
     """Test CLI argument parsing and execution for panel."""
     with patch("voicefi.ui.panel.open_control_panel") as mock_open:
         mock_open.return_value = "http://localhost:5141"
-        with patch("time.sleep", side_effect=KeyboardInterrupt):
+        with patch("voicefi.cli_commands.dispatch.time.sleep", side_effect=KeyboardInterrupt):
             args = MagicMock()
             args.port = 5141
             args.no_browser = False

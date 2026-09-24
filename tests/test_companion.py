@@ -395,7 +395,6 @@ class CompanionServerTestCase(AioHTTPTestCase):
                 include_envelope=False,
                 allow_foreground_fallback=False,
                 use_headless=True,
-                cwd=None,
             )
 
     async def test_api_send_failure_response(self):

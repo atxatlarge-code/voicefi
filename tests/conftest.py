@@ -29,8 +29,21 @@ if sys.platform != "darwin":
                     mock_mod.python_method = lambda fn: fn
                     mock_mod.IBAction = lambda fn: fn
                 elif mod_name == "rumps":
-                    mock_mod.App = type("App", (), {})
-                    mock_mod.MenuItem = type("MenuItem", (), {})
+                    class _StubRumpsApp:
+                        def __init__(self, *args, **kwargs):
+                            self.title = args[0] if args else kwargs.get("name", "VoiceFi")
+                            self.menu = {}
+                            self.icon = None
+
+                    class _StubRumpsMenuItem:
+                        def __init__(self, *args, **kwargs):
+                            self.title = args[0] if args else kwargs.get("title", "")
+                            self.state = 0
+                            self.callback = kwargs.get("callback")
+
+                    mock_mod.App = _StubRumpsApp
+                    mock_mod.MenuItem = _StubRumpsMenuItem
+                    mock_mod.Timer = MagicMock
                 sys.modules[mod_name] = mock_mod
 
 # On headless environments without X11 or display server, pynput import fails.
@@ -52,6 +65,7 @@ except Exception:
         alt = "Key.alt"
         alt_l = "Key.alt_l"
         alt_r = "Key.alt_r"
+        alt_gr = "Key.alt_gr"
         ctrl = "Key.ctrl"
         ctrl_l = "Key.ctrl_l"
         ctrl_r = "Key.ctrl_r"
@@ -67,6 +81,24 @@ except Exception:
         def __init__(self, vk=None, char=None):
             self.vk = vk
             self.char = char
+
+        @classmethod
+        def from_vk(cls, vk, **kwargs):
+            return cls(vk=vk)
+
+        @classmethod
+        def from_char(cls, char, **kwargs):
+            return cls(char=char)
+
+        def __eq__(self, other):
+            if isinstance(other, _StubKeyCode):
+                return self.vk == other.vk and self.char == other.char
+            return False
+
+        def __str__(self):
+            if self.vk is not None:
+                return f"<{self.vk}>"
+            return f"'{self.char}'"
 
     class _StubListener:
         def __init__(self, on_press=None, on_release=None, *args, **kwargs):
@@ -326,8 +358,54 @@ def prevent_real_audio_playback(monkeypatch):
                 def close(self):
                     pass
 
+                def read(self, frames):
+                    import numpy as np
+
+                    return np.zeros((frames, 1), dtype=np.float32), False
+
             monkeypatch.setattr(sd, "OutputStream", lambda *a, **kw: MockAudioStream())
+            monkeypatch.setattr(sd, "RawOutputStream", lambda *a, **kw: MockAudioStream())
     except Exception:
         pass
 
     yield
+
+
+@pytest.fixture(autouse=True)
+def setup_test_license_keys(monkeypatch):
+    """Ensure tests have a valid Ed25519 signing keypair even in headless CI."""
+    try:
+        from cryptography.hazmat.primitives.asymmetric import ed25519
+        from cryptography.hazmat.primitives import serialization
+
+        key_path = Path.home() / ".voicefi" / "admin_keys" / "voicefi_ed25519_private.key"
+        if not os.environ.get("VOICEFI_SIGNING_PRIVATE_KEY") and not key_path.is_file():
+            priv = ed25519.Ed25519PrivateKey.generate()
+            priv_hex = priv.private_bytes(
+                encoding=serialization.Encoding.Raw,
+                format=serialization.PrivateFormat.Raw,
+                encryption_algorithm=serialization.NoEncryption(),
+            ).hex()
+            pub_hex = (
+                priv.public_key()
+                .public_bytes(
+                    encoding=serialization.Encoding.Raw,
+                    format=serialization.PublicFormat.Raw,
+                )
+                .hex()
+            )
+            monkeypatch.setenv("VOICEFI_SIGNING_PRIVATE_KEY", priv_hex)
+            monkeypatch.setattr("voicefi.license.PUBLIC_VERIFICATION_KEY_HEX", pub_hex)
+    except Exception:
+        pass
+
+
+def pytest_unconfigure(config):
+    """Cleanly terminate PortAudio and background worker resources before interpreter teardown."""
+    try:
+        import sounddevice as sd
+
+        sd._terminate()
+    except Exception:
+        pass
+

@@ -82,7 +82,7 @@ def test_handle_peer_send_json_serializable():
         return payload
     req.json = mock_json
 
-    with patch("voicefi.companion.server.send_message_to_agent") as mock_send:
+    with patch("voicefi.companion.handlers.peers.send_message_to_agent") as mock_send:
         mock_send.return_value = DispatchResult(
             success=True,
             delivery_type="ipc",

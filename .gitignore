@@ -110,7 +110,8 @@ scratch/
 *.swp
 pr/
 marketing/
-mocks/
+mocks/*
+!mocks/hud_mocks.html
 
 # Agent session artifacts & ephemeral test runs
 .agents/swe*
