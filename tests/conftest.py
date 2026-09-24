@@ -9,7 +9,7 @@ from voicefi.config import VoiceFiConfig, save_config
 # (AppKit, rumps, Cocoa, Quartz, objc) are not available, provide stub modules
 # so test collection and headless execution succeed without ModuleNotFoundError.
 if sys.platform != "darwin":
-    for mod_name in ["AppKit", "rumps", "Cocoa", "Quartz", "objc"]:
+    for mod_name in ["AppKit", "rumps", "Cocoa", "Quartz", "objc", "Foundation", "PyObjCTools"]:
         if mod_name not in sys.modules:
             try:
                 __import__(mod_name)

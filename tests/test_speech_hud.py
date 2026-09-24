@@ -2,8 +2,13 @@
 Unit tests for AgentSpeechHUD (Unified Dynamic Island Adapter).
 """
 
+import sys
 from unittest.mock import MagicMock, patch
 import pytest
+
+if sys.platform != "darwin":
+    pytest.skip("macOS-only UI test requiring AppKit / Cocoa", allow_module_level=True)
+
 from voicefi.ui.speech_hud import AgentSpeechHUD, AVATAR_ICONS
 from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
 from voicefi.config import VoiceFiConfig, AntigravityConfig

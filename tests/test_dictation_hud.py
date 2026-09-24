@@ -2,8 +2,13 @@
 Unit tests for DictationHUD (Unified Dynamic Island Adapter).
 """
 
+import sys
 from unittest.mock import MagicMock, patch
 import pytest
+
+if sys.platform != "darwin":
+    pytest.skip("macOS-only UI test requiring AppKit / Cocoa", allow_module_level=True)
+
 from voicefi.ui.dictation_hud import DictationHUD
 from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
 

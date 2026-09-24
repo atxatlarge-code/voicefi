@@ -69,6 +69,19 @@ voicegency = "voicefi.cli:main"
 [tool.hatch.build.targets.wheel]
 packages = ["src/voicefi"]
 
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+    "/tests",
+    "/docs",
+    "/README.md",
+    "/LICENSE",
+    "/pyproject.toml",
+]
+exclude = [
+    ".agents",
+]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 

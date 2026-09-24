@@ -1,5 +1,10 @@
+import sys
 import pytest
 from unittest.mock import MagicMock, patch
+
+if sys.platform != "darwin":
+    pytest.skip("macOS-only UI test requiring AppKit / Cocoa", allow_module_level=True)
+
 from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD, HUDActionDelegate
 
 

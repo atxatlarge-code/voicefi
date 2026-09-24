@@ -12,8 +12,13 @@ from voicefi.tts.base import (
     speech_turn_lock,
     stop_all_speech,
 )
+import sys
 import voicefi.tts.base as tts_base
 from voicefi.audio.recorder import AudioRecorder
+
+if sys.platform != "darwin":
+    pytest.skip("macOS-only UI test requiring AppKit / Cocoa", allow_module_level=True)
+
 from voicefi.ui.dictation_hud import DictationHUD
 from voicefi.config import VoiceFiConfig
 
