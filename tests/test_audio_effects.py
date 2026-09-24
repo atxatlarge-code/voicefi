@@ -13,6 +13,7 @@ import pytest
 from aiohttp import web
 from aiohttp.test_utils import AioHTTPTestCase, unittest_run_loop
 
+from unittest.mock import patch
 from voicefi.audio.effects import VoiceFXEngine, FX_PRESETS
 from voicefi.video.reel_builder import ReelBuilder, FORMAT_PRESETS, TYPOGRAPHY_PRESETS
 from voicefi.companion.server import CompanionServer, RECORDINGS_DIR
@@ -170,6 +171,24 @@ def test_trim_audio(sample_wav, tmp_path):
 
 class TestStudioServerEndpoints(AioHTTPTestCase):
     """Integration test suite for Companion Server Voice Recording & FX REST APIs."""
+
+    def setUp(self):
+        self.tmp_dir = tempfile.TemporaryDirectory()
+        self.test_recordings_dir = Path(self.tmp_dir.name) / "recordings"
+        self.test_recordings_dir.mkdir(parents=True, exist_ok=True)
+        self.test_static_dir = Path(self.tmp_dir.name) / "static"
+        (self.test_static_dir / "downloads").mkdir(parents=True, exist_ok=True)
+        self.recordings_patcher = patch("voicefi.companion.handlers.studio.RECORDINGS_DIR", self.test_recordings_dir)
+        self.static_patcher = patch("voicefi.companion.handlers.studio.STATIC_DIR", self.test_static_dir)
+        self.recordings_patcher.start()
+        self.static_patcher.start()
+        super().setUp()
+
+    def tearDown(self):
+        self.static_patcher.stop()
+        self.recordings_patcher.stop()
+        self.tmp_dir.cleanup()
+        super().tearDown()
 
     async def get_application(self):
         cfg = VoiceFiConfig()

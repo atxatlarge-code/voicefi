@@ -149,12 +149,17 @@ def test_memo_recorder_session_mock():
     ticks = []
     state_changes = []
 
+    def _on_state_change(s):
+        state_changes.append(s)
+        if s == "timer_landed":
+            rec.stop_event.set()
+
     with patch("sounddevice.InputStream", return_value=mock_stream):
         with patch("voicefi.audio.chimes.play_chime"):
             audio, wav_path, duration = rec.record_memo_session(
                 interactive=False,
                 on_tick=lambda e, r, l: ticks.append((e, r)),
-                on_state_change=lambda s: state_changes.append(s),
+                on_state_change=_on_state_change,
             )
 
             assert isinstance(audio, np.ndarray)

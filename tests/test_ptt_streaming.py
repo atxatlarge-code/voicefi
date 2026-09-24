@@ -82,7 +82,8 @@ def test_recorder_push_to_talk(mock_stream_cls, tmp_path):
     wav_path.unlink(missing_ok=True)
 
 
-def test_streaming_audio_player():
+@patch("sounddevice.OutputStream")
+def test_streaming_audio_player(mock_output_stream_cls):
     player = StreamingAudioPlayer(sample_rate=16000)
     assert not player.is_playing
 

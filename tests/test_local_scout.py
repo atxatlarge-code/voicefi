@@ -26,6 +26,7 @@ def test_recon_scout_on_file(tmp_path: Path):
     )
 
     scout = ReconScout()
+    scout.engine.model_path = str(tmp_path / "nonexistent_model")
     res = asyncio.run(scout.scout(target_path=test_file, query="Identify critical exceptions"))
 
     assert isinstance(res, ScoutResult)
