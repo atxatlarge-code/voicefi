@@ -1,7 +1,11 @@
 import os
+import sys
 import time
 from unittest.mock import patch, MagicMock
 import pytest
+
+if sys.platform != "darwin":
+    pytest.skip("macOS-only test requiring Quartz / QuickLook / AppKit", allow_module_level=True)
 
 from voicefi.audio.media_detection import (
     is_finder_quicklook_active,

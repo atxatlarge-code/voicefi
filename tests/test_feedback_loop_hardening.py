@@ -188,13 +188,12 @@ class TestConcurrencyAndLivenessDebounce:
     """Test turn claiming concurrency and dead PID debounce."""
 
     def test_dead_pid_within_debounce_window_is_respected(self, tmp_path):
-        import tempfile
-        from voicefi.integrations import conversations
+        from voicefi.integrations import turn_lock
 
         turn_file = tmp_path / "voicefi_active_turns.json"
         lock_file = tmp_path / "voicefi_active_turns.lock"
 
-        with patch.object(conversations, "Path") as mock_path:
+        with patch.object(turn_lock, "Path") as mock_path:
             def _path_side_effect(p):
                 if "active_turns.json" in str(p):
                     return turn_file
@@ -216,18 +215,18 @@ class TestConcurrencyAndLivenessDebounce:
             with open(turn_file, "w") as f:
                 json.dump(initial_entry, f)
 
-            with patch("voicefi.integrations.conversations.is_pid_alive", return_value=False):
+            with patch("voicefi.integrations.turn_lock.is_pid_alive", return_value=False):
                 # Another process (like TranscriptWatcher) tries to claim the same turn within 1.0s
                 claimed = claim_turn("test-conv-pid", "test-conv-pid:Hello world", step_index=4)
                 assert claimed is False  # Must be blocked by recent debounce window!
 
     def test_dead_pid_after_debounce_window_is_evicted(self, tmp_path):
-        from voicefi.integrations import conversations
+        from voicefi.integrations import turn_lock
 
         turn_file = tmp_path / "voicefi_active_turns.json"
         lock_file = tmp_path / "voicefi_active_turns.lock"
 
-        with patch.object(conversations, "Path") as mock_path:
+        with patch.object(turn_lock, "Path") as mock_path:
             def _path_side_effect(p):
                 if "active_turns.json" in str(p):
                     return turn_file
@@ -249,7 +248,7 @@ class TestConcurrencyAndLivenessDebounce:
             with open(turn_file, "w") as f:
                 json.dump(initial_entry, f)
 
-            with patch("voicefi.integrations.conversations.is_pid_alive", return_value=False):
+            with patch("voicefi.integrations.turn_lock.is_pid_alive", return_value=False):
                 # Stale lock must be ignored/evicted
                 claimed = claim_turn("test-conv-stale", "test-conv-stale:New fresh turn", step_index=2)
                 assert claimed is True

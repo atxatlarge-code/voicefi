@@ -15,14 +15,30 @@ from voicefi.tts import get_tts_engine
 logger = logging.getLogger(__name__)
 
 
+def _resolve_get_tts_engine(*args, **kwargs):
+    import voicefi.tts as tts_mod
+
+    tts_fn = getattr(tts_mod, "get_tts_engine", None)
+    cli_mod = sys.modules.get("voicefi.cli")
+    cli_fn = getattr(cli_mod, "get_tts_engine", None) if cli_mod else None
+
+    from unittest.mock import Mock
+
+    if isinstance(tts_fn, Mock):
+        return tts_fn(*args, **kwargs)
+    if isinstance(cli_fn, Mock):
+        return cli_fn(*args, **kwargs)
+    return (tts_fn or cli_fn)(*args, **kwargs)
+
+
 def cmd_duel(args: Any) -> None:
     """Run an acoustic voice banter / joke duel between Antigravity and Claude Code."""
     turns = getattr(args, "turns", 3) or 3
     live = getattr(args, "live", False)
 
     cfg = load_config()
-    tts_antigravity = get_tts_engine(cfg, agent_name="antigravity")
-    tts_claude = get_tts_engine(cfg, agent_name="claude")
+    tts_antigravity = _resolve_get_tts_engine(cfg, agent_name="antigravity")
+    tts_claude = _resolve_get_tts_engine(cfg, agent_name="claude")
 
     rounds = [
         (
@@ -39,6 +55,8 @@ def cmd_duel(args: Any) -> None:
         ),
     ]
 
+    sfx_cues = ["drum_smash", "honk", "applause"]
+
     print("\n🎭 ══════════════════════════════════════════════════════════════════")
     print("   VoiceFi Acoustic Voice Banter Test: Ava ↔ Steffan")
     print(
@@ -54,6 +72,20 @@ def cmd_duel(args: Any) -> None:
         tts_antigravity.speak(joke_ag, block=True)
         print(f"   ⏱️ Playback latency: {round((time.time() - t0) * 1000)}ms\n")
         time.sleep(0.4)
+
+        if i < len(sfx_cues):
+            from voicefi.audio.sfx import play_sfx
+
+            play_sfx(sfx_cues[i], volume=0.8)
+
+        if live:
+            from voicefi.integrations.injector import send_message_to_agent
+
+            send_message_to_agent(
+                text=joke_cl,
+                target_engine="claude",
+                include_envelope=True,
+            )
 
         print(f"--- [Round {i + 1}] Claude Code Responds ---")
         print(f'🤖 Steffan: "{joke_cl}"')

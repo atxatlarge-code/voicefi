@@ -16,6 +16,7 @@ from voicefi.cli_metadata import extract_cli_metadata
 from voicefi.cli_commands.registry import get_command_handlers
 
 # Modularized subcommand implementations re-exported for 100% backward compatibility
+from voicefi.integrations.antigravity import handle_antigravity_stop_hook
 from voicefi.cli_commands.hooks import cmd_hook
 from voicefi.cli_commands.audio import (
     cmd_speak,

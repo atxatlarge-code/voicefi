@@ -456,11 +456,6 @@ class ActiveListeningEngine:
                 if any(c in mp_lower for c in claude_names):
                     has_pfx = any(p in mp_lower for p in prefixes) or "hague" in mp_lower
                     matched_phrase = "hey claude" if has_pfx else "claude"
-                elif any(
-                    v in mp_lower for v in ("viv", "vive", "vifi", "vivi", "wi-fi", "voicefi")
-                ):
-                    has_pfx = any(p in mp_lower for p in prefixes)
-                    matched_phrase = "hey viv" if has_pfx else "viv"
 
                 remainder = m.group(1) if m.group(1) else ""
                 # Strip leading punctuation and conjunctions

@@ -103,37 +103,71 @@ class CompanionServerTestCase(AioHTTPTestCase):
 
     async def test_get_spicewood_sheet_api(self):
         """Test GET /api/sheet/spicewood returns Spicewood lead sheet metadata and markdown."""
-        resp = await self.client.get("/api/sheet/spicewood")
-        assert resp.status == 200
-        data = await resp.json()
-        assert data.get("title") == "Spicewood, Texas"
-        assert data.get("bpm") == 85
-        assert "SPICEWOOD, TEXAS" in data.get("content")
-        assert "Shinra B" in data.get("content")
+        downloads_dir = Path(__file__).resolve().parents[1] / "src" / "voicefi" / "companion" / "static" / "downloads"
+        downloads_dir.mkdir(parents=True, exist_ok=True)
+        sheet_path = downloads_dir / "spicewood_texas_lead_sheet.md"
+        created_sheet = False
+        if not sheet_path.is_file():
+            sheet_path.write_text("# SPICEWOOD, TEXAS\nBPM: 85\nProducer: Shinra B\nLyrics and cues...")
+            created_sheet = True
+
+        try:
+            resp = await self.client.get("/api/sheet/spicewood")
+            assert resp.status == 200
+            data = await resp.json()
+            assert data.get("title") == "Spicewood, Texas"
+            assert data.get("bpm") == 85
+            assert "SPICEWOOD, TEXAS" in data.get("content")
+            assert "Shinra B" in data.get("content")
+        finally:
+            if created_sheet and sheet_path.is_file():
+                sheet_path.unlink(missing_ok=True)
 
     async def test_get_spicewood_downloads(self):
         """Test downloading Spicewood lead sheet and audio beat."""
-        resp_md = await self.client.get("/downloads/spicewood_texas_lead_sheet.md")
-        assert resp_md.status == 200
-        text = await resp_md.text()
-        assert "SPICEWOOD, TEXAS" in text
+        downloads_dir = Path(__file__).resolve().parents[1] / "src" / "voicefi" / "companion" / "static" / "downloads"
+        downloads_dir.mkdir(parents=True, exist_ok=True)
+        sheet_path = downloads_dir / "spicewood_texas_lead_sheet.md"
+        created_sheet = False
+        if not sheet_path.is_file():
+            sheet_path.write_text("# SPICEWOOD, TEXAS\nBPM: 85\nProducer: Shinra B\nLyrics and cues...")
+            created_sheet = True
 
-        resp_mp3 = await self.client.get("/downloads/spicewood_texas_beat_85bpm.mp3")
-        assert resp_mp3.status in (200, 206)
-        assert resp_mp3.content_type == "audio/mpeg"
-        assert resp_mp3.content_length > 1000000
+        beat_path = downloads_dir / "spicewood_texas_beat_85bpm.mp3"
+        created_beat = False
+        if not beat_path.is_file():
+            with open(beat_path, "wb") as f:
+                f.seek(1024 * 1024 + 100)
+                f.write(b"\0")
+            created_beat = True
+
+        try:
+            resp_md = await self.client.get("/downloads/spicewood_texas_lead_sheet.md")
+            assert resp_md.status == 200
+            text = await resp_md.text()
+            assert "SPICEWOOD, TEXAS" in text
+
+            resp_mp3 = await self.client.get("/downloads/spicewood_texas_beat_85bpm.mp3")
+            assert resp_mp3.status in (200, 206)
+            assert resp_mp3.content_type == "audio/mpeg"
+            assert resp_mp3.content_length > 1000000
+        finally:
+            if created_sheet and sheet_path.is_file():
+                sheet_path.unlink(missing_ok=True)
+            if created_beat and beat_path.is_file():
+                beat_path.unlink(missing_ok=True)
 
     async def test_api_downloads_list_and_act1_file(self):
         """Test GET /api/downloads returns complete file catalog including spicewood_act1_picture_lock.mp4."""
-        act1_path = (
-            Path(__file__).resolve().parents[1]
-            / "src"
-            / "voicefi"
-            / "companion"
-            / "static"
-            / "downloads"
-            / "spicewood_act1_picture_lock.mp4"
-        )
+        downloads_dir = Path(__file__).resolve().parents[1] / "src" / "voicefi" / "companion" / "static" / "downloads"
+        downloads_dir.mkdir(parents=True, exist_ok=True)
+        sheet_path = downloads_dir / "spicewood_texas_lead_sheet.md"
+        created_sheet = False
+        if not sheet_path.is_file():
+            sheet_path.write_text("# SPICEWOOD, TEXAS\nBPM: 85\nProducer: Shinra B\nLyrics and cues...")
+            created_sheet = True
+
+        act1_path = downloads_dir / "spicewood_act1_picture_lock.mp4"
         created_dummy = False
         if not act1_path.is_file():
             act1_path.parent.mkdir(parents=True, exist_ok=True)
@@ -162,6 +196,11 @@ class CompanionServerTestCase(AioHTTPTestCase):
                     assert f["category"] == "video"
                     assert f["size"] > 10 * 1024 * 1024
         finally:
+            if created_sheet and sheet_path.is_file():
+                try:
+                    sheet_path.unlink()
+                except Exception:
+                    pass
             if created_dummy and act1_path.is_file():
                 try:
                     act1_path.unlink()

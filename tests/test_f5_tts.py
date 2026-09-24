@@ -55,7 +55,8 @@ def test_get_tts_engine_f5_tts(tmp_path):
     config.tts.f5_ref_audio = str(tmp_path / "ref.wav")
     config.tts.f5_ref_text = "Testing reference speech"
 
-    engine = get_tts_engine(config)
-    assert isinstance(engine, F5TTS)
-    assert engine.ref_audio == str(tmp_path / "ref.wav")
-    assert engine.ref_text == "Testing reference speech"
+    with patch.object(F5TTS, "is_available", return_value=True):
+        engine = get_tts_engine(config)
+        assert isinstance(engine, F5TTS)
+        assert engine.ref_audio == str(tmp_path / "ref.wav")
+        assert engine.ref_text == "Testing reference speech"

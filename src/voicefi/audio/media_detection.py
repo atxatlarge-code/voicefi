@@ -224,7 +224,7 @@ def is_finder_quicklook_active() -> Tuple[bool, Optional[str]]:
             owner_lower = owner.lower()
             alpha = float(w.get("kCGWindowAlpha", 1.0))
 
-            # 1. QuickLook UI service / qlmanage preview (must be active floating/presentation layer)
+            # 1. QuickLook UI service / qlmanage preview (Sonoma/Sequoia standalone XPC layer 0, or floating/presentation layer 3, 102, 1000)
             if (
                 (
                     "quicklook" in owner_lower
@@ -232,7 +232,7 @@ def is_finder_quicklook_active() -> Tuple[bool, Optional[str]]:
                     or owner == "qlmanage"
                 )
                 and alpha > 0.5
-                and layer in (3, 102, 1000)
+                and layer in (0, 3, 102, 1000)
             ):
                 return True, f"Quick Look preview ({owner}) is open"
 

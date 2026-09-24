@@ -616,7 +616,8 @@ def test_headphone_barge_in_low_energy_rejection():
                 return chunks[idx], False
             return silence_chunk, False
 
-    with patch("voicefi.audio.recorder.is_agent_speaking", return_value=True), \
+    with patch("pynput.keyboard.Listener"), \
+         patch("voicefi.audio.recorder.is_agent_speaking", return_value=True), \
          patch("voicefi.audio.recorder.is_agent_audio_playing", return_value=True), \
          patch("voicefi.audio.recorder.is_using_builtin_speakers", return_value=False), \
          patch.object(recorder, "_create_input_stream", return_value=MockStream()), \

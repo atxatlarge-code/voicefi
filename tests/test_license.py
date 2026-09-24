@@ -1,8 +1,35 @@
-"""Unit tests for License, 14-Day Free Trial, and FeatureGate."""
-
+import os
 import time
+from pathlib import Path
+import pytest
 from voicefi.config import VoiceFiConfig
 from voicefi.license import FeatureGate
+
+
+@pytest.fixture(autouse=True)
+def setup_test_license_keys(monkeypatch):
+    """Ensure tests have a valid Ed25519 signing keypair even in headless CI."""
+    from cryptography.hazmat.primitives.asymmetric import ed25519
+    from cryptography.hazmat.primitives import serialization
+
+    key_path = Path.home() / ".voicefi" / "admin_keys" / "voicefi_ed25519_private.key"
+    if not os.environ.get("VOICEFI_SIGNING_PRIVATE_KEY") and not key_path.is_file():
+        priv = ed25519.Ed25519PrivateKey.generate()
+        priv_hex = priv.private_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PrivateFormat.Raw,
+            encryption_algorithm=serialization.NoEncryption(),
+        ).hex()
+        pub_hex = (
+            priv.public_key()
+            .public_bytes(
+                encoding=serialization.Encoding.Raw,
+                format=serialization.PublicFormat.Raw,
+            )
+            .hex()
+        )
+        monkeypatch.setenv("VOICEFI_SIGNING_PRIVATE_KEY", priv_hex)
+        monkeypatch.setattr("voicefi.license.PUBLIC_VERIFICATION_KEY_HEX", pub_hex)
 
 
 def test_community_tier_when_trial_expired():

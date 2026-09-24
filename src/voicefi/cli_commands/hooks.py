@@ -10,6 +10,18 @@ from typing import Any
 from voicefi.config import load_config, save_config
 
 
+def _resolve_load_config(*args, **kwargs):
+    cli_mod = sys.modules.get("voicefi.cli")
+    fn = getattr(cli_mod, "load_config", load_config) if cli_mod else load_config
+    return fn(*args, **kwargs)
+
+
+def _resolve_save_config(*args, **kwargs):
+    cli_mod = sys.modules.get("voicefi.cli")
+    fn = getattr(cli_mod, "save_config", save_config) if cli_mod else save_config
+    return fn(*args, **kwargs)
+
+
 def cmd_hook(args: Any) -> None:
     """Handle AI agent lifecycle hook from stdin or manage hook configurations."""
     action = getattr(args, "action", None)
@@ -23,9 +35,9 @@ def cmd_hook(args: Any) -> None:
         action = "remove"
 
     if action in ("disable", "off"):
-        config = load_config(args.config)
+        config = _resolve_load_config(args.config)
         config.hooks.enabled = False
-        save_config(config)
+        _resolve_save_config(config)
         print("🛑 VoiceFi hooks disabled globally (config.yaml: hooks.enabled = false).")
         print(
             "   Agent Stop hooks will immediately return without audio, microphone, or keyboard activity."
@@ -33,9 +45,9 @@ def cmd_hook(args: Any) -> None:
         return
 
     if action in ("enable", "on"):
-        config = load_config(args.config)
+        config = _resolve_load_config(args.config)
         config.hooks.enabled = True
-        save_config(config)
+        _resolve_save_config(config)
         print("✅ VoiceFi hooks enabled globally (config.yaml: hooks.enabled = true).")
         return
 
@@ -105,7 +117,7 @@ def cmd_hook(args: Any) -> None:
             f.write(f"[{time.time()}] HOOK CALLED with args={args}\n")
     except Exception:
         pass
-    config = load_config(args.config)
+    config = _resolve_load_config(args.config)
     target_agent = getattr(args, "agent", "antigravity").lower().strip()
 
     # Set base zero-PII hook telemetry early

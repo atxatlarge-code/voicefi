@@ -9,7 +9,16 @@ from voicefi.config import VoiceFiConfig, save_config
 # (AppKit, rumps, Cocoa, Quartz, objc) are not available, provide stub modules
 # so test collection and headless execution succeed without ModuleNotFoundError.
 if sys.platform != "darwin":
-    for mod_name in ["AppKit", "rumps", "Cocoa", "Quartz", "objc", "Foundation", "PyObjCTools"]:
+    for mod_name in [
+        "AppKit",
+        "rumps",
+        "Cocoa",
+        "Quartz",
+        "objc",
+        "Foundation",
+        "PyObjCTools",
+        "ApplicationServices",
+    ]:
         if mod_name not in sys.modules:
             try:
                 __import__(mod_name)
@@ -19,7 +28,77 @@ if sys.platform != "darwin":
                 if mod_name == "objc":
                     mock_mod.python_method = lambda fn: fn
                     mock_mod.IBAction = lambda fn: fn
+                elif mod_name == "rumps":
+                    mock_mod.App = type("App", (), {})
+                    mock_mod.MenuItem = type("MenuItem", (), {})
                 sys.modules[mod_name] = mock_mod
+
+# On headless environments without X11 or display server, pynput import fails.
+# Provide a standard headless stub for pynput.keyboard.
+try:
+    import pynput.keyboard  # noqa: F401
+except Exception:
+    import types
+    from enum import Enum
+
+    class _StubKey(Enum):
+        esc = "Key.esc"
+        tab = "Key.tab"
+        space = "Key.space"
+        enter = "Key.enter"
+        cmd = "Key.cmd"
+        cmd_l = "Key.cmd_l"
+        cmd_r = "Key.cmd_r"
+        alt = "Key.alt"
+        alt_l = "Key.alt_l"
+        alt_r = "Key.alt_r"
+        ctrl = "Key.ctrl"
+        ctrl_l = "Key.ctrl_l"
+        ctrl_r = "Key.ctrl_r"
+        shift = "Key.shift"
+        shift_l = "Key.shift_l"
+        shift_r = "Key.shift_r"
+        up = "Key.up"
+        down = "Key.down"
+        left = "Key.left"
+        right = "Key.right"
+
+    class _StubKeyCode:
+        def __init__(self, vk=None, char=None):
+            self.vk = vk
+            self.char = char
+
+    class _StubListener:
+        def __init__(self, on_press=None, on_release=None, *args, **kwargs):
+            self.on_press = on_press
+            self.on_release = on_release
+            self.running = False
+            self.daemon = True
+
+        def start(self):
+            self.running = True
+
+        def stop(self):
+            self.running = False
+
+        def join(self, timeout=None):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+    _pynput_mod = sys.modules.get("pynput", types.ModuleType("pynput"))
+    _pynput_kb = types.ModuleType("pynput.keyboard")
+    _pynput_kb.Key = _StubKey
+    _pynput_kb.KeyCode = _StubKeyCode
+    _pynput_kb.Listener = _StubListener
+    _pynput_kb.Controller = MagicMock
+    _pynput_mod.keyboard = _pynput_kb
+    sys.modules["pynput"] = _pynput_mod
+    sys.modules["pynput.keyboard"] = _pynput_kb
 
 
 @pytest.fixture(autouse=True)
@@ -34,6 +113,8 @@ def isolate_test_config(tmp_path, monkeypatch):
     monkeypatch.setenv("DO_NOT_TRACK", "1")
     monkeypatch.setenv("VOICEFI_HEADLESS", "1")
     monkeypatch.setenv("VOICEFI_TESTING", "1")
+    monkeypatch.setenv("ANTIGRAVITY_LS_ADDRESS", "127.0.0.1:54321")
+    monkeypatch.setenv("ANTIGRAVITY_CSRF_TOKEN", "test-token")
     monkeypatch.setenv("OMP_NUM_THREADS", "1")
     monkeypatch.setenv("OPENBLAS_NUM_THREADS", "1")
     monkeypatch.setenv("MKL_NUM_THREADS", "1")

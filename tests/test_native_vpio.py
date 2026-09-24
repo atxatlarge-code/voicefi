@@ -86,6 +86,8 @@ import os
 )
 def test_native_vpio_live_stream_capture():
     """Live integration test: capture a real buffer using Apple VoiceProcessingIO."""
+    if not is_vpio_supported() or os.getenv("VOICEFI_HEADLESS") == "1" or os.getenv("VOICEFI_TESTING") == "1":
+        pytest.skip("Requires interactive macOS audio hardware session")
     stream = NativeVoiceProcessingStream(target_sample_rate=16000, buffer_size=1024)
     with stream:
         assert stream._is_running

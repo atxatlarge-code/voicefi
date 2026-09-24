@@ -2,7 +2,13 @@
 Unit tests for macOS Accessibility permissions checks and onboarding prompts.
 """
 
+import sys
+import pytest
 from unittest.mock import patch, MagicMock
+
+if sys.platform != "darwin":
+    pytest.skip("macOS-only test requiring ApplicationServices / TCC permissions", allow_module_level=True)
+
 from voicefi.cli import cmd_permissions
 from voicefi.onboarding import check_and_prompt_permissions
 
