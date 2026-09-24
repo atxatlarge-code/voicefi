@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, master, "release/**"]
+    branches: ["**"]
     tags: ["v*"]
     paths-ignore:
       - "docs/**"
@@ -26,6 +26,10 @@ on:
         description: "Run full Python version matrix (3.10, 3.11, 3.12)"
         type: boolean
         default: false
+      run_macos:
+        description: "Include macOS runner on branch/dispatch"
+        type: boolean
+        default: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -36,14 +40,24 @@ jobs:
     name: Configure Matrix
     runs-on: ubuntu-latest
     outputs:
+      os-list: ${{ steps.set-matrix.outputs.os-list }}
       python-versions: ${{ steps.set-matrix.outputs.python-versions }}
     steps:
       - id: set-matrix
         shell: bash
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.full_matrix }}" = "true" ] || [[ "${{ github.ref }}" =~ ^refs/tags/v ]] || [[ "${{ github.ref }}" =~ ^refs/heads/release/ ]]; then
+          IS_FULL_DISPATCH="${{ github.event_name == 'workflow_dispatch' && inputs.full_matrix == 'true' }}"
+          IS_RELEASE="${{ startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/heads/release/') }}"
+          IS_MAIN_OR_PR="${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.run_macos == 'true') }}"
+
+          if [ "$IS_FULL_DISPATCH" = "true" ] || [ "$IS_RELEASE" = "true" ]; then
+            echo 'os-list=["macos-latest", "ubuntu-latest"]' >> "$GITHUB_OUTPUT"
             echo 'python-versions=["3.10", "3.11", "3.12"]' >> "$GITHUB_OUTPUT"
+          elif [ "$IS_MAIN_OR_PR" = "true" ]; then
+            echo 'os-list=["macos-latest", "ubuntu-latest"]' >> "$GITHUB_OUTPUT"
+            echo 'python-versions=["3.12"]' >> "$GITHUB_OUTPUT"
           else
+            echo 'os-list=["ubuntu-latest"]' >> "$GITHUB_OUTPUT"
             echo 'python-versions=["3.12"]' >> "$GITHUB_OUTPUT"
           fi
 
@@ -54,7 +68,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, ubuntu-latest]
+        os: ${{ fromJson(needs.configure.outputs.os-list) }}
         python-version: ${{ fromJson(needs.configure.outputs.python-versions) }}
 
     steps:
@@ -93,4 +107,4 @@ jobs:
           DO_NOT_TRACK: "1"
           CI: "true"
         run: |
-          pytest tests/ -v
+          pytest tests/ -v --durations=10
