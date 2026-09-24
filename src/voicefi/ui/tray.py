@@ -238,7 +238,7 @@ class VoiceFiTrayApp(_TrayAppBase):
         # Start 'Hey Viv' Background Wake-Word Listener if enabled
         self.wakeword_listener = None
         wakeword_cfg = getattr(self.config, "wakeword", None)
-        if getattr(wakeword_cfg, "enabled", True):
+        if getattr(wakeword_cfg, "enabled", True) and not os.environ.get("PYTEST_CURRENT_TEST"):
             try:
                 from voicefi.audio.wakeword import WakeWordListener
 

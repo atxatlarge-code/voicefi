@@ -1,5 +1,6 @@
 import fcntl
 import os
+import sys
 import re
 import subprocess
 import threading
@@ -694,33 +695,54 @@ def is_tab_key(key: Any) -> bool:
 
 def is_option_pressed() -> bool:
     """Check if the Option/Alt modifier key is currently pressed at OS level (macOS)."""
+    if sys.platform != "darwin":
+        return False
     try:
         import Quartz
 
+        mask = getattr(Quartz, "kCGEventFlagMaskAlternate", None)
+        if not isinstance(mask, (int, float)):
+            return False
         flags = Quartz.CGEventSourceFlagsState(Quartz.kCGEventSourceStateCombinedSessionState)
-        return bool(flags & Quartz.kCGEventFlagMaskAlternate)
+        if not isinstance(flags, (int, float)):
+            return False
+        return bool(int(flags) & int(mask))
     except Exception:
         return False
 
 
 def is_cmd_pressed() -> bool:
     """Check if the Command modifier key is currently pressed at OS level (macOS)."""
+    if sys.platform != "darwin":
+        return False
     try:
         import Quartz
 
+        mask = getattr(Quartz, "kCGEventFlagMaskCommand", None)
+        if not isinstance(mask, (int, float)):
+            return False
         flags = Quartz.CGEventSourceFlagsState(Quartz.kCGEventSourceStateCombinedSessionState)
-        return bool(flags & Quartz.kCGEventFlagMaskCommand)
+        if not isinstance(flags, (int, float)):
+            return False
+        return bool(int(flags) & int(mask))
     except Exception:
         return False
 
 
 def is_ctrl_pressed() -> bool:
     """Check if the Control modifier key is currently pressed at OS level (macOS)."""
+    if sys.platform != "darwin":
+        return False
     try:
         import Quartz
 
+        mask = getattr(Quartz, "kCGEventFlagMaskControl", None)
+        if not isinstance(mask, (int, float)):
+            return False
         flags = Quartz.CGEventSourceFlagsState(Quartz.kCGEventSourceStateCombinedSessionState)
-        return bool(flags & Quartz.kCGEventFlagMaskControl)
+        if not isinstance(flags, (int, float)):
+            return False
+        return bool(int(flags) & int(mask))
     except Exception:
         return False
 

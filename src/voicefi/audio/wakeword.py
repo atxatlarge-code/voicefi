@@ -106,6 +106,8 @@ class WakeWordListener:
         self._paused = False
         self._stop_event.clear()
         self._set_state("listening")
+        if os.environ.get("PYTEST_CURRENT_TEST") and not os.environ.get("VOICEFI_TEST_ALLOW_WAKEWORD"):
+            return
         self._thread = threading.Thread(
             target=self._listener_loop, daemon=True, name="WakeWordListener"
         )

@@ -35,11 +35,42 @@ if sys.platform != "darwin":
                             self.menu = {}
                             self.icon = None
 
+                        def run(self):
+                            pass
+
                     class _StubRumpsMenuItem:
                         def __init__(self, *args, **kwargs):
                             self.title = args[0] if args else kwargs.get("title", "")
                             self.state = 0
                             self.callback = kwargs.get("callback")
+                            self._items = {}
+
+                        def update(self, *args, **kwargs):
+                            return self
+
+                        def clear(self):
+                            self._items.clear()
+
+                        def add(self, *args, **kwargs):
+                            pass
+
+                        def insert_before(self, *args, **kwargs):
+                            pass
+
+                        def insert_after(self, *args, **kwargs):
+                            pass
+
+                        def __getitem__(self, key):
+                            return self._items.get(key)
+
+                        def __setitem__(self, key, value):
+                            self._items[key] = value
+
+                        def __contains__(self, key):
+                            return key in self._items
+
+                        def get(self, key, default=None):
+                            return self._items.get(key, default)
 
                     mock_mod.App = _StubRumpsApp
                     mock_mod.MenuItem = _StubRumpsMenuItem
@@ -249,6 +280,18 @@ def cleanup_ui_singletons():
         except Exception:
             pass
 
+        try:
+            from voicefi.audio.wakeword import WakeWordListener
+
+            for inst in list(WakeWordListener._ACTIVE_INSTANCES):
+                try:
+                    inst.stop()
+                except Exception:
+                    pass
+            WakeWordListener._ACTIVE_INSTANCES.clear()
+        except Exception:
+            pass
+
         for p in (
             Path("/tmp/voicefi_cross_process_hud.json"),
             Path("/tmp/voicefi_hud_state.json"),
@@ -373,31 +416,13 @@ def prevent_real_audio_playback(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def setup_test_license_keys(monkeypatch):
-    """Ensure tests have a valid Ed25519 signing keypair even in headless CI."""
-    try:
-        from cryptography.hazmat.primitives.asymmetric import ed25519
-        from cryptography.hazmat.primitives import serialization
-
-        key_path = Path.home() / ".voicefi" / "admin_keys" / "voicefi_ed25519_private.key"
-        if not os.environ.get("VOICEFI_SIGNING_PRIVATE_KEY") and not key_path.is_file():
-            priv = ed25519.Ed25519PrivateKey.generate()
-            priv_hex = priv.private_bytes(
-                encoding=serialization.Encoding.Raw,
-                format=serialization.PrivateFormat.Raw,
-                encryption_algorithm=serialization.NoEncryption(),
-            ).hex()
-            pub_hex = (
-                priv.public_key()
-                .public_bytes(
-                    encoding=serialization.Encoding.Raw,
-                    format=serialization.PublicFormat.Raw,
-                )
-                .hex()
-            )
-            monkeypatch.setenv("VOICEFI_SIGNING_PRIVATE_KEY", priv_hex)
-            monkeypatch.setattr("voicefi.license.PUBLIC_VERIFICATION_KEY_HEX", pub_hex)
-    except Exception:
-        pass
+    """Ensure tests have a valid Ed25519 signing keypair matching embedded public key."""
+    key_path = Path.home() / ".voicefi" / "admin_keys" / "voicefi_ed25519_private.key"
+    if not os.environ.get("VOICEFI_SIGNING_PRIVATE_KEY") and not key_path.is_file():
+        monkeypatch.setenv(
+            "VOICEFI_SIGNING_PRIVATE_KEY",
+            "75517c236305fa2c92df89e5a10edd730baabe0f0e5e8333651633cd49f401ba",
+        )
 
 
 def pytest_unconfigure(config):
