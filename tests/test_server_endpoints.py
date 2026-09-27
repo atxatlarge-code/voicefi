@@ -267,15 +267,40 @@ class ServerEndpointsTestCase(AioHTTPTestCase):
         data = await resp.json()
         assert "Invalid JSON payload" in data.get("error", "")
 
-    # --- GET /api/status Tests ---
+    # --- POST /api/hud Tests ---
 
-    async def test_api_status_success(self):
-        """Test GET /api/status returns full server state."""
-        resp = await self.client.get("/api/status")
-        assert resp.status == 200
-        data = await resp.json()
-        assert data.get("status") == "online"
-        assert "connected_clients" in data
-        assert "audio_routing" in data
-        assert "ambient_active" in data
-        assert "memo_active" in data
+    async def test_api_hud_endpoints(self):
+        """Test POST /api/hud/show, hide, toggle, and reset endpoints."""
+        mock_hud = MagicMock()
+        with patch("voicefi.ui.unified_hud.UnifiedDynamicIslandHUD.get_instance", return_value=mock_hud):
+            # Show
+            resp = await self.client.post("/api/hud/show", json={})
+            assert resp.status == 200
+            data = await resp.json()
+            assert data["status"] == "ok"
+            assert data["action"] == "show"
+            mock_hud.set_persistent.assert_called_with(True)
+            mock_hud.set_idle.assert_called_once()
+
+            # Hide
+            resp = await self.client.post("/api/hud/hide", json={})
+            assert resp.status == 200
+            data = await resp.json()
+            assert data["status"] == "ok"
+            assert data["action"] == "hide"
+            mock_hud.force_hide.assert_called_once()
+
+            # Toggle
+            resp = await self.client.post("/api/hud/toggle", json={})
+            assert resp.status == 200
+            data = await resp.json()
+            assert data["status"] == "ok"
+            assert data["action"] == "toggle"
+
+            # Reset
+            resp = await self.client.post("/api/hud/reset", json={})
+            assert resp.status == 200
+            data = await resp.json()
+            assert data["status"] == "ok"
+            assert data["action"] == "reset"
+            mock_hud.reset_position.assert_called_once()

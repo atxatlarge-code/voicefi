@@ -7,6 +7,7 @@ zero-cost recon, code auditing, and benchmark analysis.
 
 from voicefi.local.engine import LocalModelEngine, is_litert_available
 from voicefi.local.scout import ReconScout, ScoutResult
+from voicefi.local.implementer import ReconImplementer, ImplementResult
 from voicefi.local.benchmark import (
     LocalBenchmarkRunner,
     BenchmarkResult,
@@ -17,12 +18,15 @@ from voicefi.local.benchmark import (
     measure_wan_ingress,
 )
 from voicefi.local.intent import LocalIntentRouter
+from voicefi.local.trace_parser import parse_traceback, ParsedTrace
 
 __all__ = [
     "LocalModelEngine",
     "is_litert_available",
     "ReconScout",
     "ScoutResult",
+    "ReconImplementer",
+    "ImplementResult",
     "LocalBenchmarkRunner",
     "BenchmarkResult",
     "ToTComparisonResult",
@@ -31,4 +35,6 @@ __all__ = [
     "measure_unified_ram_ingress",
     "measure_wan_ingress",
     "LocalIntentRouter",
+    "parse_traceback",
+    "ParsedTrace",
 ]

@@ -35,24 +35,19 @@ def play_sound_effect(name: str) -> str:
     """
     Play a punchline sound effect (rimshot, applause, sad_trombone, drum_smash, crickets).
     """
+    from voicefi.audio.sfx import play_sfx
+
     clean_name = name.lower().strip().replace(" ", "_")
     sfx_file = AVAILABLE_SFX.get(clean_name)
     if not sfx_file or not sfx_file.is_file():
         for k, p in AVAILABLE_SFX.items():
             if k in clean_name and p.is_file():
-                sfx_file = p
                 clean_name = k
                 break
 
-    if sfx_file and sfx_file.is_file():
-        logger.info("🥁 [SFX] Triggered: %s (%s)", clean_name.upper(), sfx_file.name)
-        try:
-            subprocess.Popen(
-                ["afplay", str(sfx_file)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-            )
-            return f"Played sound effect '{clean_name}'"
-        except Exception as e:
-            return f"Error playing sound effect: {e}"
+    if play_sfx(clean_name, block=False):
+        logger.info("🥁 [SFX] Triggered: %s", clean_name.upper())
+        return f"Played sound effect '{clean_name}'"
     return f"Sound effect '{name}' not found"
 
 

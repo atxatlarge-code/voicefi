@@ -1,0 +1,12 @@
+id: audio-stop-echo-loop
+scope:
+  - voicefi/api/server.py
+  - voicefi/audio/*
+triggers:
+  keywords: ["/api/stop", "stop_requested", "speech_stopped", "companion", "websocket"]
+  files: ["server.py", "edge_tts.py", "companion.js"]
+gotcha:
+  summary: "Web clients receiving 'speech_stopped' must never broadcast /api/stop back to the server."
+  anti_pattern: "Broadcasting /api/stop or socket 'stop' from companion client when receiving a server-initiated stop event."
+  correct_pattern: "Perform purely local audio teardown with stopAllAgentSpeech(broadcastServer=false)."
+  impact: "Prevents an infinite 90ms audio cancellation ping-pong loop."

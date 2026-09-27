@@ -233,6 +233,10 @@ class CompanionServer(
         self.app.router.add_post("/api/quick-bar/toggle", self.handle_quick_bar_toggle)
         self.app.router.add_post("/api/quick-bar/show", self.handle_quick_bar_show)
         self.app.router.add_post("/api/quick-bar/hide", self.handle_quick_bar_hide)
+        self.app.router.add_post("/api/hud/show", self.handle_hud_show)
+        self.app.router.add_post("/api/hud/hide", self.handle_hud_hide)
+        self.app.router.add_post("/api/hud/toggle", self.handle_hud_toggle)
+        self.app.router.add_post("/api/hud/reset", self.handle_hud_reset)
         self.app.router.add_post(
             "/api/conversation/{conv_id}/artifact_review", self.handle_artifact_review
         )
@@ -247,6 +251,8 @@ class CompanionServer(
         self.app.router.add_post("/api/stop_mac_recording", self.handle_stop_mac_recording)
         self.app.router.add_post("/api/stt", self.handle_stt)
         self.app.router.add_post("/api/tts", self.handle_tts)
+        self.app.router.add_post("/api/fix", self.handle_api_fix)
+        self.app.router.add_post("/vifi/fix", self.handle_api_fix)
         self.app.router.add_post(
             "/api/troubleshoot/feedback_loop", self.handle_troubleshoot_feedback_loop
         )
@@ -929,6 +935,107 @@ class CompanionServer(
         except Exception as e:
             return web.json_response({"error": str(e), "status": "error"}, status=500)
 
+    async def handle_api_fix(self, request: web.Request) -> web.Response:
+        """
+        Handle on-device bug resolution requests from Open WebUI or external HTTP clients.
+        Accepts: {"target": "path/to/file", "error": "trace or description", "test": "command", "apply": true}
+        """
+        try:
+            try:
+                data = await request.json()
+            except Exception:
+                return web.json_response({"error": "Invalid JSON body", "status": "error"}, status=400)
+
+            target = data.get("target")
+            error_msg = data.get("error") or data.get("instruction") or ""
+            test_cmd = data.get("test")
+            apply = bool(data.get("apply", True))
+            model_scout = data.get("model_scout", "gemma4-2b")
+            model_coder = data.get("model_coder", "gemma4-26b")
+
+            from voicefi.local.trace_parser import parse_traceback
+            from voicefi.local.implementer import ReconImplementer
+
+            parsed = parse_traceback(error_msg, fallback_target=target)
+            if not parsed.target_file or not os.path.exists(parsed.target_file):
+                return web.json_response(
+                    {
+                        "error": f"Target file '{target or parsed.target_file}' not found",
+                        "status": "error",
+                        "applied": False,
+                    },
+                    status=404,
+                )
+
+            implementer = ReconImplementer(model_scout=model_scout, model_coder=model_coder)
+
+            # Attempt 1
+            res = await implementer.implement(
+                target_path=parsed.target_file,
+                instruction=parsed.instruction,
+                apply=apply,
+            )
+
+            test_output = ""
+            passed = True
+            if test_cmd and apply and res.diff.strip():
+                sub_env = os.environ.copy()
+                py_bin = os.path.dirname(sys.executable)
+                sub_env["PATH"] = f"{py_bin}:{sub_env.get('PATH', '')}"
+
+                proc = await asyncio.create_subprocess_shell(
+                    test_cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                    env=sub_env,
+                )
+                stdout, stderr = await proc.communicate()
+                passed = proc.returncode == 0
+                test_output = (stdout.decode() + "\n" + stderr.decode()).strip()
+
+                if not passed:
+                    # Attempt 2 (Self-healing retry)
+                    retry_instr = (
+                        f"{parsed.instruction}\n\n"
+                        f"IMPORTANT: The previous patch failed the verification command `{test_cmd}`:\n"
+                        f"```\n{test_output[-1500:]}\n```\n"
+                        f"Please produce the corrected SEARCH/REPLACE block to make the test pass."
+                    )
+                    res = await implementer.implement(
+                        target_path=parsed.target_file,
+                        instruction=retry_instr,
+                        apply=apply,
+                    )
+                    proc2 = await asyncio.create_subprocess_shell(
+                        test_cmd,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
+                        env=sub_env,
+                    )
+                    stdout2, stderr2 = await proc2.communicate()
+                    passed = proc2.returncode == 0
+                    test_output = (stdout2.decode() + "\n" + stderr2.decode()).strip()
+
+            return web.json_response(
+                {
+                    "status": "ok",
+                    "target": parsed.target_file,
+                    "instruction": parsed.instruction,
+                    "line_number": parsed.line_number,
+                    "applied": res.applied,
+                    "diff": res.diff,
+                    "tokens_saved": res.tokens_saved,
+                    "savings_pct": res.savings_pct,
+                    "total_duration": res.total_duration,
+                    "test_passed": passed if test_cmd else None,
+                    "test_output": test_output[-1000:] if test_output else None,
+                    "error": res.error,
+                }
+            )
+        except Exception as e:
+            return web.json_response({"error": str(e), "status": "error"}, status=500)
+
+
     async def handle_sfx(self, request: web.Request) -> web.Response:
         """
         Trigger procedural sound effect via play_sfx().
@@ -1082,6 +1189,81 @@ class CompanionServer(
             bar = QuickPromptBarWindow.get_instance()
             bar.hide()
             return web.json_response({"status": "ok", "action": "hide"})
+        except Exception as e:
+            return web.json_response({"status": "error", "error": str(e)}, status=500)
+
+    async def handle_hud_show(self, request: web.Request) -> web.Response:
+        """Show and enable the Unified Dynamic Island HUD."""
+        try:
+            from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
+            from voicefi.config import load_config, save_config, HUDConfig
+
+            cfg = load_config()
+            if not hasattr(cfg, "hud") or cfg.hud is None:
+                cfg.hud = HUDConfig()
+            cfg.hud.enabled = True
+            cfg.hud.persistent = True
+            save_config(cfg)
+
+            hud = UnifiedDynamicIslandHUD.get_instance()
+            hud.set_persistent(True)
+            hud.set_idle()
+            return web.json_response({"status": "ok", "action": "show", "enabled": True})
+        except Exception as e:
+            return web.json_response({"status": "error", "error": str(e)}, status=500)
+
+    async def handle_hud_hide(self, request: web.Request) -> web.Response:
+        """Hide and disable the Unified Dynamic Island HUD."""
+        try:
+            from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
+            from voicefi.config import load_config, save_config, HUDConfig
+
+            cfg = load_config()
+            if not hasattr(cfg, "hud") or cfg.hud is None:
+                cfg.hud = HUDConfig()
+            cfg.hud.enabled = False
+            save_config(cfg)
+
+            hud = UnifiedDynamicIslandHUD.get_instance()
+            hud.force_hide()
+            return web.json_response({"status": "ok", "action": "hide", "enabled": False})
+        except Exception as e:
+            return web.json_response({"status": "error", "error": str(e)}, status=500)
+
+    async def handle_hud_toggle(self, request: web.Request) -> web.Response:
+        """Toggle the Unified Dynamic Island HUD between enabled and disabled."""
+        try:
+            from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
+            from voicefi.config import load_config, save_config, HUDConfig
+
+            cfg = load_config()
+            if not hasattr(cfg, "hud") or cfg.hud is None:
+                cfg.hud = HUDConfig()
+            new_enabled = not getattr(cfg.hud, "enabled", True)
+            cfg.hud.enabled = new_enabled
+            if new_enabled:
+                cfg.hud.persistent = True
+            save_config(cfg)
+
+            hud = UnifiedDynamicIslandHUD.get_instance()
+            if new_enabled:
+                hud.set_persistent(True)
+                hud.set_idle()
+            else:
+                hud.force_hide()
+            return web.json_response({"status": "ok", "action": "toggle", "enabled": new_enabled})
+        except Exception as e:
+            return web.json_response({"status": "error", "error": str(e)}, status=500)
+
+    async def handle_hud_reset(self, request: web.Request) -> web.Response:
+        """Reset the HUD position to bottom right default."""
+        try:
+            from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
+
+            hud = UnifiedDynamicIslandHUD.get_instance()
+            hud.reset_position()
+            hud.set_idle()
+            return web.json_response({"status": "ok", "action": "reset"})
         except Exception as e:
             return web.json_response({"status": "error", "error": str(e)}, status=500)
 

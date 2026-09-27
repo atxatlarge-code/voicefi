@@ -605,8 +605,10 @@ def cmd_voice(args: Any) -> None:
             return
 
         # 6. Standard voice audition
-        print(f"\n🔊 Auditioning voice: '{target_voice}' (Provider: {provider})")
-        print(f'💬 Sample: "{sample_text}"')
+        as_json = getattr(args, "json", False)
+        if not as_json:
+            print(f"\n🔊 Auditioning voice: '{target_voice}' (Provider: {provider})")
+            print(f'💬 Sample: "{sample_text}"')
 
         troubleshooter = AudioTroubleshooter(config)
         res = troubleshooter.test_voice(
@@ -617,6 +619,10 @@ def cmd_voice(args: Any) -> None:
             block=True,
             show_hud=getattr(args, "hud", False),
         )
+        if as_json:
+            print(json.dumps(res.to_dict(), indent=2))
+            return
+
         if res.success:
             print(
                 f"✅ Audition finished. Latency: {res.latency_ms} ms, Duration: {res.duration_s}s.\n"

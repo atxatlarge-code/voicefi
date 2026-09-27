@@ -167,6 +167,38 @@ FX_PRESETS: Dict[str, Dict[str, Any]] = {
             "acompressor=threshold=-16dB:ratio=3:attack=20:release=200:makeup=3dB"
         ),
     },
+    "taras_guitar": {
+        "id": "taras_guitar",
+        "name": "Taras Vocal Guitar Amp",
+        "icon": "🎸",
+        "description": "Transforms voice into overdriven electric guitar with false-cord saturation, 2.8kHz cab bite, and arena slapback.",
+        "category": "creative",
+        "filter": (
+            "highpass=f=80,"
+            "equalizer=f=1200:width_type=o:width=1.2:g=5.0,"
+            "equalizer=f=2800:width_type=o:width=1.5:g=7.5,"
+            "lowpass=f=4800,"
+            "acompressor=threshold=-24dB:ratio=10:attack=5:release=80:makeup=8dB,"
+            "aecho=0.8:0.7:22|44:0.35|0.18,"
+            "alimiter=limit=-0.5dB"
+        ),
+    },
+    "taras_beatbox": {
+        "id": "taras_beatbox",
+        "name": "Taras Studio Beatbox Master",
+        "icon": "🎤",
+        "description": "Close-mic proximity sub-bass boost, 500Hz mud notch, 10kHz snap presence, and aggressive punch limiter.",
+        "category": "creative",
+        "filter": (
+            "highpass=f=35,"
+            "equalizer=f=65:width_type=o:width=1.5:g=9.5,"
+            "equalizer=f=520:width_type=o:width=1.0:g=-5.0,"
+            "equalizer=f=3200:width_type=o:width=1.2:g=3.5,"
+            "highshelf=f=10000:g=6.0,"
+            "acompressor=threshold=-22dB:ratio=6:attack=4:release=90:makeup=7dB:knee=3dB,"
+            "alimiter=limit=-0.3dB"
+        ),
+    },
 }
 
 

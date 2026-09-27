@@ -5,7 +5,12 @@ import threading
 from pathlib import Path
 from typing import Optional
 import requests
-from voicefi.tts.base import BaseTTS, speech_turn_lock, DuplicateSpeechSuppressed
+from voicefi.tts.base import (
+    BaseTTS,
+    speech_turn_lock,
+    DuplicateSpeechSuppressed,
+    safe_terminate_process,
+)
 from voicefi.audio.meeting_detection import is_user_on_call
 from voicefi.tts.normalizer import normalize_tts_text
 
@@ -34,11 +39,8 @@ class ElevenLabsTTS(BaseTTS):
         """Interrupt any ongoing speech playback."""
         self._stop_requested = True
         proc = self._current_process
-        if proc and proc.poll() is None:
-            try:
-                proc.terminate()
-            except Exception:
-                pass
+        if proc:
+            safe_terminate_process(proc)
             self._current_process = None
 
     def _fallback_speak_direct(self, clean_text: str, turn_start_time: float = 0.0) -> None:

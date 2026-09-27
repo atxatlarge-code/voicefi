@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%">
+  <defs>
+    <linearGradient id="gemini-sparkle" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1A73E8"/>
+      <stop offset="35%" stop-color="#8E75FF"/>
+      <stop offset="70%" stop-color="#E2517E"/>
+      <stop offset="100%" stop-color="#F2A600"/>
+    </linearGradient>
+  </defs>
+  <path d="M50 0 C50 27.614 27.614 50 0 50 C27.614 50 50 72.386 50 100 C50 72.386 72.386 50 100 50 C72.386 50 50 27.614 50 0 Z" fill="url(#gemini-sparkle)"/>
+</svg>

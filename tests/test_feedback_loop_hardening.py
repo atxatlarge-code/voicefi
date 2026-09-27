@@ -303,3 +303,41 @@ class TestClaudeCrossAgentProvenance:
             assert res == {"status": "no_speech"}
             mock_clear_hud.assert_called()
             mock_mark_done.assert_called()
+
+
+class TestActiveListenerMutex:
+    """Test mutual exclusion for active mic listening across parallel conversations."""
+
+    def test_single_active_listener_mutual_exclusion(self):
+        from voicefi.integrations.turn_lock import (
+            acquire_active_listener_lock,
+            release_active_listener_lock,
+            get_current_active_listener,
+        )
+
+        conv_a = "test-conv-alpha"
+        conv_b = "test-conv-beta"
+
+        try:
+            # Conv A acquires lock
+            assert acquire_active_listener_lock(conv_a) is True
+            assert get_current_active_listener() == conv_a
+
+            # Conv B attempts to acquire lock concurrently -> blocked / rejected
+            assert acquire_active_listener_lock(conv_b) is False
+            assert get_current_active_listener() == conv_a
+
+            # Conv A re-acquires (renewal) -> allowed
+            assert acquire_active_listener_lock(conv_a) is True
+
+            # Conv A finishes listening and releases lock
+            release_active_listener_lock(conv_a)
+
+            # Conv B can now acquire lock
+            assert acquire_active_listener_lock(conv_b) is True
+            assert get_current_active_listener() == conv_b
+
+        finally:
+            release_active_listener_lock(conv_a)
+            release_active_listener_lock(conv_b)
+

@@ -126,6 +126,13 @@ VoiceFi is a high-performance, multi-threaded acoustic and command platform span
   - Test suite fail: Subtle low-tone alert.
   - Humorous / satirical quips: Drum rimshot, honk, or gong strike.
 
+#### 3.3 Gemini Live Persistent WebSocket & Socket Keep-Alive Resiliency
+- **Persistent Full-Duplex WebSocket (`gemini-3.8-live`)**:
+  - Implement adaptive ping/pong keep-alive heartbeats to keep the bidirectional streaming socket open across extended idle periods.
+  - Ring buffer audio preservation: buffer incoming microphone PCM chunks during transient network hiccups or socket re-establishment so zero words are clipped.
+  - Proactive session rollover before the upstream Gemini Live timeout window (~10–15 minutes).
+  - Mode Handoff: Clean dynamic switching between Standard (Antigravity in-chat prompt injection via `agentapi`) and Gemini Live (direct voice-to-voice stream).
+
 ---
 
 ### Track 4: Mobile Remote Companion Hub (`vifi companion` / `vifi.co`)

@@ -51,6 +51,25 @@ def normalize_text_for_dedup(text: str) -> str:
     return re.sub(r"[^a-z0-9]", "", text.lower()).strip()
 
 
+def _read_recent_speech_locked() -> list:
+    """Read recent speech entries with shared lock."""
+    if not RECENT_SPEECH_FILE.is_file():
+        return []
+    try:
+        with open(RECENT_SPEECH_FILE, "r") as f:
+            fcntl.flock(f.fileno(), fcntl.LOCK_SH)
+            try:
+                content = f.read().strip()
+                if not content:
+                    return []
+                data = json.loads(content)
+                return data if isinstance(data, list) else []
+            finally:
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+    except Exception:
+        return []
+
+
 def is_duplicate_speech(text: str, window_seconds: float = 60.0) -> bool:
     """
     Check if the exact text or near-identical text was spoken by any VoiceFi process
@@ -63,19 +82,17 @@ def is_duplicate_speech(text: str, window_seconds: float = 60.0) -> bool:
         return False
     now = time.time()
     try:
-        if RECENT_SPEECH_FILE.is_file():
-            data = json.loads(RECENT_SPEECH_FILE.read_text())
-            if isinstance(data, list):
-                for item in data:
-                    item_norm = item.get("norm", "")
-                    ts = float(item.get("timestamp", 0))
-                    if (now - ts) <= window_seconds:
-                        if item_norm == norm:
-                            return True
-                        # Prefix match for long utterances (> 25 chars)
-                        if len(norm) >= 25 and len(item_norm) >= 25:
-                            if norm[:30] == item_norm[:30]:
-                                return True
+        data = _read_recent_speech_locked()
+        for item in data:
+            item_norm = item.get("norm", "")
+            ts = float(item.get("timestamp", 0))
+            if (now - ts) <= window_seconds:
+                if item_norm == norm:
+                    return True
+                # Prefix match for long utterances (> 25 chars)
+                if len(norm) >= 25 and len(item_norm) >= 25:
+                    if norm[:30] == item_norm[:30]:
+                        return True
     except Exception:
         pass
     return False
@@ -84,7 +101,16 @@ def is_duplicate_speech(text: str, window_seconds: float = 60.0) -> bool:
 def clear_recent_speech_history() -> None:
     """Clear recorded speech deduplication history."""
     try:
-        RECENT_SPEECH_FILE.unlink(missing_ok=True)
+        if RECENT_SPEECH_FILE.is_file():
+            with open(RECENT_SPEECH_FILE, "a+") as f:
+                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+                try:
+                    f.seek(0)
+                    f.truncate()
+                    f.write("[]")
+                    f.flush()
+                finally:
+                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
     except Exception:
         pass
 
@@ -96,20 +122,31 @@ def record_recent_speech(text: str) -> None:
         return
     now = time.time()
     try:
-        entries = []
-        if RECENT_SPEECH_FILE.is_file():
+        RECENT_SPEECH_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(RECENT_SPEECH_FILE, "a+") as f:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
             try:
-                entries = json.loads(RECENT_SPEECH_FILE.read_text())
-                if not isinstance(entries, list):
-                    entries = []
-            except Exception:
+                f.seek(0)
+                content = f.read().strip()
                 entries = []
-        # Keep only entries within last 120s
-        valid_entries = [e for e in entries if (now - float(e.get("timestamp", 0))) < 120.0]
-        valid_entries.append({"norm": norm, "timestamp": now})
-        if len(valid_entries) > 50:
-            valid_entries = valid_entries[-50:]
-        RECENT_SPEECH_FILE.write_text(json.dumps(valid_entries))
+                if content:
+                    try:
+                        data = json.loads(content)
+                        if isinstance(data, list):
+                            entries = data
+                    except Exception:
+                        entries = []
+                # Keep only entries within last 120s
+                valid_entries = [e for e in entries if (now - float(e.get("timestamp", 0))) < 120.0]
+                valid_entries.append({"norm": norm, "timestamp": now})
+                if len(valid_entries) > 50:
+                    valid_entries = valid_entries[-50:]
+                f.seek(0)
+                f.truncate()
+                f.write(json.dumps(valid_entries))
+                f.flush()
+            finally:
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
     except Exception:
         pass
 
@@ -234,6 +271,8 @@ def set_agent_speaking(
     app_name: Optional[str] = None,
     conv_id: Optional[str] = None,
     workspace_path: Optional[str] = None,
+    tag_text: Optional[str] = None,
+    is_live: bool = False,
 ) -> None:
     """Set in-process and cross-process indicator that an AI agent is speaking aloud."""
     global _IN_PROCESS_SPEAKING
@@ -273,6 +312,9 @@ def set_agent_speaking(
                 elif ag_lower not in ("voicefi", ""):
                     speaking_app = agent_name.capitalize()
 
+            if is_live and not tag_text:
+                tag_text = "● LIVE"
+
             payload = {
                 "pid": os.getpid(),
                 "timestamp": time.time(),
@@ -282,31 +324,43 @@ def set_agent_speaking(
                 "app_name": speaking_app or "",
                 "conv_id": conv_id or "",
                 "workspace_path": workspace_path or "",
+                "tag_text": tag_text or "",
+                "is_live": is_live,
             }
             _LAST_AGENT_SPEAKING_INFO = dict(payload)
             AGENT_SPEAKING_STATUS_FILE.write_text(json.dumps(payload))
             LAST_AGENT_SPEAKING_STATUS_FILE.write_text(json.dumps(payload))
             set_cross_process_hud_state(
-                state="speaking",
+                state="gemini_live_speaking" if is_live else "speaking",
                 text=text or "",
                 agent_name=agent_name or "VoiceFi",
                 persona_name=persona_name or "Viv",
                 app_name=speaking_app or "",
                 conv_id=conv_id or "",
+                tag_text=tag_text,
+                live_stream=is_live,
             )
             # Immediately update in-process UnifiedDynamicIslandHUD if active
             try:
                 from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
 
                 if UnifiedDynamicIslandHUD._instance:
-                    UnifiedDynamicIslandHUD._instance.set_speaking(
-                        text=text or "Speaking aloud...",
-                        agent_name=agent_name or "Antigravity",
-                        persona_name=persona_name,
-                        app_name=speaking_app,
-                        conv_id=conv_id,
-                        linger=None,
-                    )
+                    if is_live:
+                        UnifiedDynamicIslandHUD._instance.set_gemini_live_speaking(
+                            text=text or "Speaking aloud...",
+                            persona_name=persona_name,
+                            tag_text=tag_text or "● LIVE",
+                        )
+                    else:
+                        UnifiedDynamicIslandHUD._instance.set_speaking(
+                            text=text or "Speaking aloud...",
+                            agent_name=agent_name or "Antigravity",
+                            persona_name=persona_name,
+                            app_name=speaking_app,
+                            conv_id=conv_id,
+                            tag_text=tag_text,
+                            linger=None,
+                        )
             except Exception:
                 pass
         else:
@@ -810,6 +864,7 @@ def is_speech_interrupted(turn_start_time: float = 0.0) -> bool:
 
 
 _LOCK_DEPTH = 0
+_LOCAL_STATE = threading.local()
 
 
 _ESCAPE_MONITOR_DEPTH = 0
@@ -981,6 +1036,28 @@ def escape_to_stop_speech(
                 pass
 
 
+def safe_terminate_process(proc: Optional[subprocess.Popen], timeout: float = 0.25) -> None:
+    """
+    Safely terminate a subprocess, escalating from SIGTERM to SIGKILL if necessary,
+    and reaping its exit status to prevent zombie (<defunct>) processes.
+    """
+    if proc is None:
+        return
+    try:
+        if proc.poll() is None:
+            proc.terminate()
+            try:
+                proc.wait(timeout=timeout)
+            except (subprocess.TimeoutExpired, TimeoutError):
+                try:
+                    proc.kill()
+                    proc.wait(timeout=0.2)
+                except Exception:
+                    pass
+    except (ProcessLookupError, OSError):
+        pass
+
+
 @contextmanager
 def speech_turn_lock(
     text: Optional[str] = None,
@@ -989,191 +1066,227 @@ def speech_turn_lock(
     app_name: Optional[str] = None,
     conv_id: Optional[str] = None,
     workspace_path: Optional[str] = None,
+    tag_text: Optional[str] = None,
+    is_live: bool = False,
 ):
     """
     Cross-process and cross-thread lock.
     Ensures that separate processes (IDE hooks, background subagents, CLI scripts)
     wait politely for the active speaker to finish instead of talking over each other.
-    Supports re-entrant execution within the same thread/process.
+    Supports re-entrant execution within the same thread/process without deadlocks.
     """
     global _LOCK_DEPTH
     from voicefi.audio.output_lock import exclusive_audio
 
-    with _THREAD_LOCK:
-        if _LOCK_DEPTH > 0:
+    thread_depth = getattr(_LOCAL_STATE, "speech_depth", 0)
+    if thread_depth > 0:
+        _LOCAL_STATE.speech_depth = thread_depth + 1
+        with _THREAD_LOCK:
             _LOCK_DEPTH += 1
-            try:
-                with escape_to_stop_speech(
-                    agent_name=agent_name, app_name=app_name, conv_id=conv_id
-                ):
-                    yield
-            finally:
-                _LOCK_DEPTH -= 1
-            return
-
-        _LOCK_DEPTH += 1
-        SPEECH_LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
-        lock_fd = None
-        enqueue_time = time.time()
         try:
-            # Pre-lock stop guard: if speech was recently stopped by user (< 1.5s), abort immediately
-            stop_time = get_last_speech_stop_time()
-            if stop_time > 0 and (enqueue_time - stop_time) < 1.5:
-                raise DuplicateSpeechSuppressed("Interrupted by user recently (pre-lock guard)")
-
-            # Pre-lock polite media wait: DO NOT hold SPEECH_LOCK_FILE while user watches media!
-            try:
-                from voicefi.config import load_config
-
-                cfg = load_config()
-                respect_media = getattr(cfg.tts, "respect_media_playback", True)
-                media_timeout = getattr(cfg.tts, "media_pause_timeout", 600.0)
-            except Exception:
-                respect_media = True
-                media_timeout = 600.0
-
-            if respect_media:
-                try:
-                    from voicefi.audio.media_detection import (
-                        is_active_media_playing,
-                        wait_for_media_completion,
-                    )
-
-                    if is_active_media_playing(use_cache=True):
-                        cleared = wait_for_media_completion(
-                            max_wait_seconds=media_timeout, turn_start_time=enqueue_time
-                        )
-                        if not cleared or is_speech_interrupted(enqueue_time):
-                            raise DuplicateSpeechSuppressed(
-                                "Interrupted or timed out while waiting for media clip to finish"
-                            )
-                except ImportError:
-                    pass
-
-            lock_fd = open(SPEECH_LOCK_FILE, "a+")
-            fcntl.flock(lock_fd, fcntl.LOCK_EX)
-
-            # Fast post-lock re-check (under 2ms) to ensure media didn't start in interleaving window
-            if respect_media:
-                try:
-                    from voicefi.audio.media_detection import is_active_media_playing
-
-                    if is_active_media_playing(use_cache=True):
-                        raise DuplicateSpeechSuppressed(
-                            "Media playback started while acquiring speech lock"
-                        )
-                except ImportError:
-                    pass
-
-            # Post-lock queue guard: if user stopped speech while this turn was waiting in queue, abort!
-            now = time.time()
-            post_stop_time = get_last_speech_stop_time()
-            if post_stop_time > 0:
-                if post_stop_time > enqueue_time:
-                    raise DuplicateSpeechSuppressed(
-                        "Interrupted by user while waiting in speech lock queue"
-                    )
-                if (now - post_stop_time) < 1.5:
-                    raise DuplicateSpeechSuppressed(
-                        "Interrupted by user recently (post-lock guard)"
-                    )
-
-            # If another process or conversation is actively listening/hearing for the user,
-            # wait politely until the user finishes their spoken turn before speaking aloud.
-            mic_wait_start = time.time()
-            while is_mic_recording_active():
-                mic_info = get_mic_recording_info()
-                if mic_info:
-                    mic_pid = int(mic_info.get("pid", 0))
-                    mic_cid = mic_info.get("conv_id")
-                    # If this mic session belongs to the same process and conv_id (e.g. barge-in), proceed
-                    if mic_pid == os.getpid() and conv_id and mic_cid == conv_id:
-                        break
-                if is_speech_interrupted(enqueue_time):
-                    raise DuplicateSpeechSuppressed(
-                        "Interrupted by user while waiting for microphone"
-                    )
-                if (time.time() - mic_wait_start) > 40.0:
-                    print(
-                        "[TTS] ⚠️ Timed out waiting for active mic recording to finish, proceeding..."
-                    )
-                    break
-                time.sleep(0.12)
-
-            # Check if this exact speech was already delivered by another process while waiting for lock
-            if text and is_duplicate_speech(text, window_seconds=6.0):
-                print(
-                    f'[TTS] 🛡️ Suppressed duplicate speech: "{text[:40]}..." (already spoken within 6.0s)'
-                )
-                raise DuplicateSpeechSuppressed(f"Duplicate speech: {text[:30]}")
-
-            if text:
-                record_recent_speech(text)
-
-            # If any previous audio is still playing out of speakers, wait until total silence
-            max_wait = 150  # up to 15s
-            while is_system_audio_playing() and max_wait > 0:
-                if is_speech_interrupted(enqueue_time):
-                    raise DuplicateSpeechSuppressed("Interrupted by user")
-                time.sleep(0.1)
-                max_wait -= 1
-
-            if is_speech_interrupted(enqueue_time):
-                raise DuplicateSpeechSuppressed("Interrupted by user after previous audio finished")
-
-            speak_kwargs = {
-                "text": text,
-                "agent_name": agent_name,
-                "persona_name": persona_name,
-            }
-            if app_name is not None:
-                speak_kwargs["app_name"] = app_name
-            if conv_id is not None:
-                speak_kwargs["conv_id"] = conv_id
-            if workspace_path is not None:
-                speak_kwargs["workspace_path"] = workspace_path
-
-            set_agent_speaking(True, **speak_kwargs)
-
-            lock_start_time = time.time()
-            # Acquire physical audio output mutex across all OS processes
-            owner_label = f"{agent_name or 'agent'}:{persona_name or 'tts'}"
-            with exclusive_audio(timeout=30.0, owner=owner_label):
-                # Brief pause for natural conversational handoff between agents
-                if not os.environ.get("PYTEST_CURRENT_TEST"):
-                    time.sleep(0.15)
-                with escape_to_stop_speech(
-                    agent_name=agent_name, app_name=app_name, conv_id=conv_id
-                ):
-                    yield
+            with escape_to_stop_speech(
+                agent_name=agent_name, app_name=app_name, conv_id=conv_id
+            ):
+                yield
         finally:
-            # If speech completed cleanly without interruption, record successful turn in BrevityLearner
-            try:
-                if (
-                    text
-                    and "lock_start_time" in locals()
-                    and not is_speech_interrupted(lock_start_time)
-                ):
-                    from voicefi.learning.brevity import BrevityLearner
+            _LOCAL_STATE.speech_depth = max(0, getattr(_LOCAL_STATE, "speech_depth", 1) - 1)
+            with _THREAD_LOCK:
+                _LOCK_DEPTH = max(0, _LOCK_DEPTH - 1)
+        return
 
-                    word_cnt = len(text.split())
-                    BrevityLearner.get_instance().record_turn(
-                        word_count=word_cnt, was_interrupted=False
+    _LOCAL_STATE.speech_depth = 1
+    with _THREAD_LOCK:
+        _LOCK_DEPTH += 1
+    SPEECH_LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
+    lock_fd = None
+    enqueue_time = time.time()
+    try:
+        # Pre-lock stop guard: if speech was recently stopped by user (< 1.5s), abort immediately
+        stop_time = get_last_speech_stop_time()
+        if stop_time > 0 and (enqueue_time - stop_time) < 1.5:
+            raise DuplicateSpeechSuppressed("Interrupted by user recently (pre-lock guard)")
+
+        # Pre-lock polite media wait: DO NOT hold SPEECH_LOCK_FILE while user watches media!
+        try:
+            from voicefi.config import load_config
+
+            cfg = load_config()
+            respect_media = getattr(cfg.tts, "respect_media_playback", True)
+            media_timeout = getattr(cfg.tts, "media_pause_timeout", 600.0)
+        except Exception:
+            respect_media = True
+            media_timeout = 600.0
+
+        if respect_media:
+            try:
+                from voicefi.audio.media_detection import (
+                    is_active_media_playing,
+                    wait_for_media_completion,
+                )
+
+                if is_active_media_playing(use_cache=True):
+                    cleared = wait_for_media_completion(
+                        max_wait_seconds=media_timeout, turn_start_time=enqueue_time
                     )
-            except Exception:
+                    if not cleared or is_speech_interrupted(enqueue_time):
+                        raise DuplicateSpeechSuppressed(
+                            "Interrupted or timed out while waiting for media clip to finish"
+                        )
+            except ImportError:
                 pass
 
-            # Acoustic decay margin: allow room reverb / speaker decay to dissipate
+        # Non-blocking poll loop with timeout and responsive interrupt cancellation
+        lock_fd = open(SPEECH_LOCK_FILE, "a+")
+        start_flock = time.time()
+        flock_timeout = 30.0
+        acquired = False
+        while time.time() - start_flock < flock_timeout:
+            if is_speech_interrupted(enqueue_time):
+                raise DuplicateSpeechSuppressed(
+                    "Interrupted by user while waiting in speech lock queue"
+                )
+            try:
+                fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                acquired = True
+                break
+            except (BlockingIOError, IOError):
+                time.sleep(0.04)
+
+        if not acquired:
+            print(
+                f"[TTS] ⚠️ Timeout ({flock_timeout:.1f}s) waiting for SPEECH_LOCK_FILE. Proceeding cautiously.",
+                file=sys.stderr,
+            )
+
+        # Fast post-lock re-check (under 2ms) to ensure media didn't start in interleaving window
+        if respect_media:
+            try:
+                from voicefi.audio.media_detection import is_active_media_playing
+
+                if is_active_media_playing(use_cache=True):
+                    raise DuplicateSpeechSuppressed(
+                        "Media playback started while acquiring speech lock"
+                    )
+            except ImportError:
+                pass
+
+        # Post-lock queue guard: if user stopped speech while this turn was waiting in queue, abort!
+        now = time.time()
+        post_stop_time = get_last_speech_stop_time()
+        if post_stop_time > 0:
+            if post_stop_time > enqueue_time:
+                raise DuplicateSpeechSuppressed(
+                    "Interrupted by user while waiting in speech lock queue"
+                )
+            if (now - post_stop_time) < 1.5:
+                raise DuplicateSpeechSuppressed(
+                    "Interrupted by user recently (post-lock guard)"
+                )
+
+        # If another process or conversation is actively listening/hearing for the user,
+        # wait politely until the user finishes their spoken turn before speaking aloud.
+        mic_wait_start = time.time()
+        while is_mic_recording_active():
+            mic_info = get_mic_recording_info()
+            if mic_info:
+                mic_pid = int(mic_info.get("pid", 0))
+                mic_cid = mic_info.get("conv_id")
+                # If this mic session belongs to the same process and conv_id (e.g. barge-in), proceed
+                if mic_pid == os.getpid() and conv_id and mic_cid == conv_id:
+                    break
+            if is_speech_interrupted(enqueue_time):
+                raise DuplicateSpeechSuppressed(
+                    "Interrupted by user while waiting for microphone"
+                )
+            if (time.time() - mic_wait_start) > 40.0:
+                print(
+                    "[TTS] ⚠️ Timed out waiting for active mic recording to finish, proceeding..."
+                )
+                break
+            time.sleep(0.12)
+
+        # Check if this exact speech was already delivered by another process while waiting for lock
+        if text and is_duplicate_speech(text, window_seconds=6.0):
+            print(
+                f'[TTS] 🛡️ Suppressed duplicate speech: "{text[:40]}..." (already spoken within 6.0s)'
+            )
+            raise DuplicateSpeechSuppressed(f"Duplicate speech: {text[:30]}")
+
+        if text:
+            record_recent_speech(text)
+
+        # If any previous audio is still playing out of speakers, wait until total silence
+        max_wait = 150  # up to 15s
+        while is_system_audio_playing() and max_wait > 0:
+            if is_speech_interrupted(enqueue_time):
+                raise DuplicateSpeechSuppressed("Interrupted by user")
+            time.sleep(0.1)
+            max_wait -= 1
+
+        if is_speech_interrupted(enqueue_time):
+            raise DuplicateSpeechSuppressed("Interrupted by user after previous audio finished")
+
+        speak_kwargs = {
+            "text": text,
+            "agent_name": agent_name,
+            "persona_name": persona_name,
+            "tag_text": tag_text,
+            "is_live": is_live,
+        }
+        if app_name is not None:
+            speak_kwargs["app_name"] = app_name
+        if conv_id is not None:
+            speak_kwargs["conv_id"] = conv_id
+        if workspace_path is not None:
+            speak_kwargs["workspace_path"] = workspace_path
+
+        set_agent_speaking(True, **speak_kwargs)
+
+        lock_start_time = time.time()
+        # Acquire physical audio output mutex across all OS processes
+        owner_label = f"{agent_name or 'agent'}:{persona_name or 'tts'}"
+        with exclusive_audio(timeout=30.0, owner=owner_label):
+            # Brief pause for natural conversational handoff between agents
             if not os.environ.get("PYTEST_CURRENT_TEST"):
-                time.sleep(0.25)
-            set_agent_speaking(False)
-            if lock_fd is not None:
-                try:
-                    fcntl.flock(lock_fd, fcntl.LOCK_UN)
-                    lock_fd.close()
-                except Exception:
-                    pass
-            _LOCK_DEPTH -= 1
+                time.sleep(0.15)
+            with escape_to_stop_speech(
+                agent_name=agent_name, app_name=app_name, conv_id=conv_id
+            ):
+                yield
+    finally:
+        # If speech completed cleanly without interruption, record successful turn in BrevityLearner
+        try:
+            if (
+                text
+                and "lock_start_time" in locals()
+                and not is_speech_interrupted(lock_start_time)
+            ):
+                from voicefi.learning.brevity import BrevityLearner
+
+                word_cnt = len(text.split())
+                BrevityLearner.get_instance().record_turn(
+                    word_count=word_cnt, was_interrupted=False
+                )
+        except Exception:
+            pass
+
+        # Acoustic decay margin: allow room reverb / speaker decay to dissipate
+        if not os.environ.get("PYTEST_CURRENT_TEST"):
+            time.sleep(0.25)
+        set_agent_speaking(False)
+        if lock_fd is not None:
+            try:
+                fcntl.flock(lock_fd, fcntl.LOCK_UN)
+            except Exception:
+                pass
+            try:
+                lock_fd.close()
+            except Exception:
+                pass
+            lock_fd = None
+        _LOCAL_STATE.speech_depth = max(0, getattr(_LOCAL_STATE, "speech_depth", 1) - 1)
+        with _THREAD_LOCK:
+            _LOCK_DEPTH = max(0, _LOCK_DEPTH - 1)
 
 
 # Legacy alias
@@ -1256,6 +1369,31 @@ def clear_speech_stopped_time() -> None:
 _STOPPING_ALL_SPEECH = False
 
 
+def stop_active_playback() -> None:
+    """
+    Terminate any running afplay/say audio playback processes immediately.
+    Does NOT record a user interruption timestamp, allowing incoming agent turns
+    to speak immediately without triggering the 1.5s post-interruption suppression guard.
+    """
+    set_agent_audio_playing(False)
+    try:
+        subprocess.run(
+            ["killall", "-9", "afplay"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except Exception:
+        pass
+    try:
+        subprocess.run(
+            ["killall", "-9", "say"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except Exception:
+        pass
+
+
 def stop_all_speech(broadcast_web: bool = True) -> None:
     """
     Instantly stop any active speech synthesis and audio playback on macOS.
@@ -1314,6 +1452,15 @@ def stop_all_speech(broadcast_web: bool = True) -> None:
             except Exception:
                 pass
 
+        # Cleanly reap any terminated child processes of this process to eliminate zombies
+        try:
+            while True:
+                pid, _ = os.waitpid(-1, os.WNOHANG)
+                if pid <= 0:
+                    break
+        except (ChildProcessError, OSError):
+            pass
+
         try:
             from voicefi.ui.speech_hud import AgentSpeechHUD
 
@@ -1329,17 +1476,20 @@ def stop_all_speech(broadcast_web: bool = True) -> None:
         except Exception:
             pass
 
-        # Notify companion server non-blockingly to broadcast stop to all connected web clients
+        # Notify companion server asynchronously to broadcast stop to connected web clients
         if broadcast_web and not os.environ.get("PYTEST_CURRENT_TEST"):
-            try:
-                import urllib.request
+            def _async_broadcast():
+                try:
+                    import urllib.request
 
-                req = urllib.request.Request(
-                    "http://127.0.0.1:5141/api/stop", method="POST", data=b"{}"
-                )
-                req.add_header("Content-Type", "application/json")
-                urllib.request.urlopen(req, timeout=0.08)
-            except Exception:
-                pass
+                    req = urllib.request.Request(
+                        "http://127.0.0.1:5141/api/stop", method="POST", data=b"{}"
+                    )
+                    req.add_header("Content-Type", "application/json")
+                    urllib.request.urlopen(req, timeout=0.2)
+                except Exception:
+                    pass
+
+            threading.Thread(target=_async_broadcast, daemon=True, name="AsyncStopBroadcast").start()
     finally:
         _STOPPING_ALL_SPEECH = False

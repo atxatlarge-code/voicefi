@@ -101,6 +101,8 @@ def find_latest_transcript_path() -> Optional[Path]:
 class TranscriptWatcher:
     """Watches active Antigravity transcripts for completed turns across multiple conversations."""
 
+    _ACTIVE_INSTANCES = set()
+
     def __init__(
         self,
         config: Optional[VoiceFiConfig] = None,
@@ -116,6 +118,7 @@ class TranscriptWatcher:
         self._is_handling_turn = False
         self._interrupted = False
         self.active_recorder: Optional[AudioRecorder] = None
+        TranscriptWatcher._ACTIVE_INSTANCES.add(self)
 
     def finish_listening(self):
         """Immediately finish recording and send captured audio (e.g. Enter key pressed)."""
@@ -143,6 +146,7 @@ class TranscriptWatcher:
     def stop(self):
         """Stop the background watcher thread."""
         self._running = False
+        TranscriptWatcher._ACTIVE_INSTANCES.discard(self)
 
     def interrupt(self):
         """Interrupt active turn handling and stop speaking."""
@@ -444,8 +448,20 @@ class TranscriptWatcher:
         try:
             cfg = load_config()
             self.config = cfg
+            turn_end_mode = getattr(getattr(cfg, "tts", None), "turn_end_mode", "standard")
+            tts_provider = getattr(getattr(cfg, "tts", None), "provider", "gemini")
+            from voicefi.integrations.turn_lock import peek_live_turn_origin
+
+            cid_check = conv_info.id if conv_info else None
+            is_live_turn = (
+                turn_end_mode == "gemini_live"
+                or tts_provider == "gemini_live"
+                or (cid_check and peek_live_turn_origin(cid_check))
+            )
             summary = clean_markdown_for_speech(
-                agent_message, max_words=cfg.antigravity.max_spoken_words
+                agent_message,
+                max_words=cfg.antigravity.max_spoken_words,
+                full_read=is_live_turn,
             )
 
             if not is_active and not getattr(cfg.antigravity, "unfocused_agent_voice", None):
@@ -551,6 +567,17 @@ class TranscriptWatcher:
             should_listen = bool(
                 is_active and cfg.antigravity.auto_listen and not self._interrupted
             )
+            from voicefi.integrations.turn_lock import (
+                acquire_active_listener_lock,
+                release_active_listener_lock,
+            )
+
+            if should_listen and not acquire_active_listener_lock(turn_cid):
+                print(
+                    f"[Watcher] ⏸️ Another conversation is already actively listening. Yielding mic.",
+                    flush=True,
+                )
+                should_listen = False
 
             from voicefi.tts import find_persona
 
@@ -576,6 +603,7 @@ class TranscriptWatcher:
                     cfg,
                     agent_name=target_agent,
                     is_focused=is_active,
+                    provider_override="gemini_live" if is_live_turn else None,
                     project_name=proj_name,
                     workspace_path=ws_path,
                     app_name="Antigravity",
@@ -664,6 +692,7 @@ class TranscriptWatcher:
                         cfg,
                         agent_name=target_agent,
                         is_focused=is_active,
+                        provider_override="gemini_live" if is_live_turn else None,
                         project_name=proj_name,
                         workspace_path=ws_path,
                         app_name="Antigravity",
@@ -697,7 +726,7 @@ class TranscriptWatcher:
                 time.sleep(0.3)
 
                 if should_listen:
-                    if cfg.audio_cues.enabled:
+                    if getattr(cfg.audio_cues, "mic_open_chime", False) and cfg.audio_cues.enabled:
                         play_chime("start", block=True)
 
                     self._notify_state("listening", user_name=cfg.user_name)
@@ -754,6 +783,9 @@ class TranscriptWatcher:
                     self.active_recorder = None
                 else:
                     return
+
+            if should_listen:
+                release_active_listener_lock(turn_cid)
 
             if self._interrupted or not temp_wav or not Path(temp_wav).is_file():
                 if temp_wav and Path(temp_wav).is_file():
@@ -855,6 +887,21 @@ class TranscriptWatcher:
                         send_message_to_antigravity(
                             conv_id=cid, text=linear_prompt, sender_name=cfg.user_name
                         )
+                    elif is_live_turn:
+                        # Turn-end Live mode toggle: route spoken turn directly to Gemini Live API
+                        from voicefi.integrations.live_conversation import query_live_api_spoken_turn
+
+                        print(
+                            f"[Watcher/GeminiLive] 🎙️ Live mode toggle active -> routing to Gemini Live API: '{content}'",
+                            flush=True,
+                        )
+                        query_live_api_spoken_turn(
+                            user_prompt=content,
+                            context=spoken_text,
+                            conv_id=cid,
+                            persona_name=getattr(cfg.tts, "voice", "Fenrir"),
+                            config=cfg,
+                        )
                     else:
                         send_message_to_antigravity(
                             conv_id=cid, text=content, sender_name=cfg.user_name
@@ -872,7 +919,7 @@ class TranscriptWatcher:
                     except Exception:
                         pass
 
-                if cfg.audio_cues.enabled:
+                if getattr(cfg.audio_cues, "sent_chime_enabled", False) and cfg.audio_cues.enabled:
                     play_chime(cfg.audio_cues.sent_chime, block=False)
 
                 try:

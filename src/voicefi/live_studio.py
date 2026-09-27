@@ -16,6 +16,7 @@ from typing import Optional, Dict, Any, List
 from voicefi.config import load_config, resolve_gemini_api_key, VALID_GEMINI_LIVE_VOICES
 from voicefi.audio.live_stream import LiveAudioStream
 from voicefi.integrations.live_tools import get_live_tools, execute_live_tool
+from voicefi.tts.base import set_cross_process_hud_state, clear_cross_process_hud_state
 
 logger = logging.getLogger("voicefi.live_studio")
 
@@ -24,10 +25,14 @@ DEFAULT_SYSTEM_INSTRUCTION = (
     "running inside VoiceFi. You communicate in spoken dialogue over a real-time full-duplex audio stream. "
     "Guidelines:\n"
     "1. Keep your spoken responses concise, conversational, and direct (1-3 sentences) unless asked to elaborate.\n"
-    "2. You have access to real-time tools: 'read_code_file', 'search_codebase', 'run_shell_check', and 'trigger_sound_effect'.\n"
+    "2. You have access to real-time tools: 'read_code_file', 'search_codebase', 'run_shell_check', "
+    "'trigger_sound_effect', and 'dispatch_to_antigravity'.\n"
     "3. You can execute these tools in parallel while speaking or before answering. Use them proactively whenever the user "
     "asks about files, code, git status, system status, or asks for comedic sound effects (like rimshot or applause).\n"
-    "4. If interrupted by the user speaking over you, stop immediately and listen to their new input."
+    "4. When the user asks you to write code, edit files, refactor, run tests, fix bugs, or execute any multi-step coding task, "
+    "immediately invoke 'dispatch_to_antigravity' with their request so Antigravity can execute the task in their workspace, "
+    "and give a brief spoken acknowledgment to the user that it's on it.\n"
+    "5. If interrupted by the user speaking over you, stop immediately and listen to their new input."
 )
 
 
@@ -130,6 +135,8 @@ class GeminiLiveStudio:
     def _on_local_barge_in(self):
         """Called by LiveAudioStream when user speech energy exceeds threshold during playback."""
         print("\n⚡ [Barge-in Interruption]")
+        user_name = getattr(self.config, "user_name", "Jake")
+        set_cross_process_hud_state("hearing", user_name=user_name)
         if self.session and self.is_running:
             try:
                 asyncio.create_task(self._safe_send_barge_in())
@@ -224,6 +231,10 @@ class GeminiLiveStudio:
             text = text.strip() if text else ""
             if text and self.is_running:
                 print(f"\n🎤 You: {text}")
+                user_name = getattr(self.config, "user_name", "Jake")
+                set_cross_process_hud_state(
+                    "listening", text=text[:35], user_name=user_name, agent_name="Gemini Live"
+                )
                 await self._safe_send_text(text)
         except Exception as e:
             logger.debug("STT bridge error: %s", e)
@@ -255,6 +266,8 @@ class GeminiLiveStudio:
                             # Prepend pre-roll chunks to preserve onset consonants
                             self._speech_buffer.extend(self._preroll_buffer)
                             self._is_speaking_user = True
+                            user_name = getattr(self.config, "user_name", "Jake")
+                            set_cross_process_hud_state("hearing", user_name=user_name)
                         self._speech_buffer.append(chunk)
                         self._silence_count = 0
                     elif self._is_speaking_user:
@@ -307,11 +320,17 @@ class GeminiLiveStudio:
                         if self.stream:
                             self.stream.flush_speaker()
                         print("\n[⚡ Interrupted by server]")
+                        user_name = getattr(self.config, "user_name", "Jake")
+                        set_cross_process_hud_state("hearing", user_name=user_name)
 
                     # User speech transcription
                     it = getattr(sc, "input_transcription", None)
                     if it and it.text:
                         print(f"\n🎤 You: {it.text}")
+                        user_name = getattr(self.config, "user_name", "Jake")
+                        set_cross_process_hud_state(
+                            "listening", text=it.text[:35], user_name=user_name, agent_name="Gemini Live"
+                        )
 
                     # Model speech transcription
                     ot = getattr(sc, "output_transcription", None)
@@ -323,13 +342,31 @@ class GeminiLiveStudio:
                     if sc.model_turn:
                         for part in sc.model_turn.parts:
                             if part.inline_data and part.inline_data.data:
+                                if not getattr(self, "_is_model_speaking", False):
+                                    self._is_model_speaking = True
+                                    set_cross_process_hud_state(
+                                        "gemini_live_speaking",
+                                        text=ot.text if ot and ot.text else "Speaking...",
+                                        agent_name="Gemini Live",
+                                        persona_name=self.voice,
+                                        tag_text="● LIVE",
+                                        live_stream=True,
+                                    )
                                 if self.stream:
                                     self.stream.play_audio_chunk(part.inline_data.data)
 
                     # Turn completed
                     if getattr(sc, "turn_complete", False):
+                        self._is_model_speaking = False
                         sys.stdout.write("\n")
                         sys.stdout.flush()
+                        set_cross_process_hud_state(
+                            "listening",
+                            text="Listening...",
+                            agent_name="Gemini Live",
+                            tag_text="● LIVE",
+                            live_stream=True,
+                        )
 
         except asyncio.CancelledError:
             pass
@@ -354,7 +391,7 @@ class GeminiLiveStudio:
 
         # Print banner
         tools_desc = (
-            "read_code_file, search_codebase, run_shell_check, trigger_sound_effect"
+            "read_code_file, search_codebase, run_shell_check, trigger_sound_effect, dispatch_to_antigravity"
             if self.enable_tools
             else "None"
         )
@@ -377,6 +414,9 @@ class GeminiLiveStudio:
             async with self.client.aio.live.connect(model=self.model, config=config) as session:
                 self.session = session
                 print(f"🟢 Connected to {self.model}! Listening...\n")
+                set_cross_process_hud_state(
+                    "listening", text="Listening...", agent_name="Gemini Live"
+                )
 
                 mic_task = asyncio.create_task(self._mic_loop())
                 recv_task = asyncio.create_task(self._receive_loop())
@@ -397,6 +437,7 @@ class GeminiLiveStudio:
     def stop(self):
         """Cleanly stop streams and tasks."""
         self.is_running = False
+        clear_cross_process_hud_state()
         if self.stream:
             self.stream.stop()
             self.stream = None

@@ -95,15 +95,18 @@ def find_running_voicefi_processes(include_mcp: bool = True) -> List[Dict[str, A
                 except ValueError:
                     continue
                 cmd = parts[2]
+                cmd_lower = cmd.lower()
 
                 # Filter out current process, grep, or editor tools
                 if pid == my_pid:
                     continue
                 if "grep" in cmd or "ps -eo" in cmd:
                     continue
+                # Exclude standalone LiteRT inference servers managed by independent LaunchAgents
+                if "litert-lm" in cmd_lower:
+                    continue
 
                 # Match voicefi / vifi CLI, servers, daemons, HUDs, or test runners
-                cmd_lower = cmd.lower()
                 is_voicefi = False
                 if "voicefi" in cmd_lower or "vifi" in cmd_lower:
                     is_voicefi = True
@@ -380,15 +383,16 @@ def stop_all_voicefi_servers(
         except Exception as e:
             errors.append(f"Launchctl bootout notice for {lbl}: {e}")
 
-        try:
-            subprocess.run(
-                ["launchctl", "disable", f"gui/{uid}/{lbl}"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                timeout=5,
-            )
-        except Exception:
-            pass
+        if disable_launchagent and remove_plist:
+            try:
+                subprocess.run(
+                    ["launchctl", "disable", f"gui/{uid}/{lbl}"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=5,
+                )
+            except Exception:
+                pass
 
     for plist in LAUNCHAGENT_PLISTS:
         if plist.is_file():

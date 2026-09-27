@@ -238,3 +238,55 @@ def cmd_trim(args: Any) -> None:
     except Exception as e:
         print(f"❌ Trim error: {e}", file=sys.stderr)
         sys.exit(1)
+
+
+def cmd_beatbox(args: Any) -> None:
+    """Synthesize and play Taras Stanin style beatbox routines, vocal electric guitar, and laser drops."""
+    from voicefi.audio.beatbox_synth import (
+        play_beatbox,
+        generate_taras_beatbox_routine,
+        synth_taras_guitar_riff,
+        synth_throat_bass,
+        synth_laser_zap,
+        save_beatbox_wav,
+    )
+
+    preset = getattr(args, "preset", "routine") or "routine"
+    bpm = float(getattr(args, "bpm", 95.0) or 95.0)
+    bars = int(getattr(args, "bars", 2) or 2)
+    volume = float(getattr(args, "volume", 1.0) or 1.0)
+    out_file = getattr(args, "save", None) or getattr(args, "output", None)
+    no_play = getattr(args, "no_play", False)
+
+    if preset == "list":
+        print("\n🎤 Available Beatbox & Vocal Synth Presets:")
+        print("  • routine / drop  - Full multi-layered beatbox & vocal guitar routine")
+        print("  • guitar / riff   - Taras Stanin distorted vocal electric guitar riff")
+        print("  • throat_bass     - Subharmonic Tuvan / false-cord throat bass drop")
+        print("  • laser / zap     - Modular synth whistle laser zaps")
+        print("  • drums           - Close-mic proximity beatbox kick, snare, and hats\n")
+        return
+
+    print(f"\n🎤 Synthesizing Taras Stanin Beatbox [{preset}] @ {bpm} BPM...")
+
+    if out_file:
+        out_path = Path(out_file).resolve()
+        if preset in ("guitar", "riff"):
+            audio = synth_taras_guitar_riff(bpm=bpm)
+        elif preset in ("throat_bass", "bass"):
+            audio = synth_throat_bass(freq=55.0, dur=2.0, wobble_rate=3.5)
+        elif preset in ("laser", "zap"):
+            audio = synth_laser_zap()
+        elif preset == "drums":
+            audio = generate_taras_beatbox_routine(bars=bars, bpm=bpm, include_guitar=False)
+        else:
+            audio = generate_taras_beatbox_routine(bars=bars, bpm=bpm, include_guitar=True)
+
+        save_beatbox_wav(audio, out_path)
+        print(f"✅ Saved beatbox audio: {out_path} ({len(audio)/44100:.2f}s)")
+
+    if not no_play:
+        print(f"🔊 Playing aloud via CoreAudio (vol={volume})...")
+        play_beatbox(preset=preset, bpm=bpm, block=True, volume=volume)
+        print("✨ Playback complete!\n")
+

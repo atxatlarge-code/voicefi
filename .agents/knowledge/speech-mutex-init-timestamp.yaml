@@ -1,0 +1,12 @@
+id: speech-mutex-init-timestamp
+scope:
+  - voicefi/tts/*
+  - voicefi/audio/*
+triggers:
+  keywords: ["speech_turn_lock", "turn_start_time", "_stop_requested", "afplay", "edge_tts"]
+  files: ["edge_tts.py", "mac_say.py", "gemini_tts.py"]
+gotcha:
+  summary: "turn_start_time and _stop_requested must be initialized inside the speech_turn_lock mutex."
+  anti_pattern: "Setting turn_start_time = time.time() outside the with speech_turn_lock(...) block."
+  correct_pattern: "with speech_turn_lock(...): self._stop_requested = False; turn_start_time = time.time()"
+  impact: "Prevents a queued turn from immediately aborting if a previous turn had set a stop timestamp while waiting for the lock."

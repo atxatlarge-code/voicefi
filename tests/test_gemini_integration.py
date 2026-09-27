@@ -62,7 +62,9 @@ def test_gemini_intelligence_offline_fallback():
     """Verify GeminiIntelligenceEngine gracefully handles missing API key."""
     cfg = VoiceFiConfig()
     cfg.gemini.api_key = ""
-    with patch.dict("os.environ", {}, clear=True):
+    with patch.dict("os.environ", {}, clear=True), patch.object(
+        GeminiIntelligenceEngine, "_is_local_endpoint_alive", return_value=False
+    ):
         engine = GeminiIntelligenceEngine(cfg)
         assert engine.is_available() is False
         assert engine.distill_spoken_soundbite("Long test text") is None
@@ -74,6 +76,7 @@ def test_gemini_intelligence_mock_distillation():
     """Verify GeminiIntelligenceEngine distill_spoken_soundbite parses responses properly."""
     cfg = VoiceFiConfig()
     cfg.gemini.api_key = "test_fake_key"
+    cfg.gemini.enable_soundbite_distillation = True
     engine = GeminiIntelligenceEngine(cfg)
 
     mock_resp = MagicMock()
@@ -138,6 +141,7 @@ def test_ollama_local_llm_distillation():
     """Verify local Ollama / OpenAI-compatible endpoint distillation."""
     cfg = VoiceFiConfig()
     cfg.gemini.provider = "ollama"
+    cfg.gemini.enable_soundbite_distillation = True
     cfg.gemini.local_llm_url = "http://localhost:11434/v1"
     cfg.gemini.local_llm_model = "qwen2.5:0.5b"
     engine = GeminiIntelligenceEngine(cfg)
@@ -241,10 +245,10 @@ def test_gemini_live_sfx_trigger():
     res_invalid = play_sound_effect("non_existent_sfx_123")
     assert "not found" in res_invalid
 
-    with patch("pathlib.Path.is_file", return_value=True), patch("subprocess.Popen") as mock_popen:
+    with patch("voicefi.audio.sfx.play_sfx", return_value=True) as mock_play:
         res = play_sound_effect("rimshot")
         assert "Played sound effect 'rimshot'" in res
-        mock_popen.assert_called_once()
+        mock_play.assert_called_once_with("rimshot", block=False)
 
 
 def test_mcp_voicefi_live_tool_execution():

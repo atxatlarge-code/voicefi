@@ -113,3 +113,21 @@ def test_cli_parser_server_and_flat_shortcuts():
     args = parser.parse_args(["service", "restart"])
     assert args.command in ("service", "server")
     assert args.server_action == "restart"
+
+
+def test_find_running_voicefi_processes_excludes_litert_lm():
+    """Ensure litert-lm inference server is never falsely identified or killed as a VoiceFi daemon."""
+    mock_ps_output = (
+        "1001 1 /Users/jaketrigg/Projects/VoiceFi/.venv/bin/python3 /Users/jaketrigg/Projects/VoiceFi/.venv/bin/litert-lm serve --port 9379\n"
+        "1002 1 /Users/jaketrigg/Projects/VoiceFi/.venv/bin/python3 /Users/jaketrigg/Projects/VoiceFi/.venv/bin/voicefi tray\n"
+        "1003 1 /opt/homebrew/bin/vifi status\n"
+    )
+    with patch("subprocess.run") as mock_run:
+        mock_run.return_value = MagicMock(returncode=0, stdout=mock_ps_output)
+        procs = v_server.find_running_voicefi_processes()
+
+        pids = [p["pid"] for p in procs]
+        assert 1001 not in pids, "litert-lm must be excluded from VoiceFi process kill list"
+        assert 1002 in pids, "voicefi tray must be recognized"
+        assert 1003 in pids, "vifi status must be recognized"
+

@@ -286,6 +286,38 @@ def _generate_crickets(sample_rate: int = SAMPLE_RATE) -> np.ndarray:
     return (np.clip(audio, -1.0, 1.0) * 32767).astype(np.int16)
 
 
+def _generate_taras_guitar(sample_rate: int = SAMPLE_RATE) -> np.ndarray:
+    """Taras Stanin style overdriven vocal electric guitar power riff."""
+    from voicefi.audio.beatbox_synth import synth_taras_guitar_riff
+    audio = synth_taras_guitar_riff(riff_style="rock", bpm=95.0, sr=sample_rate)
+    return (np.clip(audio, -1.0, 1.0) * 32767).astype(np.int16)
+
+
+def _generate_taras_laser(sample_rate: int = SAMPLE_RATE) -> np.ndarray:
+    """Modular beatbox laser whistle zaps."""
+    from voicefi.audio.beatbox_synth import synth_laser_zap
+    z1 = synth_laser_zap(dur=0.08, sr=sample_rate)
+    z2 = synth_laser_zap(dur=0.08, start_freq=4200.0, end_freq=380.0, sr=sample_rate)
+    z3 = synth_laser_zap(dur=0.11, start_freq=3200.0, end_freq=220.0, sr=sample_rate)
+    gap = np.zeros(int(sample_rate * 0.04), dtype=np.float32)
+    audio = np.concatenate([z1, gap, z2, gap, z3])
+    return (np.clip(audio, -1.0, 1.0) * 32767).astype(np.int16)
+
+
+def _generate_taras_throat_bass(sample_rate: int = SAMPLE_RATE) -> np.ndarray:
+    """Subharmonic false-fold throat bass drop."""
+    from voicefi.audio.beatbox_synth import synth_throat_bass
+    audio = synth_throat_bass(freq=55.0, dur=1.8, wobble_rate=3.2, sr=sample_rate)
+    return (np.clip(audio, -1.0, 1.0) * 32767).astype(np.int16)
+
+
+def _generate_beatbox_drop(sample_rate: int = SAMPLE_RATE) -> np.ndarray:
+    """Complete multi-layered Taras Stanin beatbox routine with vocal guitar solo."""
+    from voicefi.audio.beatbox_synth import generate_taras_beatbox_routine
+    audio = generate_taras_beatbox_routine(bars=2, bpm=95.0, include_guitar=True, sr=sample_rate)
+    return (np.clip(audio, -1.0, 1.0) * 32767).astype(np.int16)
+
+
 GENERATORS: Dict[str, Callable[[int], np.ndarray]] = {
     "drum_smash": _generate_rimshot,
     "drums": _generate_rimshot,
@@ -309,6 +341,10 @@ GENERATORS: Dict[str, Callable[[int], np.ndarray]] = {
     "spring": _generate_boing,
     "crickets": _generate_crickets,
     "silence": _generate_crickets,
+    "taras_guitar": _generate_taras_guitar,
+    "taras_laser": _generate_taras_laser,
+    "taras_throat_bass": _generate_taras_throat_bass,
+    "beatbox_drop": _generate_beatbox_drop,
 }
 
 ALIASES: Dict[str, str] = {
@@ -342,9 +378,29 @@ ALIASES: Dict[str, str] = {
     "claps": "applause",
     "cheers": "applause",
     "awkward": "crickets",
+    "taras": "taras_guitar",
+    "taras-guitar": "taras_guitar",
+    "taras_guitar": "taras_guitar",
+    "taras-stanin": "taras_guitar",
+    "vocal-guitar": "taras_guitar",
+    "vocal_guitar": "taras_guitar",
+    "guitar-riff": "taras_guitar",
+    "laser": "taras_laser",
+    "lasers": "taras_laser",
+    "laser-zap": "taras_laser",
+    "laser_zap": "taras_laser",
+    "zap": "taras_laser",
+    "throat-bass": "taras_throat_bass",
+    "throat_bass": "taras_throat_bass",
+    "bass-drop": "taras_throat_bass",
+    "beatbox": "beatbox_drop",
+    "beatbox-drop": "beatbox_drop",
+    "beatbox_drop": "beatbox_drop",
+    "beatbox-routine": "beatbox_drop",
+    "beatbox_routine": "beatbox_drop",
 }
 
-SFX_CACHE_VERSION = 5
+SFX_CACHE_VERSION = 6
 _SFX_LOCK = threading.Lock()
 
 
@@ -428,7 +484,22 @@ def get_sfx_path(name: str) -> Optional[Path]:
 def list_available_sfx() -> List[str]:
     """List distinct available sound effect names."""
     return sorted(
-        list(set(["drum_smash", "honk", "sad_trombone", "applause", "boing", "crickets"]))
+        list(
+            set(
+                [
+                    "applause",
+                    "beatbox_drop",
+                    "boing",
+                    "crickets",
+                    "drum_smash",
+                    "honk",
+                    "sad_trombone",
+                    "taras_guitar",
+                    "taras_laser",
+                    "taras_throat_bass",
+                ]
+            )
+        )
     )
 
 

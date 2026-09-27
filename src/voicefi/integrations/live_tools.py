@@ -9,7 +9,7 @@ import logging
 import os
 import subprocess
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 logger = logging.getLogger("voicefi.integrations.live_tools")
 
@@ -110,17 +110,68 @@ def trigger_sound_effect(name: str) -> str:
     """
     Play a sound effect: 'rimshot' (punchline), 'applause' (success), 'drum_smash', 'sad_trombone' (fail), 'crickets' (groaner dad joke).
     """
+    from voicefi.audio.sfx import play_sfx
+
     clean_name = name.lower().strip().replace(" ", "_")
-    sfx_file = SFX_DIR / f"{clean_name}.wav"
-    if sfx_file.is_file():
-        try:
-            subprocess.Popen(
-                ["afplay", str(sfx_file)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-            )
-            return f"Played sound effect '{clean_name}'"
-        except Exception as e:
-            return f"Error playing sound effect: {e}"
+    if play_sfx(clean_name, block=False):
+        return f"Played sound effect '{clean_name}'"
     return f"Sound effect '{name}' not found."
+
+
+def dispatch_to_antigravity(instruction: str, conversation_id: Optional[str] = None) -> str:
+    """
+    Dispatch a coding task, instruction, command, or refactoring request directly to the Antigravity agent.
+    Use this proactively whenever the developer asks to write code, edit files, fix bugs, run builds or tests,
+    or execute any complex coding or workspace operation.
+    """
+    from voicefi.tts.base import set_cross_process_hud_state
+    from voicefi.integrations.injector import send_message_to_antigravity
+
+    clean_instruction = instruction.strip() if instruction else ""
+    if not clean_instruction:
+        return "Cannot dispatch an empty instruction to Antigravity."
+
+    preview = (
+        clean_instruction[:40] + "..." if len(clean_instruction) > 40 else clean_instruction
+    )
+    set_cross_process_hud_state(
+        "dispatching",
+        text=f"Dispatching: {preview}",
+        agent_name="Antigravity",
+        tag_text="Dispatching to Antigravity",
+    )
+
+    res = send_message_to_antigravity(
+        conv_id=conversation_id,
+        text=clean_instruction,
+        sender_name="Gemini Live",
+        title="Spoken Task Dispatch",
+    )
+
+    if res.success:
+        try:
+            from voicefi.integrations.turn_lock import set_live_turn_origin
+
+            set_live_turn_origin(res.target_conv_id or conversation_id)
+        except Exception:
+            pass
+        target_info = f" (conversation {res.target_conv_id[:8]})" if res.target_conv_id else ""
+        set_cross_process_hud_state(
+            "done",
+            text="Dispatched to Antigravity",
+            agent_name="Antigravity",
+        )
+        return (
+            f"Successfully dispatched task to Antigravity{target_info}: '{clean_instruction}'. "
+            "Antigravity will execute the work in the background."
+        )
+    else:
+        set_cross_process_hud_state(
+            "done",
+            text=f"Dispatch failed: {res.error[:20]}",
+            agent_name="Antigravity",
+        )
+        return f"Failed to dispatch to Antigravity: {res.error}"
 
 
 def get_live_tools() -> List[Any]:
@@ -130,6 +181,7 @@ def get_live_tools() -> List[Any]:
         search_codebase,
         run_shell_check,
         trigger_sound_effect,
+        dispatch_to_antigravity,
     ]
 
 
@@ -138,6 +190,7 @@ TOOL_MAP: Dict[str, Any] = {
     "search_codebase": search_codebase,
     "run_shell_check": run_shell_check,
     "trigger_sound_effect": trigger_sound_effect,
+    "dispatch_to_antigravity": dispatch_to_antigravity,
 }
 
 TOOL_PARAM_ALIASES = {
@@ -145,6 +198,17 @@ TOOL_PARAM_ALIASES = {
     "search_codebase": {"term": "query", "pattern": "query", "q": "query"},
     "run_shell_check": {"cmd": "command"},
     "trigger_sound_effect": {"sfx": "name", "sound": "name"},
+    "dispatch_to_antigravity": {
+        "prompt": "instruction",
+        "task": "instruction",
+        "command": "instruction",
+        "message": "instruction",
+        "query": "instruction",
+        "text": "instruction",
+        "conv_id": "conversation_id",
+        "cid": "conversation_id",
+        "conversation": "conversation_id",
+    },
 }
 
 

@@ -104,6 +104,31 @@ def test_force_release_audio_lock(tmp_path, monkeypatch):
     assert not is_audio_output_locked()
 
 
+def test_exclusive_audio_timeout_behavior(tmp_path, monkeypatch):
+    """Test exclusive_audio raises TimeoutError on timeout when raise_on_timeout=True."""
+    test_lock = tmp_path / "test_timeout.lock"
+    monkeypatch.setenv("VOICEFI_AUDIO_LOCK", str(test_lock))
+
+    q = multiprocessing.Queue()
+    p = multiprocessing.Process(target=_worker_hold_audio_lock, args=(1.0, q))
+    p.start()
+
+    msg, _ = q.get(timeout=3.0)
+    assert msg == "acquired"
+
+    # With raise_on_timeout=True (default), expect TimeoutError
+    with pytest.raises(TimeoutError):
+        with exclusive_audio(timeout=0.1, owner="timeout_test", raise_on_timeout=True):
+            pass
+
+    # With raise_on_timeout=False, expect it to proceed without raising
+    with exclusive_audio(timeout=0.1, owner="timeout_test", raise_on_timeout=False):
+        pass
+
+    p.join(timeout=2.0)
+
+
+
 def test_streaming_audio_player_drain_and_close():
     """Test StreamingAudioPlayer sample tracking and drain completion signaling."""
     player = StreamingAudioPlayer(sample_rate=24000, channels=1, blocksize=512)

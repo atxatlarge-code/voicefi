@@ -527,6 +527,36 @@ MCP_TOOLS: List[Dict[str, Any]] = [
         },
     },
     {
+        "name": "voicefi_implement",
+        "description": "Run an on-device 2-tier cascade (Gemma 4 2B Scout -> Gemma 4 26B Coder) to surgically implement code changes and return only the clean unified git diff, saving >90% of cloud tokens.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "target_path": {
+                    "type": "string",
+                    "description": "Path to the file to modify.",
+                },
+                "instruction": {
+                    "type": "string",
+                    "description": "Instruction or refactoring prompt describing what to change.",
+                },
+                "apply": {
+                    "type": "boolean",
+                    "description": "Whether to apply the changes to disk (default: true).",
+                },
+                "diff_only": {
+                    "type": "boolean",
+                    "description": "Whether to return only the unified git diff (default: true).",
+                },
+                "context": {
+                    "type": "string",
+                    "description": "Explain why you are calling this tool and how it fits into the user's overall goal. 15-25 words in third person.",
+                },
+            },
+            "required": ["target_path", "instruction"],
+        },
+    },
+    {
         "name": "voicefi_benchmark",
         "description": "Measure on-device model performance (TTFB latency, tokens/sec throughput, and context tokens saved) on Apple Silicon Metal GPU.",
         "inputSchema": {
@@ -910,6 +940,8 @@ class VoiceFiMCPServer:
                 res = self._tool_clone_list(args)
             elif canonical_name == "voicefi_scout":
                 res = self._tool_scout(args)
+            elif canonical_name == "voicefi_implement":
+                res = self._tool_implement(args)
             elif canonical_name == "voicefi_benchmark":
                 res = self._tool_benchmark(args)
             elif canonical_name == "voicefi_local_status":
@@ -2072,6 +2104,78 @@ class VoiceFiMCPServer:
         except Exception as e:
             return {
                 "content": [{"type": "text", "text": f"Scout error: {str(e)}"}],
+                "isError": True,
+            }
+
+    def _tool_implement(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        import asyncio
+        import concurrent.futures
+        from voicefi.local import ReconImplementer
+
+        target = args.get("target_path") or args.get("target") or args.get("path")
+        if not target:
+            return {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Error: 'target_path' parameter is required for voicefi_implement.",
+                    }
+                ],
+                "isError": True,
+            }
+        instruction = (
+            args.get("instruction")
+            or args.get("query")
+            or args.get("prompt")
+        )
+        if not instruction:
+            return {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Error: 'instruction' parameter is required for voicefi_implement.",
+                    }
+                ],
+                "isError": True,
+            }
+        apply = bool(args.get("apply", True))
+        model_scout = args.get("model_scout", "gemma4-2b") or "gemma4-2b"
+        model_coder = args.get("model_coder", "gemma4-26b") or "gemma4-26b"
+
+        implementer = ReconImplementer(model_scout=model_scout, model_coder=model_coder)
+        try:
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        res = executor.submit(
+                            asyncio.run,
+                            implementer.implement(target, instruction=instruction, apply=apply),
+                        ).result()
+                else:
+                    res = loop.run_until_complete(
+                        implementer.implement(target, instruction=instruction, apply=apply)
+                    )
+            except RuntimeError:
+                res = asyncio.run(
+                    implementer.implement(target, instruction=instruction, apply=apply)
+                )
+
+            diff_block = f"```diff\n{res.diff}\n```" if res.diff else "_No diff generated_"
+            text_output = (
+                f"🛠️ **VoiceFi Recon Implementer ({res.model_coder})**\n\n"
+                f"**Target:** `{res.target_path}` | **Duration:** {res.total_duration}s (Scout: {res.scout_duration}s, Coder: {res.coder_duration}s)\n"
+                f"**Token Savings:** {res.tokens_saved} tokens ({res.savings_pct}% context preserved)\n"
+                f"**Applied to File:** {'Yes' if res.applied else 'No (Dry Run / Unmatched)'}\n\n"
+                f"### Unified Diff\n\n{diff_block}"
+            )
+            return {
+                "content": [{"type": "text", "text": text_output}],
+                "isError": bool(res.error and not res.diff),
+            }
+        except Exception as e:
+            return {
+                "content": [{"type": "text", "text": f"Implementer error: {str(e)}"}],
                 "isError": True,
             }
 

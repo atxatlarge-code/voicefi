@@ -75,6 +75,7 @@ class WakeWordListener:
         self._thread: Optional[threading.Thread] = None
         self._stop_event = threading.Event()
         self._stt_lock = threading.Lock()
+        self._candidate_lock = threading.Lock()
         self._stt_instance = None
         self._current_state = "stopped"
         self._last_wake_time = 0.0
@@ -268,13 +269,14 @@ class WakeWordListener:
                                     and not is_active_media_playing()
                                     and len(recorded_frames) >= min_speech_chunks
                                 ):
-                                    full_audio = np.concatenate(recorded_frames, axis=0)
-                                    threading.Thread(
-                                        target=self._process_candidate_audio,
-                                        args=(full_audio,),
-                                        daemon=True,
-                                        name="WakeWordSTT",
-                                    ).start()
+                                    if not self._candidate_lock.locked():
+                                        full_audio = np.concatenate(recorded_frames, axis=0)
+                                        threading.Thread(
+                                            target=self._process_candidate_audio,
+                                            args=(full_audio,),
+                                            daemon=True,
+                                            name="WakeWordSTT",
+                                        ).start()
                                 recorded_frames.clear()
                                 pre_roll.clear()
                                 speech_started = False
@@ -291,95 +293,101 @@ class WakeWordListener:
 
     def _process_candidate_audio(self, audio_data: np.ndarray):
         """Transcribe candidate speech utterance and check for wake word triggers."""
-        # Cooldown guard: ignore triggers within 1.2s of last trigger
-        if time.time() - self._last_wake_time < 1.2:
-            return
-
-        # Acoustic echo guard: ignore candidates if on a call, agent is speaking, audio is playing, or recently interrupted
-        from voicefi.tts.base import is_speech_interrupted
-        from voicefi.audio.meeting_detection import is_user_on_call
-        from voicefi.audio.media_detection import is_active_media_playing
-
-        if (
-            is_user_on_call()
-            or is_active_media_playing()
-            or is_agent_speaking()
-            or is_agent_audio_playing()
-            or is_speech_interrupted()
-        ):
+        if not self._candidate_lock.acquire(blocking=False):
             return
 
         try:
-            stt = self._get_stt()
-            transcript = stt.transcribe(audio_data, sample_rate=self.sample_rate)
-            dur = len(audio_data) / self.sample_rate
-            if not transcript or not transcript.strip():
+            # Cooldown guard: ignore triggers within 1.2s of last trigger
+            if time.time() - self._last_wake_time < 1.2:
                 return
 
-            clean_text = transcript.strip()
-            # print candidate transcript if debug or testing
-            print(f"[WakeWord] Candidate ({dur:.2f}s) transcribed: {repr(clean_text)}", flush=True)
+            # Acoustic echo guard: ignore candidates if on a call, agent is speaking, audio is playing, or recently interrupted
+            from voicefi.tts.base import is_speech_interrupted
+            from voicefi.audio.meeting_detection import is_user_on_call
+            from voicefi.audio.media_detection import is_active_media_playing
 
-            from voicefi.audio.echo_canceller import is_acoustic_echo
-
-            if is_acoustic_echo(clean_text):
-                print(
-                    f"[WakeWord] 🛡️ Suppressed acoustic self-echo: {repr(clean_text)}",
-                    flush=True,
-                )
+            if (
+                is_user_on_call()
+                or is_active_media_playing()
+                or is_agent_speaking()
+                or is_agent_audio_playing()
+                or is_speech_interrupted()
+            ):
                 return
 
-            # Check for wake word prefix
-            matched_phrase, prompt = ActiveListeningEngine.extract_wakeword_and_prompt(
-                clean_text, aliases=self.aliases
-            )
+            try:
+                stt = self._get_stt()
+                transcript = stt.transcribe(audio_data, sample_rate=self.sample_rate)
+                dur = len(audio_data) / self.sample_rate
+                if not transcript or not transcript.strip():
+                    return
 
-            if matched_phrase:
-                self._last_wake_time = time.time()
-                print(
-                    f"\n⚡ [WakeWord] WAKE WORD DETECTED: '{matched_phrase}' | Prompt: '{prompt}'",
-                    flush=True,
+                clean_text = transcript.strip()
+                # print candidate transcript if debug or testing
+                print(f"[WakeWord] Candidate ({dur:.2f}s) transcribed: {repr(clean_text)}", flush=True)
+
+                from voicefi.audio.echo_canceller import is_acoustic_echo
+
+                if is_acoustic_echo(clean_text):
+                    print(
+                        f"[WakeWord] 🛡️ Suppressed acoustic self-echo: {repr(clean_text)}",
+                        flush=True,
+                    )
+                    return
+
+                # Check for wake word prefix
+                matched_phrase, prompt = ActiveListeningEngine.extract_wakeword_and_prompt(
+                    clean_text, aliases=self.aliases
                 )
-                self._set_state("wake_triggered")
 
-                if getattr(self.config.wakeword, "chime", True):
-                    try:
-                        play_chime("start")
-                    except Exception:
-                        pass
+                if matched_phrase:
+                    self._last_wake_time = time.time()
+                    print(
+                        f"\n⚡ [WakeWord] WAKE WORD DETECTED: '{matched_phrase}' | Prompt: '{prompt}'",
+                        flush=True,
+                    )
+                    self._set_state("wake_triggered")
 
-                if self.on_wake:
-                    try:
-                        self.on_wake(matched_phrase, prompt)
-                    except Exception as ex:
-                        print(f"[WakeWord] on_wake handler error: {ex}", flush=True)
-                elif (
-                    getattr(getattr(self.config, "local_model", None), "intent_routing", False)
-                    and prompt
-                ):
-                    try:
-                        from voicefi.local.intent import LocalIntentRouter
+                    if getattr(self.config.wakeword, "chime", True):
+                        try:
+                            play_chime("start")
+                        except Exception:
+                            pass
 
-                        router = LocalIntentRouter(config=self.config)
-                        route = router.route_prompt(prompt)
-                        if route.get("status") in ("handled_local", "routed_obsidian"):
-                            spoken = route.get("spoken_response")
-                            if spoken:
-                                from voicefi.tts import get_tts_engine
+                    if self.on_wake:
+                        try:
+                            self.on_wake(matched_phrase, prompt)
+                        except Exception as ex:
+                            print(f"[WakeWord] on_wake handler error: {ex}", flush=True)
+                    elif (
+                        getattr(getattr(self.config, "local_model", None), "intent_routing", False)
+                        and prompt
+                    ):
+                        try:
+                            from voicefi.local.intent import LocalIntentRouter
 
-                                tts = get_tts_engine(self.config)
-                                tts.speak(spoken, block=False)
-                        elif route.get("target") in ("antigravity", "claude", "codex"):
-                            from voicefi.integrations.injector import send_message_to_agent
+                            router = LocalIntentRouter(config=self.config)
+                            route = router.route_prompt(prompt)
+                            if route.get("status") in ("handled_local", "routed_obsidian"):
+                                spoken = route.get("spoken_response")
+                                if spoken:
+                                    from voicefi.tts import get_tts_engine
 
-                            send_message_to_agent(
-                                text=prompt,
-                                sender_name=f"{self.config.user_name} ({matched_phrase})",
-                                title=f"Prompt via {matched_phrase}",
-                                target_engine=route.get("target"),
-                            )
-                    except Exception as ex:
-                        print(f"[WakeWord] Default intent routing error: {ex}", flush=True)
+                                    tts = get_tts_engine(self.config)
+                                    tts.speak(spoken, block=False)
+                            elif route.get("target") in ("antigravity", "claude", "codex"):
+                                from voicefi.integrations.injector import send_message_to_agent
 
-        except Exception as ex:
-            print(f"[WakeWord] Audio processing error: {ex}", flush=True)
+                                send_message_to_agent(
+                                    text=prompt,
+                                    sender_name=f"{self.config.user_name} ({matched_phrase})",
+                                    title=f"Prompt via {matched_phrase}",
+                                    target_engine=route.get("target"),
+                                )
+                        except Exception as ex:
+                            print(f"[WakeWord] Default intent routing error: {ex}", flush=True)
+
+            except Exception as ex:
+                print(f"[WakeWord] Audio processing error: {ex}", flush=True)
+        finally:
+            self._candidate_lock.release()

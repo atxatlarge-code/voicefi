@@ -173,24 +173,40 @@ def cmd_hook(args: Any) -> None:
             print(json.dumps({}))
             return
 
-    # Read hook payload: first check CLI arguments (e.g. Codex notify: turn-ended '{"type":...}')
+    # Read hook payload: first check worker payload file, then CLI arguments, then stdin
     payload = {}
-    extra = getattr(args, "extra_args", []) or []
-    candidate_strings = []
-    if action and action not in ("enable", "disable", "status", "remove", "uninstall", "on", "off"):
-        candidate_strings.append(action)
-    candidate_strings.extend(extra)
-    candidate_strings.extend(sys.argv)
-
-    for item in candidate_strings:
-        if isinstance(item, str) and item.strip().startswith("{") and item.strip().endswith("}"):
+    payload_file = os.environ.get("VOICEFI_HOOK_PAYLOAD_FILE")
+    if payload_file and os.path.isfile(payload_file):
+        try:
+            with open(payload_file, "r", encoding="utf-8") as pf:
+                loaded = json.load(pf)
+                if isinstance(loaded, dict):
+                    payload = loaded
+        except Exception:
+            pass
+        finally:
             try:
-                payload = json.loads(item.strip())
-                break
+                os.unlink(payload_file)
             except Exception:
                 pass
 
-    # Read hook payload from stdin non-blockingly if not found in argv
+    if not payload:
+        extra = getattr(args, "extra_args", []) or []
+        candidate_strings = []
+        if action and action not in ("enable", "disable", "status", "remove", "uninstall", "on", "off"):
+            candidate_strings.append(action)
+        candidate_strings.extend(extra)
+        candidate_strings.extend(sys.argv)
+
+        for item in candidate_strings:
+            if isinstance(item, str) and item.strip().startswith("{") and item.strip().endswith("}"):
+                try:
+                    payload = json.loads(item.strip())
+                    break
+                except Exception:
+                    pass
+
+    # Read hook payload from stdin non-blockingly if not found in argv or worker file
     if not payload:
         try:
             if not sys.stdin.isatty():
@@ -290,7 +306,70 @@ def cmd_hook(args: Any) -> None:
         print(json.dumps({}))
         return
 
-    # Standalone fallback: execute in-process if background server is offline
+    # Standalone execution: determine if synchronous or background worker
+    is_worker = getattr(args, "worker", False) or os.environ.get("VOICEFI_HOOK_WORKER") == "1"
+    is_sync = (
+        getattr(args, "sync", False)
+        or getattr(args, "block", False)
+        or os.environ.get("VOICEFI_HOOK_SYNC") == "1"
+        or bool(os.environ.get("PYTEST_CURRENT_TEST"))
+    )
+
+    if not is_worker and not is_sync:
+        # ALWAYS DETACH: Spawn an independent background worker process so Antigravity,
+        # Claude Code, or Codex releases the turn immediately (0ms UI latency).
+        import subprocess
+        import tempfile
+        from pathlib import Path
+
+        temp_f = tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False)
+        json.dump(payload, temp_f)
+        temp_f.close()
+
+        worker_env = os.environ.copy()
+        worker_env["VOICEFI_HOOK_WORKER"] = "1"
+        worker_env["VOICEFI_HOOK_PAYLOAD_FILE"] = temp_f.name
+
+        pkg_root = Path(__file__).resolve().parent.parent.parent
+        src_dir = str(pkg_root / "src") if (pkg_root / "src").is_dir() else str(pkg_root)
+        cur_pypath = worker_env.get("PYTHONPATH", "")
+        worker_env["PYTHONPATH"] = f"{src_dir}:{cur_pypath}" if cur_pypath else src_dir
+
+        worker_cmd = [
+            sys.executable,
+            "-m",
+            "voicefi.cli",
+            "hook",
+            "--worker",
+            "--agent",
+            target_agent,
+        ]
+        if voice_arg:
+            worker_cmd.extend(["--voice", voice_arg])
+        if getattr(args, "config", None):
+            worker_cmd.extend(["--config", str(args.config)])
+
+        try:
+            subprocess.Popen(
+                worker_cmd,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+                close_fds=True,
+                env=worker_env,
+            )
+            # Parent process returns clean JSON instantly
+            print(json.dumps({}))
+            return
+        except Exception:
+            # Fallback to in-process execution if detached spawn fails
+            try:
+                os.unlink(temp_f.name)
+            except Exception:
+                pass
+
+    # Worker or Synchronous fallback: execute in-process
     cli_mod = sys.modules.get("voicefi.cli")
     if is_claude:
         hook_fn = getattr(cli_mod, "handle_claude_stop_hook", None) if cli_mod else None

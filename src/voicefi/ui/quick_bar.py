@@ -39,6 +39,7 @@ from AppKit import (
     NSPoint,
     NSSize,
     NSTextField,
+    NSTextFieldCell,
     NSTextAlignmentLeft,
     NSTextAlignmentCenter,
     NSButton,
@@ -50,6 +51,7 @@ from AppKit import (
     NSView,
     NSImageView,
     NSImage,
+    NSImageLeft,
     NSImageScaleProportionallyUpOrDown,
     NSWorkspace,
     NSVisualEffectView,
@@ -62,6 +64,8 @@ from AppKit import (
     NSMenuItem,
     NSApp,
     NSImageSymbolConfiguration,
+    NSString,
+    NSFontAttributeName,
 )
 from PyObjCTools import AppHelper
 
@@ -98,6 +102,63 @@ except objc.nosuchclass_error:
         def needsPanelToBecomeKey(self):
             return True
 
+        def performKeyEquivalent_(self, event):
+            try:
+                flags = event.modifierFlags()
+                vk = event.keyCode()
+                # 1. Cmd+D or Ctrl+D (Dictation, vk 2)
+                is_cmd = bool(flags & 0x100000)
+                is_ctrl = bool(flags & 0x40000)
+                if vk == 2 and (is_cmd or is_ctrl):
+                    QuickPromptBarWindow.get_instance().toggle_voice_input()
+                    return True
+                # 2. Ctrl+M or Cmd+M (Mic, vk 46)
+                if vk == 46 and (is_ctrl or is_cmd):
+                    QuickPromptBarWindow.get_instance().toggle_voice_input()
+                    return True
+                # 3. Ctrl+Space while focused (vk 49 + Control)
+                if vk == 49 and is_ctrl and not is_cmd:
+                    QuickPromptBarWindow.get_instance().toggle_voice_input()
+                    return True
+            except Exception:
+                pass
+            return objc.super(QuickBarPanel, self).performKeyEquivalent_(event)
+
+
+try:
+    QuickBarCenteringCell = objc.lookUpClass("QuickBarCenteringCell")
+except objc.nosuchclass_error:
+
+    class QuickBarCenteringCell(objc.lookUpClass("NSTextFieldCell")):
+        """Vertically centers prompt input text and selection within NSTextField."""
+
+        def drawingRectForBounds_(self, rect):
+            r = objc.super(QuickBarCenteringCell, self).drawingRectForBounds_(rect)
+            sz = self.cellSizeForBounds_(rect)
+            dy = (rect.size.height - sz.height) / 2.0
+            if dy > 0:
+                r.origin.y += dy
+                r.size.height -= dy
+            return r
+
+        def editWithFrame_inView_editor_delegate_event_(
+            self, rect, controlView, textObj, delegate, event
+        ):
+            r = self.drawingRectForBounds_(rect)
+            objc.super(QuickBarCenteringCell, self).editWithFrame_inView_editor_delegate_event_(
+                r, controlView, textObj, delegate, event
+            )
+
+        def selectWithFrame_inView_editor_delegate_start_length_(
+            self, rect, controlView, textObj, delegate, selStart, selLength
+        ):
+            r = self.drawingRectForBounds_(rect)
+            objc.super(
+                QuickBarCenteringCell, self
+            ).selectWithFrame_inView_editor_delegate_start_length_(
+                r, controlView, textObj, delegate, selStart, selLength
+            )
+
 
 try:
     QuickBarActionTarget = objc.lookUpClass("QuickBarActionTarget")
@@ -115,6 +176,16 @@ except objc.nosuchclass_error:
         def buttonClicked_(self, sender):
             if self.callback:
                 self.callback()
+
+
+def _get_current_event():
+    """Retrieve active NSEvent from NSApp if available."""
+    try:
+        from AppKit import NSApp
+
+        return NSApp.currentEvent()
+    except Exception:
+        return None
 
 
 try:
@@ -135,15 +206,21 @@ except objc.nosuchclass_error:
             if "insertNewline:" in sel_name:
                 if self.bar:
                     is_shift = False
+                    is_alt = False
                     try:
-                        from AppKit import NSApp, NSEventModifierFlagShift
+                        from AppKit import (
+                            NSEventModifierFlagShift,
+                            NSEventModifierFlagOption,
+                        )
 
-                        ev = NSApp.currentEvent()
+                        ev = _get_current_event()
                         if ev:
-                            is_shift = bool(ev.modifierFlags() & NSEventModifierFlagShift)
+                            flags = ev.modifierFlags()
+                            is_shift = bool(flags & NSEventModifierFlagShift)
+                            is_alt = bool(flags & NSEventModifierFlagOption)
                     except Exception:
                         pass
-                    self.bar._on_submit_action(new_conversation=is_shift)
+                    self.bar._on_submit_action(new_conversation=is_shift, silent_send=is_alt)
                 return True
             elif "cancelOperation:" in sel_name:
                 if self.bar:
@@ -266,8 +343,10 @@ class QuickPromptBarWindow:
         self._text_field: Optional[NSTextField] = None
         self._agent_btn: Optional[NSButton] = None
         self._plus_btn: Optional[NSButton] = None
+        self._mic_btn: Optional[NSButton] = None
         self._vifi_btn: Optional[NSButton] = None
         self._action_btn: Optional[NSButton] = None
+        self._icon_cache: Dict[str, Any] = {}
         self._targets: List[Any] = []
         self._text_delegate: Optional[QuickBarTextDelegate] = None
         self._window_delegate: Optional[QuickBarWindowDelegate] = None
@@ -291,6 +370,153 @@ class QuickPromptBarWindow:
             if a["id"] == agent_id:
                 return a
         return SUPPORTED_AGENTS[0]
+
+    def get_agent_icon(self, agent_id: str, size: int = 16) -> Optional[Any]:
+        """Resolve native brand logo image for an agent at the specified point size."""
+        if not hasattr(self, "_icon_cache"):
+            self._icon_cache = {}
+        cache_key = f"{agent_id}_{size}"
+        if cache_key in self._icon_cache:
+            return self._icon_cache[cache_key]
+
+        ws = NSWorkspace.sharedWorkspace()
+        hud_file = Path(__file__).resolve()
+        asset_dirs = [
+            hud_file.parent.parent.parent.parent / "assets",
+            hud_file.parent.parent / "assets",
+            Path.home() / ".voicefi" / "assets",
+        ]
+
+        agent_map = {
+            "antigravity": {
+                "files": ["logo-antigravity.svg", "logo-antigravity.png"],
+                "app": "Antigravity",
+            },
+            "claude": {
+                "files": ["logo-claude.svg", "logo-claude.png"],
+                "app": "Claude",
+            },
+            "flash": {
+                "files": ["logo-gemini.svg", "logo-gemini.png"],
+                "app": "Gemini",
+            },
+            "pro": {
+                "files": ["logo-gemini.svg", "logo-gemini.png"],
+                "app": "Gemini",
+            },
+            "chatgpt": {
+                "files": ["logo-chatgpt.svg", "logo-chatgpt.png"],
+                "app": "ChatGPT",
+                "app_res": "/Applications/ChatGPT.app/Contents/Resources/icon-chatgpt.png",
+            },
+            "cursor": {
+                "files": ["logo-cursor.svg", "logo-cursor.png"],
+                "app": "Cursor",
+            },
+            "windsurf": {
+                "files": ["logo-windsurf.svg", "logo-windsurf.png"],
+                "app": "Windsurf",
+            },
+            "terminal": {
+                "files": ["logo-terminal.svg", "logo-terminal.png"],
+                "app": "Terminal",
+            },
+            "obsidian": {
+                "files": ["logo-obsidian.svg", "logo-obsidian.png"],
+                "app": "Obsidian",
+            },
+        }
+
+        info = agent_map.get(agent_id.lower().strip(), {})
+        img = None
+
+        # 1. Custom app resource if specified
+        if "app_res" in info and os.path.exists(info["app_res"]):
+            cand = NSImage.alloc().initWithContentsOfFile_(info["app_res"])
+            if cand and hasattr(cand, "isValid") and cand.isValid():
+                img = cand
+
+        # 2. Vector SVG or bundled image in asset dirs
+        if not img:
+            for ad in asset_dirs:
+                for fname in info.get("files", []):
+                    p = ad / fname
+                    if p.is_file():
+                        cand = NSImage.alloc().initWithContentsOfFile_(str(p))
+                        if cand and hasattr(cand, "isValid") and cand.isValid():
+                            img = cand
+                            break
+                if img:
+                    break
+
+        # 3. Native macOS application bundle icon
+        if not img:
+            app_name = info.get("app")
+            if app_name:
+                app_path = ws.fullPathForApplication_(app_name)
+                if app_path and os.path.exists(app_path):
+                    cand = ws.iconForFile_(app_path)
+                    if cand and hasattr(cand, "isValid") and cand.isValid():
+                        img = cand
+
+        if img:
+            img_copy = img.copy()
+            img_copy.setSize_(NSSize(size, size))
+            self._icon_cache[cache_key] = img_copy
+            return img_copy
+
+        return None
+
+    def _layout_controls(self):
+        """Perform pixel-perfect layout of controls with exact vertical centering and spacing."""
+        if (
+            not self._root_view
+            or not self._agent_btn
+            or not self._text_field
+            or not self._mic_btn
+            or not self._action_btn
+        ):
+            return
+
+        w = self.STANDARD_WIDTH
+        right_margin = 12.0
+        gap = 8.0
+        btn_size = 32.0
+        btn_y = 10.0  # Exact center Y = 26.0 within 52.0 height container
+
+        # 1. Action / Send button on far right
+        action_x = w - right_margin - btn_size
+        self._action_btn.setFrame_(NSRect(NSPoint(action_x, btn_y), NSSize(btn_size, btn_size)))
+
+        # 2. Mic dictation button
+        mic_x = action_x - gap - btn_size
+        self._mic_btn.setFrame_(NSRect(NSPoint(mic_x, btn_y), NSSize(btn_size, btn_size)))
+
+        # 3. Agent selector button
+        agent_info = self._get_agent_info(self.current_agent_id)
+        title = f"{agent_info['name']} ▾"
+        font = NSFont.systemFontOfSize_(12.5)
+        needed_w = 120.0
+        try:
+            ns_str = NSString.stringWithString_(title)
+            sz = ns_str.sizeWithAttributes_({NSFontAttributeName: font})
+            # icon (16) + spacing (6) + text + horizontal padding (22)
+            needed_w = float(sz.width) + 16.0 + 6.0 + 22.0
+        except Exception:
+            pass
+
+        agent_w = round(max(110.0, min(148.0, needed_w)))
+        agent_h = 28.0
+        agent_y = 12.0  # Exact center Y = 26.0
+        agent_x = mic_x - gap - agent_w
+        self._agent_btn.setFrame_(NSRect(NSPoint(agent_x, agent_y), NSSize(agent_w, agent_h)))
+
+        # 4. Text input field
+        tf_x = 52.0  # 8px gap after [+] button (ends at 44)
+        tf_w = max(100.0, (agent_x - gap) - tf_x)
+        tf_h = 30.0
+        tf_y = 11.0  # Exact center Y = 26.0
+        self._text_field.setFrame_(NSRect(NSPoint(tf_x, tf_y), NSSize(tf_w, tf_h)))
 
     def _build_panel(self):
         """Construct the native macOS AppKit Quick Prompt Bar window and controls."""
@@ -357,11 +583,18 @@ class QuickPromptBarWindow:
         self._plus_btn = NSButton.alloc().initWithFrame_(NSRect(NSPoint(12, 10), NSSize(32, 32)))
         self._plus_btn.setWantsLayer_(True)
         self._plus_btn.layer().setCornerRadius_(16.0)
+        self._plus_btn.layer().setBackgroundColor_(
+            NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 1.0, 1.0, 0.06).CGColor()
+        )
+        self._plus_btn.layer().setBorderWidth_(0.5)
+        self._plus_btn.layer().setBorderColor_(
+            NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 1.0, 1.0, 0.12).CGColor()
+        )
         self._plus_btn.setBordered_(False)
         self._plus_btn.setToolTip_("Options & Context")
         plus_img = NSImage.imageWithSystemSymbolName_accessibilityDescription_("plus", None)
         if plus_img:
-            cfg = NSImageSymbolConfiguration.configurationWithPointSize_weight_(14.0, 5)
+            cfg = NSImageSymbolConfiguration.configurationWithPointSize_weight_(13.0, 6)
             plus_img = plus_img.imageWithSymbolConfiguration_(cfg)
             self._plus_btn.setImage_(plus_img)
         else:
@@ -376,8 +609,13 @@ class QuickPromptBarWindow:
         # 4. Prompt Input Field
         agent_info = self._get_agent_info(self.current_agent_id)
         self._text_field = NSTextField.alloc().initWithFrame_(
-            NSRect(NSPoint(48, 11), NSSize(360, 30))
+            NSRect(NSPoint(52, 11), NSSize(340, 30))
         )
+        try:
+            cell = QuickBarCenteringCell.alloc().initTextCell_("")
+            self._text_field.setCell_(cell)
+        except Exception:
+            pass
         self._text_field.setFont_(NSFont.systemFontOfSize_(15.0))
         self._text_field.setTextColor_(NSColor.whiteColor())
         self._text_field.setPlaceholderString_(agent_info["placeholder"])
@@ -392,16 +630,24 @@ class QuickPromptBarWindow:
         self._root_view.addSubview_(self._text_field)
 
         # 5. Agent Selector Dropdown Button
-        self._agent_btn = NSButton.alloc().initWithFrame_(NSRect(NSPoint(414, 12), NSSize(100, 28)))
+        self._agent_btn = NSButton.alloc().initWithFrame_(NSRect(NSPoint(400, 12), NSSize(120, 28)))
         self._agent_btn.setWantsLayer_(True)
         self._agent_btn.layer().setCornerRadius_(14.0)
         self._agent_btn.layer().setBackgroundColor_(
             NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 1.0, 1.0, 0.08).CGColor()
         )
+        self._agent_btn.layer().setBorderWidth_(0.5)
+        self._agent_btn.layer().setBorderColor_(
+            NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 1.0, 1.0, 0.14).CGColor()
+        )
         self._agent_btn.setBordered_(False)
         self._agent_btn.setTitle_(f"{agent_info['name']} ▾")
         self._agent_btn.setFont_(NSFont.systemFontOfSize_(12.5))
         self._agent_btn.setToolTip_("Select Target AI Agent")
+        agent_logo = self.get_agent_icon(self.current_agent_id, size=16)
+        if agent_logo:
+            self._agent_btn.setImage_(agent_logo)
+            self._agent_btn.setImagePosition_(NSImageLeft)
 
         agent_target = QuickBarActionTarget.alloc().initWithCallback_(self._show_agent_menu)
         self._targets.append(agent_target)
@@ -409,62 +655,58 @@ class QuickPromptBarWindow:
         self._agent_btn.setAction_(objc.selector(agent_target.buttonClicked_, signature=b"v@:@"))
         self._root_view.addSubview_(self._agent_btn)
 
-        # 6. VoiceFi Character Logo Button (Replaces Generic Mic)
-        self._vifi_btn = NSButton.alloc().initWithFrame_(NSRect(NSPoint(522, 10), NSSize(32, 32)))
-        self._vifi_btn.setWantsLayer_(True)
-        self._vifi_btn.layer().setCornerRadius_(16.0)
-        self._vifi_btn.setBordered_(False)
-        self._vifi_btn.setToolTip_("VoiceFi Voice Engine (Click to Speak / Dictate)")
+        # 6. Voice Dictation Button (Microphone with active pulse)
+        self._mic_btn = NSButton.alloc().initWithFrame_(NSRect(NSPoint(536, 10), NSSize(32, 32)))
+        self._mic_btn.setWantsLayer_(True)
+        self._mic_btn.layer().setCornerRadius_(16.0)
+        self._mic_btn.layer().setBackgroundColor_(
+            NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 1.0, 1.0, 0.06).CGColor()
+        )
+        self._mic_btn.layer().setBorderWidth_(0.5)
+        self._mic_btn.layer().setBorderColor_(
+            NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 1.0, 1.0, 0.10).CGColor()
+        )
+        self._mic_btn.setBordered_(False)
+        self._mic_btn.setToolTip_("Voice Dictation (Click or Ctrl+Space to Speak)")
 
-        # Load VoiceFi Logo Asset
-        icon_paths = [
-            Path(__file__).resolve().parent.parent.parent.parent
-            / "assets"
-            / "logo-voicefi-avatar-bold-dark-1024.png",
-            Path(__file__).resolve().parent.parent.parent.parent / "assets" / "VoiceFi.icns",
-            Path.home() / ".voicefi" / "assets" / "VoiceFi.icns",
-        ]
-        vifi_icon = None
-        for p in icon_paths:
-            if p.is_file():
-                vifi_icon = NSImage.alloc().initWithContentsOfFile_(str(p))
-                if vifi_icon and vifi_icon.isValid():
-                    vifi_icon.setSize_(NSSize(24, 24))
-                    break
-        if vifi_icon:
-            self._vifi_btn.setImage_(vifi_icon)
-            if hasattr(self._vifi_btn, "setImageScaling_"):
-                self._vifi_btn.setImageScaling_(NSImageScaleProportionallyUpOrDown)
+        mic_img = NSImage.imageWithSystemSymbolName_accessibilityDescription_("mic.fill", None)
+        if not mic_img:
+            mic_img = NSImage.imageWithSystemSymbolName_accessibilityDescription_("mic", None)
+        if mic_img:
+            cfg = NSImageSymbolConfiguration.configurationWithPointSize_weight_(13.5, 5)
+            mic_img = mic_img.imageWithSymbolConfiguration_(cfg)
+            self._mic_btn.setImage_(mic_img)
         else:
-            self._vifi_btn.setTitle_("VF")
+            self._mic_btn.setTitle_("🎙")
 
-        vifi_target = QuickBarActionTarget.alloc().initWithCallback_(self.toggle_voice_input)
-        self._targets.append(vifi_target)
-        self._vifi_btn.setTarget_(vifi_target)
-        self._vifi_btn.setAction_(objc.selector(vifi_target.buttonClicked_, signature=b"v@:@"))
-        self._root_view.addSubview_(self._vifi_btn)
+        mic_target = QuickBarActionTarget.alloc().initWithCallback_(self.toggle_voice_input)
+        self._targets.append(mic_target)
+        self._mic_btn.setTarget_(mic_target)
+        self._mic_btn.setAction_(objc.selector(mic_target.buttonClicked_, signature=b"v@:@"))
+        self._root_view.addSubview_(self._mic_btn)
+        self._vifi_btn = self._mic_btn  # Backward-compatible alias
 
-        # 7. Royal Blue Action Submit Circle Button
-        self._action_btn = NSButton.alloc().initWithFrame_(NSRect(NSPoint(566, 7), NSSize(38, 38)))
+        # 7. Action / Send Button (Royal Blue Up-Arrow Circle)
+        self._action_btn = NSButton.alloc().initWithFrame_(NSRect(NSPoint(576, 10), NSSize(32, 32)))
         self._action_btn.setWantsLayer_(True)
-        self._action_btn.layer().setCornerRadius_(19.0)
+        self._action_btn.layer().setCornerRadius_(16.0)
         self._action_btn.layer().setBackgroundColor_(
             NSColor.colorWithCalibratedRed_green_blue_alpha_(0.145, 0.388, 0.922, 1.0).CGColor()
         )
         self._action_btn.setBordered_(False)
-        self._action_btn.setToolTip_("Send Prompt (Enter) • ⇧↵ for New Session")
+        self._action_btn.setToolTip_("Send Prompt (Enter) • ⌥↵ Silent Send • ⇧↵ New Session")
 
-        action_img = NSImage.imageWithSystemSymbolName_accessibilityDescription_("waveform", None)
-        if not action_img:
-            action_img = NSImage.imageWithSystemSymbolName_accessibilityDescription_(
-                "sparkles", None
+        send_img = NSImage.imageWithSystemSymbolName_accessibilityDescription_("arrow.up", None)
+        if not send_img:
+            send_img = NSImage.imageWithSystemSymbolName_accessibilityDescription_(
+                "paperplane.fill", None
             )
-        if action_img:
-            cfg = NSImageSymbolConfiguration.configurationWithPointSize_weight_(16.0, 5)
-            action_img = action_img.imageWithSymbolConfiguration_(cfg)
-            self._action_btn.setImage_(action_img)
+        if send_img:
+            cfg = NSImageSymbolConfiguration.configurationWithPointSize_weight_(14.0, 6)
+            send_img = send_img.imageWithSymbolConfiguration_(cfg)
+            self._action_btn.setImage_(send_img)
         else:
-            self._action_btn.setTitle_("↵")
+            self._action_btn.setTitle_("↑")
 
         action_target = QuickBarActionTarget.alloc().initWithCallback_(self._on_submit_action)
         self._targets.append(action_target)
@@ -472,6 +714,7 @@ class QuickPromptBarWindow:
         self._action_btn.setAction_(objc.selector(action_target.buttonClicked_, signature=b"v@:@"))
         self._root_view.addSubview_(self._action_btn)
 
+        self._layout_controls()
         self._panel.setContentView_(self._root_view)
 
     # =========================================================================
@@ -501,7 +744,45 @@ class QuickPromptBarWindow:
         item_new.setAction_(objc.selector(target_new.buttonClicked_, signature=b"v@:@"))
         menu.addItem_(item_new)
 
+        item_silent = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
+            "🤫 Silent Background Send  ⌥↵", None, ""
+        )
+        target_silent = QuickBarActionTarget.alloc().initWithCallback_(
+            lambda: self._on_submit_action(silent_send=True)
+        )
+        self._targets.append(target_silent)
+        item_silent.setTarget_(target_silent)
+        item_silent.setAction_(objc.selector(target_silent.buttonClicked_, signature=b"v@:@"))
+        menu.addItem_(item_silent)
+
         menu.addItem_(NSMenuItem.separatorItem())
+
+        try:
+            cfg_curr = load_config()
+            focus_target = getattr(cfg_curr.global_hotkey, "quick_bar_focus_target", True)
+        except Exception:
+            focus_target = True
+
+        focus_title = "✓ Focus Target App on Dispatch" if focus_target else "Focus Target App on Dispatch"
+        item_focus = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
+            focus_title, None, ""
+        )
+
+        def _toggle_focus():
+            try:
+                c = load_config()
+                c.global_hotkey.quick_bar_focus_target = not getattr(
+                    c.global_hotkey, "quick_bar_focus_target", True
+                )
+                save_config(c)
+            except Exception:
+                pass
+
+        target_focus = QuickBarActionTarget.alloc().initWithCallback_(_toggle_focus)
+        self._targets.append(target_focus)
+        item_focus.setTarget_(target_focus)
+        item_focus.setAction_(objc.selector(target_focus.buttonClicked_, signature=b"v@:@"))
+        menu.addItem_(item_focus)
 
         item_speed = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
             "⚡ Toggle Speed Talking", None, ""
@@ -542,16 +823,16 @@ class QuickPromptBarWindow:
         finally:
             self._is_menu_open = False
 
-    def _show_agent_menu(self):
-        """Display agent selection dropdown menu when model button is clicked."""
-        if not self._agent_btn or not self._panel:
-            return
-
+    def _build_agent_menu(self) -> NSMenu:
+        """Construct agent selection NSMenu with official brand logos instead of emojis."""
         menu = NSMenu.alloc().initWithTitle_("Select Agent")
 
         for agent in SUPPORTED_AGENTS:
-            title = f"{agent['icon']} {agent['name']}"
+            title = agent["name"]
             item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(title, None, "")
+            logo = self.get_agent_icon(agent["id"], size=18)
+            if logo:
+                item.setImage_(logo)
 
             # Submenu or custom target to switch agent
             target = QuickBarActionTarget.alloc().initWithCallback_(
@@ -563,7 +844,14 @@ class QuickPromptBarWindow:
             if agent["id"] == self.current_agent_id:
                 item.setState_(1)
             menu.addItem_(item)
+        return menu
 
+    def _show_agent_menu(self):
+        """Display agent selection dropdown menu with official brand logos instead of emojis."""
+        if not self._agent_btn or not self._panel:
+            return
+
+        menu = self._build_agent_menu()
         self._is_menu_open = True
         try:
             menu.popUpMenuPositioningItem_atLocation_inView_(None, NSPoint(0, 0), self._agent_btn)
@@ -571,13 +859,19 @@ class QuickPromptBarWindow:
             self._is_menu_open = False
 
     def select_agent(self, agent_id: str):
-        """Switch active agent target, update button title, placeholder, and persist preference."""
+        """Switch active agent target, update button title, icon, placeholder, and persist preference."""
         self.current_agent_id = agent_id
         agent_info = self._get_agent_info(agent_id)
+        logo = self.get_agent_icon(agent_id, size=16)
 
         def _update():
             if self._agent_btn:
                 self._agent_btn.setTitle_(f"{agent_info['name']} ▾")
+                if logo and hasattr(self._agent_btn, "setImage_"):
+                    self._agent_btn.setImage_(logo)
+                    if hasattr(self._agent_btn, "setImagePosition_"):
+                        self._agent_btn.setImagePosition_(NSImageLeft)
+                self._layout_controls()
             if self._text_field:
                 self._text_field.setPlaceholderString_(agent_info["placeholder"])
 
@@ -610,12 +904,35 @@ class QuickPromptBarWindow:
         if self.is_voice_active:
             return
         self.is_voice_active = True
+        self._initial_text_before_voice = (
+            self._text_field.stringValue().strip() if self._text_field else ""
+        )
+        if self.on_voice_toggle:
+            try:
+                self.on_voice_toggle(True)
+            except Exception:
+                pass
 
         def _set_active_ui():
-            if self._vifi_btn:
-                self._vifi_btn.layer().setBackgroundColor_(
-                    NSColor.colorWithCalibratedRed_green_blue_alpha_(0.9, 0.2, 0.2, 0.4).CGColor()
+            btn = getattr(self, "_mic_btn", None) or getattr(self, "_vifi_btn", None)
+            if btn:
+                btn.layer().setBackgroundColor_(
+                    NSColor.colorWithCalibratedRed_green_blue_alpha_(
+                        0.92, 0.25, 0.25, 0.88
+                    ).CGColor()
                 )
+                btn.layer().setBorderWidth_(1.2)
+                btn.layer().setBorderColor_(
+                    NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 0.6, 0.6, 0.9).CGColor()
+                )
+                wave_img = NSImage.imageWithSystemSymbolName_accessibilityDescription_(
+                    "waveform", None
+                )
+                if wave_img:
+                    cfg = NSImageSymbolConfiguration.configurationWithPointSize_weight_(13.5, 6)
+                    wave_img = wave_img.imageWithSymbolConfiguration_(cfg)
+                    btn.setImage_(wave_img)
+                btn.setToolTip_("Listening... (Click or Ctrl+Space to Stop)")
 
         if threading.current_thread() is threading.main_thread():
             _set_active_ui()
@@ -629,46 +946,108 @@ class QuickPromptBarWindow:
                 from voicefi.audio.recorder import AudioRecorder
                 from voicefi.stt import get_stt_engine
                 from voicefi.audio.chimes import play_chime
+                from voicefi.tts.base import stop_all_speech
+
+                # Halt any active TTS so it doesn't mute the microphone on built-in speakers
+                stop_all_speech()
 
                 cfg = load_config()
                 if getattr(cfg.audio_cues, "enabled", True):
                     play_chime("start", block=False)
-                time.sleep(0.2)
+                time.sleep(0.15)
 
                 recorder = AudioRecorder(
                     sample_rate=cfg.vad.sample_rate,
                     energy_threshold=cfg.vad.energy_threshold,
                     silence_duration=cfg.vad.silence_duration,
+                    barge_in=True,
                 )
                 self._active_recorder = recorder
 
                 def _on_live(txt: str):
-                    if not self.is_voice_active:
+                    if not self.is_voice_active and not getattr(self, "_pending_submit", None):
                         return
 
                     def _update_txt():
                         if self._text_field:
-                            self._text_field.setStringValue_(txt)
+                            prefix = getattr(self, "_initial_text_before_voice", "")
+                            full_txt = f"{prefix} {txt}".strip() if prefix else txt
+                            self._text_field.setStringValue_(full_txt)
 
                     AppHelper.callAfter(_update_txt)
 
+                def _on_tick(energy: float, conf: float = 0.0, is_spk: bool = False):
+                    if not self.is_voice_active:
+                        return
+
+                    def _pulse():
+                        btn = getattr(self, "_mic_btn", None) or getattr(self, "_vifi_btn", None)
+                        if btn and btn.layer():
+                            if is_spk or energy > 0.015:
+                                btn.layer().setBorderWidth_(2.0)
+                                btn.layer().setBorderColor_(
+                                    NSColor.colorWithCalibratedRed_green_blue_alpha_(
+                                        1.0, 0.85, 0.85, 1.0
+                                    ).CGColor()
+                                )
+                            else:
+                                btn.layer().setBorderWidth_(1.2)
+                                btn.layer().setBorderColor_(
+                                    NSColor.colorWithCalibratedRed_green_blue_alpha_(
+                                        1.0, 0.6, 0.6, 0.9
+                                    ).CGColor()
+                                )
+
+                    AppHelper.callAfter(_pulse)
+
                 audio_data, temp_wav = recorder.record_speech_auto(
                     on_live_transcript=_on_live,
+                    on_listening_tick=_on_tick,
+                    stop_event=self._ptt_stop_event,
+                    cancel_on_typing=False,
                 )
 
-                if audio_data is not None:
-                    stt = get_stt_engine(cfg)
+                final_text = ""
+                stt = get_stt_engine(cfg)
+                if temp_wav and Path(temp_wav).is_file() and Path(temp_wav).stat().st_size > 0:
+                    final_text = stt.transcribe(temp_wav)
+                elif audio_data is not None and len(audio_data) > 0:
                     final_text = stt.transcribe(audio_data)
-                    if final_text and final_text.strip():
 
-                        def _set_final():
-                            if self._text_field:
-                                self._text_field.setStringValue_(final_text.strip())
+                final_text = final_text.strip() if final_text else ""
+                prefix = getattr(self, "_initial_text_before_voice", "")
+                result_text = f"{prefix} {final_text}".strip() if prefix else final_text
 
-                        AppHelper.callAfter(_set_final)
+                current_val = self._text_field.stringValue().strip() if self._text_field else ""
+                target_text = result_text or current_val
+
+                def _set_final():
+                    if self._text_field and target_text:
+                        self._text_field.setStringValue_(target_text)
+
+                AppHelper.callAfter(_set_final)
+
+                pending = getattr(self, "_pending_submit", None)
+                if pending:
+                    self._pending_submit = None
+                    new_conv = pending.get("new_conversation", False)
+                    silent = pending.get("silent_send", False)
+
+                    def _do_submit():
+                        self._dispatch_submitted_text(
+                            target_text, new_conversation=new_conv, silent_send=silent
+                        )
+
+                    AppHelper.callAfter(_do_submit)
 
             except Exception as e:
-                print(f"[QuickBar] Voice dictation error: {e}")
+                print(f"[QuickBar] Voice dictation error: {e}", flush=True)
+                try:
+                    from voicefi.audio.chimes import play_chime
+
+                    play_chime("error", block=False)
+                except Exception:
+                    pass
             finally:
                 self.stop_voice_input()
 
@@ -677,6 +1056,11 @@ class QuickPromptBarWindow:
     def stop_voice_input(self):
         """Stop voice dictation and reset button styling."""
         self.is_voice_active = False
+        if self.on_voice_toggle:
+            try:
+                self.on_voice_toggle(False)
+            except Exception:
+                pass
         if self._ptt_stop_event:
             self._ptt_stop_event.set()
         if self._active_recorder:
@@ -687,8 +1071,27 @@ class QuickPromptBarWindow:
             self._active_recorder = None
 
         def _reset_ui():
-            if self._vifi_btn:
-                self._vifi_btn.layer().setBackgroundColor_(NSColor.clearColor().CGColor())
+            btn = getattr(self, "_mic_btn", None) or getattr(self, "_vifi_btn", None)
+            if btn:
+                btn.layer().setBackgroundColor_(
+                    NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 1.0, 1.0, 0.06).CGColor()
+                )
+                btn.layer().setBorderWidth_(0.5)
+                btn.layer().setBorderColor_(
+                    NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 1.0, 1.0, 0.10).CGColor()
+                )
+                mic_img = NSImage.imageWithSystemSymbolName_accessibilityDescription_(
+                    "mic.fill", None
+                )
+                if not mic_img:
+                    mic_img = NSImage.imageWithSystemSymbolName_accessibilityDescription_(
+                        "mic", None
+                    )
+                if mic_img:
+                    cfg = NSImageSymbolConfiguration.configurationWithPointSize_weight_(13.5, 5)
+                    mic_img = mic_img.imageWithSymbolConfiguration_(cfg)
+                    btn.setImage_(mic_img)
+                btn.setToolTip_("Voice Dictation (Click or Ctrl+Space to Speak)")
 
         if threading.current_thread() is threading.main_thread():
             _reset_ui()
@@ -699,34 +1102,77 @@ class QuickPromptBarWindow:
     # Submit & Multi-Agent Dispatch
     # =========================================================================
 
-    def _on_submit_action(self, new_conversation: bool = False):
+    def _on_submit_action(
+        self, new_conversation: bool = False, silent_send: Optional[bool] = None
+    ):
         """Submit text prompt to selected agent."""
         if not self._text_field:
             return
 
+        # Determine effective silent send
+        if silent_send is None:
+            try:
+                cfg = load_config()
+                focus_target = getattr(cfg.global_hotkey, "quick_bar_focus_target", True)
+                effective_silent = not focus_target
+            except Exception:
+                effective_silent = False
+        else:
+            effective_silent = silent_send
+
+        if self.is_voice_active:
+            print(
+                f"[QuickBar] 🎙️ Submit requested while voice active (silent={effective_silent}) -> finalizing speech transcription first...",
+                flush=True,
+            )
+            self._pending_submit = {
+                "new_conversation": new_conversation,
+                "silent_send": effective_silent,
+            }
+            self.stop_voice_input()
+            if not self._text_field.stringValue().strip():
+                self._text_field.setPlaceholderString_("Transcribing speech...")
+            return
+
         text = self._text_field.stringValue().strip()
+        self._dispatch_submitted_text(
+            text, new_conversation=new_conversation, silent_send=effective_silent
+        )
+
+    def _dispatch_submitted_text(
+        self, text: str, new_conversation: bool = False, silent_send: bool = False
+    ):
         agent_id = self.current_agent_id
 
         # Hide bar immediately
         self.hide()
-        self._text_field.setStringValue_("")
+        if self._text_field:
+            self._text_field.setStringValue_("")
+            agent_info = self._get_agent_info(self.current_agent_id)
+            self._text_field.setPlaceholderString_(agent_info["placeholder"])
 
         print(
-            f"[QuickBar] 🚀 Dispatching prompt to {agent_id} (new_conv={new_conversation}): {text[:60]}..."
+            f"[QuickBar] 🚀 Dispatching prompt to {agent_id} (new_conv={new_conversation}, silent={silent_send}): {text[:60]}..."
         )
 
         # If custom callback provided, use it
         if self.on_submit:
             try:
                 self.on_submit(text, agent_id)
+                if silent_send:
+                    self.restore_previous_focus()
                 return
             except Exception as e:
                 print(f"[QuickBar] on_submit callback error: {e}")
 
         # Default multi-agent dispatch logic
-        self.dispatch_to_agent(text, agent_id, new_conversation=new_conversation)
+        self.dispatch_to_agent(
+            text, agent_id, new_conversation=new_conversation, silent_send=silent_send
+        )
 
-    def dispatch_to_agent(self, text: str, agent_id: str, new_conversation: bool = False):
+    def dispatch_to_agent(
+        self, text: str, agent_id: str, new_conversation: bool = False, silent_send: bool = False
+    ):
         """Execute prompt dispatch for the targeted agent."""
         clean_prompt = text.strip() or "Hello"
 
@@ -741,15 +1187,29 @@ class QuickPromptBarWindow:
 
             if new_conversation:
                 create_new_antigravity_conversation(prompt=clean_prompt)
+                if silent_send:
+                    self.restore_previous_focus()
             else:
-                injected = inject_text_to_antigravity(
-                    clean_prompt,
-                    submit_enter=True,
-                    new_conversation=False,
-                )
-                if not injected:
-                    send_message_to_antigravity(text=clean_prompt)
-                    focus_antigravity(focus_input=True)
+                if silent_send:
+                    # In silent mode, attempt native agentapi IPC first (zero window focus changes)
+                    res = send_message_to_antigravity(text=clean_prompt)
+                    if not res:
+                        inject_text_to_antigravity(
+                            clean_prompt,
+                            submit_enter=True,
+                            restore_focus=True,
+                            new_conversation=False,
+                        )
+                    self.restore_previous_focus()
+                else:
+                    injected = inject_text_to_antigravity(
+                        clean_prompt,
+                        submit_enter=True,
+                        new_conversation=False,
+                    )
+                    if not injected:
+                        send_message_to_antigravity(text=clean_prompt)
+                        focus_antigravity(focus_input=True)
 
             try:
                 cfg = load_config()
@@ -762,25 +1222,38 @@ class QuickPromptBarWindow:
             from voicefi.integrations.injector import inject_text_to_claude, focus_app_by_name
 
             inject_text_to_claude(text=clean_prompt, auto_submit=True)
-            focus_app_by_name("Claude")
+            if silent_send:
+                self.restore_previous_focus()
+            else:
+                focus_app_by_name("Claude")
 
         elif agent_id in ("flash", "pro", "gemini"):
             from voicefi.integrations.injector import send_message_to_agent
 
             send_message_to_agent(text=clean_prompt, target_engine="gemini")
+            if silent_send:
+                self.restore_previous_focus()
 
         elif agent_id in ("chatgpt", "openai"):
             from voicefi.integrations.injector import inject_text_to_chatgpt, focus_app_by_name
 
             inject_text_to_chatgpt(text=clean_prompt, auto_submit=True)
-            focus_app_by_name("ChatGPT")
+            if silent_send:
+                self.restore_previous_focus()
+            else:
+                focus_app_by_name("ChatGPT")
 
         else:
             from voicefi.integrations.injector import inject_text_to_antigravity
 
             inject_text_to_antigravity(
-                clean_prompt, submit_enter=True, new_conversation=new_conversation
+                clean_prompt,
+                submit_enter=True,
+                restore_focus=silent_send,
+                new_conversation=new_conversation,
             )
+            if silent_send:
+                self.restore_previous_focus()
 
     # =========================================================================
     # Window Visibility & Toggle
@@ -810,6 +1283,17 @@ class QuickPromptBarWindow:
 
             self._last_show_time = time.time()
             try:
+                from AppKit import NSWorkspace
+
+                ws = NSWorkspace.sharedWorkspace()
+                front_app = ws.frontmostApplication()
+                if front_app:
+                    bid = front_app.bundleIdentifier()
+                    if not bid or "voicefi" not in bid.lower():
+                        self._prev_active_app = front_app
+            except Exception:
+                pass
+            try:
                 from AppKit import NSRunningApplication
 
                 NSRunningApplication.currentApplication().activateWithOptions_(1 << 1)
@@ -831,6 +1315,20 @@ class QuickPromptBarWindow:
             _do_show()
         else:
             AppHelper.callAfter(_do_show)
+
+    def restore_previous_focus(self):
+        """Restore focus to the application that was active before the Quick Bar opened."""
+
+        def _restore():
+            try:
+                prev_app = getattr(self, "_prev_active_app", None)
+                if prev_app:
+                    time.sleep(0.12)
+                    prev_app.activateWithOptions_(1 << 1)
+            except Exception as e:
+                print(f"[QuickBar] Could not restore previous focus: {e}")
+
+        threading.Thread(target=_restore, daemon=True, name="QuickBarRestoreFocus").start()
 
     def hide(self):
         """Dismiss floating prompt bar."""

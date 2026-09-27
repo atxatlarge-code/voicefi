@@ -8,7 +8,12 @@ import threading
 import time
 from pathlib import Path
 from typing import Optional, List
-from voicefi.tts.base import BaseTTS, speech_turn_lock, DuplicateSpeechSuppressed
+from voicefi.tts.base import (
+    BaseTTS,
+    speech_turn_lock,
+    DuplicateSpeechSuppressed,
+    safe_terminate_process,
+)
 from voicefi.audio.meeting_detection import is_user_on_call
 from voicefi.tts.normalizer import normalize_tts_text
 
@@ -87,11 +92,8 @@ class MacSayTTS(BaseTTS):
         """Interrupt any ongoing speech playback."""
         self._stop_requested = True
         proc = self._current_process
-        if proc and proc.poll() is None:
-            try:
-                proc.terminate()
-            except Exception:
-                pass
+        if proc:
+            safe_terminate_process(proc)
             self._current_process = None
 
     def speak(self, text: str, block: bool = True) -> None:

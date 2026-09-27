@@ -48,6 +48,15 @@ def play_chime(sound_key_or_path: str, block: bool = False) -> None:
         sound_key_or_path: Key in SYSTEM_SOUNDS (e.g. 'start', 'sent', 'done') or absolute path to an audio file.
         block: Whether to block execution until the sound finishes.
     """
+    if not sound_key_or_path or str(sound_key_or_path).lower().strip() in (
+        "",
+        "none",
+        "off",
+        "disabled",
+        "false",
+    ):
+        return
+
     sound_path = SYSTEM_SOUNDS.get(sound_key_or_path, sound_key_or_path)
 
     # If the configured file does not exist, check fallback

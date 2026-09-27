@@ -316,6 +316,17 @@ class GeminiIntelligenceEngine:
             except Exception as e:
                 logger.debug("On-device local model distillation fallback: %s", e)
 
+        # Check if Gemini soundbite distillation is explicitly enabled (default False = instant deterministic heuristic)
+        if not getattr(getattr(self.config, "gemini", None), "enable_soundbite_distillation", False):
+            if fallback_to_heuristics:
+                try:
+                    from voicefi.integrations.antigravity import clean_markdown_for_speech
+
+                    return clean_markdown_for_speech(agent_output, max_words=effective_max_words)
+                except Exception:
+                    pass
+            return None
+
         system_prompt = (
             "You are VoiceFi's spoken voice synthesizer for AI coding agents. "
             f"Your job is to read the agent's output and condense it into a single punchy spoken sentence (under {effective_max_words} words). "

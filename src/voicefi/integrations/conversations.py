@@ -231,7 +231,9 @@ def save_session_cookie(
         "updatedAt": time.time(),
     }
     try:
-        tmp_file = cookie_path.with_suffix(".tmp")
+        tmp_file = cookie_path.with_name(
+            f"active_session_{os.getpid()}_{time.time_ns()}.tmp"
+        )
         with open(tmp_file, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
         tmp_file.replace(cookie_path)

@@ -479,7 +479,7 @@ antigravity:
 - 🎙️ **[Dynamic Island HUD Design Guide](docs/HUD_DESIGN_GUIDE.md)**: Glassmorphic HUD specifications and interactive debug studio.
 - 🎭 **[Cross-Agent Comedy & Banter Spec](docs/CROSS_AGENT_COMEDY_SPEC.md)**: Technical spec for acoustic joke duels and sound effect cues.
 - 🎵 **[Audio Attribution & Sound Effect Licenses](docs/AUDIO_ATTRIBUTION.md)**: Provenance, artist credits, and CC licensing for bundled acoustic sound cues.
-- 🤖 **[Agent Persona & Troubleshooting Guide](AGENTS.md)**: Hardware diagnostics, voice barge-in tuning, and multi-agent persona assignments.
+- 🤖 **[Agent Persona & Troubleshooting Guide](docs/AGENT_DEVELOPER_AND_TROUBLESHOOTING_GUIDE.md)**: Hardware diagnostics, voice barge-in tuning, and multi-agent persona assignments.
 - 🗺️ **[Development Roadmap](ROADMAP.md)**: Three-phase growth roadmap from CLI launch to voice store marketplace.
 - 🤝 **[Contributing Guidelines](CONTRIBUTING.md)**: Local development setup, testing standards, and PR workflows.
 - 📜 **[Code of Conduct](CODE_OF_CONDUCT.md)**: Community standards based on Contributor Covenant v2.1.

@@ -438,12 +438,17 @@ def cmd_learn(args):
             raw_text, max_words=target_words, fallback_to_heuristics=True
         )
         elapsed_ms = round((time.time() - t0) * 1000, 1)
-        provider = gem.get_active_provider()
+        is_gemini_enabled = getattr(
+            getattr(cfg, "gemini", None), "enable_soundbite_distillation", False
+        )
+        if not is_gemini_enabled:
+            provider_str = "HEURISTIC (100% Offline & Open-Source Deterministic)"
+        else:
+            provider = gem.get_active_provider()
+            provider_str = f"{provider.upper()} ({gem.model if provider == 'gemini' else gem.local_llm_model})"
 
         print("\n================= Distillation Benchmark =================")
-        print(
-            f"Provider:        {provider.upper()} ({gem.model if provider == 'gemini' else gem.local_llm_model})"
-        )
+        print(f"Provider:        {provider_str}")
         print(f"Latency:         {elapsed_ms}ms")
         print(f"Raw Words:       {len(raw_text.split())} words")
         print(f"Distilled Words: {len(distilled.split()) if distilled else 0} words")

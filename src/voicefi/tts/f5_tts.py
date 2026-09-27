@@ -18,6 +18,7 @@ from voicefi.tts.base import (
     speech_turn_lock,
     stop_all_speech,
     DuplicateSpeechSuppressed,
+    safe_terminate_process,
 )
 
 
@@ -310,16 +311,30 @@ class F5TTS(BaseTTS):
                     return
 
                 # Play generated WAV via afplay
-                set_agent_audio_playing(True)
-                self._current_process = subprocess.Popen(
-                    ["afplay", str(tmp_path)],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                )
+                def _play():
+                    try:
+                        set_agent_audio_playing(True)
+                        proc = subprocess.Popen(
+                            ["afplay", str(tmp_path)],
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL,
+                        )
+                        self._current_process = proc
+                        proc.wait()
+                    finally:
+                        set_agent_audio_playing(False)
+                        set_agent_speaking(False)
+                        self._current_process = None
+                        try:
+                            tmp_path.unlink(missing_ok=True)
+                        except Exception:
+                            pass
 
                 if block:
-                    self._current_process.wait()
-            finally:
+                    _play()
+                else:
+                    threading.Thread(target=_play, daemon=True).start()
+            except Exception:
                 set_agent_audio_playing(False)
                 set_agent_speaking(False)
                 self._current_process = None
@@ -331,10 +346,8 @@ class F5TTS(BaseTTS):
     def stop(self) -> None:
         """Interrupt playback."""
         self._stop_requested = True
-        if self._current_process:
-            try:
-                self._current_process.terminate()
-            except Exception:
-                pass
+        proc = self._current_process
+        if proc:
+            safe_terminate_process(proc)
             self._current_process = None
         stop_all_speech()

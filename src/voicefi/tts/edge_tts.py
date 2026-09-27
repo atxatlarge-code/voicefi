@@ -11,7 +11,12 @@ import time
 import sys
 from pathlib import Path
 from typing import Optional
-from voicefi.tts.base import BaseTTS, speech_turn_lock, DuplicateSpeechSuppressed
+from voicefi.tts.base import (
+    BaseTTS,
+    speech_turn_lock,
+    DuplicateSpeechSuppressed,
+    safe_terminate_process,
+)
 from voicefi.audio.meeting_detection import is_user_on_call
 from voicefi.tts.normalizer import normalize_tts_text
 
@@ -503,11 +508,9 @@ class EdgeTTS(BaseTTS):
     def stop(self) -> None:
         """Stop current speech playback."""
         self._stop_requested = True
-        if self._current_process and self._current_process.poll() is None:
-            try:
-                self._current_process.terminate()
-            except Exception:
-                pass
+        proc = self._current_process
+        if proc:
+            safe_terminate_process(proc)
             self._current_process = None
         if self._audio_queue:
             while not self._audio_queue.empty():

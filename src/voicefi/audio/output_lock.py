@@ -27,7 +27,7 @@ _CURRENT_LOCK_FILE_OBJ = None
 
 
 @contextmanager
-def exclusive_audio(timeout: float = 30.0, owner: str = ""):
+def exclusive_audio(timeout: float = 30.0, owner: str = "", raise_on_timeout: bool = True):
     """
     Acquire cross-process mutual exclusion lock on physical audio output.
     Blocks until previous speaker finishes or timeout expires.
@@ -43,7 +43,7 @@ def exclusive_audio(timeout: float = 30.0, owner: str = ""):
             _LOCK_DEPTH += 1
             is_nested = True
         else:
-            _LOCK_DEPTH += 1
+            _LOCK_DEPTH = 1
             is_nested = False
 
     if is_nested:
@@ -51,7 +51,7 @@ def exclusive_audio(timeout: float = 30.0, owner: str = ""):
             yield
         finally:
             with _IN_PROCESS_LOCK:
-                _LOCK_DEPTH -= 1
+                _LOCK_DEPTH = max(0, _LOCK_DEPTH - 1)
         return
 
     lock_path = get_audio_lock_path()
@@ -78,19 +78,21 @@ def exclusive_audio(timeout: float = 30.0, owner: str = ""):
                 time.sleep(0.05)
 
         if not acquired:
-            print(
-                f"[AudioLock] ⚠️ Timeout ({timeout:.1f}s) waiting for audio output mutex (owner={owner_str}). Proceeding.",
-                file=sys.stderr,
+            msg = (
+                f"[AudioLock] ⚠️ Timeout ({timeout:.1f}s) waiting for audio output mutex (owner={owner_str})."
             )
-
-        # Record diagnostics
-        try:
-            lock_file_obj.seek(0)
-            lock_file_obj.truncate()
-            lock_file_obj.write(f"owner={owner_str} pid={pid} acquired_at={time.time()}\n")
-            lock_file_obj.flush()
-        except Exception:
-            pass
+            print(msg, file=sys.stderr)
+            if raise_on_timeout:
+                raise TimeoutError(msg)
+        else:
+            # Record diagnostics only when lock was successfully acquired
+            try:
+                lock_file_obj.seek(0)
+                lock_file_obj.truncate()
+                lock_file_obj.write(f"owner={owner_str} pid={pid} acquired_at={time.time()}\n")
+                lock_file_obj.flush()
+            except Exception:
+                pass
 
         yield
     finally:
@@ -99,15 +101,16 @@ def exclusive_audio(timeout: float = 30.0, owner: str = ""):
                 _CURRENT_LOCK_FD = None
             if _CURRENT_LOCK_FILE_OBJ == lock_file_obj:
                 _CURRENT_LOCK_FILE_OBJ = None
-            _LOCK_DEPTH -= 1
+            _LOCK_DEPTH = max(0, _LOCK_DEPTH - 1)
 
-        if lock_fd is not None:
+        if lock_file_obj is not None:
             try:
-                fcntl.flock(lock_fd, fcntl.LOCK_UN)
-            except Exception:
-                pass
-            try:
-                lock_file_obj.close()
+                if not lock_file_obj.closed and lock_fd is not None:
+                    try:
+                        fcntl.flock(lock_fd, fcntl.LOCK_UN)
+                    except Exception:
+                        pass
+                    lock_file_obj.close()
             except Exception:
                 pass
 
@@ -126,12 +129,12 @@ def is_audio_output_locked() -> bool:
         return False
 
     try:
-        with open(lock_path, "a+") as f:
+        with open(lock_path, "r") as f:
             try:
-                fcntl.flock(f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                fcntl.flock(f.fileno(), fcntl.LOCK_SH | fcntl.LOCK_NB)
                 fcntl.flock(f.fileno(), fcntl.LOCK_UN)
                 return False
-            except (BlockingIOError, IOError):
+            except (BlockingIOError, IOError, OSError):
                 return True
     except Exception:
         return False
@@ -149,7 +152,8 @@ def force_release_audio_lock():
             _CURRENT_LOCK_FD = None
         if _CURRENT_LOCK_FILE_OBJ is not None:
             try:
-                _CURRENT_LOCK_FILE_OBJ.close()
+                if not _CURRENT_LOCK_FILE_OBJ.closed:
+                    _CURRENT_LOCK_FILE_OBJ.close()
             except Exception:
                 pass
             _CURRENT_LOCK_FILE_OBJ = None

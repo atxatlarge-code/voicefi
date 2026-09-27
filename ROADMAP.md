@@ -63,6 +63,11 @@ flowchart LR
   - Hotkey / ribbon button: *"VoiceFi: Read Selection Aloud"* with variable playback speed control.
 - [ ] **Socratic Brainstorming Partner:**
   - Interactive back-and-forth conversational mode where VoiceFi challenges assumptions, identifies logical gaps, and asks clarifying questions out loud while you pace.
+- [ ] **Gemini Live Persistent Socket & Keep-Alive Resilience:**
+  - Full-duplex WebSocket connection (`gemini-3.8-live`) with adaptive ping/pong keep-alive heartbeats to eliminate unexpected socket closures.
+  - Micro-buffering of PCM audio chunks during socket re-negotiation so speech is never dropped during reconnects.
+  - Proactive session rollover before upstream provider session timeouts.
+  - Seamless turn-end routing: toggle between Standard (chat injection into Antigravity) and Gemini Live (direct neural voice streaming).
 
 ---
 

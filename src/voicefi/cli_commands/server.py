@@ -63,10 +63,11 @@ def cmd_autostart(args: Any) -> None:
     launch_agents_dir = Path.home() / "Library" / "LaunchAgents"
     launch_agents_dir.mkdir(parents=True, exist_ok=True)
     plist_path = launch_agents_dir / "com.voicefi.menubar.plist"
+    repo_root = Path(__file__).resolve().parent.parent.parent.parent
     ws_candidates = [
         Path.cwd() / ".venv" / "bin" / "voicefi",
         Path.cwd() / "venv" / "bin" / "voicefi",
-        Path(__file__).resolve().parent.parent.parent / ".venv" / "bin" / "voicefi",
+        repo_root / ".venv" / "bin" / "voicefi",
         Path(sys.executable).parent / "voicefi",
     ]
     bin_path = None
@@ -115,16 +116,12 @@ def cmd_autostart(args: Any) -> None:
         stderr=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
     )
-    subprocess.run(
-        ["launchctl", "unload", str(plist_path)],
-        stderr=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-    )
-    subprocess.run(
-        ["launchctl", "enable", f"gui/{uid}/com.voicefi.menubar"],
-        stderr=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-    )
+    for lbl in ("com.voicefi.menubar", "com.voicefi.tray"):
+        subprocess.run(
+            ["launchctl", "enable", f"gui/{uid}/{lbl}"],
+            stderr=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+        )
 
     res = subprocess.run(
         ["launchctl", "bootstrap", f"gui/{uid}", str(plist_path)],

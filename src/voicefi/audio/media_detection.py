@@ -248,10 +248,24 @@ def is_finder_quicklook_active() -> Tuple[bool, Optional[str]]:
     return False, None
 
 
+def reset_media_detection_state():
+    """Reset all cached media detection flags (useful between test runs or after media closes)."""
+    global _LAST_MEDIA_CHECK_TIME, _CACHED_MEDIA_STATE, _LAST_MPV_CHECK_TIME, _CACHED_MPV_ACTIVE
+    with _STATE_LOCK:
+        _LAST_MEDIA_CHECK_TIME = 0.0
+        _CACHED_MEDIA_STATE = (False, None)
+        _LAST_MPV_CHECK_TIME = 0.0
+        _CACHED_MPV_ACTIVE = False
+
+
 def is_dedicated_video_player_active() -> Tuple[bool, Optional[str]]:
     """Check if dedicated video players (mpv, IINA, VLC) are active."""
     global _LAST_MPV_CHECK_TIME, _CACHED_MPV_ACTIVE
-    if os.environ.get("PYTEST_CURRENT_TEST") and "MOCK_DEDICATED_PLAYERS" not in os.environ:
+    if (
+        os.environ.get("PYTEST_CURRENT_TEST")
+        or os.getenv("VOICEFI_HEADLESS") == "1"
+        or os.getenv("VOICEFI_TESTING") == "1"
+    ) and "MOCK_DEDICATED_PLAYERS" not in os.environ:
         return False, None
 
     app_info = _get_frontmost_app_info()

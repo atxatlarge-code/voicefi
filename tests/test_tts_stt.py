@@ -66,6 +66,8 @@ def test_whisper_local_hallucination_filter():
     assert WhisperLocalSTT.filter_hallucinations("you") == ""
     assert WhisperLocalSTT.filter_hallucinations("...") == ""
     assert WhisperLocalSTT.filter_hallucinations("Subtitles by Amara.org") == ""
+    assert WhisperLocalSTT.filter_hallucinations("www.mooji.org") == ""
+    assert WhisperLocalSTT.filter_hallucinations("mooji.org") == ""
 
     # Preserved real speech
     assert WhisperLocalSTT.filter_hallucinations("Thank you for fixing the bug") == "Thank you for fixing the bug"

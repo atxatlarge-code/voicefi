@@ -62,7 +62,10 @@ def is_pid_alive(pid: int) -> bool:
 _ACTIVE_TURNS_FILE = Path("/tmp/voicefi_active_turns.json")
 _ACTIVE_TURNS_LOCK = Path("/tmp/voicefi_active_turns.lock")
 _MOBILE_TURN_FILE = Path("/tmp/voicefi_mobile_turn.json")
+_LIVE_TURN_FILE = Path("/tmp/voicefi_live_turn.json")
 _COMPANION_CLIENTS_FILE = Path("/tmp/voicefi_companion_clients.json")
+_ACTIVE_LISTENER_FILE = Path("/tmp/voicefi_active_listener.json")
+_ACTIVE_LISTENER_LOCK = Path("/tmp/voicefi_active_listener.lock")
 
 
 def claim_turn(
@@ -526,6 +529,59 @@ def pop_mobile_turn_origin(conv_id: Optional[str] = None, max_age_seconds: float
     return False
 
 
+def set_live_turn_origin(conv_id: Optional[str] = None) -> None:
+    """Record that the current pending turn was initiated from Gemini Live."""
+    origin_file = _LIVE_TURN_FILE
+    try:
+        data = {
+            "conv_id": conv_id or "active",
+            "timestamp": time.time(),
+        }
+        with open(origin_file, "w") as f:
+            json.dump(data, f)
+    except Exception:
+        pass
+
+
+def peek_live_turn_origin(conv_id: Optional[str] = None, max_age_seconds: float = 300.0) -> bool:
+    """Check if the pending turn originated from Gemini Live without consuming marker."""
+    origin_file = _LIVE_TURN_FILE
+    if not origin_file.is_file():
+        return False
+    try:
+        with open(origin_file, "r") as f:
+            data = json.load(f)
+        ts = data.get("timestamp", 0)
+        cid = data.get("conv_id")
+        if (time.time() - ts) < max_age_seconds:
+            if not conv_id or not cid or cid == "active" or conv_id == "active" or cid == conv_id:
+                return True
+    except Exception:
+        pass
+    return False
+
+
+def pop_live_turn_origin(conv_id: Optional[str] = None, max_age_seconds: float = 300.0) -> bool:
+    """Check and consume Gemini Live turn origin marker."""
+    origin_file = _LIVE_TURN_FILE
+    if not origin_file.is_file():
+        return False
+    try:
+        with open(origin_file, "r") as f:
+            data = json.load(f)
+        ts = data.get("timestamp", 0)
+        cid = data.get("conv_id")
+        if (time.time() - ts) < max_age_seconds:
+            if not conv_id or not cid or cid == "active" or conv_id == "active" or cid == conv_id:
+                origin_file.unlink(missing_ok=True)
+                return True
+        else:
+            origin_file.unlink(missing_ok=True)
+    except Exception:
+        pass
+    return False
+
+
 def record_companion_heartbeat(
     num_clients: int = 1,
     num_mobile_clients: Optional[int] = None,
@@ -604,3 +660,97 @@ def clear_companion_heartbeat() -> None:
         heartbeat_file.unlink(missing_ok=True)
     except Exception:
         pass
+
+
+def acquire_active_listener_lock(
+    conv_id: Optional[str],
+    timeout_seconds: float = 18.0,
+    force: bool = False,
+) -> bool:
+    """
+    Atomically acquires exclusive lock to open microphone for auto-listening.
+    Ensures that only ONE conversation can capture spoken feedback at any time,
+    preventing duplicate recordings and prompts across parallel conversations.
+    """
+    if not conv_id:
+        return True
+
+    now = time.time()
+    try:
+        _ACTIVE_LISTENER_LOCK.parent.mkdir(parents=True, exist_ok=True)
+        with open(_ACTIVE_LISTENER_LOCK, "a+") as lock_fp:
+            fcntl.flock(lock_fp, fcntl.LOCK_EX)
+            try:
+                active_data = {}
+                if _ACTIVE_LISTENER_FILE.is_file():
+                    try:
+                        active_data = json.loads(_ACTIVE_LISTENER_FILE.read_text())
+                    except Exception:
+                        active_data = {}
+
+                current_cid = active_data.get("conv_id")
+                current_ts = float(active_data.get("timestamp", 0))
+                current_pid = active_data.get("pid")
+
+                # If the same conversation already holds the lock, renew it
+                if current_cid == conv_id:
+                    _ACTIVE_LISTENER_FILE.write_text(
+                        json.dumps({"conv_id": conv_id, "pid": os.getpid(), "timestamp": now})
+                    )
+                    return True
+
+                # Check if current holder is still active
+                is_stale = (now - current_ts) > timeout_seconds
+                is_dead = current_pid and not is_pid_alive(int(current_pid))
+
+                if not is_stale and not is_dead and not force:
+                    # Another conversation is currently listening!
+                    return False
+
+                # Claim the listener lock
+                _ACTIVE_LISTENER_FILE.write_text(
+                    json.dumps({"conv_id": conv_id, "pid": os.getpid(), "timestamp": now})
+                )
+                return True
+            finally:
+                fcntl.flock(lock_fp, fcntl.LOCK_UN)
+    except Exception:
+        # Fallback permissive
+        return True
+
+
+def release_active_listener_lock(conv_id: Optional[str]) -> None:
+    """Release the active listener lock if held by this conversation."""
+    if not conv_id:
+        return
+    try:
+        if not _ACTIVE_LISTENER_LOCK.exists():
+            return
+        with open(_ACTIVE_LISTENER_LOCK, "a+") as lock_fp:
+            fcntl.flock(lock_fp, fcntl.LOCK_EX)
+            try:
+                if _ACTIVE_LISTENER_FILE.is_file():
+                    try:
+                        data = json.loads(_ACTIVE_LISTENER_FILE.read_text())
+                        if data.get("conv_id") == conv_id:
+                            _ACTIVE_LISTENER_FILE.unlink(missing_ok=True)
+                    except Exception:
+                        pass
+            finally:
+                fcntl.flock(lock_fp, fcntl.LOCK_UN)
+    except Exception:
+        pass
+
+
+def get_current_active_listener() -> Optional[str]:
+    """Return the conv_id of the currently active listener if unexpired."""
+    try:
+        if _ACTIVE_LISTENER_FILE.is_file():
+            data = json.loads(_ACTIVE_LISTENER_FILE.read_text())
+            ts = float(data.get("timestamp", 0))
+            if (time.time() - ts) < 18.0:
+                return data.get("conv_id")
+    except Exception:
+        pass
+    return None
+

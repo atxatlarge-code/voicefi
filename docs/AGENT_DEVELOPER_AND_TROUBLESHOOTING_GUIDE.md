@@ -42,6 +42,7 @@ Universal Voice Layer for AI Agents, MCP, and macOS.
 | `vifi spark [prompt]` | **Gemini Spark Runner**: Executes prompts with spoken soundbite distillation, `SIGINT`/`SIGTERM` barge-in cancellation, and turn-end hooks. |
 | `vifi -l` / `vifi live -l` | **Gemini 3.8 Live Direct Studio**: Real-time full-duplex speech-to-speech studio with parallel background tools (code reading, search, git checks, SFX) and instant barge-in. |
 | `vifi live [prompt]` / `vifi comedy` | **Gemini 3.8 Live Studio**: Real-time bidirectional voice & stand-up comedy session with sub-second latency, affective speech, and co-timed punchline SFX (rimshots, applause). |
+| `vifi beatbox` / `vifi taras` | **Taras Stanin Beatbox Synthesizer**: Procedural physical modeling of vocal electric guitar riffs, subharmonic throat bass, modular laser zaps, and multi-layered beatbox drops (`--play`, `--save`, `--bpm`, `--bars`). |
 | `vifi panel` / `http://localhost:5141/live` | Launch interactive web control panel or Gemini 3.8 Live direct speech-to-speech showcase. |
 | `vifi companion` / `vifi rc` | **Mobile & Web Remote Companion**: Starts full-duplex WebSocket hub, prints pairing QR code, and opens PWA / Spicewood lead sheet (`vifi rc sheet`). |
 | `vifi hud debug` | Interactive terminal Dynamic Island HUD Debug Studio. |
@@ -200,7 +201,7 @@ When diagnosing audio, turn completion speech, or stop behavior, run checks in t
 ---
 
 ### 8. Remote Companion Voice Loop & State Synchronization Guidelines
-*(Full architectural breakdown in [`docs/COMPANION_VOICE_LOOP_LESSONS_LEARNED.md`](file:///Users/jaketrigg/Projects/VoiceFi/docs/COMPANION_VOICE_LOOP_LESSONS_LEARNED.md) and [`docs/PIXEL_DEMO_AND_VOICE_OPTIMIZATIONS.md`](file:///Users/jaketrigg/Projects/VoiceFi/docs/PIXEL_DEMO_AND_VOICE_OPTIMIZATIONS.md))*
+*(Full architectural breakdown in [COMPANION_VOICE_LOOP_LESSONS_LEARNED.md](COMPANION_VOICE_LOOP_LESSONS_LEARNED.md) and [PIXEL_DEMO_AND_VOICE_OPTIMIZATIONS.md](PIXEL_DEMO_AND_VOICE_OPTIMIZATIONS.md))*
 * **Prevent the "Stop Echo" Loop:** Web clients receiving server events (`speech_stopped`, `stop`) must perform strictly local teardown (`stopAllAgentSpeech(broadcastServer = false)`). They must **NEVER** broadcast `/api/stop` back to the server, which would cause an infinite 90ms cancellation ping-pong loop.
 * **Timestamp Evaluation Inside Mutexes:** In queued audio pipelines (`edge_tts.py`, `mac_say.py`, `gemini_tts.py`), `turn_start_time = time.time()` and `self._stop_requested = False` must be initialized **inside** the critical section (`with speech_turn_lock(...)`), not outside before acquiring the lock.
 * **Multi-Sentence Sentence Pipelining as Stress Test:** Sentence chunking across punctuation (`?`, `.`) exercises background prefetching threads and cancellation timestamps. Always validate with multi-sentence structures (jokes, setup + punchline).
@@ -240,7 +241,7 @@ When diagnosing audio, turn completion speech, or stop behavior, run checks in t
 ---
 
 ### 11. Time on Task (ToT) Benchmark & Context Bloat Prevention
-*(Full empirical analysis in [`docs/TIME_ON_TASK_BENCHMARK_ANALYSIS.md`](file:///Users/jaketrigg/Projects/VoiceFi/docs/TIME_ON_TASK_BENCHMARK_ANALYSIS.md))*
+*(Full architectural breakdown in [TIME_ON_TASK_BENCHMARK_ANALYSIS.md](TIME_ON_TASK_BENCHMARK_ANALYSIS.md))*
 * **The Problem**: In multi-turn coding sessions, re-transmitting raw 20KB–250KB source files across WAN causes compounding quadratic prefill latency, high cloud billing, and context degradation.
 * **On-Device Pre-Digestion**: AI agents should use `vifi scout <target>` or on-device Gemma 4 via LiteRT on Apple Silicon Metal GPU to pre-digest large files into concise findings (~200 tokens).
 * **Empirical Speedup**:
@@ -254,6 +255,21 @@ When diagnosing audio, turn completion speech, or stop behavior, run checks in t
   # or inspect historical scorecards:
   vifi eval --history
   ```
+
+---
+
+### 12. Hybrid Orchestration & Automatic On-Device Delegation Protocol
+* **The Rule**: Cloud models act as high-level planners and architects (<150 cloud tokens). Token-heavy tasks (pre-digesting large source files >300 lines, AST audits, reverse-engineering protocols, running repetitive `pytest` loops) MUST be delegated to on-device **Gemma 4 26B** running via LiteRT on the local Apple Silicon Metal GPU (`~/.litert-lm/models/gemma4-26b`).
+* **Circuit Breaker / Escalation Ladder**:
+  - Local worker runs up to 2 autonomous patch/test attempts.
+  - If tests fail after 2 iterations, the local worker escalates a lean 200-token diagnostic packet (stack trace + diff) to the cloud architect to step in.
+
+---
+
+### 13. Continuous Self-Learning & Atomic Knowledge Cards
+* **The Knowledge Vault**: Lessons learned, gotchas, and architectural traps are stored as structured YAML cards in `.agents/knowledge/<topic>.yaml`.
+* **Just-In-Time (JIT) Context Injection**: When an agent works on a subsystem, query the relevant atomic cards by filename and trigger keywords rather than dumping full documentation into the system prompt.
+* **Autonomous Capture**: After fixing a complex bug, agents should extract the lesson into a new or updated card in `.agents/knowledge/`.
 
 ---
 

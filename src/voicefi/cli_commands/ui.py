@@ -92,6 +92,20 @@ def cmd_hud(args):
         while time.time() - start < duration:
             NSRunLoop.currentRunLoop().runUntilDate_(NSDate.dateWithTimeIntervalSinceNow_(0.04))
 
+    def _send_hud_ipc(subpath: str) -> bool:
+        try:
+            import urllib.request
+            req = urllib.request.Request(
+                f"http://127.0.0.1:5141/api/hud/{subpath}",
+                data=b"{}",
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=1.0) as resp:
+                return resp.status == 200
+        except Exception:
+            return False
+
     if action in ("on", "enable", "open", "start", "launch"):
         if not hasattr(cfg, "hud") or cfg.hud is None:
             cfg.hud = HUDConfig()
@@ -112,9 +126,10 @@ def cmd_hud(args):
             print("🚀 Launching VoiceFi background companion server (autostart)...")
             cmd_autostart(args)
 
-        hud.set_persistent(True)
-        hud.set_idle()
-        _pump(0.5)
+        if not _send_hud_ipc("show"):
+            hud.set_persistent(True)
+            hud.set_idle()
+            _pump(0.5)
         pos = (
             getattr(cfg.hud, "position", "bottom_right")
             if hasattr(cfg, "hud") and cfg.hud
@@ -134,16 +149,41 @@ def cmd_hud(args):
             cfg.hud = HUDConfig()
         cfg.hud.enabled = False
         save_config(cfg)
-        hud.force_hide()
-        _pump(0.3)
+        if not _send_hud_ipc("hide"):
+            hud.force_hide()
+            _pump(0.3)
         print("⚪ VoiceFi Dynamic Island HUD disabled and hidden.")
         print(
             "💡 Use 'vifi hud open' or 'vifi hud on' to re-enable persistent Dynamic Island HUD.\n"
         )
+    elif action == "toggle":
+        if not hasattr(cfg, "hud") or cfg.hud is None:
+            cfg.hud = HUDConfig()
+        if not _send_hud_ipc("toggle"):
+            new_state = not getattr(cfg.hud, "enabled", True)
+            cfg.hud.enabled = new_state
+            if new_state:
+                cfg.hud.persistent = True
+                save_config(cfg)
+                hud.set_persistent(True)
+                hud.set_idle()
+                _pump(0.5)
+                print("🟢 VoiceFi Dynamic Island HUD toggled ON.\n")
+            else:
+                save_config(cfg)
+                hud.force_hide()
+                _pump(0.3)
+                print("⚪ VoiceFi Dynamic Island HUD toggled OFF.\n")
+        else:
+            cfg = load_config()
+            is_on = getattr(cfg.hud, "enabled", True) if hasattr(cfg, "hud") and cfg.hud else True
+            state_str = "🟢 ON" if is_on else "⚪ OFF"
+            print(f"🔄 VoiceFi Dynamic Island HUD visibility toggled ({state_str}).\n")
     elif action in ("reset", "reset-position"):
-        hud.reset_position()
-        hud.set_idle()
-        _pump(0.5)
+        if not _send_hud_ipc("reset"):
+            hud.reset_position()
+            hud.set_idle()
+            _pump(0.5)
         print(
             "🎯 VoiceFi Dynamic Island HUD position reset to default bottom-right anchor above lower bar.\n"
         )

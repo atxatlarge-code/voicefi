@@ -32,13 +32,14 @@ def test_calculate_rms():
 
 def test_live_tools_definitions():
     tools = get_live_tools()
-    assert len(tools) == 4
+    assert len(tools) == 5
     tool_names = [t.__name__ for t in tools]
     assert "read_code_file" in tool_names
     assert "search_codebase" in tool_names
     assert "run_shell_check" in tool_names
     assert "trigger_sound_effect" in tool_names
-    assert len(TOOL_MAP) == 4
+    assert "dispatch_to_antigravity" in tool_names
+    assert len(TOOL_MAP) == 5
 
 
 def test_live_tools_shell_check_safety():
@@ -59,6 +60,74 @@ def test_live_tools_read_code():
 def test_live_tools_sfx():
     res = trigger_sound_effect("rimshot")
     assert "rimshot" in res.lower()
+
+
+def test_dispatch_to_antigravity_success():
+    from voicefi.integrations.live_tools import dispatch_to_antigravity
+    from voicefi.integrations.injector import DispatchResult
+
+    mock_res = DispatchResult(
+        success=True,
+        delivery_type="agentapi",
+        target_conv_id="8dbf2cc1-05d1-4ad3",
+        engine="antigravity",
+    )
+    with patch("voicefi.integrations.injector.send_message_to_antigravity", return_value=mock_res) as mock_send:
+        with patch("voicefi.tts.base.set_cross_process_hud_state") as mock_hud:
+            res = dispatch_to_antigravity("Run pytest on unit tests")
+            assert "Successfully dispatched task to Antigravity" in res
+            assert "8dbf2cc1" in res
+            mock_send.assert_called_once_with(
+                conv_id=None,
+                text="Run pytest on unit tests",
+                sender_name="Gemini Live",
+                title="Spoken Task Dispatch",
+            )
+            # Verify HUD was called for dispatching and then done
+            hud_states = [call.args[0] for call in mock_hud.call_args_list]
+            assert "dispatching" in hud_states
+            assert "done" in hud_states
+
+
+def test_dispatch_to_antigravity_failure():
+    from voicefi.integrations.live_tools import dispatch_to_antigravity
+    from voicefi.integrations.injector import DispatchResult
+
+    mock_res = DispatchResult(
+        success=False,
+        delivery_type="none",
+        error="agentapi binary not found",
+        engine="antigravity",
+    )
+    with patch("voicefi.integrations.injector.send_message_to_antigravity", return_value=mock_res):
+        with patch("voicefi.tts.base.set_cross_process_hud_state") as mock_hud:
+            res = dispatch_to_antigravity("Create new migration")
+            assert "Failed to dispatch to Antigravity: agentapi binary not found" in res
+            hud_states = [call.args[0] for call in mock_hud.call_args_list]
+            assert "dispatching" in hud_states
+            assert "done" in hud_states
+
+
+def test_dispatch_to_antigravity_alias_normalization():
+    import asyncio
+    from voicefi.integrations.injector import DispatchResult
+
+    mock_res = DispatchResult(
+        success=True,
+        delivery_type="agentapi",
+        target_conv_id="cid-9999",
+        engine="antigravity",
+    )
+    with patch("voicefi.integrations.injector.send_message_to_antigravity", return_value=mock_res) as mock_send:
+        with patch("voicefi.tts.base.set_cross_process_hud_state"):
+            res = asyncio.run(execute_live_tool("dispatch_to_antigravity", {"task": "fix all lint errors", "cid": "cid-9999"}))
+            assert "Successfully dispatched task to Antigravity" in res
+            mock_send.assert_called_once_with(
+                conv_id="cid-9999",
+                text="fix all lint errors",
+                sender_name="Gemini Live",
+                title="Spoken Task Dispatch",
+            )
 
 
 def test_execute_live_tool():
@@ -87,7 +156,7 @@ def test_gemini_live_studio_init():
     assert cfg.response_modalities == ["AUDIO"]
     assert cfg.speech_config.voice_config.prebuilt_voice_config.voice_name == "Puck"
     assert cfg.thinking_config is not None
-    assert len(cfg.tools) == 4
+    assert len(cfg.tools) == 5
 
 
 def test_companion_server_live_route():

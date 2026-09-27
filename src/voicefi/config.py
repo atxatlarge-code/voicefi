@@ -95,6 +95,16 @@ class TTSConfig(BaseModel):
     elevenlabs_api_key: Optional[str] = ""
     elevenlabs_voice_id: Optional[str] = "21m00Tcm4TlvDq8ikWAM"
     gemini_api_key: Optional[str] = ""
+    character_persona: Optional[str] = None
+    character_summarization: bool = False
+    speech_structure: Literal[
+        "first_sentence_plus_character", "character_only", "verbatim"
+    ] = "first_sentence_plus_character"
+    character_prompt_template: Optional[str] = None
+    max_first_sentence_words: int = 18
+    verbatim_jokes: bool = True
+    turn_end_mode: Literal["standard", "gemini_live"] = "standard"
+    live_fallback_voice: str = "en-ZA-LukeNeural"
     f5_device: Literal["auto", "mps", "cpu", "cuda"] = "auto"
     f5_model_name: str = "F5TTS_v1_Base"
     f5_nfe_step: int = 16
@@ -132,9 +142,11 @@ class VADConfig(BaseModel):
 
 class AudioCuesConfig(BaseModel):
     enabled: bool = True
-    start_chime: str = "/System/Library/Sounds/Tink.aiff"
-    sent_chime: str = "/System/Applications/Mail.app/Contents/Resources/Mail Sent.aiff"
-    done_chime: str = "/System/Applications/Mail.app/Contents/Resources/Mail Sent.aiff"
+    mic_open_chime: bool = False  # Disabled: Dynamic Island visual state is sufficient
+    sent_chime_enabled: bool = False  # Disabled: Dynamic Island visual state is sufficient
+    start_chime: str = ""
+    sent_chime: str = ""
+    done_chime: str = ""
     error_chime: str = "/System/Library/Sounds/Basso.aiff"
 
 
@@ -222,6 +234,7 @@ class GlobalHotkeyConfig(BaseModel):
     quick_bar_hotkey: str = "<ctrl>+space"
     quick_bar_agent: str = "antigravity"
     quick_bar_enabled: bool = True
+    quick_bar_focus_target: bool = True
     show_dictation_hud: bool = True
     preserve_clipboard: bool = True
 
@@ -293,7 +306,7 @@ class GeminiConfig(BaseModel):
     local_llm_model: str = "qwen2.5:0.5b"
     temperature: float = 0.2
     max_tokens: int = 150
-    enable_soundbite_distillation: bool = True
+    enable_soundbite_distillation: bool = False  # False = Instant sub-15ms deterministic heuristic (open-source default); True = Cloud LLM
     enable_memo_structuring: bool = True
     enable_phonetic_resolver: bool = True
     enable_auto_learning: bool = True

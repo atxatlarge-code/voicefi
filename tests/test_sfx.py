@@ -11,13 +11,35 @@ from voicefi.audio.sfx import (
 
 def test_list_available_sfx():
     sfx_list = list_available_sfx()
-    expected = ["applause", "boing", "crickets", "drum_smash", "honk", "sad_trombone"]
+    expected = [
+        "applause",
+        "beatbox_drop",
+        "boing",
+        "crickets",
+        "drum_smash",
+        "honk",
+        "sad_trombone",
+        "taras_guitar",
+        "taras_laser",
+        "taras_throat_bass",
+    ]
     assert sorted(sfx_list) == sorted(expected)
 
 
 @pytest.mark.parametrize(
     "name",
-    ["applause", "boing", "crickets", "drum_smash", "honk", "sad_trombone"],
+    [
+        "applause",
+        "beatbox_drop",
+        "boing",
+        "crickets",
+        "drum_smash",
+        "honk",
+        "sad_trombone",
+        "taras_guitar",
+        "taras_laser",
+        "taras_throat_bass",
+    ],
 )
 def test_all_sfx_resolve_and_are_valid_wav(name):
     path = get_sfx_path(name)
@@ -45,6 +67,15 @@ def test_all_sfx_resolve_and_are_valid_wav(name):
         ("cheers", "applause.wav"),
         ("claps", "applause.wav"),
         ("awkward", "crickets.wav"),
+        ("taras", "taras_guitar.wav"),
+        ("taras-stanin", "taras_guitar.wav"),
+        ("vocal-guitar", "taras_guitar.wav"),
+        ("guitar-riff", "taras_guitar.wav"),
+        ("laser", "taras_laser.wav"),
+        ("laser-zap", "taras_laser.wav"),
+        ("throat-bass", "taras_throat_bass.wav"),
+        ("beatbox", "beatbox_drop.wav"),
+        ("beatbox-drop", "beatbox_drop.wav"),
     ],
 )
 def test_sfx_aliases(alias, target):

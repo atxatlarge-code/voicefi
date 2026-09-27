@@ -451,6 +451,7 @@ except objc.nosuchclass_error:
                 self._multipliers = [0.65, 1.0, 1.45, 1.1, 0.75]
                 self._phase = 0.0
                 self._hovered = False
+                self._speech_bar_color = None
 
                 # Tracking area for hover
                 options = (
@@ -527,11 +528,17 @@ except objc.nosuchclass_error:
 
             self.setNeedsDisplay_(True)
 
+        def setSpeechBarColor_(self, color):
+            """Set signature speech bar color to match the active speaking app or voice agent."""
+            self._speech_bar_color = color
+            self.setNeedsDisplay_(True)
+
         def reset(self):
             """Reset bar heights and speech state."""
             self._current_levels = [0.12, 0.15, 0.18, 0.15, 0.12]
             self._speech_prob = 0.0
             self._is_speech = False
+            self._speech_bar_color = None
             self.setNeedsDisplay_(True)
 
         def drawRect_(self, dirtyRect):
@@ -551,11 +558,14 @@ except objc.nosuchclass_error:
             total_bars_width = num_bars * bar_width + (num_bars - 1) * spacing
             start_x = (w - total_bars_width) / 2.0
 
-            # Color styling based on neural VAD state
+            # Color styling based on neural VAD state and app palette
             if self._is_speech or self._speech_prob >= 0.45:
-                # Active speech: vibrant dynamic coral red / glowing neon
-                alpha = min(1.0, 0.75 + self._speech_prob * 0.25)
-                bar_color = NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 0.22, 0.30, alpha)
+                if getattr(self, "_speech_bar_color", None) is not None:
+                    bar_color = self._speech_bar_color
+                else:
+                    # Active speech: vibrant dynamic coral red / glowing neon
+                    alpha = min(1.0, 0.75 + self._speech_prob * 0.25)
+                    bar_color = NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 0.22, 0.30, alpha)
             elif self._speech_prob > 0.20:
                 # Moderate candidate sound / transitioning: warm amber
                 bar_color = NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 0.70, 0.25, 0.85)
@@ -955,6 +965,80 @@ class UnifiedDynamicIslandHUD:
         if key in ("vscode", "code", "visual studio code"):
             return "💻"
         return AVATAR_ICONS.get(key, "🤖")
+
+    def _resolve_app_colors(self, name: Optional[str]) -> Dict[str, Any]:
+        """Resolve signature accent, border, tag, and waveform colors based on the app or AI agent speaking."""
+        canonical = "gemini"
+        if name:
+            raw = str(name).lower().strip()
+            if any(k in raw for k in ("claude", "anthropic")):
+                canonical = "claude"
+            elif any(k in raw for k in ("codex", "chatgpt", "openai")):
+                canonical = "codex"
+            elif "cursor" in raw:
+                canonical = "cursor"
+            elif any(k in raw for k in ("windsurf", "cascade")):
+                canonical = "windsurf"
+            elif any(k in raw for k in ("voicefi", "viv", "fenrir")):
+                canonical = "voicefi"
+            elif any(k in raw for k in ("gemini", "antigravity", "main", "google")):
+                canonical = "gemini"
+
+        if is_headless():
+            return {
+                "border": None,
+                "tag": None,
+                "accent": None,
+                "waveform": None,
+            }
+
+        if canonical == "gemini":
+            # Google Blue #4285F4 border, Violet #9B51E0 tag, Brand Red #EA4335 model waveform, Emerald #00E676 mic
+            return {
+                "border": NSColor.colorWithCalibratedRed_green_blue_alpha_(0.26, 0.52, 0.96, 0.88),
+                "tag": NSColor.colorWithCalibratedRed_green_blue_alpha_(0.92, 0.26, 0.21, 0.98),  # Brand Red #EA4335
+                "accent": NSColor.colorWithCalibratedRed_green_blue_alpha_(0.0, 0.90, 0.46, 0.95),    # Neon Emerald #00E676
+                "waveform": NSColor.colorWithCalibratedRed_green_blue_alpha_(0.92, 0.26, 0.21, 0.95),  # Brand Red #EA4335
+            }
+        elif canonical == "claude":
+            # Anthropic Warm Terracotta #D97757, Desert Peach #F4A261, Coral Amber #E76F51
+            return {
+                "border": NSColor.colorWithCalibratedRed_green_blue_alpha_(0.85, 0.47, 0.34, 0.88),
+                "tag": NSColor.colorWithCalibratedRed_green_blue_alpha_(0.96, 0.64, 0.38, 0.98),
+                "accent": NSColor.colorWithCalibratedRed_green_blue_alpha_(0.91, 0.43, 0.32, 0.95),
+                "waveform": NSColor.colorWithCalibratedRed_green_blue_alpha_(0.91, 0.43, 0.32, 0.95),
+            }
+        elif canonical == "codex":
+            # OpenAI Teal #10A37F, Fresh Mint #2DD4BF
+            return {
+                "border": NSColor.colorWithCalibratedRed_green_blue_alpha_(0.06, 0.64, 0.50, 0.88),
+                "tag": NSColor.colorWithCalibratedRed_green_blue_alpha_(0.18, 0.83, 0.75, 0.98),
+                "accent": NSColor.colorWithCalibratedRed_green_blue_alpha_(0.0, 0.77, 0.55, 0.95),
+                "waveform": NSColor.colorWithCalibratedRed_green_blue_alpha_(0.0, 0.77, 0.55, 0.95),
+            }
+        elif canonical == "cursor":
+            # Cursor Cyan #00D2FF, Cyber Violet #7928CA
+            return {
+                "border": NSColor.colorWithCalibratedRed_green_blue_alpha_(0.0, 0.82, 1.0, 0.88),
+                "tag": NSColor.colorWithCalibratedRed_green_blue_alpha_(0.47, 0.16, 0.79, 0.98),
+                "accent": NSColor.colorWithCalibratedRed_green_blue_alpha_(0.0, 0.82, 1.0, 0.95),
+                "waveform": NSColor.colorWithCalibratedRed_green_blue_alpha_(0.0, 0.82, 1.0, 0.95),
+            }
+        elif canonical == "windsurf":
+            return {
+                "border": NSColor.colorWithCalibratedRed_green_blue_alpha_(0.10, 0.70, 0.90, 0.88),
+                "tag": NSColor.colorWithCalibratedRed_green_blue_alpha_(0.20, 0.85, 0.75, 0.98),
+                "accent": NSColor.colorWithCalibratedRed_green_blue_alpha_(0.10, 0.75, 0.85, 0.95),
+                "waveform": NSColor.colorWithCalibratedRed_green_blue_alpha_(0.10, 0.75, 0.85, 0.95),
+            }
+        else:
+            # VoiceFi Native
+            return {
+                "border": NSColor.colorWithCalibratedRed_green_blue_alpha_(0.55, 0.36, 0.96, 0.88),
+                "tag": NSColor.colorWithCalibratedRed_green_blue_alpha_(0.30, 0.85, 1.0, 0.98),
+                "accent": NSColor.colorWithCalibratedRed_green_blue_alpha_(0.0, 0.85, 0.45, 0.95),
+                "waveform": NSColor.colorWithCalibratedRed_green_blue_alpha_(0.55, 0.36, 0.96, 0.95),
+            }
 
     def _resolve_app_icon(self, name: Optional[str]) -> Optional[Any]:
         """Resolve native macOS application icon or asset bundle image for a given program or agent."""
@@ -2040,11 +2124,36 @@ class UnifiedDynamicIslandHUD:
                     finally:
                         self._is_programmatic_move = False
 
-            if not self._panel.isVisible() or (h_diff <= 1.0 and w_diff <= 1.0):
-                self._root_view.setFrame_(NSRect(NSPoint(0, 0), NSSize(w, h)))
-                self._effect_view.setFrame_(NSRect(NSPoint(0, 0), NSSize(w, h)))
+            is_live_session = (
+                "live" in (agent_name or "").lower()
+                or "live" in (app_name or "").lower()
+                or getattr(self, "_active_is_live", False)
+            )
 
-            self._root_view.layer().setBorderColor_(border_col.CGColor())
+            if is_live_session and not is_headless():
+                try:
+                    import Quartz
+
+                    anim = Quartz.CAKeyframeAnimation.animationWithKeyPath_("borderColor")
+                    blue_cg = NSColor.colorWithCalibratedRed_green_blue_alpha_(0.26, 0.52, 0.96, 0.88).CGColor()
+                    violet_cg = NSColor.colorWithCalibratedRed_green_blue_alpha_(0.61, 0.32, 0.88, 0.88).CGColor()
+                    emerald_cg = NSColor.colorWithCalibratedRed_green_blue_alpha_(0.0, 0.90, 0.46, 0.88).CGColor()
+                    anim.setValues_([blue_cg, violet_cg, emerald_cg, blue_cg])
+                    anim.setKeyTimes_([0.0, 0.33, 0.66, 1.0])
+                    anim.setDuration_(5.0)
+                    anim.setRepeatCount_(float("inf"))
+                    self._root_view.layer().addAnimation_forKey_(anim, "gemini_aurora")
+                    self._root_view.layer().setBorderWidth_(1.75)
+                except Exception:
+                    self._root_view.layer().setBorderColor_(border_col.CGColor())
+            else:
+                try:
+                    if hasattr(self._root_view.layer(), "removeAnimationForKey_"):
+                        self._root_view.layer().removeAnimationForKey_("gemini_aurora")
+                    self._root_view.layer().setBorderWidth_(1.0)
+                except Exception:
+                    pass
+                self._root_view.layer().setBorderColor_(border_col.CGColor())
 
             is_expanded = h >= 75.0
             delta_y = h - self.STANDARD_HEIGHT
@@ -2262,6 +2371,20 @@ class UnifiedDynamicIslandHUD:
                     self._visualizer.setHidden_(False)
                     if getattr(self, "_vad_btn", None):
                         self._vad_btn.setHidden_(False)
+                    if hasattr(self._visualizer, "setSpeechBarColor_"):
+                        if state == "speaking":
+                            ac = self._resolve_app_colors(eff_target_app or agent_name)
+                            self._visualizer.setSpeechBarColor_(ac.get("waveform"))
+                        elif state in ("hearing", "listening"):
+                            # Neon Emerald/Cyan for user microphone speech (barge-in proof)
+                            mic_col = (
+                                NSColor.colorWithCalibratedRed_green_blue_alpha_(0.0, 0.90, 0.46, 0.95)
+                                if not is_headless()
+                                else None
+                            )
+                            self._visualizer.setSpeechBarColor_(mic_col if state == "hearing" else None)
+                        else:
+                            self._visualizer.setSpeechBarColor_(None)
                     if state in ("listening", "new_conversation"):
                         self._visualizer.reset()
                 else:
@@ -2565,6 +2688,14 @@ class UnifiedDynamicIslandHUD:
             else:
                 resolved_tag = "Running Tool"
 
+        is_live = (
+            "live" in (agent_name or "").lower()
+            or "live" in (resolved_app or "").lower()
+            or getattr(self, "_active_is_live", False)
+        )
+        if is_live and (not tag_text or tag_text == "Running Command"):
+            resolved_tag = "● LIVE"
+
         self._apply_rich_state(
             state="working",
             avatar_emoji="",
@@ -2607,6 +2738,22 @@ class UnifiedDynamicIslandHUD:
             if resolved_conv
             else f"{speaker} [Speaking • Esc to stop]"
         )
+        app_colors = self._resolve_app_colors(resolved_app or agent_name)
+        border_col = (
+            app_colors["border"]
+            if app_colors["border"] is not None
+            else NSColor.colorWithCalibratedRed_green_blue_alpha_(0.15, 0.85, 0.95, 0.8)
+        )
+        tag_col = (
+            app_colors["tag"]
+            if app_colors["tag"] is not None
+            else NSColor.colorWithCalibratedRed_green_blue_alpha_(0.3, 0.9, 1.0, 0.95)
+        )
+        is_live = "live" in (agent_name or "").lower() or "live" in (resolved_app or "").lower()
+        self._active_is_live = is_live
+        if is_live:
+            tag_str = "● LIVE"
+
         self._apply_rich_state(
             state="speaking",
             avatar_emoji="",
@@ -2614,9 +2761,9 @@ class UnifiedDynamicIslandHUD:
             avatar_image=app_icon,
             title=display_title,
             tag_text=tag_str,
-            tag_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.3, 0.9, 1.0, 0.95),
+            tag_color=tag_col,
             body_text=f'"{clean}"',
-            border_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.15, 0.85, 0.95, 0.8),
+            border_color=border_col,
             linger=linger,
             agent_name=agent_name,
             app_name=resolved_app,
@@ -2646,6 +2793,18 @@ class UnifiedDynamicIslandHUD:
         app_icon = self._resolve_app_icon(resolved_app)
         display_title = (resolved_app or agent_name).capitalize()
         clean = text.strip() or "Speech complete"
+        app_colors = self._resolve_app_colors(resolved_app or agent_name)
+        border_col = (
+            app_colors["border"]
+            if app_colors["border"] is not None
+            else NSColor.colorWithCalibratedRed_green_blue_alpha_(0.0, 0.85, 0.45, 0.75)
+        )
+        tag_col = (
+            app_colors["accent"]
+            if app_colors["accent"] is not None
+            else NSColor.colorWithCalibratedRed_green_blue_alpha_(0.0, 0.90, 0.46, 0.95)
+        )
+
         self._apply_rich_state(
             state="spoken",
             avatar_emoji="",
@@ -2653,9 +2812,9 @@ class UnifiedDynamicIslandHUD:
             avatar_image=app_icon,
             title=display_title,
             tag_text=f"{resolved_speaker} [Spoken ✓]",
-            tag_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.0, 0.90, 0.46, 0.95),
+            tag_color=tag_col,
             body_text=f'"{clean}"',
-            border_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.0, 0.85, 0.45, 0.75),
+            border_color=border_col,
             linger=linger,
             agent_name=agent_name,
             app_name=resolved_app,
@@ -2675,17 +2834,39 @@ class UnifiedDynamicIslandHUD:
         agent_name: Optional[str] = None,
     ):
         """Set to Listening State with microphone badge and live typing preview (540x82)."""
+        is_live = (
+            live_stream
+            or "live" in (agent_name or "").lower()
+            or "live" in (app_name or "").lower()
+        )
+        self._active_is_live = is_live
         if prompt_preview:
             clean = prompt_preview.strip()
             cursor = " ▌" if live_stream else ""
             body = f'"{clean}"{cursor}'
-            tag = "● Live" if live_stream else "Recording"
+            tag = "● LIVE" if is_live else "Recording"
         else:
-            body = "Speak your prompt or question..."
-            tag = "Recording"
+            body = (
+                "Standing by • Speak anytime or interrupt"
+                if is_live
+                else "Speak your prompt or question..."
+            )
+            tag = "● LIVE" if is_live else "Recording"
 
         if source:
             tag = f"{source} • {tag}"
+
+        app_colors = self._resolve_app_colors(app_name or agent_name)
+        border_col = (
+            app_colors["border"]
+            if is_live and app_colors["border"] is not None
+            else NSColor.colorWithCalibratedRed_green_blue_alpha_(0.92, 0.22, 0.26, 0.85)
+        )
+        tag_col = (
+            app_colors["tag"]
+            if is_live and app_colors["tag"] is not None
+            else NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 0.38, 0.42, 0.98)
+        )
 
         self._apply_rich_state(
             state="listening",
@@ -2693,9 +2874,9 @@ class UnifiedDynamicIslandHUD:
             avatar_bg=NSColor.clearColor(),
             title=f"Listening ({user_name})",
             tag_text=tag,
-            tag_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 0.38, 0.42, 0.98),
+            tag_color=tag_col,
             body_text=body,
-            border_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.92, 0.22, 0.26, 0.85),
+            border_color=border_col,
             conv_id=conv_id,
             conv_title=conv_title,
             app_name=app_name,

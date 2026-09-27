@@ -177,7 +177,7 @@ Gemini's audio models respond to inline emotional and stylistic directives wrapp
 ### Emotional & Mood Tags
 * `[excited]` — Elevates pitch and cadence with energetic delivery.
 * `[whispering]` / `[hushed whisper]` — Low-volume vocal fry with intimate mic proximity.
-* `[sighs]` / `[relieved exhale]` — Auditory breath soundscapes adding human realism.
+* `[sigh]` / `[soft sigh]` / `[relieved exhale]` — Auditory breath soundscapes adding human realism.
 * `[giggles]` / `[chuckles]` / `[laughs warmly]` — Realistic vocal laughter before or during words.
 * `[deadpan]` / `[sarcastic]` — Flattens prosody for dry humor and technical irony.
 * `[urgent]` / `[tense]` — Tightens vocal cords and speeds up syllable transitions.
@@ -236,7 +236,7 @@ Rather than navigating the Google AI Studio web UI, creating speaker boxes, and 
 ### Why Use It?
 * **Zero Button Clicking**: Feed in a dialogue script (inline string or `.txt` file) and get a finished broadcast-ready 24kHz `.wav` in ~3 seconds.
 * **Auto-Speaker Mapping**: Automatically recognizes `Aoede: ...`, `Puck: ...`, `Speaker 1: ...`, `Charon: ...` and binds them to Gemini's multi-speaker engine.
-* **Full Acting Tag Preservation**: Keeps all emotional and pacing directives (`[whispers]`, `[sighs]`, `[chuckles]`, `[pause 1.0s]`, `[deadpan]`).
+* **Full Acting Tag Preservation**: Keeps all emotional and pacing directives (`[whispers]`, `[sigh]`, `[chuckles]`, `[pause 1.0s]`, `[deadpan]`).
 * **Zero Cloud Setup**: Automatically uses your existing `GEMINI_API_KEY` from `~/.voicefi/config.yaml`.
 
 ---

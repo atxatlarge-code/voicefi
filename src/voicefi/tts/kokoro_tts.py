@@ -19,6 +19,7 @@ from voicefi.tts.base import (
     speech_turn_lock,
     stop_all_speech,
     DuplicateSpeechSuppressed,
+    safe_terminate_process,
 )
 
 
@@ -67,6 +68,7 @@ class KokoroTTS(BaseTTS):
         self.speed = speed
         self.model_path = model_path
         self.voices_path = voices_path
+        self._current_process = None
         self._stop_requested = False
 
     @classmethod
@@ -158,19 +160,47 @@ class KokoroTTS(BaseTTS):
         if not clean_text:
             return False
 
+        self._stop_requested = False
+
         # Attempt synthesis with Kokoro; if unavailable, fallback to MacSayTTS
         try:
-            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf:
-                temp_wav = tf.name
-
-            self.synthesize_to_wav(clean_text, temp_wav)
-
-            # Play audio via CoreAudio afplay
             import subprocess
+            import threading
 
-            proc = subprocess.Popen(["afplay", temp_wav])
+            temp_wav = None
+
+            def _play():
+                nonlocal temp_wav
+                try:
+                    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf:
+                        temp_wav = tf.name
+
+                    self.synthesize_to_wav(clean_text, temp_wav)
+
+                    if self._stop_requested:
+                        return
+
+                    set_agent_audio_playing(True)
+                    proc = subprocess.Popen(
+                        ["afplay", temp_wav],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
+                    self._current_process = proc
+                    proc.wait()
+                finally:
+                    set_agent_audio_playing(False)
+                    self._current_process = None
+                    if temp_wav:
+                        try:
+                            Path(temp_wav).unlink(missing_ok=True)
+                        except Exception:
+                            pass
+
             if block:
-                proc.wait()
+                _play()
+            else:
+                threading.Thread(target=_play, daemon=True).start()
             return True
         except Exception as e:
             from voicefi.tts.mac_say import MacSayTTS
@@ -188,6 +218,10 @@ class KokoroTTS(BaseTTS):
     def stop(self) -> None:
         """Interrupt any ongoing speech playback."""
         self._stop_requested = True
+        proc = self._current_process
+        if proc:
+            safe_terminate_process(proc)
+            self._current_process = None
         stop_all_speech()
         set_agent_speaking(False)
         set_agent_audio_playing(False)

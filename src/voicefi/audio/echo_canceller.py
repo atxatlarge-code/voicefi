@@ -129,7 +129,7 @@ def is_acoustic_echo(
             return False
 
     trans_words = set(clean_trans.split())
-    # Exclude common short noise words
+    # Exclude common short noise words and functional pronouns/auxiliaries
     stop_words = {
         "the",
         "a",
@@ -147,6 +147,44 @@ def is_acoustic_echo(
         "you",
         "we",
         "i",
+        "are",
+        "they",
+        "them",
+        "their",
+        "there",
+        "was",
+        "were",
+        "be",
+        "been",
+        "being",
+        "am",
+        "have",
+        "has",
+        "had",
+        "can",
+        "will",
+        "would",
+        "should",
+        "could",
+        "this",
+        "that",
+        "these",
+        "those",
+        "what",
+        "which",
+        "who",
+        "why",
+        "how",
+        "when",
+        "where",
+        "if",
+        "so",
+        "then",
+        "just",
+        "now",
+        "not",
+        "no",
+        "yes",
     }
     trans_words_filtered = {w for w in trans_words if len(w) > 2 and w not in stop_words}
     if not trans_words_filtered:
@@ -177,13 +215,13 @@ def is_acoustic_echo(
             if clean_trans == clean_ref:
                 return True
 
-            # 3. Substring / phrase match in either direction
-            if (clean_trans in clean_ref and len(clean_trans) >= 8) or (
-                len(clean_ref) >= 8 and clean_ref in clean_trans
+            # 3. Substring / phrase match in either direction (minimum 14 characters to avoid false positives on 1-2 words)
+            if (clean_trans in clean_ref and len(clean_trans) >= 14) or (
+                len(clean_ref) >= 14 and clean_ref in clean_trans
             ):
                 return True
 
-            # 4. Word overlap ratio
+            # 4. Word overlap ratio (requires at least 3 matching words and >= 75% overlap)
             ref_words = set(clean_ref.split())
             ref_words_filtered = {w for w in ref_words if len(w) > 2 and w not in stop_words}
             if not ref_words_filtered:
@@ -192,7 +230,7 @@ def is_acoustic_echo(
             if trans_words_filtered and ref_words_filtered:
                 overlap = trans_words_filtered.intersection(ref_words_filtered)
                 overlap_ratio = len(overlap) / len(trans_words_filtered)
-                if overlap_ratio >= 0.6:
+                if len(overlap) >= 3 and overlap_ratio >= 0.75:
                     return True
 
             # 5. Fuzzy sequence similarity

@@ -44,48 +44,58 @@ from voicefi.integrations.active_listening import (
 from voicefi.tts.normalizer import normalize_tts_text
 
 
-def clean_markdown_for_speech(text: str, max_words: Optional[int] = None) -> str:
+def clean_markdown_for_speech(
+    text: str,
+    max_words: Optional[int] = None,
+    full_read: bool = False,
+) -> str:
     """
-    Clean markdown formatting and extract punchy 1-2 sentence spoken updates/questions.
-    Dynamically constrained by BrevityLearner cognitive memory.
-    Prioritizes trailing questions and status outcomes while stripping code/paths/tables/stacktraces.
+    Clean markdown formatting and extract spoken text.
+    If full_read is True (Live API response), cleans code/markup/tables/embeds
+    and normalizes text for speech, but preserves the complete text verbatim
+    without word limits, truncation, or sentence extraction.
+    If full_read is False (standard turn end), extracts punchy 1st sentence / soundbite
+    constrained by BrevityLearner cognitive memory.
     """
     if not text or not text.strip():
         return ""
 
-    # Dynamically resolve optimal word budget from BrevityLearner
-    target_max_words = max_words
-    try:
-        from voicefi.learning.brevity import BrevityLearner
+    if not full_read:
+        # Dynamically resolve optimal word budget from BrevityLearner
+        target_max_words = max_words
+        try:
+            from voicefi.learning.brevity import BrevityLearner
 
-        learned_words = BrevityLearner.get_instance().get_optimal_max_words()
-        if target_max_words is None or target_max_words <= 0:
-            target_max_words = learned_words
-        elif target_max_words <= BrevityLearner.MAX_MAX_WORDS:
-            target_max_words = min(target_max_words, learned_words)
-    except Exception:
-        if target_max_words is None or target_max_words <= 0:
-            target_max_words = 24
+            learned_words = BrevityLearner.get_instance().get_optimal_max_words()
+            if target_max_words is None or target_max_words <= 0:
+                target_max_words = learned_words
+            elif target_max_words <= BrevityLearner.MAX_MAX_WORDS:
+                target_max_words = min(target_max_words, learned_words)
+        except Exception:
+            if target_max_words is None or target_max_words <= 0:
+                target_max_words = 24
 
-    # 0. Check for Gemini Flash / Local LLM distillation if available and enabled
-    try:
-        from voicefi.integrations.gemini_ai import GeminiIntelligenceEngine
+        # 0. Check for Gemini Flash / Local LLM distillation ONLY if explicitly opt-in enabled
+        try:
+            from voicefi.integrations.gemini_ai import GeminiIntelligenceEngine
 
-        gemini_engine = GeminiIntelligenceEngine()
-        if gemini_engine.is_available() and getattr(
-            getattr(gemini_engine.config, "gemini", None), "enable_soundbite_distillation", True
-        ):
-            distilled = gemini_engine.distill_spoken_soundbite(
-                text, max_words=target_max_words, timeout=0.8
-            )
-            if distilled and len(distilled.strip()) > 3:
-                return normalize_tts_text(distilled)
-    except Exception:
-        pass
+            gemini_engine = GeminiIntelligenceEngine()
+            if gemini_engine.is_available() and getattr(
+                getattr(gemini_engine.config, "gemini", None), "enable_soundbite_distillation", False
+            ):
+                distilled = gemini_engine.distill_spoken_soundbite(
+                    text, max_words=target_max_words, timeout=0.8
+                )
+                if distilled and len(distilled.strip()) > 3:
+                    return normalize_tts_text(distilled)
+        except Exception:
+            pass
 
     # 1. Bound text size to avoid regex performance bottlenecks on massive outputs
-    if len(text) > 4000:
+    if not full_read and len(text) > 4000:
         text = text[:1000] + "\n" + text[-2000:]
+    elif full_read and len(text) > 15000:
+        text = text[:15000]
 
     # 2. Check for raw stack traces / errors first
     if "Traceback (most recent call last):" in text or "Error:" in text:
@@ -104,9 +114,22 @@ def clean_markdown_for_speech(text: str, max_words: Optional[int] = None) -> str
     # Strip emojis and decorative Unicode symbols early so line endings have clean punctuation
     text = re.sub(r"[\U00010000-\U0010ffff\u2600-\u27bf\u2300-\u23ff\ufe00-\ufe0f]", "", text)
 
-    # 3. Strip code blocks and Markdown tables
+    # 3. Strip lead-in colons preceding code blocks, code fences, and Markdown tables
+    text = re.sub(
+        r"(?i)\b(?:here(?:'s| is| are)|below is|see the|the following is|check out)\s+(?:the\s+)?(?:new\s+|updated\s+)?(?:code|endpoint|snippet|changes|diff|implementation|example|output|results?|file|function|patch)?\s*:\s*(?=\s*```)",
+        "",
+        text,
+    )
     text = re.sub(r"```[\s\S]*?```", " ", text)
+    # Strip <agent-embed> tags and generic XML/HTML tags from speech
+    text = re.sub(r"<agent-embed[^>]*>[\s\S]*?</agent-embed>", " ", text, flags=re.IGNORECASE)
+    text = re.sub(r"</?agent-embed[^>]*>", " ", text, flags=re.IGNORECASE)
     text = re.sub(r"\|[^\n]+\|", " ", text)  # Tables
+    text = re.sub(
+        r"(?i)(?:^|\n)\s*(?:here(?:'s| is| are)|below is|see the|the following is|check out)\s+(?:the\s+)?(?:new\s+|updated\s+)?(?:code|endpoint|snippet|changes|diff|implementation|example|output|results?|file|function|patch)?\s*:\s*(?=\n|$)",
+        "",
+        text,
+    )
 
     # 4. Normalize file paths to basenames only (/path/to/file.py -> file.py)
     text = re.sub(r"(?:/[\w.-]+)+/([\w.-]+\.[a-zA-Z0-9]+)", r"\1", text)
@@ -147,6 +170,7 @@ def clean_markdown_for_speech(text: str, max_words: Optional[int] = None) -> str
     # Strip any leftover bracketed/parenthesized SFX tags or punctuation artifacts
     text = re.sub(r"[\[\(\{]\s*sfx:?\s*[\w-]+\s*[\]\)\}]", "", text, flags=re.IGNORECASE)
     text = re.sub(r"([!?.,;:])\s*[.]+", r"\1", text)  # Clean "! .", "? .", ". ."
+    text = re.sub(r":\s+(?=[A-Z0-9])", ". ", text)  # Clean dangling colons before sentences
 
     # 6. Normalize whitespace
     text = " ".join(text.split()).strip()
@@ -154,7 +178,10 @@ def clean_markdown_for_speech(text: str, max_words: Optional[int] = None) -> str
     if not text:
         return ""
 
-    # 8. Extract sentences & assemble punchy natural spoken summary
+    if full_read:
+        return normalize_tts_text(text)
+
+    # 8. Extract sentences & assemble punchy natural spoken summary (Standard Turn-End Mode)
     sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", text) if s.strip()]
     if not sentences:
         return normalize_tts_text(text[: target_max_words * 6])
@@ -221,8 +248,13 @@ def clean_markdown_for_speech(text: str, max_words: Optional[int] = None) -> str
             candidate_sentences.append(last_s)
             return normalize_tts_text(" ".join(candidate_sentences))
 
-        # If not even first sentence fits with question, allocate budget to first sentence + question
+        # If not even first sentence fits with question, check if complete first sentence + question fits within modest tolerance
         first_s = sentences[0]
+        first_words_count = len(first_s.split())
+        if first_words_count + last_words_count <= max(int(target_max_words * 1.45), 32):
+            return normalize_tts_text(f"{first_s} {last_s}")
+
+        # Otherwise allocate remaining budget to first sentence + question
         first_budget = target_max_words - last_words_count
         if first_budget >= 5:
             trunc_first = _truncate_sentence(first_s, first_budget)
@@ -260,6 +292,7 @@ def extract_latest_agent_summary(
     return_step_index: bool = False,
     retries: int = 6,
     retry_delay: float = 0.12,
+    full_read: bool = False,
 ):
     """
     Extract the latest assistant response or question from transcript.jsonl.
@@ -367,7 +400,9 @@ def extract_latest_agent_summary(
             return ("", detected_role, detected_step_index)
         return ("", detected_role) if return_role else ""
 
-    cleaned = clean_markdown_for_speech(last_model_content, max_words=max_words)
+    cleaned = clean_markdown_for_speech(
+        last_model_content, max_words=max_words, full_read=full_read
+    )
     if return_role and return_step_index:
         return (cleaned, detected_role, detected_step_index)
     return (cleaned, detected_role) if return_role else cleaned
@@ -480,11 +515,22 @@ def handle_antigravity_stop_hook(
             engine="antigravity",
         )
 
+    turn_end_mode = getattr(getattr(cfg, "tts", None), "turn_end_mode", "standard")
+    tts_provider = getattr(getattr(cfg, "tts", None), "provider", "gemini")
+    from voicefi.integrations.turn_lock import peek_live_turn_origin
+
+    is_live_turn = (
+        turn_end_mode == "gemini_live"
+        or tts_provider == "gemini_live"
+        or peek_live_turn_origin(conv_id)
+    )
+
     summary_res = extract_latest_agent_summary(
         transcript_path,
         max_words=cfg.antigravity.max_spoken_words,
         return_role=True,
         return_step_index=True,
+        full_read=is_live_turn,
     )
     if isinstance(summary_res, tuple) and len(summary_res) == 3:
         summary, detected_role, step_index = summary_res
@@ -585,7 +631,25 @@ def handle_antigravity_stop_hook(
         should_speak = bool(cfg.antigravity.read_summary_aloud and summary)
         if should_speak:
             mark_turn_spoken_on_mac(conv_id, turn_sig, step_index=step_index)
+            try:
+                from voicefi.tts.base import stop_active_playback
+
+                stop_active_playback()
+            except Exception:
+                pass
         should_listen = bool(cfg.antigravity.auto_listen and summary)
+        from voicefi.integrations.turn_lock import (
+            acquire_active_listener_lock,
+            release_active_listener_lock,
+        )
+
+        if should_listen and not acquire_active_listener_lock(conv_id):
+            print(
+                f"[AntigravityHook] ⏸️ Another conversation is already actively listening. Yielding mic.",
+                flush=True,
+            )
+            should_listen = False
+
         hook_start_time = time.time()
         user_transcribed_chars: int = 0
         temp_wav: Optional[Path] = None
@@ -601,6 +665,7 @@ def handle_antigravity_stop_hook(
                 cfg,
                 agent_name=active_agent,
                 voice_override=voice_override,
+                provider_override="gemini_live" if is_live_turn else None,
                 project_name=project_name,
                 workspace_path=workspace_path,
                 app_name="Antigravity",
@@ -709,6 +774,7 @@ def handle_antigravity_stop_hook(
                     cfg,
                     agent_name=active_agent,
                     voice_override=voice_override,
+                    provider_override="gemini_live" if is_live_turn else None,
                     project_name=project_name,
                     workspace_path=workspace_path,
                     app_name="Antigravity",
@@ -755,7 +821,7 @@ def handle_antigravity_stop_hook(
                 else:
                     time.sleep(0.25)
 
-                if cfg.audio_cues.enabled:
+                if getattr(cfg.audio_cues, "mic_open_chime", False) and cfg.audio_cues.enabled:
                     play_chime("start", block=True)
                     time.sleep(0.15)
 
@@ -824,6 +890,9 @@ def handle_antigravity_stop_hook(
                     conv_id=conv_id,
                     agent_name=active_agent,
                 )
+
+        if should_listen:
+            release_active_listener_lock(conv_id)
 
         from voicefi.tts.base import is_speech_interrupted
 
@@ -956,6 +1025,21 @@ def handle_antigravity_stop_hook(
                         delivered = send_message_to_antigravity(
                             conv_id=conv_id, text=linear_prompt, sender_name=cfg.user_name
                         )
+                    elif is_live_turn:
+                        # Turn-end Live mode toggle: route spoken turn directly to Gemini Live API
+                        from voicefi.integrations.live_conversation import query_live_api_spoken_turn
+
+                        print(
+                            f"[Antigravity/GeminiLive] 🎙️ Live mode toggle active -> routing to Gemini Live API: '{final_text}'",
+                            flush=True,
+                        )
+                        delivered = query_live_api_spoken_turn(
+                            user_prompt=final_text,
+                            context=summary,
+                            conv_id=conv_id,
+                            persona_name=getattr(cfg.tts, "voice", "Fenrir"),
+                            config=cfg,
+                        )
                     else:
                         set_cross_process_hud_state(
                             "done", text=final_text[:20], agent_name=active_agent
@@ -977,7 +1061,7 @@ def handle_antigravity_stop_hook(
                 else:
                     print("[Antigravity] ⚠️ Delivery failed — text left on clipboard.", flush=True)
 
-                if cfg.audio_cues.enabled:
+                if getattr(cfg.audio_cues, "sent_chime_enabled", False) and cfg.audio_cues.enabled:
                     play_chime(cfg.audio_cues.sent_chime, block=False)
 
                 try:

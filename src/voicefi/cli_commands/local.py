@@ -74,6 +74,41 @@ def cmd_scout(args: Any) -> None:
     print("-" * 60)
 
 
+def cmd_implement(args: Any) -> None:
+    """Run on-device ReconImplementer cascade (2B Scout -> 26B Coder) to modify files and output diffs."""
+    from voicefi.local import ReconImplementer
+
+    target = getattr(args, "target", None)
+    instruction = (
+        getattr(args, "instruction", None)
+        or getattr(args, "query", None)
+    )
+    apply = getattr(args, "apply", True)
+    model_scout = getattr(args, "model_scout", "gemma4-2b") or "gemma4-2b"
+    model_coder = getattr(args, "model_coder", "gemma4-26b") or "gemma4-26b"
+
+    if not target or not instruction:
+        print("❌ Error: Both target file and -i/--instruction are required.")
+        return
+
+    print(f"🛠️  Launching VoiceFi Recon Implementer on `{target}`...")
+    print(f"   Tier 1 (Scout): {model_scout} | Tier 2 (Coder): {model_coder}")
+    implementer = ReconImplementer(model_scout=model_scout, model_coder=model_coder)
+    res = asyncio.run(implementer.implement(target_path=target, instruction=instruction, apply=apply))
+
+    if res.error and not res.diff:
+        print(f"\n❌ Implementation failed: {res.error}")
+        return
+
+    print(f"\n⚡ Completed in {res.total_duration}s (Scout: {res.scout_duration}s, Coder: {res.coder_duration}s)")
+    print(f"💰 Token Savings: {res.tokens_saved} tokens ({res.savings_pct}% context preserved)")
+    print(f"📝 Applied to Disk: {'Yes' if res.applied else 'No (Dry Run / Unmatched)'}")
+    print("-" * 60)
+    print(res.diff)
+    print("-" * 60)
+
+
+
 def cmd_benchmark(args: Any) -> None:
     """Run on-device model, latency, and side-by-side Time on Task (ToT) benchmark suite."""
     import json

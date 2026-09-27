@@ -270,6 +270,12 @@ def handle_claude_stop_hook(
         )
         voice_override = payload.get("voice") if isinstance(payload, dict) else None
         if cfg.claude.read_summary_aloud:
+            try:
+                from voicefi.tts.base import stop_active_playback
+
+                stop_active_playback()
+            except Exception:
+                pass
             mark_turn_spoken_on_mac(conv_id, text_to_speak)
             mark_turn_spoken_on_mac(cid_key, text_to_speak)
             tts_engine = get_tts_engine(
@@ -330,7 +336,7 @@ def handle_claude_stop_hook(
             return {"status": "mobile_handled" if is_mobile else "spoken", "agent": "claude"}
 
         # 4. Play start listening chime with settle window to avoid mic bleed
-        if cfg.audio_cues.enabled:
+        if getattr(cfg.audio_cues, "mic_open_chime", False) and cfg.audio_cues.enabled:
             play_chime(cfg.audio_cues.start_chime, block=True)
             time.sleep(0.15)
 
@@ -468,7 +474,7 @@ def handle_claude_stop_hook(
                 print("⚠️ Injection failed — text left on clipboard.")
 
         # 8. Play sent chime
-        if cfg.audio_cues.enabled:
+        if getattr(cfg.audio_cues, "sent_chime_enabled", False) and cfg.audio_cues.enabled:
             play_chime(cfg.audio_cues.sent_chime, block=False)
 
         if cfg.claude.read_summary_aloud:

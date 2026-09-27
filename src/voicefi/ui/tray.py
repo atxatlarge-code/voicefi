@@ -302,6 +302,9 @@ class VoiceFiTrayApp(_TrayAppBase):
         )
         self.auto_listen_item.state = 1 if self.config.proactive.feedback_loop.enabled else 0
 
+        self.turn_end_mode_menu = rumps.MenuItem("✨ Turn-End Mode")
+        self._build_turn_end_mode_submenu()
+
         # Fibonacci Pause Delay Submenu
         self.pause_delay_menu = rumps.MenuItem("⏱️ Pause Delay (Fibonacci)")
         self._build_pause_delay_submenu()
@@ -445,6 +448,7 @@ class VoiceFiTrayApp(_TrayAppBase):
         self._start_global_hotkey_listener()
         self._start_update_checker_thread()
         self._start_lifecycle_nudge_thread()
+        self._start_memory_watchdog_thread()
 
     def _open_accessibility_settings(self, _=None):
         """Open System Settings for Accessibility permissions."""
@@ -454,6 +458,52 @@ class VoiceFiTrayApp(_TrayAppBase):
             open_accessibility_settings()
         except Exception:
             pass
+
+    def _start_memory_watchdog_thread(self):
+        """Periodically audit RSS memory footprint, run garbage collection, and prevent memory leaks."""
+
+        def _watchdog_loop():
+            import gc
+
+            time.sleep(30.0)  # Initial settle
+            while True:
+                try:
+                    gc.collect()
+                    try:
+                        import psutil
+
+                        proc = psutil.Process()
+                        rss_mb = proc.memory_info().rss / (1024 * 1024)
+                    except Exception:
+                        rss_mb = 0.0
+
+                    if rss_mb > 1200.0:
+                        print(
+                            f"[VoiceFi] ⚠️ Memory ceiling warning: {rss_mb:.1f}MB > 1200MB. Compacting caches...",
+                            flush=True,
+                        )
+                        from voicefi.stt import clear_stt_engine_cache
+
+                        clear_stt_engine_cache()
+                        gc.collect()
+
+                        try:
+                            rss_mb = psutil.Process().memory_info().rss / (1024 * 1024)
+                        except Exception:
+                            pass
+
+                        if rss_mb > 1800.0:
+                            print(
+                                f"[VoiceFi] 🚨 Critical memory threshold exceeded: {rss_mb:.1f}MB > 1800MB. Gracefully recycling tray process...",
+                                flush=True,
+                            )
+                            # Cleanly exit so launchd KeepAlive automatically respawns with a fresh heap
+                            os._exit(0)
+                except Exception:
+                    pass
+                time.sleep(60.0)
+
+        threading.Thread(target=_watchdog_loop, daemon=True, name="MemoryWatchdog").start()
 
     def _start_lifecycle_nudge_thread(self):
         """Periodically evaluate progressive educational tips and milestone reminders."""
@@ -1345,6 +1395,7 @@ class VoiceFiTrayApp(_TrayAppBase):
             [
                 self.wakeword_item,
                 self.auto_listen_item,
+                self.turn_end_mode_menu,
                 self.barge_in_item,
                 self.read_summary_item,
                 self.meeting_item,
@@ -1935,6 +1986,7 @@ class VoiceFiTrayApp(_TrayAppBase):
             "ptt_listening": "mic.fill",
             "paused_agent_speaking": "pause.fill",
             "paused": "pause.fill",
+            "dispatching": "paperplane.fill",
         }
 
         symbol_name = "voicefi"
@@ -2135,6 +2187,14 @@ class VoiceFiTrayApp(_TrayAppBase):
                     app_name=kwargs.get("app_name"),
                     conv_id=kwargs.get("conv_id"),
                 )
+            elif state == "dispatching":
+                hud.set_working(
+                    agent_name=kwargs.get("agent_name", "Antigravity"),
+                    tool_action=kwargs.get("text", "Dispatching task..."),
+                    tag_text=kwargs.get("tag_text", "Dispatching to Antigravity"),
+                    app_name=kwargs.get("app_name", "Antigravity"),
+                    conv_id=kwargs.get("conv_id"),
+                )
             elif state == "user_prompt":
                 hud.set_user_prompt(
                     prompt=kwargs.get("prompt", ""),
@@ -2202,7 +2262,13 @@ class VoiceFiTrayApp(_TrayAppBase):
         self._last_quick_bar_toggle_time = now
         print("[VoiceFi] ⚡ toggle_quick_bar invoked", flush=True)
         if hasattr(self, "quick_bar") and self.quick_bar:
-            self.quick_bar.toggle()
+            panel = getattr(self.quick_bar, "_panel", None)
+            if panel and panel.isVisible() and panel.isKeyWindow():
+                # When quick bar is already open and key, Ctrl+Space toggles microphone dictation
+                print("[VoiceFi] 🎙️ Quick bar is active key window -> toggling voice input", flush=True)
+                self.quick_bar.toggle_voice_input()
+            else:
+                self.quick_bar.toggle()
 
     def finish_active_recording(self):
         """Immediately stop recording and trigger transcription (e.g. Enter pressed or PTT key released)."""
@@ -3261,6 +3327,34 @@ class VoiceFiTrayApp(_TrayAppBase):
                 hud.set_editing(norm_prompt, on_submit=_send_action, target_name=target_name)
         else:
             self.trigger_talk_to_antigravity(target_engine=target_engine)
+
+    def _build_turn_end_mode_submenu(self):
+        self._safe_clear(self.turn_end_mode_menu)
+        current = getattr(getattr(self.config, "tts", None), "turn_end_mode", "standard")
+        item_std = rumps.MenuItem(
+            "Standard (App Chat Injection)",
+            callback=lambda sender: self._set_turn_end_mode("standard"),
+        )
+        item_std.state = 1 if current == "standard" else 0
+        item_live = rumps.MenuItem(
+            "● Gemini Live (Real-Time Voice API)",
+            callback=lambda sender: self._set_turn_end_mode("gemini_live"),
+        )
+        item_live.state = 1 if current == "gemini_live" else 0
+        self.turn_end_mode_menu.update([item_std, item_live])
+
+    def _set_turn_end_mode(self, mode: str):
+        from voicefi.ui.notifications import show_notification
+
+        self.config.tts.turn_end_mode = mode
+        save_config(self.config)
+        self._build_turn_end_mode_submenu()
+        label = "● Gemini Live" if mode == "gemini_live" else "Standard (App Chat)"
+        show_notification(
+            "VoiceFi Turn-End Mode",
+            f"Switched to {label}",
+            "Spoken turns converse with Gemini Live" if mode == "gemini_live" else "Spoken turns inject into Antigravity chat",
+        )
 
     def toggle_auto_listen(self, sender):
         new_val = not self.config.proactive.feedback_loop.enabled

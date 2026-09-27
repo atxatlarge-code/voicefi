@@ -70,7 +70,7 @@ from voicefi.cli_commands.troubleshoot import (
 from voicefi.cli_commands.voice import cmd_voice, cmd_clone, cmd_download_ava
 from voicefi.cli_commands.speed_talk import cmd_speed_talk
 from voicefi.cli_commands.memo import cmd_memo
-from voicefi.cli_commands.media import cmd_duel, cmd_sfx, cmd_fx, cmd_reel, cmd_trim
+from voicefi.cli_commands.media import cmd_duel, cmd_sfx, cmd_fx, cmd_reel, cmd_trim, cmd_beatbox
 from voicefi.cli_commands.live import cmd_live, cmd_bridge
 from voicefi.cli_commands.local import cmd_spark, cmd_scout, cmd_benchmark, cmd_local
 from voicefi.tts import get_tts_engine

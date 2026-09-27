@@ -5,6 +5,7 @@ from voicefi.config import VoiceFiConfig
 from voicefi.tts.base import (
     BaseTTS,
     stop_all_speech,
+    stop_active_playback,
     is_agent_speaking,
     set_agent_speaking,
     is_agent_audio_playing,
@@ -78,6 +79,16 @@ def get_tts_engine(
         project_name=project_name,
         workspace_path=workspace_path,
     )
+
+    # Package Turn-End Mode: standard (open-source) vs gemini_live (theatrical)
+    turn_end_mode = getattr(getattr(config, "tts", None), "turn_end_mode", "standard")
+    if not provider_override:
+        if turn_end_mode == "gemini_live" and provider in ("edge_tts", "gemini"):
+            provider = "gemini_live"
+            if voice in ("en-US-AvaNeural", "Viv", "en-US-ChristopherNeural", "Christopher", ""):
+                voice = getattr(getattr(config, "tts", None), "voice", "Puck") or "Puck"
+        elif turn_end_mode == "standard" and provider in ("gemini_live", "gemini"):
+            provider = "gemini"
 
     # 2. Apply manual overrides if provided
     if provider_override:

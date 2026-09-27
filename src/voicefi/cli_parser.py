@@ -72,6 +72,12 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
     hook_p.add_argument(
         "--remove", action="store_true", help="Remove hook definitions from agent settings"
     )
+    hook_p.add_argument(
+        "--worker", action="store_true", help=argparse.SUPPRESS
+    )
+    hook_p.add_argument(
+        "--sync", "--block", action="store_true", help="Run hook synchronously without background detachment"
+    )
 
     # speak
     speak_p = subparsers.add_parser("speak", help="Speak text aloud")
@@ -1182,12 +1188,13 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
     hud_sub = hud_p.add_subparsers(
         dest="hud_action",
         metavar="<action>",
-        help="HUD action (open, close, reset, debug, config, test, show, on, off, status, persistent, auto-send)",
+        help="HUD action (open, close, toggle, reset, debug, config, test, show, on, off, status, persistent, auto-send)",
     )
     hud_sub.add_parser(
         "open", aliases=["start", "launch"], help="Open and show persistent Dynamic Island HUD"
     )
     hud_sub.add_parser("close", aliases=["stop", "hide"], help="Close and hide Dynamic Island HUD")
+    hud_sub.add_parser("toggle", help="Toggle Dynamic Island HUD visibility")
     hud_sub.add_parser("on", aliases=["enable"], help="Enable and show persistent HUD")
     hud_sub.add_parser("off", aliases=["disable"], help="Disable and hide HUD")
     hud_sub.add_parser(
@@ -1646,6 +1653,34 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
         "--volume", "-v", type=float, default=1.0, help="Playback volume (0.1 - 2.0)"
     )
 
+    # beatbox / vocal modular synth
+    beatbox_p = subparsers.add_parser(
+        "beatbox",
+        aliases=["vocal-synth", "taras"],
+        help="Synthesize and play Taras Stanin style beatbox routines, vocal electric guitar, and laser drops",
+    )
+    beatbox_p.add_argument(
+        "preset",
+        nargs="?",
+        default="routine",
+        help="Beatbox sound or routine preset (routine, drop, guitar, riff, laser, zap, throat_bass, bass, drums, list)",
+    )
+    beatbox_p.add_argument(
+        "--bpm", type=float, default=95.0, help="Tempo in beats per minute (default: 95.0)"
+    )
+    beatbox_p.add_argument(
+        "--bars", type=int, default=2, help="Number of bars for routine (default: 2)"
+    )
+    beatbox_p.add_argument(
+        "--volume", "-v", type=float, default=1.0, help="Playback volume (0.1 - 2.0)"
+    )
+    beatbox_p.add_argument(
+        "-o", "--save", "--output", default=None, help="Save synthesized audio to file path (.wav)"
+    )
+    beatbox_p.add_argument(
+        "--no-play", action="store_true", help="Do not play audio aloud through speakers"
+    )
+
     # bridge / ipc
     bridge_p = subparsers.add_parser(
         "bridge",
@@ -1803,6 +1838,34 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
         default=500_000,
         help="Maximum bytes to scan (default: 500,000)",
     )
+
+    # implement / patch
+    impl_p = subparsers.add_parser(
+        "implement",
+        aliases=["patch", "refactor"],
+        help="Run on-device 2B scout -> 26B coder cascade to modify files and output git diffs",
+    )
+    impl_p.add_argument("target", help="File to modify")
+    impl_p.add_argument("-i", "--instruction", required=True, help="Instruction or refactoring prompt")
+    impl_p.add_argument("--no-apply", dest="apply", action="store_false", default=True, help="Do not write changes to disk (dry run)")
+    impl_p.add_argument("--model-scout", default="gemma4-2b", help="Scout model (default: gemma4-2b)")
+    impl_p.add_argument("--model-coder", default="gemma4-26b", help="Coder model (default: gemma4-26b)")
+
+    # fix / solve
+    fix_p = subparsers.add_parser(
+        "fix",
+        aliases=["solve"],
+        help="Solve bugs using on-device models with automatic traceback extraction and test verification",
+    )
+    fix_p.add_argument("target", nargs="?", default=None, help="Target file or error description")
+    fix_p.add_argument("-e", "--error", default=None, help="Explicit error string or traceback")
+    fix_p.add_argument("-i", "--instruction", default=None, help="Additional instruction or prompt for the fix")
+    fix_p.add_argument("-c", "--clip", action="store_true", help="Read bug or traceback from macOS clipboard")
+    fix_p.add_argument("-t", "--test", default=None, help="Test command to run for 2-attempt self-healing verification (e.g. 'pytest tests/test_foo.py')")
+    fix_p.add_argument("--dry-run", "--no-apply", dest="apply", action="store_false", default=True, help="Preview diff without applying to disk")
+    fix_p.add_argument("--model-scout", default="gemma4-2b", help="Scout model (default: gemma4-2b)")
+    fix_p.add_argument("--model-coder", default="gemma4-26b", help="Coder model (default: gemma4-26b)")
+
 
     # benchmark
     bench_p = subparsers.add_parser(

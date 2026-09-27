@@ -173,11 +173,13 @@ def cmd_setup(args):
             with open(plugin_hooks_path, "w", encoding="utf-8") as f:
                 json.dump(hooks_data, f, indent=2)
 
-            # Register plugin MCP config
+            # Clean duplicate plugin MCP config if present (global ~/.gemini/config/mcp_config.json is canonical)
             plugin_mcp_path = plugin_dir / "mcp_config.json"
-            plugin_mcp_data = {"mcpServers": {"voicefi": mcp_server_entry}}
-            with open(plugin_mcp_path, "w", encoding="utf-8") as f:
-                json.dump(plugin_mcp_data, f, indent=2)
+            if plugin_mcp_path.is_file():
+                try:
+                    plugin_mcp_path.unlink()
+                except Exception:
+                    pass
 
             # Sync bundled skills into plugin directory
             skills_src_dir = Path(__file__).resolve().parent.parent.parent / ".agents" / "skills"
@@ -194,14 +196,6 @@ def cmd_setup(args):
                             if s_file.is_file():
                                 shutil.copy2(s_file, target_sub / s_file.name)
 
-            # Sync rules (AGENTS.md) into plugin directory
-            agents_rule_src = Path(__file__).resolve().parent.parent.parent / "AGENTS.md"
-            if not agents_rule_src.is_file():
-                agents_rule_src = Path.cwd() / "AGENTS.md"
-            if agents_rule_src.is_file():
-                plugin_rules_dir = plugin_dir / "rules"
-                plugin_rules_dir.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(agents_rule_src, plugin_rules_dir / "AGENTS.md")
 
             # Register in ~/.gemini/config/config.json
             global_config_json = Path.home() / ".gemini" / "config" / "config.json"

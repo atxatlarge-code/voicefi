@@ -81,6 +81,7 @@ from voicefi.cli_commands.media import (
     cmd_fx,
     cmd_reel,
     cmd_trim,
+    cmd_beatbox,
 )
 from voicefi.cli_commands.live import (
     cmd_live,
@@ -89,14 +90,20 @@ from voicefi.cli_commands.live import (
 from voicefi.cli_commands.local import (
     cmd_spark,
     cmd_scout,
+    cmd_implement,
     cmd_benchmark,
     cmd_local,
 )
+from voicefi.cli_commands.fix import cmd_fix
+
 
 
 def get_command_handlers(parser: Any = None) -> Dict[str, Callable[[Any], Any]]:
     """Return dictionary of CLI subcommand names and aliases mapped to handlers."""
     handlers: Dict[str, Callable[[Any], Any]] = {
+        "beatbox": cmd_beatbox,
+        "vocal-synth": cmd_beatbox,
+        "taras": cmd_beatbox,
         "fx": cmd_fx,
         "voice-fx": cmd_fx,
         "effects": cmd_fx,
@@ -138,6 +145,10 @@ def get_command_handlers(parser: Any = None) -> Dict[str, Callable[[Any], Any]]:
         "offline-ava": cmd_download_ava,
         "scout": cmd_scout,
         "recon": cmd_scout,
+        "implement": cmd_implement,
+        "patch": cmd_implement,
+        "fix": cmd_fix,
+        "solve": cmd_fix,
         "benchmark": cmd_benchmark,
         "bench": cmd_benchmark,
         "eval": cmd_benchmark,

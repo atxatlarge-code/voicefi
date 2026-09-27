@@ -1,9 +1,32 @@
 import os
 import sys
+
+# =========================================================================
+# CRITICAL SYSTEM & WINDOWSERVER SAFETY GUARDRAILS
+# =========================================================================
+# Enforce headless execution across all tests before any imports.
+# Prevents AppKit, NSPanel, QuickBar, CoreAudio, and WindowServer displays
+# from ever attaching to the user's active macOS desktop or GPU display server.
+os.environ["VOICEFI_HEADLESS"] = "1"
+os.environ["VOICEFI_TESTING"] = "1"
+os.environ["HEADLESS"] = "1"
+os.environ["VOICEFI_MOCK_AUDIO"] = "1"
+os.environ["PYTEST_RUNNING"] = "1"
+
 from pathlib import Path
 from unittest.mock import MagicMock
 import pytest
 from voicefi.config import VoiceFiConfig, save_config
+
+
+def pytest_configure(config):
+    """Enforce global headless and safety environment variables at test runner initialization."""
+    os.environ["VOICEFI_HEADLESS"] = "1"
+    os.environ["VOICEFI_TESTING"] = "1"
+    os.environ["HEADLESS"] = "1"
+    os.environ["VOICEFI_MOCK_AUDIO"] = "1"
+    os.environ["PYTEST_RUNNING"] = "1"
+
 
 # On Linux / non-darwin platforms or headless CI where macOS UI frameworks
 # (AppKit, rumps, Cocoa, Quartz, objc) are not available, provide stub modules
@@ -165,6 +188,55 @@ except Exception:
     sys.modules["pynput.keyboard"] = _pynput_kb
 
 
+@pytest.fixture(autouse=True, scope="session")
+def guard_windowserver_display_safety():
+    """
+    Prevent tests from ever creating or ordering visible AppKit panels/windows on macOS WindowServer.
+    Safely intercepts orderFront_, makeKeyAndOrderFront_, and CGWindowListCopyWindowInfo.
+    """
+    if sys.platform == "darwin":
+        try:
+            import AppKit
+
+            AppKit.NSWindow.orderFront_ = lambda self, sender: None
+            AppKit.NSWindow.makeKeyAndOrderFront_ = lambda self, sender: None
+            AppKit.NSWindow.orderFrontRegardless = lambda self: None
+        except Exception:
+            pass
+
+        try:
+            import Quartz
+
+            orig_cg_window_list = getattr(Quartz, "CGWindowListCopyWindowInfo", None)
+
+            def safe_cg_window_list(opt, wid):
+                if os.environ.get("MOCK_QUICKLOOK") and orig_cg_window_list:
+                    return orig_cg_window_list(opt, wid)
+                return []
+
+            Quartz.CGWindowListCopyWindowInfo = safe_cg_window_list
+        except Exception:
+            pass
+
+
+@pytest.fixture(autouse=True)
+def reset_media_detection_guard():
+    """Ensure media detection state is pristine before and after each test."""
+    try:
+        from voicefi.audio.media_detection import reset_media_detection_state
+
+        reset_media_detection_state()
+    except Exception:
+        pass
+    yield
+    try:
+        from voicefi.audio.media_detection import reset_media_detection_state
+
+        reset_media_detection_state()
+    except Exception:
+        pass
+
+
 @pytest.fixture(autouse=True)
 def isolate_test_config(tmp_path, monkeypatch):
     """Isolate tests so they never read or write ~/.voicefi/config.yaml or shared temp files."""
@@ -308,6 +380,18 @@ def cleanup_ui_singletons():
         except Exception:
             pass
 
+        try:
+            from voicefi.integrations.watcher import TranscriptWatcher
+
+            for inst in list(getattr(TranscriptWatcher, "_ACTIVE_INSTANCES", [])):
+                try:
+                    inst.stop()
+                except Exception:
+                    pass
+            getattr(TranscriptWatcher, "_ACTIVE_INSTANCES", set()).clear()
+        except Exception:
+            pass
+
         for p in (
             Path("/tmp/voicefi_cross_process_hud.json"),
             Path("/tmp/voicefi_hud_state.json"),
@@ -315,11 +399,22 @@ def cleanup_ui_singletons():
             Path("/tmp/voicefi_companion_clients.json"),
             Path("/tmp/voicefi_active_turns.json"),
             Path("/tmp/voicefi_active_turns.lock"),
+            Path("/tmp/voicefi_last_speech_stop.ts"),
+            Path("/tmp/voicefi_mic_recording.status"),
+            Path("/tmp/voicefi_agent_speaking.status"),
+            Path("/tmp/voicefi_audio_playing.status"),
         ):
             try:
                 p.unlink(missing_ok=True)
             except Exception:
                 pass
+
+        try:
+            from voicefi.tts.base import clear_speech_stopped_time, clear_cross_process_hud_state
+            clear_speech_stopped_time()
+            clear_cross_process_hud_state()
+        except Exception:
+            pass
 
     _do_cleanup()
     yield
