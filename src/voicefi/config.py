@@ -86,7 +86,7 @@ def detect_system_user_name(prefer_first_name: bool = True) -> str:
 
 class TTSConfig(BaseModel):
     provider: Literal[
-        "mac_say", "edge_tts", "elevenlabs", "f5_tts", "local_clone", "gemini", "gemini_live"
+        "mac_say", "edge_tts", "elevenlabs", "f5_tts", "local_clone", "gemini", "gemini_live", "voice_acting", "qwen", "qwen_tts", "qwen_clone"
     ] = "edge_tts"
     voice: str = "en-US-AvaNeural"
     rate: Optional[int] = 200
@@ -105,18 +105,25 @@ class TTSConfig(BaseModel):
     verbatim_jokes: bool = True
     turn_end_mode: Literal["standard", "gemini_live"] = "standard"
     live_fallback_voice: str = "en-ZA-LukeNeural"
+    cloning_engine: Literal["auto", "qwen", "f5"] = "auto"
+    qwen_model_name: str = "mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit"
     f5_device: Literal["auto", "mps", "cpu", "cuda"] = "auto"
     f5_model_name: str = "F5TTS_v1_Base"
     f5_nfe_step: int = 16
     f5_ref_audio: Optional[str] = None
     f5_ref_text: Optional[str] = None
+    intro_sfx: Optional[str] = None
+    intro_sfx_volume: float = 0.25
+    skit_intro_sfx: Optional[str] = None
     respect_media_playback: bool = True
     media_pause_timeout: float = 600.0
+    first_sentence_only: bool = False
 
 
 class STTConfig(BaseModel):
-    provider: Literal["whisper_local", "groq", "apple_speech"] = "whisper_local"
+    provider: Literal["auto", "whisper_local", "mlx_whisper", "groq", "apple_speech"] = "whisper_local"
     model_size: str = "base.en"
+    mlx_model: str = "mlx-community/whisper-large-v3-turbo"
     language: str = "en"
     streaming: bool = False
     groq_api_key: Optional[str] = ""
@@ -156,7 +163,7 @@ class AntigravityConfig(BaseModel):
     max_spoken_words: int = 60
     inject_to_active_window: bool = True
     unfocused_agent_voice: Optional[str] = None
-    unfocused_voice_prefix: bool = True
+    unfocused_voice_prefix: bool = False
     show_speech_popup: bool = True
     speech_popup_linger_seconds: float = 3.0
     speech_popup_position: Literal["top_center", "top_right", "bottom_right"] = "bottom_right"
@@ -164,6 +171,7 @@ class AntigravityConfig(BaseModel):
     persistent_hud: bool = True
     mirror_native_mic: bool = False
     show_native_mic_shortcut: bool = False
+    first_sentence_only: bool = False
 
 
 class HUDConfig(BaseModel):
@@ -178,6 +186,7 @@ class HUDConfig(BaseModel):
     margin_bottom: float = 14.0  # Vertical margin in points above macOS dock / lower bar
     linger_seconds: float = 2.0
     always_on_vad: bool = True
+    dynamic_tray_icon: bool = False
 
 
 class ClaudeConfig(BaseModel):
@@ -193,6 +202,7 @@ class ClaudeConfig(BaseModel):
     oauth_token: Optional[str] = None
     permission_mode: str = "auto"
     timeout_seconds: int = 300
+    first_sentence_only: bool = False
 
 
 class CodexConfig(BaseModel):
@@ -204,6 +214,7 @@ class CodexConfig(BaseModel):
     max_spoken_words: int = 60
     inject_to_active_window: bool = True
     show_speech_popup: bool = True
+    first_sentence_only: bool = False
 
 
 class HooksConfig(BaseModel):
@@ -227,14 +238,16 @@ class GlobalHotkeyConfig(BaseModel):
     enabled: bool = True
     talk_to_agent_hotkey: str = "<alt>+v"
     focus_and_talk_hotkey: str = "<ctrl>+r"
-    jump_to_agent_hotkey: str = "<ctrl>+j"
+    jump_to_agent_hotkey: str = "<alt>+a"
     hub_hotkey: str = "<ctrl>+<shift>+j"
-    dictate_hotkey: str = "<ctrl>+t"
+    dictate_hotkey: str = "<alt>+d"
     new_conversation_hotkey: str = "<cmd>+<shift>+n"
     quick_bar_hotkey: str = "<ctrl>+space"
     quick_bar_agent: str = "antigravity"
     quick_bar_enabled: bool = True
     quick_bar_focus_target: bool = True
+    companion_window_hotkey: str = "<ctrl>+<alt>+c"
+    companion_window_enabled: bool = True
     show_dictation_hud: bool = True
     preserve_clipboard: bool = True
 
@@ -242,7 +255,7 @@ class GlobalHotkeyConfig(BaseModel):
 class AgentVoiceProfile(BaseModel):
     provider: Optional[
         Literal[
-            "mac_say", "edge_tts", "elevenlabs", "f5_tts", "local_clone", "gemini", "gemini_live"
+            "mac_say", "edge_tts", "elevenlabs", "f5_tts", "local_clone", "gemini", "gemini_live", "voice_acting", "qwen", "qwen_tts", "qwen_clone"
         ]
     ] = None
     voice: str = "en-US-AvaNeural"
@@ -253,6 +266,9 @@ class AgentVoiceProfile(BaseModel):
     offline_provider: Optional[str] = "mac_say"
     f5_ref_audio: Optional[str] = None
     f5_ref_text: Optional[str] = None
+    intro_sfx: Optional[str] = None
+    intro_sfx_volume: Optional[float] = None
+    skit_intro_sfx: Optional[str] = None
 
 
 VALID_GEMINI_LIVE_VOICES = {
@@ -327,6 +343,7 @@ class ObsidianConfig(BaseModel):
     daily_note_format: Optional[str] = None
     daily_note_folder: Optional[str] = None
     voice_memos_folder: str = "Voice Memos"
+    meetings_folder: str = "Meetings"
     auto_backlink: bool = True
 
 
@@ -338,17 +355,41 @@ class AmbientConfig(BaseModel):
     silence_duration: float = 1.2
     max_utterance_seconds: float = 15.0
     notify_hud: bool = True
+    alert_words: list[str] = Field(
+        default_factory=lambda: [
+            "VoiceFi",
+            "Vi-Fi",
+            "vifi",
+            "Hey VoiceFi",
+            "Hey Vi-Fi",
+        ]
+    )
 
 
 class WakeWordConfig(BaseModel):
     enabled: bool = True
     phrase: str = "Hey Viv"
+    alert_words: list[str] = Field(
+        default_factory=lambda: [
+            "VoiceFi",
+            "Vi-Fi",
+            "vifi",
+            "Hey Viv",
+            "Viv",
+            "Hey VoiceFi",
+            "Hey Vi-Fi",
+        ]
+    )
     aliases: list[str] = Field(
         default_factory=lambda: [
             "hey viv",
             "viv",
-            "hey vifi",
+            "voicefi",
+            "vi-fi",
+            "hey voicefi",
+            "hey vi-fi",
             "vifi",
+            "hey vifi",
             "hey antigravity",
             "antigravity",
             "hey claude",
@@ -376,6 +417,11 @@ class CompanionConfig(BaseModel):
     audio_routing: Literal["smart", "origin_only", "phone_only", "mac_only", "both"] = "smart"
     mute_mac_when_companion_active: bool = True
     auth_token: Optional[str] = None
+    window_x: Optional[float] = None
+    window_y: Optional[float] = None
+    window_width: float = 460.0
+    window_height: float = 760.0
+    dock_edge: Optional[str] = "right"  # "right", "left", "float"
 
 
 class StudioConfig(BaseModel):
@@ -433,6 +479,12 @@ def default_agents_catalog() -> dict[str, AgentVoiceProfile]:
             provider="edge_tts",
             offline_voice="Ava (Premium)",
             description="Gemini Spark Agent (Viv / Christopher)",
+        ),
+        "gemma": AgentVoiceProfile(
+            voice="en-US-AndrewMultilingualNeural",
+            provider="edge_tts",
+            offline_voice="Ava (Premium)",
+            description="Local Gemma On-Device Model (Metal GPU)",
         ),
     }
 
@@ -632,31 +684,6 @@ class VoiceFiConfig(BaseModel):
         )
         base_default_rate = self.tts.rate or 200
         default_rate = int(round(base_default_rate * speed_mult))
-
-        # If not focused, check for unfocused voice override or dynamic contrast
-        if not is_focused:
-            if self.antigravity.unfocused_agent_voice:
-                return default_provider, self.antigravity.unfocused_agent_voice, default_rate
-
-            if default_provider == "edge_tts":
-                if "Christopher" in default_voice:
-                    return default_provider, "en-US-EmmaNeural", default_rate
-                elif "Aria" in default_voice or "Emma" in default_voice:
-                    return default_provider, "en-US-ChristopherNeural", default_rate
-                elif "Ava" in default_voice or "Viv" in default_voice:
-                    return default_provider, "en-US-GuyNeural", default_rate
-                else:
-                    return default_provider, "en-GB-SoniaNeural", default_rate
-            elif default_provider == "mac_say":
-                if "Samantha" in default_voice:
-                    return default_provider, "Daniel", default_rate
-                elif "Daniel" in default_voice:
-                    return default_provider, "Samantha", default_rate
-                else:
-                    return default_provider, "Daniel", default_rate
-            else:
-                return default_provider, default_voice, default_rate
-
         key = (agent_name or "antigravity").lower().strip()
 
         def _extract_profile(prof) -> tuple[str, str, int]:

@@ -16,6 +16,11 @@ try:
 except ImportError:
     rumps = None
 
+try:
+    import AppKit
+except ImportError:
+    AppKit = None
+
 from voicefi.ui.notifications import show_notification
 
 if rumps is not None:
@@ -97,16 +102,23 @@ VOICEFI_MENU_BAR_ICON_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="
 def get_voicefi_tray_image():
     """Load and return an NSImage of the VoiceFi master mark sized for the macOS menu bar."""
     try:
-        import AppKit
-        from pathlib import Path
-
-        search_paths = [
+        import sys
+        global AppKit
+        if AppKit is None:
+            try:
+                import AppKit
+            except ImportError:
+                return None
+        search_paths = []
+        if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+            search_paths.append(Path(sys._MEIPASS) / "assets" / "voicefi-menu-bar-icon.svg")
+        search_paths.extend([
             Path(__file__).resolve().parent.parent.parent.parent
             / "assets"
             / "voicefi-menu-bar-icon.svg",
             Path(__file__).resolve().parent.parent / "assets" / "voicefi-menu-bar-icon.svg",
             Path.home() / ".voicefi" / "assets" / "voicefi-menu-bar-icon.svg",
-        ]
+        ])
 
         image = None
         for p in search_paths:
@@ -267,7 +279,7 @@ class VoiceFiTrayApp(_TrayAppBase):
             callback=self.trigger_talk_to_antigravity,
         )
         self.focus_agent_item = rumps.MenuItem(
-            "💬 Switch to Agent Window (Ctrl + J)", callback=self.trigger_focus_antigravity
+            "💬 Switch to Agent Window (⌥A / Ctrl + J)", callback=self.trigger_focus_antigravity
         )
         self.hub_item = rumps.MenuItem(
             "🪟 Activity Hub Window (Ctrl + Shift + J)", callback=self.toggle_hub
@@ -276,7 +288,7 @@ class VoiceFiTrayApp(_TrayAppBase):
         self._build_conversations_submenu()
 
         self.listen_anywhere_item = rumps.MenuItem(
-            "🎤 Dictate to Current Window (Ctrl + T)",
+            "🎤 Dictate to Current Window (⌥D / Ctrl + T)",
             callback=self.trigger_manual_listen,
         )
 
@@ -464,6 +476,7 @@ class VoiceFiTrayApp(_TrayAppBase):
 
         def _watchdog_loop():
             import gc
+            from voicefi.tts.base import is_agent_speaking, is_agent_audio_playing
 
             time.sleep(30.0)  # Initial settle
             while True:
@@ -477,9 +490,16 @@ class VoiceFiTrayApp(_TrayAppBase):
                     except Exception:
                         rss_mb = 0.0
 
-                    if rss_mb > 1200.0:
+                    # Adjust thresholds if local cloning/PyTorch is loaded in memory
+                    is_local_cloning = any(
+                        p in sys.modules for p in ("f5_tts", "torch", "torchcodec")
+                    )
+                    warn_thresh = 2600.0 if is_local_cloning else 1200.0
+                    crit_thresh = 3800.0 if is_local_cloning else 1800.0
+
+                    if rss_mb > warn_thresh:
                         print(
-                            f"[VoiceFi] ⚠️ Memory ceiling warning: {rss_mb:.1f}MB > 1200MB. Compacting caches...",
+                            f"[VoiceFi] ⚠️ Memory ceiling warning: {rss_mb:.1f}MB > {warn_thresh:.0f}MB. Compacting caches...",
                             flush=True,
                         )
                         from voicefi.stt import clear_stt_engine_cache
@@ -492,13 +512,20 @@ class VoiceFiTrayApp(_TrayAppBase):
                         except Exception:
                             pass
 
-                        if rss_mb > 1800.0:
-                            print(
-                                f"[VoiceFi] 🚨 Critical memory threshold exceeded: {rss_mb:.1f}MB > 1800MB. Gracefully recycling tray process...",
-                                flush=True,
-                            )
-                            # Cleanly exit so launchd KeepAlive automatically respawns with a fresh heap
-                            os._exit(0)
+                        if rss_mb > crit_thresh:
+                            # CRITICAL: Never recycle while the agent is actively speaking aloud or playing audio!
+                            if is_agent_speaking() or is_agent_audio_playing():
+                                print(
+                                    f"[VoiceFi] ⏸️ Memory critical ({rss_mb:.1f}MB > {crit_thresh:.0f}MB) but agent is speaking. Deferring recycle...",
+                                    flush=True,
+                                )
+                            else:
+                                print(
+                                    f"[VoiceFi] 🚨 Critical memory threshold exceeded: {rss_mb:.1f}MB > {crit_thresh:.0f}MB. Gracefully recycling tray process...",
+                                    flush=True,
+                                )
+                                # Cleanly exit so launchd KeepAlive automatically respawns with a fresh heap
+                                os._exit(0)
                 except Exception:
                     pass
                 time.sleep(60.0)
@@ -968,6 +995,21 @@ class VoiceFiTrayApp(_TrayAppBase):
         except Exception:
             pass
 
+    def open_desktop_companion(self, _=None):
+        """Open the native macOS desktop Companion window."""
+        self._ensure_companion_server_running()
+        try:
+            from voicefi.ui.companion_window import CompanionDesktopWindow
+
+            port = (
+                getattr(getattr(self, "config", None), "companion", None)
+                and self.config.companion.port
+                or 5141
+            )
+            CompanionDesktopWindow.get_instance(port=port).toggle()
+        except Exception as e:
+            print(f"[Tray] Error opening desktop companion window: {e}")
+
     def open_mobile_companion(self, _=None):
         """Open the Mobile Companion pairing page with QR code."""
         import webbrowser
@@ -1108,8 +1150,12 @@ class VoiceFiTrayApp(_TrayAppBase):
         )
         mute_item.state = 1 if mute_mac_active else 0
 
-        # Pairing QR code goes at top per user request
+        # Pairing and desktop companion options
         items = [
+            rumps.MenuItem(
+                "🖥️ Open Desktop Companion Window",
+                callback=self.open_desktop_companion,
+            ),
             rumps.MenuItem("📷 Show Pairing QR Code...", callback=self.open_mobile_companion),
             rumps.MenuItem(
                 "📱 Open in Browser (localhost:5141/rc)",
@@ -1143,7 +1189,7 @@ class VoiceFiTrayApp(_TrayAppBase):
                     pass
                 self._build_companion_submenu()
                 try:
-                    name = "Claude Code" if eng == "claude" else "Antigravity"
+                    name = "Claude Code" if eng == "claude" else ("Local Gemma" if eng == "gemma" else "Antigravity")
                     rumps.notification(
                         "VoiceFi Companion",
                         "Target Agent Changed",
@@ -1154,14 +1200,20 @@ class VoiceFiTrayApp(_TrayAppBase):
 
             return _cb
 
-        active_name = "Google Antigravity" if active_engine == "antigravity" else "Claude Code"
+        active_name = (
+            "Google Antigravity"
+            if active_engine == "antigravity"
+            else ("Claude Code" if active_engine == "claude" else "Local Gemma")
+        )
         target_agent_menu = rumps.MenuItem(f"🎯 Selected Agent: {active_name}")
         item_ag = rumps.MenuItem("🟢 Google Antigravity", callback=_set_target("antigravity"))
         item_ag.state = 1 if active_engine == "antigravity" else 0
         item_cl = rumps.MenuItem("🟣 Claude Code (CLI & Desktop)", callback=_set_target("claude"))
         item_cl.state = 1 if active_engine == "claude" else 0
+        item_gm = rumps.MenuItem("🧠 Local Gemma (Metal GPU)", callback=_set_target("gemma"))
+        item_gm.state = 1 if active_engine == "gemma" else 0
         self._safe_clear(target_agent_menu)
-        target_agent_menu.update([item_ag, item_cl])
+        target_agent_menu.update([item_ag, item_cl, item_gm])
         items.append(target_agent_menu)
 
         items.append(rumps.separator)
@@ -1989,9 +2041,9 @@ class VoiceFiTrayApp(_TrayAppBase):
             "dispatching": "paperplane.fill",
         }
 
-        symbol_name = "voicefi"
+        dynamic_icon = getattr(getattr(self.config, "hud", None), "dynamic_tray_icon", False)
 
-        if self._current_status in status_map:
+        if dynamic_icon and self._current_status in status_map:
             symbol_name = status_map[self._current_status]
         else:
             symbol_name = "voicefi"
@@ -2824,19 +2876,35 @@ class VoiceFiTrayApp(_TrayAppBase):
                                 ).start()
                                 return
 
-                        # 2.5 Quick Prompt Bar (Control+Space only)
+                        # 2.5 Quick Prompt Bar (Option+Space or Ctrl+Space)
                         is_space = (
                             vk == 49
                             or key == Key.space
                             or char in (" ", "\x00", "\x20")
                             or str(key) == "Key.space"
                         )
+                        is_opt_space = alt and not shift and not ctrl and not cmd and is_space
                         is_ctrl_space = ctrl and not shift and not alt and not cmd and is_space
-                        if is_ctrl_space and getattr(
+                        if (is_opt_space or is_ctrl_space) and getattr(
                             self.config.global_hotkey, "quick_bar_enabled", True
                         ):
                             if _debounce("quick_bar", interval=0.3):
                                 self.toggle_quick_bar()
+                            return
+
+                        # 2.7 Desktop Companion Window (Control+Option+C, or configured companion_window_hotkey)
+                        is_ctrl_opt_c = (
+                            ctrl
+                            and alt
+                            and not shift
+                            and not cmd
+                            and (vk == 8 or char in ("c", "C", "ç", "\x03"))
+                        )
+                        if is_ctrl_opt_c and getattr(
+                            self.config.global_hotkey, "companion_window_enabled", True
+                        ):
+                            if _debounce("companion_window", interval=0.3):
+                                self.open_desktop_companion()
                             return
 
                         # 3. New Conversation with Connected Tools (Cmd+Shift+N or Ctrl+Shift+N)
@@ -2853,14 +2921,30 @@ class VoiceFiTrayApp(_TrayAppBase):
                                 self.toggle_hub()
                             return
 
-                        # 5. Jump to Antigravity (Ctrl+J or Cmd+J)
-                        if mod and not shift and (vk == 38 or char in ("j", "\n")):
+                        # 5. Jump / Focus Agent (Option+A, or backwards-compatible Ctrl+J / Cmd+J)
+                        is_opt_a = (
+                            alt
+                            and not shift
+                            and not ctrl
+                            and not cmd
+                            and (vk == 0 or char in ("a", "A", "å"))
+                        )
+                        is_jump_j = mod and not shift and (vk == 38 or char in ("j", "\n"))
+                        if is_opt_a or is_jump_j:
                             if _debounce("jump"):
                                 self.trigger_focus_antigravity()
                             return
 
-                        # 6. Universal Dictation (Ctrl+T)
-                        if ctrl and not shift and (vk == 17 or char in ("t", "T", "\x14")):
+                        # 6. Universal Dictation (Option+D, or backwards-compatible Ctrl+T)
+                        is_opt_d = (
+                            alt
+                            and not shift
+                            and not ctrl
+                            and not cmd
+                            and (vk == 2 or char in ("d", "D", "∂"))
+                        )
+                        is_ctrl_t = ctrl and not shift and (vk == 17 or char in ("t", "T", "\x14"))
+                        if is_opt_d or is_ctrl_t:
                             if self.config.global_hotkey.enabled and _debounce("dictate"):
                                 self._key_down_times["dictate"] = time.time()
                                 is_ptt = self.config.vad.mode == "ptt"
@@ -2937,7 +3021,14 @@ class VoiceFiTrayApp(_TrayAppBase):
                             or char in ("r", "R", "\x12", "v", "V", "√", "\x16")
                             or (is_alt and is_shift and (vk == 49 or key == Key.space))
                         )
-                        is_dictate_key = vk == 17 or char in ("t", "T", "\x14")
+                        is_dictate_key = vk in (17, 2) or char in (
+                            "t",
+                            "T",
+                            "\x14",
+                            "d",
+                            "D",
+                            "∂",
+                        )
                         is_new_conv_key = vk == 45 or char in ("n", "N", "\x0e")
                         is_action_key = is_respond_key or is_dictate_key or is_new_conv_key
 
@@ -2990,7 +3081,7 @@ class VoiceFiTrayApp(_TrayAppBase):
                             flags = _cg_get_flags(event)
                             vk = _cg_get_int(event, _k_keycode)
 
-                            # 0. Quick Prompt Bar: vk 49 (Space) with Control held ONLY
+                            # 0. Backwards-compatible Quick Prompt Bar: vk 49 (Space) with Control held ONLY
                             if vk == 49:
                                 is_ctrl_sp = bool(flags & _mask_ctrl) and not bool(
                                     flags & (_mask_cmd | _mask_shift | _mask_alt)
@@ -3003,6 +3094,19 @@ class VoiceFiTrayApp(_TrayAppBase):
                                             self.toggle_quick_bar()
                                     return None
 
+                            # 0.5 Desktop Companion Window: vk 8 ('c') with Control and Option held ONLY
+                            if vk == 8:
+                                is_ctrl_opt_c_event = bool(flags & _mask_ctrl) and bool(flags & _mask_alt) and not bool(
+                                    flags & (_mask_cmd | _mask_shift)
+                                )
+                                if is_ctrl_opt_c_event:
+                                    if event_type == _k_key_down and getattr(
+                                        self.config.global_hotkey, "companion_window_enabled", True
+                                    ):
+                                        if _debounce("companion_window", interval=0.3):
+                                            self.open_desktop_companion()
+                                    return None
+
                             # Instant Microsecond Fast-Path: If Option/Alt is not held, never intercept!
                             # Guarantees 0ms typing latency on macOS WindowServer for 99.9% of keystrokes.
                             if not (flags & _mask_alt):
@@ -3013,12 +3117,42 @@ class VoiceFiTrayApp(_TrayAppBase):
                                 return event
 
                             vk = _cg_get_int(event, _k_keycode)
-                            # 1. Suppress Option+V (vk 9) to prevent '√' symbol from being typed into active inputs
-                            if vk == 9:
+                            has_shift = bool(flags & _mask_shift)
+
+                            # 1. Option+Space: Main VoiceFi Quick Prompt Bar (vk 49 without Shift)
+                            # CRITICAL: Suppress vk 49 to prevent non-breaking space '\u00A0' from being typed!
+                            if vk == 49 and not has_shift:
+                                if event_type == _k_key_down and getattr(
+                                    self.config.global_hotkey, "quick_bar_enabled", True
+                                ):
+                                    if _debounce("quick_bar", interval=0.3):
+                                        self.toggle_quick_bar()
                                 return None
 
                             # 2. Suppress Shift+Option+Space (vk 49 + Shift) to prevent non-breaking space '\u00A0'
-                            if vk == 49 and (flags & _mask_shift):
+                            if vk == 49 and has_shift:
+                                return None
+
+                            # 3. Option+A (vk 0): Focus Agent Window (Suppress 'å')
+                            if vk == 0 and not has_shift:
+                                if event_type == _k_key_down and _debounce("jump", interval=0.3):
+                                    self.trigger_focus_antigravity()
+                                return None
+
+                            # 4. Option+D (vk 2): Universal Dictation (Suppress '∂')
+                            if vk == 2 and not has_shift:
+                                if (
+                                    event_type == _k_key_down
+                                    and self.config.global_hotkey.enabled
+                                    and _debounce("dictate", interval=0.3)
+                                ):
+                                    self._key_down_times["dictate"] = time.time()
+                                    is_ptt = self.config.vad.mode == "ptt"
+                                    self.trigger_manual_listen(ptt_mode=is_ptt)
+                                return None
+
+                            # 5. Suppress Option+V (vk 9) to prevent '√' symbol from being typed into active inputs
+                            if vk == 9:
                                 return None
                     except Exception:
                         pass
@@ -3032,7 +3166,7 @@ class VoiceFiTrayApp(_TrayAppBase):
                 listener.daemon = True
                 listener.start()
                 print(
-                    "[VoiceFi] ⌨️ Unified global hotkeys active: Ctrl+Space (Quick Bar), ⌥V (Suppressed √) / Ctrl+V / Ctrl+R (Prompt Agent), Cmd+Shift+N (New Conv), Ctrl+J / Cmd+J (Jump), Ctrl+T (Dictate), Ctrl+Shift+J (Hub)"
+                    "[VoiceFi] ⌨️ Unified global hotkeys active: Ctrl+Space (Quick Bar), Ctrl+Option+C (Companion), ⌥A / Ctrl+J (Agent Focus), ⌥D / Ctrl+T (Dictate), ⌥V (Prompt Agent), Cmd+Shift+N (New Conv), Ctrl+Shift+J (Hub)"
                 )
             except Exception as e:
                 print(f"[Tray] Hotkey listener notice: {e}")
