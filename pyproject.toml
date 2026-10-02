@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "voicefi"
-version = "0.2.1"
+version = "0.3.0"
 description = "Giving your agents a voice, and your voice agency. Universal voice layer for AI coding agents and macOS desktop"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -43,6 +43,7 @@ dependencies = [
     "posthog>=7.43.0",
     "psutil>=5.9.0",
     "cryptography>=41.0.0",
+    "tokenizers>=0.23.1,<0.24.0",
     "tomli>=2.0.0; python_version < '3.11'",
 ]
 

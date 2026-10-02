@@ -19,6 +19,9 @@ from voicefi.local.benchmark import (
 )
 from voicefi.local.intent import LocalIntentRouter
 from voicefi.local.trace_parser import parse_traceback, ParsedTrace
+from voicefi.local.symbols import LocalSymbolIndex, SymbolRecord
+from voicefi.local.agent_loop import LocalAutonomousLoop, AutonomousLoopResult, LoopStep
+from voicefi.local.supervisor import ThermalSupervisor, HardwareTelemetry, default_supervisor
 
 __all__ = [
     "LocalModelEngine",
@@ -37,4 +40,12 @@ __all__ = [
     "LocalIntentRouter",
     "parse_traceback",
     "ParsedTrace",
+    "LocalSymbolIndex",
+    "SymbolRecord",
+    "LocalAutonomousLoop",
+    "AutonomousLoopResult",
+    "LoopStep",
+    "ThermalSupervisor",
+    "HardwareTelemetry",
+    "default_supervisor",
 ]

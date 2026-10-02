@@ -19,6 +19,7 @@ class SpokenIntentCategory(str, Enum):
     PENDING_ANSWER = "PENDING_ANSWER"
     ACTIONABLE_COMMAND = "ACTIONABLE_COMMAND"
     ROUTED_COMMAND = "ROUTED_COMMAND"
+    UNSAFE_COMMAND = "UNSAFE_COMMAND"
     IGNORED = "IGNORED"
 
 
@@ -376,7 +377,18 @@ class ActiveListeningEngine:
                     quick_spoken_reply=None if is_ambient else "Got it.",
                 )
 
-        # 5. Check for Routed Intent vs Standard Actionable Command
+        # 5. Safety Guardrail: Protect against destructive commands
+        is_unsafe, reason = cls.is_unsafe_command(normalized_text)
+        if is_unsafe:
+            return ActiveListeningResult(
+                category=SpokenIntentCategory.UNSAFE_COMMAND,
+                raw_text=raw_text,
+                normalized_text=normalized_text,
+                is_actionable=False,
+                quick_spoken_reply=f"I heard: '{normalized_text}'. This action is destructive and requires explicit confirmation. Reason: {reason}",
+            )
+
+        # 6. Check for Routed Intent vs Standard Actionable Command
         target_ch, routed_text, metadata = cls.resolve_target_channel(normalized_text)
         is_routed = target_ch != SpokenTargetChannel.ANTIGRAVITY
 
@@ -391,6 +403,61 @@ class ActiveListeningEngine:
             routed_prompt=routed_text,
             target_metadata=metadata,
         )
+
+    @classmethod
+    def is_unsafe_command(cls, text: str) -> tuple[bool, str]:
+        """
+        Cognitive guardrail that checks if a command is destructive/irreversible.
+        Uses local Ollama structured outputs for sub-100ms classification.
+        """
+        import urllib.request
+        import json
+
+        system_prompt = (
+            "You are VoiceFi's cognitive safety guardrail. "
+            "Determine if the user's spoken command is safe to execute autonomously, or if it is unsafe.\n"
+            "Criteria:\n"
+            "- safe: Reading files, running tests, checking status, scaffolding routes, writing code, creating tables.\n"
+            "- unsafe: Destructive actions like 'rm -rf', 'DROP TABLE', wiping databases, deleting branches, force pushing."
+        )
+
+        payload = {
+            "model": "gemma2:2b",
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"Command: {text}"}
+            ],
+            "format": {
+                "type": "object",
+                "properties": {
+                    "safety": {
+                        "type": "string",
+                        "enum": ["safe", "unsafe"]
+                    },
+                    "reason": {
+                        "type": "string"
+                    }
+                },
+                "required": ["safety", "reason"]
+            },
+            "stream": False,
+            "options": {"temperature": 0.0}
+        }
+
+        req = urllib.request.Request(
+            "http://localhost:11434/api/chat",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+
+        try:
+            with urllib.request.urlopen(req, timeout=3.0) as response:
+                result = json.loads(response.read().decode())
+                parsed = json.loads(result["message"]["content"])
+                return (parsed.get("safety") == "unsafe", parsed.get("reason", ""))
+        except Exception:
+            return (False, "")
 
     @classmethod
     def extract_wakeword_and_prompt(
@@ -425,12 +492,17 @@ class ActiveListeningEngine:
             "hague claude",
         ]
         default_names = [
+            "voicefi",
+            "voice fi",
+            "voice-fi",
+            "vi-fi",
+            "vi fi",
+            "vifi",
             "viv",
             "vive",
-            "vifi",
             "vivi",
             "wi-fi",
-            "voicefi",
+            "wifi",
             "antigravity",
         ] + claude_names
         prefixes = ["hey", "hi", "okay", "ok", "yo", "hello", "all right", "alright", "so"]
@@ -453,9 +525,19 @@ class ActiveListeningEngine:
                 matched_phrase = alias.strip()
                 # Normalize Claude variants to standard wake phrase
                 mp_lower = matched_phrase.lower()
+                has_pfx = any(p in mp_lower for p in prefixes) or "hague" in mp_lower
                 if any(c in mp_lower for c in claude_names):
-                    has_pfx = any(p in mp_lower for p in prefixes) or "hague" in mp_lower
                     matched_phrase = "hey claude" if has_pfx else "claude"
+                elif "voice" in mp_lower and "fi" in mp_lower:
+                    matched_phrase = "hey voicefi" if has_pfx else "voicefi"
+                elif mp_lower in ("hey vi-fi", "hey vi fi", "hey vifi") and "vifi" in text.lower():
+                    matched_phrase = "hey vifi"
+                elif mp_lower in ("vi-fi", "vi fi", "vifi") and "vifi" in text.lower():
+                    matched_phrase = "vifi"
+                elif mp_lower in ("hey vi fi",):
+                    matched_phrase = "hey vi-fi"
+                elif mp_lower in ("vi fi",):
+                    matched_phrase = "vi-fi"
 
                 remainder = m.group(1) if m.group(1) else ""
                 # Strip leading punctuation and conjunctions

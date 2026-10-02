@@ -87,6 +87,7 @@ def find_latest_claude_session(base_dir: Optional[Path] = None) -> Optional[Path
 def extract_latest_claude_summary(
     session_path: Optional[Path] = None,
     max_words: Optional[int] = None,
+    first_sentence_only: Optional[bool] = None,
 ) -> str:
     """
     Extract the latest assistant response from a Claude Code session JSONL file.
@@ -127,7 +128,11 @@ def extract_latest_claude_summary(
     if not last_assistant_text:
         return "Claude is ready for your next instruction."
 
-    return clean_markdown_for_speech(last_assistant_text, max_words=max_words)
+    return clean_markdown_for_speech(
+        last_assistant_text,
+        max_words=max_words,
+        first_sentence_only=first_sentence_only,
+    )
 
 
 def handle_claude_stop_hook(
@@ -202,9 +207,15 @@ def handle_claude_stop_hook(
         session_file = find_latest_claude_session()
 
     if not text_to_speak:
+        first_sentence_only = getattr(
+            getattr(cfg, "claude", None),
+            "first_sentence_only",
+            getattr(getattr(cfg, "tts", None), "first_sentence_only", False),
+        )
         text_to_speak = extract_latest_claude_summary(
             session_path=session_file,
             max_words=cfg.claude.max_spoken_words,
+            first_sentence_only=first_sentence_only,
         )
 
     # Guard 3: Session turn deduplication

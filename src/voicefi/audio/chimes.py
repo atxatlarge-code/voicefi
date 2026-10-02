@@ -57,6 +57,21 @@ def play_chime(sound_key_or_path: str, block: bool = False) -> None:
     ):
         return
 
+    try:
+        from voicefi.config import load_config
+
+        cfg = load_config()
+        if not getattr(getattr(cfg, "audio_cues", None), "enabled", True):
+            return
+        if sound_key_or_path == "start":
+            if not getattr(getattr(cfg, "audio_cues", None), "mic_open_chime", False):
+                return
+            custom_start = getattr(getattr(cfg, "audio_cues", None), "start_chime", None)
+            if custom_start == "":
+                return
+    except Exception:
+        pass
+
     sound_path = SYSTEM_SOUNDS.get(sound_key_or_path, sound_key_or_path)
 
     # If the configured file does not exist, check fallback

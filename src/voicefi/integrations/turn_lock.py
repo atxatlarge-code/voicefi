@@ -704,8 +704,19 @@ def acquire_active_listener_lock(
                 is_dead = current_pid and not is_pid_alive(int(current_pid))
 
                 if not is_stale and not is_dead and not force:
-                    # Another conversation is currently listening!
-                    return False
+                    try:
+                        from voicefi.integrations.conversations import is_conversation_focused
+
+                        is_focused = is_conversation_focused(conv_id)
+                    except Exception:
+                        is_focused = False
+
+                    # If this conversation is the active foreground conversation, it has priority
+                    if is_focused:
+                        pass
+                    else:
+                        # Another conversation is currently listening!
+                        return False
 
                 # Claim the listener lock
                 _ACTIVE_LISTENER_FILE.write_text(
@@ -743,12 +754,15 @@ def release_active_listener_lock(conv_id: Optional[str]) -> None:
 
 
 def get_current_active_listener() -> Optional[str]:
-    """Return the conv_id of the currently active listener if unexpired."""
+    """Return the conv_id of the currently active listener if unexpired and process is alive."""
     try:
         if _ACTIVE_LISTENER_FILE.is_file():
             data = json.loads(_ACTIVE_LISTENER_FILE.read_text())
             ts = float(data.get("timestamp", 0))
+            pid = data.get("pid")
             if (time.time() - ts) < 18.0:
+                if pid and not is_pid_alive(int(pid)):
+                    return None
                 return data.get("conv_id")
     except Exception:
         pass

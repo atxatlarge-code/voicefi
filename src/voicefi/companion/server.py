@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -29,6 +30,18 @@ for _p in _EXTRA_PATHS:
 os.environ["PATH"] = os.pathsep.join(_CURRENT_PATHS)
 
 from aiohttp import web, WSMsgType
+import aiohttp.tcp_helpers
+
+# Suppress Darwin EINVAL (Errno 22) on macOS when peer closes TCP connection before connection_made
+_orig_tcp_keepalive = getattr(aiohttp.tcp_helpers, "tcp_keepalive", None)
+if _orig_tcp_keepalive:
+    def _safe_darwin_tcp_keepalive(transport):
+        try:
+            _orig_tcp_keepalive(transport)
+        except OSError:
+            pass
+    aiohttp.tcp_helpers.tcp_keepalive = _safe_darwin_tcp_keepalive
+
 import numpy as np
 
 from voicefi.config import VoiceFiConfig, load_config, save_config
@@ -106,7 +119,7 @@ class CompanionServer(
         self,
         config: Optional[VoiceFiConfig] = None,
         port: int = 5141,
-        host: str = "0.0.0.0",
+        host: str = "127.0.0.1",
     ):
         self.config = config or load_config()
         self.port = port
@@ -214,6 +227,10 @@ class CompanionServer(
         self.app.router.add_post("/api/memos/{memo_id}/action", self.handle_memo_action)
         self.app.router.add_get("/api/config/audio_routing", self.handle_get_audio_routing)
         self.app.router.add_post("/api/config/audio_routing", self.handle_set_audio_routing)
+        self.app.router.add_get("/api/config/gemma_model", self.handle_get_gemma_model)
+        self.app.router.add_post("/api/config/gemma_model", self.handle_set_gemma_model)
+        self.app.router.add_get("/api/local_model", self.handle_get_gemma_model)
+        self.app.router.add_post("/api/local_model", self.handle_set_gemma_model)
         self.app.router.add_get("/api/config/ag_remote", self.handle_get_ag_remote)
         self.app.router.add_post("/api/config/ag_remote", self.handle_set_ag_remote)
         self.app.router.add_post("/api/plan/action", self.handle_plan_action)
@@ -223,6 +240,7 @@ class CompanionServer(
             "/api/conversation/{conv_id}/artifact/{filename}", self.handle_conversation_artifact
         )
         self.app.router.add_post("/api/conversation/new", self.handle_new_conversation)
+        self.app.router.add_post("/api/conversations/new", self.handle_new_conversation)
         self.app.router.add_post("/api/switch", self.handle_switch)
         self.app.router.add_post("/api/send", self.handle_send)
         self.app.router.add_post("/api/turn_notify", self.handle_turn_notify)
@@ -233,6 +251,8 @@ class CompanionServer(
         self.app.router.add_post("/api/quick-bar/toggle", self.handle_quick_bar_toggle)
         self.app.router.add_post("/api/quick-bar/show", self.handle_quick_bar_show)
         self.app.router.add_post("/api/quick-bar/hide", self.handle_quick_bar_hide)
+        self.app.router.add_post("/api/companion-window/show", self.handle_companion_window_show)
+        self.app.router.add_post("/api/companion-window/toggle", self.handle_companion_window_toggle)
         self.app.router.add_post("/api/hud/show", self.handle_hud_show)
         self.app.router.add_post("/api/hud/hide", self.handle_hud_hide)
         self.app.router.add_post("/api/hud/toggle", self.handle_hud_toggle)
@@ -268,6 +288,7 @@ class CompanionServer(
         self.app.router.add_post("/api/vault/query", self.handle_vault_query)
         self.app.router.add_post("/api/vault/capture", self.handle_vault_capture)
         self.app.router.add_post("/api/vault/memo", self.handle_vault_memo)
+        self.app.router.add_post("/api/vault/meeting", self.handle_vault_meeting)
         self.app.router.add_get("/api/vault/today", self.handle_vault_today)
         self.app.router.add_get("/api/vault/status", self.handle_vault_status)
         self.app.router.add_post("/api/vault/launch_agent", self.handle_vault_launch_agent)
@@ -297,6 +318,18 @@ class CompanionServer(
         self.app.router.add_post("/api/peer/clip", self.handle_peer_clip_post)
         self.app.router.add_post("/api/peer/sync", self.handle_peer_sync)
         self.app.router.add_get("/api/peers", self.handle_peers_list)
+        # Content / Reel Factory UI & APIs
+        self.app.router.add_get("/factory", self.handle_factory)
+        self.app.router.add_get("/api/factory/stats", self.handle_factory_stats)
+        self.app.router.add_get("/api/factory/queue", self.handle_factory_queue)
+        self.app.router.add_get("/api/factory/reels", self.handle_factory_reels)
+        self.app.router.add_post("/api/factory/reel/update", self.handle_factory_reel_update)
+        self.app.router.add_get("/api/factory/downloads/latest-video", self.handle_factory_latest_download_video)
+        self.app.router.add_post("/api/factory/reel/attach-video", self.handle_factory_attach_video)
+        self.app.router.add_get("/api/factory/video/{filename}", self.handle_factory_serve_video)
+        self.app.router.add_post("/api/factory/reel/generate-master-audio", self.handle_factory_generate_master_audio)
+        self.app.router.add_get("/api/factory/audio/{filename}", self.handle_factory_serve_audio)
+        self.app.router.add_post("/api/factory/reel/render", self.handle_factory_render_reel)
         self.app.router.add_get("/ws", self.handle_ws)
 
     # Static Handlers
@@ -329,6 +362,431 @@ class CompanionServer(
             content_type="text/html",
             headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
         )
+
+    async def handle_factory(self, request: web.Request) -> web.Response:
+        factory_path = STATIC_DIR / "factory.html"
+        if not factory_path.is_file():
+            return web.Response(text="VoiceFi Reel Factory Studio UI missing.", status=404)
+        return web.Response(
+            text=factory_path.read_text(encoding="utf-8"),
+            content_type="text/html",
+            headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+        )
+
+    async def handle_factory_stats(self, request: web.Request) -> web.Response:
+        """Return real-time queue counts, worker status, and aggregate token savings."""
+        try:
+            from voicefi.factory.queue import ContentFactoryQueue
+            q = ContentFactoryQueue()
+            counts = q.query_queue_counts()
+            workers = q.query_active_workers()
+            metrics = q.query_aggregate_metrics()
+            return web.json_response({
+                "status": "ok",
+                "counts": counts,
+                "workers": workers,
+                "metrics": metrics,
+            })
+        except Exception as e:
+            return web.json_response({"status": "error", "error": str(e)}, status=500)
+
+    async def handle_factory_queue(self, request: web.Request) -> web.Response:
+        """Return recently processed and queued content factory jobs."""
+        try:
+            from voicefi.factory.queue import ContentFactoryQueue
+            q = ContentFactoryQueue()
+            try:
+                raw_limit = int(request.query.get("limit", "25"))
+                limit = max(1, min(raw_limit, 100))
+            except (ValueError, TypeError):
+                limit = 25
+            jobs = q.query_recent_jobs(limit=limit)
+            return web.json_response({
+                "status": "ok",
+                "jobs": [j.to_dict() for j in jobs],
+            })
+        except Exception as e:
+            return web.json_response({"status": "error", "error": str(e)}, status=500)
+
+    async def handle_factory_reels(self, request: web.Request) -> web.Response:
+        try:
+            from voicefi.factory.markdown_sync import list_reels_in_vault
+            reels = list_reels_in_vault()
+            return web.json_response({"reels": reels, "status": "ok"})
+        except Exception as e:
+            return web.json_response({"reels": [], "status": "error", "error": str(e)}, status=500)
+
+    async def handle_factory_reel_update(self, request: web.Request) -> web.Response:
+        """Surgically update a speaker turn in a vault reel markdown file on disk."""
+        try:
+            data = await request.json()
+            raw_file = data.get("file_name") or data.get("file")
+            if not raw_file:
+                return web.json_response({"error": "Missing file_name", "status": "error"}, status=400)
+
+            from voicefi.factory.markdown_sync import DEFAULT_REELS_DIR, update_reel_turn_in_file
+            file_name = Path(raw_file).name
+            file_path = DEFAULT_REELS_DIR / file_name
+            if not file_path.exists():
+                return web.json_response({"error": f"File not found: {file_name}", "status": "error"}, status=404)
+
+            turn_idx = int(data.get("turn_index", 1))
+            new_speaker = data.get("speaker")
+            new_voice = data.get("voice")
+            new_inflection = data.get("inflection")
+            new_text = data.get("text")
+
+            success = update_reel_turn_in_file(
+                file_path=file_path,
+                turn_index=turn_idx,
+                new_speaker=new_speaker,
+                new_voice=new_voice,
+                new_inflection=new_inflection,
+                new_text=new_text,
+            )
+
+            if success:
+                return web.json_response({"status": "ok", "file_name": file_name, "turn_index": turn_idx})
+            else:
+                return web.json_response({"error": "Failed to update turn in markdown note", "status": "error"}, status=400)
+        except Exception as e:
+            return web.json_response({"error": str(e), "status": "error"}, status=500)
+
+    async def handle_factory_latest_download_video(self, request: web.Request) -> web.Response:
+        """Find the latest recorded video (MOV or MP4) in ~/Downloads."""
+        downloads_dir = Path("/Users/jaketrigg/Downloads")
+        if not downloads_dir.exists():
+            return web.json_response({"found": False, "message": "Downloads folder not found"})
+
+        video_extensions = {".mov", ".mp4", ".m4v"}
+        candidates = []
+        for p in downloads_dir.iterdir():
+            if p.is_file() and p.suffix.lower() in video_extensions and not p.name.startswith("."):
+                try:
+                    st = p.stat()
+                    btime = getattr(st, "st_birthtime", 0)
+                    ctime = getattr(st, "st_ctime", 0)
+                    mtime = getattr(st, "st_mtime", 0)
+                    # Use the newest arrival time (birthtime or ctime) because Android transfers often zero-out mtime
+                    added_time = max(btime, ctime) if (btime > 0 or ctime > 0) else mtime
+                    candidates.append((added_time, p))
+                except Exception:
+                    pass
+
+        if not candidates:
+            return web.json_response({"found": False, "message": "No videos found in Downloads"})
+
+        candidates.sort(key=lambda x: x[0], reverse=True)
+        added_time, latest_path = candidates[0]
+        size_mb = round(latest_path.stat().st_size / (1024 * 1024), 2)
+        import datetime
+        created_str = datetime.datetime.fromtimestamp(added_time).strftime("%I:%M %p")
+
+        return web.json_response({
+            "found": True,
+            "file_name": latest_path.name,
+            "path": str(latest_path),
+            "size_mb": size_mb,
+            "created_time": created_str,
+        })
+
+    async def handle_factory_attach_video(self, request: web.Request) -> web.Response:
+        """Copy a video file from Downloads or source path into vifi.co/reels/recordings/."""
+        try:
+            data = await request.json()
+            source_path_str = data.get("source_path")
+            reel_id = data.get("reel_id") or "REEL-042"
+            if not source_path_str:
+                return web.json_response({"error": "Missing source_path"}, status=400)
+
+            source_path = Path(source_path_str)
+            if not source_path.exists():
+                return web.json_response({"error": f"File not found: {source_path_str}"}, status=404)
+
+            dest_dir = Path("/Users/jaketrigg/Projects/vifi.co/reels/recordings")
+            dest_dir.mkdir(parents=True, exist_ok=True)
+            dest_filename = f"{reel_id}_pointing_take{source_path.suffix.lower()}"
+            dest_path = dest_dir / dest_filename
+
+            import shutil
+            import subprocess
+            shutil.copy2(source_path, dest_path)
+            # Also preserve an archived copy with original filename
+            archive_path = dest_dir / source_path.name
+            if not archive_path.exists():
+                shutil.copy2(source_path, archive_path)
+
+            # Probe duration
+            ffprobe_res = subprocess.run(
+                ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", str(dest_path)],
+                capture_output=True, text=True
+            )
+            dur = round(float(ffprobe_res.stdout.strip()), 1) if ffprobe_res.stdout.strip() else 0.0
+
+            # Update markdown note frontmatter
+            from voicefi.factory.markdown_sync import DEFAULT_REELS_DIR, update_reel_frontmatter_video
+            matched_md = list(DEFAULT_REELS_DIR.glob(f"{reel_id}*.md"))
+            if matched_md:
+                update_reel_frontmatter_video(
+                    file_path=matched_md[0],
+                    video_rel_path=f"recordings/{dest_filename}",
+                    original_filename=source_path.name,
+                    duration_s=dur,
+                )
+
+            return web.json_response({
+                "status": "ok",
+                "attached_file": dest_filename,
+                "original_filename": source_path.name,
+                "video_url": f"/api/factory/video/{dest_filename}",
+                "duration_s": dur,
+                "size_mb": round(dest_path.stat().st_size / (1024 * 1024), 2),
+            })
+        except Exception as e:
+            return web.json_response({"error": str(e)}, status=500)
+
+    async def handle_factory_serve_video(self, request: web.Request) -> web.Response:
+        """Stream an attached video file for preview in the factory player."""
+        filename = request.match_info.get("filename", "")
+        dest_dir = Path("/Users/jaketrigg/Projects/vifi.co/reels/recordings")
+        file_path = dest_dir / Path(filename).name
+        if not file_path.exists() or not file_path.is_file():
+            return web.Response(text="Video not found", status=404)
+
+        mime = "video/quicktime" if file_path.suffix.lower() == ".mov" else "video/mp4"
+        return web.FileResponse(file_path, headers={"Content-Type": mime, "Accept-Ranges": "bytes"})
+
+    async def handle_factory_generate_master_audio(self, request: web.Request) -> web.Response:
+        """
+        Synthesize and dynamically weave all speaker turns into 1 unified master WAV
+        with intelligent conversational cross-fade/overlap (e.g. laughter overlapping sighs).
+        """
+        try:
+            data = await request.json()
+            reel_id = data.get("reel_id") or "REEL-042"
+            raw_file = data.get("file_name") or f"{reel_id}_silent_terminals.md"
+
+            from voicefi.factory.markdown_sync import DEFAULT_REELS_DIR, parse_reel_markdown
+            file_name = Path(raw_file).name
+            file_path = DEFAULT_REELS_DIR / file_name
+
+            if not file_path.exists():
+                matched = list(DEFAULT_REELS_DIR.glob(f"{reel_id}*.md"))
+                if matched:
+                    file_path = matched[0]
+                else:
+                    return web.json_response({"error": f"Reel file not found: {raw_file}"}, status=404)
+
+            manifest = parse_reel_markdown(file_path.read_text(encoding="utf-8"), file_path=file_path)
+            if not manifest.turns:
+                return web.json_response({"error": "No dialogue turns found in reel note"}, status=400)
+
+            from voicefi.config import load_config
+            from voicefi.tts import get_tts_engine
+            import subprocess
+            import shutil
+
+            cfg = load_config()
+            out_dir = Path("/Users/jaketrigg/Projects/vifi.co/reels/recordings")
+            out_dir.mkdir(parents=True, exist_ok=True)
+
+            turn_wavs = []
+            turn_durations = []
+
+            for i, t in enumerate(manifest.turns):
+                t_wav = out_dir / f"{reel_id}_turn_{i+1}_{t.speaker}.wav"
+                voice = t.voice_id or ("Aoede" if "viv" in t.speaker.lower() else "Charon")
+                style = t.emotion or ""
+                eng = get_tts_engine(cfg, agent_name=t.speaker, voice_override=voice)
+                await asyncio.to_thread(eng.speak_to_file, t.text, t_wav, style=style)
+
+                ffprobe_res = subprocess.run(
+                    ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", str(t_wav)],
+                    capture_output=True, text=True
+                )
+                dur = float(ffprobe_res.stdout.strip()) if ffprobe_res.stdout.strip() else 4.0
+                turn_wavs.append(t_wav)
+                turn_durations.append(dur)
+
+            # Build intelligent conversational overlap offsets
+            offsets_ms = [0]
+            curr_pos = 0.0
+
+            for i in range(1, len(turn_wavs)):
+                prev_text = manifest.turns[i-1].text.lower()
+                curr_text = manifest.turns[i].text.lower()
+                prev_dur = turn_durations[i-1]
+
+                # If prev turn had giggles/laughs and curr turn has sigh/conversational reaction
+                overlap = 0.0
+                if any(k in prev_text for k in ("giggle", "laugh", "chuckle")) and any(k in curr_text for k in ("sigh", "you know", "and by")):
+                    overlap = 1.6  # 1.6s overlap weaves laughter directly into sigh
+                elif any(k in curr_text for k in ("finish each", "like they", "sentences")):
+                    overlap = 0.1  # Fast natural interruption cut
+                else:
+                    overlap = 0.25
+
+                curr_pos += max(0.2, prev_dur - overlap)
+                offsets_ms.append(int(curr_pos * 1000))
+
+            input_args = []
+            filter_parts = []
+            for idx, wav in enumerate(turn_wavs):
+                input_args.extend(["-i", str(wav)])
+                delay = offsets_ms[idx]
+                filter_parts.append(f"[{idx}:a]adelay={delay}|{delay}[a{idx}]")
+
+            mix_ins = "".join(f"[a{idx}]" for idx in range(len(turn_wavs)))
+            filter_str = f"{';'.join(filter_parts)};{mix_ins}amix=inputs={len(turn_wavs)}:duration=longest:dropout_transition=0,volume=2.0[out]"
+
+            master_wav = out_dir / f"{reel_id}_master_dialogue.wav"
+            cmd_wav = ["ffmpeg", "-y"] + input_args + ["-filter_complex", filter_str, "-map", "[out]", "-c:a", "pcm_s16le", str(master_wav)]
+            await asyncio.to_thread(subprocess.run, cmd_wav, check=True)
+
+            # Export to ~/Downloads for instant user access
+            downloads_wav = Path(f"/Users/jaketrigg/Downloads/{reel_id}_master_dialogue.wav")
+            shutil.copy2(master_wav, downloads_wav)
+
+            # Also create 48k broadcast version
+            master_48k = out_dir / f"{reel_id}_master_dialogue_48k.wav"
+            cmd_48k = ["ffmpeg", "-y", "-i", str(master_wav), "-ar", "48000", str(master_48k)]
+            await asyncio.to_thread(subprocess.run, cmd_48k, check=True)
+
+            # Optional backing track mix
+            beat_path = Path("/Users/jaketrigg/Projects/vifi.co/marketing/social/assets/spicewood_texas_beat_85bpm.mp3")
+            master_mp3 = out_dir / f"{reel_id}_master_with_music.mp3"
+            if beat_path.exists():
+                cmd_music = [
+                    "ffmpeg", "-y",
+                    "-i", str(master_wav),
+                    "-i", str(beat_path),
+                    "-filter_complex",
+                    "[1:a]volume=0.20[bg];[0:a]volume=1.0[vox];[vox][bg]amix=inputs=2:duration=first:dropout_transition=2[out]",
+                    "-map", "[out]",
+                    "-c:a", "libmp3lame", "-b:a", "192k",
+                    str(master_mp3)
+                ]
+                await asyncio.to_thread(subprocess.run, cmd_music, check=True)
+
+            ff_res = subprocess.run(
+                ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", str(master_wav)],
+                capture_output=True, text=True
+            )
+            total_dur = round(float(ff_res.stdout.strip()), 2) if ff_res.stdout.strip() else 24.2
+
+            return web.json_response({
+                "status": "ok",
+                "reel_id": reel_id,
+                "total_duration_s": total_dur,
+                "wav_file": master_wav.name,
+                "wav_url": f"/api/factory/audio/{master_wav.name}",
+                "music_url": f"/api/factory/audio/{master_mp3.name}",
+                "downloads_path": str(downloads_wav),
+                "turns_count": len(turn_wavs),
+            })
+        except Exception as e:
+            return web.json_response({"error": str(e), "status": "error"}, status=500)
+
+    async def handle_factory_serve_audio(self, request: web.Request) -> web.Response:
+        """Stream generated dialogue WAV or music mix for audio player."""
+        filename = request.match_info.get("filename", "")
+        dest_dir = Path("/Users/jaketrigg/Projects/vifi.co/reels/recordings")
+        file_path = dest_dir / Path(filename).name
+        if not file_path.exists() or not file_path.is_file():
+            return web.Response(text="Audio file not found", status=404)
+
+        mime = "audio/wav" if file_path.suffix.lower() == ".wav" else "audio/mpeg"
+        return web.FileResponse(file_path, headers={"Content-Type": mime, "Accept-Ranges": "bytes"})
+
+    async def handle_factory_render_reel(self, request: web.Request) -> web.Response:
+        """
+        Hardware-accelerated 9:16 VideoToolbox render engine.
+        Overlays standard attributed kinetic subtitles onto camera take.
+        """
+        try:
+            data = await request.json()
+            reel_id = data.get("reel_id") or "REEL-042"
+            recordings_dir = Path("/Users/jaketrigg/Projects/vifi.co/reels/recordings")
+            video_in = recordings_dir / f"{reel_id}_pointing_take.mp4"
+            audio_in = recordings_dir / f"{reel_id}_master_with_music.mp3"
+            if not audio_in.exists():
+                audio_in = recordings_dir / f"{reel_id}_master_dialogue.wav"
+
+            if not video_in.exists():
+                return web.json_response({"error": f"Video take not found: {video_in.name}"}, status=404)
+            if not audio_in.exists():
+                return web.json_response({"error": f"Audio source not found: {audio_in.name}"}, status=404)
+
+            # Ensure overlay PNGs exist
+            ovl_files = [recordings_dir / f"overlay_turn_{i}.png" for i in range(1, 5)]
+            if not all(f.exists() for f in ovl_files):
+                return web.json_response({"error": "Overlay PNGs missing. Generate overlays first."}, status=400)
+
+            # Probe audio duration
+            ff_res = subprocess.run(
+                ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", str(audio_in)],
+                capture_output=True, text=True
+            )
+            dur = float(ff_res.stdout.strip()) if ff_res.stdout.strip() else 24.69
+            offset_s = 10.652
+
+            video_out = recordings_dir / f"{reel_id}_final_render.mp4"
+
+            filter_complex = (
+                f"[0:v]trim=start={offset_s}:duration={dur},setpts=PTS-STARTPTS,fps=30[vbase];"
+                "[2:v]format=rgba,fade=in:st=0.0:d=0.2:alpha=1,fade=out:st=7.04:d=0.2:alpha=1[ovl1];"
+                "[3:v]format=rgba,fade=in:st=7.24:d=0.2:alpha=1,fade=out:st=13.70:d=0.2:alpha=1[ovl2];"
+                "[4:v]format=rgba,fade=in:st=13.90:d=0.15:alpha=1,fade=out:st=16.10:d=0.15:alpha=1[ovl3];"
+                f"[5:v]format=rgba,fade=in:st=16.25:d=0.2:alpha=1,fade=out:st={dur - 0.2:.2f}:d=0.2:alpha=1[ovl4];"
+                "[vbase][ovl1]overlay=0:0:enable=\x27between(t,0,7.24)\x27[v1];"
+                "[v1][ovl2]overlay=0:0:enable=\x27between(t,7.24,13.90)\x27[v2];"
+                "[v2][ovl3]overlay=0:0:enable=\x27between(t,13.90,16.25)\x27[v3];"
+                f"[v3][ovl4]overlay=0:0:enable=\x27between(t,16.25,{dur})\x27[vfinal]"
+            )
+
+            cmd = [
+                "ffmpeg", "-y",
+                "-i", str(video_in),
+                "-i", str(audio_in),
+                "-loop", "1", "-t", f"{dur + 1:.1f}", "-i", str(ovl_files[0]),
+                "-loop", "1", "-t", f"{dur + 1:.1f}", "-i", str(ovl_files[1]),
+                "-loop", "1", "-t", f"{dur + 1:.1f}", "-i", str(ovl_files[2]),
+                "-loop", "1", "-t", f"{dur + 1:.1f}", "-i", str(ovl_files[3]),
+                "-filter_complex", filter_complex,
+                "-map", "[vfinal]",
+                "-map", "1:a:0",
+                "-t", f"{dur:.2f}",
+                "-shortest",
+                "-c:v", "hevc_videotoolbox",
+                "-b:v", "16M",
+                "-pix_fmt", "yuv420p10le",
+                "-color_primaries", "bt2020",
+                "-color_trc", "arib-std-b67",
+                "-colorspace", "bt2020nc",
+                "-c:a", "aac",
+                "-b:a", "192k",
+                "-movflags", "+faststart",
+                "-tag:v", "hvc1",
+                str(video_out)
+            ]
+
+            await asyncio.to_thread(subprocess.run, cmd, check=True)
+
+            # Copy to Downloads for immediate access
+            downloads_mp4 = Path(f"/Users/jaketrigg/Downloads/{reel_id}_final_render.mp4")
+            shutil.copy2(video_out, downloads_mp4)
+
+            size_mb = round(video_out.stat().st_size / (1024 * 1024), 2)
+            return web.json_response({
+                "status": "ok",
+                "reel_id": reel_id,
+                "video_url": f"/api/factory/video/{video_out.name}",
+                "downloads_path": str(downloads_mp4),
+                "duration_s": dur,
+                "size_mb": size_mb,
+            })
+        except Exception as e:
+            return web.json_response({"error": str(e), "status": "error"}, status=500)
 
     async def handle_mock(self, request: web.Request) -> web.Response:
         mock_path = (
@@ -815,6 +1273,45 @@ class CompanionServer(
         except Exception as e:
             return web.json_response({"error": str(e)}, status=400)
 
+    async def handle_get_gemma_model(self, request: web.Request) -> web.Response:
+        cfg = load_config()
+        self.config = cfg
+        model = getattr(getattr(cfg, "local_model", None), "model_name", "gemma4-2b") or "gemma4-2b"
+        return web.json_response(
+            {
+                "success": True,
+                "model": model,
+                "model_name": model,
+                "options": ["gemma4-2b", "gemma4-26b"],
+            }
+        )
+
+    async def handle_set_gemma_model(self, request: web.Request) -> web.Response:
+        try:
+            data = await request.json()
+            model = data.get("model") or data.get("model_name")
+            if model:
+                model_clean = "gemma4-26b" if "26b" in str(model).lower() else "gemma4-2b"
+                cfg = load_config()
+                if hasattr(cfg, "local_model") and cfg.local_model:
+                    cfg.local_model.model_name = model_clean
+                    cfg.local_model.model_path = f"~/.litert-lm/models/{model_clean}/model.litertlm"
+                    if getattr(cfg.global_hotkey, "quick_bar_agent", None) in ("gemma", "gemma-26b"):
+                        cfg.global_hotkey.quick_bar_agent = "gemma-26b" if "26b" in model_clean else "gemma"
+                    save_config(cfg)
+                    self.config = cfg
+                self.broadcast_event(
+                    {
+                        "type": "gemma_model_changed",
+                        "model": model_clean,
+                        "model_name": model_clean,
+                    }
+                )
+                return web.json_response({"success": True, "model": model_clean})
+            return web.json_response({"error": "No model provided"}, status=400)
+        except Exception as e:
+            return web.json_response({"error": str(e)}, status=500)
+
     async def handle_speak(self, request: web.Request) -> web.Response:
         """
         Synthesize and play speech aloud through local speakers/TTS within speech_turn_lock.
@@ -843,6 +1340,7 @@ class CompanionServer(
             clean_text = raw_text.strip()
             voice = data.get("voice")
             rate = data.get("rate")
+            style = data.get("style") or data.get("inflection")
             conv_id = data.get("conv_id") or data.get("conversation_id")
             agent = data.get("agent") or data.get("agent_name") or "antigravity"
             block = bool(data.get("block", True))
@@ -862,6 +1360,7 @@ class CompanionServer(
                     "conv_id": conv_id or "active",
                     "voice": voice or "Viv",
                     "agent_role": agent,
+                    "style": style,
                 }
             )
             self.broadcast_event(
@@ -895,7 +1394,13 @@ class CompanionServer(
                         agent_name=agent,
                         persona_name=getattr(tts, "persona_name", None),
                     ):
-                        tts.speak(clean_text)
+                        import inspect
+
+                        sig = inspect.signature(tts.speak)
+                        if "style" in sig.parameters and style:
+                            tts.speak(clean_text, style=style)
+                        else:
+                            tts.speak(clean_text)
                 except DuplicateSpeechSuppressed:
                     pass
 
@@ -1192,6 +1697,28 @@ class CompanionServer(
         except Exception as e:
             return web.json_response({"status": "error", "error": str(e)}, status=500)
 
+    async def handle_companion_window_show(self, request: web.Request) -> web.Response:
+        """Show the native desktop companion window."""
+        try:
+            from voicefi.ui.companion_window import CompanionDesktopWindow
+
+            win = CompanionDesktopWindow.get_instance(port=self.port)
+            win.show()
+            return web.json_response({"status": "ok", "action": "show", "port": self.port})
+        except Exception as e:
+            return web.json_response({"status": "error", "error": str(e)}, status=500)
+
+    async def handle_companion_window_toggle(self, request: web.Request) -> web.Response:
+        """Toggle visibility of the native desktop companion window."""
+        try:
+            from voicefi.ui.companion_window import CompanionDesktopWindow
+
+            win = CompanionDesktopWindow.get_instance(port=self.port)
+            win.toggle()
+            return web.json_response({"status": "ok", "action": "toggle", "port": self.port})
+        except Exception as e:
+            return web.json_response({"status": "error", "error": str(e)}, status=500)
+
     async def handle_hud_show(self, request: web.Request) -> web.Response:
         """Show and enable the Unified Dynamic Island HUD."""
         try:
@@ -1412,20 +1939,115 @@ class CompanionServer(
         )
         return web.json_response(res.to_dict())
 
-    def _speak_in_background(self, spoken: str) -> None:
-        """Read text aloud off the event loop, bracketed by lifecycle events."""
-        self.broadcast_event({"type": "agent_speaking_started", "text": spoken})
+    def _speak_in_background(
+        self,
+        spoken: str,
+        agent_name: Optional[str] = "gemma",
+        conv_id: Optional[str] = None,
+        origin: str = "desktop",
+    ) -> None:
+        """
+        Read text aloud off the event loop via VoiceFi neural TTS engine,
+        respecting audio routing (Mac speakers vs. companion audio stream).
+        """
+        try:
+            from voicefi.integrations.antigravity import clean_markdown_for_speech
+
+            soundbite = clean_markdown_for_speech(spoken) or spoken
+        except Exception:
+            soundbite = spoken
+
+        soundbite = (soundbite or "").strip()
+        if not soundbite:
+            return
+
+        cfg = load_config()
+        self.config = cfg
+
+        routing = getattr(getattr(cfg, "companion", None), "audio_routing", "smart")
+        mute_mac_active = getattr(
+            getattr(cfg, "companion", None), "mute_mac_when_companion_active", True
+        )
+        has_remote = len(self.active_websockets) > 0
+
+        # Determine whether to speak on Mac speakers
+        should_speak_mac = True
+        if routing == "phone_only":
+            should_speak_mac = False
+        elif routing == "origin_only":
+            should_speak_mac = (origin != "mobile")
+        elif routing == "smart":
+            if origin == "mobile":
+                should_speak_mac = False
+            elif mute_mac_active and has_remote:
+                should_speak_mac = False
 
         def _speak_worker():
-            try:
-                tts = get_tts_engine(self.config)
-                tts.speak(spoken)
-            except Exception as ex:
-                logger.warning("[VaultAgent] TTS playback error: %s", ex)
-            finally:
-                self.broadcast_event({"type": "agent_speaking_finished"})
+            spoken_on_mac = False
+            if should_speak_mac:
+                try:
+                    from voicefi.tts.base import (
+                        stop_active_playback,
+                        set_cross_process_hud_state,
+                        clear_cross_process_hud_state,
+                        escape_to_stop_speech,
+                    )
+                    from voicefi.audio.echo_canceller import record_agent_spoken
 
-        threading.Thread(target=_speak_worker, daemon=True).start()
+                    stop_active_playback()
+                    record_agent_spoken(soundbite)
+
+                    tts_engine = get_tts_engine(
+                        self.config,
+                        agent_name=agent_name or "gemma",
+                        app_name="Gemma",
+                        conv_id=conv_id,
+                    )
+                    self.broadcast_event(
+                        {
+                            "type": "agent_speaking_started",
+                            "text": soundbite,
+                            "agent": agent_name or "gemma",
+                            "agent_role": agent_name or "gemma",
+                            "conv_id": conv_id,
+                        }
+                    )
+                    set_cross_process_hud_state(
+                        "speaking",
+                        text=soundbite,
+                        agent_name=agent_name or "gemma",
+                        persona_name=getattr(tts_engine, "voice", "Andrew"),
+                        app_name="Gemma",
+                        conv_id=conv_id,
+                    )
+                    with escape_to_stop_speech(
+                        agent_name=agent_name or "gemma", app_name="Gemma", conv_id=conv_id
+                    ):
+                        if hasattr(tts_engine, "stream_speak"):
+                            tts_engine.stream_speak(soundbite, block=True)
+                        else:
+                            tts_engine.speak(soundbite)
+                    spoken_on_mac = True
+                except Exception as ex:
+                    logger.warning("[GemmaPlayback] TTS playback error: %s", ex)
+                finally:
+                    clear_cross_process_hud_state()
+                    self.broadcast_event({"type": "agent_speaking_finished"})
+
+            # Broadcast agent_turn_completed so phone / companion web UI plays audio or auto-listens
+            try:
+                self.broadcast_agent_turn_completed(
+                    summary=soundbite,
+                    full_response=spoken,
+                    conv_id=conv_id or f"gemma_{int(time.time())}",
+                    agent_role=agent_name or "gemma",
+                    origin=origin,
+                    spoken_on_mac=spoken_on_mac,
+                )
+            except Exception as e:
+                logger.debug(f"[GemmaPlayback] Notice broadcasting turn complete: {e}")
+
+        threading.Thread(target=_speak_worker, daemon=True, name="GemmaVoicePlayback").start()
 
     async def handle_screenshot(self, request: web.Request) -> web.Response:
         """Capture screenshot on Mac and save in the conversation's artifacts."""
@@ -2730,7 +3352,7 @@ def _is_voicefi_running_on_port(port: int) -> bool:
 
 def run_companion_server(
     port: int = 5141,
-    host: str = "0.0.0.0",
+    host: str = "127.0.0.1",
     print_qr: bool = True,
     open_browser: bool = False,
     open_studio: bool = False,
@@ -2814,7 +3436,7 @@ def run_companion_server(
     if start_ambient_stream:
         server.start_ambient()
 
-    app_runner = web.AppRunner(server.app)
+    app_runner = web.AppRunner(server.app, tcp_keepalive=False)
     loop.run_until_complete(app_runner.setup())
 
     # HTTP Site (Default, e.g. 5141)

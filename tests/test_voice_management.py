@@ -114,27 +114,25 @@ def test_cmd_voice_cli_get(capsys):
 
 
 def test_unfocused_agent_voice_resolution():
-    """Test resolve_voice when is_focused=False."""
+    """Test that resolve_voice preserves configured voice even when is_focused=False."""
     cfg = VoiceFiConfig()
     cfg.tts.provider = "mac_say"
     cfg.tts.voice = "Samantha"
 
-    # Default contrast for Samantha on mac_say is Daniel
-    prov, v, rate = cfg.resolve_voice("antigravity", is_focused=False)
-    assert prov == "mac_say"
-    assert v == "Daniel"
-
-    # Edge TTS contrast
-    cfg.tts.provider = "edge_tts"
-    cfg.tts.voice = "en-US-ChristopherNeural"
     prov, v, rate = cfg.resolve_voice(None, is_focused=False)
-    assert prov == "edge_tts"
-    assert v == "en-US-EmmaNeural"
+    assert prov == "mac_say"
+    assert v == "Samantha"
 
-    # Explicit unfocused voice configured
-    cfg.antigravity.unfocused_agent_voice = "en-GB-SoniaNeural"
-    prov, v, rate = cfg.resolve_voice("some_role", is_focused=False)
-    assert v == "en-GB-SoniaNeural"
+    # Project-specific voice preserves project voice even when is_focused=False
+    cfg.projects["lienlogic"] = AgentVoiceProfile(
+        voice="en-US-GuyNeural",
+        provider="edge_tts",
+    )
+    prov, v, rate = cfg.resolve_voice(
+        "antigravity", is_focused=False, project_name="lienlogic"
+    )
+    assert prov == "edge_tts"
+    assert v == "en-US-GuyNeural"
 
 
 def test_rate_normalization():

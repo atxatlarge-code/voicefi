@@ -106,18 +106,19 @@ except objc.nosuchclass_error:
             try:
                 flags = event.modifierFlags()
                 vk = event.keyCode()
-                # 1. Cmd+D or Ctrl+D (Dictation, vk 2)
                 is_cmd = bool(flags & 0x100000)
                 is_ctrl = bool(flags & 0x40000)
-                if vk == 2 and (is_cmd or is_ctrl):
+                is_opt = bool(flags & 0x80000)
+                # 1. Cmd+D, Ctrl+D, or Option+D (Dictation, vk 2)
+                if vk == 2 and (is_cmd or is_ctrl or is_opt):
                     QuickPromptBarWindow.get_instance().toggle_voice_input()
                     return True
                 # 2. Ctrl+M or Cmd+M (Mic, vk 46)
                 if vk == 46 and (is_ctrl or is_cmd):
                     QuickPromptBarWindow.get_instance().toggle_voice_input()
                     return True
-                # 3. Ctrl+Space while focused (vk 49 + Control)
-                if vk == 49 and is_ctrl and not is_cmd:
+                # 3. Option+Space or Ctrl+Space while focused (vk 49)
+                if vk == 49 and (is_opt or is_ctrl) and not is_cmd:
                     QuickPromptBarWindow.get_instance().toggle_voice_input()
                     return True
             except Exception:
@@ -203,7 +204,14 @@ except objc.nosuchclass_error:
 
         def control_textView_doCommandBySelector_(self, control, textView, selector):
             sel_name = str(selector)
-            if "insertNewline:" in sel_name:
+            if any(
+                s in sel_name
+                for s in (
+                    "insertNewline:",
+                    "insertNewlineIgnoringFieldEditor:",
+                    "insertLineBreak:",
+                )
+            ):
                 if self.bar:
                     is_shift = False
                     is_alt = False
@@ -276,18 +284,11 @@ SUPPORTED_AGENTS = [
         "placeholder": "Ask Claude",
     },
     {
-        "id": "flash",
+        "id": "gemini",
         "icon": "✨",
-        "name": "Gemini Flash",
-        "desc": "Fast Multimodal Reasoning",
+        "name": "Gemini",
+        "desc": "Google Gemini Desktop",
         "placeholder": "Ask Gemini",
-    },
-    {
-        "id": "pro",
-        "icon": "⚡",
-        "name": "Gemini Pro",
-        "desc": "Deep Reasoning & Live",
-        "placeholder": "Ask Gemini Pro",
     },
     {
         "id": "chatgpt",
@@ -295,6 +296,20 @@ SUPPORTED_AGENTS = [
         "name": "ChatGPT",
         "desc": "OpenAI Desktop Companion",
         "placeholder": "Ask ChatGPT",
+    },
+    {
+        "id": "gemma",
+        "icon": "⚡",
+        "name": "Local Gemma 2B",
+        "desc": "Instant (~1.5s) on Metal GPU",
+        "placeholder": "Ask Gemma 2B (Fast)",
+    },
+    {
+        "id": "gemma-26b",
+        "icon": "🧠",
+        "name": "Local Gemma 26B",
+        "desc": "Deep Reasoning & Refactoring on Metal GPU",
+        "placeholder": "Ask Gemma 26B (Deep)",
     },
 ]
 
@@ -356,9 +371,16 @@ class QuickPromptBarWindow:
         # Load persisted default agent
         try:
             cfg = load_config()
-            self.current_agent_id = (
+            raw_agent = (
                 getattr(cfg.global_hotkey, "quick_bar_agent", "antigravity") or "antigravity"
             )
+            if raw_agent in ("flash", "pro"):
+                raw_agent = "gemini"
+            elif raw_agent in ("gemma-26b", "gemma4-26b", "local_70b"):
+                raw_agent = "gemma-26b"
+            elif raw_agent in ("gemma", "gemma4", "local", "gemma4-2b"):
+                raw_agent = "gemma"
+            self.current_agent_id = raw_agent
         except Exception:
             self.current_agent_id = "antigravity"
 
@@ -366,16 +388,24 @@ class QuickPromptBarWindow:
             self._build_panel()
 
     def _get_agent_info(self, agent_id: str) -> Dict[str, str]:
+        if agent_id in ("gemma-26b", "gemma4-26b", "local_70b"):
+            normalized_id = "gemma-26b"
+        elif agent_id in ("gemma", "gemma4", "local", "gemma4-2b"):
+            normalized_id = "gemma"
+        else:
+            normalized_id = agent_id
         for a in SUPPORTED_AGENTS:
-            if a["id"] == agent_id:
+            if a["id"] == normalized_id:
                 return a
         return SUPPORTED_AGENTS[0]
 
-    def get_agent_icon(self, agent_id: str, size: int = 16) -> Optional[Any]:
-        """Resolve native brand logo image for an agent at the specified point size."""
+    def get_agent_icon(
+        self, agent_id: str, size: int = 16, pad_left: float = 0.0
+    ) -> Optional[Any]:
+        """Resolve native brand logo image for an agent at the specified point size with optional left padding."""
         if not hasattr(self, "_icon_cache"):
             self._icon_cache = {}
-        cache_key = f"{agent_id}_{size}"
+        cache_key = f"{agent_id}_{size}_{pad_left}"
         if cache_key in self._icon_cache:
             return self._icon_cache[cache_key]
 
@@ -395,6 +425,10 @@ class QuickPromptBarWindow:
             "claude": {
                 "files": ["logo-claude.svg", "logo-claude.png"],
                 "app": "Claude",
+            },
+            "gemini": {
+                "files": ["logo-gemini.svg", "logo-gemini.png"],
+                "app": "Gemini",
             },
             "flash": {
                 "files": ["logo-gemini.svg", "logo-gemini.png"],
@@ -424,6 +458,22 @@ class QuickPromptBarWindow:
             "obsidian": {
                 "files": ["logo-obsidian.svg", "logo-obsidian.png"],
                 "app": "Obsidian",
+            },
+            "gemma": {
+                "files": ["logo-voicefi-symbol.svg", "logo-voicefi-avatar-bold-dark.png"],
+                "app": "VoiceFi",
+            },
+            "gemma-26b": {
+                "files": ["logo-voicefi-symbol.svg", "logo-voicefi-avatar-bold-dark.png"],
+                "app": "VoiceFi",
+            },
+            "local": {
+                "files": ["logo-voicefi-symbol.svg", "logo-voicefi-avatar-bold-dark.png"],
+                "app": "VoiceFi",
+            },
+            "local_70b": {
+                "files": ["logo-voicefi-symbol.svg", "logo-voicefi-avatar-bold-dark.png"],
+                "app": "VoiceFi",
             },
         }
 
@@ -462,6 +512,22 @@ class QuickPromptBarWindow:
         if img:
             img_copy = img.copy()
             img_copy.setSize_(NSSize(size, size))
+            if pad_left > 0.0:
+                try:
+                    new_w = float(size) + float(pad_left)
+                    padded_img = NSImage.alloc().initWithSize_(NSSize(new_w, float(size)))
+                    padded_img.lockFocus()
+                    img_copy.drawInRect_fromRect_operation_fraction_(
+                        NSRect(NSPoint(pad_left, 0), NSSize(size, size)),
+                        NSRect(NSPoint(0, 0), NSSize(size, size)),
+                        2,  # NSCompositingOperationSourceOver
+                        1.0,
+                    )
+                    padded_img.unlockFocus()
+                    img_copy = padded_img
+                except Exception as e:
+                    print(f"[QuickBar] Notice adding icon padding: {e}", flush=True)
+
             self._icon_cache[cache_key] = img_copy
             return img_copy
 
@@ -496,16 +562,16 @@ class QuickPromptBarWindow:
         agent_info = self._get_agent_info(self.current_agent_id)
         title = f"{agent_info['name']} ▾"
         font = NSFont.systemFontOfSize_(12.5)
-        needed_w = 120.0
+        needed_w = 124.0
         try:
             ns_str = NSString.stringWithString_(title)
             sz = ns_str.sizeWithAttributes_({NSFontAttributeName: font})
-            # icon (16) + spacing (6) + text + horizontal padding (22)
-            needed_w = float(sz.width) + 16.0 + 6.0 + 22.0
+            # icon (16) + pad_left (7) + spacing (6) + text + right padding (16)
+            needed_w = float(sz.width) + 16.0 + 7.0 + 6.0 + 16.0
         except Exception:
             pass
 
-        agent_w = round(max(110.0, min(148.0, needed_w)))
+        agent_w = round(max(116.0, min(178.0, needed_w)))
         agent_h = 28.0
         agent_y = 12.0  # Exact center Y = 26.0
         agent_x = mic_x - gap - agent_w
@@ -644,7 +710,7 @@ class QuickPromptBarWindow:
         self._agent_btn.setTitle_(f"{agent_info['name']} ▾")
         self._agent_btn.setFont_(NSFont.systemFontOfSize_(12.5))
         self._agent_btn.setToolTip_("Select Target AI Agent")
-        agent_logo = self.get_agent_icon(self.current_agent_id, size=16)
+        agent_logo = self.get_agent_icon(self.current_agent_id, size=16, pad_left=7.0)
         if agent_logo:
             self._agent_btn.setImage_(agent_logo)
             self._agent_btn.setImagePosition_(NSImageLeft)
@@ -830,7 +896,7 @@ class QuickPromptBarWindow:
         for agent in SUPPORTED_AGENTS:
             title = agent["name"]
             item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(title, None, "")
-            logo = self.get_agent_icon(agent["id"], size=18)
+            logo = self.get_agent_icon(agent["id"], size=16, pad_left=4.0)
             if logo:
                 item.setImage_(logo)
 
@@ -858,11 +924,11 @@ class QuickPromptBarWindow:
         finally:
             self._is_menu_open = False
 
-    def select_agent(self, agent_id: str):
-        """Switch active agent target, update button title, icon, placeholder, and persist preference."""
+    def select_agent(self, agent_id: str, persist: bool = True):
+        """Switch active agent target, update button title, icon, placeholder, and optionally persist preference."""
         self.current_agent_id = agent_id
         agent_info = self._get_agent_info(agent_id)
-        logo = self.get_agent_icon(agent_id, size=16)
+        logo = self.get_agent_icon(agent_id, size=16, pad_left=7.0)
 
         def _update():
             if self._agent_btn:
@@ -880,13 +946,31 @@ class QuickPromptBarWindow:
         else:
             AppHelper.callAfter(_update)
 
-        # Persist choice
+        if persist:
+            # Persist choice
+            try:
+                cfg = load_config()
+                cfg.global_hotkey.quick_bar_agent = agent_id
+                save_config(cfg)
+            except Exception:
+                pass
+
+    def reload_configured_agent(self):
+        """Reload persisted agent choice from ~/.voicefi/config.yaml and sync button & placeholder."""
         try:
             cfg = load_config()
-            cfg.global_hotkey.quick_bar_agent = agent_id
-            save_config(cfg)
-        except Exception:
-            pass
+            raw_agent = (
+                getattr(cfg.global_hotkey, "quick_bar_agent", "antigravity") or "antigravity"
+            )
+            if raw_agent in ("flash", "pro"):
+                raw_agent = "gemini"
+            elif raw_agent in ("gemma-26b", "gemma4-26b", "local_70b"):
+                raw_agent = "gemma-26b"
+            elif raw_agent in ("gemma", "gemma4", "local", "gemma4-2b"):
+                raw_agent = "gemma"
+            self.select_agent(raw_agent, persist=False)
+        except Exception as e:
+            print(f"[QuickBar] Notice reloading configured agent: {e}", flush=True)
 
     # =========================================================================
     # Voice Dictation
@@ -1221,27 +1305,65 @@ class QuickPromptBarWindow:
         elif agent_id in ("claude", "claude_code"):
             from voicefi.integrations.injector import inject_text_to_claude, focus_app_by_name
 
-            inject_text_to_claude(text=clean_prompt, auto_submit=True)
+            if silent_send:
+                # In silent / direct send mode, attempt headless CLI execution first
+                from voicefi.integrations.injector import send_message_to_agent
+
+                res = send_message_to_agent(
+                    text=clean_prompt, target_engine="claude", use_headless=True
+                )
+                if not res or not res.success:
+                    inject_text_to_claude(
+                        text=clean_prompt, auto_submit=True, restore_focus=True
+                    )
+                self.restore_previous_focus()
+            else:
+                inject_text_to_claude(text=clean_prompt, auto_submit=True, restore_focus=False)
+                focus_app_by_name("Claude")
+
+        elif agent_id in ("gemini", "gemini_app", "flash", "pro"):
+            from voicefi.integrations.injector import inject_text_to_gemini, focus_app_by_name
+
+            inject_text_to_gemini(
+                text=clean_prompt, submit_enter=True, restore_focus=silent_send
+            )
             if silent_send:
                 self.restore_previous_focus()
             else:
-                focus_app_by_name("Claude")
-
-        elif agent_id in ("flash", "pro", "gemini"):
-            from voicefi.integrations.injector import send_message_to_agent
-
-            send_message_to_agent(text=clean_prompt, target_engine="gemini")
-            if silent_send:
-                self.restore_previous_focus()
+                focus_app_by_name("Gemini")
 
         elif agent_id in ("chatgpt", "openai"):
             from voicefi.integrations.injector import inject_text_to_chatgpt, focus_app_by_name
 
-            inject_text_to_chatgpt(text=clean_prompt, auto_submit=True)
+            inject_text_to_chatgpt(
+                text=clean_prompt, auto_submit=True, restore_focus=silent_send
+            )
             if silent_send:
                 self.restore_previous_focus()
             else:
                 focus_app_by_name("ChatGPT")
+
+        elif agent_id.startswith("gemma") or agent_id in ("local", "local_70b"):
+            from voicefi.audio.chimes import play_chime
+            from voicefi.ui.companion_window import CompanionDesktopWindow
+
+            try:
+                cfg = load_config()
+                if getattr(cfg.audio_cues, "enabled", True):
+                    play_chime(cfg.audio_cues.sent_chime, block=False)
+            except Exception:
+                pass
+
+            model_name = "gemma4-26b" if "26b" in agent_id.lower() else "gemma4-2b"
+            win = CompanionDesktopWindow.get_instance()
+            win.dispatch_prompt(
+                clean_prompt,
+                engine="gemma",
+                model=model_name,
+                show_window=not silent_send,
+            )
+            if silent_send:
+                self.restore_previous_focus()
 
         else:
             from voicefi.integrations.injector import inject_text_to_antigravity
@@ -1269,6 +1391,9 @@ class QuickPromptBarWindow:
                 return
 
             print("[QuickBar] 🪄 Showing Quick Prompt Bar window", flush=True)
+
+            # Always reload persisted agent selection every time the bar is opened
+            self.reload_configured_agent()
 
             # Center on current active screen
             screen = NSScreen.mainScreen()

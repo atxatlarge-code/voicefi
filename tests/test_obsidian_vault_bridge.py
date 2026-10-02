@@ -283,6 +283,28 @@ class CompanionVaultTestCase(AioHTTPTestCase):
         assert "memo_name" in m_data
         assert Path(m_data["memo_path"]).is_file()
 
+        # 6. Test POST /api/vault/meeting with highlights and tasks
+        meeting_resp = await self.client.post(
+            "/api/vault/meeting",
+            json={
+                "raw_text": "We decided to move to MLX Metal. Viv, action item: write benchmarks.",
+                "title": "Architecture Sync",
+                "highlights": [{"text": "We decided to move to MLX Metal.", "tag": "Decision", "timestamp": "04:12"}],
+                "tasks": ["write benchmarks"],
+                "vault_path": str(self.test_vault),
+            },
+        )
+        assert meeting_resp.status == 200
+        meet_data = await meeting_resp.json()
+        assert meet_data["status"] == "ok"
+        assert "meeting_name" in meet_data
+        assert Path(meet_data["file_path"]).is_file()
+        content = Path(meet_data["file_path"]).read_text(encoding="utf-8")
+        assert "Architecture Sync" in content
+        assert "Key Highlights & Bookmarks" in content
+        assert "Decision" in content
+        assert "write benchmarks" in content
+
 
 # ---------------------------------------------------------------------------
 # Vault-wide retrieval (VaultAgent search layer)

@@ -76,8 +76,49 @@ class GroqSTT(BaseSTT):
                 raw_text = result.get("text", "").strip()
                 return PhoneticNormalizer.normalize(raw_text)
             else:
-                print(f"[GroqSTT] Error {response.status_code}: {response.text}")
+                err_text = response.text[:200]
+                print(f"[GroqSTT] Error {response.status_code}: {err_text}")
+                from voicefi.telemetry import capture_exception
+
+                capture_exception(
+                    RuntimeError(f"Groq API returned HTTP {response.status_code}"),
+                    properties={
+                        "component": "stt.groq",
+                        "provider": "groq",
+                        "provider_status_code": response.status_code,
+                        "model": self.model,
+                        "$exception_fingerprint": ["stt.groq", f"http_{response.status_code}"],
+                    },
+                )
                 return ""
+        except requests.exceptions.RequestException as e:
+            print(f"[GroqSTT] Network error: {e}")
+            from voicefi.telemetry import capture_exception
+
+            capture_exception(
+                e,
+                properties={
+                    "component": "stt.groq",
+                    "provider": "groq",
+                    "model": self.model,
+                    "$exception_fingerprint": ["stt.groq", type(e).__name__],
+                },
+            )
+            return ""
+        except Exception as e:
+            print(f"[GroqSTT] Unexpected error: {e}")
+            from voicefi.telemetry import capture_exception
+
+            capture_exception(
+                e,
+                properties={
+                    "component": "stt.groq",
+                    "provider": "groq",
+                    "model": self.model,
+                    "$exception_fingerprint": ["stt.groq", type(e).__name__],
+                },
+            )
+            return ""
         finally:
             if temp_created:
                 try:

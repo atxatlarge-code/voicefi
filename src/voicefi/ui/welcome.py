@@ -346,7 +346,7 @@ class VoiceFiWelcomeWindow:
             NSRect(NSPoint(24.0, win_h - 204.0), NSSize(360.0, 16.0))
         )
         perm_note.setStringValue_(
-            "Accessibility is used strictly for global hotkeys (Control+T dictation, Esc stop)."
+            "Accessibility is used strictly for global hotkeys (Ctrl+Space Quick Bar, ⌥D dictation, Esc stop)."
         )
         perm_note.setFont_(NSFont.systemFontOfSize_weight_(10.5, NSFontWeightRegular))
         perm_note.setTextColor_(NSColor.secondaryLabelColor())
@@ -506,7 +506,7 @@ class VoiceFiWelcomeWindow:
             NSRect(NSPoint(24.0, win_h - 510.0), NSSize(360.0, 18.0))
         )
         hotkey_strip.setStringValue_(
-            "⌨️ Universal Hotkeys: ⌃T to speak  •  ⎋ to stop  •  ⇥ to focus"
+            "⌨️ Universal Hotkeys: ⌃Space for ViFi  •  ⌥A for Agent  •  ⌥D to speak  •  ⎋ to stop"
         )
         hotkey_strip.setFont_(NSFont.systemFontOfSize_weight_(10.5, NSFontWeightSemibold))
         hotkey_strip.setTextColor_(
@@ -667,7 +667,7 @@ class VoiceFiWelcomeWindow:
             NSRect(NSPoint(24.0, 16.0), NSSize(420.0, 22.0))
         )
         footer_note.setStringValue_(
-            "🎙️ VoiceFi runs locally on your Mac • Press Control+T in any app to speak."
+            "🎙️ VoiceFi runs locally on your Mac • Press Control+Space in any app to speak."
         )
         footer_note.setFont_(NSFont.systemFontOfSize_weight_(10.5, NSFontWeightMedium))
         footer_note.setTextColor_(NSColor.secondaryLabelColor())
@@ -874,7 +874,7 @@ class VoiceFiWelcomeWindow:
         ax_ok = check_accessibility_permission()
         if ax_ok:
             self._set_status(
-                "✅ Accessibility hotkeys (<Ctrl>+T, <Esc>) are active!", is_error=False
+                "✅ Accessibility hotkeys (⌃Space, ⌥A, ⌥D, ⎋) are active!", is_error=False
             )
         else:
             self._set_status(

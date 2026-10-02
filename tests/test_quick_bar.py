@@ -88,7 +88,7 @@ def test_supported_agents_registry():
     agent_ids = [a["id"] for a in SUPPORTED_AGENTS]
     assert "antigravity" in agent_ids
     assert "claude" in agent_ids
-    assert "flash" in agent_ids
+    assert "gemini" in agent_ids
     assert "chatgpt" in agent_ids
 
     for agent in SUPPORTED_AGENTS:
@@ -122,11 +122,11 @@ def test_submit_action_custom_callback():
     bar = QuickPromptBarWindow.get_instance(on_submit=_on_sub)
     bar._text_field = MagicMock()
     bar._text_field.stringValue.return_value = "Test custom prompt"
-    bar.current_agent_id = "flash"
+    bar.current_agent_id = "gemini"
 
     bar._on_submit_action()
     assert len(submitted) == 1
-    assert submitted[0] == ("Test custom prompt", "flash")
+    assert submitted[0] == ("Test custom prompt", "gemini")
 
 
 def test_dispatch_to_agent_antigravity():
@@ -158,8 +158,20 @@ def test_dispatch_to_agent_claude():
         patch("voicefi.integrations.injector.focus_app_by_name") as mock_focus,
     ):
         bar.dispatch_to_agent("Refactor audio buffer", "claude")
-        mock_inject.assert_called_once_with(text="Refactor audio buffer", auto_submit=True)
+        mock_inject.assert_called_once_with(text="Refactor audio buffer", auto_submit=True, restore_focus=False)
         mock_focus.assert_called_once_with("Claude")
+
+
+def test_dispatch_to_agent_gemini():
+    """Verify default dispatch injects prompt to Gemini Desktop."""
+    bar = QuickPromptBarWindow.get_instance()
+    with (
+        patch("voicefi.integrations.injector.inject_text_to_gemini") as mock_inject,
+        patch("voicefi.integrations.injector.focus_app_by_name") as mock_focus,
+    ):
+        bar.dispatch_to_agent("Explain quantum computing", "gemini")
+        mock_inject.assert_called_once_with(text="Explain quantum computing", submit_enter=True, restore_focus=False)
+        mock_focus.assert_called_once_with("Gemini")
 
 
 def test_dispatch_to_agent_chatgpt():
@@ -170,8 +182,43 @@ def test_dispatch_to_agent_chatgpt():
         patch("voicefi.integrations.injector.focus_app_by_name") as mock_focus,
     ):
         bar.dispatch_to_agent("Summarize paper", "chatgpt")
-        mock_inject.assert_called_once_with(text="Summarize paper", auto_submit=True)
+        mock_inject.assert_called_once_with(text="Summarize paper", auto_submit=True, restore_focus=False)
         mock_focus.assert_called_once_with("ChatGPT")
+
+
+def test_dispatch_to_agent_silent_send_option_enter():
+    """Verify silent_send=True (Option+Enter) sends directly in background and restores focus."""
+    bar = QuickPromptBarWindow.get_instance()
+
+    # 1. Antigravity silent send uses agentapi IPC directly
+    with patch("voicefi.integrations.injector.send_message_to_antigravity") as mock_send, \
+         patch.object(bar, "restore_previous_focus") as mock_restore:
+        mock_send.return_value = MagicMock(success=True)
+        bar.dispatch_to_agent("Silent prompt to Antigravity", "antigravity", silent_send=True)
+        mock_send.assert_called_once_with(text="Silent prompt to Antigravity")
+        mock_restore.assert_called_once()
+
+    # 2. Claude silent send attempts headless runner
+    with patch("voicefi.integrations.injector.send_message_to_agent") as mock_send, \
+         patch.object(bar, "restore_previous_focus") as mock_restore:
+        mock_send.return_value = MagicMock(success=True)
+        bar.dispatch_to_agent("Silent prompt to Claude", "claude", silent_send=True)
+        mock_send.assert_called_once_with(text="Silent prompt to Claude", target_engine="claude", use_headless=True)
+        mock_restore.assert_called_once()
+
+    # 3. Gemini silent send passes restore_focus=True
+    with patch("voicefi.integrations.injector.inject_text_to_gemini") as mock_inject, \
+         patch.object(bar, "restore_previous_focus") as mock_restore:
+        bar.dispatch_to_agent("Silent prompt to Gemini", "gemini", silent_send=True)
+        mock_inject.assert_called_once_with(text="Silent prompt to Gemini", submit_enter=True, restore_focus=True)
+        mock_restore.assert_called_once()
+
+    # 4. ChatGPT silent send passes restore_focus=True
+    with patch("voicefi.integrations.injector.inject_text_to_chatgpt") as mock_inject, \
+         patch.object(bar, "restore_previous_focus") as mock_restore:
+        bar.dispatch_to_agent("Silent prompt to ChatGPT", "chatgpt", silent_send=True)
+        mock_inject.assert_called_once_with(text="Silent prompt to ChatGPT", auto_submit=True, restore_focus=True)
+        mock_restore.assert_called_once()
 
 
 def test_global_hotkey_config_defaults():
@@ -210,6 +257,38 @@ def test_get_agent_icon_resolution():
         assert icon.isValid() is True
         assert icon.size().width == 18.0
         assert icon.size().height == 18.0
+
+
+def test_get_agent_icon_with_left_padding():
+    """Verify get_agent_icon applies left padding to prevent pill corner clipping."""
+    bar = QuickPromptBarWindow.get_instance()
+    icon = bar.get_agent_icon("gemma", size=16, pad_left=7.0)
+    assert icon is not None
+    assert icon.isValid() is True
+    assert icon.size().width == 23.0
+    assert icon.size().height == 16.0
+
+
+def test_reload_configured_agent_on_show():
+    """Verify QuickPromptBarWindow reloads persisted agent selection from config on show."""
+    from voicefi.config import VoiceFiConfig
+
+    bar = QuickPromptBarWindow.get_instance()
+    mock_cfg = VoiceFiConfig()
+    mock_cfg.global_hotkey.quick_bar_agent = "gemma"
+
+    with patch("voicefi.ui.quick_bar.load_config", return_value=mock_cfg):
+        bar.reload_configured_agent()
+        assert bar.current_agent_id == "gemma"
+
+    # Verify show() invokes reload_configured_agent
+    with patch.object(bar, "reload_configured_agent") as mock_reload, \
+         patch.object(bar, "_build_panel"):
+        bar._panel = MagicMock()
+        bar._panel.isVisible.return_value = False
+        bar.show()
+        mock_reload.assert_called_once()
+
 
 
 def test_agent_menu_logos_and_clean_titles():

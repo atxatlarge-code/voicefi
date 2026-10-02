@@ -187,3 +187,68 @@ def test_send_message_to_antigravity_failure_never_blind_pastes():
         mock_inject.assert_not_called()
 
 
+def test_inject_text_to_gemini():
+    """Test inject_text_to_gemini copies prompt to clipboard and runs osascript."""
+    from voicefi.integrations.injector import inject_text_to_gemini
+
+    with patch("voicefi.integrations.injector.get_clipboard_text", return_value="SAVED_CLIP"), \
+         patch("voicefi.integrations.injector.set_clipboard_text", return_value=True) as mock_set, \
+         patch("voicefi.integrations.injector.restore_clipboard_delayed") as mock_restore, \
+         patch("subprocess.run") as mock_run:
+
+        mock_run.return_value = MagicMock(returncode=0, stdout="true")
+
+        success = inject_text_to_gemini("Tell me about Gemini 1.5", submit_enter=True)
+        assert success is True
+        mock_set.assert_called_with("Tell me about Gemini 1.5")
+        mock_restore.assert_called_once_with("SAVED_CLIP", delay=0.4)
+        mock_run.assert_called_once()
+        cmd = mock_run.call_args[0][0]
+        assert "tell application \"Gemini\" to activate" in cmd[2]
+        assert "key code 36" in cmd[2]
+
+
+def test_send_message_to_antigravity_error_capture(monkeypatch):
+    """Verify send_message_to_antigravity captures subprocess exceptions to PostHog."""
+    from unittest.mock import patch, MagicMock
+    from pathlib import Path
+    from voicefi.integrations.injector import send_message_to_antigravity
+
+    with patch("voicefi.integrations.conversations.get_latest_antigravity_conversation_id", return_value="conv-12345"), \
+         patch.object(Path, "is_file", return_value=True), \
+         patch("os.access", return_value=True), \
+         patch("voicefi.integrations.antigravity_ls.get_agentapi_env", return_value={}), \
+         patch("subprocess.run", side_effect=OSError("AgentAPI broken pipe")), \
+         patch("voicefi.telemetry.capture_exception") as mock_capture:
+
+        res = send_message_to_antigravity(conv_id="conv-12345", text="Hello agent")
+        assert res.success is False
+        assert mock_capture.called
+        call_args, call_kwargs = mock_capture.call_args
+        assert isinstance(call_args[0], OSError)
+        props = call_kwargs["properties"]
+        assert props["component"] == "injector.agentapi"
+        assert props["target_conv_id"] == "conv-12345"
+
+
+def test_inject_text_to_claude_error_capture(monkeypatch):
+    """Verify inject_text_to_claude captures unexpected AppleScript exceptions to PostHog."""
+    from unittest.mock import patch
+    from voicefi.integrations.injector import inject_text_to_claude
+
+    with patch("voicefi.integrations.injector.get_clipboard_text", return_value=None), \
+         patch("voicefi.integrations.injector.set_clipboard_text", return_value=True), \
+         patch("subprocess.run", side_effect=RuntimeError("AppleScript execution fault")), \
+         patch("voicefi.telemetry.capture_exception") as mock_capture:
+
+        res = inject_text_to_claude("Hello Claude")
+        assert res is False
+        assert mock_capture.called
+        call_args, call_kwargs = mock_capture.call_args
+        assert isinstance(call_args[0], RuntimeError)
+        props = call_kwargs["properties"]
+        assert props["component"] == "injector.claude"
+
+
+
+

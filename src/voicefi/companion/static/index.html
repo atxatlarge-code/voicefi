@@ -480,6 +480,12 @@
         </div>
       </button>
 
+      <!-- Gemma Model Quick Switcher Pill (1-tap toggle between 2B Fast vs. 26B Deep) -->
+      <div id="headerGemmaToggle" class="hidden items-center p-1 rounded-2xl bg-[#141418]/90 border border-white/15 shrink-0 shadow-inner backdrop-blur-md">
+        <button id="btnGemma2B" type="button" onclick="setGemmaModel('gemma4-2b')" class="px-2 py-1 rounded-xl text-[10px] sm:text-xs font-black transition active:scale-95 cursor-pointer bg-white text-black shadow" title="Gemma 4 2B: Instant (~1.5s) quick lookups & drafting">⚡ 2B</button>
+        <button id="btnGemma26B" type="button" onclick="setGemmaModel('gemma4-26b')" class="px-2 py-1 rounded-xl text-[10px] sm:text-xs font-bold transition active:scale-95 cursor-pointer text-zinc-400 hover:text-white" title="Gemma 4 26B: Deep code refactoring, logic analysis & multi-file reasoning">🧠 26B</button>
+      </div>
+
       <!-- 3. Right: View Switcher (1 Dropdown Button) + Refresh + Settings -->
       <div class="flex items-center gap-2 sm:gap-2.5 shrink-0">
         <!-- View Switcher Dropdown Button & Menu -->
@@ -494,9 +500,27 @@
             <button id="tabVoice" type="button" class="w-full px-3.5 py-2.5 rounded-xl text-left transition flex items-center justify-between text-sm sm:text-base font-black cursor-pointer bg-white text-black shadow-md">
               <div class="flex items-center gap-3">
                 <span class="text-lg sm:text-xl">🎙️</span>
-                <span>Voice</span>
+                <span>Voice Agent</span>
               </div>
               <span id="viewCheckVoice" class="text-emerald-700 text-sm font-bold">✓</span>
+            </button>
+            <button id="tabMeeting" type="button" onclick="toggleViewDropdown(); openMeetingCockpit();" class="w-full px-3.5 py-2.5 rounded-xl text-left transition flex items-center justify-between text-sm sm:text-base font-semibold cursor-pointer text-zinc-300 hover:text-white hover:bg-white/10">
+              <div class="flex items-center gap-3">
+                <span class="text-lg sm:text-xl">👥</span>
+                <div class="flex flex-col">
+                  <span class="font-bold leading-tight">Meeting</span>
+                  <span class="text-[10px] text-purple-400 font-normal">Granola Note-Taker</span>
+                </div>
+              </div>
+            </button>
+            <button id="tabMemo" type="button" onclick="toggleViewDropdown(); openObsidianTakeover('memo');" class="w-full px-3.5 py-2.5 rounded-xl text-left transition flex items-center justify-between text-sm sm:text-base font-semibold cursor-pointer text-zinc-300 hover:text-white hover:bg-white/10">
+              <div class="flex items-center gap-3">
+                <span class="text-lg sm:text-xl">🚶</span>
+                <div class="flex flex-col">
+                  <span class="font-bold leading-tight">Walking Memo</span>
+                  <span class="text-[10px] text-amber-400 font-normal">Wispr Flow Brain Dump</span>
+                </div>
+              </div>
             </button>
             <button id="tabChat" type="button" class="w-full px-3.5 py-2.5 rounded-xl text-left transition flex items-center justify-between text-sm sm:text-base font-semibold cursor-pointer text-zinc-300 hover:text-white hover:bg-white/10">
               <div class="flex items-center gap-3">
@@ -566,7 +590,7 @@
     </div>
 
     <!-- App Filter Row (Layer 2) -->
-    <div id="appSelectorRow" class="grid grid-cols-5 gap-1 sm:gap-2">
+    <div id="appSelectorRow" class="grid grid-cols-6 gap-1 sm:gap-1.5">
       <button type="button" id="appFilterAll" onclick="setAppFilter('all')" class="py-2.5 px-1 sm:px-2 rounded-xl text-xs sm:text-sm font-black flex items-center justify-center gap-1 sm:gap-1.5 transition active:scale-95 cursor-pointer bg-white text-black shadow-md">
         <span>All</span>
       </button>
@@ -579,9 +603,27 @@
       <button type="button" id="appFilterCodex" onclick="setAppFilter('codex')" class="py-2.5 px-1 sm:px-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1 sm:gap-1.5 transition active:scale-95 cursor-pointer bg-[#18181e] hover:bg-[#22222a] text-zinc-300 hover:text-white border border-white/10">
         <span class="w-2 h-2 rounded-full bg-emerald-400"></span> <span>Codex</span>
       </button>
+      <button type="button" id="appFilterGemma" onclick="setAppFilter('gemma')" class="py-2.5 px-1 sm:px-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1 sm:gap-1.5 transition active:scale-95 cursor-pointer bg-[#18181e] hover:bg-[#22222a] text-zinc-300 hover:text-white border border-white/10">
+        <span class="w-2 h-2 rounded-full bg-rose-400"></span> <span>Gemma</span>
+      </button>
       <button type="button" id="appFilterObsidian" onclick="setAppFilter('obsidian')" class="py-2.5 px-1 sm:px-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1 sm:gap-1.5 transition active:scale-95 cursor-pointer bg-[#18181e] hover:bg-[#22222a] text-zinc-300 hover:text-white border border-white/10">
         <span class="w-2 h-2 rounded-full bg-purple-400"></span> <span>Vault</span>
       </button>
+    </div>
+
+    <!-- Gemma Model Switcher Row inside Drawer -->
+    <div id="drawerGemmaModelRow" class="hidden items-center justify-between p-2 rounded-2xl bg-[#14141c] border border-rose-500/20 text-xs">
+      <div class="flex items-center gap-2">
+        <span class="text-sm">🧠</span>
+        <div>
+          <div class="font-bold text-white leading-tight">Gemma 4 Local Model</div>
+          <div id="drawerGemmaModelDesc" class="text-[10px] text-zinc-400">Gemma 4 2B (Fast ~1.5s)</div>
+        </div>
+      </div>
+      <div class="flex items-center gap-1 p-0.5 rounded-xl bg-black/40 border border-white/10">
+        <button id="drawerBtnGemma2B" type="button" onclick="setGemmaModel('gemma4-2b')" class="px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer bg-white text-black shadow">2B Fast</button>
+        <button id="drawerBtnGemma26B" type="button" onclick="setGemmaModel('gemma4-26b')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer text-zinc-400 hover:text-white">26B Deep</button>
+      </div>
     </div>
 
     <!-- Active Conversation List & Controls (Layer 3) -->
@@ -1490,6 +1532,112 @@
       <p class="text-[10px] text-zinc-400 text-left">
         💡 <strong>Tip:</strong> After opening on your phone, tap <em>Share &rarr; Add to Home Screen</em> to run as a full-screen standalone app.
       </p>
+    </div>
+  </div>
+
+  <!-- Dedicated Meeting Cockpit Full-Screen Overlay (Granola Style) -->
+  <div id="meetingCockpitModal" class="fixed inset-0 bg-[#090711]/98 backdrop-blur-2xl z-50 hidden flex flex-col justify-between p-3 sm:p-5 text-left select-none overflow-hidden">
+    
+    <!-- Top Header -->
+    <div class="max-w-2xl w-full mx-auto flex items-center justify-between border-b border-[#a882ff]/20 pb-2.5 shrink-0">
+      <div class="flex items-center gap-2.5 min-w-0">
+        <div class="w-10 h-10 rounded-2xl bg-gradient-to-br from-red-600/30 to-purple-900/40 flex items-center justify-center shrink-0 border border-red-500/40 shadow-[0_0_15px_rgba(239,68,68,0.3)]">
+          <span class="w-3 h-3 rounded-full bg-red-500 animate-ping"></span>
+        </div>
+        <div class="min-w-0">
+          <div class="flex items-center gap-2">
+            <input id="meetingTitleInput" type="text" value="Meeting Recording" class="bg-transparent font-black text-sm sm:text-base text-white border-b border-transparent hover:border-white/30 focus:border-purple-400 focus:outline-none truncate max-w-[170px] xs:max-w-[220px] sm:max-w-xs" title="Click to rename meeting">
+            <span class="px-2 py-0.5 rounded-full bg-purple-500/20 text-[9px] font-mono font-bold text-purple-300 border border-purple-500/30 shrink-0">GRANOLA SYNC</span>
+          </div>
+          <div class="flex items-center gap-2 text-[11px] text-zinc-400 font-mono">
+            <span id="meetingTimerText" class="text-red-400 font-bold">00:00</span>
+            <span>•</span>
+            <span class="text-emerald-400">🔇 TTS Muted</span>
+            <span>•</span>
+            <span id="meetingVaultBadge">📁 Meetings/</span>
+          </div>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 shrink-0">
+        <button id="closeMeetingCockpitBtn" type="button" class="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 active:bg-white/30 text-zinc-300 hover:text-white flex items-center justify-center text-sm font-bold cursor-pointer transition active:scale-95 shadow-sm" title="Minimize Cockpit">
+          ✕
+        </button>
+      </div>
+    </div>
+
+    <!-- Active Meeting Body: Rolling Key Points & Live Transcript -->
+    <div class="max-w-2xl w-full mx-auto flex-1 flex flex-col min-h-0 my-2 gap-2.5 overflow-hidden">
+      
+      <!-- 1. Rolling Key Points & Highlights Card (Top Section) -->
+      <div class="bg-[#120d20] border border-[#a882ff]/30 rounded-2xl p-3 shrink-0 flex flex-col shadow-inner">
+        <div class="flex items-center justify-between border-b border-white/10 pb-1.5 mb-1.5">
+          <div class="flex items-center gap-1.5 text-xs font-black text-amber-300">
+            <span>⭐</span>
+            <span>KEY POINTS & HIGHLIGHTS (<span id="meetingHighlightCount">0</span>)</span>
+          </div>
+          <span class="text-[10px] text-zinc-400 font-mono">Pins live to Obsidian</span>
+        </div>
+        <div id="meetingKeyPointsList" class="space-y-1.5 max-h-32 sm:max-h-40 overflow-y-auto pr-1 text-xs">
+          <p id="meetingKeyPointsEmpty" class="text-zinc-500 italic py-1">
+            Tap the gold <strong>"⭐ Highlight Moment"</strong> button below or say <em>"Viv, highlight this..."</em> to pin key decisions & takeaways live.
+          </p>
+        </div>
+      </div>
+
+      <!-- 2. Live Transcript & Intercepted Commands Stream -->
+      <div class="flex-1 bg-[#0b0814] border border-white/10 rounded-2xl p-3 flex flex-col min-h-0 shadow-inner">
+        <div class="flex items-center justify-between border-b border-white/10 pb-1.5 mb-2 shrink-0 text-xs">
+          <div class="flex items-center gap-2">
+            <span class="font-bold text-zinc-300">Live Meeting Stream</span>
+            <!-- Ambient Room Waveform -->
+            <div id="meetingWaveBars" class="flex items-center gap-1 h-3">
+              <span class="w-1 h-2 bg-emerald-400 rounded-full animate-pulse"></span>
+              <span class="w-1 h-3 bg-emerald-400 rounded-full animate-pulse" style="animation-delay: 0.1s"></span>
+              <span class="w-1 h-1.5 bg-emerald-400 rounded-full animate-pulse" style="animation-delay: 0.2s"></span>
+            </div>
+          </div>
+          <span id="meetingWordCount" class="text-[10px] text-zinc-500 font-mono">0 words</span>
+        </div>
+        <div id="meetingTranscriptStream" class="flex-1 overflow-y-auto space-y-2 pr-1 font-sans text-xs sm:text-sm text-zinc-300 leading-relaxed">
+          <p id="meetingStreamPlaceholder" class="text-zinc-500 italic py-8 text-center">
+            🎙️ Listening continuously... Room speech will stream here in real time.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom Controls & Giant Highlight Button -->
+    <div class="max-w-2xl w-full mx-auto shrink-0 space-y-2 pt-1">
+      
+      <!-- Giant 1-Tap Highlight Button -->
+      <div class="relative">
+        <button id="meetingHighlightBtn" type="button" class="w-full h-14 sm:h-16 rounded-2xl bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-300 active:scale-98 text-black font-black text-sm sm:text-base flex items-center justify-center gap-2 shadow-[0_0_25px_rgba(251,191,36,0.4)] transition cursor-pointer select-none">
+          <span class="text-xl">⭐</span>
+          <span>HIGHLIGHT KEY MOMENT</span>
+          <span class="text-xs bg-black/20 text-black px-2 py-0.5 rounded-full font-mono font-bold">1-TAP PIN</span>
+        </button>
+
+        <!-- Quick Tag Selector Row -->
+        <div class="flex items-center justify-center gap-1.5 mt-1.5 overflow-x-auto py-0.5">
+          <span class="text-[10px] text-zinc-400 font-mono font-bold shrink-0">TAG AS:</span>
+          <button type="button" onclick="setHighlightTag('Decision')" class="px-2 py-0.5 rounded-lg bg-purple-900/60 hover:bg-purple-800 text-purple-200 text-[10px] font-bold border border-purple-500/40 transition">💡 Decision</button>
+          <button type="button" onclick="setHighlightTag('Blocker')" class="px-2 py-0.5 rounded-lg bg-rose-900/60 hover:bg-rose-800 text-rose-200 text-[10px] font-bold border border-rose-500/40 transition">🚨 Blocker</button>
+          <button type="button" onclick="setHighlightTag('Goal')" class="px-2 py-0.5 rounded-lg bg-emerald-900/60 hover:bg-emerald-800 text-emerald-200 text-[10px] font-bold border border-emerald-500/40 transition">🎯 Goal</button>
+          <button type="button" onclick="setHighlightTag('Idea')" class="px-2 py-0.5 rounded-lg bg-cyan-900/60 hover:bg-cyan-800 text-cyan-200 text-[10px] font-bold border border-cyan-500/40 transition">📌 Idea</button>
+        </div>
+      </div>
+
+      <!-- Action Row: Pause/Resume + End & Synthesize -->
+      <div class="flex items-center gap-2">
+        <button id="meetingPauseBtn" type="button" class="w-1/3 h-12 rounded-xl bg-white/10 hover:bg-white/15 active:scale-95 text-zinc-300 hover:text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer border border-white/10">
+          <span id="meetingPauseIcon">⏸️</span>
+          <span id="meetingPauseText">Pause</span>
+        </button>
+        <button id="meetingEndBtn" type="button" class="flex-1 h-12 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-95 text-white font-black text-xs sm:text-sm flex items-center justify-center gap-2 transition cursor-pointer shadow-lg">
+          <span>⏹️</span>
+          <span>End & Synthesize Meeting</span>
+        </button>
+      </div>
     </div>
   </div>
 
@@ -2727,35 +2875,10 @@
         }
       }
 
-      // 3. State Title / Action
+      // 3. Top conversation bar ONLY shows the name of the conversation (never changes to task details)
+      updateHeaderCapsuleText();
       if (text) {
-        if (state === 'listening' || state === 'hearing') {
-          text.innerText = "Listening...";
-          text.className = "truncate font-bold text-xs sm:text-sm text-red-300 text-left";
-        } else if (state === 'speaking') {
-          let speakTitle = "Speaking • Tap to Stop";
-          if (currentIntentMode === 'comic') speakTitle = "Puck Speaking • Tap to Stop";
-          else if (currentIntentMode === 'speed') speakTitle = "Gemini Speaking • Tap to Stop";
-          else if (currentIntentMode === 'open') speakTitle = "2.5 Flash Speaking";
-          text.innerText = detailText || speakTitle;
-          text.className = "truncate font-bold text-xs sm:text-sm text-emerald-300 text-left";
-        } else if (state === 'thinking') {
-          let thinkTitle = "Thinking...";
-          if (currentIntentMode === 'comic') thinkTitle = "Puck Roasting...";
-          else if (currentIntentMode === 'speed') thinkTitle = "Gemini Live 528ms...";
-          else if (currentIntentMode === 'open') thinkTitle = "2.5 Flash Live...";
-          text.innerText = detailText || thinkTitle;
-          text.className = "truncate font-bold text-xs sm:text-sm text-purple-300 text-left";
-        } else if (state === 'working') {
-          text.innerText = detailText || "Working...";
-          text.className = "truncate font-bold text-xs sm:text-sm text-blue-300 text-left";
-        } else if (state === 'interrupted') {
-          text.innerText = "Interrupted";
-          text.className = "truncate font-bold text-xs sm:text-sm text-amber-300 text-left";
-        } else {
-          updateHeaderCapsuleText();
-          text.className = "truncate font-bold text-xs sm:text-sm text-zinc-100 text-left";
-        }
+        text.className = "truncate font-bold text-xs sm:text-sm text-zinc-100 text-left";
       }
     }
 
@@ -2962,24 +3085,40 @@
       clean = clean.replace(/^\[ATTACHED\s*\([0-9]+\):[^\]]+\]\s*/i, "");
       clean = clean.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}]/gu, "");
       clean = clean.replace(/^[⚪⏳🟢⚠️•\-]\s*/, "");
-      clean = clean.replace(/^(?:codex|cdx|claude|antigravity|agy)\s*[:•\-]?\s*/i, "");
+      clean = clean.replace(/^(?:gemma|codex|cdx|claude|antigravity|agy)\s*[:•\-]?\s*/i, "");
       clean = clean.replace(/^[A-Za-z0-9_.-]+:\s*/, "");
       clean = clean.replace(/^•\s*/, "");
       clean = clean.trim();
       if (!clean) clean = "Active Session";
 
-      const words = clean.split(/\s+/).filter(Boolean);
-      const coupleWords = words.slice(0, 3).join(" ");
-
-      const eng = (engine === 'codex' || engine === 'cdx') ? 'Codex' : ((engine === 'claude') ? 'Claude' : 'AGY');
-      return `${eng} • ${coupleWords}`;
+      const eng = (engine === 'gemma') ? 'Gemma' : ((engine === 'codex' || engine === 'cdx') ? 'Codex' : ((engine === 'claude') ? 'Claude' : 'AGY'));
+      return `${eng} • ${clean}`;
     }
 
     function updateHeaderCapsuleText() {
       const capText = document.getElementById("headerCapsuleText");
       const select = document.getElementById("convSelect");
+      if (typeof updateGemmaToggleVisibility === 'function') {
+        updateGemmaToggleVisibility();
+      }
       if (!capText) return;
 
+      // 1. If activeConversationData is loaded for current conversation, use its title
+      if (activeConversationData && activeConversationData.title && (!activeConvId || activeConversationData.id === activeConvId)) {
+        const isGemma = activeConversationData.engine === "gemma" || (activeConversationData.id && activeConversationData.id.startsWith("gemma_"));
+        const isClaude = !isGemma && (activeConversationData.engine === "claude" || (activeConversationData.id && activeConversationData.id.startsWith("claude_")));
+        const isCodex = !isGemma && !isClaude && (activeConversationData.engine === "codex" || (activeConversationData.id && activeConversationData.id.startsWith("codex_")));
+        const engine = isGemma ? 'gemma' : (isCodex ? 'codex' : (isClaude ? 'claude' : 'antigravity'));
+        const clean = formatConvoSnippet(activeConversationData.title, engine);
+        capText.textContent = clean;
+        try {
+          localStorage.setItem("voicefi_last_conv_title", clean);
+          localStorage.setItem("voicefi_active_conv_id", activeConversationData.id);
+        } catch (e) {}
+        return;
+      }
+
+      // 2. Otherwise check convSelect options
       const selectedOpt = select && select.selectedOptions && select.selectedOptions.length > 0
         ? select.selectedOptions[0]
         : (select && select.options && select.selectedIndex >= 0 ? select.options[select.selectedIndex] : null);
@@ -2987,9 +3126,10 @@
       if (selectedOpt && select && select.value) {
         const rawText = selectedOpt.text || "";
         if (rawText && !rawText.includes("No active") && !rawText.startsWith("Loading") && !rawText.includes("Not connected") && !rawText.startsWith("Failed")) {
-          const isClaude = select.value.startsWith("claude_") || (typeof currentAppFilter !== 'undefined' && currentAppFilter === 'claude');
-          const isCodex = select.value.startsWith("codex_") || (typeof currentAppFilter !== 'undefined' && currentAppFilter === 'codex');
-          const engine = isCodex ? 'codex' : (isClaude ? 'claude' : 'antigravity');
+          const isGemma = select.value.startsWith("gemma_") || (typeof currentAppFilter !== 'undefined' && currentAppFilter === 'gemma');
+          const isClaude = !isGemma && (select.value.startsWith("claude_") || (typeof currentAppFilter !== 'undefined' && currentAppFilter === 'claude'));
+          const isCodex = !isGemma && !isClaude && (select.value.startsWith("codex_") || (typeof currentAppFilter !== 'undefined' && currentAppFilter === 'codex'));
+          const engine = isGemma ? 'gemma' : (isCodex ? 'codex' : (isClaude ? 'claude' : 'antigravity'));
           const clean = formatConvoSnippet(rawText, engine);
           capText.textContent = clean;
           try {
@@ -3000,7 +3140,7 @@
         }
       }
 
-      // Check cached title in localStorage
+      // 3. Check cached title in localStorage
       try {
         const cached = localStorage.getItem("voicefi_last_conv_title");
         if (cached && cached !== "Select Context" && cached !== "Select Agent & Context") {
@@ -3010,7 +3150,7 @@
         }
       } catch (e) {}
 
-      // Check cached payload from server
+      // 4. Check cached payload from server
       if (typeof cachedConversationsPayload !== 'undefined' && cachedConversationsPayload && Array.isArray(cachedConversationsPayload.conversations) && cachedConversationsPayload.conversations.length > 0) {
         const targetId = (typeof activeConvId !== 'undefined' && activeConvId) ? activeConvId : cachedConversationsPayload.active_id;
         const conv = cachedConversationsPayload.conversations.find(c => c.id === targetId) || cachedConversationsPayload.conversations[0];
@@ -3734,18 +3874,19 @@
       const normText = currentItem.normText || text.toLowerCase().replace(/[^a-z0-9]/g, '');
       const onComplete = currentItem.onComplete;
       const agentRole = currentItem.agentRole;
-      const isCodex = agentRole === 'codex' || (agentRole && agentRole.toLowerCase().includes('codex'));
-      const isClaude = !isCodex && (agentRole === 'claude' || (agentRole && agentRole.toLowerCase().includes('claude')));
-      const voice = currentItem.voice || (isCodex ? 'Emma' : (isClaude ? 'Stefan' : 'Christopher'));
+      const isGemma = agentRole === 'gemma' || (agentRole && agentRole.toLowerCase().includes('gemma'));
+      const isCodex = !isGemma && (agentRole === 'codex' || (agentRole && agentRole.toLowerCase().includes('codex')));
+      const isClaude = !isGemma && !isCodex && (agentRole === 'claude' || (agentRole && agentRole.toLowerCase().includes('claude')));
+      const voice = currentItem.voice || (isGemma ? 'Andrew' : (isCodex ? 'Emma' : (isClaude ? 'Stefan' : 'Christopher')));
 
       isSpeaking = true;
       currentlySpeakingTextNorm = normText;
       recentSpokenNormsMap.set(normText, Date.now());
 
-      const speakerLabel = isCodex ? 'Codex Speaking' : (isClaude ? 'Claude Speaking' : 'Agent Speaking');
+      const speakerLabel = isGemma ? 'Gemma Speaking' : (isCodex ? 'Codex Speaking' : (isClaude ? 'Claude Speaking' : 'Agent Speaking'));
       setOrbState('speaking', speakerLabel, text.slice(0, 45) + (text.length > 45 ? '...' : ''));
 
-      const resolvedRole = agentRole || (activeConversationData && (activeConversationData.engine || activeConversationData.agent_role)) || (activeConvId && activeConvId.startsWith("codex_") ? "codex" : (activeConvId && activeConvId.startsWith("claude_") ? "claude" : "antigravity"));
+      const resolvedRole = agentRole || (activeConversationData && (activeConversationData.engine || activeConversationData.agent_role)) || (activeConvId && activeConvId.startsWith("gemma_") ? "gemma" : (activeConvId && activeConvId.startsWith("codex_") ? "codex" : (activeConvId && activeConvId.startsWith("claude_") ? "claude" : "antigravity")));
 
       const finishCurrentTurn = () => {
         recordAgentSpokenText(text);
@@ -4302,26 +4443,114 @@
       startMediaRecorderListening(isHandsFree);
     }
 
+    async function requestWakeLock() {
+      if ('wakeLock' in navigator && navigator.wakeLock && typeof navigator.wakeLock.request === 'function') {
+        try {
+          if (!wakeLock) {
+            wakeLock = await navigator.wakeLock.request('screen');
+            if (wakeLockDot) wakeLockDot.className = "w-2 h-2 rounded-full bg-emerald-400";
+            if (wakeLockText) wakeLockText.innerText = "Screen Awake";
+            wakeLock.addEventListener('release', () => {
+              wakeLock = null;
+              if (wakeLockDot) wakeLockDot.className = "w-2 h-2 rounded-full bg-slate-600";
+              if (wakeLockText) wakeLockText.innerText = "Screen Auto";
+            });
+          }
+        } catch (e) {
+          console.warn("WakeLock request notice:", e);
+        }
+      }
+    }
+
+    async function releaseWakeLock() {
+      if (wakeLock) {
+        try {
+          await wakeLock.release();
+        } catch (e) {
+          console.warn("WakeLock release notice:", e);
+        } finally {
+          wakeLock = null;
+          if (wakeLockDot) wakeLockDot.className = "w-2 h-2 rounded-full bg-slate-600";
+          if (wakeLockText) wakeLockText.innerText = "Screen Auto";
+        }
+      }
+    }
+
+    function updateMediaSession(recording) {
+      if ('mediaSession' in navigator && navigator.mediaSession) {
+        try {
+          if (recording) {
+            requestWakeLock();
+            if (typeof keepAudioContextAlive === 'function') keepAudioContextAlive();
+            if ('MediaMetadata' in window) {
+              try {
+                navigator.mediaSession.metadata = new MediaMetadata({
+                  title: 'VoiceFi Meeting Recorder',
+                  artist: 'Active Listening & Granola Sync',
+                  album: 'VoiceFi Companion',
+                  artwork: [
+                    { src: '/api/icon', sizes: '192x192', type: 'image/png' },
+                    { src: '/api/icon', sizes: '512x512', type: 'image/png' }
+                  ]
+                });
+              } catch (e) {}
+            }
+            try {
+              navigator.mediaSession.playbackState = 'playing';
+            } catch (e) {}
+            try {
+              navigator.mediaSession.setActionHandler('pause', () => { stopListening(); });
+              navigator.mediaSession.setActionHandler('stop', () => { stopListening(); });
+              navigator.mediaSession.setActionHandler('play', () => { startListening(false); });
+            } catch (e) {}
+          } else {
+            releaseWakeLock();
+            try {
+              navigator.mediaSession.playbackState = 'paused';
+            } catch (e) {}
+          }
+        } catch (e) {
+          console.warn("mediaSession update notice:", e);
+        }
+      }
+    }
+
+    function getSupportedAudioMimeType() {
+      if (typeof MediaRecorder === 'undefined') return '';
+      const candidateTypes = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/mp4;codecs=mp4a.40.2',
+        'audio/mp4',
+        'audio/aac',
+        'audio/ogg;codecs=opus',
+        'audio/wav'
+      ];
+      if (typeof MediaRecorder.isTypeSupported === 'function') {
+        for (const type of candidateTypes) {
+          try {
+            if (MediaRecorder.isTypeSupported(type)) {
+              return type;
+            }
+          } catch (e) {}
+        }
+      }
+      return '';
+    }
+
     async function startMediaRecorderListening(isHandsFree = false) {
       stopAllAgentSpeech(false);
       if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
         try {
           micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-          let mimeType = '';
-          if (typeof MediaRecorder !== 'undefined') {
-            if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
-              mimeType = 'audio/webm;codecs=opus';
-            } else if (MediaRecorder.isTypeSupported('audio/webm')) {
-              mimeType = 'audio/webm';
-            } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
-              mimeType = 'audio/mp4';
-            } else if (MediaRecorder.isTypeSupported('audio/aac')) {
-              mimeType = 'audio/aac';
-            }
+          const preferredType = getSupportedAudioMimeType();
+          try {
+            mediaRecorder = preferredType ? new MediaRecorder(micStream, { mimeType: preferredType }) : new MediaRecorder(micStream);
+          } catch (e) {
+            console.warn("MediaRecorder instantiation with mimeType failed, falling back to default:", e);
+            mediaRecorder = new MediaRecorder(micStream);
           }
-
-          mediaRecorder = mimeType ? new MediaRecorder(micStream, { mimeType: mimeType }) : new MediaRecorder(micStream);
           audioChunks = [];
 
           mediaRecorder.ondataavailable = (e) => {
@@ -4332,6 +4561,7 @@
 
           mediaRecorder.onstop = async () => {
             isListening = false;
+            updateMediaSession(false);
             updateObsidianTakeoverRecording(false);
             if (vadInterval) clearInterval(vadInterval);
             if (micStream) {
@@ -4346,7 +4576,7 @@
             }
 
             setOrbState('transcribing');
-            const blobType = mediaRecorder.mimeType || 'audio/webm';
+            const blobType = mediaRecorder.mimeType || preferredType || 'audio/webm';
             const audioBlob = new Blob(audioChunks, { type: blobType });
 
             try {
@@ -4375,6 +4605,7 @@
 
           mediaRecorder.start(100);
           isListening = true;
+          updateMediaSession(true);
           updateObsidianTakeoverRecording(true);
           const sub = isHandsFree ? 'Speak your response...' : 'Push button again to stop & send';
           setOrbState('listening', 'Listening...', sub);
@@ -4425,9 +4656,15 @@
           return;
         } catch (err) {
           console.warn("Phone mic / getUserMedia error:", err);
-          showToast("Phone mic requires HTTPS (Port 5142). Tap 'Switch to HTTPS' above.", 4500);
-          const banner = document.getElementById("httpsPromptBanner");
-          if (banner) banner.classList.remove("hidden");
+          if (!window.isSecureContext && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+            showToast("Phone mic requires HTTPS (Port 5142). Tap 'Switch to HTTPS' above.", 4500);
+            const banner = document.getElementById("httpsPromptBanner");
+            if (banner) banner.classList.remove("hidden");
+          } else if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+            showToast("Microphone access blocked. Tap the orb to allow microphone.", 4000);
+          } else {
+            showToast(`Microphone unavailable: ${err.message || err.name || 'Error'}`, 4000);
+          }
           setOrbState('idle');
           return;
         }
@@ -4442,6 +4679,7 @@
 
     function stopListening() {
       updateObsidianTakeoverRecording(false);
+      updateMediaSession(false);
       if (recognition) {
         try { recognition.stop(); } catch (e) {}
       }
@@ -4462,6 +4700,63 @@
       if (window.bgField) window.bgField.setAudioLevel(0);
       isListening = false;
     }
+
+    // Android 1-Tap Widget Shortcut Handler (/?action=record or /?action=memo)
+    window.addEventListener('DOMContentLoaded', () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const action = urlParams.get('action');
+      if (action === 'record' || action === 'memo') {
+        const actionLabel = action === 'memo' ? "Walking Memo" : "Meeting Recording";
+        // Clean URL so refresh / view switch does not re-trigger recording
+        try {
+          const cleanUrl = new URL(window.location.href);
+          cleanUrl.searchParams.delete('action');
+          window.history.replaceState({}, '', cleanUrl.pathname + (cleanUrl.search ? cleanUrl.search : ''));
+        } catch (e) {}
+
+        let oneTapStarted = false;
+        const triggerRecording = () => {
+          if (oneTapStarted) return;
+          oneTapStarted = true;
+          unlockAudio();
+          if (action === 'record') {
+            openMeetingCockpit();
+            if (typeof showToast === 'function') {
+              showToast("🎙️ Granola Meeting Cockpit started...", 3500);
+            }
+          } else {
+            openObsidianTakeover('memo');
+            if (typeof showToast === 'function') {
+              showToast("🎙️ Walking memo recording started...", 3500);
+            }
+          }
+        };
+
+        // If user already interacted or browser allows immediate userActivation
+        const hasActivation = typeof navigator !== 'undefined' && navigator.userActivation && navigator.userActivation.hasBeenActive;
+        if (hasActivation) {
+          setTimeout(triggerRecording, 250);
+        } else {
+          // Arm a one-time gesture listener on the document so the very first tap starts recording immediately with user activation
+          const onFirstInteraction = () => {
+            window.removeEventListener('pointerdown', onFirstInteraction, true);
+            window.removeEventListener('touchstart', onFirstInteraction, true);
+            window.removeEventListener('click', onFirstInteraction, true);
+            triggerRecording();
+          };
+          window.addEventListener('pointerdown', onFirstInteraction, true);
+          window.addEventListener('touchstart', onFirstInteraction, true);
+          window.addEventListener('click', onFirstInteraction, true);
+
+          // Attempt automatic start in case browser allows getUserMedia without user gesture (e.g. Android Chrome with saved permission)
+          setTimeout(() => {
+            if (!oneTapStarted) {
+              triggerRecording();
+            }
+          }, 500);
+        }
+      }
+    });
 
     // Multi-Image & Screenshot Attachment State
     let currentAttachedImages = []; // Array of { id, filename, path, url, isUploading }
@@ -4891,30 +5186,40 @@
       }
 
       const lowerFullText = fullText.toLowerCase().trim();
+      const hasGemmaIntent = /\b(?:hey|ask|tell|all\s+right|alright|okay|so|can\s+you\s+ask|could\s+you\s+ask|send\s+to|talk\s+to|switch\s+to|have|message)?\s*(?:gemma|local\s+gemma|local\s+model|local\s+intelligence)\b/i.test(lowerFullText);
       const hasClaudeIntent = /\b(?:hey|ask|tell|all\s+right|alright|okay|so|can\s+you\s+ask|could\s+you\s+ask|send\s+to|talk\s+to|switch\s+to|have|message)?\s*claude\b/i.test(lowerFullText);
       const hasCodexIntent = /\b(?:hey|ask|tell|all\s+right|alright|okay|so|can\s+you\s+ask|could\s+you\s+ask|send\s+to|talk\s+to|switch\s+to|have|message)?\s*codex\b/i.test(lowerFullText);
+      const isGemmaFiltered = (typeof currentAppFilter !== 'undefined' && currentAppFilter === 'gemma');
       const isCodexFiltered = (typeof currentAppFilter !== 'undefined' && currentAppFilter === 'codex');
       const isClaudeFiltered = (typeof currentAppFilter !== 'undefined' && currentAppFilter === 'claude');
-      const isCodexSession = Boolean(
+      const isGemmaSession = Boolean(
+        hasGemmaIntent ||
+        isGemmaFiltered ||
+        (activeConvId && (activeConvId.startsWith("gemma_") || activeConvId.toLowerCase().includes("gemma"))) ||
+        (activeConversationData && (activeConversationData.engine === "gemma" || (activeConversationData.id && activeConversationData.id.startsWith("gemma_"))))
+      );
+      const isCodexSession = !isGemmaSession && Boolean(
         hasCodexIntent ||
         isCodexFiltered ||
         (activeConvId && (activeConvId.startsWith("codex_") || activeConvId.toLowerCase().includes("codex"))) ||
         (activeConversationData && (activeConversationData.engine === "codex" || (activeConversationData.id && activeConversationData.id.startsWith("codex_"))))
       );
-      const isClaudeSession = !isCodexSession && Boolean(
+      const isClaudeSession = !isGemmaSession && !isCodexSession && Boolean(
         hasClaudeIntent ||
         isClaudeFiltered ||
         (activeConvId && (activeConvId.startsWith("claude_") || activeConvId.toLowerCase().includes("claude"))) ||
         (activeConversationData && (activeConversationData.engine === "claude" || (activeConversationData.id && activeConversationData.id.startsWith("claude_"))))
       );
-      const targetEngine = isCodexSession ? "codex" : (isClaudeSession ? "claude" : "antigravity");
-      const targetConvId = (isCodexSession && activeConvId && !activeConvId.startsWith("codex_") && !activeConvId.toLowerCase().includes("codex"))
+      const targetEngine = isGemmaSession ? "gemma" : (isCodexSession ? "codex" : (isClaudeSession ? "claude" : "antigravity"));
+      const targetConvId = (isGemmaSession && activeConvId && !activeConvId.startsWith("gemma_") && !activeConvId.toLowerCase().includes("gemma"))
         ? null
-        : ((isClaudeSession && activeConvId && !activeConvId.startsWith("claude_") && !activeConvId.toLowerCase().includes("claude"))
+        : ((isCodexSession && activeConvId && !activeConvId.startsWith("codex_") && !activeConvId.toLowerCase().includes("codex"))
           ? null
-          : (activeConvId || null));
+          : ((isClaudeSession && activeConvId && !activeConvId.startsWith("claude_") && !activeConvId.toLowerCase().includes("claude"))
+            ? null
+            : (activeConvId || null)));
 
-      const agentDisplayName = isCodexSession ? "Codex" : (isClaudeSession ? "Claude" : "Antigravity");
+      const agentDisplayName = isGemmaSession ? "Local Gemma" : (isCodexSession ? "Codex" : (isClaudeSession ? "Claude" : "Antigravity"));
       showToast(`Command received — ${agentDisplayName} processing...`, 3500);
       appendOptimisticUserMessage(displayMsg);
       startActiveTurnPolling(targetConvId || activeConvId);
@@ -4924,7 +5229,8 @@
         conv_id: targetConvId,
         engine: targetEngine,
         target_engine: targetEngine,
-        text: fullText
+        text: fullText,
+        model: isGemmaSession ? (activeGemmaModel || 'gemma4-2b') : undefined
       };
 
       if (ws && ws.readyState === WebSocket.OPEN) {
@@ -4937,7 +5243,8 @@
             conv_id: targetConvId,
             text: fullText,
             engine: targetEngine,
-            target_engine: targetEngine
+            target_engine: targetEngine,
+            model: isGemmaSession ? (activeGemmaModel || 'gemma4-2b') : undefined
           })
         }).catch(err => console.error("Send error:", err));
       }
@@ -5308,20 +5615,7 @@
       }
     }
 
-    // Wake Lock
-    async function requestWakeLock() {
-      try {
-        if ('wakeLock' in navigator) {
-          wakeLock = await navigator.wakeLock.request('screen');
-          wakeLockDot.className = "w-2 h-2 rounded-full bg-emerald-400";
-          wakeLockText.innerText = "Screen Awake";
-          wakeLock.addEventListener('release', () => {
-            wakeLockDot.className = "w-2 h-2 rounded-full bg-slate-600";
-            wakeLockText.innerText = "Screen Auto";
-          });
-        }
-      } catch (e) {}
-    }
+    // Screen Wake Lock is managed by centralized requestWakeLock() and releaseWakeLock() above
 
     // Helper: Tool Name Icon Map (Clean Monospace Marker)
     function getToolIcon(toolName) {
@@ -5428,6 +5722,7 @@
         const data = await res.json();
         activeConversationData = data;
         updateIntentSwitcherVisibility();
+        updateGemmaToggleVisibility();
         renderConversationDetails(data);
       } catch (err) {
         console.error("Fetch conversation detail error:", err);
@@ -5454,6 +5749,7 @@
       const chatStatusTag = document.getElementById("chatStatusTag");
 
       if (voiceSessionTitle) voiceSessionTitle.innerText = data.title || (data.engine === "claude" ? "Claude Code" : "Antigravity");
+      updateHeaderCapsuleText();
 
       // Detect active in-progress state and active tool name
       const isWorking = data.status === "agent_working" || (data.turns && data.turns.length > 0 && data.turns[data.turns.length - 1].status === "working" && !data.turns[data.turns.length - 1].completed);
@@ -6789,11 +7085,12 @@
       } else if (data.type === "agent_speaking_started") {
         if (data.text) {
           if (latestText) latestText.innerText = data.text;
-          const isCodex = data.agent_role === "codex" || (data.conv_id && data.conv_id.startsWith("codex_"));
-          const isClaude = !isCodex && (data.agent_role === "claude" || (data.conv_id && data.conv_id.startsWith("claude_")));
+          const isGemma = data.agent_role === "gemma" || data.engine === "gemma" || (data.conv_id && data.conv_id.startsWith("gemma_"));
+          const isCodex = !isGemma && (data.agent_role === "codex" || (data.conv_id && data.conv_id.startsWith("codex_")));
+          const isClaude = !isGemma && !isCodex && (data.agent_role === "claude" || (data.conv_id && data.conv_id.startsWith("claude_")));
           const isComic = data.intent_mode === "comic";
           const isSpeed = data.intent_mode === "speed";
-          const speakerName = isCodex ? 'Codex Speaking' : (isClaude ? 'Claude Speaking' : isComic ? 'Puck Speaking' : isSpeed ? 'Gemini Speaking' : 'Agent Speaking');
+          const speakerName = isGemma ? 'Gemma Speaking' : (isCodex ? 'Codex Speaking' : (isClaude ? 'Claude Speaking' : isComic ? 'Puck Speaking' : isSpeed ? 'Gemini Speaking' : 'Agent Speaking'));
           if (!isSpeaking) {
             setOrbState('speaking', speakerName, data.text.slice(0, 45) + (data.text.length > 45 ? '...' : ''));
           }
@@ -6805,9 +7102,10 @@
           });
         }
       } else if (data.type === "user_command_injected") {
-        const isCodex = data.conv_id && (data.conv_id.startsWith("codex_") || data.conv_id.toLowerCase().includes("codex"));
-        const isClaude = !isCodex && (data.conv_id && (data.conv_id.startsWith("claude_") || data.conv_id.toLowerCase().includes("claude")));
-        const agentName = isCodex ? "Codex" : (isClaude ? "Claude Code" : "Antigravity");
+        const isGemma = data.conv_id && (data.conv_id.startsWith("gemma_") || data.conv_id.toLowerCase().includes("gemma"));
+        const isCodex = !isGemma && data.conv_id && (data.conv_id.startsWith("codex_") || data.conv_id.toLowerCase().includes("codex"));
+        const isClaude = !isGemma && !isCodex && (data.conv_id && (data.conv_id.startsWith("claude_") || data.conv_id.toLowerCase().includes("claude")));
+        const agentName = isGemma ? "Local Gemma" : (isCodex ? "Codex" : (isClaude ? "Claude Code" : "Antigravity"));
         showToast(`Command received by ${agentName}`, 3000);
         if (data.conv_id && data.conv_id !== "active") {
           activeConvId = data.conv_id;
@@ -6820,12 +7118,13 @@
         fetchConversations();
       } else if (data.type === "agent_turn_completed") {
         stopActiveTurnPolling();
-        const isCodex = data.agent_role === "codex" || (data.conv_id && data.conv_id.startsWith("codex_"));
-        const isClaude = !isCodex && (data.agent_role === "claude" || (data.conv_id && data.conv_id.startsWith("claude_")));
-        const agentName = isCodex ? "Codex" : (isClaude ? "Claude Code" : "Antigravity");
+        const isGemma = data.engine === "gemma" || data.agent_role === "gemma" || (data.conv_id && data.conv_id.startsWith("gemma_"));
+        const isCodex = !isGemma && (data.agent_role === "codex" || (data.conv_id && data.conv_id.startsWith("codex_")));
+        const isClaude = !isGemma && !isCodex && (data.agent_role === "claude" || (data.conv_id && data.conv_id.startsWith("claude_")));
+        const agentName = isGemma ? "Local Gemma" : (isCodex ? "Codex" : (isClaude ? "Claude Code" : "Antigravity"));
         showToast(`${agentName} completed turn`, 2500);
         if (liveActivityBanner) liveActivityBanner.classList.add("hidden");
-        if (logType) logType.innerText = `AGENT FINISHED (${(data.agent_role || (isCodex ? 'codex' : (isClaude ? 'claude' : 'antigravity'))).toUpperCase()})`;
+        if (logType) logType.innerText = `AGENT FINISHED (${(data.agent_role || (isGemma ? 'gemma' : (isCodex ? 'codex' : (isClaude ? 'claude' : 'antigravity')))).toUpperCase()})`;
         if (latestText) latestText.innerText = data.summary || "";
         if (data.conv_id) activeConvId = data.conv_id;
 
@@ -6877,7 +7176,7 @@
         }
 
         if (shouldSpeakOnPhone) {
-          const defaultVoice = isCodex ? 'Emma' : (isClaude ? 'Stefan' : 'Christopher');
+          const defaultVoice = isGemma ? 'Andrew' : (isCodex ? 'Emma' : (isClaude ? 'Stefan' : 'Christopher'));
           speakTextAloud(data.summary, () => {
             if (autoListen && !isListening && speechQueue.length === 0 && currentView === 'voice') {
               setTimeout(() => {
@@ -6886,7 +7185,7 @@
                 }
               }, 600);
             }
-          }, data.agent_role || (isCodex ? 'codex' : (isClaude ? 'claude' : 'antigravity')), data.voice || defaultVoice);
+          }, data.agent_role || (isGemma ? 'gemma' : (isCodex ? 'codex' : (isClaude ? 'claude' : 'antigravity'))), data.voice || defaultVoice);
         } else {
           if (!isListening && !isSpeaking) {
             setOrbState('idle');
@@ -6986,6 +7285,10 @@
           fetchConversationDetails(activeConvId);
           updateHeaderCapsuleText();
         }
+      } else if (data.type === "gemma_model_changed") {
+        if (data.model) {
+          setGemmaModel(data.model, false);
+        }
       }
     }
 
@@ -7003,12 +7306,14 @@
       const btnAG = document.getElementById("appFilterAG");
       const btnClaude = document.getElementById("appFilterClaude");
       const btnCodex = document.getElementById("appFilterCodex");
+      const btnGemma = document.getElementById("appFilterGemma");
       const btnObsidian = document.getElementById("appFilterObsidian");
 
       if (btnAll) btnAll.className = filter === 'all' ? activeClass : inactiveClass;
       if (btnAG) btnAG.className = filter === 'antigravity' ? activeClass : inactiveClass;
       if (btnClaude) btnClaude.className = filter === 'claude' ? activeClass : inactiveClass;
       if (btnCodex) btnCodex.className = filter === 'codex' ? activeClass : inactiveClass;
+      if (btnGemma) btnGemma.className = filter === 'gemma' ? activeClass : inactiveClass;
       if (btnObsidian) btnObsidian.className = filter === 'obsidian' ? activeClass : inactiveClass;
 
       const newConvBtn = document.getElementById("newConvBtn");
@@ -7019,6 +7324,8 @@
           newConvBtn.title = "Start a New Claude Conversation";
         } else if (filter === 'antigravity') {
           newConvBtn.title = "Start a New Antigravity Conversation";
+        } else if (filter === 'gemma') {
+          newConvBtn.title = "Start a New Local Gemma Conversation";
         } else if (filter === 'obsidian') {
           newConvBtn.title = "New Obsidian Capture or Memo";
         } else {
@@ -7031,6 +7338,7 @@
       }
       updateHeaderCapsuleText();
       updateIntentSwitcherVisibility();
+      updateGemmaToggleVisibility();
 
       if (activeConvId && activeConvId !== 'obsidian') {
         fetch('/api/switch', {
@@ -7050,6 +7358,592 @@
       }
     }
     window.setAppFilter = setAppFilter;
+
+    // ==========================================
+    // Gemma Local Model Configuration & Switcher
+    // ==========================================
+    let activeGemmaModel = localStorage.getItem("voicefi_gemma_model") || "gemma4-2b";
+
+    function updateGemmaToggleVisibility() {
+      const isGemmaMode = currentAppFilter === 'gemma' || (activeConvId && activeConvId.startsWith("gemma_")) || (activeConversationData && activeConversationData.engine === 'gemma');
+      const headerToggle = document.getElementById("headerGemmaToggle");
+      const drawerRow = document.getElementById("drawerGemmaModelRow");
+
+      if (headerToggle) {
+        if (isGemmaMode) {
+          headerToggle.classList.remove("hidden");
+          headerToggle.classList.add("flex");
+        } else {
+          headerToggle.classList.add("hidden");
+          headerToggle.classList.remove("flex");
+        }
+      }
+      if (drawerRow) {
+        if (isGemmaMode) {
+          drawerRow.classList.remove("hidden");
+          drawerRow.classList.add("flex");
+        } else {
+          drawerRow.classList.add("hidden");
+          drawerRow.classList.remove("flex");
+        }
+      }
+      syncGemmaButtonsUI(activeGemmaModel);
+    }
+    window.updateGemmaToggleVisibility = updateGemmaToggleVisibility;
+
+    function syncGemmaButtonsUI(model) {
+      const is26b = (model || "").toLowerCase().includes("26b");
+      const btn2B = document.getElementById("btnGemma2B");
+      const btn26B = document.getElementById("btnGemma26B");
+      const drawerBtn2B = document.getElementById("drawerBtnGemma2B");
+      const drawerBtn26B = document.getElementById("drawerBtnGemma26B");
+      const drawerDesc = document.getElementById("drawerGemmaModelDesc");
+
+      const activeHeaderClass = "px-2 py-1 rounded-xl text-[10px] sm:text-xs font-black transition active:scale-95 cursor-pointer bg-white text-black shadow";
+      const inactiveHeaderClass = "px-2 py-1 rounded-xl text-[10px] sm:text-xs font-bold transition active:scale-95 cursor-pointer text-zinc-400 hover:text-white bg-transparent";
+
+      const activeDrawerClass = "px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer bg-white text-black shadow";
+      const inactiveDrawerClass = "px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer text-zinc-400 hover:text-white bg-transparent";
+
+      if (btn2B) btn2B.className = is26b ? inactiveHeaderClass : activeHeaderClass;
+      if (btn26B) btn26B.className = is26b ? activeHeaderClass : inactiveHeaderClass;
+      if (drawerBtn2B) drawerBtn2B.className = is26b ? inactiveDrawerClass : activeDrawerClass;
+      if (drawerBtn26B) drawerBtn26B.className = is26b ? activeDrawerClass : inactiveDrawerClass;
+
+      if (drawerDesc) {
+        drawerDesc.innerText = is26b ? "Gemma 4 26B (Deep Logic & Multi-file)" : "Gemma 4 2B (Fast ~1.5s)";
+      }
+    }
+
+    async function setGemmaModel(model, syncServer = true) {
+      const normalized = (model && model.toLowerCase().includes("26b")) ? "gemma4-26b" : "gemma4-2b";
+      activeGemmaModel = normalized;
+      try {
+        localStorage.setItem("voicefi_gemma_model", normalized);
+      } catch (e) {}
+
+      syncGemmaButtonsUI(normalized);
+
+      if (syncServer) {
+        try {
+          await fetch('/api/config/gemma_model', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ model: normalized })
+          });
+          const label = normalized.includes("26b") ? "🧠 Gemma 26B Deep" : "⚡ Gemma 2B Fast";
+          showToast(`Switched to ${label}`, 2000);
+        } catch (err) {
+          console.warn("Failed to sync Gemma model with server:", err);
+        }
+      }
+    }
+    window.setGemmaModel = setGemmaModel;
+
+    async function initGemmaModelConfig() {
+      const local = localStorage.getItem("voicefi_gemma_model");
+      if (local) {
+        setGemmaModel(local, false);
+      }
+      try {
+        const res = await fetch('/api/config/gemma_model');
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.model) {
+            setGemmaModel(data.model, false);
+          }
+        }
+      } catch (e) {
+        console.warn("Could not fetch remote gemma_model config:", e);
+      }
+      updateGemmaToggleVisibility();
+    }
+    window.initGemmaModelConfig = initGemmaModelConfig;
+
+    // ==========================================
+    // Granola-Style Meeting Cockpit Engine
+    // ==========================================
+    let isMeetingActive = false;
+    let isMeetingPaused = false;
+    let meetingSeconds = 0;
+    let meetingTimerInterval = null;
+    let meetingAccumulatedTranscript = "";
+    let meetingCurrentSegment = "";
+    let meetingHighlights = []; // Array of { text, tag, timestamp, createdAt }
+    let meetingTasks = []; // Array of string action items
+    let currentHighlightTag = "Decision";
+    let userExplicitlyStoppedMeeting = false;
+    let meetingRecognition = null;
+
+    function openMeetingCockpit() {
+      isMeetingActive = true;
+      isMeetingPaused = false;
+      userExplicitlyStoppedMeeting = false;
+      meetingSeconds = 0;
+      meetingAccumulatedTranscript = "";
+      meetingCurrentSegment = "";
+      meetingHighlights = [];
+      meetingTasks = [];
+      currentHighlightTag = "Decision";
+
+      // Safety: Mute agent speech during meetings so phone never interrupts room
+      stopAllAgentSpeech(true);
+
+      const modal = document.getElementById("meetingCockpitModal");
+      if (!modal) return;
+
+      const titleInput = document.getElementById("meetingTitleInput");
+      const d = new Date();
+      const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      if (titleInput) titleInput.value = `Meeting - ${dateStr}`;
+
+      const vaultName = (cachedConversationsPayload && cachedConversationsPayload.vault && cachedConversationsPayload.vault.name) || "Obsidian Vault";
+      const vaultBadge = document.getElementById("meetingVaultBadge");
+      if (vaultBadge) vaultBadge.innerText = `📁 ${vaultName} / Meetings/`;
+
+      const pauseIcon = document.getElementById("meetingPauseIcon");
+      const pauseText = document.getElementById("meetingPauseText");
+      if (pauseIcon) pauseIcon.innerText = "⏸️";
+      if (pauseText) pauseText.innerText = "Pause";
+
+      const endBtn = document.getElementById("meetingEndBtn");
+      if (endBtn) {
+        endBtn.className = "flex-1 h-12 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-95 text-white font-black text-xs sm:text-sm flex items-center justify-center gap-2 transition cursor-pointer shadow-lg";
+        endBtn.innerHTML = `<span>⏹️</span> <span>End & Synthesize Meeting</span>`;
+      }
+
+      renderMeetingHighlightsUI();
+      renderMeetingTranscriptUI("");
+
+      modal.classList.remove("hidden");
+      requestWakeLock();
+      updateMediaSessionMeeting(true);
+
+      startMeetingTimer();
+      startMeetingRecordingLoop();
+    }
+    window.openMeetingCockpit = openMeetingCockpit;
+
+    function closeMeetingCockpit() {
+      if (isMeetingActive && !userExplicitlyStoppedMeeting) {
+        if (!confirm("Minimize meeting cockpit? Recording will continue in the background.")) {
+          return;
+        }
+      }
+      const modal = document.getElementById("meetingCockpitModal");
+      if (modal) modal.classList.add("hidden");
+    }
+    window.closeMeetingCockpit = closeMeetingCockpit;
+
+    function startMeetingTimer() {
+      if (meetingTimerInterval) clearInterval(meetingTimerInterval);
+      const timerEl = document.getElementById("meetingTimerText");
+      meetingTimerInterval = setInterval(() => {
+        if (!isMeetingPaused) {
+          meetingSeconds++;
+          const m = String(Math.floor(meetingSeconds / 60)).padStart(2, '0');
+          const s = String(meetingSeconds % 60).padStart(2, '0');
+          if (timerEl) timerEl.innerText = `${m}:${s}`;
+        }
+      }, 1000);
+    }
+
+    function toggleMeetingPause() {
+      isMeetingPaused = !isMeetingPaused;
+      const pauseIcon = document.getElementById("meetingPauseIcon");
+      const pauseText = document.getElementById("meetingPauseText");
+      if (isMeetingPaused) {
+        if (pauseIcon) pauseIcon.innerText = "▶️";
+        if (pauseText) pauseText.innerText = "Resume";
+        showToast("Meeting recording paused", 2000);
+        if (meetingRecognition) {
+          try { meetingRecognition.stop(); } catch (e) {}
+        }
+      } else {
+        if (pauseIcon) pauseIcon.innerText = "⏸️";
+        if (pauseText) pauseText.innerText = "Pause";
+        showToast("Meeting recording resumed", 2000);
+        startMeetingRecordingLoop();
+      }
+    }
+    window.toggleMeetingPause = toggleMeetingPause;
+
+    function setHighlightTag(tag) {
+      currentHighlightTag = tag;
+      showToast(`Selected Tag: ${tag}`, 1500);
+      if (meetingHighlights.length > 0) {
+        const latest = meetingHighlights[meetingHighlights.length - 1];
+        if (Date.now() - latest.createdAt < 12000) {
+          latest.tag = tag;
+          renderMeetingHighlightsUI();
+        }
+      }
+    }
+    window.setHighlightTag = setHighlightTag;
+
+    function addMeetingHighlight(explicitText, tag) {
+      const activeTag = tag || currentHighlightTag || "Decision";
+      let text = explicitText;
+      if (!text) {
+        const candidate = (meetingCurrentSegment || meetingAccumulatedTranscript).trim();
+        if (!candidate) {
+          showToast("Listening for speech to highlight...", 2000);
+          return;
+        }
+        const sentences = candidate.split(/(?<=[.?!])\s+/);
+        text = sentences[sentences.length - 1] || candidate;
+      }
+
+      text = text.trim();
+      if (!text) return;
+
+      const m = String(Math.floor(meetingSeconds / 60)).padStart(2, '0');
+      const s = String(meetingSeconds % 60).padStart(2, '0');
+      const timestamp = `${m}:${s}`;
+
+      meetingHighlights.push({
+        text: text,
+        tag: activeTag,
+        timestamp: timestamp,
+        createdAt: Date.now()
+      });
+
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        try { navigator.vibrate([40, 50, 40]); } catch (e) {}
+      }
+
+      renderMeetingHighlightsUI();
+      highlightInMeetingStream(text, activeTag, timestamp);
+      showToast(`⭐ Highlighted [${activeTag}]: "${text.substring(0, 35)}..."`, 3000);
+    }
+    window.addMeetingHighlight = addMeetingHighlight;
+
+    function renderMeetingHighlightsUI() {
+      const listEl = document.getElementById("meetingKeyPointsList");
+      const countEl = document.getElementById("meetingHighlightCount");
+      if (!listEl) return;
+      if (countEl) countEl.innerText = meetingHighlights.length;
+
+      if (meetingHighlights.length === 0) {
+        listEl.innerHTML = `
+          <p id="meetingKeyPointsEmpty" class="text-zinc-500 italic py-1">
+            Tap the gold <strong>"⭐ Highlight Moment"</strong> button below or say <em>"Viv, highlight this..."</em> to pin key decisions & takeaways live.
+          </p>
+        `;
+        return;
+      }
+
+      listEl.innerHTML = meetingHighlights.map((h, i) => {
+        const tagColors = {
+          'Decision': 'bg-purple-900/60 text-purple-200 border-purple-500/40',
+          'Blocker': 'bg-rose-900/60 text-rose-200 border-rose-500/40',
+          'Goal': 'bg-emerald-900/60 text-emerald-200 border-emerald-500/40',
+          'Idea': 'bg-cyan-900/60 text-cyan-200 border-cyan-500/40',
+        };
+        const badgeColor = tagColors[h.tag] || 'bg-amber-900/60 text-amber-200 border-amber-500/40';
+        return `
+          <div class="flex items-start justify-between gap-2 p-2 rounded-xl bg-white/5 border border-white/10 hover:border-amber-400/30 transition group">
+            <div class="flex items-start gap-2 min-w-0">
+              <span class="text-amber-400 font-bold shrink-0">⭐</span>
+              <div class="min-w-0">
+                <div class="flex items-center gap-1.5 mb-0.5">
+                  <span class="text-[10px] font-mono text-zinc-400 font-bold">[${escapeHtml(h.timestamp)}]</span>
+                  <span class="px-1.5 py-0.2 rounded-md text-[9px] font-bold border ${badgeColor}">${escapeHtml(h.tag)}</span>
+                </div>
+                <p class="text-xs text-zinc-200 font-medium leading-relaxed">${escapeHtml(h.text)}</p>
+              </div>
+            </div>
+            <button type="button" onclick="removeMeetingHighlight(${i})" class="text-zinc-500 hover:text-rose-400 text-xs px-1 opacity-60 group-hover:opacity-100 transition" title="Remove highlight">✕</button>
+          </div>
+        `;
+      }).join('');
+
+      listEl.scrollTop = listEl.scrollHeight;
+    }
+    window.renderMeetingHighlightsUI = renderMeetingHighlightsUI;
+
+    function removeMeetingHighlight(index) {
+      if (index >= 0 && index < meetingHighlights.length) {
+        meetingHighlights.splice(index, 1);
+        renderMeetingHighlightsUI();
+      }
+    }
+    window.removeMeetingHighlight = removeMeetingHighlight;
+
+    function highlightInMeetingStream(text, tag, timestamp) {
+      const streamEl = document.getElementById("meetingTranscriptStream");
+      if (!streamEl) return;
+      const highlightCard = document.createElement("div");
+      highlightCard.className = "p-2 rounded-xl bg-amber-500/10 border border-amber-500/40 text-amber-200 text-xs font-semibold my-1 flex items-center justify-between gap-2 animate-pulse";
+      highlightCard.innerHTML = `
+        <div class="flex items-center gap-2">
+          <span>⭐</span>
+          <span>[${escapeHtml(timestamp)}] <strong>${escapeHtml(tag)}:</strong> "${escapeHtml(text)}"</span>
+        </div>
+      `;
+      streamEl.appendChild(highlightCard);
+      streamEl.scrollTop = streamEl.scrollHeight;
+    }
+
+    function renderMeetingTranscriptUI(interimText) {
+      const streamEl = document.getElementById("meetingTranscriptStream");
+      const wordCountEl = document.getElementById("meetingWordCount");
+      if (!streamEl) return;
+
+      const combined = (meetingAccumulatedTranscript + " " + (interimText || "")).trim();
+      if (!combined) {
+        streamEl.innerHTML = `
+          <p id="meetingStreamPlaceholder" class="text-zinc-500 italic py-8 text-center">
+            🎙️ Listening continuously... Room speech will stream here in real time.
+          </p>
+        `;
+        if (wordCountEl) wordCountEl.innerText = "0 words";
+        return;
+      }
+
+      if (wordCountEl) {
+        const words = combined.split(/\s+/).filter(Boolean).length;
+        wordCountEl.innerText = `${words} words`;
+      }
+
+      const placeholder = document.getElementById("meetingStreamPlaceholder");
+      if (placeholder) placeholder.remove();
+
+      let activeP = document.getElementById("meetingActiveStreamText");
+      if (!activeP) {
+        activeP = document.createElement("p");
+        activeP.id = "meetingActiveStreamText";
+        activeP.className = "text-xs sm:text-sm text-zinc-200 leading-relaxed font-sans";
+        streamEl.appendChild(activeP);
+      }
+      activeP.innerText = combined;
+      streamEl.scrollTop = streamEl.scrollHeight;
+    }
+
+    function checkMeetingSpokenTriggers(sentence) {
+      if (!sentence) return;
+      const lower = sentence.toLowerCase();
+
+      // 1. Spoken Highlights: "viv highlight this", "vi-fi key point", "voicefi bookmark"
+      const highlightMatch = lower.match(/(?:viv|vi-fi|voicefi)[,.:;!?-]?\s+(?:highlight|key\s*point|bookmark|note\s*this)(?:\s*[:,-]?\s*(.*))?$/i);
+      if (highlightMatch) {
+        const payload = highlightMatch[1] || sentence;
+        addMeetingHighlight(payload, "Highlight");
+        return;
+      }
+
+      // 2. Spoken Agent Action Commands: "viv action item...", "viv linear...", "viv test..."
+      const actionMatch = lower.match(/(?:viv|vi-fi|voicefi)[,.:;!?-]?\s+(?:action\s*item|linear|task|ticket|dispatch|have\s*antigravity)(?:\s*[:,-]?\s*(.*))?$/i);
+      if (actionMatch) {
+        const cmd = actionMatch[1] || sentence;
+        if (cmd && !meetingTasks.includes(cmd)) {
+          meetingTasks.push(cmd);
+          if (typeof navigator !== 'undefined' && navigator.vibrate) {
+            try { navigator.vibrate([60, 80]); } catch (e) {}
+          }
+          const streamEl = document.getElementById("meetingTranscriptStream");
+          if (streamEl) {
+            const taskCard = document.createElement("div");
+            taskCard.className = "p-2 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs font-bold my-1 flex items-center justify-between gap-2 shadow-sm";
+            taskCard.innerHTML = `
+              <div class="flex items-center gap-2">
+                <span>⚡</span>
+                <span>Intercepted for Agent: "${escapeHtml(cmd)}"</span>
+              </div>
+              <span class="text-[9px] bg-emerald-500/20 text-emerald-200 px-1.5 py-0.5 rounded font-mono">DISPATCHED</span>
+            `;
+            streamEl.appendChild(taskCard);
+            streamEl.scrollTop = streamEl.scrollHeight;
+          }
+          showToast(`⚡ Dispatched command to agent: "${cmd}"`, 3500);
+        }
+      }
+    }
+
+    function startMeetingRecordingLoop() {
+      if (isMeetingPaused) return;
+
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (SpeechRecognition && micSource !== "mac") {
+        try {
+          if (meetingRecognition) {
+            try {
+              meetingRecognition.onstart = null;
+              meetingRecognition.onresult = null;
+              meetingRecognition.onerror = null;
+              meetingRecognition.onend = null;
+              meetingRecognition.abort();
+            } catch (e) {}
+          }
+
+          meetingRecognition = new SpeechRecognition();
+          meetingRecognition.continuous = true;
+          meetingRecognition.interimResults = true;
+          meetingRecognition.maxAlternatives = 1;
+          meetingRecognition.lang = 'en-US';
+
+          let sessionInterim = "";
+
+          meetingRecognition.onstart = () => {
+            const waveBars = document.getElementById("meetingWaveBars");
+            if (waveBars) waveBars.classList.remove("hidden");
+          };
+
+          meetingRecognition.onresult = (event) => {
+            let newlyFinal = "";
+            sessionInterim = "";
+            for (let i = event.resultIndex; i < event.results.length; ++i) {
+              const res = event.results[i];
+              if (res.isFinal) {
+                newlyFinal += res[0].transcript + " ";
+              } else {
+                sessionInterim += res[0].transcript;
+              }
+            }
+
+            if (newlyFinal) {
+              meetingAccumulatedTranscript = (meetingAccumulatedTranscript + " " + newlyFinal).trim();
+              checkMeetingSpokenTriggers(newlyFinal.trim());
+            }
+            meetingCurrentSegment = sessionInterim;
+            renderMeetingTranscriptUI(sessionInterim);
+          };
+
+          meetingRecognition.onerror = (event) => {
+            console.warn("Meeting SpeechRecognition error:", event.error);
+            if (event.error === 'no-speech' || event.error === 'network') {
+              if (isMeetingActive && !userExplicitlyStoppedMeeting && !isMeetingPaused) {
+                setTimeout(() => {
+                  try { meetingRecognition.start(); } catch (e) {}
+                }, 200);
+              }
+            }
+          };
+
+          meetingRecognition.onend = () => {
+            // UNBROKEN CONTINUOUS LOOP: If user didn't stop, Chrome timed out on silence -> instantly restart!
+            if (isMeetingActive && !userExplicitlyStoppedMeeting && !isMeetingPaused) {
+              setTimeout(() => {
+                if (isMeetingActive && !userExplicitlyStoppedMeeting && !isMeetingPaused) {
+                  try {
+                    meetingRecognition.start();
+                  } catch (e) {
+                    console.warn("Meeting auto-restart notice:", e);
+                  }
+                }
+              }, 150);
+            }
+          };
+
+          meetingRecognition.start();
+          return;
+        } catch (e) {
+          console.warn("Meeting SpeechRecognition init failed, fallback to MediaRecorder:", e);
+        }
+      }
+
+      // Fallback: MediaRecorder with local Whisper backend
+      startMediaRecorderListening(false);
+    }
+
+    async function endAndSynthesizeMeeting() {
+      userExplicitlyStoppedMeeting = true;
+      if (meetingRecognition) {
+        try {
+          meetingRecognition.stop();
+        } catch (e) {}
+      }
+      if (meetingTimerInterval) {
+        clearInterval(meetingTimerInterval);
+        meetingTimerInterval = null;
+      }
+      releaseWakeLock();
+      updateMediaSessionMeeting(false);
+
+      const fullText = (meetingAccumulatedTranscript + " " + meetingCurrentSegment).trim();
+      const endBtn = document.getElementById("meetingEndBtn");
+
+      if (!fullText) {
+        showToast("No speech was captured in the meeting", 3000);
+        closeMeetingCockpit();
+        return;
+      }
+
+      if (endBtn) {
+        endBtn.className = "flex-1 h-12 rounded-xl bg-purple-700/70 text-white font-black text-xs sm:text-sm flex items-center justify-center gap-2 cursor-not-allowed shadow-lg";
+        endBtn.innerHTML = `<span>⏳</span> <span>Synthesizing Granola Notes...</span>`;
+      }
+
+      const titleInput = document.getElementById("meetingTitleInput");
+      const title = (titleInput && titleInput.value.trim()) || "Meeting Recording";
+
+      try {
+        const res = await fetch('/api/vault/meeting', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            raw_text: fullText,
+            title: title,
+            highlights: meetingHighlights,
+            tasks: meetingTasks
+          })
+        });
+
+        const data = await res.json();
+        if (data.status === 'ok') {
+          showToast(`✅ Saved to Obsidian: ${data.meeting_name || 'Meeting Note'}!`, 4000);
+          if (typeof navigator !== 'undefined' && navigator.vibrate) {
+            try { navigator.vibrate([50, 100, 50, 100]); } catch (e) {}
+          }
+          if (endBtn) {
+            endBtn.className = "flex-1 h-12 rounded-xl bg-emerald-600 text-white font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg";
+            endBtn.innerHTML = `<span>✅</span> <span>Saved to Obsidian!</span>`;
+          }
+          setTimeout(() => {
+            const modal = document.getElementById("meetingCockpitModal");
+            if (modal) modal.classList.add("hidden");
+            isMeetingActive = false;
+          }, 1400);
+        } else {
+          throw new Error(data.error || "Save failed");
+        }
+      } catch (err) {
+        console.error("Meeting synthesis error:", err);
+        showToast(`Meeting save error: ${err.message}`, 4000);
+        if (endBtn) {
+          endBtn.className = "flex-1 h-12 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs sm:text-sm flex items-center justify-center gap-2 cursor-pointer shadow-lg";
+          endBtn.innerHTML = `<span>🔄</span> <span>Retry Save</span>`;
+          endBtn.onclick = endAndSynthesizeMeeting;
+        }
+      }
+    }
+    window.endAndSynthesizeMeeting = endAndSynthesizeMeeting;
+
+    function updateMediaSessionMeeting(recording) {
+      if ('mediaSession' in navigator && navigator.mediaSession) {
+        try {
+          if (recording) {
+            if ('MediaMetadata' in window) {
+              navigator.mediaSession.metadata = new MediaMetadata({
+                title: 'Granola Meeting Note-Taker',
+                artist: 'VoiceFi Live Highlights & Sync',
+                album: 'Obsidian Meetings',
+                artwork: [
+                  { src: '/api/icon', sizes: '192x192', type: 'image/png' },
+                  { src: '/api/icon', sizes: '512x512', type: 'image/png' }
+                ]
+              });
+            }
+            navigator.mediaSession.playbackState = 'playing';
+            navigator.mediaSession.setActionHandler('pause', toggleMeetingPause);
+            navigator.mediaSession.setActionHandler('play', toggleMeetingPause);
+            navigator.mediaSession.setActionHandler('stop', endAndSynthesizeMeeting);
+          } else {
+            navigator.mediaSession.playbackState = 'paused';
+          }
+        } catch (e) {}
+      }
+    }
 
     // Obsidian 2-Way Voice Recording Takeover / Layover Engine
     let obsidianTakeoverTimerInterval = null;
@@ -7295,6 +8189,7 @@
       highlightActiveConvCard(convId);
       toggleHeaderDrawer(false);
       updateIntentSwitcherVisibility();
+      updateGemmaToggleVisibility();
 
       // Keep user on their current tab (never hijack voice mode)
       if (currentView === 'chat') {
@@ -7334,11 +8229,13 @@
 
       let conversations = data.conversations || [];
       if (currentAppFilter === 'antigravity') {
-        conversations = conversations.filter(c => c.engine !== 'claude' && c.engine !== 'codex' && !(c.id && (c.id.startsWith('claude_') || c.id.startsWith('codex_'))));
+        conversations = conversations.filter(c => c.engine !== 'claude' && c.engine !== 'codex' && c.engine !== 'gemma' && !(c.id && (c.id.startsWith('claude_') || c.id.startsWith('codex_') || c.id.startsWith('gemma_'))));
       } else if (currentAppFilter === 'claude') {
         conversations = conversations.filter(c => c.engine === 'claude' || (c.id && c.id.startsWith('claude_')));
       } else if (currentAppFilter === 'codex') {
         conversations = conversations.filter(c => c.engine === 'codex' || (c.id && c.id.startsWith('codex_')));
+      } else if (currentAppFilter === 'gemma') {
+        conversations = conversations.filter(c => c.engine === 'gemma' || (c.id && c.id.startsWith('gemma_')));
       } else if (currentAppFilter === 'obsidian') {
         conversations = [];
       }
@@ -7354,7 +8251,9 @@
         preferredId = (conversations.length > 0) ? conversations[0].id : "";
       } else if (currentAppFilter === 'claude' && preferredId && !preferredId.startsWith("claude_") && !preferredId.toLowerCase().includes("claude")) {
         preferredId = (conversations.length > 0) ? conversations[0].id : "";
-      } else if (currentAppFilter === 'antigravity' && preferredId && (preferredId.startsWith("claude_") || preferredId.toLowerCase().includes("claude") || preferredId.startsWith("codex_") || preferredId.toLowerCase().includes("codex"))) {
+      } else if (currentAppFilter === 'gemma' && preferredId && !preferredId.startsWith("gemma_") && !preferredId.toLowerCase().includes("gemma")) {
+        preferredId = (conversations.length > 0) ? conversations[0].id : "";
+      } else if (currentAppFilter === 'antigravity' && preferredId && (preferredId.startsWith("claude_") || preferredId.toLowerCase().includes("claude") || preferredId.startsWith("codex_") || preferredId.toLowerCase().includes("codex") || preferredId.startsWith("gemma_") || preferredId.toLowerCase().includes("gemma"))) {
         preferredId = (conversations.length > 0) ? conversations[0].id : "";
       }
 
@@ -7398,7 +8297,8 @@
           opt.value = c.id;
           const isClaude = c.engine === "claude" || (c.id && c.id.startsWith("claude_"));
           const isCodex = c.engine === "codex" || (c.id && c.id.startsWith("codex_"));
-          const enginePrefix = isCodex ? "Codex" : (isClaude ? "Claude" : "AGY");
+          const isGemma = c.engine === "gemma" || (c.id && c.id.startsWith("gemma_"));
+          const enginePrefix = isCodex ? "Codex" : (isClaude ? "Claude" : (isGemma ? "Gemma" : "AGY"));
 
           let cleanTitle = (c.title || "Conversation").trim();
           cleanTitle = cleanTitle.replace(/^\[From:[^\]]+\]\s*/i, "");
@@ -7412,6 +8312,9 @@
           } else if (isClaude) {
             cleanTitle = cleanTitle.replace(/^Claude\s*•?\s*/i, "");
             cleanTitle = cleanTitle.replace(/^Claude:\s*/i, "");
+          } else if (isGemma) {
+            cleanTitle = cleanTitle.replace(/^Gemma\s*•?\s*/i, "");
+            cleanTitle = cleanTitle.replace(/^Local Gemma:\s*/i, "");
           }
           cleanTitle = cleanTitle.trim() || "Untitled";
 
@@ -7438,6 +8341,8 @@
               engineBadge = '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0">CDX</span>';
             } else if (isClaude) {
               engineBadge = '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 shrink-0">Claude</span>';
+            } else if (isGemma) {
+              engineBadge = '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30 shrink-0">Gemma</span>';
             }
 
             const card = document.createElement("button");
@@ -7515,14 +8420,16 @@
         if (!matched && preferredId && preferredId !== "obsidian") {
           const isClaude = preferredId.startsWith("claude_") || preferredId.toLowerCase().includes("claude");
           const isCodex = preferredId.startsWith("codex_") || preferredId.toLowerCase().includes("codex");
+          const isGemma = preferredId.startsWith("gemma_") || preferredId.toLowerCase().includes("gemma");
           const shouldInclude = (currentAppFilter === 'all') ||
                                 (currentAppFilter === 'codex' && isCodex) ||
                                 (currentAppFilter === 'claude' && isClaude) ||
-                                (currentAppFilter === 'antigravity' && !isClaude && !isCodex);
+                                (currentAppFilter === 'gemma' && isGemma) ||
+                                (currentAppFilter === 'antigravity' && !isClaude && !isCodex && !isGemma);
           if (shouldInclude) {
             const pendingOpt = document.createElement("option");
             pendingOpt.value = preferredId;
-            const engPrefix = isCodex ? "Codex" : (isClaude ? "Claude" : "AGY");
+            const engPrefix = isCodex ? "Codex" : (isClaude ? "Claude" : (isGemma ? "Gemma" : "AGY"));
             pendingOpt.innerText = `${engPrefix}: Active Session (${preferredId.slice(0, 10)}...)`;
             pendingOpt.selected = true;
             convSelect.insertBefore(pendingOpt, convSelect.firstChild);
@@ -7536,11 +8443,12 @@
               pendingCard.className = "w-full text-left p-2.5 rounded-xl bg-white/15 border border-white/30 text-white flex items-center justify-between gap-2 shadow-sm transition cursor-pointer";
               const badgeClass = isCodex
                 ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
-                : (isClaude ? "bg-amber-500/20 text-amber-300 border-amber-500/30" : "bg-cyan-500/20 text-cyan-300 border-cyan-500/30");
-              const badgeLabel = isCodex ? "CDX" : (isClaude ? "Claude" : "AGY");
+                : (isClaude ? "bg-amber-500/20 text-amber-300 border-amber-500/30" : (isGemma ? "bg-rose-500/20 text-rose-300 border-rose-500/30" : "bg-cyan-500/20 text-cyan-300 border-cyan-500/30"));
+              const badgeLabel = isCodex ? "CDX" : (isClaude ? "Claude" : (isGemma ? "Gemma" : "AGY"));
+              const dotClass = isCodex ? 'bg-emerald-400' : (isClaude ? 'bg-amber-400' : (isGemma ? 'bg-rose-400' : 'bg-cyan-400'));
               pendingCard.innerHTML = `
                 <div class="flex items-center gap-2 min-w-0 flex-1">
-                  <span class="w-2 h-2 rounded-full ${isCodex ? 'bg-emerald-400' : (isClaude ? 'bg-amber-400' : 'bg-cyan-400')} shrink-0"></span>
+                  <span class="w-2 h-2 rounded-full ${dotClass} shrink-0"></span>
                   <span class="text-[10px] font-bold px-1.5 py-0.5 rounded ${badgeClass} border shrink-0">${badgeLabel}</span>
                   <div class="min-w-0 flex-1">
                     <div class="text-xs sm:text-sm font-semibold truncate text-zinc-100">Active Session (${preferredId.slice(0, 10)}...)</div>
@@ -7585,6 +8493,8 @@
           chatInput.placeholder = window.innerWidth < 480 ? "Message Codex..." : "Message OpenAI Codex...";
         } else if (currentAppFilter === 'claude' || (activeConvId && activeConvId.startsWith("claude_"))) {
           chatInput.placeholder = window.innerWidth < 480 ? "Message Claude..." : "Message Claude Code...";
+        } else if (currentAppFilter === 'gemma' || (activeConvId && activeConvId.startsWith("gemma_"))) {
+          chatInput.placeholder = window.innerWidth < 480 ? "Message Gemma..." : "Message Local Gemma (Metal GPU)...";
         } else {
           chatInput.placeholder = window.innerWidth < 480 ? "Message..." : "Message Antigravity...";
         }
@@ -7592,6 +8502,7 @@
 
       updateHeaderCapsuleText();
       updateIntentSwitcherVisibility();
+      updateGemmaToggleVisibility();
     }
 
     async function fetchConversations() {
@@ -8168,14 +9079,20 @@
           targetEngine = 'codex';
         } else if (currentAppFilter === 'claude' || (currentAppFilter === 'all' && activeConvId && activeConvId.startsWith("claude_"))) {
           targetEngine = 'claude';
+        } else if (currentAppFilter === 'gemma' || (currentAppFilter === 'all' && activeConvId && activeConvId.startsWith("gemma_"))) {
+          targetEngine = 'gemma';
         }
         const promptText = (chatInput && chatInput.value.trim()) ? chatInput.value.trim() : "Hello";
 
         try {
+          const payload = { prompt: promptText, engine: targetEngine };
+          if (targetEngine === 'gemma') {
+            payload.model = activeGemmaModel || 'gemma4-2b';
+          }
           const res = await fetch('/api/conversation/new', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt: promptText, engine: targetEngine })
+            body: JSON.stringify(payload)
           });
           if (!res.ok) {
             const errData = await res.json().catch(() => ({}));
@@ -8195,7 +9112,7 @@
               chatInput.value = "";
               if (currentView === 'chat') chatInput.focus();
             }
-            const engineLabel = targetEngine === 'codex' ? 'Codex' : (targetEngine === 'claude' ? 'Claude' : 'Antigravity');
+            const engineLabel = targetEngine === 'codex' ? 'Codex' : (targetEngine === 'claude' ? 'Claude' : (targetEngine === 'gemma' ? 'Local Gemma' : 'Antigravity'));
             showToast(`✨ New ${engineLabel} conversation started`, 2500);
           } else {
             throw new Error(data.error || "No conversation ID returned");
@@ -8470,14 +9387,15 @@
       });
     }
 
-    wakeLockBtn.addEventListener("click", () => {
-      if (wakeLock) {
-        wakeLock.release();
-        wakeLock = null;
-      } else {
-        requestWakeLock();
-      }
-    });
+    if (wakeLockBtn) {
+      wakeLockBtn.addEventListener("click", () => {
+        if (wakeLock) {
+          releaseWakeLock();
+        } else {
+          requestWakeLock();
+        }
+      });
+    }
 
     // PWA Service Worker Registration
     if ('serviceWorker' in navigator) {
@@ -8569,6 +9487,7 @@
       fetchConversations();
       updateHeaderCapsuleText();
       updateIntentSwitcherVisibility();
+      initGemmaModelConfig();
       connectWebSocket();
       initMarkdownCommenting();
       initImageMarkupStudio();
@@ -8799,7 +9718,18 @@
         });
       }
 
-      // 8. Voice Stage Quick-Control Pills & Action Buttons
+      // 8. Granola-Style Meeting Cockpit Listeners
+      const closeMeetingBtn = document.getElementById("closeMeetingCockpitBtn");
+      const meetingHighlightBtn = document.getElementById("meetingHighlightBtn");
+      const meetingPauseBtn = document.getElementById("meetingPauseBtn");
+      const meetingEndBtn = document.getElementById("meetingEndBtn");
+
+      if (closeMeetingBtn) closeMeetingBtn.addEventListener("click", closeMeetingCockpit);
+      if (meetingHighlightBtn) meetingHighlightBtn.addEventListener("click", () => addMeetingHighlight());
+      if (meetingPauseBtn) meetingPauseBtn.addEventListener("click", toggleMeetingPause);
+      if (meetingEndBtn) meetingEndBtn.addEventListener("click", endAndSynthesizeMeeting);
+
+      // 9. Voice Stage Quick-Control Pills & Action Buttons
       const voiceAutoListenPill = document.getElementById("voiceAutoListenPill");
       if (voiceAutoListenPill) {
         voiceAutoListenPill.addEventListener("click", () => {

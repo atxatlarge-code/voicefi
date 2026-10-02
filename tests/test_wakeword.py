@@ -61,12 +61,28 @@ class TestWakeWordExtraction:
             ("Hey, ViFi.", "hey vifi", ""),
             ("Hey, Vive, run tests", "hey vive", "run tests"),
             ("Hey, Wi-Fi, explain this code", "hey wi-fi", "explain this code"),
+            ("VoiceFi, create a meeting note", "voicefi", "create a meeting note"),
+            ("Vi-Fi, track this action item", "vi-fi", "track this action item"),
+            ("Hey VoiceFi, dispatch a test run", "hey voicefi", "dispatch a test run"),
+            ("Hey Vi-Fi, file an issue", "hey vi-fi", "file an issue"),
+            ("Voice Fi, summarize the standup", "voicefi", "summarize the standup"),
         ]
         for phrase, expected_match, expected_prompt in cases:
             matched, prompt = ActiveListeningEngine.extract_wakeword_and_prompt(phrase)
             assert matched is not None, f"Failed on: {phrase}"
             assert matched.lower() == expected_match
             assert prompt == expected_prompt
+
+    def test_custom_user_alert_words_via_settings(self):
+        # User adds custom alert words in settings
+        custom_aliases = ["computer", "hey computer"]
+        matched, prompt = ActiveListeningEngine.extract_wakeword_and_prompt(
+            "Computer, file a Linear ticket on the audio latency",
+            aliases=custom_aliases,
+        )
+        assert matched is not None
+        assert matched.lower() == "computer"
+        assert prompt == "file a Linear ticket on the audio latency"
 
 
 class TestWakeWordConfig:
@@ -78,14 +94,24 @@ class TestWakeWordConfig:
         assert cfg.wakeword.phrase == "Hey Viv"
         assert "hey viv" in [a.lower() for a in cfg.wakeword.aliases]
         assert "viv" in [a.lower() for a in cfg.wakeword.aliases]
-        assert "hey vifi" in [a.lower() for a in cfg.wakeword.aliases]
+        assert "voicefi" in [a.lower() for a in cfg.wakeword.aliases]
+        assert "vi-fi" in [a.lower() for a in cfg.wakeword.aliases]
+        assert "VoiceFi" in cfg.wakeword.alert_words
+        assert "Vi-Fi" in cfg.wakeword.alert_words
+        assert "Viv" in cfg.wakeword.alert_words
+        assert cfg.obsidian.meetings_folder == "Meetings"
         assert cfg.wakeword.chime is True
         assert cfg.wakeword.target_engine == "antigravity"
 
-    def test_custom_wakeword_phrase(self):
-        custom_cfg = WakeWordConfig(phrase="Hey ViFi", sensitivity=0.8)
-        assert custom_cfg.phrase == "Hey ViFi"
+    def test_custom_wakeword_phrase_and_alert_words(self):
+        custom_cfg = WakeWordConfig(
+            phrase="VoiceFi",
+            alert_words=["VoiceFi", "Vi-Fi", "Echo"],
+            sensitivity=0.8,
+        )
+        assert custom_cfg.phrase == "VoiceFi"
         assert custom_cfg.sensitivity == 0.8
+        assert "Echo" in custom_cfg.alert_words
 
 
 class TestWakeWordListenerLifecycle:

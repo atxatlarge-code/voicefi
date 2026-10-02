@@ -8,6 +8,7 @@ import glob
 import json
 import os
 import re
+import subprocess
 import threading
 import time
 from dataclasses import dataclass
@@ -261,6 +262,11 @@ def load_session_cookie() -> Optional[Dict[str, Any]]:
     except Exception:
         pass
     return None
+
+
+def is_conversation_focused(conv_id: Optional[str]) -> bool:
+    """Convenience helper to check if a conversation is focused."""
+    return ConversationTracker().is_conversation_focused(conv_id)
 
 
 _AGENT_ROUTES_FILE = Path("/tmp/voicefi_agent_routes.json")
@@ -693,6 +699,16 @@ class ConversationTracker:
             if info:
                 results.append(info)
 
+        # 3b. Local Gemma sessions
+        try:
+            gemma_paths = find_recent_gemma_sessions(limit=limit)
+        except Exception:
+            gemma_paths = []
+        for p in gemma_paths:
+            info = parse_gemma_session(p)
+            if info:
+                results.append(info)
+
         # 4. If active focus or session cookie conversation is not yet on disk (e.g. newly created session),
         # synthesize and prepend it so the user can immediately see and interact with it in the UI.
         cookie = load_session_cookie()
@@ -890,6 +906,63 @@ class ConversationTracker:
         self.active_focus_id = latest_conv.id
         return latest_conv
 
+    def get_frontmost_antigravity_conv_id(self) -> Optional[str]:
+        """Return the conversation ID matching the frontmost Antigravity window, if queryable."""
+        if os.environ.get("PYTEST_CURRENT_TEST"):
+            return None
+        try:
+            proc = subprocess.run(
+                [
+                    "osascript",
+                    "-e",
+                    'tell application "System Events" to tell process "Antigravity" to get name of window 1',
+                ],
+                capture_output=True,
+                text=True,
+                timeout=0.35,
+            )
+            win_title = proc.stdout.strip()
+            if win_title:
+                titles = self._get_pb_titles()
+                for cid, title in titles.items():
+                    if title and len(title) >= 4 and (title in win_title or win_title.startswith(title)):
+                        return cid
+        except Exception:
+            pass
+        return None
+
+    def is_conversation_focused(self, conv_id: Optional[str]) -> bool:
+        """
+        Determine if the given conversation ID is currently the focused/active conversation.
+        Ensures background conversations/subagents do not hijack the microphone or active session.
+        """
+        if not conv_id:
+            return False
+
+        # 1. Frontmost Antigravity window title match (highest confidence on macOS desktop)
+        front_conv = self.get_frontmost_antigravity_conv_id()
+        if front_conv:
+            return front_conv == conv_id
+
+        # 2. Explicit tracker focus in current process
+        if self.active_focus_id:
+            return self.active_focus_id == conv_id
+
+        # 3. Active session cookie
+        cookie = load_session_cookie()
+        if cookie and cookie.get("conversationId"):
+            c_id = cookie.get("conversationId")
+            c_time = float(cookie.get("updatedAt", 0))
+            if (time.time() - c_time) < 300.0:
+                return c_id == conv_id
+
+        # 4. Fallback: single or latest conversation
+        latest = self.get_active_or_latest()
+        if latest:
+            return latest.id == conv_id
+
+        return True
+
     def get_conversation_details(self, conv_id: str) -> Optional[Dict[str, Any]]:
         """Retrieve full conversation details for Antigravity, Claude, or Codex."""
         if not conv_id:
@@ -916,6 +989,12 @@ class ConversationTracker:
             matches = list((Path.home() / ".claude" / "projects").glob(f"*/{clean_id}.jsonl"))
             if matches:
                 return parse_full_claude_conversation_details(matches[0])
+
+        # Check if this is a Local Gemma session
+        if conv_id.startswith("gemma_"):
+            details = parse_full_gemma_conversation_details(conv_id)
+            if details:
+                return details
 
         transcript_path = (
             self.brain_dir / conv_id / ".system_generated" / "logs" / "transcript.jsonl"
@@ -1067,11 +1146,12 @@ def get_artifact_content(
     conv_id: str, filename: str, brain_dir: Optional[Path] = None
 ) -> Optional[Dict[str, Any]]:
     """Retrieve content of an artifact file safely."""
-    bdir = brain_dir or (Path.home() / ".gemini" / "antigravity" / "brain")
-    # Sanitize filename
+    bdir = (brain_dir or (Path.home() / ".gemini" / "antigravity" / "brain")).resolve()
+    # Sanitize filename and conv_id to prevent path traversal
+    safe_conv_id = Path(conv_id).name
     safe_name = Path(filename).name
-    target = bdir / conv_id / safe_name
-    if not target.is_file():
+    target = (bdir / safe_conv_id / safe_name).resolve()
+    if not target.is_relative_to(bdir) or not target.is_file():
         return None
 
     try:
@@ -1651,3 +1731,141 @@ def parse_full_claude_conversation_details(session_path: Path) -> Dict[str, Any]
         "plan_info": plan_info,
         "total_steps": len(lines),
     }
+
+
+# =========================================================================
+# Local Gemma On-Device Session Storage
+# =========================================================================
+
+def get_gemma_sessions_dir() -> Path:
+    """Return ~/.voicefi/sessions/gemma directory for local Gemma sessions."""
+    d = Path.home() / ".voicefi" / "sessions" / "gemma"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def find_recent_gemma_sessions(limit: int = 30) -> List[Path]:
+    """Find recently modified local Gemma session JSON files."""
+    d = get_gemma_sessions_dir()
+    if not d.is_dir():
+        return []
+    try:
+        files = list(d.glob("*.json"))
+        files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+        return files[:limit]
+    except Exception:
+        return []
+
+
+def parse_gemma_session(path: Path) -> Optional[ConversationInfo]:
+    """Parse a local Gemma session file into ConversationInfo."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        turns = data.get("turns", [])
+        last_agent = turns[-1].get("agent", "") if turns else ""
+        last_user = turns[-1].get("user", "") if turns else ""
+        return ConversationInfo(
+            id=data.get("id", path.stem),
+            title=data.get("title", "Local Gemma Session"),
+            status="COMPLETED",
+            mtime=path.stat().st_mtime,
+            last_agent_text=last_agent,
+            last_user_text=last_user,
+            transcript_path=path,
+            engine="gemma",
+            project_name=data.get("model", "gemma4-2b"),
+        )
+    except Exception:
+        return None
+
+
+def parse_full_gemma_conversation_details(conv_id: str) -> Optional[Dict[str, Any]]:
+    """Parse full details and message turns of a local Gemma session."""
+    clean_id = conv_id.replace("gemma_", "")
+    d = get_gemma_sessions_dir()
+    candidates = list(d.glob(f"*{clean_id}*.json")) + list(d.glob(f"*{conv_id}*.json"))
+    if not candidates:
+        return None
+    try:
+        path = candidates[0]
+        data = json.loads(path.read_text(encoding="utf-8"))
+        turns = data.get("turns", [])
+        formatted_turns = []
+        for i, t in enumerate(turns):
+            formatted_turns.append(
+                {
+                    "turn_index": i,
+                    "user_text": t.get("user", ""),
+                    "user": t.get("user", ""),
+                    "agent_text": t.get("agent", ""),
+                    "agent": t.get("agent", ""),
+                    "timestamp": t.get("timestamp", 0),
+                    "status": "COMPLETED" if t.get("agent") else "IN_PROGRESS",
+                }
+            )
+        is_complete = all(t.get("status") == "COMPLETED" for t in formatted_turns) if formatted_turns else True
+        return {
+            "id": data.get("id", conv_id),
+            "title": data.get("title", "Local Gemma"),
+            "status": "COMPLETED" if is_complete else "IN_PROGRESS",
+            "engine": "gemma",
+            "model": data.get("model", "gemma4-2b"),
+            "mtime": path.stat().st_mtime,
+            "turns": formatted_turns,
+            "artifacts": [],
+            "total_steps": len(formatted_turns),
+        }
+    except Exception:
+        return None
+
+
+def save_gemma_turn(
+    conv_id: Optional[str],
+    user_text: str,
+    agent_text: str,
+    model: str = "gemma4-2b",
+    title: Optional[str] = None,
+) -> Path:
+    """Save a user prompt and Gemma response turn to the session JSON file."""
+    d = get_gemma_sessions_dir()
+    cid = conv_id or f"gemma_{int(time.time())}"
+    if not cid.startswith("gemma_"):
+        cid = f"gemma_{cid}"
+    path = d / f"{cid}.json"
+
+    data: Dict[str, Any] = {
+        "id": cid,
+        "title": title or user_text[:40],
+        "engine": "gemma",
+        "model": model,
+        "turns": [],
+    }
+    if path.is_file():
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+
+    if title:
+        data["title"] = title
+    elif not data.get("title") or data.get("title") == "Local Gemma Session":
+        data["title"] = user_text[:40]
+
+    turns = data.get("turns", [])
+    # If the last turn has matching user text and is awaiting agent response, update in-place
+    if turns and turns[-1].get("user") == user_text and not turns[-1].get("agent") and agent_text:
+        turns[-1]["agent"] = agent_text
+        turns[-1]["timestamp"] = time.time()
+    else:
+        turns.append(
+            {
+                "user": user_text,
+                "agent": agent_text,
+                "timestamp": time.time(),
+            }
+        )
+    data["turns"] = turns
+    data["mtime"] = time.time()
+    path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    return path
+

@@ -27,6 +27,7 @@ from voicefi.tts.elevenlabs import ElevenLabsTTS
 from voicefi.tts.f5_tts import F5TTS
 from voicefi.tts.kokoro_tts import KokoroTTS
 from voicefi.tts.gemini_tts import GeminiTTS
+from voicefi.tts.voice_acting import VoiceActingTTS, QwenTTS, QwenCloneTTS
 from voicefi.tts.catalog import (
     VoicePersona,
     CURATED_PERSONAS,
@@ -182,20 +183,94 @@ def get_tts_engine(
             voice=voice,
             speed=float(rate) / 200.0 if (rate and isinstance(rate, (int, float))) else 1.0,
         )
-    elif provider in ("f5_tts", "local_clone", "luxtts"):
-        ref_audio = config.tts.f5_ref_audio
-        ref_text = config.tts.f5_ref_text
-        if clone_prof and clone_prof.sample_paths:
-            ref_audio = clone_prof.sample_paths[0]
-            ref_text = clone_prof.labels.get("ref_text") if clone_prof.labels else None
+    elif provider in ("qwen", "qwen_tts", "qwen_clone", "mlx_clone", "f5_tts", "local_clone", "luxtts"):
+        agent_key = (agent_name or "").lower().strip()
+        agent_prof = None
+        if hasattr(config, "agents") and agent_key in config.agents:
+            agent_prof = config.agents[agent_key]
+        elif hasattr(config, "subagents") and agent_key in config.subagents:
+            agent_prof = config.subagents[agent_key]
 
-        if F5TTS.is_available() and ref_audio:
+        ref_audio = getattr(agent_prof, "f5_ref_audio", None) if agent_prof else None
+        ref_text = getattr(agent_prof, "f5_ref_text", None) if agent_prof else None
+
+        if not ref_audio:
+            ref_audio = getattr(config.tts, "f5_ref_audio", None)
+            ref_text = getattr(config.tts, "f5_ref_text", None)
+
+        if clone_prof:
+            is_specific_clone = (
+                clone_prof.id in ("walken_continental", "the_continental")
+                or "continental" in getattr(clone_prof, "name", "").lower()
+                or (voice and "continental" in str(voice).lower())
+            )
+            if not ref_audio or (is_specific_clone and not getattr(agent_prof, "f5_ref_audio", None)):
+                if clone_prof.sample_paths:
+                    ref_audio = clone_prof.sample_paths[0]
+                if clone_prof.labels and clone_prof.labels.get("ref_text"):
+                    ref_text = clone_prof.labels.get("ref_text")
+
+        cloning_engine = getattr(config.tts, "cloning_engine", "auto")
+        use_qwen = (
+            provider in ("qwen", "qwen_tts", "qwen_clone", "mlx_clone")
+            or getattr(clone_prof, "provider", None) in ("qwen", "qwen_clone")
+            or (cloning_engine == "qwen" and QwenTTS.is_available())
+            or (cloning_engine == "auto" and provider != "f5_tts" and QwenTTS.is_available() and not F5TTS.is_available())
+        )
+
+        target_speed = 1.0
+        if speed_override is not None:
+            from voicefi.audio.speed_talk import resolve_speed_multiplier
+            target_speed = resolve_speed_multiplier(speed_override)
+        elif clone_prof and getattr(clone_prof, "speed", None):
+            target_speed = float(getattr(clone_prof, "speed"))
+        elif ref_audio and "continental" in str(ref_audio).lower():
+            target_speed = 0.92
+
+        intro_sfx = getattr(agent_prof, "intro_sfx", None) if agent_prof else None
+        intro_sfx_vol = getattr(agent_prof, "intro_sfx_volume", None) if agent_prof else None
+        if not intro_sfx and clone_prof:
+            intro_sfx = getattr(clone_prof, "intro_sfx", None)
+            intro_sfx_vol = getattr(clone_prof, "intro_sfx_volume", None)
+        if not intro_sfx:
+            intro_sfx = getattr(config.tts, "intro_sfx", None)
+            intro_sfx_vol = getattr(config.tts, "intro_sfx_volume", 0.25)
+        if intro_sfx_vol is None:
+            intro_sfx_vol = 0.25
+
+        if use_qwen and QwenTTS.is_available() and ref_audio:
+            eng = QwenTTS(
+                ref_audio=ref_audio,
+                ref_text=ref_text,
+                speed=target_speed,
+                persona_name=clone_prof.name if clone_prof else getattr(config.tts, "voice", "Custom Clone"),
+                apply_silk_mastering=True,
+                intro_sfx=intro_sfx,
+                intro_sfx_volume=intro_sfx_vol,
+            )
+        elif F5TTS.is_available() and ref_audio:
+            nfe = getattr(config.tts, "f5_nfe_step", None) or 24
+            if clone_prof and getattr(clone_prof, "nfe_step", None):
+                nfe = int(getattr(clone_prof, "nfe_step"))
+
             eng = F5TTS(
                 ref_audio=ref_audio,
                 ref_text=ref_text,
                 model_name=getattr(config.tts, "f5_model_name", "F5TTS_v1_Base"),
                 device=getattr(config.tts, "f5_device", "auto"),
-                nfe_step=getattr(config.tts, "f5_nfe_step", 16),
+                nfe_step=nfe,
+                speed=target_speed,
+                persona_name=clone_prof.name if clone_prof else getattr(config.tts, "voice", "Custom Clone"),
+            )
+        elif QwenTTS.is_available() and ref_audio:
+            eng = QwenTTS(
+                ref_audio=ref_audio,
+                ref_text=ref_text,
+                speed=target_speed,
+                persona_name=clone_prof.name if clone_prof else getattr(config.tts, "voice", "Custom Clone"),
+                apply_silk_mastering=True,
+                intro_sfx=intro_sfx,
+                intro_sfx_volume=intro_sfx_vol,
             )
         elif clone_prof and clone_prof.calibrated_voice:
             calibrated_v = clone_prof.calibrated_voice
@@ -316,6 +391,14 @@ def get_tts_engine(
             api_key=resolved_key,
             voice=voice,
             model=chosen_model,
+        )
+    elif provider in ("voice_acting", "local_actor", "actor", "mlx_actor", "fish_speech", "fish"):
+        from voicefi.tts.voice_acting import VoiceActingTTS
+
+        effective_speed = float(rate) / 200.0 if (rate and isinstance(rate, (int, float))) else 1.0
+        eng = VoiceActingTTS(
+            persona_name=voice or "drill_sergeant",
+            speed=effective_speed,
         )
     elif provider == "edge_tts":
         offline_v = None

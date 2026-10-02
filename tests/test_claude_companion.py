@@ -153,7 +153,7 @@ class ClaudeCompanionServerTestCase(AioHTTPTestCase):
         assert "conversations" in data
         for c in data["conversations"]:
             assert "engine" in c
-            assert c["engine"] in ("antigravity", "claude", "codex")
+            assert c["engine"] in ("antigravity", "claude", "codex", "gemma")
 
     async def test_api_tts_claude_persona(self):
         """Test POST /api/tts with agent_role='claude' requests Guy Neural persona."""

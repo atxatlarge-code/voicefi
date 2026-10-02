@@ -39,34 +39,6 @@ from voicefi.integrations.active_listening import ActiveListeningEngine, SpokenI
 class ProactiveTriageEngine:
     """Classifies streaming transcript chunks into actionable developer intents."""
 
-    # Trigger patterns for fast local classification
-    SCAFFOLD_PATTERNS = [
-        r"\b(?:let\'?s|we (?:should|need to)|can we|could we)\s+(?:build|add|create|scaffold|implement|write|draft|integrate)\b",
-        r"\b(?:create|add|implement)\s+(?:a|an|the)\s+(?:component|route|endpoint|model|migration|schema|test|service|hook)\b",
-        r"\b(?:support for|integration with)\s+[A-Za-z0-9_-]+\b",
-    ]
-
-    RESEARCH_PATTERNS = [
-        r"\b(?:what(?:'s| is)|how does|how do we|look up|check)\s+(?:the|an?)\s+(?:api|docs?|documentation|spec|signature|schema|config)\b",
-        r"\b(?:is there a|do we have|where is)\s+[A-Za-z0-9_-]+\b",
-        r"\b(?:compare|difference between)\s+[A-Za-z0-9_-]+\s+and\s+[A-Za-z0-9_-]+\b",
-    ]
-
-    DIAGNOSE_PATTERNS = [
-        r"\b(?:why is|debug|audit|inspect|investigate)\s+(?:the|this|our)?\s*(?:lcp|performance|error|bug|test failure|memory|crash|lag)\b",
-        r"\b(?:slow|hanging|failing|broken|crashing)\b",
-    ]
-
-    TICKET_PATTERNS = [
-        r"\b(?:action item|todo|ticket|linear|jira|task)\s*:\s*",
-        r"\b(?:someone needs to|let\'?s make a ticket for|assign to)\b",
-    ]
-
-    IGNORE_PATTERNS = [
-        r"^(?:yeah|yes|no|nope|okay|ok|uh-huh|mhm|sure|thanks|thank you|bye|hello|hi|hey)[\s.?!]*$",
-        r"\b(?:lunch|coffee|weather|weekend|dinner|traffic)\b",
-    ]
-
     @classmethod
     def evaluate(cls, text: str) -> Optional[ProactiveTask]:
         """Evaluate a transcribed sentence and produce a proactive task if actionable."""
@@ -83,62 +55,86 @@ class ProactiveTriageEngine:
         ):
             return None
 
-        # 2. Quick check for ignore / smalltalk patterns
-        for pat in cls.IGNORE_PATTERNS:
-            if re.search(pat, clean_text, re.IGNORECASE):
-                return None
+        # 2. Synchronous Ollama System 1 Structured Output call
+        import urllib.request
+        import json
+        
+        system_prompt = (
+            "You are VoiceFi's proactive triage engine. Analyze ambient speech to extract actionable tasks. "
+            "If the speech is filler or unrelated, classify it as 'IGNORE'.\n"
+            "Categories:\n"
+            "- RESEARCH: Look up docs, find files, explain code.\n"
+            "- SCAFFOLD: Build, create, write, or implement new code.\n"
+            "- DIAGNOSE: Investigate bugs, memory leaks, or test failures.\n"
+            "- TICKET: Create action items, todos, or Jira tickets.\n"
+            "- IGNORE: Unrelated chatter, lunch, coffee, etc."
+        )
+
+        payload = {
+            "model": "gemma2:2b",
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"Ambient Speech: {clean_text}"}
+            ],
+            "format": {
+                "type": "object",
+                "properties": {
+                    "category": {
+                        "type": "string",
+                        "enum": ["IGNORE", "RESEARCH", "SCAFFOLD", "DIAGNOSE", "TICKET"]
+                    },
+                    "summary": {
+                        "type": "string",
+                        "description": "Short 3-6 word summary of the task."
+                    },
+                    "action_prompt": {
+                        "type": "string",
+                        "description": "Specific action the background subagent should perform."
+                    },
+                    "workspace": {
+                        "type": "string",
+                        "enum": ["inherit", "branch"],
+                        "description": "Use 'branch' for SCAFFOLD or unsafe changes. Use 'inherit' for research/diagnostics."
+                    }
+                },
+                "required": ["category", "summary", "action_prompt", "workspace"]
+            },
+            "stream": False,
+            "options": {"temperature": 0.0}
+        }
+        
+        req = urllib.request.Request(
+            "http://localhost:11434/api/chat",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+        
+        try:
+            with urllib.request.urlopen(req, timeout=5.0) as response:
+                result = json.loads(response.read().decode())
+                parsed = json.loads(result["message"]["content"])
+        except Exception as e:
+            return None
+            
+        cat_str = parsed.get("category", "IGNORE")
+        if cat_str == "IGNORE":
+            return None
+            
+        try:
+            category = TriageCategory(cat_str)
+        except ValueError:
+            return None
 
         task_id = str(uuid.uuid4())[:8]
-
-        # 2. Check for DIAGNOSE intent
-        for pat in cls.DIAGNOSE_PATTERNS:
-            if re.search(pat, clean_text, re.IGNORECASE):
-                return ProactiveTask(
-                    id=task_id,
-                    category=TriageCategory.DIAGNOSE,
-                    raw_utterance=clean_text,
-                    summary=f"Diagnose: {clean_text[:60]}...",
-                    action_prompt=f"Investigate and diagnose the reported issue: '{clean_text}'",
-                    suggested_workspace="inherit",
-                )
-
-        # 3. Check for SCAFFOLD intent (Isolated branch workspace)
-        for pat in cls.SCAFFOLD_PATTERNS:
-            if re.search(pat, clean_text, re.IGNORECASE):
-                return ProactiveTask(
-                    id=task_id,
-                    category=TriageCategory.SCAFFOLD,
-                    raw_utterance=clean_text,
-                    summary=f"Scaffold: {clean_text[:60]}...",
-                    action_prompt=f"In an isolated branch sandbox, scaffold and implement: '{clean_text}'",
-                    suggested_workspace="branch",
-                )
-
-        # 4. Check for RESEARCH intent
-        for pat in cls.RESEARCH_PATTERNS:
-            if re.search(pat, clean_text, re.IGNORECASE):
-                return ProactiveTask(
-                    id=task_id,
-                    category=TriageCategory.RESEARCH,
-                    raw_utterance=clean_text,
-                    summary=f"Research: {clean_text[:60]}...",
-                    action_prompt=f"Research documentation and codebase context for: '{clean_text}'",
-                    suggested_workspace="inherit",
-                )
-
-        # 5. Check for TICKET / Action items
-        for pat in cls.TICKET_PATTERNS:
-            if re.search(pat, clean_text, re.IGNORECASE):
-                return ProactiveTask(
-                    id=task_id,
-                    category=TriageCategory.TICKET,
-                    raw_utterance=clean_text,
-                    summary=f"Ticket: {clean_text[:60]}...",
-                    action_prompt=f"Record meeting action item: '{clean_text}'",
-                    suggested_workspace="inherit",
-                )
-
-        return None
+        return ProactiveTask(
+            id=task_id,
+            category=category,
+            raw_utterance=clean_text,
+            summary=parsed.get("summary", f"{cat_str}: {clean_text[:60]}..."),
+            action_prompt=parsed.get("action_prompt", clean_text),
+            suggested_workspace=parsed.get("workspace", "inherit"),
+        )
 
 
 class ProactiveDispatcher:

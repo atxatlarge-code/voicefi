@@ -1,0 +1,146 @@
+#!/usr/bin/env bash
+# =============================================================================
+# VoiceFi Content Creation Factory CLI Helper
+# =============================================================================
+
+set -e
+
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do
+    DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+    SOURCE="$(readlink "$SOURCE")"
+    [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+VOICEFI_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+
+PYTHON_EXEC="$VOICEFI_DIR/.venv/bin/python3"
+if [ ! -f "$PYTHON_EXEC" ]; then
+    PYTHON_EXEC="/Users/jaketrigg/Projects/VoiceFi/.venv/bin/python3"
+fi
+if [ ! -f "$PYTHON_EXEC" ]; then
+    PYTHON_EXEC="python3"
+fi
+
+export PYTHONPATH="$VOICEFI_DIR/src:$PYTHONPATH"
+
+PID_FILE="/tmp/voicefi_factory.pid"
+
+case "$1" in
+    server)
+        shift
+        echo "🚀 Starting VoiceFi Content Factory Server in background daemon mode..."
+        nohup "$PYTHON_EXEC" -m voicefi.factory.server --server "$@" > /tmp/voicefi_factory.log 2>&1 &
+        echo "Server started. Logs: /tmp/voicefi_factory.log. PID file: $PID_FILE"
+        ;;
+    run)
+        shift
+        exec "$PYTHON_EXEC" -m voicefi.factory.server "$@"
+        ;;
+    enqueue)
+        shift
+        exec "$PYTHON_EXEC" -m voicefi.factory.enqueuer "$@"
+        ;;
+    cockpit)
+        shift
+        exec "$PYTHON_EXEC" -m voicefi.factory.cockpit "$@"
+        ;;
+    poster-horror|poster_horror|horror-poster|poster)
+        shift
+        exec "$PYTHON_EXEC" -m voicefi.factory.image_templates --template poster_horror "$@"
+        ;;
+    image|template)
+        shift
+        exec "$PYTHON_EXEC" -m voicefi.factory.image_templates "$@"
+        ;;
+    status)
+        shift
+        if [ -f "$PID_FILE" ]; then
+            PID=$(cat "$PID_FILE")
+            if kill -0 "$PID" 2>/dev/null; then
+                echo "✅ VoiceFi Factory daemon is RUNNING (PID: $PID)"
+            else
+                echo "⚠️ VoiceFi Factory PID file exists ($PID) but process is NOT running."
+            fi
+        else
+            echo "○ VoiceFi Factory daemon is NOT running."
+        fi
+        exec "$PYTHON_EXEC" -c "
+from voicefi.factory.queue import ContentFactoryQueue
+q = ContentFactoryQueue()
+counts = q.query_queue_counts()
+print(f'Queue Status: {counts}')
+metrics = q.query_aggregate_metrics()
+print(f'Tokens Saved: {metrics[\"tokens_saved\"]:,} | Completed: {metrics[\"completed\"]}')
+"
+        ;;
+    stop)
+        shift
+        if [ -f "$PID_FILE" ]; then
+            PID=$(cat "$PID_FILE")
+            if kill -0 "$PID" 2>/dev/null; then
+                echo "🛑 Sending SIGTERM to Content Factory Server daemon (PID: $PID)..."
+                kill -TERM "$PID"
+                for i in {1..10}; do
+                    if kill -0 "$PID" 2>/dev/null; then
+                        sleep 0.5
+                    else
+                        echo "✅ Factory Server daemon stopped cleanly."
+                        exit 0
+                    fi
+                done
+                echo "⚠️ Daemon did not exit within 5s, sending SIGKILL..."
+                kill -KILL "$PID" 2>/dev/null || true
+                rm -f "$PID_FILE"
+                echo "Daemon killed."
+            else
+                echo "Stale PID file found ($PID), removing."
+                rm -f "$PID_FILE"
+            fi
+        else
+            echo "No active Content Factory Server daemon PID file found."
+        fi
+        ;;
+    jobs)
+        shift
+        exec "$PYTHON_EXEC" -c "
+from voicefi.factory.queue import ContentFactoryQueue
+from rich.console import Console
+from rich.table import Table
+
+console = Console()
+q = ContentFactoryQueue()
+jobs = q.query_recent_jobs(limit=20)
+table = Table(title='=== Last 20 Content Factory Jobs ===')
+table.add_column('ID', style='dim')
+table.add_column('Title / Prompt', style='bold')
+table.add_column('Stage', style='magenta')
+table.add_column('Status', style='cyan')
+table.add_column('Tokens Saved', style='green')
+table.add_column('Output Audio', style='dim')
+
+for j in jobs:
+    table.add_row(
+        str(j.id),
+        (j.title or j.prompt)[:35],
+        j.current_stage,
+        j.status,
+        f'{j.local_tokens_saved:,}',
+        str(j.output_audio_path or '-')
+    )
+console.print(table)
+"
+        ;;
+    *)
+        echo "Usage: ./factory {server|run|enqueue|cockpit|status|stop|jobs} [options]"
+        echo ""
+        echo "Commands:"
+        echo "  server   Start Factory Server in background daemon mode"
+        echo "  run      Run Factory Server in foreground (e.g. ./factory run --run-once)"
+        echo "  enqueue  Enqueue content prompt or JSON batch (e.g. ./factory enqueue 'The Friday Noon Deploy')"
+        echo "  cockpit  Launch real-time interactive terminal dashboard (Rich Live)"
+        echo "  status   Query live queue counts and daemon status"
+        echo "  stop     Gracefully stop running Factory Server"
+        echo "  jobs     Inspect recent jobs from queue"
+        exit 1
+        ;;
+esac

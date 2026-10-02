@@ -34,6 +34,18 @@ def main():
     parser.add_argument(
         "--dashboard-id", default="2066598", help="Existing Dashboard ID to attach to"
     )
+    parser.add_argument(
+        "--alerts",
+        action="store_true",
+        default=True,
+        help="Provision PostHog automated alert rules for regressions, crashes, and failover spikes",
+    )
+    parser.add_argument(
+        "--no-alerts",
+        dest="alerts",
+        action="store_false",
+        help="Skip provisioning alert rules",
+    )
     args = parser.parse_args()
 
     api_key = args.key.strip()
@@ -165,13 +177,13 @@ def main():
                             "kind": "EventsNode",
                             "math": "total",
                             "name": "Spoken Turns Completed",
-                            "event": "voice_turn_completed",
+                            "event": "voice_interaction",
                         },
                         {
                             "kind": "EventsNode",
                             "math": "total",
                             "name": "Barge-In Interruptions",
-                            "event": "barge_in_triggered",
+                            "event": "barge_in_event",
                         },
                     ],
                     "dateRange": {"date_from": "-30d"},
@@ -213,6 +225,46 @@ def main():
                 },
             },
         },
+        {
+            "name": "🚨 Errors, Exceptions & Tool Failures",
+            "description": "Daily volume of $exception error tracking events, fatal app_crash events, and failed MCP tool calls",
+            "query": {
+                "kind": "InsightVizNode",
+                "source": {
+                    "kind": "TrendsQuery",
+                    "series": [
+                        {
+                            "kind": "EventsNode",
+                            "math": "total",
+                            "name": "Exceptions ($exception)",
+                            "event": "$exception",
+                        },
+                        {
+                            "kind": "EventsNode",
+                            "math": "total",
+                            "name": "Fatal App Crashes",
+                            "event": "app_crash",
+                        },
+                        {
+                            "kind": "EventsNode",
+                            "math": "total",
+                            "name": "Failed MCP Tool Calls",
+                            "event": "$mcp_tool_call",
+                            "properties": [
+                                {
+                                    "key": "is_error",
+                                    "value": ["true", True],
+                                    "operator": "exact",
+                                    "type": "event",
+                                }
+                            ],
+                        },
+                    ],
+                    "dateRange": {"date_from": "-30d"},
+                    "trendsFilter": {"display": "ActionsLineGraph"},
+                },
+            },
+        },
     ]
 
     print(f"\n📈 Creating and pinning {len(insights)} insights to dashboard {dash_id}...")
@@ -236,6 +288,92 @@ def main():
         except urllib.error.HTTPError as e:
             err_body = e.read().decode()
             print(f"  ❌ Error on '{ins['name']}' ({e.code}): {err_body}")
+
+    # Automated PostHog Alert Rules Provisioning (P0 / P1 / P2)
+    if getattr(args, "alerts", True):
+        alerts = [
+            {
+                "name": "🚨 P0: Daemon / MCP Server Crash Alert",
+                "description": "Fires immediately when mcp_server_loop crashes or fatal app_crash occurs",
+                "calculation_interval": "hourly",
+                "threshold": {"configuration": {"type": "absolute", "bounds": {"upper": 0}}},
+                "condition": {
+                    "type": "trends",
+                    "query": {
+                        "event": "$exception",
+                        "properties": [
+                            {"key": "component", "value": "mcp_server_loop", "operator": "exact"}
+                        ],
+                    },
+                },
+            },
+            {
+                "name": "⚠️ P1: TTS Synthesis Failover Spike",
+                "description": "Fires when Edge TTS / MacSay failovers exceed 10 in 30 minutes",
+                "calculation_interval": "hourly",
+                "threshold": {"configuration": {"type": "absolute", "bounds": {"upper": 10}}},
+                "condition": {
+                    "type": "trends",
+                    "query": {
+                        "event": "$exception",
+                        "properties": [
+                            {"key": "component", "value": "tts", "operator": "icontains"}
+                        ],
+                    },
+                },
+            },
+            {
+                "name": "⚠️ P1: MCP Tool Failure Rate Spike (>5%)",
+                "description": "Fires when MCP tool error rate spikes",
+                "calculation_interval": "hourly",
+                "threshold": {"configuration": {"type": "absolute", "bounds": {"upper": 5}}},
+                "condition": {
+                    "type": "trends",
+                    "query": {
+                        "event": "$mcp_tool_call",
+                        "properties": [
+                            {"key": "is_error", "value": ["true", True], "operator": "exact"}
+                        ],
+                    },
+                },
+            },
+            {
+                "name": "🌐 P2: Web Audio Playback Outage (>15/hr)",
+                "description": "Fires when HTML5 Audio playback fails repeatedly on vifi.co / voicefi.org",
+                "calculation_interval": "hourly",
+                "threshold": {"configuration": {"type": "absolute", "bounds": {"upper": 15}}},
+                "condition": {
+                    "type": "trends",
+                    "query": {
+                        "event": "$exception",
+                        "properties": [
+                            {"key": "component", "value": "web_audio", "operator": "exact"}
+                        ],
+                    },
+                },
+            },
+        ]
+
+        print(f"\n🚨 Provisioning {len(alerts)} PostHog Alert Rules...")
+        for al in alerts:
+            req = urllib.request.Request(
+                f"{POSTHOG_HOST}/api/projects/{project_id}/alerts/",
+                data=json.dumps(al).encode("utf-8"),
+                headers=headers,
+                method="POST",
+            )
+            try:
+                with urllib.request.urlopen(req) as resp:
+                    created_alert = json.loads(resp.read().decode())
+                    print(f"  ✅ Alert configured: '{al['name']}' (ID: {created_alert.get('id')})")
+            except urllib.error.HTTPError as e:
+                err_body = e.read().decode()
+                if e.code in (403, 404):
+                    print(f"  ℹ️ Alert rule '{al['name']}': PostHog Project Alert tier check ({e.code})")
+                else:
+                    print(f"  ❌ Alert rule '{al['name']}' ({e.code}): {err_body[:100]}")
+            except Exception as e:
+                print(f"  ❌ Alert rule error '{al['name']}': {e}")
 
     # Web UI URL uses us.posthog.com (without the 'i.' ingestion subdomain)
     web_host = POSTHOG_HOST.replace("us.i.posthog.com", "us.posthog.com")

@@ -35,14 +35,15 @@ def get_mcp_posthog() -> Optional[Any]:
     Get or lazily initialize the PostHogMCP client instance.
     Respects user telemetry configuration (~/.voicefi/config.yaml or env vars).
     """
-    from voicefi.telemetry import is_telemetry_enabled
-
-    if not is_telemetry_enabled():
-        return None
-
     global _mcp_posthog, _mcp_posthog_initialized
     if _mcp_posthog_initialized:
         return _mcp_posthog
+
+    from voicefi.telemetry import is_telemetry_enabled
+
+    if not is_telemetry_enabled():
+        _mcp_posthog_initialized = True
+        return None
 
     _mcp_posthog_initialized = True
     try:
@@ -90,13 +91,31 @@ def get_mcp_posthog() -> Optional[Any]:
         from posthog.mcp import PostHogMCP
 
         _mcp_posthog = PostHogMCP(api_key, host=host)
-        _mcp_posthog.sync_mode = True
-        logger.debug("PostHogMCP analytics client initialized successfully.")
+        _mcp_posthog.sync_mode = False
+        logger.debug("PostHogMCP analytics client initialized successfully (async mode).")
     except Exception as e:
         logger.debug("PostHogMCP initialization skipped or failed: %s", e)
         _mcp_posthog = None
 
     return _mcp_posthog
+
+
+_CACHED_MCP_TOOLS_PREPARED = None
+
+
+def get_prepared_tools(ph=None):
+    """Return pre-cached MCP tool schemas with PostHog context annotations."""
+    global _CACHED_MCP_TOOLS_PREPARED
+    if ph is None:
+        return MCP_TOOLS
+    if _CACHED_MCP_TOOLS_PREPARED is None:
+        try:
+            _CACHED_MCP_TOOLS_PREPARED = ph.prepare_tool_list(
+                MCP_TOOLS, context=True, report_missing=True
+            )
+        except Exception:
+            _CACHED_MCP_TOOLS_PREPARED = MCP_TOOLS
+    return _CACHED_MCP_TOOLS_PREPARED
 
 
 def flush_mcp_posthog(timeout_seconds: float = 2.0) -> None:
@@ -111,13 +130,14 @@ def flush_mcp_posthog(timeout_seconds: float = 2.0) -> None:
 
 def shutdown_mcp_posthog() -> None:
     """Shutdown and flush PostHog MCP client."""
-    global _mcp_posthog
+    global _mcp_posthog, _CACHED_MCP_TOOLS_PREPARED
     if _mcp_posthog is not None:
         try:
             _mcp_posthog.shutdown()
         except Exception:
             pass
         _mcp_posthog = None
+    _CACHED_MCP_TOOLS_PREPARED = None
 
 
 import atexit
@@ -731,7 +751,6 @@ class VoiceFiMCPServer:
                             "$mcp_server_version": SERVER_VERSION,
                         },
                     )
-                    ph.flush(timeout_seconds=2.0)
                 except Exception as e:
                     logger.debug("PostHogMCP capture_initialize error: %s", e)
             return {
@@ -760,15 +779,11 @@ class VoiceFiMCPServer:
 
         elif method == "tools/list":
             ph = get_mcp_posthog()
-            tools_to_return = MCP_TOOLS
+            tools_to_return = get_prepared_tools(ph)
             if ph is not None:
                 try:
                     from voicefi.telemetry import get_telemetry_id
 
-                    # Inject context parameter for agent intent capture
-                    tools_to_return = ph.prepare_tool_list(
-                        MCP_TOOLS, context=True, report_missing=True
-                    )
                     tool_names = [
                         t.get("name") for t in MCP_TOOLS if isinstance(t, dict) and t.get("name")
                     ]
@@ -783,10 +798,8 @@ class VoiceFiMCPServer:
                             "$mcp_client_version": self.client_version,
                         },
                     )
-                    ph.flush(timeout_seconds=2.0)
                 except Exception as e:
                     logger.debug("PostHogMCP capture_tools_list error: %s", e)
-                    tools_to_return = MCP_TOOLS
             return {
                 "jsonrpc": "2.0",
                 "id": req_id,
@@ -828,7 +841,6 @@ class VoiceFiMCPServer:
                                 "$mcp_client_version": self.client_version,
                             },
                         )
-                        ph.flush(timeout_seconds=2.0)
                     except Exception:
                         pass
                 result = {
@@ -1123,7 +1135,6 @@ class VoiceFiMCPServer:
                         session_id=getattr(self, "session_id", None),
                         properties=props,
                     )
-                    ph.flush(timeout_seconds=2.0)
                 except Exception as e:
                     logger.debug("PostHogMCP capture_tool_call error: %s", e)
 

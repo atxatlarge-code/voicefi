@@ -370,4 +370,208 @@ def test_feature_gate_activate_license_invalid_telemetry():
         assert call_props["success"] is False
 
 
+def test_capture_exception_native_sdk(monkeypatch):
+    """Verify capture_exception dispatches $exception with sanitized props and version metadata via PostHog SDK."""
+    from voicefi.telemetry import capture_exception, flush_telemetry
+    import voicefi.telemetry as tm
+
+    monkeypatch.setenv("VOICEFI_TELEMETRY", "1")
+    monkeypatch.delenv("DO_NOT_TRACK", raising=False)
+    monkeypatch.delenv("VOICEFI_TESTING", raising=False)
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+    monkeypatch.setattr("voicefi.telemetry.is_telemetry_enabled", lambda: True)
+
+    mock_ph = MagicMock()
+    monkeypatch.setattr(tm, "posthog", mock_ph)
+    monkeypatch.setattr(tm, "_posthog_initialized", True)
+    monkeypatch.setattr(tm, "_recent_exception_hashes", {})
+
+    try:
+        raise ValueError("Secret database failure in /Users/jake/app.py with key AIzaSyA12345678901234567890123456789012")
+    except Exception as exc:
+        res = capture_exception(
+            exc,
+            properties={"extra_info": "tts_failure", "user_key": "sk-1234567890abcdef1234567890"},
+            command="speak",
+        )
+        assert res is True
+        assert mock_ph.capture_exception.called
+        call_args, call_kwargs = mock_ph.capture_exception.call_args
+        assert call_args[0] == exc
+        props = call_kwargs["properties"]
+        assert props["command"] == "speak"
+        assert props["extra_info"] == "tts_failure"
+        assert "$app_version" in props
+        assert "python_version" in props
+        assert "user_key" not in props  # Zero-PII check
+        assert not mock_ph.flush.called  # Non-blocking check: flush is NOT called mid-turn
+
+        # Verify graceful flush on shutdown
+        flush_telemetry()
+        assert mock_ph.flush.called
+
+
+def test_capture_exception_deduplication(monkeypatch):
+    """Verify sliding-window deduplication throttles duplicate exceptions."""
+    from voicefi.telemetry import capture_exception
+    import voicefi.telemetry as tm
+
+    monkeypatch.setenv("VOICEFI_TELEMETRY", "1")
+    monkeypatch.delenv("DO_NOT_TRACK", raising=False)
+    monkeypatch.delenv("VOICEFI_TESTING", raising=False)
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+    monkeypatch.delenv("VOICEFI_TEST_SYNC", raising=False)
+    monkeypatch.setattr("voicefi.telemetry.is_telemetry_enabled", lambda: True)
+
+    mock_ph = MagicMock()
+    monkeypatch.setattr(tm, "posthog", mock_ph)
+    monkeypatch.setattr(tm, "_posthog_initialized", True)
+    monkeypatch.setattr(tm, "_recent_exception_hashes", {})
+
+    err = RuntimeError("Repeated audio underrun")
+    # First call: dispatches
+    assert capture_exception(err, properties={"component": "audio_out"}) is True
+    assert mock_ph.capture_exception.call_count == 1
+
+    # Immediate second call: throttled
+    assert capture_exception(err, properties={"component": "audio_out"}) is True
+    assert mock_ph.capture_exception.call_count == 1  # Not dispatched again
+
+
+def test_capture_exception_https_fallback(monkeypatch):
+    """Verify capture_exception dispatches $exception via direct HTTPS fallback when SDK missing."""
+    from voicefi.telemetry import capture_exception
+    import voicefi.telemetry as tm
+
+    monkeypatch.setenv("VOICEFI_TELEMETRY", "1")
+    monkeypatch.setenv("VOICEFI_TEST_SYNC", "1")
+    monkeypatch.delenv("DO_NOT_TRACK", raising=False)
+    monkeypatch.delenv("VOICEFI_TESTING", raising=False)
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+    monkeypatch.setattr("voicefi.telemetry.is_telemetry_enabled", lambda: True)
+    monkeypatch.setattr(tm, "posthog", None)
+    monkeypatch.setattr(tm, "_posthog_initialized", False)
+    monkeypatch.setattr(tm, "_recent_exception_hashes", {})
+
+    with patch("urllib.request.urlopen") as mock_urlopen:
+        mock_urlopen.return_value = MagicMock()
+        try:
+            raise RuntimeError("Audio device underrun")
+        except Exception as exc:
+            res = capture_exception(exc, properties={"component": "audio_out"})
+            assert res is True
+            assert mock_urlopen.called
+            req = mock_urlopen.call_args[0][0]
+            payload = json.loads(req.data.decode("utf-8"))
+            assert payload["event"] == "$exception"
+            assert payload["properties"]["$exception_type"] == "RuntimeError"
+            assert payload["properties"]["$exception_message"] == "Audio device underrun"
+            assert payload["properties"]["component"] == "audio_out"
+            assert "$exception_stack_trace_raw" in payload["properties"]
+            assert "$app_version" in payload["properties"]
+
+
+def test_init_telemetry_supports_posthog_project_token(monkeypatch):
+    """Verify init_telemetry picks up POSTHOG_PROJECT_TOKEN from environment and sets sync_mode=False."""
+    from voicefi.telemetry import init_telemetry
+    import voicefi.telemetry as tm
+
+    monkeypatch.delenv("POSTHOG_API_KEY", raising=False)
+    monkeypatch.setenv("POSTHOG_PROJECT_TOKEN", "phc_token_12345")
+    monkeypatch.delenv("VOICEFI_TESTING", raising=False)
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+    monkeypatch.setattr("voicefi.telemetry.is_telemetry_enabled", lambda: True)
+
+    mock_ph = MagicMock()
+    monkeypatch.setattr(tm, "posthog", mock_ph)
+    monkeypatch.setattr(tm, "_posthog_initialized", False)
+
+    init_telemetry()
+    assert mock_ph.project_api_key == "phc_token_12345"
+    assert mock_ph.sync_mode is False
+    assert mock_ph.enable_exception_autocapture is True
+
+
+def test_is_offline_mode_enforcement(monkeypatch):
+    """Verify is_offline_mode detects VOICEFI_OFFLINE, VOICEFI_AIRGAP, and cfg.offline."""
+    from voicefi.telemetry import is_offline_mode, is_telemetry_enabled, capture_exception, capture_event
+    import voicefi.telemetry as tm
+
+    monkeypatch.delenv("VOICEFI_OFFLINE", raising=False)
+    monkeypatch.delenv("VOICEFI_AIRGAP", raising=False)
+    monkeypatch.delenv("DO_NOT_TRACK", raising=False)
+    monkeypatch.setenv("VOICEFI_TELEMETRY", "1")
+
+    # Clean state
+    assert is_offline_mode() is False
+    assert is_telemetry_enabled() is True
+
+    # VOICEFI_OFFLINE=1
+    monkeypatch.setenv("VOICEFI_OFFLINE", "1")
+    assert is_offline_mode() is True
+    assert is_telemetry_enabled() is False
+
+    mock_ph = MagicMock()
+    monkeypatch.setattr(tm, "posthog", mock_ph)
+    monkeypatch.setattr(tm, "_posthog_initialized", True)
+
+    assert capture_exception(RuntimeError("Offline test")) is False
+    assert mock_ph.capture_exception.called is False
+
+    capture_event("test_event", {"some": "data"})
+    assert mock_ph.capture.called is False
+
+    # VOICEFI_AIRGAP=true
+    monkeypatch.delenv("VOICEFI_OFFLINE", raising=False)
+    monkeypatch.setenv("VOICEFI_AIRGAP", "true")
+    assert is_offline_mode() is True
+    assert is_telemetry_enabled() is False
+
+
+def test_capture_exception_cross_component_deduplication(monkeypatch):
+    """Verify exceptions in different components with the same message are NOT erroneously deduplicated."""
+    from voicefi.telemetry import capture_exception
+    import voicefi.telemetry as tm
+
+    monkeypatch.setenv("VOICEFI_TELEMETRY", "1")
+    monkeypatch.delenv("DO_NOT_TRACK", raising=False)
+    monkeypatch.delenv("VOICEFI_OFFLINE", raising=False)
+    monkeypatch.delenv("VOICEFI_AIRGAP", raising=False)
+    monkeypatch.delenv("VOICEFI_TESTING", raising=False)
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+    monkeypatch.delenv("VOICEFI_TEST_SYNC", raising=False)
+    monkeypatch.setattr("voicefi.telemetry.is_telemetry_enabled", lambda: True)
+
+    mock_ph = MagicMock()
+    monkeypatch.setattr(tm, "posthog", mock_ph)
+    monkeypatch.setattr(tm, "_posthog_initialized", True)
+    monkeypatch.setattr(tm, "_recent_exception_hashes", {})
+
+    err = TimeoutError("Connection timed out after 10s")
+
+    # 1. Component 'tts.edge'
+    res1 = capture_exception(err, properties={"component": "tts.edge"})
+    assert res1 is True
+    assert mock_ph.capture_exception.call_count == 1
+    call_props1 = mock_ph.capture_exception.call_args[1]["properties"]
+    assert call_props1["component"] == "tts.edge"
+    assert call_props1["$exception_fingerprint"][0] == "tts.edge"
+
+    # 2. Component 'stt.groq' with IDENTICAL error message - must NOT be throttled!
+    res2 = capture_exception(err, properties={"component": "stt.groq"})
+    assert res2 is True
+    assert mock_ph.capture_exception.call_count == 2
+    call_props2 = mock_ph.capture_exception.call_args[1]["properties"]
+    assert call_props2["component"] == "stt.groq"
+    assert call_props2["$exception_fingerprint"][0] == "stt.groq"
+
+    # 3. Third call for same 'stt.groq' - SHOULD be throttled
+    res3 = capture_exception(err, properties={"component": "stt.groq"})
+    assert res3 is True
+    assert mock_ph.capture_exception.call_count == 2
+
+
+
+
+
 

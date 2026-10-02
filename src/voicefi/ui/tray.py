@@ -1517,16 +1517,16 @@ class VoiceFiTrayApp(_TrayAppBase):
                 or 5141
             )
             try:
-                server = CompanionServer(config=self.config, port=port, host="0.0.0.0")
+                server = CompanionServer(config=self.config, port=port, host="127.0.0.1")
                 self.server = server
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 server.loop = loop
                 server._start_watcher_thread()
 
-                app_runner = web.AppRunner(server.app)
+                app_runner = web.AppRunner(server.app, tcp_keepalive=False)
                 loop.run_until_complete(app_runner.setup())
-                site = web.TCPSite(app_runner, "0.0.0.0", port)
+                site = web.TCPSite(app_runner, "127.0.0.1", port)
                 loop.run_until_complete(site.start())
 
                 # Connect to Cloudflare Relay Session (companion.voicefi.app)

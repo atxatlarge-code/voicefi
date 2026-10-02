@@ -352,6 +352,56 @@ def save_memo_to_vault(
     }
 
 
+def save_meeting_note(
+    meeting_markdown: str,
+    title: str = "Meeting Notes",
+    vault_path: Optional[Path] = None,
+    today: Optional[datetime.date] = None,
+    config: Optional[Any] = None,
+) -> Dict[str, Any]:
+    """Save a Granola-style structured meeting note into the configured meetings folder."""
+    vault = vault_path or get_primary_vault(config)
+    if not vault or not vault.is_dir():
+        return {"status": "error", "error": "No Obsidian vault found"}
+
+    date_target = today or datetime.date.today()
+    date_str = date_target.strftime("%Y-%m-%d")
+    clean_title = re.sub(r"[^a-zA-Z0-9_\-\s]", "", title).strip() or "Meeting Notes"
+    filename = f"{date_str} - {clean_title}.md"
+
+    folder_name = "Meetings"
+    if config and hasattr(config, "obsidian") and getattr(config.obsidian, "meetings_folder", None):
+        folder_name = config.obsidian.meetings_folder
+
+    meetings_dir = vault / folder_name
+    meetings_dir.mkdir(parents=True, exist_ok=True)
+    meeting_file = meetings_dir / filename
+
+    meeting_file.write_text(meeting_markdown.strip() + "\n", encoding="utf-8")
+
+    daily_note = get_daily_note_path(vault, today=date_target, config=config)
+    now = datetime.datetime.now()
+    time_str = now.strftime("%-I:%M %p")
+    note_stem = meeting_file.stem
+    backlink_entry = f"\n### 🎙️ {time_str} - Meeting: {clean_title}\n- [[{note_stem}]]: Granola Meeting Notes\n"
+
+    if not daily_note.is_file():
+        daily_note.write_text(f"# {date_str}\n{backlink_entry}", encoding="utf-8")
+    else:
+        with open(daily_note, "a", encoding="utf-8") as f:
+            f.write(backlink_entry)
+
+    return {
+        "status": "ok",
+        "vault_name": vault.name,
+        "vault_path": str(vault),
+        "meeting_path": str(meeting_file),
+        "meeting_name": meeting_file.name,
+        "daily_note_path": str(daily_note),
+        "backlink": f"[[{note_stem}]]",
+    }
+
+
 def get_today_note_content(
     vault_path: Optional[Path] = None, config: Optional[Any] = None
 ) -> Dict[str, Any]:

@@ -10,18 +10,26 @@ import json
 import logging
 import platform
 import re
+import threading
+import asyncio
 from pathlib import Path
 from typing import Any, AsyncIterator, Dict, List, Optional, Tuple, Union
 
 logger = logging.getLogger("voicefi.local.engine")
 
+_ENGINE_CACHE: Dict[Tuple[str, str], Any] = {}
+
 
 def is_litert_available() -> bool:
-    """Check if LiteRT and Google Antigravity SDK are available in the Python environment."""
+    """Check if LiteRT and/or Google Antigravity SDK are available in the Python environment."""
     try:
         import litert_lm  # noqa: F401
-        from google.antigravity import LiteRTAgentConfig  # noqa: F401
+        return True
+    except (ImportError, ModuleNotFoundError):
+        pass
 
+    try:
+        from google.antigravity import LiteRTAgentConfig  # noqa: F401
         return True
     except (ImportError, ModuleNotFoundError):
         return False
@@ -157,14 +165,6 @@ class LocalModelEngine:
         """
         Build a LiteRTAgentConfig instance for use with google.antigravity.Agent.
         """
-        if not self.is_installed:
-            raise RuntimeError(
-                "LiteRT or Google Antigravity SDK is not installed. "
-                "Run `uv pip install google-antigravity litert-lm` or `pip install voicefi[local]`."
-            )
-
-        from google.antigravity import LiteRTAgentConfig
-
         si = system_instructions or self.system_instructions
 
         kwargs: Dict[str, Any] = {
@@ -182,7 +182,17 @@ class LocalModelEngine:
         if capabilities:
             kwargs["capabilities"] = capabilities
 
-        return LiteRTAgentConfig(**kwargs)
+        try:
+            from google.antigravity import LiteRTAgentConfig
+
+            return LiteRTAgentConfig(**kwargs)
+        except (ImportError, ModuleNotFoundError):
+            if not self.is_installed:
+                raise RuntimeError(
+                    "LiteRT or Google Antigravity SDK is not installed. "
+                    "Run `uv pip install google-antigravity litert-lm` or `pip install voicefi[local]`."
+                )
+            return kwargs
 
     async def chat_stream(
         self,
@@ -191,19 +201,96 @@ class LocalModelEngine:
         tools: Optional[List[Any]] = None,
     ) -> AsyncIterator[str]:
         """
-        Stream tokens directly from the local LiteRT model.
+        Stream tokens directly from the local LiteRT model on Metal GPU.
+        Supports both Google Antigravity Agent and native litert_lm.Engine.
         """
-        from google.antigravity import Agent
+        # 1. Try google.antigravity Agent if available
+        try:
+            from google.antigravity import Agent
 
-        config = self.build_agent_config(
-            tools=tools,
-            system_instructions=system_instructions,
-        )
+            config = self.build_agent_config(
+                tools=tools,
+                system_instructions=system_instructions,
+            )
 
-        async with Agent(config=config) as agent:
-            response = await agent.chat(prompt)
-            async for token in response:
-                yield token
+            async with Agent(config=config) as agent:
+                response = await agent.chat(prompt)
+                async for token in response:
+                    yield token
+            return
+        except (ImportError, ModuleNotFoundError):
+            pass
+
+        # 2. Native direct LiteRT-LM execution on Metal GPU / CPU
+        if not self.model_exists:
+            raise FileNotFoundError(
+                f"Model file not found at {self.model_path}. "
+                f"Ensure weights exist under ~/.litert-lm/models/{self.model_name}/."
+            )
+
+        import litert_lm
+        from litert_lm.interfaces import GPU, CPU
+
+        cache_key = (self.model_path, self.backend)
+        if cache_key not in _ENGINE_CACHE:
+            try:
+                backend_obj = GPU() if self.backend in ("gpu", "metal") else CPU()
+                _ENGINE_CACHE[cache_key] = litert_lm.Engine(
+                    model_path=self.model_path, backend=backend_obj
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Failed to load LiteRT with GPU backend ({e}), falling back to CPU: {e}"
+                )
+                _ENGINE_CACHE[cache_key] = litert_lm.Engine(
+                    model_path=self.model_path, backend=CPU()
+                )
+
+        engine = _ENGINE_CACHE[cache_key]
+        full_prompt = prompt
+        si = system_instructions or self.system_instructions
+        if si:
+            full_prompt = f"{si.strip()}\n\n{prompt.strip()}"
+
+        queue: asyncio.Queue = asyncio.Queue()
+        loop = asyncio.get_running_loop()
+
+        def _worker():
+            conv = None
+            try:
+                conv = engine.create_conversation()
+                for chunk in conv.send_message_async(full_prompt):
+                    if isinstance(chunk, dict):
+                        content = chunk.get("content", [])
+                        for item in content:
+                            if isinstance(item, dict) and "text" in item:
+                                loop.call_soon_threadsafe(queue.put_nowait, item["text"])
+                            elif isinstance(item, str):
+                                loop.call_soon_threadsafe(queue.put_nowait, item)
+                    elif isinstance(chunk, str):
+                        loop.call_soon_threadsafe(queue.put_nowait, chunk)
+            except Exception as exc:
+                logger.error(f"LiteRT token generation error: {exc}")
+                loop.call_soon_threadsafe(queue.put_nowait, exc)
+            finally:
+                if conv:
+                    try:
+                        conv.close()
+                    except Exception:
+                        pass
+                loop.call_soon_threadsafe(queue.put_nowait, None)
+
+        threading.Thread(
+            target=_worker, daemon=True, name=f"LiteRTWorker-{self.model_name}"
+        ).start()
+
+        while True:
+            item = await queue.get()
+            if item is None:
+                break
+            if isinstance(item, Exception):
+                raise item
+            yield item
 
     async def chat_text(
         self,
@@ -331,58 +418,80 @@ class LocalModelEngine:
         - memo (private voice memo / brain dump)
         """
         import time
+        import urllib.request
+        import json
+        import asyncio
         from voicefi.local.benchmark import record_inference_metrics
 
         system_prompt = (
-            "You are VoiceFi's on-device intent classifier for AI coding agents and macOS desktop actions. "
-            "Analyze the developer's spoken prompt and classify the intended routing target into JSON with two keys: "
-            "'target': exactly one of ['local_command', 'antigravity', 'claude', 'codex', 'obsidian', 'memo'], "
-            "'action': a concise summary or specific command to run. "
+            "You are VoiceFi's sub-100ms on-device intent classifier for AI coding agents and macOS desktop actions. "
+            "Analyze the developer's spoken prompt and select the correct routing target.\n"
             "Categories:\n"
-            "- 'local_command': questions about battery, time, git branch, git status, system volume, pause/stop audio.\n"
-            "- 'antigravity': general code editing, file changes, project refactoring, IDE commands.\n"
-            "- 'claude': CLI commands, terminal scripts, running bash pipelines.\n"
+            "- 'local_command': battery, time, git branch, volume, pause.\n"
+            "- 'antigravity': general code editing, file changes, refactoring.\n"
+            "- 'claude': CLI commands, terminal scripts, bash.\n"
             "- 'codex': ChatGPT / Codex desktop assistance.\n"
-            "- 'obsidian': notes, thoughts to save to daily journal, wiki entries.\n"
-            "- 'memo': long voice brain dumps or stream-of-consciousness.\n"
-            "Output ONLY valid JSON."
+            "- 'obsidian': notes, daily journal, wiki.\n"
+            "- 'memo': long voice brain dumps."
         )
 
-        user_msg = f"Developer Spoken Prompt: {prompt}\n\nJSON Output:"
+        payload = {
+            "model": self.model_name if self.model_name else "gemma2:2b",
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"Spoken prompt: {prompt}"}
+            ],
+            "format": {
+                "type": "object",
+                "properties": {
+                    "target": {
+                        "type": "string",
+                        "enum": ["local_command", "antigravity", "claude", "codex", "obsidian", "memo"],
+                        "description": "The routing destination."
+                    },
+                    "action": {
+                        "type": "string",
+                        "description": "A concise summary or specific command to run based on the prompt."
+                    }
+                },
+                "required": ["target", "action"]
+            },
+            "stream": False,
+            "options": {"temperature": 0.0, "num_predict": 40}
+        }
+
+        req = urllib.request.Request(
+            "http://localhost:11434/api/chat",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
 
         start_time = time.perf_counter()
-        first_token_time = None
-        tokens = []
+        
+        def _fetch():
+            try:
+                with urllib.request.urlopen(req, timeout=10.0) as response:
+                    return json.loads(response.read().decode())
+            except Exception as e:
+                logger.warning(f"Ollama intent API error: {e}")
+                return None
 
-        try:
-            async for token in self.chat_stream(
-                prompt=user_msg,
-                system_instructions=system_prompt,
-                tools=[],
-            ):
-                if first_token_time is None:
-                    first_token_time = time.perf_counter()
-                tokens.append(token)
-        except Exception as e:
-            logger.warning(f"Local classify_intent execution error: {e}")
-
+        result = await asyncio.to_thread(_fetch)
         total_time = max(0.001, time.perf_counter() - start_time)
-        ttfb = (first_token_time - start_time) if first_token_time else total_time
-        ttfb_ms = ttfb * 1000.0
-
-        raw_result = "".join(tokens).strip()
+        
         parsed = {}
-        try:
-            clean_json = re.sub(r"^```json\s*", "", raw_result, flags=re.IGNORECASE)
-            clean_json = re.sub(r"```$", "", clean_json.strip())
-            parsed = json.loads(clean_json)
-        except Exception:
+        if result and "message" in result and "content" in result["message"]:
+            try:
+                parsed = json.loads(result["message"]["content"])
+            except Exception:
+                pass
+                
+        if not parsed:
             # Fallback heuristic
             target = "antigravity"
             low = prompt.lower()
-            if any(
-                w in low for w in ("battery", "time", "branch", "volume", "pause", "stop audio")
-            ):
+            if any(w in low for w in ("battery", "time", "branch", "volume", "pause", "stop audio")):
                 target = "local_command"
             elif "claude" in low:
                 target = "claude"
@@ -394,23 +503,18 @@ class LocalModelEngine:
                 target = "memo"
             parsed = {"target": target, "action": prompt}
 
-        prompt_tokens = max(1, len(user_msg) // 4)
-        output_tokens = max(1, len(tokens))
-        gen_time = max(0.001, total_time - ttfb)
-        tok_per_sec = output_tokens / gen_time
-
         bench_res = None
         if measure:
             _, backend_desc = detect_hardware_backend()
             bench_res = record_inference_metrics(
-                test_name="Intent Routing",
+                test_name="Intent Routing (Ollama Structured)",
                 target_engine=f"Local ({self.model_name})",
                 backend_desc=backend_desc,
-                ttfb_ms=ttfb_ms,
+                ttfb_ms=total_time * 1000.0,
                 total_seconds=total_time,
-                prompt_tokens=prompt_tokens,
-                output_tokens=output_tokens,
-                tok_per_sec=tok_per_sec,
+                prompt_tokens=100,
+                output_tokens=result.get("eval_count", 15) if result else 15,
+                tok_per_sec=(result.get("eval_count", 15) / total_time) if result else 0.0,
                 cost_usd=0.0,
                 notes=f"Target: {parsed.get('target', 'unknown')}",
             )

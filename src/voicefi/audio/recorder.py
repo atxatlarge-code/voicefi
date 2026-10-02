@@ -333,6 +333,22 @@ class AudioRecorder:
                     audio_chunk = chunk.flatten()
                     chunk_count += 1
 
+                    # Check periodically if another conversation acquired the exclusive active listener lock
+                    if conv_id and chunk_count % 6 == 0:
+                        try:
+                            from voicefi.integrations.turn_lock import get_current_active_listener
+
+                            current_listener = get_current_active_listener()
+                            if current_listener and current_listener != conv_id:
+                                print(
+                                    f"[AudioRecorder] ⏸️ Mic preempted by conversation {current_listener[:8]} (this is {conv_id[:8]}). Closing mic.",
+                                    flush=True,
+                                )
+                                cancelled_by_user = True
+                                break
+                        except Exception:
+                            pass
+
                     if not speech_started and chunk_count % 8 == 0:
                         try:
                             from voicefi.audio.media_detection import is_active_media_playing
@@ -581,7 +597,6 @@ class AudioRecorder:
                         except Exception:
                             pass
 
-                    chunk_count += 1
                     vad_result = self.vad.process(audio_chunk)
                     smoothed_energy = vad_result["energy"]
                     speech_confidence = vad_result["confidence"]

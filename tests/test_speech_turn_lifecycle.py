@@ -314,3 +314,140 @@ def test_rapid_fire_speak_and_stop_cycles(tmp_path, monkeypatch):
     assert ol_mod._LOCK_DEPTH == 0, f"Expected final ol_mod._LOCK_DEPTH == 0, got {ol_mod._LOCK_DEPTH}"
     assert tts_base._LOCK_DEPTH == 0, f"Expected final tts_base._LOCK_DEPTH == 0, got {tts_base._LOCK_DEPTH}"
     assert not is_agent_speaking()
+
+
+# ==============================================================================
+# 8. Multi-Conversation Mic Exclusivity and Preemption
+# ==============================================================================
+
+
+def test_active_listener_lock_exclusivity(tmp_path, monkeypatch):
+    """
+    Verify acquire_active_listener_lock prevents multiple conversations from
+    simultaneously claiming the microphone.
+    """
+    from voicefi.integrations.turn_lock import (
+        acquire_active_listener_lock,
+        release_active_listener_lock,
+        get_current_active_listener,
+        _ACTIVE_LISTENER_FILE,
+        _ACTIVE_LISTENER_LOCK,
+    )
+
+    listener_file = tmp_path / "test_active_listener.json"
+    listener_lock = tmp_path / "test_active_listener.lock"
+    monkeypatch.setattr("voicefi.integrations.turn_lock._ACTIVE_LISTENER_FILE", listener_file)
+    monkeypatch.setattr("voicefi.integrations.turn_lock._ACTIVE_LISTENER_LOCK", listener_lock)
+
+    conv_a = "conv-alpha-1234"
+    conv_b = "conv-beta-5678"
+
+    # Conv A claims the listener lock
+    assert acquire_active_listener_lock(conv_a) is True
+    assert get_current_active_listener() == conv_a
+
+    # Conv A can re-acquire / renew its own lock
+    assert acquire_active_listener_lock(conv_a) is True
+
+    # Conv B (unfocused background conversation) cannot acquire it and yields
+    monkeypatch.setattr("voicefi.integrations.conversations.is_conversation_focused", lambda cid: cid == conv_a)
+    assert acquire_active_listener_lock(conv_b) is False
+    assert get_current_active_listener() == conv_a
+
+    # Once Conv A releases, Conv B can acquire
+    release_active_listener_lock(conv_a)
+    assert get_current_active_listener() is None
+    assert acquire_active_listener_lock(conv_b) is True
+    assert get_current_active_listener() == conv_b
+
+    # Clean up
+    release_active_listener_lock(conv_b)
+    assert get_current_active_listener() is None
+
+
+def test_record_speech_auto_preemption_by_newer_listener(tmp_path, monkeypatch):
+    """
+    Verify that when Conversation A is actively recording in record_speech_auto,
+    if Conversation B claims the active listener lock, Conversation A immediately
+    preempts and returns (empty_audio, None) without capturing or dispatching.
+    """
+    import numpy as np
+    from voicefi.audio.recorder import AudioRecorder
+    from voicefi.integrations.turn_lock import (
+        acquire_active_listener_lock,
+        release_active_listener_lock,
+    )
+
+    listener_file = tmp_path / "test_preempt_listener.json"
+    listener_lock = tmp_path / "test_preempt_listener.lock"
+    monkeypatch.setattr("voicefi.integrations.turn_lock._ACTIVE_LISTENER_FILE", listener_file)
+    monkeypatch.setattr("voicefi.integrations.turn_lock._ACTIVE_LISTENER_LOCK", listener_lock)
+
+    conv_a = "conv-alpha-1111"
+    conv_b = "conv-beta-2222"
+
+    # Conv A claims listener lock
+    acquire_active_listener_lock(conv_a)
+
+    recorder = AudioRecorder(sample_rate=16000, silence_duration=1.0, max_record_seconds=5.0)
+
+    # Mock stream producing silence chunks
+    chunk_size = int(16000 * 0.05)
+    silence_chunk = np.zeros(chunk_size, dtype=np.float32)
+
+    class MockStream:
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            pass
+        def read(self, size):
+            time.sleep(0.01)
+            return silence_chunk, False
+
+    monkeypatch.setattr(recorder, "_create_input_stream", lambda: MockStream())
+
+    # Preemption thread: after 0.08s, Conv B claims listener lock
+    def preempt_worker():
+        time.sleep(0.08)
+        # Conv B becomes focused and acquires lock
+        monkeypatch.setattr("voicefi.integrations.conversations.is_conversation_focused", lambda cid: cid == conv_b)
+        acquire_active_listener_lock(conv_b, force=True)
+
+    t = threading.Thread(target=preempt_worker, daemon=True)
+    t.start()
+
+    t0 = time.time()
+    audio_data, temp_wav = recorder.record_speech_auto(
+        timeout=5.0,
+        conv_id=conv_a,
+    )
+    elapsed = time.time() - t0
+
+    # Must exit promptly upon preemption (< 1.5s, well before the 5.0s timeout)
+    assert elapsed < 1.5, f"Expected rapid preemption, took {elapsed:.2f}s"
+    assert len(audio_data) == 0, f"Expected empty audio on preemption, got {len(audio_data)}"
+    assert temp_wav is None, f"Expected None temp_wav on preemption, got {temp_wav}"
+
+    release_active_listener_lock(conv_b)
+
+
+def test_is_conversation_focused_gating(tmp_path, monkeypatch):
+    """
+    Verify ConversationTracker.is_conversation_focused accurately distinguishes
+    between the active foreground conversation and background subagent conversations.
+    """
+    from voicefi.integrations.conversations import ConversationTracker, save_session_cookie
+
+    cookie_file = tmp_path / "test_session.json"
+    monkeypatch.setattr("voicefi.integrations.conversations.get_session_cookie_path", lambda: cookie_file)
+
+    tracker = ConversationTracker()
+    conv_main = "main-window-1234"
+    conv_sub = "background-subagent-5678"
+
+    # Save active session cookie for conv_main
+    save_session_cookie(conv_id=conv_main)
+
+    assert tracker.is_conversation_focused(conv_main) is True
+    assert tracker.is_conversation_focused(conv_sub) is False
+

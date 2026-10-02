@@ -1061,6 +1061,19 @@ def send_message_to_antigravity(
     except Exception as e:
         last_stderr = str(e)
         print(f"[Injector] agentapi exception: {e}")
+        try:
+            from voicefi.telemetry import capture_exception
+
+            capture_exception(
+                e,
+                properties={
+                    "component": "injector.agentapi",
+                    "target_conv_id": str(target_id)[:16] if target_id else "unknown",
+                    "$exception_fingerprint": ["injector.agentapi", type(e).__name__],
+                },
+            )
+        except Exception:
+            pass
 
     # If foreground fallback is explicitly permitted (e.g. for dictation flows)
     if allow_foreground_fallback:
@@ -1076,6 +1089,21 @@ def send_message_to_antigravity(
         )
 
     # For targeted cross-agent dispatches, NEVER fall back to pasting into foreground apps
+    if last_stderr and not os.environ.get("PYTEST_CURRENT_TEST"):
+        try:
+            from voicefi.telemetry import capture_exception
+
+            capture_exception(
+                RuntimeError(f"agentapi IPC delivery failed: {last_stderr[:100]}"),
+                properties={
+                    "component": "injector.agentapi",
+                    "target_conv_id": str(target_id)[:16] if target_id else "unknown",
+                    "$exception_fingerprint": ["injector.agentapi", "delivery_failed"],
+                },
+            )
+        except Exception:
+            pass
+
     return DispatchResult(
         success=False,
         delivery_type="none",
@@ -1479,9 +1507,26 @@ curl -s -X POST http://localhost:5141/api/send -H "Content-Type: application/jso
         else ""
     )
 
+    restore_snippet = (
+        """
+        if prevApp is not "" and prevApp is not targetApp then
+            delay 0.08
+            try
+                tell application prevApp to activate
+            end try
+        end if
+        """
+        if restore_focus
+        else ""
+    )
+
     # Step 2: Bring Claude / Terminal to front and paste
     applescript = f"""
     tell application "System Events"
+        set prevApp to ""
+        try
+            set prevApp to name of first application process whose frontmost is true
+        end try
         set termApps to {{"Claude", "Ghostty", "iTerm2", "iTerm", "Warp", "Terminal", "Cursor", "Code", "Visual Studio Code", "Windsurf"}}
         set targetApp to ""
         repeat with aName in termApps
@@ -1512,6 +1557,7 @@ curl -s -X POST http://localhost:5141/api/send -H "Content-Type: application/jso
                 end try
             end if
             {enter_script}
+            {restore_snippet}
         end tell
         return true
     end if
@@ -1534,6 +1580,18 @@ curl -s -X POST http://localhost:5141/api/send -H "Content-Type: application/jso
         return success
     except Exception as e:
         print(f"[Injector] inject_text_to_claude error: {e}")
+        try:
+            from voicefi.telemetry import capture_exception
+
+            capture_exception(
+                e,
+                properties={
+                    "component": "injector.claude",
+                    "$exception_fingerprint": ["injector.claude", type(e).__name__],
+                },
+            )
+        except Exception:
+            pass
         if preserve_clipboard and prev_clipboard is not None:
             restore_clipboard_delayed(prev_clipboard, delay=0.4)
         return False
@@ -1616,8 +1674,25 @@ def inject_text_to_chatgpt(
         else ""
     )
 
+    restore_snippet = (
+        """
+        if prevApp is not "" and prevApp is not "ChatGPT" then
+            delay 0.08
+            try
+                tell application prevApp to activate
+            end try
+        end if
+        """
+        if restore_focus
+        else ""
+    )
+
     applescript = f"""
     tell application "System Events"
+        set prevApp to ""
+        try
+            set prevApp to name of first application process whose frontmost is true
+        end try
         if exists (process "ChatGPT") then
             tell application "ChatGPT" to activate
             delay 0.18
@@ -1630,6 +1705,7 @@ def inject_text_to_chatgpt(
                 end try
                 {enter_script}
             end tell
+            {restore_snippet}
             return true
         end if
     end tell
@@ -1649,6 +1725,158 @@ def inject_text_to_chatgpt(
         return success
     except Exception as e:
         print(f"[Injector] inject_text_to_chatgpt error: {e}")
+        try:
+            from voicefi.telemetry import capture_exception
+
+            capture_exception(
+                e,
+                properties={
+                    "component": "injector.chatgpt",
+                    "$exception_fingerprint": ["injector.chatgpt", type(e).__name__],
+                },
+            )
+        except Exception:
+            pass
+        if preserve_clipboard and prev_clipboard is not None:
+            restore_clipboard_delayed(prev_clipboard, delay=0.4)
+        return False
+
+
+def focus_gemini(focus_input: bool = True) -> bool:
+    """
+    Bring Gemini macOS desktop application to the front.
+    Uses native AppKit NSWorkspace fast-path to prevent AppleScript timeouts when not running.
+    """
+    try:
+        from AppKit import NSWorkspace
+
+        ws = NSWorkspace.sharedWorkspace()
+        for app in ws.runningApplications():
+            loc = (app.localizedName() or "").lower()
+            bundle = (app.bundleIdentifier() or "").lower()
+            if "gemini" in loc or bundle == "com.google.geminimacos":
+                if cooperative_activate_app(app):
+                    return True
+    except Exception:
+        pass
+
+    applescript = """
+    tell application "System Events"
+        if exists (process "Gemini") then
+            tell application "Gemini" to activate
+            delay 0.08
+            tell process "Gemini"
+                set frontmost to true
+                if count of windows is 0 then
+                    try
+                        click menu item "New Chat" of menu "File" of menu bar item "File" of menu bar 1
+                    end try
+                end if
+            end tell
+            return true
+        end if
+    end tell
+    return false
+    """
+    try:
+        res = subprocess.run(
+            ["osascript", "-e", applescript],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=2,
+        )
+        return "true" in res.stdout.lower()
+    except Exception:
+        return False
+
+
+def inject_text_to_gemini(
+    text: str,
+    submit_enter: bool = True,
+    restore_focus: bool = False,
+    preserve_clipboard: bool = True,
+) -> bool:
+    """
+    Inject transcribed voice prompt or message into Gemini for Mac desktop app.
+    """
+    if not text or not text.strip():
+        return False
+
+    clean_text = text.strip()
+    prev_clipboard = get_clipboard_text() if preserve_clipboard else None
+
+    if not set_clipboard_text(clean_text):
+        return False
+
+    time.sleep(0.05)
+
+    enter_script = (
+        """
+            delay 0.15
+            key code 36
+    """
+        if submit_enter
+        else ""
+    )
+
+    restore_snippet = (
+        """
+        if prevApp is not "" and prevApp is not "Gemini" then
+            delay 0.08
+            try
+                tell application prevApp to activate
+            end try
+        end if
+        """
+        if restore_focus
+        else ""
+    )
+
+    applescript = f"""
+    tell application "System Events"
+        set prevApp to ""
+        try
+            set prevApp to name of first application process whose frontmost is true
+        end try
+        tell application "Gemini" to activate
+        delay 0.18
+        if exists (process "Gemini") then
+            tell process "Gemini"
+                set frontmost to true
+                if count of windows is 0 then
+                    try
+                        click menu item "New Chat" of menu "File" of menu bar item "File" of menu bar 1
+                        delay 0.15
+                    end try
+                end if
+                try
+                    click menu item "Paste" of menu "Edit" of menu bar item "Edit" of menu bar 1
+                on error
+                    keystroke "v" using command down
+                end try
+                {enter_script}
+            end tell
+            {restore_snippet}
+            return true
+        end if
+    end tell
+    return false
+    """
+    try:
+        res = subprocess.run(
+            ["osascript", "-e", applescript],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=4,
+        )
+        success = "true" in res.stdout.lower()
+        if preserve_clipboard and prev_clipboard is not None:
+            restore_clipboard_delayed(prev_clipboard, delay=0.4)
+        return success
+    except Exception as e:
+        print(f"[Injector] inject_text_to_gemini error: {e}")
         if preserve_clipboard and prev_clipboard is not None:
             restore_clipboard_delayed(prev_clipboard, delay=0.4)
         return False
@@ -1870,8 +2098,17 @@ def send_message_to_agent(
             error=None if pasted else "Failed to inject prompt into ChatGPT for Mac",
             engine=engine,
         )
-    elif engine in ("gemini", "gemini_cli"):
-        print(f'[Injector] 🚀 Dispatching prompt to Gemini agent: "{text[:50]}..."')
+    elif engine in ("gemini", "gemini_app", "gemini_desktop"):
+        print(f'[Injector] ✨ Injecting prompt into Gemini Desktop: "{text[:50]}..."')
+        pasted = inject_text_to_gemini(text, submit_enter=True)
+        return DispatchResult(
+            success=pasted,
+            delivery_type="foreground_paste" if pasted else "none",
+            error=None if pasted else "Failed to inject prompt into Gemini for Mac",
+            engine=engine,
+        )
+    elif engine == "gemini_cli":
+        print(f'[Injector] 🚀 Dispatching prompt to Gemini CLI agent: "{text[:50]}..."')
         return send_message_to_antigravity(
             conv_id=conv_id,
             text=text,

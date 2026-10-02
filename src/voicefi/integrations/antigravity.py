@@ -48,6 +48,7 @@ def clean_markdown_for_speech(
     text: str,
     max_words: Optional[int] = None,
     full_read: bool = False,
+    first_sentence_only: Optional[bool] = None,
 ) -> str:
     """
     Clean markdown formatting and extract spoken text.
@@ -55,10 +56,22 @@ def clean_markdown_for_speech(
     and normalizes text for speech, but preserves the complete text verbatim
     without word limits, truncation, or sentence extraction.
     If full_read is False (standard turn end), extracts punchy 1st sentence / soundbite
-    constrained by BrevityLearner cognitive memory.
+    constrained by BrevityLearner cognitive memory or first_sentence_only setting.
     """
     if not text or not text.strip():
         return ""
+
+    if first_sentence_only is None:
+        try:
+            from voicefi.config import load_config
+
+            _cfg = load_config()
+            first_sentence_only = bool(
+                getattr(getattr(_cfg, "antigravity", None), "first_sentence_only", False)
+                or getattr(getattr(_cfg, "tts", None), "first_sentence_only", False)
+            )
+        except Exception:
+            first_sentence_only = False
 
     if not full_read:
         # Dynamically resolve optimal word budget from BrevityLearner
@@ -75,27 +88,34 @@ def clean_markdown_for_speech(
             if target_max_words is None or target_max_words <= 0:
                 target_max_words = 24
 
-        # 0. Check for Gemini Flash / Local LLM distillation ONLY if explicitly opt-in enabled
-        try:
-            from voicefi.integrations.gemini_ai import GeminiIntelligenceEngine
+        # 0. Check for Gemini Flash / Local LLM distillation ONLY if explicitly opt-in enabled and not first_sentence_only
+        if not first_sentence_only:
+            try:
+                from voicefi.integrations.gemini_ai import GeminiIntelligenceEngine
 
-            gemini_engine = GeminiIntelligenceEngine()
-            if gemini_engine.is_available() and getattr(
-                getattr(gemini_engine.config, "gemini", None), "enable_soundbite_distillation", False
-            ):
-                distilled = gemini_engine.distill_spoken_soundbite(
-                    text, max_words=target_max_words, timeout=0.8
-                )
-                if distilled and len(distilled.strip()) > 3:
-                    return normalize_tts_text(distilled)
-        except Exception:
-            pass
+                gemini_engine = GeminiIntelligenceEngine()
+                if gemini_engine.is_available() and getattr(
+                    getattr(gemini_engine.config, "gemini", None), "enable_soundbite_distillation", False
+                ):
+                    distilled = gemini_engine.distill_spoken_soundbite(
+                        text, max_words=target_max_words, timeout=0.8
+                    )
+                    if distilled and len(distilled.strip()) > 3:
+                        return normalize_tts_text(distilled)
+            except Exception:
+                pass
 
     # 1. Bound text size to avoid regex performance bottlenecks on massive outputs
     if not full_read and len(text) > 4000:
         text = text[:1000] + "\n" + text[-2000:]
     elif full_read and len(text) > 15000:
         text = text[:15000]
+
+    # 1.5 When extracting first sentence only, strip leading markdown headers so speech starts with the actual sentence
+    if first_sentence_only and not full_read:
+        body_text = re.sub(r"^(?:#{1,6}\s+[^\n]+(?:\n+|$))+", "", text.strip()).strip()
+        if body_text:
+            text = body_text
 
     # 2. Check for raw stack traces / errors first
     if "Traceback (most recent call last):" in text or "Error:" in text:
@@ -142,6 +162,7 @@ def clean_markdown_for_speech(
         if not l:
             continue
         # Strip header markers: ### Heading -> Heading
+        is_header = bool(re.match(r"^#{1,6}\s*", l))
         l = re.sub(r"^#{1,6}\s*", "", l)
         # Strip list markers: - Item, * Item, 1. Item -> Item
         l = re.sub(r"^[-*+]\s+", "", l)
@@ -154,8 +175,11 @@ def clean_markdown_for_speech(
         l = l.strip()
         if not l:
             continue
+        # If line is a header, ensure terminal period so it cannot fuse with following paragraphs
+        if is_header and not l.endswith((".", "!", "?")):
+            l += "."
         # If line does not end with terminal punctuation, append a period so sentences don't fuse into run-on blobs
-        if not l.endswith((".", "!", "?", ":", ";", ",", '"', "'", "”", "’", "*", ")", "]", "}")):
+        elif not l.endswith((".", "!", "?", ":", ";", ",", '"', "'", "”", "’", "*", ")", "]", "}")):
             l += "."
         cleaned_lines.append(l)
 
@@ -169,8 +193,10 @@ def clean_markdown_for_speech(
 
     # Strip any leftover bracketed/parenthesized SFX tags or punctuation artifacts
     text = re.sub(r"[\[\(\{]\s*sfx:?\s*[\w-]+\s*[\]\)\}]", "", text, flags=re.IGNORECASE)
+    text = text.replace("...", "___ELLIPSIS___")
     text = re.sub(r"([!?.,;:])\s*[.]+", r"\1", text)  # Clean "! .", "? .", ". ."
     text = re.sub(r":\s+(?=[A-Z0-9])", ". ", text)  # Clean dangling colons before sentences
+    text = text.replace("___ELLIPSIS___", "...")
 
     # 6. Normalize whitespace
     text = " ".join(text.split()).strip()
@@ -182,7 +208,7 @@ def clean_markdown_for_speech(
         return normalize_tts_text(text)
 
     # 8. Extract sentences & assemble punchy natural spoken summary (Standard Turn-End Mode)
-    sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", text) if s.strip()]
+    sentences = [s.strip() for s in re.split(r"(?<!\.\.)(?<=[.!?])(?!\.)\s+", text) if s.strip()]
     if not sentences:
         return normalize_tts_text(text[: target_max_words * 6])
 
@@ -197,6 +223,18 @@ def clean_markdown_for_speech(
         if last_punct > len(truncated) // 2:
             return truncated[: last_punct + 1]
         return truncated + "..."
+
+    if first_sentence_only:
+        first_s = sentences[0]
+        filler_tokens = ("sure", "got it", "okay", "ok", "alright", "done", "understood", "all set", "no problem", "look")
+        if (
+            len(sentences) >= 2
+            and len(first_s.split()) <= 2
+            and first_s.lower().rstrip(".!?,") in filler_tokens
+        ):
+            first_s = f"{first_s} {sentences[1]}"
+        max_budget = target_max_words if (target_max_words and target_max_words > 0) else 45
+        return normalize_tts_text(_truncate_sentence(first_s, max_budget))
 
     # Handle leading question + answer / joke setup + punchline pairing
     if sentences[0].endswith("?") and len(sentences) >= 2:
@@ -285,6 +323,9 @@ def clean_markdown_for_speech(
     return normalize_tts_text(_truncate_sentence(sentences[0], target_max_words or max_words or 32))
 
 
+extract_spoken_soundbite = clean_markdown_for_speech
+
+
 def extract_latest_agent_summary(
     transcript_path: Path,
     max_words: int = 60,
@@ -293,6 +334,7 @@ def extract_latest_agent_summary(
     retries: int = 6,
     retry_delay: float = 0.12,
     full_read: bool = False,
+    first_sentence_only: Optional[bool] = None,
 ):
     """
     Extract the latest assistant response or question from transcript.jsonl.
@@ -401,7 +443,10 @@ def extract_latest_agent_summary(
         return ("", detected_role) if return_role else ""
 
     cleaned = clean_markdown_for_speech(
-        last_model_content, max_words=max_words, full_read=full_read
+        last_model_content,
+        max_words=max_words,
+        full_read=full_read,
+        first_sentence_only=first_sentence_only,
     )
     if return_role and return_step_index:
         return (cleaned, detected_role, detected_step_index)
@@ -507,13 +552,19 @@ def handle_antigravity_stop_hook(
     if not project_name and workspace_path:
         project_name = Path(workspace_path).name
 
+    is_active = True
     if conv_id:
-        save_session_cookie(
-            conv_id=conv_id,
-            transcript_path=str(transcript_path),
-            workspace_path=workspace_path,
-            engine="antigravity",
-        )
+        from voicefi.integrations.conversations import ConversationTracker
+
+        tracker = ConversationTracker()
+        is_active = tracker.is_conversation_focused(conv_id)
+        if is_active:
+            save_session_cookie(
+                conv_id=conv_id,
+                transcript_path=str(transcript_path),
+                workspace_path=workspace_path,
+                engine="antigravity",
+            )
 
     turn_end_mode = getattr(getattr(cfg, "tts", None), "turn_end_mode", "standard")
     tts_provider = getattr(getattr(cfg, "tts", None), "provider", "gemini")
@@ -525,12 +576,18 @@ def handle_antigravity_stop_hook(
         or peek_live_turn_origin(conv_id)
     )
 
+    first_sentence_only = getattr(
+        getattr(cfg, "antigravity", None),
+        "first_sentence_only",
+        getattr(getattr(cfg, "tts", None), "first_sentence_only", False),
+    )
     summary_res = extract_latest_agent_summary(
         transcript_path,
         max_words=cfg.antigravity.max_spoken_words,
         return_role=True,
         return_step_index=True,
         full_read=is_live_turn,
+        first_sentence_only=first_sentence_only,
     )
     if isinstance(summary_res, tuple) and len(summary_res) == 3:
         summary, detected_role, step_index = summary_res
@@ -628,7 +685,35 @@ def handle_antigravity_stop_hook(
             except Exception:
                 pass
 
-        should_speak = bool(cfg.antigravity.read_summary_aloud and summary)
+        spoken_text = summary
+        if not is_active and getattr(cfg.antigravity, "unfocused_voice_prefix", False):
+            from voicefi.integrations.conversations import ConversationTracker
+
+            tracker = ConversationTracker()
+            pb_titles = tracker._get_pb_titles()
+            short_title = pb_titles.get(conv_id, "background agent")[:24]
+            spoken_text = f"Update from {short_title}: {summary}"
+
+        # Apply Walken voice acting cadence if Walken / Continental is configured
+        active_voice = str(
+            (payload.get("voice") if isinstance(payload, dict) else None)
+            or getattr(getattr(cfg, "tts", None), "voice", "")
+            or ""
+        ).lower()
+        active_ref = str(
+            (getattr(cfg.agents.get("antigravity"), "f5_ref_audio", None) if hasattr(cfg, "agents") and "antigravity" in cfg.agents else None)
+            or getattr(getattr(cfg, "tts", None), "f5_ref_audio", "")
+            or ""
+        ).lower()
+        if "walken" in active_voice or "continental" in active_voice or "continental" in active_ref:
+            from voicefi.tts.director import TheatricalDirector
+
+            archetype = "continental" if ("continental" in active_voice or "continental" in active_ref) else "standard"
+            spoken_text = TheatricalDirector.direct_walken_cadence(
+                spoken_text, archetype=archetype, include_prefix=False
+            )
+
+        should_speak = bool(cfg.antigravity.read_summary_aloud and spoken_text)
         if should_speak:
             mark_turn_spoken_on_mac(conv_id, turn_sig, step_index=step_index)
             try:
@@ -637,18 +722,11 @@ def handle_antigravity_stop_hook(
                 stop_active_playback()
             except Exception:
                 pass
-        should_listen = bool(cfg.antigravity.auto_listen and summary)
+        should_listen = bool(is_active and cfg.antigravity.auto_listen and summary)
         from voicefi.integrations.turn_lock import (
             acquire_active_listener_lock,
             release_active_listener_lock,
         )
-
-        if should_listen and not acquire_active_listener_lock(conv_id):
-            print(
-                f"[AntigravityHook] ⏸️ Another conversation is already actively listening. Yielding mic.",
-                flush=True,
-            )
-            should_listen = False
 
         hook_start_time = time.time()
         user_transcribed_chars: int = 0
@@ -658,6 +736,14 @@ def handle_antigravity_stop_hook(
 
         is_barge_in_on, _ = resolve_barge_in_mode(getattr(cfg.vad, "barge_in", "auto"))
         barge_in_active = bool(should_speak and should_listen and is_barge_in_on)
+
+        if barge_in_active and not acquire_active_listener_lock(conv_id):
+            print(
+                f"[AntigravityHook] ⏸️ Another conversation is already actively listening. Yielding mic.",
+                flush=True,
+            )
+            should_listen = False
+            barge_in_active = False
 
         voice_override = payload.get("voice") if isinstance(payload, dict) else None
         if barge_in_active:
@@ -674,7 +760,7 @@ def handle_antigravity_stop_hook(
 
             def _speak_and_finish():
                 try:
-                    tts.stream_speak(summary, block=True)
+                    tts.stream_speak(spoken_text, block=True)
                 except DuplicateSpeechSuppressed:
                     pass
                 except Exception:
@@ -746,28 +832,31 @@ def handle_antigravity_stop_hook(
             fb_loop = getattr(getattr(cfg, "proactive", None), "feedback_loop", None)
             listen_timeout = getattr(fb_loop, "timeout_seconds", 12.0) if fb_loop else 12.0
 
-            audio_data, temp_wav = recorder.record_speech_auto(
-                on_speech_start=lambda: set_cross_process_hud_state(
-                    "hearing",
-                    agent_name=active_agent,
-                    user_name=cfg.user_name,
-                    app_name="Antigravity",
+            try:
+                audio_data, temp_wav = recorder.record_speech_auto(
+                    on_speech_start=lambda: set_cross_process_hud_state(
+                        "hearing",
+                        agent_name=active_agent,
+                        user_name=cfg.user_name,
+                        app_name="Antigravity",
+                        conv_id=conv_id,
+                    ),
+                    on_pause_change=lambda paused: set_cross_process_hud_state(
+                        "hearing" if not paused else "listening",
+                        agent_name=active_agent,
+                        user_name=cfg.user_name,
+                        app_name="Antigravity",
+                        conv_id=conv_id,
+                    ),
+                    on_barge_in=_on_barge_in,
+                    on_live_transcript=_on_live,
+                    on_listening_tick=_on_tick,
+                    timeout=listen_timeout,
                     conv_id=conv_id,
-                ),
-                on_pause_change=lambda paused: set_cross_process_hud_state(
-                    "hearing" if not paused else "listening",
                     agent_name=active_agent,
-                    user_name=cfg.user_name,
-                    app_name="Antigravity",
-                    conv_id=conv_id,
-                ),
-                on_barge_in=_on_barge_in,
-                on_live_transcript=_on_live,
-                on_listening_tick=_on_tick,
-                timeout=listen_timeout,
-                conv_id=conv_id,
-                agent_name=active_agent,
-            )
+                )
+            finally:
+                release_active_listener_lock(conv_id)
         else:
             if should_speak:
                 tts = get_tts_engine(
@@ -781,7 +870,7 @@ def handle_antigravity_stop_hook(
                     conv_id=conv_id,
                 )
                 try:
-                    tts.stream_speak(summary, block=True)
+                    tts.stream_speak(spoken_text, block=True)
                 except DuplicateSpeechSuppressed:
                     return {}
 
@@ -807,92 +896,98 @@ def handle_antigravity_stop_hook(
                     pass
 
             if should_listen:
-                from voicefi.tts.base import is_system_audio_playing
+                from voicefi.integrations.turn_lock import acquire_active_listener_lock
 
-                max_audio_wait = 30
-                while is_system_audio_playing() and max_audio_wait > 0:
-                    time.sleep(0.1)
-                    max_audio_wait -= 1
+                if not acquire_active_listener_lock(conv_id):
+                    print(
+                        f"[AntigravityHook] ⏸️ Another conversation is already actively listening. Yielding mic.",
+                        flush=True,
+                    )
+                    should_listen = False
 
-                # Reading grace period: if speech just finished, display the settled [Spoken ✓]
-                # state for 1.5s so the HUD does not abruptly wipe out subtitles and burst into VAD listening
-                if should_speak:
-                    time.sleep(1.5)
-                else:
-                    time.sleep(0.25)
+            if should_listen:
+                try:
+                    from voicefi.tts.base import is_system_audio_playing
 
-                if getattr(cfg.audio_cues, "mic_open_chime", False) and cfg.audio_cues.enabled:
-                    play_chime("start", block=True)
-                    time.sleep(0.15)
+                    max_audio_wait = 30
+                    while is_system_audio_playing() and max_audio_wait > 0:
+                        time.sleep(0.1)
+                        max_audio_wait -= 1
 
-                set_cross_process_hud_state(
-                    "listening",
-                    agent_name=active_agent,
-                    user_name=cfg.user_name,
-                    app_name="Antigravity",
-                    conv_id=conv_id,
-                )
+                    # Immediate seamless transition: open mic right after speech finishes
+                    time.sleep(0.2)
 
-                def _on_live(txt: str):
+                    if getattr(cfg.audio_cues, "mic_open_chime", False) and cfg.audio_cues.enabled:
+                        play_chime("start", block=True)
+                        time.sleep(0.15)
+
                     set_cross_process_hud_state(
                         "listening",
-                        text=txt,
                         agent_name=active_agent,
                         user_name=cfg.user_name,
-                        live_stream=True,
                         app_name="Antigravity",
                         conv_id=conv_id,
                     )
-                    try:
-                        from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
 
-                        UnifiedDynamicIslandHUD.get_instance().update_live_transcription(
-                            txt, user_name=cfg.user_name
+                    def _on_live(txt: str):
+                        set_cross_process_hud_state(
+                            "listening",
+                            text=txt,
+                            agent_name=active_agent,
+                            user_name=cfg.user_name,
+                            live_stream=True,
+                            app_name="Antigravity",
+                            conv_id=conv_id,
                         )
-                    except Exception:
-                        pass
+                        try:
+                            from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
 
-                def _on_tick(energy: float, conf: float = 0.0, is_spk: bool = False):
-                    try:
-                        from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
+                            UnifiedDynamicIslandHUD.get_instance().update_live_transcription(
+                                txt, user_name=cfg.user_name
+                            )
+                        except Exception:
+                            pass
 
-                        UnifiedDynamicIslandHUD.get_instance().update_audio_level(
-                            energy, conf, is_spk
-                        )
-                    except Exception:
-                        pass
+                    def _on_tick(energy: float, conf: float = 0.0, is_spk: bool = False):
+                        try:
+                            from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
 
-                recorder = AudioRecorder(
-                    sample_rate=cfg.vad.sample_rate,
-                    energy_threshold=cfg.vad.energy_threshold,
-                    silence_duration=cfg.vad.silence_duration,
-                    max_record_seconds=cfg.vad.max_record_seconds,
-                    barge_in=False,
-                    vad_engine=getattr(cfg.vad, "engine", "auto"),
-                    speech_threshold=getattr(cfg.vad, "speech_threshold", 0.37),
-                )
+                            UnifiedDynamicIslandHUD.get_instance().update_audio_level(
+                                energy, conf, is_spk
+                            )
+                        except Exception:
+                            pass
 
-                fb_loop = getattr(getattr(cfg, "proactive", None), "feedback_loop", None)
-                listen_timeout = getattr(fb_loop, "timeout_seconds", 12.0) if fb_loop else 12.0
+                    recorder = AudioRecorder(
+                        sample_rate=cfg.vad.sample_rate,
+                        energy_threshold=cfg.vad.energy_threshold,
+                        silence_duration=cfg.vad.silence_duration,
+                        max_record_seconds=cfg.vad.max_record_seconds,
+                        barge_in=False,
+                        vad_engine=getattr(cfg.vad, "engine", "auto"),
+                        speech_threshold=getattr(cfg.vad, "speech_threshold", 0.37),
+                    )
 
-                listen_start_time = time.time()
-                audio_data, temp_wav = recorder.record_speech_auto(
-                    on_speech_start=lambda: set_cross_process_hud_state(
-                        "hearing",
-                        agent_name=active_agent,
-                        user_name=cfg.user_name,
-                        app_name="Antigravity",
+                    fb_loop = getattr(getattr(cfg, "proactive", None), "feedback_loop", None)
+                    listen_timeout = getattr(fb_loop, "timeout_seconds", 12.0) if fb_loop else 12.0
+
+                    listen_start_time = time.time()
+                    audio_data, temp_wav = recorder.record_speech_auto(
+                        on_speech_start=lambda: set_cross_process_hud_state(
+                            "hearing",
+                            agent_name=active_agent,
+                            user_name=cfg.user_name,
+                            app_name="Antigravity",
+                            conv_id=conv_id,
+                        ),
+                        on_live_transcript=_on_live,
+                        on_listening_tick=_on_tick,
+                        timeout=listen_timeout,
                         conv_id=conv_id,
-                    ),
-                    on_live_transcript=_on_live,
-                    on_listening_tick=_on_tick,
-                    timeout=listen_timeout,
-                    conv_id=conv_id,
-                    agent_name=active_agent,
-                )
-
-        if should_listen:
-            release_active_listener_lock(conv_id)
+                        agent_name=active_agent,
+                    )
+                finally:
+                    release_active_listener_lock(conv_id)
 
         from voicefi.tts.base import is_speech_interrupted
 

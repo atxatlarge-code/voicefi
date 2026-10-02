@@ -1,0 +1,29 @@
+{
+  "engine": "Ollama (GGUF / Metal)",
+  "model": "llama3.3:70b",
+  "num_ctx": 4096,
+  "weights_size_gb": 42.5,
+  "load_duration_sec": 7.09,
+  "tiers": [
+    {
+      "tier_name": "Short Prompt (Code Analysis)",
+      "prompt_tokens": 34,
+      "prompt_eval_rate_tps": 40.13,
+      "generated_tokens": 128,
+      "eval_rate_tps": 6.22,
+      "total_duration_sec": 21.42,
+      "effective_bandwidth_gbps": 264.5,
+      "response_preview": "**Function Review: `add(a, b)`**\n=====================================\n\n### Func..."
+    },
+    {
+      "tier_name": "Medium Prompt (System Design)",
+      "prompt_tokens": 53,
+      "prompt_eval_rate_tps": 64.0,
+      "generated_tokens": 256,
+      "eval_rate_tps": 6.02,
+      "total_duration_sec": 43.37,
+      "effective_bandwidth_gbps": 255.8,
+      "response_preview": "Designing a High-Throughput Distributed Event-Streaming Bus\n====================..."
+    }
+  ]
+}

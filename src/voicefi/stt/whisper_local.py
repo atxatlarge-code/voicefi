@@ -66,41 +66,57 @@ class WhisperLocalSTT(BaseSTT):
             if not p.exists() or p.stat().st_size == 0:
                 return ""
 
-        model = self._get_model()
+        try:
+            model = self._get_model()
 
-        # Build biased initial prompt if none provided explicitly
-        if prompt is None:
-            prompt = self.context_extractor.get_bias_prompt()
+            # Build biased initial prompt if none provided explicitly
+            if prompt is None:
+                prompt = self.context_extractor.get_bias_prompt()
 
-        audio_input = str(audio) if isinstance(audio, (Path, str)) else audio
-        segments, info = model.transcribe(
-            audio_input,
-            language=self.language if self.language else None,
-            initial_prompt=prompt if prompt else None,
-            beam_size=1,
-            vad_filter=False,
-            vad_parameters=dict(min_silence_duration_ms=500),
-            condition_on_previous_text=False,
-            repetition_penalty=1.15,
-            no_repeat_ngram_size=3,
-            temperature=[0.0, 0.2, 0.4],
-        )
+            audio_input = str(audio) if isinstance(audio, (Path, str)) else audio
+            segments, info = model.transcribe(
+                audio_input,
+                language=self.language if self.language else None,
+                initial_prompt=prompt if prompt else None,
+                beam_size=1,
+                vad_filter=False,
+                vad_parameters=dict(min_silence_duration_ms=500),
+                condition_on_previous_text=False,
+                repetition_penalty=1.15,
+                no_repeat_ngram_size=3,
+                temperature=[0.0, 0.2, 0.4],
+            )
 
-        texts = []
-        for segment in segments:
-            nsp = getattr(segment, "no_speech_prob", None)
-            if isinstance(nsp, (int, float)) and nsp >= 0.65:
-                continue
-            texts.append(segment.text.strip())
-        raw_text = " ".join(texts).strip()
+            texts = []
+            for segment in segments:
+                nsp = getattr(segment, "no_speech_prob", None)
+                if isinstance(nsp, (int, float)) and nsp >= 0.65:
+                    continue
+                texts.append(segment.text.strip())
+            raw_text = " ".join(texts).strip()
 
-        # Filter Whisper silence/noise hallucinations
-        filtered = self.filter_hallucinations(raw_text)
-        if not filtered:
+            # Filter Whisper silence/noise hallucinations
+            filtered = self.filter_hallucinations(raw_text)
+            if not filtered:
+                return ""
+
+            # Apply phonetic normalization to developer jargon
+            return PhoneticNormalizer.normalize(filtered)
+        except Exception as e:
+            print(f"[WhisperLocalSTT] Transcription error: {e}")
+            from voicefi.telemetry import capture_exception
+
+            capture_exception(
+                e,
+                properties={
+                    "component": "stt.whisper_local",
+                    "provider": "whisper_local",
+                    "model_size": self.model_size,
+                    "device": self.device,
+                    "$exception_fingerprint": ["stt.whisper_local", type(e).__name__],
+                },
+            )
             return ""
-
-        # Apply phonetic normalization to developer jargon
-        return PhoneticNormalizer.normalize(filtered)
 
     @staticmethod
     def filter_hallucinations(text: str) -> str:

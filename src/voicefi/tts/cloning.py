@@ -68,6 +68,11 @@ class ClonedVoiceProfile(BaseModel):
     calibrated_voice: Optional[str] = None
     calibrated_rate: Optional[int] = None
     calibrated_pitch: Optional[str] = "+0Hz"
+    nfe_step: Optional[int] = None
+    speed: Optional[float] = None
+    intro_sfx: Optional[str] = None
+    intro_sfx_volume: Optional[float] = None
+    skit_intro_sfx: Optional[str] = None
 
     @property
     def vocal_range(self) -> str:
@@ -240,6 +245,20 @@ class VoiceCloneManager:
                     try:
                         with open(prof_file, "r", encoding="utf-8") as f:
                             data = json.load(f)
+                        # Auto-heal sample_paths if transferred across machines with different usernames
+                        samples = data.get("sample_paths", [])
+                        fixed_samples = []
+                        for s in samples:
+                            sp = Path(s).expanduser()
+                            if sp.exists():
+                                fixed_samples.append(str(sp.resolve()))
+                            else:
+                                local_cand = p_dir / "samples" / Path(s).name
+                                if local_cand.exists():
+                                    fixed_samples.append(str(local_cand.resolve()))
+                                else:
+                                    fixed_samples.append(s)
+                        data["sample_paths"] = fixed_samples
                         profiles.append(ClonedVoiceProfile(**data))
                     except Exception as e:
                         print(f"[VoiceCloneManager] Error reading {prof_file}: {e}")

@@ -310,12 +310,27 @@ class EdgeTTS(BaseTTS):
                                 f"[EdgeTTS] Error generating audio ({e}); falling back to offline voice",
                                 file=sys.stderr,
                             )
+                            # 1. Immediately initiate speech fallback so user hears zero dead air
                             if (
                                 not self._stop_requested
                                 and not is_speech_interrupted(turn_start_time)
                                 and is_agent_speaking()
                             ):
                                 self._safe_fallback(clean_text, turn_start_time=turn_start_time)
+                            # 2. Dispatch telemetry non-blocking
+                            try:
+                                from voicefi.telemetry import capture_exception
+
+                                capture_exception(
+                                    e,
+                                    properties={
+                                        "component": "tts_edge",
+                                        "voice": getattr(self, "voice", "unknown"),
+                                        "fallback": "offline_mac_say",
+                                    },
+                                )
+                            except Exception:
+                                pass
                         finally:
                             set_agent_audio_playing(False)
                             self._current_process = None
@@ -492,6 +507,18 @@ class EdgeTTS(BaseTTS):
             return Path(output_path).is_file() and Path(output_path).stat().st_size > 0
         except Exception as e:
             print(f"[EdgeTTS] Error synthesizing to file: {e}")
+            try:
+                from voicefi.telemetry import capture_exception
+
+                capture_exception(
+                    e,
+                    properties={
+                        "component": "tts_edge_file",
+                        "voice": getattr(self, "voice", "unknown"),
+                    },
+                )
+            except Exception:
+                pass
             return False
 
     def speak_to_file(self, text: str, output_path: Path) -> bool:

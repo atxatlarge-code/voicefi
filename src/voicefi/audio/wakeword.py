@@ -46,14 +46,18 @@ class WakeWordListener:
         self.on_energy = on_energy
         self.on_state_change = on_state_change
 
-        self.aliases = list(
+        configured_aliases = list(
             getattr(
                 self.config.wakeword,
                 "aliases",
-                ["hey viv", "viv", "hey vifi", "vifi", "hey antigravity", "hey claude", "claude"],
+                ["voicefi", "vi-fi", "hey voicefi", "hey vi-fi", "vifi", "hey vifi", "hey viv", "viv", "hey antigravity", "hey claude", "claude"],
             )
         )
-        for extra in ("hey claude", "claude"):
+        alert_words = list(getattr(self.config.wakeword, "alert_words", []))
+        self.aliases = list(dict.fromkeys(
+            [w.lower() for w in alert_words + configured_aliases if w]
+        ))
+        for extra in ("hey claude", "claude", "voicefi", "vi-fi"):
             if extra not in [a.lower() for a in self.aliases]:
                 self.aliases.append(extra)
         if getattr(

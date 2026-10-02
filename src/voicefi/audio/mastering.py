@@ -101,6 +101,49 @@ def apply_broadcast_silk_mastering(
     return in_p
 
 
+def apply_clone_warmth_mastering(
+    input_path: Union[str, Path],
+    output_path: Optional[Union[str, Path]] = None,
+) -> Path:
+    """
+    Apply VoiceFi Neural Clone Warmth & Presence mastering chain.
+    Eliminates hollow 800Hz boxiness, restores chest warmth at 185Hz,
+    and boosts presence at 3.8kHz for crisp, cheery articulation without FFT phase artifacts.
+    """
+    in_p = Path(input_path).resolve()
+    if not in_p.is_file() or in_p.stat().st_size == 0:
+        return in_p
+
+    target_p = Path(output_path).resolve() if output_path else None
+    ext = target_p.suffix if target_p else in_p.suffix or ".wav"
+    tf = tempfile.NamedTemporaryFile(prefix="clone_warmth_", suffix=ext, delete=False)
+    tmp_out = Path(tf.name).resolve()
+    tf.close()
+
+    if is_ffmpeg_available():
+        ffmpeg_bin = get_ffmpeg_path()
+        filter_str = (
+            "highpass=f=75,"
+            "equalizer=f=185:width_type=q:width=1.0:g=3.5,"
+            "equalizer=f=820:width_type=q:width=1.1:g=-4.0,"
+            "equalizer=f=3800:width_type=q:width=1.4:g=3.0,"
+            "volume=-1.0dB"
+        )
+        cmd = [ffmpeg_bin, "-y", "-i", str(in_p), "-af", filter_str, str(tmp_out)]
+        try:
+            res = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+            if res.returncode == 0 and tmp_out.is_file() and tmp_out.stat().st_size > 0:
+                if target_p:
+                    shutil.move(str(tmp_out), str(target_p))
+                    return target_p
+                return tmp_out
+        except Exception:
+            pass
+
+    tmp_out.unlink(missing_ok=True)
+    return in_p
+
+
 def apply_bbc_documentary_mastering(
     input_path: Union[str, Path],
     output_path: Optional[Union[str, Path]] = None,

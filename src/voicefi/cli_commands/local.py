@@ -76,6 +76,10 @@ def cmd_scout(args: Any) -> None:
 
 def cmd_implement(args: Any) -> None:
     """Run on-device ReconImplementer cascade (2B Scout -> 26B Coder) to modify files and output diffs."""
+    if getattr(args, "auto", False):
+        cmd_auto(args)
+        return
+
     from voicefi.local import ReconImplementer
 
     target = getattr(args, "target", None)
@@ -106,6 +110,57 @@ def cmd_implement(args: Any) -> None:
     print("-" * 60)
     print(res.diff)
     print("-" * 60)
+
+
+def cmd_auto(args: Any) -> int:
+    """Run autonomous multi-turn on-device engineering loop with local tool execution."""
+    import json
+    from voicefi.local.agent_loop import LocalAutonomousLoop
+
+    goal = getattr(args, "goal", None) or getattr(args, "instruction", None)
+    if not goal:
+        # Fallback to target if provided as description
+        target_val = getattr(args, "target", None)
+        if target_val and not os.path.exists(target_val):
+            goal = target_val
+    if not goal:
+        print("❌ Error: A goal or instruction is required for the autonomous loop.")
+        return 1
+
+    test_cmd = getattr(args, "test", None)
+    max_turns = getattr(args, "max_turns", 5) or 5
+    model = (
+        getattr(args, "model", None)
+        or getattr(args, "model_coder", None)
+        or "qwen2.5-coder:1.5b"
+    )
+
+    print(f"🤖 Launching VoiceFi Autonomous Local Loop on Apple Silicon Metal GPU...")
+    print(f"   Model: {model} | Max Turns: {max_turns} | Verification: {test_cmd or 'None'}")
+    print(f"   Goal: {goal}\n")
+
+    loop = LocalAutonomousLoop(model_name=model, max_turns=max_turns)
+    context = f"Verification Test Command: {test_cmd}" if test_cmd else None
+
+    res = asyncio.run(loop.execute(goal=goal, context=context))
+
+    print("\n" + "=" * 60)
+    print(f"🏁 Autonomous Loop Completed in {res.total_duration}s ({len(res.steps)} steps)")
+    print(f"   Status: {'✅ Completed' if res.completed else '⚠️ Incomplete / Max Turns'}")
+    if res.modified_files:
+        print(f"   Modified Files: {', '.join(res.modified_files)}")
+    print(f"   Summary: {res.summary}")
+    print("=" * 60 + "\n")
+
+    for s in res.steps:
+        print(f"  [Turn {s.turn}] {s.tool} ({s.duration}s)")
+        if s.thought:
+            print(f"    Thought: {s.thought}")
+        print(f"    Args: {json.dumps(s.arguments)}")
+        obs_preview = s.observation[:120].replace('\n', ' ')
+        print(f"    Observation: {obs_preview}...\n")
+
+    return 0 if res.completed else 1
 
 
 

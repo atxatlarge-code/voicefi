@@ -158,6 +158,19 @@ def main():
             success = False
             exit_code = 1
             error_type = type(e).__name__
+            try:
+                from voicefi.telemetry import capture_exception
+
+                capture_exception(
+                    e,
+                    properties={
+                        "command": getattr(args, "command", "unknown"),
+                        "exit_code": exit_code,
+                        "error_type": error_type,
+                    },
+                )
+            except Exception:
+                pass
             raise
         finally:
             duration_ms = int((time.time() - start_time) * 1000)

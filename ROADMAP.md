@@ -89,6 +89,9 @@ flowchart LR
 > **Intellectual Property Reference:** U.S. Patent Application No. 64/137,300.
 
 ### 1. Hardware Echo Cancellation & Duplex Audio Loopback
+- [x] **6.5-Hour Duplex Concurrency & Buffer Underrun Validation:**
+  - Validated 168,960 audio buffer lock acquisitions across 1,408 cycles with **0 buffer underruns** and **0 lock deadlocks** under continuous 2x concurrent contender contention.
+  - Standardized turn lock hierarchy in `speech_turn_lock()` and verified barge-in audio isolation in `scripts/overnight_stress.py` (see [`benchmarks/OVERNIGHT_CONCURRENCY_REPORT.md`](benchmarks/OVERNIGHT_CONCURRENCY_REPORT.md)).
 - [ ] **CoreAudio `VoiceProcessingIO` DSP Integration:**
   - Initialize input/output audio units via macOS `kAudioOutputUnitSubType_VoiceProcessingIO`.
   - Harness Apple Silicon's hardware DSP acoustic echo cancellation (AEC) and automatic ducking.
@@ -122,10 +125,11 @@ flowchart LR
 
 ---
 
-## 📋 Phase 3: Autonomous Agent Dispatch & MCP Architecture *(PLANNED • [Architecture Spec](docs/MCP_ARCHITECTURE.md))*
-- [ ] **Universal `voicefi-mcp` Server:**
-  - Standardized Model Context Protocol server exposing `voicefi_speak`, `voicefi_ask_confirmation`, and `voicefi_get_ambient_context` to Antigravity, Claude Code, Cursor, Windsurf, and Zed.
+## 📋 Phase 3: Autonomous Agent Dispatch & MCP Architecture *(IN PROGRESS • [Architecture Spec](docs/MCP_ARCHITECTURE.md))*
+- [x] **Universal `voicefi-mcp` Server:**
+  - Standardized Model Context Protocol server exposing `voicefi_speak`, `voicefi_ask_confirmation`, `voicefi_send`, `voicefi_sfx`, `voicefi_ping_voice`, and `voicefi_get_ambient_context` to Antigravity, Claude Code, Cursor, Windsurf, and Zed.
   - Multi-agent neural acoustic personas (Christopher, Sonia, Guy, Aria) for distinct subagent auditory feedback.
+  - **Sub-Millisecond Probe Latency (0.17 ms):** Pre-cached schema definitions and non-blocking background telemetry dispatch (`sync_mode = False`), verified across 6.5-hour soak test.
 - [ ] **Voice-to-MCP Client Dispatcher:**
   - Ambient speech directly triggers external MCP servers (Slack, Linear, Postgres, GitHub, DevTools) without manual typing.
   - Dedicated hands-free Slack workflows (morning standups, thread catch-up summaries, polished DM dispatch).

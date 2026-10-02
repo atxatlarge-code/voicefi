@@ -98,8 +98,8 @@ def extract_first_sentence(text: str, max_words: Optional[int] = 18) -> str:
     # Strip leading markdown header tags or bullet points
     t = re.sub(r"^[#*`\-_—\s]+", "", t).strip()
 
-    # Find the first sentence ending with [.!?]
-    match = re.search(r"^(.*?[.!?])(?:\s+|$)", t, flags=re.DOTALL)
+    # Find the first sentence ending with [.!?] (ignoring ellipses)
+    match = re.search(r"^(.*?(?<!\.)[.!?](?!\.))(?:\s+|$)", t, flags=re.DOTALL)
     if match:
         first = match.group(1).strip()
         words = first.split()
@@ -108,7 +108,7 @@ def extract_first_sentence(text: str, max_words: Optional[int] = 18) -> str:
         if len(words) <= 2 and len(t) > len(first):
             remainder = t[len(first):].strip()
             remainder = re.sub(r"^[#*`\-_—\s]+", "", remainder).strip()
-            second_match = re.search(r"^(.*?[.!?])(?:\s+|$)", remainder, flags=re.DOTALL)
+            second_match = re.search(r"^(.*?(?<!\.)[.!?](?!\.))(?:\s+|$)", remainder, flags=re.DOTALL)
             if second_match:
                 first = f"{first} {second_match.group(1).strip()}"
         if max_words:
@@ -134,6 +134,23 @@ DEFAULT_CHARACTER_PROMPT_TEMPLATE = (
     "- Keep it concise (1 to 2 short sentences, under 25 words). ALWAYS finish your full thought and end with clean punctuation (. ! ?).\n"
     "- Output ONLY the spoken dialogue wrapped in <reaction>...</reaction> tags. No other text or markdown."
 )
+
+
+def normalize_stage_directions(text: str) -> str:
+    """
+    Normalize plural or informal acting tags into standardized singular cues
+    so Gemini 3.8 Latent Audio and TTS models interpret them as acoustic actions.
+    """
+    if not text:
+        return ""
+    text = re.sub(r"\[\s*sighs?\s*\]", "[sigh]", text, flags=re.IGNORECASE)
+    text = re.sub(r"\[\s*giggles?\s*\]", "[giggle]", text, flags=re.IGNORECASE)
+    text = re.sub(r"\[\s*laughs?\s*\]", "[laugh]", text, flags=re.IGNORECASE)
+    text = re.sub(r"\[\s*chuckles?\s*\]", "[chuckle]", text, flags=re.IGNORECASE)
+    text = re.sub(r"\[\s*whispers?\s*\]", "[whisper]", text, flags=re.IGNORECASE)
+    text = re.sub(r"\[\s*gasps?\s*\]", "[gasp]", text, flags=re.IGNORECASE)
+    text = re.sub(r"\[\s*growls?\s*\]", "[growl]", text, flags=re.IGNORECASE)
+    return text
 
 
 def clean_character_statement(raw_statement: str, first_sentence: str = "") -> str:
@@ -212,8 +229,8 @@ def clean_character_statement(raw_statement: str, first_sentence: str = "") -> s
     ):
         text = text[1:-1].strip()
 
-    # Normalize bracketed sighs
-    text = re.sub(r"\[\s*sighs\s*\]", "[sigh]", text, flags=re.IGNORECASE)
+    # Normalize bracketed stage directions (e.g. [giggles] -> [giggle], [sighs] -> [sigh])
+    text = normalize_stage_directions(text)
 
     # 5. Ensure complete sentence termination punctuation
     text = text.strip()
@@ -479,12 +496,12 @@ class GeminiTTS(BaseTTS):
             from google.genai import types
 
             client = genai.Client(api_key=self.api_key)
-            clean_text = re.sub(r"\[\s*sighs\s*\]", "[sigh]", text, flags=re.IGNORECASE)
+            clean_text = normalize_stage_directions(text)
             sys_parts = [
                 types.Part.from_text(
                     text=(
-                        "Act out all bracketed stage directions (such as [sigh], [chuckle], [gasp], [pause]) "
-                        "as genuine vocal sounds, breaths, and acoustic actions. "
+                        "Act out all bracketed stage directions (such as [giggle], [sigh], [laugh], [chuckle], [gasp], [whisper], [pause]) "
+                        "as genuine vocal sounds, laughs, breaths, and acoustic actions. "
                         "NEVER pronounce or speak the words inside brackets."
                     )
                 )
@@ -542,7 +559,31 @@ class GeminiTTS(BaseTTS):
         headers = {"Content-Type": "application/json"}
 
         effective_style = style or self.style
-        clean_prompt_text = re.sub(r"\[\s*sighs\s*\]", "[sigh]", text, flags=re.IGNORECASE)
+        clean_prompt_text = normalize_stage_directions(text)
+
+        # Infer emotional style cues from inline acting tags to steer Gemini TTS
+        inferred_styles = []
+        if re.search(r"\[giggle\]", clean_prompt_text, re.IGNORECASE):
+            inferred_styles.append("playful giggling")
+        if re.search(r"\[laugh\]", clean_prompt_text, re.IGNORECASE):
+            inferred_styles.append("laughing, amused")
+        if re.search(r"\[sigh\]", clean_prompt_text, re.IGNORECASE):
+            inferred_styles.append("weary sigh")
+        if re.search(r"\[whisper\]", clean_prompt_text, re.IGNORECASE):
+            inferred_styles.append("hushed whisper")
+        if re.search(r"\[gasp\]", clean_prompt_text, re.IGNORECASE):
+            inferred_styles.append("shocked gasp")
+        if re.search(r"\[chuckle\]", clean_prompt_text, re.IGNORECASE):
+            inferred_styles.append("gentle chuckle")
+
+        if inferred_styles:
+            inferred_str = ", ".join(inferred_styles)
+            if effective_style:
+                if not any(k in str(effective_style).lower() for k in ("giggle", "laugh", "sigh", "whisper", "gasp", "chuckle")):
+                    effective_style = f"{effective_style}, {inferred_str}"
+            else:
+                effective_style = inferred_str
+
         part_dict: Dict[str, Any] = {"text": clean_prompt_text}
         if effective_style:
             part_dict["speech_metadata"] = {"style": str(effective_style)}
@@ -572,8 +613,33 @@ class GeminiTTS(BaseTTS):
                 logger.debug(
                     "Gemini TTS non-200 response [%s]: %s", resp.status_code, resp.text[:200]
                 )
+                try:
+                    from voicefi.telemetry import capture_exception
+
+                    capture_exception(
+                        RuntimeError(f"Gemini TTS HTTP {resp.status_code}: {resp.text[:120]}"),
+                        properties={
+                            "component": "tts_gemini",
+                            "voice": getattr(self, "voice", "unknown"),
+                            "provider_status_code": resp.status_code,
+                        },
+                    )
+                except Exception:
+                    pass
         except Exception as e:
             logger.debug("Gemini TTS synthesis request failed: %s", e)
+            try:
+                from voicefi.telemetry import capture_exception
+
+                capture_exception(
+                    e,
+                    properties={
+                        "component": "tts_gemini",
+                        "voice": getattr(self, "voice", "unknown"),
+                    },
+                )
+            except Exception:
+                pass
 
         return None
 
@@ -896,11 +962,8 @@ class GeminiTTS(BaseTTS):
                     turn_conv_id = getattr(self, "conv_id", "")
                     is_joke = verbatim_jokes and is_joke_turn(clean_text, conv_id=turn_conv_id)
 
-                    # Live responses are read FULLY without summarization, sentence extraction, or statement generation!
-                    if is_live_mode:
-                        final_text = clean_text
                     # If this turn is a joke, deliver verbatim without summarization or meta-commentary!
-                    elif is_joke:
+                    if is_joke:
                         final_text = clean_text
                     elif do_summary and character_persona and speech_structure != "verbatim":
                         first_sentence_word_limit = getattr(cfg.tts, "max_first_sentence_words", 18)
@@ -995,8 +1058,8 @@ class GeminiTTS(BaseTTS):
                                 else clean_text
                             )
                     
-                    # Normalize [sighs] -> [sigh] to ensure acoustic action instead of spoken word
-                    final_text = re.sub(r"\[\s*sighs\s*\]", "[sigh]", final_text, flags=re.IGNORECASE)
+                    # Normalize bracketed stage directions (e.g. [giggles] -> [giggle], [sighs] -> [sigh])
+                    final_text = normalize_stage_directions(final_text)
 
                     if self._stop_requested or is_speech_interrupted(turn_start_time):
                         return
@@ -1060,6 +1123,8 @@ class GeminiTTS(BaseTTS):
                             types.Part.from_text(
                                 text=(
                                     f"You are {character_persona}. Speak this response naturally, expressively, and fully. "
+                                    "CRITICAL DIRECTIVE: You MUST read the user's line VERBATIM from the very first word. "
+                                    "Do NOT summarize, do NOT skip the first sentence, and do NOT begin with only a reaction. "
                                     "Act out all bracketed stage directions (such as [sigh], [chuckle], [gasp], [pause]) "
                                     "as genuine vocal sounds, breaths, and acoustic actions. "
                                     "NEVER pronounce or speak the words inside brackets."
@@ -1079,7 +1144,7 @@ class GeminiTTS(BaseTTS):
                     
                     async def stream_audio():
                         async with client.aio.live.connect(model="gemini-3.8-live", config=config) as session:
-                            prompt = final_text
+                            prompt = f"Read this line verbatim: {final_text}"
                             await session.send_realtime_input(text=prompt)
                             
                             set_agent_audio_playing(True)

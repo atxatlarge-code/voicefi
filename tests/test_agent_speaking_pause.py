@@ -188,6 +188,7 @@ def test_tray_status_map_includes_paused():
          patch("voicefi.tts.base.get_cross_process_hud_state", return_value=None), \
          patch("rumps.Timer"):
         app = VoiceFiTrayApp()
+        app.config.hud.dynamic_tray_icon = True
         
         # Test speaking state
         app._current_status = "speaking"

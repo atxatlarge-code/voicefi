@@ -149,6 +149,10 @@ class PhoneticNormalizer:
 
     # Static phonetic replacements
     REPLACEMENTS: Dict[str, str] = {
+        r"\bvoice\s*fi\b": "VoiceFi",
+        r"\bvi\s*fi\b": "Vi-Fi",
+        r"\bvy\s*fi\b": "Vi-Fi",
+        r"\bvai\s*fai\b": "Vi-Fi",
         r"\bhague\s*claud[e]?\b": "Hey Claude",
         r"\bhay\s*claud[e]?\b": "Hey Claude",
         r"\bhey\s*claud\b": "Hey Claude",

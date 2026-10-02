@@ -2720,6 +2720,7 @@ class UnifiedDynamicIslandHUD:
         app_name: Optional[str] = None,
         conv_id: Optional[str] = None,
         conv_title: Optional[str] = None,
+        engine_badge: Optional[str] = None,
     ):
         """Set to Speaking State with rich live speech subtitles (540x82)."""
         self._is_speaking = True
@@ -2733,11 +2734,18 @@ class UnifiedDynamicIslandHUD:
         app_icon = self._resolve_app_icon(resolved_app)
         display_title = (resolved_app or agent_name).capitalize()
         resolved_conv = conv_title or self._resolve_conversation_title(conv_id=conv_id)
-        tag_str = (
-            f"{speaker} [Speaking • Esc]"
-            if resolved_conv
-            else f"{speaker} [Speaking • Esc to stop]"
-        )
+        if engine_badge:
+            tag_str = (
+                f"{speaker} • {engine_badge} [Esc]"
+                if resolved_conv
+                else f"{speaker} • {engine_badge} [Esc to stop]"
+            )
+        else:
+            tag_str = (
+                f"{speaker} [Speaking • Esc]"
+                if resolved_conv
+                else f"{speaker} [Speaking • Esc to stop]"
+            )
         app_colors = self._resolve_app_colors(resolved_app or agent_name)
         border_col = (
             app_colors["border"]

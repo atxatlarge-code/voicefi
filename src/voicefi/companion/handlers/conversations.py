@@ -201,6 +201,65 @@ class ConversationsHandlersMixin:
                     async_execution=True,
                 )
                 active_id = getattr(disp, "target_conv_id", None) or "claude_active"
+            elif engine in ("gemma", "local", "gemma4-2b", "gemma4-26b"):
+                from voicefi.integrations.conversations import save_gemma_turn
+                from voicefi.local.engine import LocalModelEngine
+
+                configured_model = getattr(
+                    getattr(self.config, "local_model", None), "model_name", "gemma4-2b"
+                )
+                model_choice = (
+                    "gemma4-26b"
+                    if "26b" in str(model or engine or configured_model).lower()
+                    else "gemma4-2b"
+                )
+                active_id = f"gemma_{int(time.time())}"
+                c_title = title or (prompt[:40] if prompt else "Local Gemma")
+                # Immediately save initial turn placeholder so session file exists on disk
+                save_gemma_turn(
+                    active_id,
+                    user_text=prompt,
+                    agent_text="",
+                    model=model_choice,
+                    title=c_title,
+                )
+
+                async def _run_gemma_init():
+                    try:
+                        self.broadcast_event(
+                            {
+                                "type": "agent_thinking",
+                                "engine": "gemma",
+                                "avatar": "🧠",
+                                "text": f"Gemma 4 ({'26B' if '26b' in model_choice else '2B'}) is thinking on Metal GPU...",
+                                "conv_id": active_id,
+                            }
+                        )
+                        eng = LocalModelEngine(model_name=model_choice)
+                        ans = await eng.chat_text(prompt)
+                        save_gemma_turn(
+                            active_id,
+                            user_text=prompt,
+                            agent_text=ans,
+                            model=model_choice,
+                            title=c_title,
+                        )
+                        self.broadcast_event(
+                            {
+                                "type": "agent_response",
+                                "engine": "gemma",
+                                "avatar": "🧠",
+                                "text": ans,
+                                "conv_id": active_id,
+                            }
+                        )
+                        self._speak_in_background(
+                            ans, agent_name="gemma", conv_id=active_id, origin="desktop"
+                        )
+                    except Exception as e:
+                        logger.error(f"Gemma background run error: {e}")
+
+                asyncio.create_task(_run_gemma_init())
             else:
                 new_id = _resolve_create_new_antigravity_conversation(
                     prompt=prompt, title=title, model=model
@@ -211,13 +270,17 @@ class ConversationsHandlersMixin:
 
             if active_id:
                 self.tracker.set_active_focus(active_id)
-                if not active:
-                    active = self.tracker.get_active_or_latest()
+                if engine in ("gemma", "local", "gemma4-2b", "gemma4-26b"):
+                    session_title = c_title
+                else:
+                    if not active:
+                        active = self.tracker.get_active_or_latest()
+                    session_title = active.title if active else (title or "New Conversation")
                 self.broadcast_event(
                     {
                         "type": "conversation_created",
                         "conv_id": active_id,
-                        "title": active.title if active else (title or "New Conversation"),
+                        "title": session_title,
                         "engine": engine,
                     }
                 )
@@ -393,6 +456,91 @@ class ConversationsHandlersMixin:
                         "engine": "gemini_live",
                         "intent_mode": intent_mode or ("comic" if is_comic else "speed"),
                         "result": res,
+                    }
+                )
+
+            if target_engine in ("gemma", "local", "gemma4-2b", "gemma4-26b") or (
+                conv_id and "gemma" in str(conv_id).lower()
+            ):
+                from voicefi.integrations.conversations import (
+                    save_gemma_turn,
+                    parse_full_gemma_conversation_details,
+                )
+                from voicefi.local.engine import LocalModelEngine
+
+                configured_model = getattr(
+                    getattr(self.config, "local_model", None), "model_name", "gemma4-2b"
+                )
+                model_choice = (
+                    "gemma4-26b"
+                    if "26b" in str(data.get("model") or target_engine or configured_model).lower()
+                    else "gemma4-2b"
+                )
+
+                # Immediately record in-progress turn
+                save_gemma_turn(
+                    conv_id=conv_id,
+                    user_text=text,
+                    agent_text="",
+                    model=model_choice,
+                )
+
+                self.broadcast_event(
+                    {
+                        "type": "agent_thinking",
+                        "engine": "gemma",
+                        "avatar": "🧠",
+                        "text": f"Gemma 4 ({'26B' if '26b' in model_choice else '2B'}) is thinking on Metal GPU...",
+                        "conv_id": conv_id,
+                    }
+                )
+
+                # Assemble multi-turn context if continuing an existing session
+                prompt_to_send = text
+                if conv_id:
+                    details = parse_full_gemma_conversation_details(conv_id)
+                    if details and details.get("turns"):
+                        history_turns = []
+                        for t in details["turns"][-5:]:
+                            u = (t.get("user_text") or t.get("user") or "").strip()
+                            a = (t.get("agent_text") or t.get("agent") or "").strip()
+                            if u and a:
+                                history_turns.append(f"User: {u}\nModel: {a}")
+                        if history_turns:
+                            prompt_to_send = f"{'\n\n'.join(history_turns)}\n\nUser: {text}"
+
+                engine_inst = LocalModelEngine(model_name=model_choice)
+                ans = await engine_inst.chat_text(prompt_to_send)
+                save_gemma_turn(
+                    conv_id=conv_id,
+                    user_text=text,
+                    agent_text=ans,
+                    model=model_choice,
+                )
+                self.broadcast_event(
+                    {
+                        "type": "agent_response",
+                        "engine": "gemma",
+                        "avatar": "🧠",
+                        "text": ans,
+                        "conv_id": conv_id,
+                    }
+                )
+                try:
+                    self._speak_in_background(
+                        ans, agent_name="gemma", conv_id=conv_id, origin="desktop"
+                    )
+                except Exception:
+                    pass
+                return web.json_response(
+                    {
+                        "success": True,
+                        "delivered": True,
+                        "delivered_ipc": True,
+                        "engine": "gemma",
+                        "model": model_choice,
+                        "response": ans,
+                        "conv_id": conv_id,
                     }
                 )
 

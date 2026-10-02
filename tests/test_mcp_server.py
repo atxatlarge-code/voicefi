@@ -544,7 +544,7 @@ def test_posthog_mcp_analytics_initialize_and_tools_list(server):
         resp = server.handle_request(init_req)
         assert resp["id"] == 101
         mock_ph.capture_initialize.assert_called_once()
-        mock_ph.flush.assert_called()
+        mock_ph.flush.assert_not_called()
 
         # 2. Tools list
         list_req = {
@@ -557,7 +557,7 @@ def test_posthog_mcp_analytics_initialize_and_tools_list(server):
         resp_list = server.handle_request(list_req)
         assert resp_list["id"] == 102
         mock_ph.capture_tools_list.assert_called_once()
-        mock_ph.flush.assert_called()
+        mock_ph.flush.assert_not_called()
 
 
 def test_posthog_mcp_analytics_tool_call_capture(server):
@@ -589,7 +589,7 @@ def test_posthog_mcp_analytics_tool_call_capture(server):
         assert kwargs["intent"] == "Checking system health"
         assert kwargs["intent_source"] == "context_parameter"
         assert kwargs["is_error"] is False
-        mock_ph.flush.assert_called()
+        mock_ph.flush.assert_not_called()
 
 
 def test_posthog_mcp_analytics_diagnostic():
@@ -606,6 +606,64 @@ def test_posthog_mcp_analytics_diagnostic():
         mock_ph.capture_tools_list.assert_called_once()
         mock_ph.capture_tool_call.assert_called_once()
         mock_ph.flush.assert_called_once()
+
+
+def test_mcp_tools_list_includes_auto_and_symbols(server):
+    tools = [t["name"] for t in MCP_TOOLS]
+    assert "voicefi_auto" in tools
+    assert "voicefi_symbol_query" in tools
+
+
+def test_mcp_tool_call_symbol_query(server):
+    req = {
+        "jsonrpc": "2.0",
+        "id": 104,
+        "method": "tools/call",
+        "params": {
+            "name": "voicefi_symbol_query",
+            "arguments": {"query": "VoiceFiMCPServer"},
+        },
+    }
+    resp = server.handle_request(req)
+    assert resp["id"] == 104
+    assert resp["result"]["isError"] is False
+    content = resp["result"]["content"][0]["text"]
+    assert "VoiceFiMCPServer" in content
+
+
+def test_mcp_tool_call_auto(server):
+    from voicefi.local.agent_loop import AutonomousLoopResult, LoopStep
+    mock_res = AutonomousLoopResult(
+        goal="Fix simple typo",
+        completed=True,
+        summary="Fixed typo in test file.",
+        steps=[
+            LoopStep(turn=1, thought="Looking for typo", tool="search_code", arguments={"query": "typo"}, observation="found", duration=0.1),
+            LoopStep(turn=2, thought="Done", tool="finish", arguments={"summary": "Fixed typo in test file."}, observation="Done", duration=0.1),
+        ],
+        modified_files=["sample.py"],
+        total_duration=1.2,
+        model="qwen2.5-coder:1.5b",
+    )
+
+    with patch("voicefi.local.LocalAutonomousLoop.execute", return_value=mock_res):
+        req = {
+            "jsonrpc": "2.0",
+            "id": 105,
+            "method": "tools/call",
+            "params": {
+                "name": "voicefi_auto",
+                "arguments": {"task": "Fix simple typo", "target_path": "sample.py"},
+            },
+        }
+        resp = server.handle_request(req)
+        assert resp["id"] == 105
+        assert resp["result"]["isError"] is False
+        content = resp["result"]["content"][0]["text"]
+        assert "VoiceFi Autonomous Local Loop" in content
+        assert "sample.py" in content
+        assert "Completed" in content
+
 
 
 

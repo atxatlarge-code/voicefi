@@ -10,6 +10,11 @@ from voicefi.stt.streaming_local import StreamingLocalSTT
 from voicefi.stt.groq_cloud import GroqSTT
 from voicefi.stt.apple_speech import AppleSpeechSTT
 
+try:
+    from voicefi.stt.mlx_whisper import MLXWhisperSTT
+except ImportError:
+    MLXWhisperSTT = None
+
 
 from voicefi.stt.biasing import ProjectContextExtractor, PhoneticNormalizer
 
@@ -30,6 +35,19 @@ def get_stt_engine(config: VoiceFiConfig) -> BaseSTT:
     from voicefi.license import FeatureGate
 
     provider = config.stt.provider.lower()
+    if provider == "auto":
+        import platform
+        import importlib.util
+
+        if (
+            platform.system() == "Darwin"
+            and platform.machine() == "arm64"
+            and importlib.util.find_spec("mlx_whisper") is not None
+        ):
+            provider = "mlx_whisper"
+        else:
+            provider = "whisper_local"
+
     model_size = getattr(config.stt, "model_size", "base.en")
     language = getattr(config.stt, "language", "en")
     api_key = getattr(config.stt, "groq_api_key", "")
@@ -51,6 +69,18 @@ def get_stt_engine(config: VoiceFiConfig) -> BaseSTT:
             )
         elif provider == "apple_speech":
             engine = AppleSpeechSTT(language=language)
+        elif provider in ("mlx_whisper", "mlx", "metal"):
+            from voicefi.stt.mlx_whisper import MLXWhisperSTT
+
+            model_name = getattr(config.stt, "mlx_model", None) or getattr(
+                config.stt, "model_size", "mlx-community/whisper-large-v3-turbo"
+            )
+            if not model_name.startswith("mlx-community/") and "/" not in model_name:
+                if "turbo" in model_name:
+                    model_name = "mlx-community/whisper-large-v3-turbo"
+                elif "distil" in model_name:
+                    model_name = "mlx-community/distil-whisper-large-v3"
+            engine = MLXWhisperSTT(model_name=model_name, language=language)
         else:
             # Local faster-whisper (streaming gated behind Pro/Org tier)
             if streaming and FeatureGate.can_use_feature("streaming_stt", config):
@@ -72,6 +102,7 @@ __all__ = [
     "BaseSTT",
     "BaseStreamingSTT",
     "WhisperLocalSTT",
+    "MLXWhisperSTT",
     "StreamingLocalSTT",
     "GroqSTT",
     "AppleSpeechSTT",

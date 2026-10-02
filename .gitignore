@@ -105,6 +105,8 @@ scratch/
 
 # IDE & macOS system metadata
 .DS_Store
+__MACOSX/
+._*
 .idea/
 .vscode/
 *.swp

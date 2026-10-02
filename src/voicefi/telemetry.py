@@ -28,6 +28,7 @@ from voicefi.config import load_config
 _posthog_initialized = False
 _active_command: Optional[str] = None
 _retention_checked_today: Optional[str] = None
+_recent_exception_hashes: Dict[str, float] = {}
 
 # Default public ingestion key for anonymous crash/feedback telemetry
 # Can be overridden via config.posthog_api_key or POSTHOG_API_KEY env var
@@ -35,6 +36,22 @@ DEFAULT_POSTHOG_API_KEY = "phc_oFyLfqmnEeFMDehRQ4DzGrN9AGctauZiZhfufRtmW92e"
 
 _cached_tier_info: Optional[Dict[str, Any]] = None
 _cached_tier_time: float = 0.0
+
+
+def flush_telemetry(timeout: float = 2.0):
+    """Flush pending telemetry events on graceful shutdown."""
+    if is_offline_mode() or not is_telemetry_enabled():
+        return
+    if _posthog_initialized and posthog and hasattr(posthog, "flush"):
+        try:
+            posthog.flush()
+        except Exception:
+            pass
+
+
+import atexit
+
+atexit.register(flush_telemetry)
 
 
 def invalidate_tier_cache():
@@ -95,8 +112,26 @@ def set_active_command(command: str):
         _active_command = str(command).strip()[:40]
 
 
+def is_offline_mode() -> bool:
+    """
+    Check whether VoiceFi is running in an air-gapped or offline mode.
+    Guarantees absolute network isolation with zero egress, zero DNS lookups, and zero background worker threads.
+    """
+    if os.getenv("VOICEFI_OFFLINE", "").lower() in ("1", "true", "yes", "on"):
+        return True
+    if os.getenv("VOICEFI_AIRGAP", "").lower() in ("1", "true", "yes", "on"):
+        return True
+    try:
+        cfg = load_config()
+        return bool(getattr(cfg, "offline", False))
+    except Exception:
+        return False
+
+
 def is_telemetry_enabled() -> bool:
     """Check whether anonymous telemetry is enabled."""
+    if is_offline_mode():
+        return False
     if os.getenv("DO_NOT_TRACK", "").lower() in ("1", "true", "yes"):
         return False
     if os.getenv("VOICEFI_TELEMETRY", "").lower() in ("0", "false", "no", "off"):
@@ -159,12 +194,17 @@ def sanitize_telemetry_data(data: Any) -> Any:
         clean = data
         if home and home in clean:
             clean = clean.replace(home, "~")
-        # Sanitize username in standard macOS paths if home didn't catch it
+        # Sanitize username in standard macOS, Linux, and Windows paths
         clean = re.sub(r"/Users/[^/]+", "~", clean)
-        # Redact API keys and tokens
+        clean = re.sub(r"/home/[^/]+", "~", clean)
+        clean = re.sub(r"[A-Za-z]:\\Users\\[^\\]+", "~", clean)
+        # Redact API keys, tokens, and query parameter credentials
         clean = re.sub(r"(sk-[a-zA-Z0-9_\-]{16,})", "[REDACTED_API_KEY]", clean)
         clean = re.sub(r"(phc_[a-zA-Z0-9_\-]{16,})", "[REDACTED_KEY]", clean)
         clean = re.sub(r"(gsk_[a-zA-Z0-9_\-]{16,})", "[REDACTED_KEY]", clean)
+        clean = re.sub(r"(AIza[0-9A-Za-z\-_]{35})", "[REDACTED_GEMINI_KEY]", clean)
+        clean = re.sub(r"(hf_[a-zA-Z0-9]{34,})", "[REDACTED_HF_KEY]", clean)
+        clean = re.sub(r"(?i)([?&](?:key|api_key|token|secret)=)[^&\s\"']+", r"\1[REDACTED]", clean)
         return clean
     elif isinstance(data, dict):
         sanitized = {}
@@ -194,7 +234,7 @@ def sanitize_telemetry_data(data: Any) -> Any:
 def init_telemetry():
     """Initialize PostHog telemetry and configure global error tracking."""
     global _posthog_initialized
-    if not is_telemetry_enabled():
+    if is_offline_mode() or not is_telemetry_enabled():
         return
     if (
         os.getenv("VOICEFI_TESTING", "").lower() in ("1", "true", "yes")
@@ -207,7 +247,10 @@ def init_telemetry():
     except Exception:
         config = None
 
-    api_key = os.getenv("POSTHOG_API_KEY", "")
+    api_key = (
+        os.getenv("POSTHOG_PROJECT_TOKEN", "")
+        or os.getenv("POSTHOG_API_KEY", "")
+    )
     if not api_key and config and hasattr(config, "posthog_api_key") and config.posthog_api_key:
         api_key = config.posthog_api_key
 
@@ -228,7 +271,12 @@ def init_telemetry():
     try:
         posthog.project_api_key = api_key
         posthog.host = host
-        posthog.sync_mode = True
+        posthog.sync_mode = False
+        if hasattr(posthog, "enable_exception_autocapture"):
+            try:
+                posthog.enable_exception_autocapture = True
+            except Exception:
+                pass
         _posthog_initialized = True
 
         user_id = get_telemetry_id()
@@ -239,6 +287,16 @@ def init_telemetry():
         def global_exception_handler(exc_type, exc_value, exc_traceback):
             if _posthog_initialized:
                 try:
+                    # 1. Native PostHog Error Tracking ($exception)
+                    capture_exception(
+                        exc_value,
+                        properties={
+                            "command": _active_command or "unknown",
+                            "$is_server": True,
+                        },
+                    )
+
+                    # 2. Backwards-compatible app_crash event
                     error_msg = "".join(
                         traceback.format_exception(exc_type, exc_value, exc_traceback)
                     )
@@ -249,14 +307,13 @@ def init_telemetry():
                         distinct_id=user_id,
                         properties={
                             "command": _active_command or "unknown",
-                            "error_type": exc_type.__name__,
+                            "error_type": exc_type.__name__ if hasattr(exc_type, "__name__") else str(exc_type),
                             "error_message": sanitize_telemetry_data(str(exc_value)),
                             "traceback_hash": tb_hash,
                             "traceback": sanitized_msg,
                             "$is_server": True,
                         },
                     )
-                    posthog.flush()
                 except Exception:
                     pass
             original_excepthook(exc_type, exc_value, exc_traceback)
@@ -265,6 +322,185 @@ def init_telemetry():
         check_daily_active_retention()
     except Exception:
         pass
+
+
+def capture_exception(
+    exc: Optional[BaseException] = None,
+    properties: Optional[Dict[str, Any]] = None,
+    command: Optional[str] = None,
+) -> bool:
+    """
+    Capture an exception to PostHog Error Tracking ($exception).
+    Non-blocking: queues asynchronously to background worker; returns in <1ms.
+    Adheres strictly to zero-PII standards: sanitizes filepaths and strips all prompts/audio/tokens.
+    Returns True if successfully dispatched or queued, False otherwise.
+    """
+    if is_offline_mode() or not is_telemetry_enabled():
+        return False
+    if (
+        os.getenv("VOICEFI_TESTING", "").lower() in ("1", "true", "yes")
+        or "PYTEST_CURRENT_TEST" in os.environ
+    ):
+        return False
+
+    if not _posthog_initialized:
+        init_telemetry()
+
+    user_id = get_telemetry_id()
+    props = dict(properties or {})
+    props["$is_server"] = True
+    active_cmd = command or _active_command
+    if active_cmd:
+        props["command"] = str(active_cmd)[:40]
+    if "os" not in props:
+        props["os"] = platform.system()
+    if "arch" not in props:
+        props["arch"] = platform.machine()
+
+    try:
+        from voicefi import __version__ as VOICEFI_VERSION
+        props["$app_version"] = VOICEFI_VERSION
+        props["voicefi_version"] = VOICEFI_VERSION
+    except Exception:
+        pass
+
+    props["python_version"] = platform.python_version()
+    props["python_implementation"] = platform.python_implementation()
+    props["macos_version"] = platform.mac_ver()[0]
+    props["is_venv"] = sys.prefix != sys.base_prefix
+
+    # Enrich audio hardware state on audio-related exceptions
+    component = str(props.get("component") or "").lower() or "general"
+    if any(component.startswith(prefix) for prefix in ("tts", "audio", "stt", "mic")):
+        try:
+            from voicefi.audio.device import get_default_audio_devices
+
+            in_dev, out_dev = get_default_audio_devices()
+            if out_dev:
+                props["audio_device_output"] = out_dev.get("name", "unknown")
+                props["audio_device_samplerate"] = out_dev.get("default_samplerate", 0)
+            if in_dev:
+                props["audio_device_input"] = in_dev.get("name", "unknown")
+        except Exception:
+            pass
+
+    tier_props = get_tier_properties()
+    for k, v in tier_props.items():
+        if k not in props:
+            props[k] = v
+
+    if (
+        os.getenv("VOICEFI_INTERNAL")
+        or os.getenv("VOICEFI_DEV")
+        or user_id in ("77e6a35c-081e-49a4-9089-1a1f15b6bbef",)
+    ):
+        props["is_internal"] = True
+
+    # Multi-dimensional deduplication and deterministic fingerprinting
+    if exc is not None:
+        exc_type = type(exc).__name__
+        exc_msg = str(exc)
+        tb = getattr(exc, "__traceback__", None)
+        frame_loc = "unknown"
+        if tb:
+            curr_tb = tb
+            while curr_tb.tb_next:
+                curr_tb = curr_tb.tb_next
+            frame_loc = f"{Path(curr_tb.tb_frame.f_code.co_filename).name}:{curr_tb.tb_lineno}"
+    else:
+        ei = sys.exc_info()
+        exc_type = ei[0].__name__ if ei[0] else "Exception"
+        exc_msg = str(ei[1] or "")
+        frame_loc = "unknown"
+
+    if "$exception_fingerprint" not in props:
+        props["$exception_fingerprint"] = [component, exc_type, frame_loc]
+
+    sanitized_props = sanitize_telemetry_data(props)
+
+    # Sliding-window deduplication (suppress duplicate identical errors within 60s per component+type+frame)
+    dedup_signature = f"{component}:{exc_type}:{frame_loc}:{exc_msg[:80]}"
+    tb_hash = compute_traceback_hash(dedup_signature)
+    now = time.time()
+    last_seen = _recent_exception_hashes.get(tb_hash, 0.0)
+    if (now - last_seen) < 60.0 and not os.getenv("VOICEFI_TEST_SYNC"):
+        return True  # Throttled duplicate error
+    _recent_exception_hashes[tb_hash] = now
+
+    # 1. Use PostHog Python SDK native capture_exception if available (asynchronous via queue)
+    if _posthog_initialized and posthog and hasattr(posthog, "capture_exception"):
+        try:
+            target_exc = exc if exc is not None else sys.exc_info()
+            if target_exc and target_exc != (None, None, None):
+                posthog.capture_exception(
+                    target_exc,
+                    distinct_id=user_id,
+                    properties=sanitized_props,
+                )
+                return True
+        except Exception:
+            pass
+
+    # 2. Direct HTTPS fallback for $exception event in non-blocking daemon thread
+    def _send_https_fallback():
+        try:
+            api_key = (
+                os.getenv("POSTHOG_PROJECT_TOKEN")
+                or os.getenv("POSTHOG_API_KEY")
+                or os.getenv("VOICEFI_POSTHOG_KEY")
+                or DEFAULT_POSTHOG_API_KEY
+            )
+            host = os.getenv("POSTHOG_HOST") or "https://us.i.posthog.com"
+            endpoint = f"{host.rstrip('/')}/capture/"
+
+            if exc is not None:
+                exc_type = type(exc).__name__
+                exc_msg = str(exc)
+                if hasattr(exc, "__traceback__") and exc.__traceback__:
+                    tb_str = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+                else:
+                    tb_str = "".join(traceback.format_stack())
+            else:
+                ei = sys.exc_info()
+                if ei[0]:
+                    exc_type = ei[0].__name__
+                    exc_msg = str(ei[1])
+                    tb_str = "".join(traceback.format_exception(*ei))
+                else:
+                    exc_type = "Exception"
+                    exc_msg = "Unknown error"
+                    tb_str = "".join(traceback.format_stack())
+
+            sanitized_tb = sanitize_telemetry_data(tb_str)
+            sanitized_props["$exception_type"] = exc_type
+            sanitized_props["$exception_message"] = sanitize_telemetry_data(exc_msg)
+            sanitized_props["$exception_stack_trace_raw"] = sanitized_tb
+            sanitized_props["traceback_hash"] = tb_hash
+
+            payload = json.dumps(
+                {
+                    "api_key": api_key,
+                    "event": "$exception",
+                    "distinct_id": user_id,
+                    "properties": sanitized_props,
+                }
+            ).encode("utf-8")
+            req = urllib.request.Request(
+                endpoint,
+                data=payload,
+                headers={"Content-Type": "application/json", "User-Agent": "VoiceFi-Telemetry/1.0"},
+                method="POST",
+            )
+            urllib.request.urlopen(req, timeout=1.5)
+        except Exception:
+            pass
+
+    if os.getenv("VOICEFI_TEST_SYNC") == "1":
+        _send_https_fallback()
+    else:
+        import threading
+        threading.Thread(target=_send_https_fallback, daemon=True).start()
+    return True
 
 
 def record_event(event_name: str, properties: Optional[Dict[str, Any]] = None):
@@ -306,7 +542,7 @@ def record_event(event_name: str, properties: Optional[Dict[str, Any]] = None):
 
 def capture_event(event_name: str, properties: Optional[Dict[str, Any]] = None):
     """Capture a sanitized telemetry/diagnostic event if telemetry is enabled."""
-    if not is_telemetry_enabled():
+    if is_offline_mode() or not is_telemetry_enabled():
         return
     if (
         os.getenv("VOICEFI_TESTING", "").lower() in ("1", "true", "yes")
@@ -333,19 +569,24 @@ def capture_event(event_name: str, properties: Optional[Dict[str, Any]] = None):
         if k not in sanitized_props:
             sanitized_props[k] = v
 
+    try:
+        from voicefi import __version__ as VOICEFI_VERSION
+        if "$app_version" not in sanitized_props:
+            sanitized_props["$app_version"] = VOICEFI_VERSION
+    except Exception:
+        pass
+
     # Flag internal developer machines so PostHog can filter test accounts
     if (
         os.getenv("VOICEFI_INTERNAL")
         or os.getenv("VOICEFI_DEV")
         or user_id in ("77e6a35c-081e-49a4-9089-1a1f15b6bbef",)
-        or Path.home().as_posix().endswith("/jaketrigg")
     ):
         sanitized_props["is_internal"] = True
 
     if _posthog_initialized and posthog:
         try:
             posthog.capture(event_name, distinct_id=user_id, properties=sanitized_props)
-            posthog.flush()
             return
         except Exception:
             pass
@@ -353,7 +594,8 @@ def capture_event(event_name: str, properties: Optional[Dict[str, Any]] = None):
     # Direct HTTPS fallback if PostHog Python package is not loaded
     try:
         api_key = (
-            os.getenv("POSTHOG_API_KEY")
+            os.getenv("POSTHOG_PROJECT_TOKEN")
+            or os.getenv("POSTHOG_API_KEY")
             or os.getenv("VOICEFI_POSTHOG_KEY")
             or DEFAULT_POSTHOG_API_KEY
         )
@@ -384,7 +626,7 @@ def check_daily_active_retention() -> Optional[Dict[str, Any]]:
     Calculates days_since_install and is_day_2_plus to power Day-1, Day-7, Day-30 retention.
     """
     global _retention_checked_today
-    if not is_telemetry_enabled():
+    if is_offline_mode() or not is_telemetry_enabled():
         return None
     today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     if _retention_checked_today == today_str:

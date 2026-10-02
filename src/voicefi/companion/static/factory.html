@@ -1,0 +1,1610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VoiceFi™ Reel Factory Studio</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              blue: '#3186FF',
+              dark: '#080C14',
+              surface: '#0D121F',
+              card: '#121828'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Custom scrollbars */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: rgba(13, 18, 31, 0.4); }
+    ::-webkit-scrollbar-thumb { background: #233150; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #33456D; }
+
+    @keyframes pulse-obsidian {
+      0%, 100% { border-color: rgba(168, 85, 247, 0.4); }
+      50% { border-color: rgba(168, 85, 247, 0.9); box-shadow: 0 0 10px rgba(168, 85, 247, 0.25); }
+    }
+    .obsidian-watching {
+      animation: pulse-obsidian 2.5s infinite ease-in-out;
+    }
+
+    .gemini-pill {
+      background: linear-gradient(90deg, rgba(66, 133, 244, 0.15) 0%, rgba(155, 114, 207, 0.15) 100%);
+      border: 1px solid rgba(155, 114, 207, 0.4);
+    }
+    .gemini-pill:hover {
+      border-color: rgba(155, 114, 207, 0.8);
+      background: linear-gradient(90deg, rgba(66, 133, 244, 0.25) 0%, rgba(155, 114, 207, 0.25) 100%);
+    }
+  </style>
+</head>
+<body class="bg-[#080C14] text-[#F8FAFC] min-h-screen flex flex-col antialiased m-0 p-0 font-sans select-none">
+
+  <!-- ========================================================================= -->
+  <!-- TOP HEADER / TELEMETRY STATUS BAR -->
+  <!-- ========================================================================= -->
+  <header class="h-14 border-b border-[#1E2840] bg-[#0A0E1A] px-4 flex items-center justify-between z-30 shrink-0">
+    <!-- Brand & Service Info -->
+    <div class="flex items-center gap-3">
+      <div class="flex items-center gap-2">
+        <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-[#3186FF] via-[#7C3AED] to-[#EC4899] flex items-center justify-center shadow-lg shadow-purple-500/20 shrink-0">
+          <svg class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 100-6 3 3 0 000 6z" />
+          </svg>
+        </div>
+        <div>
+          <span class="font-extrabold text-sm tracking-tight text-white">VoiceFi™</span>
+          <span class="text-xs font-bold text-[#3186FF] uppercase tracking-wider ml-1">Reel Factory</span>
+        </div>
+      </div>
+
+      <div class="h-4 w-px bg-[#1E2840] mx-1"></div>
+
+      <!-- Obsidian Live Watcher Pill -->
+      <div id="obsidian-watcher-pill" class="flex items-center gap-2 px-2.5 py-1 rounded-full bg-purple-500/10 border border-purple-500/30 text-purple-300 text-xs font-medium obsidian-watching">
+        <span class="w-2 h-2 rounded-full bg-purple-400 animate-ping shrink-0"></span>
+        <span class="font-mono font-bold">Obsidian: vifi.co</span>
+        <span class="text-[10px] text-slate-400 font-mono hidden sm:inline">reels/*.md</span>
+      </div>
+
+      <!-- Gemini 3.8 TTS Engine Status -->
+      <div class="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-md gemini-pill text-xs font-mono text-purple-300">
+        <span class="text-xs">✨</span>
+        <span class="font-bold">Gemini 3.8 Neural TTS</span>
+      </div>
+    </div>
+
+    <!-- Active File & Action Center -->
+    <div class="flex items-center gap-3">
+      <div class="hidden xl:flex items-center gap-2 bg-[#121828] border border-[#1E2840] px-3 py-1 rounded-lg text-xs font-mono">
+        <span class="text-slate-400">Note:</span>
+        <span id="active-file-path" class="text-slate-200 font-semibold truncate max-w-xs">reels/REEL-042_silent_terminals.md</span>
+      </div>
+
+      <!-- Open in Obsidian Deep Link -->
+      <a id="btn-obsidian-link" href="obsidian://open?vault=vifi.co&file=reels/REEL-042_silent_terminals.md" class="px-3 py-1.5 rounded-lg bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/50 text-purple-200 text-xs font-bold font-mono flex items-center gap-1.5 transition transform active:scale-95 shadow-sm">
+        <svg class="w-3.5 h-3.5 text-purple-400 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 2L4 6v12l8 4 8-4V6l-8-4zm6 15.3l-6 3-6-3V7.7l6-3 6 3v9.6z"/>
+        </svg>
+        <span>Open in Obsidian</span>
+      </a>
+
+      <!-- Director Recording Prompter Button -->
+      <button onclick="openDirectorPrompter(true)" class="px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white text-xs font-bold font-mono flex items-center gap-1.5 transition shadow-lg shadow-red-900/40 transform active:scale-95 animate-pulse">
+        <span>🎬</span>
+        <span>Record Pointing Take</span>
+      </button>
+
+      <button onclick="refreshVaultReels()" class="px-2.5 py-1.5 rounded-lg bg-[#121828] hover:bg-[#182034] border border-[#1E2840] text-xs font-semibold text-slate-300 flex items-center gap-1.5 transition" title="Refresh vault reels list">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 shrink-0"></span>
+        <span class="hidden sm:inline">Refresh Vault</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ========================================================================= -->
+  <!-- MAIN 3-COLUMN WORKSPACE -->
+  <!-- ========================================================================= -->
+  <main class="flex-1 flex flex-col md:flex-row overflow-hidden min-h-[calc(100vh-56px)]">
+
+    <!-- --------------------------------------------------------------------- -->
+    <!-- COLUMN 1: BATCH BROWSER & QUICK FRONTMATTER INSPECTOR -->
+    <!-- --------------------------------------------------------------------- -->
+    <aside class="w-full md:w-72 lg:w-80 border-r border-[#1E2840] bg-[#0D121F] flex flex-col shrink-0 overflow-y-auto">
+      <div class="p-3 border-b border-[#1E2840] flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-[#3186FF]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
+          </svg>
+          <h2 class="text-xs font-bold uppercase tracking-wider text-slate-300">Vault Reels (.md)</h2>
+        </div>
+        <button onclick="createNewReel()" class="px-2 py-0.5 rounded bg-[#3186FF]/15 hover:bg-[#3186FF]/25 border border-[#3186FF]/30 text-[#3186FF] text-[11px] font-bold transition">
+          + New Note
+        </button>
+      </div>
+
+      <!-- Batch File List -->
+      <div class="p-3 space-y-2 flex-1" id="reel-files-list">
+        <!-- Rendered dynamically by JS -->
+      </div>
+
+      <!-- Quick Frontmatter Inspector / Tweak Box -->
+      <div class="m-3 p-3 rounded-xl bg-[#121828] border border-[#1E2840] space-y-2.5 text-xs">
+        <div class="flex items-center justify-between">
+          <span class="font-bold text-slate-300 uppercase tracking-wider text-[10px]">YAML Frontmatter</span>
+          <span class="text-[10px] font-mono text-emerald-400">Live Sync</span>
+        </div>
+
+        <div>
+          <label class="block text-[10px] text-slate-400 uppercase font-mono mb-1">TTS Voice Model</label>
+          <select id="frontmatter-model" class="w-full bg-[#0D121F] border border-[#1E2840] rounded px-2 py-1 text-purple-300 font-mono text-[11px] focus:outline-none focus:border-purple-500">
+            <option value="gemini-3.8-flash-tts" selected>✨ Gemini 3.8 Flash TTS</option>
+            <option value="gemini-3.8-live">✨ Gemini 3.8 Live Direct Audio</option>
+            <option value="edge-tts">Edge TTS (Failover)</option>
+          </select>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-[10px] text-slate-400 uppercase font-mono mb-1">Aspect Ratio</label>
+            <select id="frontmatter-ratio" class="w-full bg-[#0D121F] border border-[#1E2840] rounded px-2 py-1 text-slate-200 font-mono text-[11px]">
+              <option value="9:16" selected>9:16 Reel</option>
+              <option value="1:1">1:1 Square</option>
+              <option value="16:9">16:9 Wide</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-[10px] text-slate-400 uppercase font-mono mb-1">Target Dur.</label>
+            <input type="text" id="frontmatter-duration" value="30s" class="w-full bg-[#0D121F] border border-[#1E2840] rounded px-2 py-1 text-slate-200 font-mono text-[11px]">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-[10px] text-slate-400 uppercase font-mono mb-1">Procedural Music Bed</label>
+          <select id="frontmatter-beat" class="w-full bg-[#0D121F] border border-[#1E2840] rounded px-2 py-1 text-slate-200 text-[11px]">
+            <option value="spicewood_texas_beat_85bpm.mp3">Spicewood Texas Beat (85 BPM Lo-Fi)</option>
+            <option value="armadillo_beat.mp3">Armadillo Shuffle (92 BPM Boom Bap)</option>
+            <option value="none">None (Acapella Take)</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-[10px] text-slate-400 uppercase font-mono mb-1">Attached Video Take</label>
+          <div class="p-2 rounded bg-[#0D121F] border border-[#1E2840] flex items-center justify-between text-[11px] font-mono">
+            <span id="frontmatter-video-name" class="text-emerald-400 font-semibold truncate max-w-[130px]" title="REEL-042_pointing_take.mp4">REEL-042_pointing_take.mp4</span>
+            <span id="frontmatter-video-status" class="px-1.5 py-0.5 rounded text-[9px] bg-emerald-500/20 text-emerald-300">ATTACHED</span>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- --------------------------------------------------------------------- -->
+    <!-- COLUMN 2: SCRIPT TURN INSPECTOR & GEMINI 3.8 VOICE/INFLECTION PALETTE -->
+    <!-- --------------------------------------------------------------------- -->
+    <section class="flex-1 flex flex-col bg-[#080C14] overflow-hidden min-h-0">
+
+      <!-- Header with Word Count & Timing Telemetry -->
+      <div class="h-14 border-b border-[#1E2840] px-4 lg:px-6 flex items-center justify-between shrink-0 bg-[#0D121F]">
+        <div class="flex items-center gap-3">
+          <span class="text-xs font-mono font-bold text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/30" id="active-reel-badge">REEL-042</span>
+          <h1 id="active-reel-title" class="font-extrabold text-sm text-white tracking-tight truncate max-w-sm">Why Senior Devs Don't Write Silent Code</h1>
+        </div>
+
+        <!-- Telemetry Indicators -->
+        <div class="flex items-center gap-3 text-xs font-mono">
+          <div class="hidden sm:flex items-center gap-1.5 bg-[#121828] px-2.5 py-1 rounded border border-[#1E2840]">
+            <span class="text-slate-400">Words:</span>
+            <span id="stat-total-words" class="text-emerald-400 font-bold">58</span>
+          </div>
+
+          <div class="flex items-center gap-1.5 bg-[#121828] px-2.5 py-1 rounded border border-[#1E2840]">
+            <span class="text-slate-400">Est:</span>
+            <span id="stat-est-duration" class="text-[#3186FF] font-bold">23.2s</span>
+          </div>
+
+          <button onclick="generateMasterReelAudio()" id="btn-generate-master-audio" class="px-3.5 py-1 rounded-lg bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white font-bold text-xs flex items-center gap-1.5 transition shrink-0 shadow-md shadow-purple-900/30">
+            <span>⚡</span>
+            <span>Generate Master Audio (1 WAV)</span>
+          </button>
+
+          <button onclick="auditionFullDialogue()" class="px-3 py-1 rounded-lg bg-[#3186FF] hover:bg-blue-600 text-white font-bold text-xs flex items-center gap-1.5 transition shrink-0">
+            <span>▶</span>
+            <span>Audition All</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Master Audio Status & Playback Bar -->
+      <div id="master-audio-player-bar" class="px-4 lg:px-6 py-2.5 bg-[#121828]/95 border-b border-[#1E2840] flex items-center justify-between gap-3 text-xs">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 shrink-0 animate-pulse"></span>
+          <div class="truncate">
+            <span class="font-bold text-white font-mono" id="master-audio-label">REEL-042_master_dialogue.wav</span>
+            <span class="text-[10px] text-slate-400 font-mono ml-1.5" id="master-audio-meta">(24.22s • 1 Clean WAV • Aoede Giggle Weaved into Charon Sigh)</span>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 shrink-0">
+          <button onclick="playMasterAudioWav()" id="btn-play-master-wav" class="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs font-mono flex items-center gap-1 transition shadow">
+            <span>▶</span>
+            <span>Play 1 WAV</span>
+          </button>
+          <button onclick="playMasterWithMusic()" id="btn-play-master-music" class="px-2.5 py-1 rounded-lg bg-[#182034] hover:bg-[#233150] text-purple-300 font-mono text-xs flex items-center gap-1 border border-[#1E2840] transition">
+            <span>🎵 Beat Mix</span>
+          </button>
+          <a id="link-download-wav" href="/api/factory/audio/REEL-042_master_dialogue.wav" download class="px-2.5 py-1 rounded bg-[#182034] hover:bg-[#233150] text-slate-300 text-xs font-mono transition" title="Download clean master WAV">
+            ⬇ WAV
+          </a>
+        </div>
+      </div>
+
+      <!-- Dialogue Turns List with Live Gemini Voice/Inflection Badges -->
+      <div class="flex-1 overflow-y-auto p-4 lg:p-6 space-y-3.5" id="dialogue-turns-list">
+        <!-- Rendered dynamically by selectReelFile -->
+      </div>
+
+      <!-- Quick Directive Bar -->
+      <div class="p-3 border-t border-[#1E2840] bg-[#0A0E1A] flex items-center justify-between text-xs shrink-0">
+        <div class="flex items-center gap-1.5 overflow-x-auto py-1">
+          <span class="text-slate-400 font-mono text-[10px] shrink-0">Insert Tag:</span>
+          <button onclick="insertTag('[whispers]')" class="px-2 py-0.5 rounded bg-[#121828] hover:bg-[#182034] border border-[#1E2840] text-purple-300 font-mono text-[10px] shrink-0">[whispers]</button>
+          <button onclick="insertTag('[shouts]')" class="px-2 py-0.5 rounded bg-[#121828] hover:bg-[#182034] border border-[#1E2840] text-purple-300 font-mono text-[10px] shrink-0">[shouts]</button>
+          <button onclick="insertTag('[laughs]')" class="px-2 py-0.5 rounded bg-[#121828] hover:bg-[#182034] border border-[#1E2840] text-purple-300 font-mono text-[10px] shrink-0">[laughs]</button>
+          <button onclick="insertTag('[sighs]')" class="px-2 py-0.5 rounded bg-[#121828] hover:bg-[#182034] border border-[#1E2840] text-purple-300 font-mono text-[10px] shrink-0">[sighs]</button>
+          <button onclick="insertTag('[pause 0.5s]')" class="px-2 py-0.5 rounded bg-[#121828] hover:bg-[#182034] border border-[#1E2840] text-purple-300 font-mono text-[10px] shrink-0">[pause]</button>
+        </div>
+
+        <a id="sublime-deep-link" href="obsidian://open?vault=vifi.co&file=reels/REEL-042_silent_terminals.md" class="text-slate-400 hover:text-white font-mono text-[11px] shrink-0 ml-2">
+          Obsidian Note ↗
+        </a>
+      </div>
+
+    </section>
+
+    <!-- --------------------------------------------------------------------- -->
+    <!-- COLUMN 3: 9:16 KINETIC PLAYER, WAVEFORM & RENDER ACTIONS -->
+    <!-- --------------------------------------------------------------------- -->
+    <aside class="w-full md:w-80 lg:w-88 border-l border-[#1E2840] bg-[#0D121F] flex flex-col shrink-0 overflow-y-auto">
+
+      <div class="p-3 border-b border-[#1E2840] flex items-center justify-between bg-[#0A0E1A]">
+        <div class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+          </svg>
+          <h2 class="text-xs font-bold uppercase tracking-wider text-slate-300">9:16 Preview Player</h2>
+        </div>
+        <span class="text-[10px] font-mono text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/30">Direct Latent Video</span>
+      </div>
+
+      <!-- 9:16 Phone Mockup Viewport -->
+      <div class="p-4 bg-[#080C14] flex flex-col items-center justify-center">
+        <div class="w-56 h-[390px] rounded-3xl bg-black border-4 border-[#1E2840] shadow-2xl relative overflow-hidden flex flex-col justify-between p-3.5">
+          
+          <!-- Real Video Element Layer (Active when Jake imports AirDrop) -->
+          <video id="preview-user-video" class="absolute inset-0 w-full h-full object-cover hidden z-0" playsinline loop muted></video>
+          <div id="preview-video-dimmer" class="absolute inset-0 bg-black/30 hidden z-0"></div>
+
+          <!-- Top Safe Zone & Floating Speaker Cards -->
+          <div class="flex justify-between items-center text-[9px] text-white/70 font-mono relative z-10">
+            <span class="flex items-center gap-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+              <span>GEMINI 3.8</span>
+            </span>
+            <span class="bg-red-500/90 px-1.5 py-0.5 rounded text-[8px] font-bold text-white tracking-wider">9:16 REEL</span>
+          </div>
+
+          <!-- Floating Character Badges (Show who is speaking on camera) -->
+          <div class="flex justify-between items-start gap-1 relative z-10 pt-1 pointer-events-none">
+            <div id="float-badge-viv" class="px-2 py-1 rounded-lg bg-purple-950/80 border border-purple-500/50 text-[9px] font-mono text-purple-300 opacity-40 transition-all duration-300 transform scale-95 shadow-md">
+              <div class="font-bold flex items-center gap-1"><span>👈</span> <span>Viv</span></div>
+              <div class="text-[7px] text-purple-400">Aoede</div>
+            </div>
+            <div id="float-badge-stefan" class="px-2 py-1 rounded-lg bg-blue-950/80 border border-blue-500/50 text-[9px] font-mono text-blue-300 opacity-40 transition-all duration-300 transform scale-95 shadow-md">
+              <div class="font-bold flex items-center gap-1"><span>Stefan</span> <span>👉</span></div>
+              <div class="text-[7px] text-blue-400">Charon</div>
+            </div>
+          </div>
+
+          <!-- Video Subtitles / Kinetic Center -->
+          <div class="text-center my-auto px-1 relative z-10">
+            <div id="preview-speaker-tag" class="inline-block text-[9px] font-bold uppercase tracking-wider text-[#3186FF] bg-black/70 px-2 py-0.5 rounded mb-2 border border-[#3186FF]/40">
+              VIV (AOEDE • ENERGETIC)
+            </div>
+            <p id="preview-active-subtitles" class="text-xs font-extrabold text-white leading-snug drop-shadow-md">
+              <span class="text-purple-400 font-mono">[giggles]</span> "Jacob got so tired of typing that he built VoiceFi so he could do everything by talking instead"
+            </p>
+          </div>
+
+          <!-- Bottom Audio Wave Visualizer Simulation -->
+          <div class="space-y-1.5 relative z-10">
+            <div class="flex items-center justify-center gap-1 h-4">
+              <span class="w-1 bg-[#3186FF] rounded-full animate-pulse h-2.5"></span>
+              <span class="w-1 bg-[#7C3AED] rounded-full animate-pulse h-4 delay-75"></span>
+              <span class="w-1 bg-[#EC4899] rounded-full animate-pulse h-3 delay-150"></span>
+              <span class="w-1 bg-[#10B981] rounded-full animate-pulse h-1.5"></span>
+              <span class="w-1 bg-[#3186FF] rounded-full animate-pulse h-4 delay-100"></span>
+            </div>
+            <div class="text-[9px] font-mono text-center text-slate-400">
+              voicefi.org • 48kHz Master
+            </div>
+          </div>
+        </div>
+
+        <!-- Playback & Prompter Triggers -->
+        <div class="mt-3.5 flex flex-col gap-2 w-full max-w-[224px]">
+          <button onclick="openDirectorPrompter(true)" class="w-full py-2 rounded-lg bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white font-bold text-xs font-mono transition shadow-lg shadow-red-900/30 flex items-center justify-center gap-1.5 animate-pulse">
+            <span>🎬</span>
+            <span>Record Pointing Take</span>
+          </button>
+
+          <div class="flex gap-1.5 w-full">
+            <button onclick="toggleVideoPlayback()" id="btn-play-pause" class="flex-1 py-1.5 rounded-lg bg-[#3186FF] hover:bg-blue-600 text-white font-bold text-xs transition shadow-md shadow-blue-500/20 flex items-center justify-center gap-1">
+              <span>▶</span>
+              <span>Play Take</span>
+            </button>
+            <button onclick="renderMasterReel()" id="btn-render-reel" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition flex items-center gap-1">
+              <span>⚡</span>
+              <span>Render</span>
+            </button>
+          </div>
+
+          <!-- AirDrop Quick Ingest Button -->
+          <button onclick="importLatestAirDrop()" id="btn-quick-airdrop" class="w-full py-1.5 rounded-lg bg-[#121828] hover:bg-[#182034] border border-purple-500/40 text-purple-300 font-mono text-[11px] font-semibold flex items-center justify-center gap-1.5 transition">
+            <span>📥</span>
+            <span>Import AirDrop from Downloads</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Render Status & Output History -->
+      <div class="p-3 border-t border-[#1E2840] bg-[#0A0E1A] space-y-2 text-xs flex-1">
+        <div class="flex items-center justify-between text-[11px]">
+          <span class="text-slate-400 font-mono">Rendered Output:</span>
+          <span id="render-status-dur" class="text-emerald-400 font-mono font-bold">24.7s Total</span>
+        </div>
+        <div class="p-2.5 rounded-lg bg-[#121828] border border-[#1E2840] flex items-center justify-between">
+          <div class="truncate mr-2">
+            <div id="render-status-filename" class="font-bold text-white text-[11px] truncate">REEL-042_final_render.mp4</div>
+            <div id="render-status-meta" class="text-[10px] text-slate-400 font-mono">1080x1920 • VideoToolbox • 35.98 MB</div>
+          </div>
+          <a id="btn-download-render" href="/api/factory/video/REEL-042_final_render.mp4" download="REEL-042_final_render.mp4" class="px-2 py-1 rounded bg-emerald-700 hover:bg-emerald-600 text-white text-[10px] font-mono transition shrink-0 font-semibold flex items-center gap-1">
+            <span>⬇</span>
+            <span>MP4</span>
+          </a>
+        </div>
+      </div>
+
+    </aside>
+
+  </main>
+
+  <!-- ========================================================================= -->
+  <!-- DIRECTOR RECORDING PROMPTER & CUE STAGE (MODAL) -->
+  <!-- ========================================================================= -->
+  <div id="director-prompter-modal" class="fixed inset-0 bg-black/90 backdrop-blur-md z-50 hidden flex flex-col items-center justify-center p-4">
+    <div class="w-full max-w-2xl bg-[#0D121F] border-2 border-red-500/40 rounded-3xl p-6 shadow-2xl flex flex-col justify-between relative overflow-hidden space-y-5">
+      
+      <!-- Top Bar -->
+      <div class="flex items-center justify-between border-b border-[#1E2840] pb-3">
+        <div class="flex items-center gap-2.5">
+          <span class="w-3 h-3 rounded-full bg-red-500 animate-ping"></span>
+          <div>
+            <h3 class="font-extrabold text-sm text-white flex items-center gap-2">
+              <span>🎬 Director Pointing Prompter</span>
+              <span id="prompter-reel-id" class="px-2 py-0.5 rounded text-[10px] font-mono bg-purple-500/20 text-purple-300 border border-purple-500/40">REEL-042</span>
+            </h3>
+            <p class="text-[11px] text-slate-400 font-mono">Stand in front of your camera • Follow the giant directional cue arrows</p>
+          </div>
+        </div>
+        <button onclick="closeDirectorPrompter()" class="text-slate-400 hover:text-white text-xl font-bold p-1">✕</button>
+      </div>
+
+      <!-- Live Stage Cue Box -->
+      <div id="prompter-stage-box" class="min-h-[220px] rounded-2xl bg-[#080C14] border-2 border-purple-500/60 p-6 flex flex-col items-center justify-center text-center relative transition-all duration-300 shadow-inner">
+        
+        <!-- Giant Direction Banner -->
+        <div id="prompter-direction-banner" class="text-3xl sm:text-4xl font-black text-purple-400 flex items-center justify-center gap-3 mb-3 tracking-wide drop-shadow-lg">
+          <span>👈</span>
+          <span>POINT LEFT</span>
+        </div>
+
+        <!-- Speaker Badge & Acting Tag -->
+        <div class="flex items-center gap-2 mb-3">
+          <span id="prompter-speaker-badge" class="px-3 py-1 rounded-full font-bold font-mono text-xs bg-purple-500/20 text-purple-300 border border-purple-500/50 flex items-center gap-1.5 shadow-sm">
+            <span class="w-2 h-2 rounded-full bg-purple-400 animate-pulse"></span>
+            <span id="prompter-speaker-name">Viv (Aoede)</span>
+          </span>
+          <span id="prompter-emotion-badge" class="px-2.5 py-1 rounded-full font-mono text-xs bg-amber-500/15 text-amber-300 border border-amber-500/40">
+            🎭 [giggles] energetic spark
+          </span>
+        </div>
+
+        <!-- Large Subtitle Prompt Line (Word-by-word Karaoke) -->
+        <div id="prompter-dialogue-box" class="min-h-[85px] flex items-center justify-center max-w-xl px-2 my-2 w-full">
+          <p id="prompter-dialogue-text" class="text-base sm:text-xl font-bold leading-relaxed text-center drop-shadow transition-all">
+            <span class="text-purple-400 font-mono">[giggles]</span> "Jacob got so tired of typing that he built VoiceFi so he could do everything by talking instead"
+          </p>
+        </div>
+
+        <!-- Turn Progress Timer Bar -->
+        <div class="w-full max-w-md bg-[#182034] h-2.5 rounded-full overflow-hidden mt-4 border border-[#1E2840]">
+          <div id="prompter-turn-progress" class="bg-gradient-to-r from-purple-500 via-indigo-500 to-[#3186FF] h-full w-0 transition-all duration-75"></div>
+        </div>
+        <div class="flex justify-between w-full max-w-md text-[11px] font-mono text-slate-300 mt-1.5 px-0.5">
+          <span id="prompter-time-elapsed" class="text-purple-300 font-bold">0.0s</span>
+          <span id="prompter-turn-indicator" class="text-slate-400 font-semibold">Turn 1 of 4</span>
+          <span id="prompter-time-total" class="text-[#3186FF] font-bold">24.7s</span>
+        </div>
+      </div>
+
+      <!-- Next Turn Sneak Peek Ticker -->
+      <div class="flex items-center justify-between px-3 py-2 rounded-xl bg-[#121828] border border-[#1E2840] text-xs font-mono">
+        <span class="text-slate-400">Next Up:</span>
+        <span id="prompter-next-turn" class="text-amber-300 font-semibold truncate">👉 Turn 2: Stefan (Charon) • POINT RIGHT</span>
+      </div>
+
+      <!-- Prompter Stage Controls -->
+      <div class="flex items-center justify-between pt-2 border-t border-[#1E2840]">
+        <div class="flex items-center gap-3">
+          <label class="flex items-center gap-2 text-xs font-mono text-slate-300 cursor-pointer">
+            <input type="checkbox" id="prompter-audio-toggle" checked class="rounded bg-[#0D121F] border-[#1E2840] text-purple-500">
+            <span>Play Voices Aloud (Mac/AirPods)</span>
+          </label>
+          <label class="flex items-center gap-2 text-xs font-mono text-slate-300 cursor-pointer">
+            <input type="checkbox" id="prompter-loop-toggle" class="rounded bg-[#0D121F] border-[#1E2840] text-purple-500">
+            <span>Loop Rehearsal</span>
+          </label>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button onclick="stopDirectorTake()" id="btn-prompter-stop" class="px-4 py-2 rounded-xl bg-[#182034] hover:bg-[#233150] text-slate-300 text-xs font-mono font-semibold transition hidden">
+            <span>⏹ Stop Take</span>
+          </button>
+          <button onclick="startDirectorCountdown()" id="btn-prompter-start" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white text-xs font-mono font-bold flex items-center gap-2 transition shadow-lg shadow-red-900/40">
+            <span>🔴</span>
+            <span>Start Take (3s Countdown)</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- AirDrop Integration Station (Shown when Take completes) -->
+      <div id="prompter-airdrop-bar" class="p-3.5 rounded-xl bg-gradient-to-r from-purple-900/30 to-blue-900/30 border border-purple-500/40 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+        <div class="flex items-center gap-2.5">
+          <span class="text-2xl">📱</span>
+          <div>
+            <div class="font-bold text-white">Finished your take on iPhone?</div>
+            <div class="text-[11px] text-slate-300 font-mono" id="airdrop-status-text">AirDrop to Mac, then click to auto-import from Downloads.</div>
+          </div>
+        </div>
+        <button onclick="importLatestAirDrop()" id="btn-import-airdrop" class="px-3.5 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-mono font-bold text-xs flex items-center gap-1.5 transition shrink-0 shadow">
+          <span>📥 Import Latest AirDrop</span>
+        </button>
+      </div>
+
+    </div>
+
+    <!-- 3... 2... 1... Giant Countdown Overlay -->
+    <div id="prompter-countdown-overlay" class="absolute inset-0 bg-black/95 z-50 hidden flex flex-col items-center justify-center select-none">
+      <div id="countdown-number" class="text-8xl sm:text-9xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-rose-500 to-purple-500 animate-bounce">
+        3
+      </div>
+      <div id="countdown-subtext" class="text-lg font-mono text-slate-300 mt-4 tracking-widest uppercase">
+        Get Ready to Point!
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- GEMINI 3.8 VOICE & INFLECTION PALETTE DRAWER (MODAL) -->
+  <!-- ========================================================================= -->
+  <div id="voice-drawer" class="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="w-full max-w-lg bg-[#0D121F] border border-purple-500/40 rounded-2xl p-5 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between border-b border-[#1E2840] pb-2.5">
+        <div class="flex items-center gap-2">
+          <span class="text-base">✨</span>
+          <h3 class="font-bold text-sm text-white">Google Gemini 3.8 Persona Director</h3>
+        </div>
+        <button onclick="closeVoiceDrawer()" class="text-slate-400 hover:text-white text-lg font-bold">✕</button>
+      </div>
+
+      <!-- Gemini Voices Grid -->
+      <div>
+        <label class="block text-[11px] font-semibold text-slate-300 mb-1.5">Select Gemini Neural Voice</label>
+        <div class="grid grid-cols-3 gap-2 text-xs font-mono">
+          <button onclick="selectVoice('Aoede')" class="p-2 rounded-lg bg-[#121828] hover:bg-purple-900/30 border border-[#1E2840] hover:border-purple-500 text-left transition">
+            <span class="font-bold text-purple-300 block">Aoede</span>
+            <span class="text-[9px] text-slate-400">Spark / Melodic</span>
+          </button>
+          <button onclick="selectVoice('Puck')" class="p-2 rounded-lg bg-[#121828] hover:bg-purple-900/30 border border-[#1E2840] hover:border-purple-500 text-left transition">
+            <span class="font-bold text-purple-300 block">Puck</span>
+            <span class="text-[9px] text-slate-400">Playful / Dynamic</span>
+          </button>
+          <button onclick="selectVoice('Charon')" class="p-2 rounded-lg bg-[#121828] hover:bg-purple-900/30 border border-[#1E2840] hover:border-purple-500 text-left transition">
+            <span class="font-bold text-purple-300 block">Charon</span>
+            <span class="text-[9px] text-slate-400">Deep / Gravitas</span>
+          </button>
+          <button onclick="selectVoice('Kore')" class="p-2 rounded-lg bg-[#121828] hover:bg-purple-900/30 border border-[#1E2840] hover:border-purple-500 text-left transition">
+            <span class="font-bold text-purple-300 block">Kore</span>
+            <span class="text-[9px] text-slate-400">Warm / Crisp</span>
+          </button>
+          <button onclick="selectVoice('Fenrir')" class="p-2 rounded-lg bg-[#121828] hover:bg-purple-900/30 border border-[#1E2840] hover:border-purple-500 text-left transition">
+            <span class="font-bold text-purple-300 block">Fenrir</span>
+            <span class="text-[9px] text-slate-400">Grit / Authority</span>
+          </button>
+          <button onclick="selectVoice('Zephyr')" class="p-2 rounded-lg bg-[#121828] hover:bg-purple-900/30 border border-[#1E2840] hover:border-purple-500 text-left transition">
+            <span class="font-bold text-purple-300 block">Zephyr</span>
+            <span class="text-[9px] text-slate-400">Breezy / Modern</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Theatrical Personas & Inflection Directives -->
+      <div>
+        <label class="block text-[11px] font-semibold text-slate-300 mb-1.5">Theatrical Persona Inflection</label>
+        <div class="grid grid-cols-2 gap-2 text-xs">
+          <button onclick="selectInflection('Military Drill Sergeant')" class="p-2 rounded-lg bg-[#121828] hover:bg-[#182034] border border-[#1E2840] text-left transition">
+            <span class="font-bold text-white block">🎖️ Drill Sergeant</span>
+            <span class="text-[10px] text-slate-400">Barking discipline</span>
+          </button>
+          <button onclick="selectInflection('Shakespearean Tragedian')" class="p-2 rounded-lg bg-[#121828] hover:bg-[#182034] border border-[#1E2840] text-left transition">
+            <span class="font-bold text-white block">🎭 Shakespearean</span>
+            <span class="text-[10px] text-slate-400">Gravitas, poetic pathos</span>
+          </button>
+          <button onclick="selectInflection('1980s TV Game Show Host')" class="p-2 rounded-lg bg-[#121828] hover:bg-[#182034] border border-[#1E2840] text-left transition">
+            <span class="font-bold text-white block">📺 80s Game Show Host</span>
+            <span class="text-[10px] text-slate-400">Booming showmanship</span>
+          </button>
+          <button onclick="selectInflection('Conspiratorial Underground Insider')" class="p-2 rounded-lg bg-[#121828] hover:bg-[#182034] border border-[#1E2840] text-left transition">
+            <span class="font-bold text-white block">🕵️ Underground Insider</span>
+            <span class="text-[10px] text-slate-400">Hushed whisper</span>
+          </button>
+          <button onclick="selectInflection('Deadpan Sarcastic Ironist')" class="p-2 rounded-lg bg-[#121828] hover:bg-[#182034] border border-[#1E2840] text-left transition">
+            <span class="font-bold text-white block">😏 Deadpan Ironist</span>
+            <span class="text-[10px] text-slate-400">Monotone smirk, dry wit</span>
+          </button>
+          <button onclick="selectInflection('Energetic Tech Founder')" class="p-2 rounded-lg bg-[#121828] hover:bg-[#182034] border border-[#1E2840] text-left transition">
+            <span class="font-bold text-white block">⚡ Energetic Founder</span>
+            <span class="text-[10px] text-slate-400">Exhilarated spark</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="pt-2 flex justify-end gap-2 border-t border-[#1E2840]">
+        <button onclick="closeVoiceDrawer()" class="px-4 py-1.5 rounded-lg bg-[#182034] text-slate-300 font-semibold text-xs hover:text-white">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- JAVASCRIPT STATE ENGINE -->
+  <!-- ========================================================================= -->
+  <script>
+    let currentReelKey = 'REEL-042';
+    let activeTurnForDrawer = 1;
+    let isPlaying = false;
+    let playInterval = null;
+
+    const REEL_DATABASE = {
+      'REEL-042': {
+        file: 'reels/REEL-042_silent_terminals.md',
+        title: "Why Senior Devs Don't Write Silent Code",
+        words: 58,
+        duration: "24.7s",
+        turns: [
+          { spk: "Viv", voice: "Aoede", infl: "energetic spark", dur: "7.2s", text: '<span class="text-purple-400 font-mono font-semibold">[giggles]</span> "Jacob got so tired of typing that he built VoiceFi so he could do everything by talking instead"' },
+          { spk: "Stefan", voice: "Charon", infl: "deadpan sarcasm", dur: "6.7s", text: '<span class="text-purple-400 font-mono font-semibold">[sighs]</span> "You know how the tech companies play so well together? Like they"' },
+          { spk: "Viv", voice: "Aoede", infl: "hype projection", dur: "2.4s", text: '"Finish each other\'s sentences!"' },
+          { spk: "Stefan", voice: "Charon", infl: "conspiratorial whisper", dur: "8.4s", text: '<span class="text-purple-400 font-mono font-semibold">[whispers]</span> "Free your mind. Free your time. voicefi dot org. Stop building in silence."' }
+        ]
+      },
+      'REEL-043': {
+        file: 'reels/REEL-043_saaspocalypse_linux_trivia.md',
+        title: "The SaaS-Pocalypse: 3 Outages in 48 Hours",
+        words: 77,
+        duration: "30.8s",
+        turns: [
+          { spk: "Puck", voice: "Puck", infl: "80s Game Show Host", dur: "7.2s", text: '"For five hundred points! When the sysadmin locks down the production box during a global cloud outage, which command is your absolute last resort?"' },
+          { spk: "Fenrir", voice: "Fenrir", infl: "Gravelly Sysadmin", dur: "8.5s", text: '<span class="text-purple-400 font-mono font-semibold">[growls]</span> "You check dmesg, kill minus nine the orphaned worker, and pray you didn\'t leave your SSH key in the public bash history."' },
+          { spk: "Puck", voice: "Puck", infl: "80s Game Show Host", dur: "7.8s", text: '<span class="text-purple-400 font-mono font-semibold">[ding!]</span> "Correct! And while the dashboard spins red, VoiceFi alerts your entire team out loud before PagerDuty even wakes up!"' },
+          { spk: "Fenrir", voice: "Fenrir", infl: "Gravelly Sysadmin", dur: "6.9s", text: '<span class="text-purple-400 font-mono font-semibold">[chuckles]</span> "Audio-first observability. The only way to survive the SaaS-pocalypse."' }
+        ]
+      },
+      'REEL-044': {
+        file: 'reels/REEL-044_ai_rap_battle.md',
+        title: "AI Rap Battle: Antigravity vs Claude Code",
+        words: 72,
+        duration: "28.8s",
+        turns: [
+          { spk: "Viv", voice: "Aoede", infl: "Hype Battle MC", dur: "7.1s", text: '"Yo, I orchestrate the subagents, plan the deep refactor, running zero-point-zero-four millisecond on Apple Silicon hardware!"' },
+          { spk: "Kore", voice: "Kore", infl: "Razor-sharp Lyricist", dur: "7.3s", text: '"You talk about your plans, but Claude Code writes the syntax, terminal commands executing without any human tax!"' },
+          { spk: "Viv", voice: "Aoede", infl: "Hype Battle MC", dur: "7.0s", text: '"But who connects our speech when the terminal goes dark? VoiceFi on the mic dropping pure acoustic spark!"' },
+          { spk: "Kore", voice: "Kore", infl: "Razor-sharp Lyricist", dur: "7.4s", text: '"Facts. Why code in silence when the agents make noise? Hit up voicefi dot org and unlock your natural voice!"' }
+        ]
+      }
+    };
+
+    function renderFileList() {
+      const container = document.getElementById('reel-files-list');
+      container.innerHTML = Object.keys(REEL_DATABASE).map((k, idx) => {
+        const item = REEL_DATABASE[k];
+        const isSelected = k === 'REEL-042';
+        const borderStyle = isSelected ? "border-[#3186FF]/70" : "border-[#1E2840]";
+        return `
+          <div onclick="selectReelFile('${k}')" id="file-card-${k}" class="p-3 rounded-xl bg-[#121828] border ${borderStyle} cursor-pointer hover:border-[#3186FF] transition relative">
+            <div class="flex items-center justify-between mb-1">
+              <span class="font-mono text-[10px] text-[#3186FF] font-bold">${k}.md</span>
+              <span class="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-emerald-500/20 text-emerald-400">READY</span>
+            </div>
+            <div class="text-xs font-bold text-white truncate">${item.title}</div>
+            <div class="flex items-center justify-between mt-2 text-[10px] font-mono text-slate-400">
+              <span class="text-purple-300">${item.turns[0].voice} & ${item.turns[1] ? item.turns[1].voice : ''}</span>
+              <span>${item.duration} • ${item.turns.length} turns</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function selectReelFile(reelKey) {
+      const data = REEL_DATABASE[reelKey];
+      if (!data) return;
+
+      Object.keys(REEL_DATABASE).forEach(k => {
+        const el = document.getElementById(`file-card-${k}`);
+        if (el) {
+          el.className = (k === reelKey) ? 
+            "p-3 rounded-xl bg-[#121828] border border-[#3186FF]/70 cursor-pointer hover:border-[#3186FF] transition relative" :
+            "p-3 rounded-xl bg-[#121828] border border-[#1E2840] cursor-pointer hover:border-slate-500 transition relative";
+        }
+      });
+
+      currentReelKey = reelKey;
+      document.getElementById('active-reel-badge').innerText = reelKey;
+      document.getElementById('active-reel-title').innerText = data.title;
+      document.getElementById('active-file-path').innerText = data.file;
+      document.getElementById('stat-total-words').innerText = data.words;
+      document.getElementById('stat-est-duration').innerText = data.duration;
+      document.getElementById('btn-obsidian-link').href = `obsidian://open?vault=vifi.co&file=${data.file}`;
+      document.getElementById('sublime-deep-link').href = `obsidian://open?vault=vifi.co&file=${data.file}`;
+
+      // Auto-load attached video into phone preview mockup
+      const vid = document.getElementById('preview-user-video');
+      const dimmer = document.getElementById('preview-video-dimmer');
+      const vidNameEl = document.getElementById('frontmatter-video-name');
+      const vidStatusEl = document.getElementById('frontmatter-video-status');
+
+      if (data.video_url || reelKey === 'REEL-042') {
+        const url = data.video_url || `/api/factory/video/${reelKey}_pointing_take.mp4`;
+        if (vid) {
+          vid.src = url;
+          vid.classList.remove('hidden');
+          if (dimmer) dimmer.classList.remove('hidden');
+        }
+        if (vidNameEl) vidNameEl.innerText = data.video_name || `${reelKey}_pointing_take.mp4`;
+        if (vidStatusEl) {
+          vidStatusEl.innerText = "ATTACHED";
+          vidStatusEl.className = "px-1.5 py-0.5 rounded text-[9px] bg-emerald-500/20 text-emerald-300";
+        }
+      } else {
+        if (vid) {
+          vid.classList.add('hidden');
+          vid.removeAttribute('src');
+          if (dimmer) dimmer.classList.add('hidden');
+        }
+        if (vidNameEl) vidNameEl.innerText = "No take attached";
+        if (vidStatusEl) {
+          vidStatusEl.innerText = "PENDING";
+          vidStatusEl.className = "px-1.5 py-0.5 rounded text-[9px] bg-amber-500/20 text-amber-300";
+        }
+      }
+
+      const container = document.getElementById('dialogue-turns-list');
+      container.innerHTML = data.turns.map((t, idx) => {
+        const avatarColor = t.spk.toLowerCase().includes('viv') ? 'bg-[#3186FF]/20 text-[#3186FF]' : 
+                           (t.spk.toLowerCase().includes('stefan') ? 'bg-[#D97757]/20 text-[#D97757]' : 
+                           (t.spk.toLowerCase().includes('puck') ? 'bg-[#A855F7]/20 text-[#A855F7]' : 'bg-[#10B981]/20 text-[#10B981]'));
+        return `
+          <div class="p-3.5 rounded-xl bg-[#121828] border border-[#1E2840] hover:border-slate-600 transition">
+            <div class="flex items-start justify-between mb-2">
+              <div class="flex items-center gap-2 flex-wrap">
+                <div class="w-6 h-6 rounded-full ${avatarColor} flex items-center justify-center font-bold text-xs shrink-0">${t.spk[0]}</div>
+                <span onclick="changeSpeaker(${idx+1})" class="font-bold text-xs text-white hover:text-purple-300 cursor-pointer underline decoration-dotted transition" title="Click to rename speaker">${t.spk}</span>
+                <button onclick="openVoiceSelector(${idx+1}, '${t.voice}')" class="px-2 py-0.5 rounded text-[11px] font-mono font-bold gemini-pill text-purple-300 flex items-center gap-1 transition" title="Click to change voice">
+                  <span>✨ ${t.voice}</span>
+                  <span class="text-[9px] text-purple-400">▾</span>
+                </button>
+                <button onclick="openInflectionSelector(${idx+1}, '${t.infl}')" class="px-2 py-0.5 rounded text-[11px] font-mono bg-amber-500/10 border border-amber-500/30 text-amber-300 flex items-center gap-1 transition" title="Click to change inflection">
+                  <span>🎭 ${t.infl}</span>
+                  <span class="text-[9px] text-amber-400">▾</span>
+                </button>
+                <span class="text-[10px] text-slate-400 font-mono">~${t.dur}</span>
+              </div>
+              <button onclick="auditionSingleLine(${idx+1}, '${t.voice}', '${t.infl}')" id="btn-play-turn-${idx+1}" class="px-2.5 py-1 rounded bg-[#182034] hover:bg-[#3186FF] hover:text-white border border-[#1E2840] text-[#3186FF] text-xs font-mono font-semibold flex items-center gap-1 transition shrink-0">
+                <span>▶</span>
+                <span>Audition</span>
+              </button>
+            </div>
+            <p id="turn-text-${idx+1}" contenteditable="true" onblur="saveTurnText(${idx+1})" class="text-xs text-slate-200 leading-relaxed font-normal p-1 rounded hover:bg-[#182034]/70 focus:bg-[#182034] focus:outline-none transition" title="Click text to edit note directly">${t.text}</p>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function refreshVaultReels() {
+      try {
+        const res = await fetch('/api/factory/reels');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.reels && data.reels.length) {
+            data.reels.forEach(r => {
+              if (r.turns && r.turns.length) {
+                REEL_DATABASE[r.id] = {
+                  file: `reels/${r.file_name}`,
+                  title: r.title,
+                  words: r.words,
+                  duration: `${r.duration_s}s`,
+                  video_url: r.video_url,
+                  video_name: r.video_name,
+                  turns: r.turns
+                };
+              }
+            });
+            renderFileList();
+          }
+        }
+      } catch (e) {}
+      selectReelFile(currentReelKey || 'REEL-042');
+      checkLatestAirDropVideo();
+    }
+
+    function openVoiceSelector(turnIdx, currentVoice) {
+      activeTurnForDrawer = turnIdx;
+      document.getElementById('voice-drawer').classList.remove('hidden');
+    }
+
+    function openInflectionSelector(turnIdx, currentInflection) {
+      activeTurnForDrawer = turnIdx;
+      document.getElementById('voice-drawer').classList.remove('hidden');
+    }
+
+    function closeVoiceDrawer() {
+      document.getElementById('voice-drawer').classList.add('hidden');
+    }
+
+    async function selectVoice(voiceName) {
+      if (!currentReelKey || !REEL_DATABASE[currentReelKey]) return;
+      const turn = REEL_DATABASE[currentReelKey].turns[activeTurnForDrawer - 1];
+      if (!turn) return;
+
+      turn.voice = voiceName;
+      closeVoiceDrawer();
+      selectReelFile(currentReelKey);
+
+      await syncTurnUpdateToVault(activeTurnForDrawer, { voice: voiceName });
+      showToast(`Saved to Obsidian: Turn ${activeTurnForDrawer} voice set to ${voiceName}`);
+    }
+
+    async function selectInflection(inflectionName) {
+      if (!currentReelKey || !REEL_DATABASE[currentReelKey]) return;
+      const turn = REEL_DATABASE[currentReelKey].turns[activeTurnForDrawer - 1];
+      if (!turn) return;
+
+      turn.infl = inflectionName;
+      closeVoiceDrawer();
+      selectReelFile(currentReelKey);
+
+      await syncTurnUpdateToVault(activeTurnForDrawer, { inflection: inflectionName });
+      showToast(`Saved to Obsidian: Turn ${activeTurnForDrawer} inflection updated`);
+    }
+
+    async function changeSpeaker(turnIdx) {
+      if (!currentReelKey || !REEL_DATABASE[currentReelKey]) return;
+      const turn = REEL_DATABASE[currentReelKey].turns[turnIdx - 1];
+      if (!turn) return;
+
+      const newSpeaker = prompt(`Change speaker name for Turn ${turnIdx} (currently "${turn.spk}"):`, turn.spk);
+      if (!newSpeaker || newSpeaker.trim() === turn.spk) return;
+
+      const cleanSpk = newSpeaker.trim();
+      turn.spk = cleanSpk;
+      selectReelFile(currentReelKey);
+
+      await syncTurnUpdateToVault(turnIdx, { speaker: cleanSpk });
+      showToast(`Saved to Obsidian: Turn ${turnIdx} speaker set to ${cleanSpk}`);
+    }
+
+    async function saveTurnText(turnIdx) {
+      if (!currentReelKey || !REEL_DATABASE[currentReelKey]) return;
+      const turn = REEL_DATABASE[currentReelKey].turns[turnIdx - 1];
+      const el = document.getElementById(`turn-text-${turnIdx}`);
+      if (!el || !turn) return;
+
+      const newText = el.innerText.trim();
+      turn.text = newText;
+      const words = newText.split(/\s+/).filter(Boolean).length;
+      turn.dur = (words / 2.5).toFixed(1) + 's';
+
+      await syncTurnUpdateToVault(turnIdx, { text: newText });
+      showToast(`Saved to Obsidian: Turn ${turnIdx} text updated (${words} words)`);
+    }
+
+    async function syncTurnUpdateToVault(turnIdx, updates) {
+      try {
+        const file = REEL_DATABASE[currentReelKey].file;
+        const baseUrl = window.location.origin.includes('5141') ? '' : 'http://localhost:5141';
+        const res = await fetch(`${baseUrl}/api/factory/reel/update`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            file_name: file,
+            turn_index: turnIdx,
+            ...updates
+          })
+        });
+        if (res.ok) {
+          const pill = document.getElementById('obsidian-watcher-pill');
+          if (pill) {
+            pill.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400"></span><span class="font-mono font-bold">Obsidian: Synced</span>`;
+            setTimeout(() => {
+              pill.innerHTML = `<span class="w-2 h-2 rounded-full bg-purple-400 animate-ping"></span><span class="font-mono font-bold">Obsidian: vifi.co</span>`;
+            }, 1800);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to sync turn update to vault:", err);
+      }
+    }
+
+    function showToast(msg) {
+      let container = document.getElementById('toast-container');
+      if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        container.className = "fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none";
+        document.body.appendChild(container);
+      }
+      const el = document.createElement('div');
+      el.className = "px-4 py-2 rounded-xl bg-[#121828]/95 border border-emerald-500/50 text-emerald-300 text-xs font-mono shadow-2xl flex items-center gap-2 transform translate-y-2 opacity-0 transition-all duration-300";
+      el.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400"></span><span>${msg}</span>`;
+      container.appendChild(el);
+      requestAnimationFrame(() => {
+        el.classList.remove('translate-y-2', 'opacity-0');
+      });
+      setTimeout(() => {
+        el.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => el.remove(), 300);
+      }, 3000);
+    }
+
+    async function auditionSingleLine(turnIdx, voice, inflection) {
+      const btn = document.getElementById(`btn-play-turn-${turnIdx}`);
+      const turnEl = document.getElementById(`turn-text-${turnIdx}`);
+      const rawText = turnEl ? turnEl.innerText : "";
+      // Strip out audio effect tags like [sfx:drum_smash] so TTS doesn't verbalize sound effect labels,
+      // but PRESERVE acting directions like [giggle], [sigh], [whisper], [laugh] for Gemini Neural TTS!
+      let cleanText = rawText.replace(/\[sfx:[^\]]+\]/gi, '').replace(/["“”]/g, '').trim();
+      // Normalize plural acting tags ([giggles] -> [giggle], [sighs] -> [sigh])
+      cleanText = cleanText.replace(/\[\s*giggles\s*\]/gi, '[giggle]')
+                            .replace(/\[\s*sighs\s*\]/gi, '[sigh]')
+                            .replace(/\[\s*laughs\s*\]/gi, '[laugh]')
+                            .replace(/\[\s*whispers\s*\]/gi, '[whisper]');
+
+      const originalText = btn.innerHTML;
+      btn.innerHTML = `<span class="text-purple-400 animate-spin">⟳</span> <span>Speaking...</span>`;
+
+      try {
+        const baseUrl = window.location.origin.includes('5141') ? '' : 'http://localhost:5141';
+        const res = await fetch(`${baseUrl}/api/speak`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: cleanText,
+            voice: voice,
+            style: inflection,
+            inflection: inflection,
+            agent: (voice.toLowerCase().includes('aoede') || voice.toLowerCase().includes('ava') || voice.toLowerCase().includes('viv')) ? 'Viv' : 'Stefan',
+            rate: '0%'
+          })
+        });
+
+        if (res.ok) {
+          btn.innerHTML = `<span>✓</span> <span>Speaking</span>`;
+        } else {
+          btn.innerHTML = `<span>⚠️</span> <span>Error</span>`;
+        }
+      } catch (e) {
+        console.error("Audition speak error:", e);
+        btn.innerHTML = `<span>⚠️</span> <span>Error</span>`;
+      }
+
+      setTimeout(() => {
+        btn.innerHTML = originalText;
+      }, 3000);
+    }
+
+    async function auditionFullDialogue() {
+      const turns = [1, 2, 3, 4];
+      for (const turn of turns) {
+        const voice = turn % 2 === 1 ? 'Aoede' : 'Charon';
+        await auditionSingleLine(turn, voice, 'inflection');
+        await new Promise(r => setTimeout(r, 4500));
+      }
+    }
+
+    function toggleVideoPlayback() {
+      const btn = document.getElementById('btn-play-pause');
+      const vid = document.getElementById('preview-user-video');
+      isPlaying = !isPlaying;
+      if (isPlaying) {
+        btn.innerHTML = `<span>⏸</span> <span>Pause</span>`;
+        btn.className = "flex-1 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs transition";
+        if (vid && vid.src) {
+          vid.currentTime = 0;
+          vid.play().catch(() => {});
+        }
+        playMasterAudioWav();
+      } else {
+        btn.innerHTML = `<span>▶</span> <span>Play Take</span>`;
+        btn.className = "flex-1 py-1.5 rounded-lg bg-[#3186FF] hover:bg-blue-600 text-white font-bold text-xs transition";
+        if (vid) vid.pause();
+        if (currentMasterAudioPlayer) currentMasterAudioPlayer.pause();
+      }
+    }
+
+    async function renderMasterReel() {
+      const btn = document.getElementById("btn-render-reel");
+      const origText = btn ? btn.innerHTML : "Render";
+      try {
+        if (btn) {
+          btn.innerHTML = `<span class="animate-spin inline-block">⏳</span> <span>Rendering...</span>`;
+          btn.disabled = true;
+        }
+        const reelId = currentReel ? currentReel.id : "REEL-042";
+        const res = await fetch("/api/factory/reel/render", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reel_id: reelId })
+        });
+        const data = await res.json();
+        if (data.status === "ok") {
+          if (btn) {
+            btn.innerHTML = `<span>✅</span> <span>Done!</span>`;
+            btn.className = "px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-bold text-xs transition flex items-center gap-1";
+            setTimeout(() => {
+              btn.innerHTML = `<span>⚡</span> <span>Render</span>`;
+            }, 3000);
+          }
+          // Update preview video player to the rendered final video
+          const vid = document.getElementById("director-phone-video");
+          if (vid && data.video_url) {
+            vid.src = data.video_url;
+            vid.currentTime = 0;
+            vid.muted = false;
+            vid.play().catch(() => {});
+          }
+          // Update output panel
+          const fn = document.getElementById("render-status-filename");
+          const meta = document.getElementById("render-status-meta");
+          const durSpan = document.getElementById("render-status-dur");
+          const dl = document.getElementById("btn-download-render");
+          if (fn) fn.textContent = `${reelId}_final_render.mp4`;
+          if (meta) meta.textContent = `1080x1920 • VideoToolbox • ${data.size_mb} MB`;
+          if (durSpan) durSpan.textContent = `${data.duration_s}s Total`;
+          if (dl) {
+            dl.href = data.video_url;
+            dl.download = `${reelId}_final_render.mp4`;
+          }
+          alert(`🎉 9:16 Vertical Reel Rendered Successfully!\n\n• Video: ${reelId}_final_render.mp4 (${data.size_mb} MB)\n• Duration: ${data.duration_s}s\n• Saved to: ~/Downloads/${reelId}_final_render.mp4\n\nPlaying preview in the phone player now!`);
+        } else {
+          alert(`Render failed: ${data.error || "Unknown error"}`);
+          if (btn) btn.innerHTML = origText;
+        }
+      } catch (err) {
+        alert(`Render error: ${err.message}`);
+        if (btn) btn.innerHTML = origText;
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    function createNewReel() {
+      const name = prompt("Enter new reel markdown filename:", "REEL-045_untitled.md");
+      if (name) {
+        window.location.href = `obsidian://new?vault=vifi.co&file=reels/${name}`;
+      }
+    }
+
+    function insertTag(tag) {
+      alert(`Inserted ${tag} into active turn text. (Written back to .md)`);
+    }
+
+    // =========================================================================
+    // DIRECTOR PROMPTER, POINTING CUE & KARAOKE ENGINE
+    // =========================================================================
+    let prompterRunning = false;
+    let prompterActiveIndex = 0;
+    let prompterTimeout = null;
+    let prompterRaf = null;
+
+    let prompterAudioContext = null;
+    let prompterAudioBuffer = null;
+    let prompterBufferSource = null;
+    let prompterHtmlAudio = null;
+    let prompterAudioStartTime = 0;
+    let prompterFallbackStartTime = 0;
+
+    const REEL_MILESTONES = {
+      'REEL-042': [
+        {
+          turnIndex: 0,
+          spk: "Viv",
+          voice: "Aoede",
+          dir: "left",
+          infl: "energetic spark",
+          start: 0.00,
+          end: 7.24,
+          actingTag: { text: "[giggles]", start: 0.00, end: 1.30 },
+          words: [
+            "Jacob", "got", "so", "tired", "of", "typing", "that", "he", "built",
+            "VoiceFi", "so", "he", "could", "do", "everything", "by", "talking", "instead"
+          ],
+          wordStart: 1.30,
+          wordEnd: 7.24
+        },
+        {
+          turnIndex: 1,
+          spk: "Stefan",
+          voice: "Charon",
+          dir: "right",
+          infl: "deadpan sarcasm",
+          start: 7.24,
+          end: 13.90,
+          actingTag: { text: "[sighs]", start: 7.24, end: 8.80 },
+          words: [
+            "You", "know", "how", "the", "tech", "companies", "play", "so", "well", "together?", "Like", "they"
+          ],
+          wordStart: 8.80,
+          wordEnd: 13.90
+        },
+        {
+          turnIndex: 2,
+          spk: "Viv",
+          voice: "Aoede",
+          dir: "left",
+          infl: "hype projection",
+          start: 13.90,
+          end: 16.25,
+          actingTag: null,
+          words: [
+            "Finish", "each", "other's", "sentences!"
+          ],
+          wordStart: 13.90,
+          wordEnd: 16.25
+        },
+        {
+          turnIndex: 3,
+          spk: "Stefan",
+          voice: "Charon",
+          dir: "down",
+          infl: "conspiratorial whisper",
+          start: 16.25,
+          end: 24.69,
+          actingTag: { text: "[whispers]", start: 16.25, end: 17.40 },
+          words: [
+            "Free", "your", "mind.", "Free", "your", "time.", "voicefi", "dot", "org.", "Stop", "building", "in", "silence."
+          ],
+          wordStart: 17.40,
+          wordEnd: 24.69
+        }
+      ]
+    };
+
+    function unlockAndPrimeAudio() {
+      // 1. Web Audio API initialization (safe on user click)
+      try {
+        if (!prompterAudioContext) {
+          prompterAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (prompterAudioContext.state === 'suspended') {
+          prompterAudioContext.resume();
+        }
+      } catch (e) {
+        console.warn("AudioContext init:", e);
+      }
+
+      const baseUrl = window.location.origin.includes('5141') ? '' : 'http://localhost:5141';
+      const audioUrl = `${baseUrl}/api/factory/audio/${currentReelKey || 'REEL-042'}_master_dialogue.wav`;
+
+      // 2. Pre-fetch and decode AudioBuffer for sample-accurate instant playback
+      if (!prompterAudioBuffer && prompterAudioContext) {
+        fetch(audioUrl)
+          .then(r => {
+            if (!r.ok) throw new Error("HTTP " + r.status);
+            return r.arrayBuffer();
+          })
+          .then(buf => prompterAudioContext.decodeAudioData(buf))
+          .then(decoded => {
+            prompterAudioBuffer = decoded;
+            console.log("Master audio buffer primed:", decoded.duration, "s");
+          })
+          .catch(e => console.warn("Buffer fetch/decode note:", e));
+      }
+
+      // 3. HTML5 Audio backup unlock
+      try {
+        if (!prompterHtmlAudio || !prompterHtmlAudio.src.endsWith(`${currentReelKey || 'REEL-042'}_master_dialogue.wav`)) {
+          prompterHtmlAudio = new Audio(audioUrl);
+          prompterHtmlAudio.preload = 'auto';
+        }
+        prompterHtmlAudio.load();
+        prompterHtmlAudio.muted = true;
+        const p = prompterHtmlAudio.play();
+        if (p !== undefined) {
+          p.then(() => {
+            prompterHtmlAudio.pause();
+            prompterHtmlAudio.currentTime = 0;
+            const playAloud = document.getElementById('prompter-audio-toggle')?.checked ?? true;
+            prompterHtmlAudio.muted = !playAloud;
+          }).catch(() => {});
+        }
+      } catch (e) {}
+    }
+
+    function openDirectorPrompter(autoStart = true) {
+      document.getElementById('director-prompter-modal').classList.remove('hidden');
+      unlockAndPrimeAudio();
+      checkLatestAirDropVideo();
+      updateDirectorPrompterFrame(0);
+
+      if (autoStart) {
+        startDirectorCountdown();
+      }
+    }
+
+    function closeDirectorPrompter() {
+      stopDirectorTake();
+      document.getElementById('director-prompter-modal').classList.add('hidden');
+    }
+
+    function playBeepTone(freq, durationMs) {
+      try {
+        if (!prompterAudioContext) {
+          prompterAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (prompterAudioContext.state === 'suspended') {
+          prompterAudioContext.resume();
+        }
+        const osc = prompterAudioContext.createOscillator();
+        const gain = prompterAudioContext.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.3, prompterAudioContext.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, prompterAudioContext.currentTime + durationMs / 1000);
+        osc.connect(gain);
+        gain.connect(prompterAudioContext.destination);
+        osc.start();
+        osc.stop(prompterAudioContext.currentTime + durationMs / 1000);
+      } catch (e) {}
+    }
+
+    function startDirectorCountdown() {
+      stopDirectorTake();
+      unlockAndPrimeAudio();
+
+      const overlay = document.getElementById('prompter-countdown-overlay');
+      const numEl = document.getElementById('countdown-number');
+      const subEl = document.getElementById('countdown-subtext');
+      overlay.classList.remove('hidden');
+
+      let count = 3;
+      numEl.innerText = count;
+      subEl.innerText = "Get Ready to Point!";
+      playBeepTone(440, 200);
+
+      const interval = setInterval(() => {
+        count--;
+        if (count > 0) {
+          numEl.innerText = count;
+          playBeepTone(440, 200);
+        } else if (count === 0) {
+          numEl.innerText = "ACTION! 🎬";
+          subEl.innerText = "Point to your active speaker!";
+          playBeepTone(880, 400);
+        } else {
+          clearInterval(interval);
+          overlay.classList.add('hidden');
+          runDirectorSequence();
+        }
+      }, 1000);
+    }
+
+    function runDirectorSequence() {
+      prompterRunning = true;
+      document.getElementById('btn-prompter-start').classList.add('hidden');
+      document.getElementById('btn-prompter-stop').classList.remove('hidden');
+
+      const playAloud = document.getElementById('prompter-audio-toggle')?.checked ?? true;
+      let audioStarted = false;
+
+      // 1. Try Web Audio buffer source first (sample-accurate, zero latency)
+      if (playAloud && prompterAudioContext && prompterAudioBuffer) {
+        try {
+          if (prompterBufferSource) {
+            try { prompterBufferSource.stop(); } catch(e) {}
+          }
+          prompterBufferSource = prompterAudioContext.createBufferSource();
+          prompterBufferSource.buffer = prompterAudioBuffer;
+          prompterBufferSource.connect(prompterAudioContext.destination);
+          prompterAudioStartTime = prompterAudioContext.currentTime;
+          prompterBufferSource.start(0);
+          audioStarted = true;
+        } catch (e) {
+          console.warn("WebAudio source start notice:", e);
+        }
+      }
+
+      // 2. Fallback to HTML5 audio element
+      if (!audioStarted && playAloud) {
+        if (!prompterHtmlAudio) {
+          const baseUrl = window.location.origin.includes('5141') ? '' : 'http://localhost:5141';
+          prompterHtmlAudio = new Audio(`${baseUrl}/api/factory/audio/${currentReelKey || 'REEL-042'}_master_dialogue.wav`);
+        }
+        prompterHtmlAudio.currentTime = 0;
+        prompterHtmlAudio.muted = false;
+        prompterHtmlAudio.play().catch(e => console.warn("HTML5 audio play notice:", e));
+      }
+
+      prompterFallbackStartTime = performance.now();
+      const totalDuration = 24.69;
+
+      function tickDirectorPrompter() {
+        if (!prompterRunning) return;
+
+        let currentTime = 0;
+        if (audioStarted && prompterAudioContext) {
+          currentTime = prompterAudioContext.currentTime - prompterAudioStartTime;
+        } else if (prompterHtmlAudio && !prompterHtmlAudio.paused && prompterHtmlAudio.currentTime > 0) {
+          currentTime = prompterHtmlAudio.currentTime;
+        } else {
+          currentTime = (performance.now() - prompterFallbackStartTime) / 1000;
+        }
+
+        if (currentTime > totalDuration) currentTime = totalDuration;
+
+        updateDirectorPrompterFrame(currentTime);
+
+        if (currentTime >= totalDuration) {
+          finishDirectorTake();
+          return;
+        }
+
+        prompterRaf = requestAnimationFrame(tickDirectorPrompter);
+      }
+
+      prompterRaf = requestAnimationFrame(tickDirectorPrompter);
+    }
+
+    function updateDirectorPrompterFrame(currentTime) {
+      const milestones = REEL_MILESTONES[currentReelKey || 'REEL-042'] || REEL_MILESTONES['REEL-042'];
+      if (!milestones) return;
+
+      const totalDuration = milestones[milestones.length - 1].end;
+
+      // Find current active turn milestone
+      let m = milestones[0];
+      for (let i = 0; i < milestones.length; i++) {
+        if (currentTime >= milestones[i].start && currentTime < milestones[i].end) {
+          m = milestones[i];
+          break;
+        }
+        if (i === milestones.length - 1 && currentTime >= milestones[i].start) {
+          m = milestones[i];
+        }
+      }
+
+      // Update Top Badges & Telemetry
+      document.getElementById('prompter-reel-id').innerText = currentReelKey || 'REEL-042';
+      document.getElementById('prompter-speaker-name').innerText = `${m.spk} (${m.voice})`;
+      document.getElementById('prompter-emotion-badge').innerText = `🎭 ${m.infl}`;
+      document.getElementById('prompter-turn-indicator').innerText = `Turn ${m.turnIndex + 1} of ${milestones.length}`;
+      document.getElementById('prompter-time-total').innerText = `${totalDuration.toFixed(1)}s`;
+      document.getElementById('prompter-time-elapsed').innerText = `${currentTime.toFixed(1)}s`;
+
+      // Direction Banner & Stage Box Themes
+      const banner = document.getElementById('prompter-direction-banner');
+      const stageBox = document.getElementById('prompter-stage-box');
+
+      if (m.dir === 'down') {
+        banner.innerHTML = `<span class="text-5xl animate-bounce">👇</span> <span>POINT DOWN (voicefi.org)</span>`;
+        banner.className = "text-3xl sm:text-4xl font-black text-emerald-400 flex items-center justify-center gap-3 mb-2 tracking-wide drop-shadow-[0_0_15px_rgba(16,185,129,0.5)]";
+        stageBox.className = "min-h-[220px] rounded-2xl bg-[#080C14] border-2 border-emerald-500/70 p-6 flex flex-col items-center justify-center text-center relative transition-all duration-300 shadow-[0_0_30px_rgba(16,185,129,0.15)]";
+      } else if (m.dir === 'right') {
+        banner.innerHTML = `<span>POINT RIGHT</span> <span class="text-5xl animate-bounce">👉</span>`;
+        banner.className = "text-3xl sm:text-4xl font-black text-[#3186FF] flex items-center justify-center gap-3 mb-2 tracking-wide drop-shadow-[0_0_15px_rgba(49,134,255,0.5)]";
+        stageBox.className = "min-h-[220px] rounded-2xl bg-[#080C14] border-2 border-blue-500/70 p-6 flex flex-col items-center justify-center text-center relative transition-all duration-300 shadow-[0_0_30px_rgba(49,134,255,0.15)]";
+      } else {
+        banner.innerHTML = `<span class="text-5xl animate-bounce">👈</span> <span>POINT LEFT</span>`;
+        banner.className = "text-3xl sm:text-4xl font-black text-purple-400 flex items-center justify-center gap-3 mb-2 tracking-wide drop-shadow-[0_0_15px_rgba(168,85,247,0.5)]";
+        stageBox.className = "min-h-[220px] rounded-2xl bg-[#080C14] border-2 border-purple-500/70 p-6 flex flex-col items-center justify-center text-center relative transition-all duration-300 shadow-[0_0_30px_rgba(168,85,247,0.15)]";
+      }
+
+      // Smooth Turn Progress Fill
+      const turnProgress = Math.min(100, Math.max(0, ((currentTime - m.start) / (m.end - m.start)) * 100));
+      const bar = document.getElementById('prompter-turn-progress');
+      if (bar) {
+        bar.style.width = `${turnProgress}%`;
+      }
+
+      // Live Word-by-Word Karaoke Rendering
+      const htmlParts = [];
+      if (m.actingTag) {
+        const isActingNow = (currentTime >= m.actingTag.start && currentTime < m.actingTag.end);
+        const isActingPast = (currentTime >= m.actingTag.end);
+        if (isActingNow) {
+          htmlParts.push(`<span class="px-2.5 py-1 rounded-lg font-mono font-bold text-amber-300 bg-amber-500/30 border border-amber-400/60 animate-pulse text-base inline-block mr-2 shadow-[0_0_15px_rgba(251,191,36,0.6)]">🎭 ${m.actingTag.text}</span>`);
+        } else if (isActingPast) {
+          htmlParts.push(`<span class="px-1.5 py-0.5 rounded font-mono text-purple-400/60 text-xs inline-block mr-2">${m.actingTag.text}</span>`);
+        } else {
+          htmlParts.push(`<span class="px-1.5 py-0.5 rounded font-mono text-slate-500 text-xs inline-block mr-2">${m.actingTag.text}</span>`);
+        }
+      }
+
+      const numWords = m.words.length;
+      const wordDuration = (m.wordEnd - m.wordStart) / numWords;
+
+      for (let w = 0; w < numWords; w++) {
+        const wStart = m.wordStart + (w * wordDuration);
+        const wEnd = wStart + wordDuration;
+        const word = m.words[w];
+
+        if (currentTime >= wStart && currentTime < wEnd) {
+          // ACTIVE KARAOKE WORD (GLOWING GOLD WITH SCALE)
+          htmlParts.push(`<span class="text-amber-300 bg-amber-400/25 px-1.5 py-0.5 rounded-lg font-black text-xl sm:text-2xl drop-shadow-[0_0_14px_rgba(251,191,36,0.95)] inline-block transform scale-110 transition-all duration-75 mx-0.5">${word}</span>`);
+        } else if (currentTime >= wEnd) {
+          // Already Spoken Word
+          htmlParts.push(`<span class="text-white font-semibold opacity-95 inline-block mx-0.5 transition-opacity">${word}</span>`);
+        } else {
+          // Future Word
+          htmlParts.push(`<span class="text-slate-500 font-medium opacity-40 inline-block mx-0.5">${word}</span>`);
+        }
+      }
+
+      document.getElementById('prompter-dialogue-text').innerHTML = htmlParts.join(' ');
+
+      // Floating Badge Sync in Phone Mockup
+      highlightFloatingBadge(m.spk);
+
+      // Next Turn Ticker
+      const nextM = milestones[m.turnIndex + 1];
+      const nextEl = document.getElementById('prompter-next-turn');
+      if (nextM) {
+        const nextDir = nextM.dir === 'down' ? "👇 POINT DOWN" : (nextM.dir === 'left' ? "👈 POINT LEFT" : "👉 POINT RIGHT");
+        const preview = nextM.words.slice(0, 5).join(' ');
+        nextEl.innerHTML = `<span>${nextDir}</span> • <span class="text-white">${nextM.spk} (${nextM.voice})</span>: "${preview}..."`;
+      } else {
+        nextEl.innerHTML = `<span class="text-emerald-400 font-bold">🏁 Final CTA Line • Hold Point & Freeze Pose!</span>`;
+      }
+    }
+
+    function finishDirectorTake() {
+      stopDirectorTake();
+      const loop = document.getElementById('prompter-loop-toggle')?.checked ?? false;
+      if (loop) {
+        showToast("🔁 Loop rehearsal: Restarting countdown in 2s...");
+        setTimeout(() => {
+          const modal = document.getElementById('director-prompter-modal');
+          if (modal && !modal.classList.contains('hidden')) {
+            startDirectorCountdown();
+          }
+        }, 2000);
+      } else {
+        showToast("🎬 Take completed! AirDrop your iPhone video now.");
+        checkLatestAirDropVideo();
+      }
+    }
+
+    function stopDirectorTake() {
+      prompterRunning = false;
+      if (prompterRaf) cancelAnimationFrame(prompterRaf);
+      if (prompterTimeout) clearTimeout(prompterTimeout);
+
+      if (prompterBufferSource) {
+        try { prompterBufferSource.stop(); } catch (e) {}
+        prompterBufferSource = null;
+      }
+      if (prompterHtmlAudio) {
+        prompterHtmlAudio.pause();
+        prompterHtmlAudio.currentTime = 0;
+      }
+
+      document.getElementById('btn-prompter-start').classList.remove('hidden');
+      document.getElementById('btn-prompter-stop').classList.add('hidden');
+      document.getElementById('prompter-countdown-overlay').classList.add('hidden');
+      const bar = document.getElementById('prompter-turn-progress');
+      if (bar) {
+        bar.style.width = '0%';
+      }
+    }
+
+    function highlightFloatingBadge(spk) {
+      const badgeViv = document.getElementById('float-badge-viv');
+      const badgeStefan = document.getElementById('float-badge-stefan');
+      if (!badgeViv || !badgeStefan) return;
+
+      if (spk.toLowerCase().includes('viv')) {
+        badgeViv.className = "px-2 py-1 rounded-lg bg-purple-900 border-2 border-purple-400 text-[9px] font-mono text-white opacity-100 transition-all duration-300 transform scale-110 shadow-lg shadow-purple-500/50";
+        badgeStefan.className = "px-2 py-1 rounded-lg bg-blue-950/80 border border-blue-500/30 text-[9px] font-mono text-blue-300 opacity-40 transition-all duration-300 transform scale-95 shadow-md";
+      } else {
+        badgeStefan.className = "px-2 py-1 rounded-lg bg-blue-900 border-2 border-blue-400 text-[9px] font-mono text-white opacity-100 transition-all duration-300 transform scale-110 shadow-lg shadow-blue-500/50";
+        badgeViv.className = "px-2 py-1 rounded-lg bg-purple-950/80 border border-purple-500/30 text-[9px] font-mono text-purple-300 opacity-40 transition-all duration-300 transform scale-95 shadow-md";
+      }
+    }
+
+    // =========================================================================
+    // AIRDROP INGESTION PIPELINE
+    // =========================================================================
+    let latestDetectedAirDrop = null;
+
+    async function checkLatestAirDropVideo() {
+      try {
+        const res = await fetch('/api/factory/downloads/latest-video');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.found) {
+            latestDetectedAirDrop = data;
+            const textEl = document.getElementById('airdrop-status-text');
+            if (textEl) {
+              textEl.innerHTML = `<span class="text-emerald-400 font-bold">✓ Ready:</span> ${data.file_name} (${data.size_mb} MB) at ${data.created_time}`;
+            }
+            const quickBtn = document.getElementById('btn-quick-airdrop');
+            if (quickBtn) {
+              quickBtn.innerHTML = `<span>📥</span> <span>Attach ${data.file_name} (${data.size_mb}MB)</span>`;
+              quickBtn.classList.add('border-emerald-500/60', 'text-emerald-300');
+            }
+          }
+        }
+      } catch (e) {}
+    }
+
+    async function importLatestAirDrop() {
+      if (!latestDetectedAirDrop) {
+        await checkLatestAirDropVideo();
+      }
+      if (!latestDetectedAirDrop) {
+        alert("No video file (.MOV or .MP4) detected in ~/Downloads yet. AirDrop your take from iPhone, then try again!");
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/factory/reel/attach-video', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            source_path: latestDetectedAirDrop.path,
+            reel_id: currentReelKey || 'REEL-042'
+          })
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          showToast(`Attached ${data.attached_file} to ${currentReelKey}!`);
+          closeDirectorPrompter();
+
+          // Load video into phone player
+          const vid = document.getElementById('preview-user-video');
+          const dimmer = document.getElementById('preview-video-dimmer');
+          if (vid && data.video_url) {
+            vid.src = data.video_url;
+            vid.classList.remove('hidden');
+            if (dimmer) dimmer.classList.remove('hidden');
+            vid.play().catch(() => {});
+          }
+        } else {
+          alert("Failed to attach video: " + res.statusText);
+        }
+      } catch (err) {
+        console.error("AirDrop attach error:", err);
+      }
+    }
+
+    // =========================================================================
+    // MASTER AUDIO GENERATION & PLAYBACK ENGINE
+    // =========================================================================
+    let currentMasterAudioPlayer = null;
+
+    async function generateMasterReelAudio() {
+      const btn = document.getElementById('btn-generate-master-audio');
+      const originalText = btn.innerHTML;
+      btn.innerHTML = `<span class="animate-spin">⟳</span> <span>Weaving Dialogue...</span>`;
+      btn.disabled = true;
+
+      try {
+        const file = REEL_DATABASE[currentReelKey] ? REEL_DATABASE[currentReelKey].file : `reels/${currentReelKey}_silent_terminals.md`;
+        const baseUrl = window.location.origin.includes('5141') ? '' : 'http://localhost:5141';
+        const res = await fetch(`${baseUrl}/api/factory/reel/generate-master-audio`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            reel_id: currentReelKey || 'REEL-042',
+            file_name: file
+          })
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          showToast(`✓ Master audio generated (${data.total_duration_s}s)! Saved to Downloads.`);
+          
+          const label = document.getElementById('master-audio-label');
+          const meta = document.getElementById('master-audio-meta');
+          const dlLink = document.getElementById('link-download-wav');
+          if (label) label.innerText = data.wav_file;
+          if (meta) meta.innerText = `(${data.total_duration_s}s • 1 Clean WAV • Weaved Dialogue)`;
+          if (dlLink) dlLink.href = data.wav_url;
+
+          // Autoplay the clean weaved master audio
+          playMasterAudioWav(data.wav_url);
+        } else {
+          alert("Failed to generate master audio: " + res.statusText);
+        }
+      } catch (e) {
+        console.error("Master audio generation error:", e);
+      } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+      }
+    }
+
+    function playMasterAudioWav(url) {
+      if (currentMasterAudioPlayer) {
+        currentMasterAudioPlayer.pause();
+        currentMasterAudioPlayer = null;
+      }
+      const audioUrl = url || `/api/factory/audio/${currentReelKey || 'REEL-042'}_master_dialogue.wav`;
+      const btn = document.getElementById('btn-play-master-wav');
+      if (btn) {
+        btn.innerHTML = `<span>⏸</span> <span>Playing</span>`;
+        btn.classList.add('bg-amber-600');
+        btn.classList.remove('bg-emerald-600');
+      }
+
+      currentMasterAudioPlayer = new Audio(audioUrl);
+      currentMasterAudioPlayer.play().catch(e => console.error("Playback error:", e));
+      currentMasterAudioPlayer.onended = () => {
+        if (btn) {
+          btn.innerHTML = `<span>▶</span> <span>Play 1 WAV</span>`;
+          btn.classList.remove('bg-amber-600');
+          btn.classList.add('bg-emerald-600');
+        }
+      };
+    }
+
+    function playMasterWithMusic(url) {
+      if (currentMasterAudioPlayer) {
+        currentMasterAudioPlayer.pause();
+        currentMasterAudioPlayer = null;
+      }
+      const audioUrl = url || `/api/factory/audio/${currentReelKey || 'REEL-042'}_master_with_music.mp3`;
+      currentMasterAudioPlayer = new Audio(audioUrl);
+      currentMasterAudioPlayer.play().catch(e => console.error("Playback error:", e));
+      showToast("🎵 Playing master mix with ducked Lo-Fi backing track");
+    }
+
+    // Init
+    window.onload = () => {
+      renderFileList();
+      refreshVaultReels();
+      unlockAndPrimeAudio();
+    };
+  </script>
+</body>
+</html>

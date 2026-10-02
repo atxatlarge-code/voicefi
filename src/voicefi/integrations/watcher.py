@@ -309,10 +309,13 @@ class TranscriptWatcher:
 
                     self._processed_steps[path_str] = idx
                     conv_info = self.tracker.parse_conversation(path)
+                    is_active = True
                     if conv_info:
-                        self.tracker.set_active_focus(
-                            conv_info.id, transcript_path=path, title=conv_info.title
-                        )
+                        is_active = self.tracker.is_conversation_focused(conv_info.id)
+                        if is_active:
+                            self.tracker.set_active_focus(
+                                conv_info.id, transcript_path=path, title=conv_info.title
+                            )
                         try:
                             set_pending_question(conv_info.id, synthesized_q, options=clean_opts)
                         except Exception:
@@ -322,7 +325,7 @@ class TranscriptWatcher:
                         synthesized_q,
                         conv_info,
                         agent_role=str(detected_role),
-                        is_active=True,
+                        is_active=is_active,
                         step_index=idx,
                         transcript_path=path,
                     )
@@ -336,16 +339,19 @@ class TranscriptWatcher:
             ):
                 self._processed_steps[path_str] = idx
                 conv_info = self.tracker.parse_conversation(path)
+                is_active = True
                 if conv_info:
-                    self.tracker.set_active_focus(
-                        conv_info.id, transcript_path=path, title=conv_info.title
-                    )
+                    is_active = self.tracker.is_conversation_focused(conv_info.id)
+                    if is_active:
+                        self.tracker.set_active_focus(
+                            conv_info.id, transcript_path=path, title=conv_info.title
+                        )
 
                 self._handle_turn_ready(
                     content,
                     conv_info,
                     agent_role=str(detected_role),
-                    is_active=True,
+                    is_active=is_active,
                     step_index=idx,
                     transcript_path=path,
                 )
@@ -458,15 +464,17 @@ class TranscriptWatcher:
                 or tts_provider == "gemini_live"
                 or (cid_check and peek_live_turn_origin(cid_check))
             )
+            first_sentence_only = getattr(
+                getattr(cfg, "antigravity", None),
+                "first_sentence_only",
+                getattr(getattr(cfg, "tts", None), "first_sentence_only", False),
+            )
             summary = clean_markdown_for_speech(
                 agent_message,
                 max_words=cfg.antigravity.max_spoken_words,
                 full_read=is_live_turn,
+                first_sentence_only=first_sentence_only,
             )
-
-            if not is_active and not getattr(cfg.antigravity, "unfocused_agent_voice", None):
-                # Unfocused turns should not be claimed or spoken by watcher
-                return
 
             turn_cid = conv_info.id if conv_info else "unknown"
             if turn_cid == "unknown" and transcript_path:
@@ -525,8 +533,8 @@ class TranscriptWatcher:
                     return
 
             spoken_text = summary
-            if not is_active:
-                if conv_info and getattr(cfg.antigravity, "unfocused_voice_prefix", True):
+            if not is_active and getattr(cfg.antigravity, "unfocused_voice_prefix", False):
+                if conv_info:
                     short_title = conv_info.title[:24] if conv_info.title else "background agent"
                     spoken_text = f"Update from {short_title}: {summary}"
 
@@ -572,12 +580,10 @@ class TranscriptWatcher:
                 release_active_listener_lock,
             )
 
-            if should_listen and not acquire_active_listener_lock(turn_cid):
-                print(
-                    f"[Watcher] ⏸️ Another conversation is already actively listening. Yielding mic.",
-                    flush=True,
-                )
-                should_listen = False
+            from voicefi.integrations.turn_lock import (
+                acquire_active_listener_lock,
+                release_active_listener_lock,
+            )
 
             from voicefi.tts import find_persona
 
@@ -594,6 +600,14 @@ class TranscriptWatcher:
 
             is_barge_in_on, _ = resolve_barge_in_mode(getattr(cfg.vad, "barge_in", "auto"))
             barge_in_active = bool(should_speak and should_listen and is_barge_in_on)
+
+            if barge_in_active and not acquire_active_listener_lock(turn_cid):
+                print(
+                    f"[Watcher] ⏸️ Another conversation is already actively listening. Yielding mic.",
+                    flush=True,
+                )
+                should_listen = False
+                barge_in_active = False
 
             temp_wav: Optional[Path] = None
 
@@ -673,18 +687,21 @@ class TranscriptWatcher:
                 fb_loop = getattr(getattr(cfg, "proactive", None), "feedback_loop", None)
                 listen_timeout = getattr(fb_loop, "timeout_seconds", 12.0) if fb_loop else 12.0
 
-                audio_data, temp_wav = recorder.record_speech_auto(
-                    on_speech_start=lambda: self._notify_state("hearing", user_name=cfg.user_name),
-                    on_pause_change=lambda paused: self._notify_state(
-                        "speaking" if paused else "listening", user_name=cfg.user_name
-                    ),
-                    on_barge_in=_on_barge_in,
-                    on_listening_tick=_on_tick,
-                    timeout=listen_timeout,
-                    conv_id=turn_cid,
-                    agent_name=target_agent,
-                )
-                self.active_recorder = None
+                try:
+                    audio_data, temp_wav = recorder.record_speech_auto(
+                        on_speech_start=lambda: self._notify_state("hearing", user_name=cfg.user_name),
+                        on_pause_change=lambda paused: self._notify_state(
+                            "speaking" if paused else "listening", user_name=cfg.user_name
+                        ),
+                        on_barge_in=_on_barge_in,
+                        on_listening_tick=_on_tick,
+                        timeout=listen_timeout,
+                        conv_id=turn_cid,
+                        agent_name=target_agent,
+                    )
+                finally:
+                    self.active_recorder = None
+                    release_active_listener_lock(turn_cid)
             else:
                 # Standard sequential speech then auto-listen
                 if should_speak:
@@ -724,6 +741,14 @@ class TranscriptWatcher:
                     time.sleep(0.1)
                     max_audio_wait -= 1
                 time.sleep(0.3)
+
+                if should_listen:
+                    if not acquire_active_listener_lock(turn_cid):
+                        print(
+                            f"[Watcher] ⏸️ Another conversation is already actively listening. Yielding mic.",
+                            flush=True,
+                        )
+                        should_listen = False
 
                 if should_listen:
                     if getattr(cfg.audio_cues, "mic_open_chime", False) and cfg.audio_cues.enabled:
@@ -766,26 +791,26 @@ class TranscriptWatcher:
                     fb_loop = getattr(getattr(cfg, "proactive", None), "feedback_loop", None)
                     listen_timeout = getattr(fb_loop, "timeout_seconds", 12.0) if fb_loop else 12.0
 
-                    audio_data, temp_wav = recorder.record_speech_auto(
-                        on_speech_start=lambda: self._notify_state(
-                            "hearing", user_name=cfg.user_name
-                        ),
-                        on_pause_change=lambda paused: self._notify_state(
-                            "paused_agent_speaking" if paused else "listening",
-                            user_name=cfg.user_name,
-                        ),
-                        on_live_transcript=_on_live,
-                        on_listening_tick=_on_tick,
-                        timeout=listen_timeout,
-                        conv_id=turn_cid,
-                        agent_name=target_agent,
-                    )
-                    self.active_recorder = None
+                    try:
+                        audio_data, temp_wav = recorder.record_speech_auto(
+                            on_speech_start=lambda: self._notify_state(
+                                "hearing", user_name=cfg.user_name
+                            ),
+                            on_pause_change=lambda paused: self._notify_state(
+                                "paused_agent_speaking" if paused else "listening",
+                                user_name=cfg.user_name,
+                            ),
+                            on_live_transcript=_on_live,
+                            on_listening_tick=_on_tick,
+                            timeout=listen_timeout,
+                            conv_id=turn_cid,
+                            agent_name=target_agent,
+                        )
+                    finally:
+                        self.active_recorder = None
+                        release_active_listener_lock(turn_cid)
                 else:
                     return
-
-            if should_listen:
-                release_active_listener_lock(turn_cid)
 
             if self._interrupted or not temp_wav or not Path(temp_wav).is_file():
                 if temp_wav and Path(temp_wav).is_file():

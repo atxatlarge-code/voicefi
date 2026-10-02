@@ -8,8 +8,9 @@ import os
 import subprocess
 import tempfile
 import time
+import threading
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 
 from voicefi.tts.base import (
     BaseTTS,
@@ -51,15 +52,21 @@ class F5TTS(BaseTTS):
         speed: float = 1.0,
         nfe_step: int = 32,
         persona_name: Optional[str] = None,
+        voice: Optional[str] = None,
+        emotion: Optional[str] = None,
     ):
+
         super().__init__()
+        self.persona_name = persona_name or voice
         self.ref_audio = ref_audio
         self.ref_text = ref_text
         self.model_name = normalize_f5_model_name(model_name)
         self.device = device
         self.speed = speed
         self.nfe_step = nfe_step or 32
-        self.persona_name = persona_name
+        self.emotion = emotion
+        self.voice = self.persona_name or self.model_name
+
         self._current_process: Optional[subprocess.Popen] = None
         self._stop_requested = False
 
@@ -132,8 +139,36 @@ class F5TTS(BaseTTS):
         Locate reference audio and transcription text for voice conditioning.
         If not explicitly set, checks cloned voices directory (~/.voicefi/cloned_voices).
         """
-        if self.ref_audio and Path(self.ref_audio).exists():
-            return str(Path(self.ref_audio).resolve()), self.ref_text
+        if self.ref_audio:
+            ref_p = Path(self.ref_audio).expanduser()
+            if ref_p.exists():
+                return str(ref_p.resolve()), self.ref_text
+            # If not found directly, check by filename in ~/.voicefi/cloned_voices/*/samples/
+            fn = ref_p.name
+            clones_dir = Path.home() / ".voicefi" / "cloned_voices"
+            for cand in clones_dir.glob(f"*/samples/{fn}"):
+                if cand.is_file():
+                    return str(cand.resolve()), self.ref_text
+
+        # 0. Check emotional reference stems if emotion is set
+        if self.emotion:
+            emo_clean = str(self.emotion).lower().strip()
+            clones_dir = Path.home() / ".voicefi" / "cloned_voices"
+            for p_key in [getattr(self, "persona_name", None), getattr(self, "voice", None), "documentary_broadcaster"]:
+                if not p_key:
+                    continue
+                emo_dir = clones_dir / str(p_key) / "emotions"
+                if emo_dir.is_dir():
+                    for ext in [f"{emo_clean}.wav", f"{emo_clean}.mp3"]:
+                        emo_file = emo_dir / ext
+                        txt_file = emo_dir / f"{emo_clean}.txt"
+                        if emo_file.exists():
+                            txt_content = (
+                                txt_file.read_text(encoding="utf-8").strip()
+                                if txt_file.exists()
+                                else self.ref_text
+                            )
+                            return str(emo_file.resolve()), txt_content
 
         # 1. Check VoiceCloneManager for active persona/voice
         try:
@@ -190,11 +225,14 @@ class F5TTS(BaseTTS):
 
         return None, None
 
-    def speak_to_file(self, text: str, output_path: Path) -> bool:
+    def speak_to_file(
+        self, text: str, output_path: Union[str, Path], direct_cadence: bool = True
+    ) -> bool:
         """Synthesize speech conditioned on reference voice and write to audio file."""
         if not text or not text.strip():
             return False
 
+        out_p = Path(output_path).expanduser().resolve()
         clean_text = text.strip()
         ref_file, ref_text = self._resolve_reference_audio()
 
@@ -213,8 +251,26 @@ class F5TTS(BaseTTS):
                 k in str(ref_file).lower() or k in str(getattr(self, "persona_name", "")).lower()
                 for k in ("documentary", "broadcaster", "attenborough")
             )
-            if is_doc_narrator:
+            if direct_cadence and is_doc_narrator:
                 clean_text = inject_documentary_breathing_pauses(clean_text)
+
+            # Apply Walken voice acting cadence if this is Christopher Walken / Continental and direct_cadence is True
+            is_walken = any(
+                k in str(ref_file).lower() or k in str(getattr(self, "persona_name", "")).lower()
+                for k in ("walken", "christopher_walken", "continental")
+            )
+            is_continental = "continental" in str(ref_file).lower() or "continental" in str(getattr(self, "persona_name", "")).lower()
+            non_direct_prefixes = (
+                "[", "Look...", "Listen...", "Guess what?", "Wow...", "Mmm...", "Champagne", "Oh my..."
+            )
+            if direct_cadence and is_walken and "..." not in clean_text and not any(clean_text.startswith(p) for p in non_direct_prefixes):
+                from voicefi.tts.director import TheatricalDirector
+
+                archetype = "continental" if is_continental else "standard"
+                clean_text = TheatricalDirector.direct_walken_cadence(
+                    clean_text, archetype=archetype, include_prefix=False
+                )
+
 
             f5_inst = self.get_f5_instance(self.model_name, self.device)
             if not ref_text:
@@ -224,12 +280,12 @@ class F5TTS(BaseTTS):
 
             safe_seed = random.randint(0, 4294967295)
 
-            output_path.parent.mkdir(parents=True, exist_ok=True)
+            out_p.parent.mkdir(parents=True, exist_ok=True)
             f5_inst.infer(
                 ref_file=ref_file,
                 ref_text=ref_text,
                 gen_text=clean_text,
-                file_wave=str(output_path),
+                file_wave=str(out_p),
                 speed=self.speed,
                 remove_silence=True,
                 seed=safe_seed,
@@ -246,13 +302,30 @@ class F5TTS(BaseTTS):
                     if os.environ.get("PYTHONHASHSEED") != "random":
                         os.environ.pop("PYTHONHASHSEED", None)
 
-            if output_path.exists() and output_path.stat().st_size > 0:
-                # Apply BBC studio broadcast mastering chain
-                apply_bbc_documentary_mastering(output_path, output_path)
+            if out_p.exists() and out_p.stat().st_size > 0:
+                if is_doc_narrator:
+                    apply_bbc_documentary_mastering(out_p, out_p)
+                else:
+                    from voicefi.audio.mastering import apply_clone_warmth_mastering
+
+                    apply_clone_warmth_mastering(out_p, out_p)
                 return True
             return False
         except Exception as e:
             print(f"[F5-TTS] Synthesis error: {e}")
+            try:
+                from voicefi.telemetry import capture_exception
+                capture_exception(
+                    e,
+                    component="f5_tts",
+                    properties={
+                        "model_name": getattr(self, "model_name", "unknown"),
+                        "persona": getattr(self, "persona_name", "unknown"),
+                        "device": getattr(self, "device", "unknown"),
+                    },
+                )
+            except Exception:
+                pass
             return False
 
     def speak(self, text: str, block: bool = True) -> None:

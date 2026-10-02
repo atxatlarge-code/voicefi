@@ -2,7 +2,9 @@
   "name": "VoiceFi Companion",
   "short_name": "VoiceFi Companion",
   "description": "Ambient Hands-Free Voice Layer for Antigravity & AI Agents",
+  "id": "/",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#090d16",
@@ -11,12 +13,44 @@
     {
       "src": "/api/icon",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     },
     {
       "src": "/api/icon",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Record Meeting",
+      "short_name": "Record",
+      "description": "1-Tap Granola Meeting Recording",
+      "url": "/?action=record",
+      "icons": [
+        {
+          "src": "/api/icon",
+          "sizes": "192x192",
+          "type": "image/png",
+          "purpose": "any"
+        }
+      ]
+    },
+    {
+      "name": "Walking Memo",
+      "short_name": "Memo",
+      "description": "Capture walking voice memo",
+      "url": "/?action=memo",
+      "icons": [
+        {
+          "src": "/api/icon",
+          "sizes": "192x192",
+          "type": "image/png",
+          "purpose": "any"
+        }
+      ]
     }
   ]
 }

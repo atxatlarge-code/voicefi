@@ -61,7 +61,8 @@ def cmd_speak(args):
         claim_active_conversation_turn(text)
     except Exception:
         pass
-    print(f"🔊 Speaking ({tts.voice}): {text}")
+    voice_label = getattr(tts, "voice", None) or getattr(tts, "persona_name", "VoiceFi")
+    print(f"🔊 Speaking ({voice_label}): {text}")
     start_speak = time.time()
     err = None
     try:
@@ -122,13 +123,19 @@ def cmd_listen(args):
         on_pause_change=_on_pause,
     )
 
+    if not temp_wav:
+        print("ℹ️ No speech captured.")
+        set_cross_process_hud_state("idle", user_name=config.user_name)
+        return
+
     print("⏳ Transcribing...")
     set_cross_process_hud_state("transcribing")
     stt = get_stt_engine(config)
     try:
         text = stt.transcribe(temp_wav)
     finally:
-        temp_wav.unlink(missing_ok=True)
+        if temp_wav and hasattr(temp_wav, "unlink"):
+            temp_wav.unlink(missing_ok=True)
 
     if text:
         print(f"\n📝 Transcribed: {text}\n")

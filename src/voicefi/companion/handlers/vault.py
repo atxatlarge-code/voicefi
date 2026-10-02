@@ -165,6 +165,57 @@ class VaultHandlersMixin:
             logger.exception("handle_vault_memo error: %s", e)
             return web.json_response({"error": str(e)}, status=500)
 
+    async def handle_vault_meeting(self, request: web.Request) -> web.Response:
+        """Save a Granola-style meeting note to <vault>/Meetings/ with highlights, action items, and backlinks."""
+        try:
+            data = await request.json()
+            raw_text = data.get("raw_text") or data.get("text", "")
+            title = data.get("title", "").strip()
+            highlights = data.get("highlights", [])
+            tasks = data.get("tasks", [])
+            vault_path_str = data.get("vault_path")
+            vault_path = Path(vault_path_str) if vault_path_str else None
+
+            if not raw_text:
+                return web.json_response({"error": "No meeting speech text provided"}, status=400)
+
+            from voicefi.memo.granola import GranolaSynthesizer
+            from voicefi.integrations.obsidian import save_meeting_note
+
+            synthesizer = GranolaSynthesizer(self.config)
+            meeting_res = await asyncio.to_thread(
+                synthesizer.synthesize_meeting,
+                raw_speech=raw_text,
+                title_hint=title if title else None,
+                highlights=highlights,
+                tasks=tasks,
+            )
+
+            res = await asyncio.to_thread(
+                save_meeting_note,
+                meeting_markdown=meeting_res.markdown,
+                title=meeting_res.title,
+                vault_path=vault_path,
+                config=self.config,
+            )
+
+            if res.get("status") == "ok":
+                res["file_path"] = res.get("meeting_path")
+                self.broadcast_event(
+                    {
+                        "type": "vault_meeting_saved",
+                        "vault_name": res.get("vault_name"),
+                        "meeting_name": res.get("meeting_name"),
+                        "file_path": res.get("meeting_path"),
+                        "meeting_path": res.get("meeting_path"),
+                        "backlink": res.get("backlink"),
+                    }
+                )
+            return web.json_response(res)
+        except Exception as e:
+            logger.exception("handle_vault_meeting error: %s", e)
+            return web.json_response({"error": str(e)}, status=500)
+
     async def handle_vault_today(self, request: web.Request) -> web.Response:
         """Fetch today's daily note content from Obsidian."""
         try:

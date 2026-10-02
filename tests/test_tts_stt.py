@@ -75,3 +75,75 @@ def test_whisper_local_hallucination_filter():
     assert WhisperLocalSTT.filter_hallucinations("git checkout -b feature") == "git checkout -b feature"
 
 
+def test_groq_stt_error_capture_on_http_failure(monkeypatch):
+    """Verify GroqSTT captures non-200 HTTP responses to PostHog Error Tracking."""
+    from unittest.mock import patch, MagicMock
+    import numpy as np
+    from voicefi.stt.groq_cloud import GroqSTT
+
+    stt = GroqSTT(api_key="gsk_test123")
+    dummy_audio = np.zeros(16000, dtype=np.float32)
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 401
+    mock_resp.text = "Invalid API Key"
+
+    with patch("requests.post", return_value=mock_resp), \
+         patch("voicefi.telemetry.capture_exception") as mock_capture:
+        res = stt.transcribe(dummy_audio)
+        assert res == ""
+        assert mock_capture.called
+        call_args, call_kwargs = mock_capture.call_args
+        assert isinstance(call_args[0], RuntimeError)
+        props = call_kwargs["properties"]
+        assert props["component"] == "stt.groq"
+        assert props["provider_status_code"] == 401
+        assert props["$exception_fingerprint"] == ["stt.groq", "http_401"]
+
+
+def test_groq_stt_error_capture_on_network_exception(monkeypatch):
+    """Verify GroqSTT captures network exceptions to PostHog."""
+    from unittest.mock import patch
+    import requests
+    import numpy as np
+    from voicefi.stt.groq_cloud import GroqSTT
+
+    stt = GroqSTT(api_key="gsk_test123")
+    dummy_audio = np.zeros(16000, dtype=np.float32)
+
+    with patch("requests.post", side_effect=requests.exceptions.ConnectionError("Failed to reach Groq")), \
+         patch("voicefi.telemetry.capture_exception") as mock_capture:
+        res = stt.transcribe(dummy_audio)
+        assert res == ""
+        assert mock_capture.called
+        call_args, call_kwargs = mock_capture.call_args
+        assert isinstance(call_args[0], requests.exceptions.ConnectionError)
+        props = call_kwargs["properties"]
+        assert props["component"] == "stt.groq"
+        assert props["$exception_fingerprint"] == ["stt.groq", "ConnectionError"]
+
+
+def test_whisper_local_error_capture(monkeypatch):
+    """Verify WhisperLocalSTT captures transcription exceptions to PostHog."""
+    from unittest.mock import patch, MagicMock
+    import numpy as np
+    from voicefi.stt.whisper_local import WhisperLocalSTT
+
+    stt = WhisperLocalSTT(model_size="base.en")
+    mock_model = MagicMock()
+    mock_model.transcribe.side_effect = RuntimeError("CTranslate2 compute error")
+    stt._model = mock_model
+    dummy_audio = np.zeros(16000, dtype=np.float32)
+
+    with patch("voicefi.telemetry.capture_exception") as mock_capture:
+        res = stt.transcribe(dummy_audio)
+        assert res == ""
+        assert mock_capture.called
+        call_args, call_kwargs = mock_capture.call_args
+        assert isinstance(call_args[0], RuntimeError)
+        props = call_kwargs["properties"]
+        assert props["component"] == "stt.whisper_local"
+        assert props["$exception_fingerprint"] == ["stt.whisper_local", "RuntimeError"]
+
+
+

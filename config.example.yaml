@@ -24,13 +24,18 @@ tts:
 
 # Speech-to-Text (STT) Settings
 stt:
-  # Providers: "whisper_local" (offline faster-whisper), "groq" (fast cloud), "apple_speech"
+  # Providers: "auto" (Apple Silicon Metal GPU if available, else whisper_local),
+  #            "mlx_whisper" (Apple Silicon Metal GPU ~190ms latency, 0 CPU load),
+  #            "whisper_local" (offline faster-whisper CPU), "groq" (fast cloud), "apple_speech"
   provider: "whisper_local"
   
   # Local whisper model size: "tiny.en", "base.en", "small.en", "medium.en"
   model_size: "base.en"
   language: "en"
   streaming: false # Enable live sliding-window streaming transcription
+  
+  # MLX Whisper settings (Apple Silicon Metal GPU acceleration)
+  mlx_model: "mlx-community/whisper-large-v3-turbo" # or "mlx-community/distil-whisper-large-v3"
   
   # Groq Cloud Whisper settings (requires free api key from console.groq.com)
   groq_api_key: ""
@@ -112,4 +117,39 @@ subagents:
   architect:
     provider: "edge_tts"
     voice: "en-AU-WilliamNeural"
+
+# Wake Word & Meeting Alert Words
+wakeword:
+  enabled: true
+  phrase: "Hey Viv"              # Default personality/voice wake phrase
+  alert_words:                   # Words that trigger actions or keyword interception
+    - "VoiceFi"
+    - "Vi-Fi"
+    - "vifi"
+    - "Hey Viv"
+    - "Viv"
+    - "Hey VoiceFi"
+    - "Hey Vi-Fi"
+  aliases:
+    - "hey viv"
+    - "viv"
+    - "voicefi"
+    - "vi-fi"
+    - "hey voicefi"
+    - "hey vi-fi"
+    - "vifi"
+    - "hey vifi"
+    - "hey antigravity"
+    - "hey claude"
+  sensitivity: 0.6
+  chime: true
+
+# Obsidian Vault & Granola-Style Meeting Notes
+obsidian:
+  enabled: true
+  vault_path: ""                 # Path to your Obsidian vault, e.g. ~/Documents/Obsidian Vault
+  meetings_folder: "Meetings"    # Folder for Granola-style meeting notes & action items
+  voice_memos_folder: "Voice Memos" # Folder for long walking brain dumps
+  auto_backlink: true
+
 

@@ -143,6 +143,29 @@ class ReconScout:
             "Provide: 1) One-line Diagnosis/Summary, 2) Key Functions/Lines, 3) Actionable Fix or Findings."
         )
 
+        # Check local Ollama first, then in-process LiteRT, then heuristic
+        ollama_model, ollama_findings = self._query_ollama(prompt, self.DEFAULT_SCOUT_INSTRUCTIONS)
+        if ollama_findings:
+            output_tokens = estimate_tokens(ollama_findings)
+            tokens_saved = max(0, input_tokens - output_tokens)
+            savings_pct = round((tokens_saved / max(1, input_tokens)) * 100, 1)
+            duration = time.perf_counter() - start_time
+
+            return ScoutResult(
+                target=str(target_path),
+                query=query,
+                findings=ollama_findings,
+                input_tokens_est=input_tokens,
+                output_tokens=output_tokens,
+                tokens_saved=tokens_saved,
+                savings_pct=savings_pct,
+                duration_seconds=round(duration, 2),
+                model_name=f"ollama/{ollama_model}",
+                is_local=True,
+                read_latency_ms=read_latency_ms,
+                ingress_mode="unified_ram",
+            )
+
         # If local model weights are present and LiteRT is ready, execute on-device
         if self.engine.is_installed and self.engine.model_exists:
             try:
@@ -201,6 +224,67 @@ class ReconScout:
             ingress_mode="unified_ram",
         )
 
+    def _query_ollama(self, prompt: str, system_prompt: str) -> tuple[Optional[str], Optional[str]]:
+        """Query local Ollama instance with auto-discovery and thermal safety guard."""
+        import json
+        import urllib.request
+        try:
+            from voicefi.local.supervisor import default_supervisor
+            default_supervisor.wait_if_throttled(poll_interval=2.0, max_wait=10.0)
+        except Exception:
+            pass
+
+        base_url = os.environ.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
+        # 1. Discover models
+        preferred = ["qwen2.5-coder:1.5b", "gemma2:2b", "llama3.2:1b", "tev1:latest", "nimble:latest"]
+        selected_model = None
+        try:
+            req = urllib.request.Request(f"{base_url}/api/tags")
+            with urllib.request.urlopen(req, timeout=1.5) as resp:
+                data = json.loads(resp.read().decode())
+                installed = [m.get("name", "") for m in data.get("models", [])]
+                for p in preferred:
+                    if p in installed:
+                        selected_model = p
+                        break
+                if not selected_model and installed:
+                    selected_model = installed[0]
+        except Exception:
+            return None, None
+
+        if not selected_model:
+            return None, None
+
+        # 2. Chat query
+        payload = {
+            "model": selected_model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt},
+            ],
+            "stream": False,
+            "options": {
+                "temperature": 0.2,
+                "num_predict": 400,
+            },
+        }
+        try:
+            req = urllib.request.Request(
+                f"{base_url}/api/chat",
+                data=json.dumps(payload).encode(),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=25.0) as resp:
+                if resp.status == 200:
+                    res = json.loads(resp.read().decode())
+                    content = res.get("message", {}).get("content", "").strip()
+                    if content:
+                        return selected_model, content
+        except Exception as e:
+            logger.debug(f"Ollama scout query error: {e}")
+        return None, None
+
     def _heuristic_extract(self, content: str, path: str, query: str) -> str:
         """Fast regex/keyword extractor for logs and code when model weights are not loaded."""
         lines = content.splitlines()
@@ -227,3 +311,29 @@ class ReconScout:
                 f"- No critical errors or unhandled exceptions detected in the scanned portion.\n"
                 f"- Ready for task: {query}"
             )
+
+
+if __name__ == "__main__":
+    import argparse
+    import asyncio
+
+    parser = argparse.ArgumentParser(description="VoiceFi On-Device Recon Scout")
+    parser.add_argument("target", type=str, help="Target file or directory to pre-digest")
+    parser.add_argument("--query", "-q", type=str, default="Analyze this file, identify any errors or anomalies, and extract key functions/logic.", help="Recon objective")
+    parser.add_argument("--json", action="store_true", help="Output results as JSON")
+    args = parser.parse_args()
+
+    scout = ReconScout()
+    res = asyncio.run(scout.scout(args.target, query=args.query))
+
+    if args.json:
+        import json
+        print(json.dumps(res.to_dict(), indent=2))
+    else:
+        print(f"=== VoiceFi Recon Scout [{res.model_name}] ===")
+        print(f"Target:       {res.target} (~{res.input_tokens_est} tokens)")
+        print(f"Duration:     {res.duration_seconds}s (Read RAM Latency: {res.read_latency_ms}ms)")
+        print(f"Tokens Saved: {res.tokens_saved} tokens ({res.savings_pct}% context compression)")
+        print(f"Local Compute: {res.is_local} (Ingress: {res.ingress_mode})")
+        print("\n--- Scout Findings ---")
+        print(res.findings)

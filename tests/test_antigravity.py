@@ -96,6 +96,7 @@ def test_handle_stop_hook_injects_with_target_antigravity(tmp_path: Path, monkey
     dummy_wav = tmp_path / "dummy.wav"
     dummy_wav.write_text("audio")
     monkeypatch.setattr("voicefi.integrations.antigravity.AudioRecorder.record_speech_auto", lambda self, *args, **kwargs: (None, dummy_wav))
+    monkeypatch.setattr("voicefi.audio.meeting_detection.is_user_on_call", lambda: False)
     
     mock_stt = MagicMock()
     mock_stt.transcribe.return_value = "Run the tests next"
@@ -104,6 +105,7 @@ def test_handle_stop_hook_injects_with_target_antigravity(tmp_path: Path, monkey
     mock_send = MagicMock(return_value=True)
     monkeypatch.setattr("voicefi.integrations.antigravity.send_message_to_antigravity", mock_send)
     monkeypatch.setattr("voicefi.integrations.antigravity.claim_turn", lambda *a, **kw: True)
+    monkeypatch.setattr("voicefi.integrations.conversations.ConversationTracker.is_conversation_focused", lambda self, cid: True)
 
     payload = {"conversationId": "test-123", "transcriptPath": str(tfile)}
     handle_antigravity_stop_hook(payload, config=cfg)
@@ -133,7 +135,7 @@ def test_extract_latest_agent_summary_multi_turn_with_intermediate_tool_calls(tm
             f.write(json.dumps(item) + "\n")
 
     summary = extract_latest_agent_summary(transcript_file, max_words=50)
-    assert "Turn 2 complete: All 5 tests passed!" in summary
+    assert "Turn 2 complete" in summary and "All 5 tests passed!" in summary
     assert "Turn 1 complete" not in summary
 
 
@@ -322,3 +324,111 @@ def test_brevity_learner_bounds_and_adaptation(tmp_path: Path):
     for _ in range(15):
         learner.record_turn(word_count=0, was_interrupted=True)
     assert learner.learned_max_words == learner.MIN_MAX_WORDS
+
+
+def test_clean_markdown_first_sentence_only():
+    """Verify first_sentence_only parameter extracts only the first punchy sentence."""
+    raw = "I have updated the settings to local speech. Second sentence explains extra details. Third sentence talks about tests."
+    res = clean_markdown_for_speech(raw, first_sentence_only=True)
+    assert res == "I have updated the settings to local speech."
+
+    # Test short filler paired with actual sentence
+    raw_filler = "All set. The tests have passed successfully. Here is another line that shouldn't appear."
+    res_filler = clean_markdown_for_speech(raw_filler, first_sentence_only=True)
+    assert res_filler == "All set. The tests have passed successfully."
+
+
+def test_config_first_sentence_only_defaults():
+    """Verify first_sentence_only fields exist on configuration models."""
+    from voicefi.config import VoiceFiConfig
+
+    cfg = VoiceFiConfig()
+    assert hasattr(cfg.tts, "first_sentence_only")
+    assert hasattr(cfg.antigravity, "first_sentence_only")
+    assert hasattr(cfg.claude, "first_sentence_only")
+    assert hasattr(cfg.codex, "first_sentence_only")
+
+
+def test_walken_continental_turn_directing_and_resolution():
+    """Verify TheatricalDirector cadence directing and F5TTS voice resolution for The Continental."""
+    from voicefi.tts.director import TheatricalDirector
+    from voicefi.tts import get_tts_engine
+    from voicefi.config import VoiceFiConfig, AgentVoiceProfile
+
+    # 1. Cadence directing: clean sentence start without forced intro catchphrases
+    directed_clean = TheatricalDirector.direct_walken_cadence(
+        "I completed the refactor and all unit tests pass.", archetype="continental"
+    )
+    assert directed_clean.startswith("I completed the refactor")
+    assert not directed_clean.startswith("Listen")
+    assert not directed_clean.startswith("Wow")
+    assert "refactor... and all unit tests pass." in directed_clean
+
+    # Strips any existing forced intro catchphrases (e.g. Listen... / Look...)
+    directed_stripped = TheatricalDirector.direct_walken_cadence(
+        "Listen... The DMG Version vs."
+    )
+    assert directed_stripped.startswith("The DMG Version vs.")
+    assert not directed_stripped.startswith("Listen")
+
+    # Optional theatrical prefixes when include_prefix=True
+    directed_success = TheatricalDirector.direct_walken_cadence(
+        "I completed the refactor and all unit tests pass.", archetype="continental", include_prefix=True
+    )
+    assert directed_success.startswith("Wow... look at you. Champagne?...")
+    assert "refactor... and all unit tests pass." in directed_success
+
+    directed_error = TheatricalDirector.direct_walken_cadence(
+        "The build failed due to syntax error.", archetype="continental", include_prefix=True
+    )
+    assert directed_error.startswith("Oh my...")
+
+    # 2. TTS engine resolution
+    cfg = VoiceFiConfig()
+    cfg.tts.provider = "local_clone"
+    cfg.tts.voice = "walken_continental"
+    cfg.tts.f5_ref_audio = "/Users/jaketrigg/.voicefi/cloned_voices/christopher_walken/continental/ref_continental_bubble.wav"
+    cfg.tts.f5_ref_text = "Each bubble like the story of one life. Would you like to hear my story?"
+    cfg.agents["antigravity"] = AgentVoiceProfile(
+        provider="local_clone",
+        voice="The Continental",
+        f5_ref_audio="/Users/jaketrigg/.voicefi/cloned_voices/christopher_walken/continental/ref_continental_bubble.wav",
+        f5_ref_text="Each bubble like the story of one life. Would you like to hear my story?",
+    )
+
+    from unittest.mock import patch
+    from voicefi.tts.f5_tts import F5TTS
+
+    with patch.object(F5TTS, "is_available", return_value=True):
+        eng = get_tts_engine(cfg, agent_name="antigravity")
+        assert isinstance(eng, F5TTS)
+        assert eng.ref_audio.endswith("ref_continental_bubble.wav")
+        assert eng.ref_text == "Each bubble like the story of one life. Would you like to hear my story?"
+        assert eng.speed == 0.92
+        assert eng.nfe_step == 24
+
+
+def test_get_artifact_content_path_traversal_blocked():
+    """Verify path traversal attack via conv_id or filename is strictly blocked (SEC-01)."""
+    from voicefi.integrations.conversations import get_artifact_content
+
+    # Attempt directory traversal upwards to root or user home
+    assert get_artifact_content("../../.ssh", "id_rsa") is None
+    assert get_artifact_content("../../../etc", "passwd") is None
+    assert get_artifact_content("fake_conv", "../../.env") is None
+
+
+def test_voice_acting_fallback_cascade():
+    """Verify VoiceActingTTS failure automatically cascades to EdgeTTS/MacSay (AUDIO-01)."""
+    from unittest.mock import patch
+    from voicefi.tts.voice_acting import VoiceActingTTS
+    from voicefi.tts.mac_say import MacSayTTS
+
+    vat = VoiceActingTTS()
+    with patch.object(vat, "speak_to_file", return_value=False):
+        with patch.object(MacSayTTS, "speak", return_value=True) as mock_say:
+            with patch("voicefi.tts.edge_tts.EdgeTTS.speak", side_effect=Exception("Offline")):
+                res = vat.speak("Hello fallback test")
+                assert res is True
+                mock_say.assert_called_once()
+

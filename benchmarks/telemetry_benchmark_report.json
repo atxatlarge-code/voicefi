@@ -1,0 +1,113 @@
+{
+  "timestamp": "2026-09-30T11:02:14.601091+00:00",
+  "host": {
+    "platform": "macOS-26.5.1-arm64-arm-64bit",
+    "python_version": "3.12.13",
+    "architecture": "arm64",
+    "cpu_count": 18
+  },
+  "total_elapsed_seconds": 2.753,
+  "suites": {
+    "dispatch_latency": {
+      "sequential": {
+        "operations": 100,
+        "throughput_rps": 221996.28,
+        "stats_ms": {
+          "min": 0.0019,
+          "mean": 0.0043,
+          "p50": 0.002,
+          "p90": 0.0031,
+          "p95": 0.0038,
+          "p99": 0.1811,
+          "max": 0.1811
+        }
+      },
+      "concurrent": {
+        "operations": 500,
+        "concurrency": 20,
+        "throughput_rps": 198544.04,
+        "stats_ms": {
+          "min": 0.0017,
+          "mean": 0.0032,
+          "p50": 0.002,
+          "p90": 0.0028,
+          "p95": 0.0035,
+          "p99": 0.0139,
+          "max": 0.4375
+        }
+      }
+    },
+    "deduplication_burst": {
+      "burst_size": 500,
+      "total_time_ms": 1.08,
+      "dispatched_events": 0,
+      "throttled_events": 500,
+      "throttle_rate_pct": 100.0,
+      "amortized_latency_per_call_us": 2.16,
+      "stats_ms": {
+        "min": 0.0017,
+        "mean": 0.0021,
+        "p50": 0.0019,
+        "p90": 0.0024,
+        "p95": 0.0027,
+        "p99": 0.0074,
+        "max": 0.0199
+      }
+    },
+    "audio_failover": {
+      "runs": 50,
+      "old_sync_failover_ms": {
+        "min": 50.0356,
+        "mean": 52.9878,
+        "p50": 53.4863,
+        "p90": 55.0359,
+        "p95": 55.0367,
+        "p99": 55.0614,
+        "max": 55.0614
+      },
+      "new_async_failover_ms": {
+        "min": 0.0002,
+        "mean": 0.0003,
+        "p50": 0.0002,
+        "p90": 0.0003,
+        "p95": 0.0005,
+        "p99": 0.003,
+        "max": 0.003
+      },
+      "dead_air_eliminated_ms": 52.987,
+      "dead_air_reduction_pct": 100.0
+    },
+    "zero_pii_sanitization": {
+      "iterations": 500,
+      "bytes_per_iteration": 799,
+      "throughput_mb_s": 15.07,
+      "throughput_ops_s": 19774.21,
+      "pii_leakage_detected": false,
+      "pii_violations": [],
+      "stats_ms": {
+        "min": 0.038,
+        "mean": 0.0504,
+        "p50": 0.0415,
+        "p90": 0.0759,
+        "p95": 0.0827,
+        "p99": 0.1326,
+        "max": 0.8668
+      }
+    },
+    "audio_hardware_profiling": {
+      "runs": 50,
+      "total_time_ms": 0.207,
+      "detected_output_device": "MacBook Pro Speakers",
+      "detected_samplerate": 44100.0,
+      "stats_ms": {
+        "min": 0.003,
+        "mean": 0.004,
+        "p50": 0.0032,
+        "p90": 0.0039,
+        "p95": 0.0046,
+        "p99": 0.0368,
+        "max": 0.0368
+      }
+    }
+  }
+}

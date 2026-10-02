@@ -178,6 +178,64 @@ class WebSocketHandlersMixin:
                                         )
                                 else:
                                     lower_text = text.lower().strip()
+                                    has_gemma_intent = bool(
+                                        re.search(
+                                            r"\b(?:hey|ask|tell|all\s+right|alright|okay|so|can\s+you\s+ask|could\s+you\s+ask|send\s+to|talk\s+to|switch\s+to|have|message)?\s*(?:gemma|local\s+gemma|local\s+model|local\s+intelligence)\b",
+                                            lower_text,
+                                        )
+                                    )
+                                    is_gemma = (
+                                        engine in ("gemma", "local", "gemma4-2b", "gemma4-26b")
+                                        or (cid and "gemma" in str(cid).lower())
+                                        or has_gemma_intent
+                                    )
+                                    if is_gemma:
+                                        from voicefi.integrations.conversations import save_gemma_turn
+                                        from voicefi.local.engine import LocalModelEngine
+
+                                        configured_model = getattr(
+                                            getattr(self.config, "local_model", None), "model_name", "gemma4-2b"
+                                        )
+                                        model_choice = (
+                                            "gemma4-26b"
+                                            if "26b" in str(payload.get("model") or engine or configured_model).lower()
+                                            else "gemma4-2b"
+                                        )
+                                        target_cid = cid if (cid and "gemma" in str(cid).lower()) else f"gemma_{int(time.time())}"
+                                        self.broadcast_event(
+                                            {
+                                                "type": "agent_thinking",
+                                                "engine": "gemma",
+                                                "avatar": "🧠",
+                                                "text": f"Gemma 4 ({'26B' if '26b' in model_choice else '2B'}) is thinking on Metal GPU...",
+                                                "conv_id": target_cid,
+                                            }
+                                        )
+                                        eng_inst = LocalModelEngine(model_name=model_choice)
+                                        ans = await eng_inst.chat_text(text)
+                                        save_gemma_turn(
+                                            conv_id=target_cid,
+                                            user_text=text,
+                                            agent_text=ans,
+                                            model=model_choice,
+                                        )
+                                        self.broadcast_event(
+                                            {
+                                                "type": "agent_response",
+                                                "engine": "gemma",
+                                                "avatar": "🧠",
+                                                "text": ans,
+                                                "conv_id": target_cid,
+                                            }
+                                        )
+                                        self._speak_in_background(
+                                            ans,
+                                            agent_name="gemma",
+                                            conv_id=target_cid,
+                                            origin=payload.get("origin", "mobile"),
+                                        )
+                                        continue
+
                                     if cid and (
                                         cid.startswith("claude_") or "claude" in cid.lower()
                                     ):
@@ -540,7 +598,7 @@ class WebSocketHandlersMixin:
         resolved_voice = (
             "Christopher"
             if "antigravity" in str(agent_role).lower()
-            else ("Emma" if "codex" in str(agent_role).lower() else "Viv")
+            else ("Andrew" if "gemma" in str(agent_role).lower() else ("Emma" if "codex" in str(agent_role).lower() else "Viv"))
         )
         try:
             fresh_cfg = self.config
@@ -573,3 +631,5 @@ class WebSocketHandlersMixin:
                 "timestamp": now,
             }
         )
+
+    broadcast_agent_turn_completed = broadcast_turn_completion
