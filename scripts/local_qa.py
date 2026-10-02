@@ -22,6 +22,7 @@ import sys
 import time
 import urllib.request
 from pathlib import Path
+from typing import Optional
 
 # Add src to sys.path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
@@ -75,7 +76,7 @@ def run_ruff_lint(files: list[str]) -> tuple[bool, str]:
 
     try:
         res = subprocess.run(
-            ["uv", "run", "ruff", "check"] + py_files[:20],
+            ["uvx", "ruff", "check"] + py_files[:20],
             capture_output=True,
             text=True,
             timeout=20.0,
