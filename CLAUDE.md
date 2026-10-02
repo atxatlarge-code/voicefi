@@ -41,7 +41,13 @@ CLI entry points: `vifi`, `vg`, `voicefi`
 - `vifi hearing-test` — Acoustic reception & STT verification check
 - `vifi dev` — Foreground real-time console dev mode with live VAD logging
 - `vifi panel` — Launch the local web control panel (http://localhost:5141)
-- `vifi memo record` — Capture 2-5 min developer voice ramble and synthesize to code plan
+- `vifi implement <file> -i "..."` — Surgical code modifications returning unified diffs (`local-dev`)
+- `vifi fix [--clip]` — Self-healing bug fixes from clipboard or test traces (`local-dev`)
+- `vifi scout <file|dir> -q "..."` — Pre-digest logs, stack traces, and code on-device (`local-scout`)
+- `vifi verify` / `vifi bench` — Run on-device QA regression checks and hardware benchmarks (`local-qa`)
+- `vifi speak "..." -p voice_acting -v drill_sergeant` — Voice Acting with prompt-directed emotion (MLX Qwen3-TTS on Metal)
+- `vifi speak "..." -p voice_acting --instruct "..."` — Ad-hoc theatrical performance direction
+- `vifi speak "..." -v christopher_walken` — Christopher Walken voice acting (SNL Cowbell seed + staccato director)
 
 ## 🎙️ Hands-Free Feedback Loop (Conversational Voice Loop)
 
@@ -63,16 +69,32 @@ claude:
   inject_to_active_window: true
   auto_submit: true
   max_spoken_words: 25
+
+tts:
+  provider: local_clone        # or voice_acting
+  voice: christopher_walken
+  f5_ref_audio: ~/.voicefi/cloned_voices/christopher_walken/samples/sample_cowbell_snl.wav
+  f5_ref_text: "Guess what? I got a fever, and the only prescription is more cowbell."
 ```
+
+## 🎭 Voice Acting & Theatrical Directing
+
+VoiceFi distinguishes between standard TTS (flat), voice cloning (timbre clone), and **Voice Acting** (semantic emotional delivery):
+- **MLX Engine (`src/voicefi/tts/voice_acting.py`)**: Runs `mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-4bit` on Apple Silicon Metal GPU at **0.98x RTF**. Supports natural language `--instruct` without reference audio.
+- **Theatrical Director (`src/voicefi/tts/director.py`)**: Directs staccato cadence, mid-clause pauses (`...`), and persona archetypes (`TheatricalDirector.direct_walken_cadence`).
+- **Antigravity Turn Completion**: All agent turn summaries route through `TheatricalDirector` to produce lively Walken delivery.
+- **Speech-to-Speech (STS)**: Zero-render video dubbing by swapping audio tracks with identical syllable envelopes (`ffmpeg -c:v copy`).
 
 ## Architecture & Code Conventions
 
 - **Source Code**: Located in `src/voicefi/`
 - **Config**: Pydantic models in `src/voicefi/config.py` (saved to `~/.voicefi/config.yaml`)
 - **Audio Engines**:
-  - TTS: `src/voicefi/tts/` (Apple Say, Edge TTS, ElevenLabs)
+  - TTS & Voice Acting: `src/voicefi/tts/` (MLX Qwen3 Voice Acting, F5-TTS Flow Matching, Apple Say, Edge TTS, ElevenLabs)
+  - Theatrical Director: `src/voicefi/tts/director.py` (Cadence directing, emotion matrix routing)
   - STT: `src/voicefi/stt/` (Local Faster-Whisper, Groq Cloud, Apple Speech)
   - Audio I/O: `src/voicefi/audio/` (VAD, recorder, player, echo cancellation)
 - **UI / HUD**: `src/voicefi/ui/` (PyObjC Cocoa floating dynamic island HUDs, macOS tray companion)
 - **Integrations & Injector**: `src/voicefi/integrations/` (Antigravity IPC, Claude Code hook & Desktop injector, Cursor focus, Obsidian vault bridge)
+
 

@@ -506,7 +506,7 @@ MCP_TOOLS: List[Dict[str, Any]] = [
     },
     {
         "name": "voicefi_scout",
-        "description": "Run an on-device Recon Scout on a file or directory using local Gemma 4 on Apple Silicon GPU to extract root causes, key symbols, or answers without cloud token bloat.",
+        "description": "[Part of local-scout skill] Run an on-device Recon Scout on a file or directory using local Gemma 4 on Apple Silicon GPU to extract root causes, key symbols, or answers without cloud token bloat.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -528,7 +528,7 @@ MCP_TOOLS: List[Dict[str, Any]] = [
     },
     {
         "name": "voicefi_implement",
-        "description": "Run an on-device 2-tier cascade (Gemma 4 2B Scout -> Gemma 4 26B Coder) to surgically implement code changes and return only the clean unified git diff, saving >90% of cloud tokens.",
+        "description": "[Part of local-dev skill] Run an on-device 2-tier cascade (Gemma 4 2B Scout -> Gemma 4 26B Coder) to surgically implement code changes and return only the clean unified git diff, saving >90% of cloud tokens.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -558,7 +558,7 @@ MCP_TOOLS: List[Dict[str, Any]] = [
     },
     {
         "name": "voicefi_benchmark",
-        "description": "Measure on-device model performance (TTFB latency, tokens/sec throughput, and context tokens saved) on Apple Silicon Metal GPU.",
+        "description": "[Part of local-qa skill] Measure on-device model performance (TTFB latency, tokens/sec throughput, and context tokens saved) on Apple Silicon Metal GPU.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -575,10 +575,62 @@ MCP_TOOLS: List[Dict[str, Any]] = [
     },
     {
         "name": "voicefi_local_status",
-        "description": "Inspect local model runtime status, Apple Silicon Metal GPU acceleration, and imported LiteRT models.",
+        "description": "[Part of local-qa & local-dev skills] Inspect local model runtime status, Apple Silicon Metal GPU acceleration, and imported LiteRT models.",
         "inputSchema": {
             "type": "object",
             "properties": {},
+        },
+    },
+    {
+        "name": "voicefi_auto",
+        "description": "[Part of local-dev & local-qa skills] Run an autonomous on-device engineering loop using local models (e.g. Qwen 2.5 Coder, Gemma 4, or Llama 3.3 70B on Apple Silicon Metal GPU) with SQLite AST symbol indexing, surgical diff application, and test verification. Completes multi-turn bugfixes locally in 5-15s with 0 cloud tokens.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "task": {
+                    "type": "string",
+                    "description": "The goal, bugfix, or implementation instruction for the local agent.",
+                },
+                "target_path": {
+                    "type": "string",
+                    "description": "Optional specific file or directory context for the task.",
+                },
+                "model": {
+                    "type": "string",
+                    "description": "Local model name (default: 'qwen2.5-coder:1.5b'). Can also be 'gemma4-2b', 'gemma4-26b', 'llama3.3:70b'.",
+                },
+                "max_turns": {
+                    "type": "integer",
+                    "description": "Maximum autonomous turns before terminating (default: 8).",
+                },
+                "context": {
+                    "type": "string",
+                    "description": "Optional background context, error trace, or hints.",
+                },
+            },
+            "required": ["task"],
+        },
+    },
+    {
+        "name": "voicefi_symbol_query",
+        "description": "Query the on-device AST symbol index for classes, methods, and functions across the codebase with sub-millisecond lookups.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Symbol name or substring to search.",
+                },
+                "exact": {
+                    "type": "boolean",
+                    "description": "Whether to perform an exact name lookup instead of fuzzy search (default: false).",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of symbols to return (default: 15).",
+                },
+            },
+            "required": ["query"],
         },
     },
 ]
@@ -898,6 +950,11 @@ class VoiceFiMCPServer:
             "scout",
             "benchmark",
             "local_status",
+            "auto",
+            "agent_loop",
+            "symbol_query",
+            "symbols",
+            "symbol",
         ):
             canonical_name = "voicefi_" + name
 
@@ -946,6 +1003,10 @@ class VoiceFiMCPServer:
                 res = self._tool_benchmark(args)
             elif canonical_name == "voicefi_local_status":
                 res = self._tool_local_status(args)
+            elif canonical_name in ("voicefi_auto", "voicefi_agent_loop"):
+                res = self._tool_auto(args)
+            elif canonical_name in ("voicefi_symbol_query", "voicefi_symbols", "voicefi_symbol"):
+                res = self._tool_symbol_query(args)
             else:
                 res = {
                     "content": [
@@ -961,6 +1022,23 @@ class VoiceFiMCPServer:
             }
             err_type = type(e).__name__
             err_msg = str(e)
+            # Only invoke fallback capture_exception if PostHogMCP is not initialized
+            # to prevent duplicate competing $exception events in PostHog
+            if get_mcp_posthog() is None:
+                try:
+                    from voicefi.telemetry import capture_exception
+
+                    capture_exception(
+                        e,
+                        properties={
+                            "component": "mcp_tool",
+                            "tool_name": canonical_name,
+                            "caller_agent": agent_name,
+                            "persona": persona,
+                        },
+                    )
+                except Exception:
+                    pass
         finally:
             dur_ms = int((time.time() - start_t) * 1000)
             is_error = bool(res.get("isError", False)) if res else True
@@ -2242,6 +2320,119 @@ class VoiceFiMCPServer:
             "isError": False,
         }
 
+    def _tool_auto(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        import asyncio
+        import concurrent.futures
+        from voicefi.local import LocalAutonomousLoop
+
+        task = args.get("task") or args.get("instruction") or args.get("goal")
+        if not task:
+            return {
+                "content": [
+                    {"type": "text", "text": "Error: 'task' parameter is required for voicefi_auto."}
+                ],
+                "isError": True,
+            }
+
+        target_path = args.get("target_path") or args.get("path")
+        model = args.get("model") or "qwen2.5-coder:1.5b"
+        max_turns = int(args.get("max_turns") or 8)
+        context = args.get("context")
+
+        if target_path and not context:
+            context = f"Target file or path: {target_path}"
+        elif target_path and context:
+            context = f"Target file or path: {target_path}\n\n{context}"
+
+        loop = LocalAutonomousLoop(model_name=model, max_turns=max_turns)
+        try:
+            try:
+                asyncio.get_running_loop()
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    res = executor.submit(
+                        asyncio.run, loop.execute(goal=task, context=context)
+                    ).result()
+            except RuntimeError:
+                res = asyncio.run(loop.execute(goal=task, context=context))
+
+            steps_summary = []
+            for s in res.steps:
+                steps_summary.append(
+                    f"• Turn {s.turn} [{s.tool}] ({s.duration}s): {s.thought or s.tool}"
+                )
+            steps_text = "\n".join(steps_summary) if steps_summary else "No steps executed."
+            modified_text = (
+                ", ".join([f"`{f}`" for f in res.modified_files])
+                if res.modified_files
+                else "_None_"
+            )
+
+            output_text = (
+                f"🤖 **VoiceFi Autonomous Local Loop ({res.model})**\n\n"
+                f"**Goal:** {res.goal}\n"
+                f"**Status:** {'✅ Completed' if res.completed else '⚠️ Incomplete / Max Turns Reached'}\n"
+                f"**Total Duration:** {res.total_duration}s | **Turns:** {len(res.steps)}\n"
+                f"**Modified Files:** {modified_text}\n\n"
+                f"### Execution Steps\n{steps_text}\n\n"
+                f"### Summary\n{res.summary}"
+            )
+            return {
+                "content": [{"type": "text", "text": output_text}],
+                "isError": bool(res.error and not res.completed),
+            }
+        except Exception as e:
+            logger.error("Error executing voicefi_auto tool: %s", e, exc_info=True)
+            return {
+                "content": [{"type": "text", "text": f"Autonomous loop error: {str(e)}"}],
+                "isError": True,
+            }
+
+    def _tool_symbol_query(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        from voicefi.local import LocalSymbolIndex
+
+        query = args.get("query") or args.get("name") or args.get("symbol")
+        if not query:
+            return {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Error: 'query' parameter is required for voicefi_symbol_query.",
+                    }
+                ],
+                "isError": True,
+            }
+
+        exact = bool(args.get("exact", False))
+        limit = int(args.get("limit") or 15)
+
+        indexer = LocalSymbolIndex()
+        if exact:
+            records = indexer.find_symbol(query)
+        else:
+            records = indexer.search_symbols(query, limit=limit)
+            if not records:
+                records = indexer.find_symbol(query)
+
+        if not records:
+            return {
+                "content": [
+                    {"type": "text", "text": f"No AST symbols found matching '{query}'."}
+                ],
+                "isError": False,
+            }
+
+        lines = [f"Found {len(records)} symbols matching '{query}':\n"]
+        for r in records:
+            parent = f" in class {r.parent_class}" if r.parent_class else ""
+            lines.append(
+                f"• `{r.kind}` **{r.name}**{r.signature}{parent} -> `{r.file_path}:{r.start_line}-{r.end_line}`"
+            )
+
+        return {
+            "content": [{"type": "text", "text": "\n".join(lines)}],
+            "isError": False,
+        }
+
     def run_stdio(self):
         """Main stdio loop reading JSON-RPC requests from sys.stdin and writing to sys.stdout."""
         logger.info("Starting VoiceFi MCP Server on stdio...")
@@ -2290,6 +2481,18 @@ class VoiceFiMCPServer:
                     resp = self.handle_request(req)
                 except Exception as e:
                     logger.exception("Unhandled error processing MCP request: %s", e)
+                    try:
+                        from voicefi.telemetry import capture_exception
+
+                        capture_exception(
+                            e,
+                            properties={
+                                "component": "mcp_server_loop",
+                                "client_name": getattr(self, "client_name", "unknown"),
+                            },
+                        )
+                    except Exception:
+                        pass
                     req_id = req.get("id") if isinstance(req, dict) else None
                     resp = (
                         {

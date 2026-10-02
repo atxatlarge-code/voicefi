@@ -226,6 +226,62 @@ File: `~/.codeium/windsurf/mcp_config.json`
 
 ---
 
+## 🧩 Agent Skill Gallery
+
+Give your AI coding agent new superpowers in 10 seconds. Works out-of-the-box with **Google Antigravity**, **Claude Code**, **Cursor**, **Codex**, and **Cline** using the open `skills` standard.
+
+```bash
+# Equip your agent with any VoiceFi skill in 1 command:
+npx skills add atxatlarge-code/voicefi/skills/speed-talking
+npx skills add atxatlarge-code/voicefi/skills/voice-memo-buffer
+```
+
+### 🏎️ High-Velocity Developer Audio
+* **[⚡ Speed Talking](skills/speed-talking/)** (`npx skills add atxatlarge-code/voicefi/skills/speed-talking`)  
+  *Accelerates speech playback from 1.25x to 3.0x with intelligent pause compression and time-saved metrics.*  
+  👉 *"vifi speed-talk fast"* · *"set speech speed to 1.75x"*
+
+* **[🎙️ Voice Memo Buffer](skills/voice-memo-buffer/)** (`npx skills add atxatlarge-code/voicefi/skills/voice-memo-buffer`)  
+  *Synthesizes unstructured 2–5 minute pacing brain dumps into clear PR specifications, architectural diagrams, and checklists.*  
+  👉 *"Turn my voice ramble into an implementation plan."*
+
+* **[🎭 Voice Acting & Theatrical Cadence](skills/voice-acting/)** (`npx skills add atxatlarge-code/voicefi/skills/voice-acting`)  
+  *Directs high-expression local Voice Acting, character personas, and dynamic cadence on Apple Silicon GPU without cloud APIs.*  
+  👉 *"Deliver this alert like an energetic 80s arcade announcer."*
+
+### 🤝 Multi-Agent & Ambient Collaboration
+* **[🌉 Cross-Agent Bridge](skills/cross-agent-bridge/)** (`npx skills add atxatlarge-code/voicefi/skills/cross-agent-bridge`)  
+  *Enables Antigravity and Claude Code to communicate seamlessly, delegate subagent tasks, and fire punchy sound effects.*  
+  👉 *"Delegate this backend verification to Claude Code and play a rimshot when done."*
+
+* **[👂 Ambient Meeting Listener](skills/ambient-listener/)** (`npx skills add atxatlarge-code/voicefi/skills/ambient-listener`)  
+  *Passively transcribes standups and architectural discussions, automatically surfacing action items and dispatching background tasks.*  
+  👉 *"Listen in on our standup and log any action items for the frontend team."*
+
+* **[🛡️ Active Listening & Safety Guardrails](skills/active-listening/)** (`npx skills add atxatlarge-code/voicefi/skills/active-listening`)  
+  *Acoustic cognitive safety, intent verification, and phonetic spoken-code normalization to eliminate acoustic hallucinations.*
+
+### 🚀 Local-First Agent Suite (Metal GPU & LiteRT)
+* **[💻 Local-Dev (Gemma 4 26B Coder)](skills/local-dev/)** (`npx skills add atxatlarge-code/voicefi/skills/local-dev`)  
+  *Active on-device software engineer. Executes surgical code modifications, refactors, and self-healing test loops (`vifi fix`), returning only clean unified git diffs.*
+
+* **[🔭 Local-Scout (Gemma 4 2B Recon)](skills/local-scout/)** (`npx skills add atxatlarge-code/voicefi/skills/local-scout`)  
+  *Pure zero-bloat reconnaissance. Pre-digests massive logs, stack traces, and air-gapped secrets in 0.04 ms unified RAM, saving >95% of cloud tokens.*
+
+* **[🧪 Local-QA & Diff Auditor](skills/local-qa/)** (`npx skills add atxatlarge-code/voicefi/skills/local-qa`)  
+  *On-device verification gatekeeper. Validates git diffs for syntax regressions, synthesizes unit tests, and benchmarks inference throughput.*
+
+* **[🎨 Local-Content Creative Engine](skills/local-content/)** (`npx skills add atxatlarge-code/voicefi/skills/local-content`)  
+  *Edge creative engine. Generates social reel scripts, rap battle lyrics, and dialogue turns locally with $0 token cost, feeding directly into MLX neural TTS.*
+
+* **[🎬 Video Lip-Sync Engine](skills/video-lip-sync/)** (`npx skills add atxatlarge-code/voicefi/skills/video-lip-sync`)  
+  *Precision audio-to-video lip synchronization, dynamic time warping, and zero dead-air audio trimming for social reels.*
+
+* **[📊 MCP Analytics](skills/mcp-analytics/)** (`npx skills add atxatlarge-code/voicefi/skills/mcp-analytics`)  
+  *Instruments any TypeScript or Python MCP server with PostHog analytics to capture tool calls, latencies, and agent intents.*
+
+---
+
 ## 📐 Architecture & Feedback-Loop Overview
 
 VoiceFi creates an autonomous, full-duplex conversational loop between developers and AI coding agents:
@@ -279,6 +335,8 @@ VoiceFi creates an autonomous, full-duplex conversational loop between developer
 | **Global `<ctrl>+t` macOS Dictation Hotkey** | ✅ Included | ✅ Included |
 | **ElevenLabs High-Definition Custom Voices** | User API Key | Managed API |
 | **Local F5-TTS Diffusion Voice Cloning Studio** | ✅ Included | ✅ Included |
+| **Local Discrete Voice Acting Engine (MLX Qwen3)** | ✅ Included (Apple Silicon) | ✅ Included |
+| **Speech-to-Speech Zero-Render Lip-Sync (STS)** | ✅ Included | ✅ Included |
 | **Commercial License & Priority SLA** | MIT License | Enterprise SLA |
 
 ---
@@ -303,6 +361,8 @@ VoiceFi exposes over 45 subcommands and aliases through the unified `vifi` CLI (
 | Command | Aliases | Description |
 | :--- | :--- | :--- |
 | `vifi speak "Text"` | — | Speak text aloud with active persona (`-a` agent, `-v` voice, `-p` provider, `-r` rate) |
+| `vifi speak "Text" -p voice_acting -v drill_sergeant` | — | High-expression Voice Acting on Apple Silicon Metal GPU (0.98x RTF) |
+| `vifi speak "Text" -p voice_acting --instruct "..."` | — | Ad-hoc theatrical performance direction (whispering, roaring, sarcastic fry) |
 | `vifi listen` | — | One-shot microphone dictation with VAD (`--no-inject`, `--no-enter`, `-q`) |
 | `vifi loop` | — | Start continuous hands-free voice conversation loop in terminal |
 | `vifi sfx [name]` | `vifi sound` | Play audio cues (`drum_smash`, `honk`, `sad_trombone`, `applause`, `boing`, `crickets`) |
@@ -401,11 +461,13 @@ Empirically compare On-Device Local Models (Gemma 4 on Apple Silicon Metal GPU v
 
 | Command | Aliases | Description |
 | :--- | :--- | :--- |
-| `vifi benchmark --compare` | `vifi eval`, `vifi bench -c` | Run empirical side-by-side Time on Task (ToT) benchmark on local files (`-t` target, `--turns 3`, `--cloud gemini/claude`, `--json`) |
-| `vifi eval --history` | `vifi benchmark --compare --history` | View historical ToT benchmark scorecards and speedup ratios |
+| `vifi implement <file>` | `vifi local-dev`, `vifi patch` | Surgically implement code changes using Gemma 4 (2B scout $\rightarrow$ 26B coder) and return only unified git diffs (`-i` instruction) |
+| `vifi fix [target]` | `vifi solve` | Solve bugs and test failures on-device using traceback extraction and 3-turn self-healing loops (`--clip`, `-t` test) |
 | `vifi scout <path>` | `vifi recon` | Pre-digest large files (>150 lines), crash logs, or directories on-device to eliminate context bloat (`-q` query) |
+| `vifi benchmark --compare` | `vifi eval`, `vifi verify` | Run empirical side-by-side Time on Task (ToT) benchmark on local files (`-t` target, `--turns 3`, `--cloud gemini/claude`, `--json`) |
+| `vifi eval --history` | `vifi benchmark --compare --history` | View historical ToT benchmark scorecards and speedup ratios |
 | `vifi local status` | `vifi litert`, `vifi gemma` | Inspect active on-device LiteRT runtime, Metal GPU memory, and imported local models |
-| `vifi benchmark [prompt]` | `vifi bench` | Run on-device inference speed test (TTFT, tokens/sec throughput, prompt/output tokens) |
+| `vifi benchmark [prompt]` | `vifi bench`, `vifi qa` | Run on-device inference speed test (TTFT, tokens/sec throughput, prompt/output tokens) |
 | `vifi spark [prompt]` | — | Execute Gemini Spark agent runner with spoken soundbite distillation and IPC bridge |
 
 ---

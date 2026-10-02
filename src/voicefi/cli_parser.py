@@ -715,6 +715,23 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
     )
     v_tr.add_argument("--json", action="store_true", help="Output diagnostic report in JSON")
 
+    # doctor top-level
+    doc_p = subparsers.add_parser(
+        "doctor",
+        aliases=["health", "check"],
+        help="Run comprehensive system, audio DAC, dependency & self-healing diagnostics",
+    )
+    doc_p.add_argument(
+        "--fix",
+        action="store_true",
+        help="Attempt automated self-healing for detected issues",
+    )
+    doc_p.add_argument(
+        "--json",
+        action="store_true",
+        help="Output diagnostic report in JSON format",
+    )
+
     # troubleshoot top-level
     tr_top = subparsers.add_parser(
         "troubleshoot",
@@ -1839,14 +1856,15 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
         help="Maximum bytes to scan (default: 500,000)",
     )
 
-    # implement / patch
+    # implement / local-dev / patch
     impl_p = subparsers.add_parser(
         "implement",
-        aliases=["patch", "refactor"],
+        aliases=["local-dev", "patch", "refactor"],
         help="Run on-device 2B scout -> 26B coder cascade to modify files and output git diffs",
     )
     impl_p.add_argument("target", help="File to modify")
     impl_p.add_argument("-i", "--instruction", required=True, help="Instruction or refactoring prompt")
+    impl_p.add_argument("--auto", action="store_true", default=False, help="Run autonomous multi-turn on-device loop")
     impl_p.add_argument("--no-apply", dest="apply", action="store_false", default=True, help="Do not write changes to disk (dry run)")
     impl_p.add_argument("--model-scout", default="gemma4-2b", help="Scout model (default: gemma4-2b)")
     impl_p.add_argument("--model-coder", default="gemma4-26b", help="Coder model (default: gemma4-26b)")
@@ -1862,15 +1880,27 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
     fix_p.add_argument("-i", "--instruction", default=None, help="Additional instruction or prompt for the fix")
     fix_p.add_argument("-c", "--clip", action="store_true", help="Read bug or traceback from macOS clipboard")
     fix_p.add_argument("-t", "--test", default=None, help="Test command to run for 2-attempt self-healing verification (e.g. 'pytest tests/test_foo.py')")
+    fix_p.add_argument("--auto", action="store_true", default=False, help="Run autonomous multi-turn on-device loop with tool calling")
     fix_p.add_argument("--dry-run", "--no-apply", dest="apply", action="store_false", default=True, help="Preview diff without applying to disk")
     fix_p.add_argument("--model-scout", default="gemma4-2b", help="Scout model (default: gemma4-2b)")
     fix_p.add_argument("--model-coder", default="gemma4-26b", help="Coder model (default: gemma4-26b)")
 
+    # auto / agent-loop
+    auto_p = subparsers.add_parser(
+        "auto",
+        aliases=["agent-loop", "autonomous"],
+        help="Run autonomous multi-turn on-device engineering loop with local tool execution (grep, AST symbols, diff, test)",
+    )
+    auto_p.add_argument("goal", help="Engineering goal or bug description")
+    auto_p.add_argument("-t", "--test", default=None, help="Verification test command (e.g. 'pytest tests/test_antigravity.py')")
+    auto_p.add_argument("--max-turns", type=int, default=5, help="Maximum local tool-calling iterations (default: 5)")
+    auto_p.add_argument("--model", default="qwen2.5-coder:1.5b", help="Local model name (default: qwen2.5-coder:1.5b or gemma4-26b)")
 
-    # benchmark
+
+    # benchmark / qa / verify
     bench_p = subparsers.add_parser(
         "benchmark",
-        aliases=["bench"],
+        aliases=["bench", "qa", "verify"],
         help="Measure on-device model throughput (tok/s), TTFB latency, and context efficiency",
     )
     bench_p.add_argument("prompt", nargs="*", default=None, help="Custom prompt to benchmark")

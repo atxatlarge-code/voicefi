@@ -93,14 +93,19 @@ from voicefi.cli_commands.local import (
     cmd_implement,
     cmd_benchmark,
     cmd_local,
+    cmd_auto,
 )
 from voicefi.cli_commands.fix import cmd_fix
+from voicefi.cli_commands.doctor import cmd_doctor
 
 
 
 def get_command_handlers(parser: Any = None) -> Dict[str, Callable[[Any], Any]]:
     """Return dictionary of CLI subcommand names and aliases mapped to handlers."""
     handlers: Dict[str, Callable[[Any], Any]] = {
+        "doctor": cmd_doctor,
+        "health": cmd_doctor,
+        "check": cmd_doctor,
         "beatbox": cmd_beatbox,
         "vocal-synth": cmd_beatbox,
         "taras": cmd_beatbox,
@@ -145,10 +150,15 @@ def get_command_handlers(parser: Any = None) -> Dict[str, Callable[[Any], Any]]:
         "offline-ava": cmd_download_ava,
         "scout": cmd_scout,
         "recon": cmd_scout,
+        "local-dev": cmd_implement,
         "implement": cmd_implement,
         "patch": cmd_implement,
+        "auto": cmd_auto,
+        "agent-loop": cmd_auto,
         "fix": cmd_fix,
         "solve": cmd_fix,
+        "qa": cmd_benchmark,
+        "verify": cmd_benchmark,
         "benchmark": cmd_benchmark,
         "bench": cmd_benchmark,
         "eval": cmd_benchmark,
