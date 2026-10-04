@@ -1193,11 +1193,11 @@ class VoiceFiTrayApp(_TrayAppBase):
 
         # Pairing and desktop companion options
         items = [
+            rumps.MenuItem("📷 Show Pairing QR Code...", callback=self.open_mobile_companion),
             rumps.MenuItem(
                 "🖥️ Open Desktop Companion Window",
                 callback=self.open_desktop_companion,
             ),
-            rumps.MenuItem("📷 Show Pairing QR Code...", callback=self.open_mobile_companion),
             rumps.MenuItem(
                 "📱 Open in Browser (localhost:5141/rc)",
                 callback=self.open_mobile_companion_browser,
@@ -2385,9 +2385,11 @@ class VoiceFiTrayApp(_TrayAppBase):
             else:
                 self.quick_bar.toggle()
 
-    def finish_active_recording(self):
+    def finish_active_recording(self, reason: str = ""):
         """Immediately stop recording and trigger transcription (e.g. Enter pressed or PTT key released)."""
-        print("[VoiceFi] 🛑 finish_active_recording invoked")
+        import traceback
+        caller = "".join(traceback.format_stack()[-3:-1]).strip()
+        print(f"[VoiceFi] 🛑 finish_active_recording invoked (reason={reason}) from:\n{caller}", flush=True)
         if hasattr(self, "_ptt_stop_event") and self._ptt_stop_event:
             self._ptt_stop_event.set()
         if self.active_recorder:
@@ -3096,27 +3098,26 @@ class VoiceFiTrayApp(_TrayAppBase):
                         is_action_key = is_respond_key or is_dictate_key or is_new_conv_key
 
                         if is_active_recording:
-                            # If pure PTT mode: any release of the trigger key or modifier stops recording
-                            if self.config.vad.mode == "ptt" and (
-                                is_action_key or is_modifier_release
-                            ):
-                                self.finish_active_recording()
-                            # If hybrid mode (Tap=Auto / Hold=PTT):
-                            elif self.config.vad.mode == "hybrid" and (
-                                is_action_key or is_modifier_release
-                            ):
-                                down_time = None
-                                for act in ("respond", "dictate", "new_conv"):
-                                    if act in self._key_down_times:
-                                        down_time = self._key_down_times.get(act)
-                                        break
+                            # Dictation is handled at hardware Quartz tap level (_darwin_intercept)
+                            # on_release handles respond/new_conv actions
+                            if not is_dictate_key:
+                                if self.config.vad.mode == "ptt" and (
+                                    is_respond_key or is_new_conv_key
+                                ):
+                                    self.finish_active_recording(reason="ptt_release_other")
+                                elif self.config.vad.mode == "hybrid" and (
+                                    is_respond_key or is_new_conv_key
+                                ):
+                                    down_time = None
+                                    for act in ("respond", "new_conv"):
+                                        if act in self._key_down_times:
+                                            down_time = self._key_down_times.get(act)
+                                            break
 
-                                # If held down longer than 650ms (hold gesture), treat as PTT release
-                                if down_time and (time.time() - down_time) >= 0.65:
-                                    self.finish_active_recording()
-                                # If released quickly (<650ms), it's a tap -> leave Auto-VAD running!
+                                    if down_time and (time.time() - down_time) >= 0.5:
+                                        self.finish_active_recording(reason="respond_ptt_release")
 
-                        if is_action_key or is_modifier_release:
+                        if is_action_key and not is_dictate_key:
                             self._key_down_times.clear()
                     except Exception as e:
                         print(f"[Tray] Hotkey release notice: {e}")
@@ -3126,23 +3127,70 @@ class VoiceFiTrayApp(_TrayAppBase):
 
                     _k_key_down = Quartz.kCGEventKeyDown
                     _k_key_up = Quartz.kCGEventKeyUp
+                    _k_flags_changed = Quartz.kCGEventFlagsChanged
                     _k_keycode = Quartz.kCGKeyboardEventKeycode
                     _mask_alt = Quartz.kCGEventFlagMaskAlternate
                     _mask_cmd = Quartz.kCGEventFlagMaskCommand
                     _mask_ctrl = Quartz.kCGEventFlagMaskControl
                     _mask_shift = Quartz.kCGEventFlagMaskShift
+                    _mask_fn = Quartz.kCGEventFlagMaskSecondaryFn
                     _cg_get_flags = Quartz.CGEventGetFlags
                     _cg_get_int = Quartz.CGEventGetIntegerValueField
                 except Exception:
                     Quartz = None
 
+                _fn_state = {"down": False, "down_time": 0.0, "is_recording": False}
+                _ctrl_t_state = {"down": False, "down_time": 0.0, "is_recording": False}
+
                 def _darwin_intercept(event_type, event):
                     if Quartz is None:
                         return event
                     try:
+                        # 0. Function / Globe Key (vk 63 or SecondaryFn mask on flagsChanged)
+                        # Suppresses macOS emoji picker and enables Walkie-Talkie (Hold) & Open-Mic (Tap)
+                        if event_type == _k_flags_changed:
+                            flags = _cg_get_flags(event)
+                            vk = _cg_get_int(event, _k_keycode)
+                            now = time.time()
+
+                            # If Control was released during a Ctrl+T hold, trigger walkie-talkie finish
+                            if _ctrl_t_state["down"] and not (flags & _mask_ctrl):
+                                _ctrl_t_state["down"] = False
+                                held_dur = now - _ctrl_t_state["down_time"]
+                                if held_dur >= 0.45 and _ctrl_t_state["is_recording"]:
+                                    self.finish_active_recording(reason="ctrl_release_walkie_talkie")
+                                    _ctrl_t_state["is_recording"] = False
+
+                            if vk == 63 or bool(flags & _mask_fn) != _fn_state["down"]:
+                                is_fn_now_down = bool(flags & _mask_fn)
+                                if is_fn_now_down and not _fn_state["down"]:
+                                    _fn_state["down"] = True
+                                    _fn_state["down_time"] = now
+                                    # If already recording, tapping Fn again toggles off & finishes recording
+                                    if self._current_status in ("listening", "hearing", "ptt_listening"):
+                                        if (now - getattr(self, "_recording_start_time", 0.0)) >= 0.5:
+                                            self.finish_active_recording(reason="fn_toggle_off")
+                                            _fn_state["is_recording"] = False
+                                    else:
+                                        # Start dictation in open mic mode
+                                        self._key_down_times["dictate"] = now
+                                        _fn_state["is_recording"] = True
+                                        self.trigger_manual_listen(ptt_mode=False)
+                                    return None
+                                elif not is_fn_now_down and _fn_state["down"]:
+                                    _fn_state["down"] = False
+                                    held_dur = now - _fn_state["down_time"]
+                                    # If held >= 450ms, this was a walkie-talkie hold -> finish recording on release!
+                                    if held_dur >= 0.45 and _fn_state["is_recording"]:
+                                        self.finish_active_recording(reason="fn_walkie_talkie_release")
+                                        _fn_state["is_recording"] = False
+                                    # If tapped (<450ms), leave open-mic running until next Fn tap or Enter!
+                                    return None
+
                         if event_type == _k_key_down or event_type == _k_key_up:
                             flags = _cg_get_flags(event)
                             vk = _cg_get_int(event, _k_keycode)
+                            now = time.time()
 
                             # 0. Backwards-compatible Quick Prompt Bar: vk 49 (Space) with Control held ONLY
                             if vk == 49:
@@ -3171,6 +3219,39 @@ class VoiceFiTrayApp(_TrayAppBase):
                                         if _debounce("companion_window", interval=0.3):
                                             self.open_desktop_companion()
                                     return None
+
+                            # 0.6 Universal Dictation: vk 17 ('t') with Control held ONLY
+                            # Full hybrid support: Tap once = Open-Mic continuous, Hold = Walkie-Talkie PTT
+                            if vk == 17:
+                                is_ctrl_t_event = bool(flags & _mask_ctrl) and not bool(
+                                    flags & (_mask_cmd | _mask_shift | _mask_alt)
+                                )
+                                if is_ctrl_t_event:
+                                    if event_type == _k_key_down:
+                                        if not _ctrl_t_state["down"]:
+                                            _ctrl_t_state["down"] = True
+                                            _ctrl_t_state["down_time"] = now
+                                            # If already recording, tapping again toggles off & finishes recording
+                                            if self._current_status in ("listening", "hearing", "ptt_listening"):
+                                                if (now - getattr(self, "_recording_start_time", 0.0)) >= 0.5:
+                                                    self.finish_active_recording(reason="ctrl_t_toggle_off")
+                                                    _ctrl_t_state["is_recording"] = False
+                                            else:
+                                                # Start dictation in open mic mode
+                                                self._key_down_times["dictate"] = now
+                                                _ctrl_t_state["is_recording"] = True
+                                                self.trigger_manual_listen(ptt_mode=False)
+                                        return None
+                                    elif event_type == _k_key_up:
+                                        if _ctrl_t_state["down"]:
+                                            _ctrl_t_state["down"] = False
+                                            held_dur = now - _ctrl_t_state["down_time"]
+                                            # If held >= 450ms, this was a walkie-talkie hold -> finish recording on release!
+                                            if held_dur >= 0.45 and _ctrl_t_state["is_recording"]:
+                                                self.finish_active_recording(reason="ctrl_t_walkie_talkie_release")
+                                                _ctrl_t_state["is_recording"] = False
+                                            # If tapped (<450ms), leave open-mic running until next tap or Enter!
+                                        return None
 
                             # Instant Microsecond Fast-Path: If Option/Alt is not held, never intercept!
                             # Guarantees 0ms typing latency on macOS WindowServer for 99.9% of keystrokes.
@@ -3876,11 +3957,15 @@ class VoiceFiTrayApp(_TrayAppBase):
 
     def trigger_manual_listen(self, ptt_mode: bool = False):
         with self._listen_lock:
+            now = time.time()
             if self._current_status in ("listening", "hearing", "ptt_listening"):
-                self.finish_active_recording()
+                # Prevent rapid mouse double-click or button bounce from instantly cancelling dictation
+                if (now - getattr(self, "_recording_start_time", 0.0)) >= 0.5:
+                    self.finish_active_recording()
                 return
             if self._current_status in ("transcribing", "paused_agent_speaking"):
                 return
+            self._recording_start_time = now
             self._current_status = "ptt_listening" if ptt_mode else "listening"
 
         hud = UnifiedDynamicIslandHUD.get_instance()

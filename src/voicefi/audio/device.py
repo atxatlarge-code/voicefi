@@ -4,7 +4,9 @@ Identifies built-in MacBook speakers vs. headphones/AirPods to prevent acoustic 
 """
 
 import os
-from typing import Dict, Any, Optional, Tuple
+import shutil
+import subprocess
+from typing import Dict, Any, Optional, Tuple, List
 
 
 def get_default_audio_devices() -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
@@ -185,3 +187,180 @@ def get_audio_device_profile() -> Dict[str, Any]:
         else "None",
         "acoustic_safe_mode_recommended": builtin_spk and not headphones and not hardware_aec,
     }
+
+
+def _find_audio_switcher_bin() -> Optional[str]:
+    """Locate SwitchAudioSource binary on macOS."""
+    candidates = [
+        "SwitchAudioSource",
+        "/opt/homebrew/bin/SwitchAudioSource",
+        "/usr/local/bin/SwitchAudioSource",
+    ]
+    for cand in candidates:
+        if shutil.which(cand) or os.path.exists(cand):
+            return cand
+    return None
+
+
+def list_audio_input_devices() -> List[str]:
+    """List all available audio input device names."""
+    sw = _find_audio_switcher_bin()
+    if sw:
+        try:
+            res = subprocess.run(
+                [sw, "-a", "-t", "input"],
+                capture_output=True,
+                text=True,
+                timeout=2,
+            )
+            if res.returncode == 0:
+                return [line.strip() for line in res.stdout.strip().splitlines() if line.strip()]
+        except Exception:
+            pass
+
+    # Fallback to sounddevice
+    try:
+        import sounddevice as sd
+
+        devices = sd.query_devices()
+        names = []
+        for d in devices:
+            if d.get("max_input_channels", 0) > 0:
+                name = d.get("name")
+                if name and name not in names:
+                    names.append(name)
+        return names
+    except Exception:
+        return []
+
+
+def get_current_input_device_name() -> str:
+    """Get the currently selected default audio input device name."""
+    sw = _find_audio_switcher_bin()
+    if sw:
+        try:
+            res = subprocess.run(
+                [sw, "-c", "-t", "input"],
+                capture_output=True,
+                text=True,
+                timeout=2,
+            )
+            if res.returncode == 0 and res.stdout.strip():
+                return res.stdout.strip()
+        except Exception:
+            pass
+    in_dev, _ = get_default_audio_devices()
+    return in_dev.get("name", "Unknown") if in_dev else "Unknown"
+
+
+def set_audio_input_device(device_name: str) -> bool:
+    """Set the system audio input device by name via SwitchAudioSource."""
+    sw = _find_audio_switcher_bin()
+    if not sw:
+        return False
+    try:
+        res = subprocess.run(
+            [sw, "-s", device_name, "-t", "input"],
+            capture_output=True,
+            text=True,
+            timeout=3,
+        )
+        return res.returncode == 0
+    except Exception:
+        return False
+
+
+def find_builtin_microphone_name() -> Optional[str]:
+    """Find the Mac built-in microphone device name if available."""
+    inputs = list_audio_input_devices()
+    builtin_markers = ("macbook", "built-in microphone", "internal microphone", "built-in mic")
+    for name in inputs:
+        low = name.lower()
+        if any(marker in low for marker in builtin_markers):
+            return name
+    return None
+
+
+def find_headset_microphone_name() -> Optional[str]:
+    """Find connected Bluetooth headset/earbuds microphone name if available."""
+    inputs = list_audio_input_devices()
+    headphone_markers = (
+        "buds",
+        "airpod",
+        "headphone",
+        "headset",
+        "bluetooth",
+        "wireless",
+        "in-ear",
+        "iem",
+    )
+    for name in inputs:
+        low = name.lower()
+        if any(marker in low for marker in headphone_markers):
+            return name
+    return None
+
+
+def pin_mac_microphone() -> Tuple[bool, str]:
+    """
+    Lock/switch input to the Mac built-in microphone.
+    Preserves connected Bluetooth earbuds in high-fidelity A2DP stereo.
+    """
+    mac_mic = find_builtin_microphone_name()
+    if not mac_mic:
+        return False, "Built-in Mac microphone not found in input devices."
+
+    current = get_current_input_device_name()
+    if current.lower() == mac_mic.lower():
+        return True, f"Already pinned to {mac_mic}."
+
+    ok = set_audio_input_device(mac_mic)
+    if ok:
+        return True, f"Locked input to {mac_mic} (earbuds preserved in high-fidelity stereo)."
+    return False, f"Failed to switch input to {mac_mic}."
+
+
+def set_headset_microphone() -> Tuple[bool, str]:
+    """Switch input to connected Bluetooth earbuds/headset for roaming."""
+    headset_mic = find_headset_microphone_name()
+    if not headset_mic:
+        return False, "No Bluetooth headset or earbuds microphone detected."
+
+    current = get_current_input_device_name()
+    if current.lower() == headset_mic.lower():
+        return True, f"Already set to {headset_mic}."
+
+    ok = set_audio_input_device(headset_mic)
+    if ok:
+        return True, f"Switched input to {headset_mic} for roaming (earbuds in headset mode)."
+    return False, f"Failed to switch input to {headset_mic}."
+
+
+def toggle_microphone_source() -> Tuple[bool, str]:
+    """Toggle input between Mac built-in microphone and Bluetooth headset."""
+    current = get_current_input_device_name()
+    mac_mic = find_builtin_microphone_name()
+    headset_mic = find_headset_microphone_name()
+
+    if mac_mic and current.lower() == mac_mic.lower():
+        if headset_mic:
+            return set_headset_microphone()
+        return False, "No headset microphone available to switch to."
+    else:
+        if mac_mic:
+            return pin_mac_microphone()
+        return False, "Built-in Mac microphone not found."
+
+
+def auto_pin_mac_microphone(force: bool = False) -> Tuple[bool, str]:
+    """
+    Automatically pin to Mac microphone if headphones/earbuds are active and
+    macOS has hijacked input to the earbuds.
+    """
+    if not force:
+        headphones = is_headphone_or_headset_active()
+        bt_input = is_bluetooth_input_active()
+        if not (headphones and bt_input):
+            return False, "Auto-pin not needed (earbuds are not capturing input)."
+    return pin_mac_microphone()
+

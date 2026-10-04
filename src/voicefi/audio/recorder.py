@@ -92,6 +92,12 @@ class AudioRecorder:
 
     def _create_input_stream(self):
         """Create standard sounddevice InputStream for clean, loud, unattenuated audio capture."""
+        try:
+            from voicefi.audio.device import auto_pin_mac_microphone
+
+            auto_pin_mac_microphone()
+        except Exception:
+            pass
         return sd.InputStream(samplerate=self.sample_rate, channels=1, dtype="float32")
 
     def record_speech_auto(

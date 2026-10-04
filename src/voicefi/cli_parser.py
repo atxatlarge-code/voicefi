@@ -193,6 +193,20 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
         "-q", "--quiet", action="store_true", help="Disable audio feedback chimes"
     )
 
+    # mic / microphone
+    mic_p = subparsers.add_parser(
+        "mic",
+        aliases=["microphone"],
+        help="Inspect, switch, or lock microphone input devices (Mac mic vs Earbuds)",
+    )
+    mic_p.add_argument(
+        "action",
+        nargs="?",
+        default=None,
+        choices=["status", "mac", "desk", "buds", "roam", "toggle", "switch", "pin", "lock"],
+        help="Action: status (default), mac (lock to Mac mic), buds (roam on earbuds), toggle",
+    )
+
     # loop
     loop_p = subparsers.add_parser("loop", help="Start continuous voice loop")
     loop_p.add_argument("--no-inject", dest="inject", action="store_false", default=True)

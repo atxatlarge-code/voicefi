@@ -76,6 +76,7 @@ from voicefi.cli_commands.audio import (
     cmd_record,
     cmd_bias,
     cmd_spatial,
+    cmd_mic,
 )
 from voicefi.cli_commands.setup import cmd_setup, cmd_mcp, cmd_onboarding, cmd_permissions
 from voicefi.cli_commands.knowledge import cmd_ambient, cmd_meeting, cmd_obsidian, cmd_capture

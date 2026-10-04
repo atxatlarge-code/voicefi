@@ -142,6 +142,7 @@ COMMAND_CATEGORIES = [
     (
         "🛠️ Diagnostics & Audio",
         [
+            ("mic", "Inspect, switch, or lock microphone input (Mac mic vs Earbuds)"),
             ("troubleshoot", "Comprehensive audio, mic, VAD, and TTS diagnostic suite"),
             ("feedback-loop", "Acoustic loopback test (Speak → Listen → Transcribe)"),
             ("hearing-test", "Speaker-to-mic acoustic reception verification"),

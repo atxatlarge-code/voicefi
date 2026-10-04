@@ -314,3 +314,80 @@ def cmd_spatial(args):
     if success:
         print("\n✨ Audition complete! Spatial stereo separation verified.")
     print("=" * 60 + "\n")
+
+
+def cmd_mic(args):
+    """Inspect, switch, or lock microphone input devices."""
+    from voicefi.audio.device import (
+        get_audio_device_profile,
+        list_audio_input_devices,
+        get_current_input_device_name,
+        pin_mac_microphone,
+        set_headset_microphone,
+        toggle_microphone_source,
+        find_builtin_microphone_name,
+        find_headset_microphone_name,
+    )
+
+    action = getattr(args, "action", None)
+    if action:
+        action = action.lower().strip()
+
+    if action in ("mac", "desk", "builtin", "lock", "pin"):
+        ok, msg = pin_mac_microphone()
+        icon = "🔒" if ok else "⚠️"
+        print(f"\n{icon} {msg}")
+        return 0 if ok else 1
+
+    if action in ("buds", "roam", "headset", "bluetooth", "phone"):
+        ok, msg = set_headset_microphone()
+        icon = "🎧" if ok else "⚠️"
+        print(f"\n{icon} {msg}")
+        return 0 if ok else 1
+
+    if action in ("toggle", "switch"):
+        ok, msg = toggle_microphone_source()
+        icon = "🔄" if ok else "⚠️"
+        print(f"\n{icon} {msg}")
+        return 0 if ok else 1
+
+    # Default: Show microphone profile & status
+    prof = get_audio_device_profile()
+    cur_in = get_current_input_device_name()
+    inputs = list_audio_input_devices()
+    builtin_mic = find_builtin_microphone_name()
+    headset_mic = find_headset_microphone_name()
+
+    print("\n🎙️  VoiceFi Microphone & Audio Input Status")
+    print("=" * 60)
+    print(f"  • Active Input:  {cur_in}")
+    print(f"  • Active Output: {prof.get('default_output', 'Unknown')}")
+
+    is_stereo = not prof.get("is_bluetooth_input_active", False)
+    if prof.get("is_headphones_active"):
+        if is_stereo:
+            print("  • Headphone Mode: High-Fidelity Stereo (A2DP, 44.1/48 kHz) 🟢")
+            print("    Earbuds playback fidelity is protected! Music & GarageBand remain in stereo.")
+        else:
+            print("  • Headphone Mode: Hands-Free SCO Mono (16 kHz) ⚠️")
+            print("    Notice: Input is using earbuds. Switch to Mac mic to restore full stereo.")
+    else:
+        print("  • Speaker Mode:   Built-in / External Speakers Active")
+
+    print("\n  Available Input Devices:")
+    for dev in inputs:
+        marker = "👉 " if dev.lower() == cur_in.lower() else "   "
+        role = ""
+        if builtin_mic and dev.lower() == builtin_mic.lower():
+            role = " [Mac Studio Array - Stereo Lock]"
+        elif headset_mic and dev.lower() == headset_mic.lower():
+            role = " [Bluetooth Headset - Roam Mode]"
+        print(f"  {marker}{dev}{role}")
+
+    print("\n  Quick Commands:")
+    print("    vifi mic mac      Lock to MacBook Pro mic (keeps earbuds in pristine stereo)")
+    print("    vifi mic buds     Switch to earbuds mic (for roaming / walkaway)")
+    print("    vifi mic toggle   Toggle between Mac and Earbuds")
+    print("=" * 60 + "\n")
+    return 0
+

@@ -14,6 +14,7 @@ from voicefi.cli_commands.audio import (
     cmd_record,
     cmd_bias,
     cmd_spatial,
+    cmd_mic,
 )
 from voicefi.cli_commands.setup import (
     cmd_setup,
@@ -219,6 +220,8 @@ def get_command_handlers(parser: Any = None) -> Dict[str, Callable[[Any], Any]]:
         "test-barge-in": cmd_barge_in,
         "troubleshoot": cmd_troubleshoot,
         "test": cmd_troubleshoot,
+        "mic": cmd_mic,
+        "microphone": cmd_mic,
         "clone": cmd_clone,
         "clean": cmd_clean,
         "purge": cmd_clean,
