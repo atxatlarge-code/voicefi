@@ -131,7 +131,9 @@ def apply_clone_warmth_mastering(
         )
         cmd = [ffmpeg_bin, "-y", "-i", str(in_p), "-af", filter_str, str(tmp_out)]
         try:
-            res = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+            res = subprocess.run(
+                cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False
+            )
             if res.returncode == 0 and tmp_out.is_file() and tmp_out.stat().st_size > 0:
                 if target_p:
                     shutil.move(str(tmp_out), str(target_p))

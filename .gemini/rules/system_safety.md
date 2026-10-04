@@ -9,6 +9,7 @@
 - **Metal Cache Clearance**: Any script running local MLX models (e.g. Qwen 2.5 Coder 32B/14B, Gemma) must explicitly clear the Metal GPU cache after inference using:
   ```python
   import mlx.core as mx
+
   mx.metal.clear_cache()
   ```
 - **Process Isolation**: Local inference jobs must run in self-contained worker processes so that 18–20 GB Unified Memory buffers are immediately reclaimed upon process exit.

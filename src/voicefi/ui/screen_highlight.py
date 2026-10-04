@@ -60,7 +60,9 @@ except objc.nosuchclass_error:
         def init(self):
             self = objc.super(HighlightBorderView, self).init()
             if self:
-                self.border_color = NSColor.colorWithCalibratedRed_green_blue_alpha_(0.94, 0.22, 0.24, 0.98)
+                self.border_color = NSColor.colorWithCalibratedRed_green_blue_alpha_(
+                    0.94, 0.22, 0.24, 0.98
+                )
                 self.tint_color = None
             return self
 
@@ -103,25 +105,25 @@ class PalHighlightOverlay:
     # Interior tint is None so no wash/tint covers the screen content - pure border outline only
     COLORS = {
         "hearing": {
-            "border": (0.94, 0.22, 0.24, 0.98),      # VoiceFi Brand Red (#EF4444)
+            "border": (0.94, 0.22, 0.24, 0.98),  # VoiceFi Brand Red (#EF4444)
             "tint": None,
             "badge_bg": (0.45, 0.08, 0.10, 0.92),
             "text": "🎙️ Pal Listening",
         },
         "training": {
-            "border": (0.96, 0.16, 0.20, 0.98),      # Deep Vibrant Brand Red (#E0002A)
+            "border": (0.96, 0.16, 0.20, 0.98),  # Deep Vibrant Brand Red (#E0002A)
             "tint": None,
             "badge_bg": (0.50, 0.06, 0.10, 0.94),
             "text": "🔴 Pal Training",
         },
         "executing": {
-            "border": (0.19, 0.82, 0.35, 0.95),     # Emerald Green (#30D158)
+            "border": (0.19, 0.82, 0.35, 0.95),  # Emerald Green (#30D158)
             "tint": None,
             "badge_bg": (0.10, 0.35, 0.18, 0.90),
             "text": "⚡ Pal Executing",
         },
         "screen": {
-            "border": (0.94, 0.22, 0.24, 0.98),      # Brand Red Screen Perimeter
+            "border": (0.94, 0.22, 0.24, 0.98),  # Brand Red Screen Perimeter
             "tint": None,
             "badge_bg": (0.45, 0.08, 0.10, 0.92),
             "text": "👁️ Pal Watching",
@@ -182,7 +184,9 @@ class PalHighlightOverlay:
             self._border_view.setFrame_(NSRect(NSPoint(0, 0), initial_rect.size))
 
             # Floating badge label (hidden by default so only clean screen border shows)
-            self._badge = NSTextField.alloc().initWithFrame_(NSRect(NSPoint(16.0, 16.0), NSSize(160.0, 26.0)))
+            self._badge = NSTextField.alloc().initWithFrame_(
+                NSRect(NSPoint(16.0, 16.0), NSSize(160.0, 26.0))
+            )
             self._badge.setBezeled_(False)
             self._badge.setDrawsBackground_(True)
             self._badge.setEditable_(False)
@@ -198,7 +202,9 @@ class PalHighlightOverlay:
             self._border_view.addSubview_(self._badge)
             self._panel.setContentView_(self._border_view)
             self._panel.setAlphaValue_(0.0)
-            self._panel.orderOut_(None)  # Keep completely unmapped from WindowServer until actively triggered
+            self._panel.orderOut_(
+                None
+            )  # Keep completely unmapped from WindowServer until actively triggered
             print("[PalHighlightOverlay] Window successfully initialized on main thread.")
         except Exception as e:
             print(f"[PalHighlightOverlay] Init failed: {e}")
@@ -223,7 +229,9 @@ class PalHighlightOverlay:
             rect = self._query_focused_window_frame()
             if rect:
                 self._update_panel_frame(rect)
-                print(f"[PalHighlightOverlay] Showing Brand Red halo for focused window: ({rect.origin.x}, {rect.origin.y}, {rect.size.width}x{rect.size.height})")
+                print(
+                    f"[PalHighlightOverlay] Showing Brand Red halo for focused window: ({rect.origin.x}, {rect.origin.y}, {rect.size.width}x{rect.size.height})"
+                )
             else:
                 self._fallback_to_screen()
                 print("[PalHighlightOverlay] Showing Brand Red halo for full screen perimeter.")
@@ -360,7 +368,9 @@ class PalHighlightOverlay:
             badge_h = 24.0
             bx = target_rect.size.width - badge_w - 18.0
             by = target_rect.size.height - badge_h - 10.0
-            self._badge.setFrame_(NSRect(NSPoint(max(10.0, bx), max(10.0, by)), NSSize(badge_w, badge_h)))
+            self._badge.setFrame_(
+                NSRect(NSPoint(max(10.0, bx), max(10.0, by)), NSSize(badge_w, badge_h))
+            )
 
     def _fallback_to_screen(self) -> None:
         """Set halo to the main screen perimeter."""

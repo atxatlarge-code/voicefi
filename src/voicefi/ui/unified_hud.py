@@ -565,7 +565,9 @@ except objc.nosuchclass_error:
                 else:
                     # Active speech: vibrant dynamic coral red / glowing neon
                     alpha = min(1.0, 0.75 + self._speech_prob * 0.25)
-                    bar_color = NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 0.22, 0.30, alpha)
+                    bar_color = NSColor.colorWithCalibratedRed_green_blue_alpha_(
+                        1.0, 0.22, 0.30, alpha
+                    )
             elif self._speech_prob > 0.20:
                 # Moderate candidate sound / transitioning: warm amber
                 bar_color = NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 0.70, 0.25, 0.85)
@@ -996,9 +998,15 @@ class UnifiedDynamicIslandHUD:
             # Google Blue #4285F4 border, Violet #9B51E0 tag, Brand Red #EA4335 model waveform, Emerald #00E676 mic
             return {
                 "border": NSColor.colorWithCalibratedRed_green_blue_alpha_(0.26, 0.52, 0.96, 0.88),
-                "tag": NSColor.colorWithCalibratedRed_green_blue_alpha_(0.92, 0.26, 0.21, 0.98),  # Brand Red #EA4335
-                "accent": NSColor.colorWithCalibratedRed_green_blue_alpha_(0.0, 0.90, 0.46, 0.95),    # Neon Emerald #00E676
-                "waveform": NSColor.colorWithCalibratedRed_green_blue_alpha_(0.92, 0.26, 0.21, 0.95),  # Brand Red #EA4335
+                "tag": NSColor.colorWithCalibratedRed_green_blue_alpha_(
+                    0.92, 0.26, 0.21, 0.98
+                ),  # Brand Red #EA4335
+                "accent": NSColor.colorWithCalibratedRed_green_blue_alpha_(
+                    0.0, 0.90, 0.46, 0.95
+                ),  # Neon Emerald #00E676
+                "waveform": NSColor.colorWithCalibratedRed_green_blue_alpha_(
+                    0.92, 0.26, 0.21, 0.95
+                ),  # Brand Red #EA4335
             }
         elif canonical == "claude":
             # Anthropic Warm Terracotta #D97757, Desert Peach #F4A261, Coral Amber #E76F51
@@ -1006,7 +1014,9 @@ class UnifiedDynamicIslandHUD:
                 "border": NSColor.colorWithCalibratedRed_green_blue_alpha_(0.85, 0.47, 0.34, 0.88),
                 "tag": NSColor.colorWithCalibratedRed_green_blue_alpha_(0.96, 0.64, 0.38, 0.98),
                 "accent": NSColor.colorWithCalibratedRed_green_blue_alpha_(0.91, 0.43, 0.32, 0.95),
-                "waveform": NSColor.colorWithCalibratedRed_green_blue_alpha_(0.91, 0.43, 0.32, 0.95),
+                "waveform": NSColor.colorWithCalibratedRed_green_blue_alpha_(
+                    0.91, 0.43, 0.32, 0.95
+                ),
             }
         elif canonical == "codex":
             # OpenAI Teal #10A37F, Fresh Mint #2DD4BF
@@ -1029,7 +1039,9 @@ class UnifiedDynamicIslandHUD:
                 "border": NSColor.colorWithCalibratedRed_green_blue_alpha_(0.10, 0.70, 0.90, 0.88),
                 "tag": NSColor.colorWithCalibratedRed_green_blue_alpha_(0.20, 0.85, 0.75, 0.98),
                 "accent": NSColor.colorWithCalibratedRed_green_blue_alpha_(0.10, 0.75, 0.85, 0.95),
-                "waveform": NSColor.colorWithCalibratedRed_green_blue_alpha_(0.10, 0.75, 0.85, 0.95),
+                "waveform": NSColor.colorWithCalibratedRed_green_blue_alpha_(
+                    0.10, 0.75, 0.85, 0.95
+                ),
             }
         else:
             # VoiceFi Native
@@ -1037,7 +1049,9 @@ class UnifiedDynamicIslandHUD:
                 "border": NSColor.colorWithCalibratedRed_green_blue_alpha_(0.55, 0.36, 0.96, 0.88),
                 "tag": NSColor.colorWithCalibratedRed_green_blue_alpha_(0.30, 0.85, 1.0, 0.98),
                 "accent": NSColor.colorWithCalibratedRed_green_blue_alpha_(0.0, 0.85, 0.45, 0.95),
-                "waveform": NSColor.colorWithCalibratedRed_green_blue_alpha_(0.55, 0.36, 0.96, 0.95),
+                "waveform": NSColor.colorWithCalibratedRed_green_blue_alpha_(
+                    0.55, 0.36, 0.96, 0.95
+                ),
             }
 
     def _resolve_app_icon(self, name: Optional[str]) -> Optional[Any]:
@@ -2135,9 +2149,15 @@ class UnifiedDynamicIslandHUD:
                     import Quartz
 
                     anim = Quartz.CAKeyframeAnimation.animationWithKeyPath_("borderColor")
-                    blue_cg = NSColor.colorWithCalibratedRed_green_blue_alpha_(0.26, 0.52, 0.96, 0.88).CGColor()
-                    violet_cg = NSColor.colorWithCalibratedRed_green_blue_alpha_(0.61, 0.32, 0.88, 0.88).CGColor()
-                    emerald_cg = NSColor.colorWithCalibratedRed_green_blue_alpha_(0.0, 0.90, 0.46, 0.88).CGColor()
+                    blue_cg = NSColor.colorWithCalibratedRed_green_blue_alpha_(
+                        0.26, 0.52, 0.96, 0.88
+                    ).CGColor()
+                    violet_cg = NSColor.colorWithCalibratedRed_green_blue_alpha_(
+                        0.61, 0.32, 0.88, 0.88
+                    ).CGColor()
+                    emerald_cg = NSColor.colorWithCalibratedRed_green_blue_alpha_(
+                        0.0, 0.90, 0.46, 0.88
+                    ).CGColor()
                     anim.setValues_([blue_cg, violet_cg, emerald_cg, blue_cg])
                     anim.setKeyTimes_([0.0, 0.33, 0.66, 1.0])
                     anim.setDuration_(5.0)
@@ -2378,11 +2398,15 @@ class UnifiedDynamicIslandHUD:
                         elif state in ("hearing", "listening"):
                             # Neon Emerald/Cyan for user microphone speech (barge-in proof)
                             mic_col = (
-                                NSColor.colorWithCalibratedRed_green_blue_alpha_(0.0, 0.90, 0.46, 0.95)
+                                NSColor.colorWithCalibratedRed_green_blue_alpha_(
+                                    0.0, 0.90, 0.46, 0.95
+                                )
                                 if not is_headless()
                                 else None
                             )
-                            self._visualizer.setSpeechBarColor_(mic_col if state == "hearing" else None)
+                            self._visualizer.setSpeechBarColor_(
+                                mic_col if state == "hearing" else None
+                            )
                         else:
                             self._visualizer.setSpeechBarColor_(None)
                     if state in ("listening", "new_conversation"):
@@ -2961,13 +2985,24 @@ class UnifiedDynamicIslandHUD:
         tag = f"🔴 Step {step_count} • {mins:02d}:{secs:02d}"
 
         def _update():
-            if hasattr(self, "_tag_lbl") and self._tag_lbl and self._panel and self._panel.isVisible():
+            if (
+                hasattr(self, "_tag_lbl")
+                and self._tag_lbl
+                and self._panel
+                and self._panel.isVisible()
+            ):
                 self._tag_lbl.setStringValue_(tag)
-            if hasattr(self, "_body_lbl") and self._body_lbl and self._panel and self._panel.isVisible():
+            if (
+                hasattr(self, "_body_lbl")
+                and self._body_lbl
+                and self._panel
+                and self._panel.isVisible()
+            ):
                 self._body_lbl.setStringValue_(last_action[:60])
 
         try:
             from PyObjCTools import AppHelper
+
             AppHelper.callAfter(_update)
         except Exception:
             _update()

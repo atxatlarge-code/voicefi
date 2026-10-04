@@ -123,7 +123,7 @@ class PalWorkflowRunner:
                     command=recipe_id,
                     action_type="workflow_timeout",
                     details=f"Workflow exceeded total budget of {total_timeout_s}s",
-                    spoken_summary=f"Workflow timed out during {step.name or f'step {idx+1}'}",
+                    spoken_summary=f"Workflow timed out during {step.name or f'step {idx + 1}'}",
                 )
 
             success, err = cls._execute_step(step, bound_vars)
@@ -131,7 +131,7 @@ class PalWorkflowRunner:
                 if step.on_failure == "abort":
                     cls._unwind_failure()
                     err_summary = recipe.error_summary.format(
-                        step_name=step.name or f"step {idx+1}"
+                        step_name=step.name or f"step {idx + 1}"
                     )
                     return PalCommandResult(
                         success=False,
@@ -342,7 +342,9 @@ class PalWorkflowRunner:
                     None, Quartz.kCGEventLeftMouseUp, pt, Quartz.kCGMouseButtonLeft
                 )
                 if double_click:
-                    Quartz.CGEventSetIntegerValueField(down_event, Quartz.kCGMouseEventClickState, 2)
+                    Quartz.CGEventSetIntegerValueField(
+                        down_event, Quartz.kCGMouseEventClickState, 2
+                    )
                     Quartz.CGEventSetIntegerValueField(up_event, Quartz.kCGMouseEventClickState, 2)
 
                 Quartz.CGEventPost(Quartz.kCGHIDEventTap, down_event)

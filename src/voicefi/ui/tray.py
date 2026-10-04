@@ -104,6 +104,7 @@ def get_voicefi_tray_image():
     """Load and return an NSImage of the VoiceFi master mark sized for the macOS menu bar."""
     try:
         import sys
+
         global AppKit
         if AppKit is None:
             try:
@@ -113,13 +114,15 @@ def get_voicefi_tray_image():
         search_paths = []
         if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
             search_paths.append(Path(sys._MEIPASS) / "assets" / "voicefi-menu-bar-icon.svg")
-        search_paths.extend([
-            Path(__file__).resolve().parent.parent.parent.parent
-            / "assets"
-            / "voicefi-menu-bar-icon.svg",
-            Path(__file__).resolve().parent.parent / "assets" / "voicefi-menu-bar-icon.svg",
-            Path.home() / ".voicefi" / "assets" / "voicefi-menu-bar-icon.svg",
-        ])
+        search_paths.extend(
+            [
+                Path(__file__).resolve().parent.parent.parent.parent
+                / "assets"
+                / "voicefi-menu-bar-icon.svg",
+                Path(__file__).resolve().parent.parent / "assets" / "voicefi-menu-bar-icon.svg",
+                Path.home() / ".voicefi" / "assets" / "voicefi-menu-bar-icon.svg",
+            ]
+        )
 
         image = None
         for p in search_paths:
@@ -507,7 +510,8 @@ class VoiceFiTrayApp(_TrayAppBase):
                         p in sys.modules for p in ("f5_tts", "torch", "torchcodec")
                     )
                     is_local_mlx = any(
-                        p in sys.modules for p in ("mlx", "mlx.core", "mlx_audio", "mlx_whisper", "mlx_lm")
+                        p in sys.modules
+                        for p in ("mlx", "mlx.core", "mlx_audio", "mlx_whisper", "mlx_lm")
                     ) or (
                         hasattr(self, "config")
                         and getattr(getattr(self, "config", None), "tts", None)
@@ -1226,7 +1230,11 @@ class VoiceFiTrayApp(_TrayAppBase):
                     pass
                 self._build_companion_submenu()
                 try:
-                    name = "Claude Code" if eng == "claude" else ("Local Gemma" if eng == "gemma" else "Antigravity")
+                    name = (
+                        "Claude Code"
+                        if eng == "claude"
+                        else ("Local Gemma" if eng == "gemma" else "Antigravity")
+                    )
                     rumps.notification(
                         "VoiceFi Companion",
                         "Target Agent Changed",
@@ -2359,7 +2367,9 @@ class VoiceFiTrayApp(_TrayAppBase):
             panel = getattr(self.quick_bar, "_panel", None)
             if panel and panel.isVisible() and panel.isKeyWindow():
                 # When quick bar is already open and key, Ctrl+Space toggles microphone dictation
-                print("[VoiceFi] 🎙️ Quick bar is active key window -> toggling voice input", flush=True)
+                print(
+                    "[VoiceFi] 🎙️ Quick bar is active key window -> toggling voice input", flush=True
+                )
                 self.quick_bar.toggle_voice_input()
             else:
                 self.quick_bar.toggle()
@@ -3138,8 +3148,10 @@ class VoiceFiTrayApp(_TrayAppBase):
 
                             # 0.5 Desktop Companion Window: vk 8 ('c') with Control and Option held ONLY
                             if vk == 8:
-                                is_ctrl_opt_c_event = bool(flags & _mask_ctrl) and bool(flags & _mask_alt) and not bool(
-                                    flags & (_mask_cmd | _mask_shift)
+                                is_ctrl_opt_c_event = (
+                                    bool(flags & _mask_ctrl)
+                                    and bool(flags & _mask_alt)
+                                    and not bool(flags & (_mask_cmd | _mask_shift))
                                 )
                                 if is_ctrl_opt_c_event:
                                     if event_type == _k_key_down and getattr(
@@ -3451,6 +3463,7 @@ class VoiceFiTrayApp(_TrayAppBase):
             hud = UnifiedDynamicIslandHUD.get_instance()
             try:
                 from voicefi.ui.screen_highlight import PalHighlightOverlay
+
                 overlay = PalHighlightOverlay.get_instance()
             except Exception:
                 overlay = None
@@ -3488,9 +3501,13 @@ class VoiceFiTrayApp(_TrayAppBase):
                         play_chime("start", block=False)
                     hud.set_training(wf_name)
                     if overlay:
-                        overlay.show_screen_perimeter(color_type="training", badge_text=f"Pal: {wf_name[:12]}")
+                        overlay.show_screen_perimeter(
+                            color_type="training", badge_text=f"Pal: {wf_name[:12]}"
+                        )
                     try:
-                        rumps.notification("VoiceFi • Pal Training", f"Recording '{wf_name}'", res.spoken_summary)
+                        rumps.notification(
+                            "VoiceFi • Pal Training", f"Recording '{wf_name}'", res.spoken_summary
+                        )
                     except Exception:
                         pass
                     return
@@ -3509,7 +3526,9 @@ class VoiceFiTrayApp(_TrayAppBase):
                         if overlay:
                             overlay.hide()
                         try:
-                            rumps.notification("VoiceFi • Pal Workflow Saved", res.spoken_summary, "")
+                            rumps.notification(
+                                "VoiceFi • Pal Workflow Saved", res.spoken_summary, ""
+                            )
                         except Exception:
                             pass
                         return
@@ -3547,7 +3566,11 @@ class VoiceFiTrayApp(_TrayAppBase):
 
                 res = PalHarness.execute_command(norm_prompt)
                 if self.config.audio_cues.enabled:
-                    chime = self.config.audio_cues.sent_chime if res.success else self.config.audio_cues.error_chime
+                    chime = (
+                        self.config.audio_cues.sent_chime
+                        if res.success
+                        else self.config.audio_cues.error_chime
+                    )
                     play_chime(chime or "done", block=False)
                 hud.show_done(preview_text=res.spoken_summary[:30])
                 if overlay:
@@ -3656,7 +3679,9 @@ class VoiceFiTrayApp(_TrayAppBase):
         show_notification(
             "VoiceFi Turn-End Mode",
             f"Switched to {label}",
-            "Spoken turns converse with Gemini Live" if mode == "gemini_live" else "Spoken turns inject into Antigravity chat",
+            "Spoken turns converse with Gemini Live"
+            if mode == "gemini_live"
+            else "Spoken turns inject into Antigravity chat",
         )
 
     def _build_turn_complete_format_submenu(self):

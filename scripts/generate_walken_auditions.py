@@ -107,7 +107,7 @@ for i, char in enumerate(CHARACTERS, 1):
     line_text = char["line"]
 
     print(f"\n[{i}/{len(CHARACTERS)}] 🎙️  Character: {char_name}")
-    print(f"       Line: \"{line_text}\"")
+    print(f'       Line: "{line_text}"')
 
     t0 = time.time()
     tts_obj = F5TTS(
@@ -122,7 +122,7 @@ for i, char in enumerate(CHARACTERS, 1):
     if success and wav_path.exists():
         print(f"       ✅ Synthesized in {dur:.2f}s -> {wav_path.name}")
         # Announce and play audio aloud over CoreAudio
-        print(f"       🔊 Playing aloud...")
+        print("       🔊 Playing aloud...")
         subprocess.run(["afplay", str(wav_path)], check=False)
     else:
         print(f"       ❌ Failed to synthesize {char_name}")

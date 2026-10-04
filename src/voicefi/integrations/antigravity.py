@@ -95,7 +95,9 @@ def clean_markdown_for_speech(
 
                 gemini_engine = GeminiIntelligenceEngine()
                 if gemini_engine.is_available() and getattr(
-                    getattr(gemini_engine.config, "gemini", None), "enable_soundbite_distillation", False
+                    getattr(gemini_engine.config, "gemini", None),
+                    "enable_soundbite_distillation",
+                    False,
                 ):
                     distilled = gemini_engine.distill_spoken_soundbite(
                         text, max_words=target_max_words, timeout=0.8
@@ -229,7 +231,18 @@ def clean_markdown_for_speech(
 
     if first_sentence_only:
         first_s = sentences[0]
-        filler_tokens = ("sure", "got it", "okay", "ok", "alright", "done", "understood", "all set", "no problem", "look")
+        filler_tokens = (
+            "sure",
+            "got it",
+            "okay",
+            "ok",
+            "alright",
+            "done",
+            "understood",
+            "all set",
+            "no problem",
+            "look",
+        )
         if (
             len(sentences) >= 2
             and len(first_s.split()) <= 2
@@ -462,7 +475,11 @@ def extract_latest_agent_summary(
     if return_raw:
         if return_role and return_step_index:
             return (cleaned, detected_role, detected_step_index, last_model_content)
-        return (cleaned, detected_role, last_model_content) if return_role else (cleaned, last_model_content)
+        return (
+            (cleaned, detected_role, last_model_content)
+            if return_role
+            else (cleaned, last_model_content)
+        )
     if return_role and return_step_index:
         return (cleaned, detected_role, detected_step_index)
     return (cleaned, detected_role) if return_role else cleaned
@@ -799,14 +816,22 @@ def handle_antigravity_stop_hook(
             or ""
         ).lower()
         active_ref = str(
-            (getattr(cfg.agents.get("antigravity"), "f5_ref_audio", None) if hasattr(cfg, "agents") and "antigravity" in cfg.agents else None)
+            (
+                getattr(cfg.agents.get("antigravity"), "f5_ref_audio", None)
+                if hasattr(cfg, "agents") and "antigravity" in cfg.agents
+                else None
+            )
             or getattr(getattr(cfg, "tts", None), "f5_ref_audio", "")
             or ""
         ).lower()
         if "walken" in active_voice or "continental" in active_voice or "continental" in active_ref:
             from voicefi.tts.director import TheatricalDirector
 
-            archetype = "continental" if ("continental" in active_voice or "continental" in active_ref) else "standard"
+            archetype = (
+                "continental"
+                if ("continental" in active_voice or "continental" in active_ref)
+                else "standard"
+            )
             spoken_text = TheatricalDirector.direct_walken_cadence(
                 spoken_text, archetype=archetype, include_prefix=False
             )
@@ -1177,7 +1202,10 @@ def handle_antigravity_stop_hook(
             )
 
             if eval_res.category == SpokenIntentCategory.EXPAND_READOUT:
-                print(f"[Antigravity] 📖 Spoken intent EXPAND_READOUT detected: '{clean_t}'", flush=True)
+                print(
+                    f"[Antigravity] 📖 Spoken intent EXPAND_READOUT detected: '{clean_t}'",
+                    flush=True,
+                )
                 from voicefi.integrations.turn_memory import TurnSessionMemory
 
                 full_raw = TurnSessionMemory.get_instance().get_full_readout_text(conv_id)
@@ -1283,7 +1311,9 @@ def handle_antigravity_stop_hook(
                         )
                     elif is_live_turn:
                         # Turn-end Live mode toggle: route spoken turn directly to Gemini Live API
-                        from voicefi.integrations.live_conversation import query_live_api_spoken_turn
+                        from voicefi.integrations.live_conversation import (
+                            query_live_api_spoken_turn,
+                        )
 
                         print(
                             f"[Antigravity/GeminiLive] 🎙️ Live mode toggle active -> routing to Gemini Live API: '{final_text}'",

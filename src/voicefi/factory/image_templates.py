@@ -24,6 +24,7 @@ logger = logging.getLogger("voicefi.factory.image_templates")
 @dataclass
 class PosterHorrorConfig:
     """Configuration for the Horror Action Poster Image Template."""
+
     bg_image_path: str
     headline_primary: str = "SILICON VALLEY"
     headline_suffix: str = "’S"
@@ -56,6 +57,7 @@ class PosterHorrorConfig:
             "footer_primary_size_px": self.footer_primary_size_px,
             "style_variant": self.style_variant,
         }
+
 
 # Backwards compatibility alias
 BrutalistKnockoutConfig = PosterHorrorConfig
@@ -253,6 +255,7 @@ class PosterHorrorTemplate:
         # 1. Try local Playwright in VoiceFi venv
         try:
             from playwright.sync_api import sync_playwright
+
             with sync_playwright() as p:
                 browser = p.chromium.launch(headless=True)
                 page = browser.new_page(viewport={"width": width, "height": height})
@@ -285,6 +288,7 @@ class PosterHorrorTemplate:
             finally:
                 if tmp_html.parent.exists():
                     import shutil
+
                     shutil.rmtree(tmp_html.parent, ignore_errors=True)
 
         return False
@@ -333,17 +337,25 @@ def render_image(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="VoiceFi Factory Horror Action Poster Template Renderer")
-    parser.add_argument("--template", default="poster_horror", choices=list(TEMPLATES.keys()), help="Template name")
+    parser = argparse.ArgumentParser(
+        description="VoiceFi Factory Horror Action Poster Template Renderer"
+    )
+    parser.add_argument(
+        "--template", default="poster_horror", choices=list(TEMPLATES.keys()), help="Template name"
+    )
     parser.add_argument("--bg", required=True, help="Path to background image")
     parser.add_argument("-o", "--output", required=True, help="Output PNG file path")
     parser.add_argument("--headline", default="SILICON VALLEY", help="Top primary headline text")
     parser.add_argument("--suffix", default="’S", help="Top stylized suffix / apostrophe")
     parser.add_argument("--sub", default="GOT YOU", help="Top secondary subtitle")
     parser.add_argument("--footer-lead", default="LOCKED IN THEIR", help="Bottom lead-in phrase")
-    parser.add_argument("--footer-primary", default="SUBSCRIPTION\nLOOP", help="Bottom stacked punchword(s)")
+    parser.add_argument(
+        "--footer-primary", default="SUBSCRIPTION\nLOOP", help="Bottom stacked punchword(s)"
+    )
     parser.add_argument("--color", default="#FF2A2A", help="Footer accent color (hex)")
-    parser.add_argument("--format", default="4:5", choices=["4:5", "1:1"], help="Aspect ratio format")
+    parser.add_argument(
+        "--format", default="4:5", choices=["4:5", "1:1"], help="Aspect ratio format"
+    )
     args = parser.parse_args()
 
     success = render_image(

@@ -383,7 +383,9 @@ def save_meeting_note(
     now = datetime.datetime.now()
     time_str = now.strftime("%-I:%M %p")
     note_stem = meeting_file.stem
-    backlink_entry = f"\n### 🎙️ {time_str} - Meeting: {clean_title}\n- [[{note_stem}]]: Granola Meeting Notes\n"
+    backlink_entry = (
+        f"\n### 🎙️ {time_str} - Meeting: {clean_title}\n- [[{note_stem}]]: Granola Meeting Notes\n"
+    )
 
     if not daily_note.is_file():
         daily_note.write_text(f"# {date_str}\n{backlink_entry}", encoding="utf-8")

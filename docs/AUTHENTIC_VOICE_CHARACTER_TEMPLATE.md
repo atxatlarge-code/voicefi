@@ -152,7 +152,9 @@ Ensure [`TheatricalDirector.direct_walken_cadence`](../src/voicefi/tts/director.
 
 ```python
 # Format incoming turn summary with character's rhythm:
-directed = "Wow... look at you. Champagne... and a clean build. Does it get any better? I don't think so."
+directed = (
+    "Wow... look at you. Champagne... and a clean build. Does it get any better? I don't think so."
+)
 ```
 
 #### B. Synthesize & Audition

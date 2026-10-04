@@ -905,22 +905,26 @@ class AudioTroubleshooter:
                 or os.getenv("VOICEFI_TESTING") == "1"
             )
         ):
-            diagnostics["input_devices"].append({
-                "id": 0,
-                "name": "Built-in Mic",
-                "hostapi": 0,
-                "max_input_channels": 1,
-                "max_output_channels": 0,
-                "default_samplerate": 48000.0,
-            })
-            diagnostics["output_devices"].append({
-                "id": 1,
-                "name": "Built-in Output",
-                "hostapi": 0,
-                "max_input_channels": 0,
-                "max_output_channels": 2,
-                "default_samplerate": 48000.0,
-            })
+            diagnostics["input_devices"].append(
+                {
+                    "id": 0,
+                    "name": "Built-in Mic",
+                    "hostapi": 0,
+                    "max_input_channels": 1,
+                    "max_output_channels": 0,
+                    "default_samplerate": 48000.0,
+                }
+            )
+            diagnostics["output_devices"].append(
+                {
+                    "id": 1,
+                    "name": "Built-in Output",
+                    "hostapi": 0,
+                    "max_input_channels": 0,
+                    "max_output_channels": 2,
+                    "default_samplerate": 48000.0,
+                }
+            )
 
         return diagnostics
 

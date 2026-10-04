@@ -399,9 +399,7 @@ class QuickPromptBarWindow:
                 return a
         return SUPPORTED_AGENTS[0]
 
-    def get_agent_icon(
-        self, agent_id: str, size: int = 16, pad_left: float = 0.0
-    ) -> Optional[Any]:
+    def get_agent_icon(self, agent_id: str, size: int = 16, pad_left: float = 0.0) -> Optional[Any]:
         """Resolve native brand logo image for an agent at the specified point size with optional left padding."""
         if not hasattr(self, "_icon_cache"):
             self._icon_cache = {}
@@ -829,10 +827,10 @@ class QuickPromptBarWindow:
         except Exception:
             focus_target = True
 
-        focus_title = "✓ Focus Target App on Dispatch" if focus_target else "Focus Target App on Dispatch"
-        item_focus = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
-            focus_title, None, ""
+        focus_title = (
+            "✓ Focus Target App on Dispatch" if focus_target else "Focus Target App on Dispatch"
         )
+        item_focus = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(focus_title, None, "")
 
         def _toggle_focus():
             try:
@@ -1186,9 +1184,7 @@ class QuickPromptBarWindow:
     # Submit & Multi-Agent Dispatch
     # =========================================================================
 
-    def _on_submit_action(
-        self, new_conversation: bool = False, silent_send: Optional[bool] = None
-    ):
+    def _on_submit_action(self, new_conversation: bool = False, silent_send: Optional[bool] = None):
         """Submit text prompt to selected agent."""
         if not self._text_field:
             return
@@ -1313,9 +1309,7 @@ class QuickPromptBarWindow:
                     text=clean_prompt, target_engine="claude", use_headless=True
                 )
                 if not res or not res.success:
-                    inject_text_to_claude(
-                        text=clean_prompt, auto_submit=True, restore_focus=True
-                    )
+                    inject_text_to_claude(text=clean_prompt, auto_submit=True, restore_focus=True)
                 self.restore_previous_focus()
             else:
                 inject_text_to_claude(text=clean_prompt, auto_submit=True, restore_focus=False)
@@ -1324,9 +1318,7 @@ class QuickPromptBarWindow:
         elif agent_id in ("gemini", "gemini_app", "flash", "pro"):
             from voicefi.integrations.injector import inject_text_to_gemini, focus_app_by_name
 
-            inject_text_to_gemini(
-                text=clean_prompt, submit_enter=True, restore_focus=silent_send
-            )
+            inject_text_to_gemini(text=clean_prompt, submit_enter=True, restore_focus=silent_send)
             if silent_send:
                 self.restore_previous_focus()
             else:
@@ -1335,9 +1327,7 @@ class QuickPromptBarWindow:
         elif agent_id in ("chatgpt", "openai"):
             from voicefi.integrations.injector import inject_text_to_chatgpt, focus_app_by_name
 
-            inject_text_to_chatgpt(
-                text=clean_prompt, auto_submit=True, restore_focus=silent_send
-            )
+            inject_text_to_chatgpt(text=clean_prompt, auto_submit=True, restore_focus=silent_send)
             if silent_send:
                 self.restore_previous_focus()
             else:

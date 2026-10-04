@@ -155,6 +155,7 @@ class TheatricalDirector:
     def _get_engine(self):
         if self._engine is None:
             from voicefi.local.engine import LocalModelEngine
+
             self._engine = LocalModelEngine(model_name=self.model_name, backend=self.backend)
         return self._engine
 
@@ -211,19 +212,19 @@ class TheatricalDirector:
             return ""
         s = text.strip()
         s = re.sub(r"^[#*`\-_—\s]+", "", s).strip()
-        s = re.sub(r'["\']', '', s)
+        s = re.sub(r'["\']', "", s)
 
         # Strip any existing forced intro catchphrases when include_prefix is False
         if not include_prefix:
             prefix_pattern = re.compile(
-                r'^(?:listen|look|guess what|mmm(?:\.\.\.|\s*beautiful)*|oh\s+my|wow\.\.\.\s*look\s+at\s+you[\.\s]*champagne\?*)\s*(?:[\.\,\!\?\:\;—\-]+|\.{2,})\s*',
+                r"^(?:listen|look|guess what|mmm(?:\.\.\.|\s*beautiful)*|oh\s+my|wow\.\.\.\s*look\s+at\s+you[\.\s]*champagne\?*)\s*(?:[\.\,\!\?\:\;—\-]+|\.{2,})\s*",
                 flags=re.IGNORECASE,
             )
-            s = prefix_pattern.sub('', s).strip()
+            s = prefix_pattern.sub("", s).strip()
             if s and s[0].islower():
                 s = s[0].upper() + s[1:]
 
-        clauses = re.split(r'[,;—–]|\s-\s', s)
+        clauses = re.split(r"[,;—–]|\s-\s", s)
         processed_clauses = []
         for c in clauses:
             c = c.strip()
@@ -244,22 +245,45 @@ class TheatricalDirector:
             if arch in ("continental", "the_continental", "the continental"):
                 if not any(
                     walkenized.lower().startswith(p)
-                    for p in ("wow", "champagne", "mmm", "look at you", "does it get", "look", "listen")
+                    for p in (
+                        "wow",
+                        "champagne",
+                        "mmm",
+                        "look at you",
+                        "does it get",
+                        "look",
+                        "listen",
+                    )
                 ):
                     if "error" in s.lower() or "fail" in s.lower():
                         walkenized = f"Oh my... {walkenized}"
                     elif any(
                         k in s.lower()
-                        for k in ("success", "pass", "done", "complete", "ready", "built", "clean", "fixed")
+                        for k in (
+                            "success",
+                            "pass",
+                            "done",
+                            "complete",
+                            "ready",
+                            "built",
+                            "clean",
+                            "fixed",
+                        )
                     ):
                         walkenized = f"Wow... look at you. Champagne?... {walkenized}"
                     else:
                         walkenized = f"Mmm... beautiful... {walkenized}"
             else:
-                if not any(walkenized.lower().startswith(p) for p in ("look", "listen", "you see", "guess what")):
+                if not any(
+                    walkenized.lower().startswith(p)
+                    for p in ("look", "listen", "you see", "guess what")
+                ):
                     if "error" in s.lower() or "fail" in s.lower():
                         walkenized = f"Look... {walkenized}"
-                    elif any(k in s.lower() for k in ("success", "pass", "done", "complete", "ready", "built")):
+                    elif any(
+                        k in s.lower()
+                        for k in ("success", "pass", "done", "complete", "ready", "built")
+                    ):
                         walkenized = f"Guess what?... {walkenized}"
                     else:
                         walkenized = f"Listen... {walkenized}"
@@ -280,6 +304,7 @@ class TheatricalDirector:
         Direct a performance line using local Gemma 4 on Metal GPU (falling back to rule-based).
         """
         import time
+
         start_t = time.perf_counter()
 
         persona = CANONICAL_PERSONAS.get(persona_key.lower())
@@ -296,7 +321,7 @@ class TheatricalDirector:
         prompt = (
             f"Character: {persona['name']}\n"
             f"Vocal Tone: {persona['description']}\n\n"
-            f"Raw Script Line:\n\"{text.strip()}\"\n\n"
+            f'Raw Script Line:\n"{text.strip()}"\n\n'
             "Produce the directed version for the speech model. "
             "Wrap performance instructions in square brackets [like this] and insert dramatic ellipses (...) for pauses. "
             "Do NOT alter the underlying spoken words. Output ONLY the directed text line."
@@ -308,21 +333,24 @@ class TheatricalDirector:
         try:
             # Check if litert-lm server or ollama is reachable
             import urllib.request
+
             ollama_url = "http://127.0.0.1:11434/api/generate"
             litert_url = "http://127.0.0.1:9379/v1/chat/completions"
 
             # 1. Try warm LiteRT HTTP server
             req = urllib.request.Request(
                 litert_url,
-                data=json.dumps({
-                    "model": self.model_name,
-                    "messages": [
-                        {"role": "system", "content": system_instruction},
-                        {"role": "user", "content": prompt}
-                    ],
-                    "temperature": 0.3,
-                    "max_tokens": 256,
-                }).encode("utf-8"),
+                data=json.dumps(
+                    {
+                        "model": self.model_name,
+                        "messages": [
+                            {"role": "system", "content": system_instruction},
+                            {"role": "user", "content": prompt},
+                        ],
+                        "temperature": 0.3,
+                        "max_tokens": 256,
+                    }
+                ).encode("utf-8"),
                 headers={"Content-Type": "application/json"},
             )
             try:
@@ -337,11 +365,13 @@ class TheatricalDirector:
             if not directed_line:
                 req_ollama = urllib.request.Request(
                     ollama_url,
-                    data=json.dumps({
-                        "model": "gemma2:2b",
-                        "prompt": f"{system_instruction}\n\n{prompt}",
-                        "stream": False,
-                    }).encode("utf-8"),
+                    data=json.dumps(
+                        {
+                            "model": "gemma2:2b",
+                            "prompt": f"{system_instruction}\n\n{prompt}",
+                            "stream": False,
+                        }
+                    ).encode("utf-8"),
                     headers={"Content-Type": "application/json"},
                 )
                 try:
@@ -367,7 +397,9 @@ class TheatricalDirector:
 
         # Dynamic emotion & prosody classification via Ollama structured outputs
         dynamic_prosody = self.classify_emotion_prosody(text)
-        detected_emotion = dynamic_prosody.get("emotion") or persona.get("primary_emotion", "neutral")
+        detected_emotion = dynamic_prosody.get("emotion") or persona.get(
+            "primary_emotion", "neutral"
+        )
         detected_speed = float(dynamic_prosody.get("speed") or persona.get("speed", 1.0))
         detected_pitch = dynamic_prosody.get("pitch_shift") or persona.get("pitch_shift", "0st")
 
@@ -406,35 +438,35 @@ class TheatricalDirector:
             "model": "gemma2:2b",
             "messages": [
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"Text to speak: {text}"}
+                {"role": "user", "content": f"Text to speak: {text}"},
             ],
             "format": {
                 "type": "object",
                 "properties": {
                     "emotion": {
                         "type": "string",
-                        "enum": ["cheerful", "serious", "apologetic", "excited", "deadpan"]
+                        "enum": ["cheerful", "serious", "apologetic", "excited", "deadpan"],
                     },
                     "pitch_shift": {
                         "type": "string",
-                        "enum": ["-2st", "-1st", "0st", "+1st", "+2st"]
+                        "enum": ["-2st", "-1st", "0st", "+1st", "+2st"],
                     },
                     "speed": {
                         "type": "number",
-                        "description": "Recommended speaking rate multiplier (e.g. 0.9 to 1.2)"
-                    }
+                        "description": "Recommended speaking rate multiplier (e.g. 0.9 to 1.2)",
+                    },
                 },
-                "required": ["emotion", "pitch_shift", "speed"]
+                "required": ["emotion", "pitch_shift", "speed"],
             },
             "stream": False,
-            "options": {"temperature": 0.0}
+            "options": {"temperature": 0.0},
         }
 
         req = urllib.request.Request(
             "http://localhost:11434/api/chat",
             data=json.dumps(payload).encode("utf-8"),
             headers={"Content-Type": "application/json"},
-            method="POST"
+            method="POST",
         )
 
         try:

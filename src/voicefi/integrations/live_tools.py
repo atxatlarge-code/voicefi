@@ -131,9 +131,7 @@ def dispatch_to_antigravity(instruction: str, conversation_id: Optional[str] = N
     if not clean_instruction:
         return "Cannot dispatch an empty instruction to Antigravity."
 
-    preview = (
-        clean_instruction[:40] + "..." if len(clean_instruction) > 40 else clean_instruction
-    )
+    preview = clean_instruction[:40] + "..." if len(clean_instruction) > 40 else clean_instruction
     set_cross_process_hud_state(
         "dispatching",
         text=f"Dispatching: {preview}",

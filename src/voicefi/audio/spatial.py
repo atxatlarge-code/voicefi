@@ -9,15 +9,15 @@ import numpy as np
 
 # Spatial stereo panning assignments (-1.0 = hard left, 0.0 = center, +1.0 = hard right)
 AGENT_PAN_PRESETS = {
-    "antigravity": -0.55,       # Left ear: Primary pair programmer & orchestrator
-    "claude": 0.55,            # Right ear: Strategic verifier & challenger
-    "scout": -0.70,            # Far left: Reconnaissance / context extraction
-    "verifier": 0.70,          # Far right: Verification & lint audit
-    "qa": 0.65,                # Right: User acceptance & QA
-    "cursor": -0.40,           # Mid-left: Inline code suggestions
-    "windsurf": 0.40,          # Mid-right: Cascade operations
-    "system": 0.0,             # Center: Platform notifications & chimes
-    "musicfx": 0.0,            # Center: Ambient procedural lo-fi beats
+    "antigravity": -0.55,  # Left ear: Primary pair programmer & orchestrator
+    "claude": 0.55,  # Right ear: Strategic verifier & challenger
+    "scout": -0.70,  # Far left: Reconnaissance / context extraction
+    "verifier": 0.70,  # Far right: Verification & lint audit
+    "qa": 0.65,  # Right: User acceptance & QA
+    "cursor": -0.40,  # Mid-left: Inline code suggestions
+    "windsurf": 0.40,  # Mid-right: Cascade operations
+    "system": 0.0,  # Center: Platform notifications & chimes
+    "musicfx": 0.0,  # Center: Ambient procedural lo-fi beats
 }
 
 
@@ -236,7 +236,7 @@ def create_binaural_360_orbit(
     # 4. Front-to-Back Pinna Occlusion (Cutoff Freq)
     # Front (cos=1): 18,000 Hz. Rear (cos=-1): 2,200 Hz.
     u = (1.0 + np.cos(phi)) * 0.5
-    fc_base = 2200.0 + 15800.0 * (u ** 1.8)
+    fc_base = 2200.0 + 15800.0 * (u**1.8)
 
     # Head shadowing on contralateral ear
     fc_L = np.clip(fc_base * (1.0 - 0.55 * np.maximum(0.0, np.sin(phi))), 1200.0, 20000.0)
@@ -364,6 +364,7 @@ def run_spatial_multiagent_audition(block: bool = True, with_speech: bool = Fals
     sample_rate = 44100
     try:
         from voicefi.audio.device import get_audio_device_profile
+
         prof = get_audio_device_profile()
         device_label = prof.get("default_output", "Default Output")
     except Exception:
@@ -390,7 +391,9 @@ def run_spatial_multiagent_audition(block: bool = True, with_speech: bool = Fals
             block=True,
         )
         time.sleep(0.2)
-        center_cue = create_spatial_tone(freq=783.99, duration=0.5, sample_rate=sample_rate, pan=0.0)
+        center_cue = create_spatial_tone(
+            freq=783.99, duration=0.5, sample_rate=sample_rate, pan=0.0
+        )
         sd.play(center_cue, samplerate=sample_rate)
         if block:
             sd.wait()

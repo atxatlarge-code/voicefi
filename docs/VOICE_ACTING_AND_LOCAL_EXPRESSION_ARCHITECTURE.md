@@ -141,10 +141,7 @@ actor = VoiceActingTTS(
 )
 
 # Synthesize directly to broadcast-mastered WAV
-actor.speak_to_file(
-    "Drop and give me twenty right now!",
-    "/tmp/drill_sergeant.wav"
-)
+actor.speak_to_file("Drop and give me twenty right now!", "/tmp/drill_sergeant.wav")
 
 # Or speak immediately on macOS CoreAudio
 actor.speak("Listen up recruits!")

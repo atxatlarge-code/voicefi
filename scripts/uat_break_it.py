@@ -44,12 +44,14 @@ class UATTester:
     def record(self, test_name: str, passed: bool, details: str, duration_s: float):
         status = "✅ SURVIVED" if passed else "❌ BROKEN"
         logger.info(f"{status} | {test_name} ({duration_s:.3f}s) - {details}")
-        self.results.append({
-            "test": test_name,
-            "passed": passed,
-            "details": details,
-            "duration_s": round(duration_s, 3),
-        })
+        self.results.append(
+            {
+                "test": test_name,
+                "passed": passed,
+                "details": details,
+                "duration_s": round(duration_s, 3),
+            }
+        )
 
     # =========================================================================
     # Test 1: Scout Hostile Inputs
@@ -64,7 +66,12 @@ class UATTester:
             # 1a. Non-existent file
             res_missing = asyncio.run(scout.scout(tmp_path / "does_not_exist.log"))
             if not res_missing.error:
-                self.record("Scout Non-Existent Target", False, "Expected error on missing file but got none", time.time() - t0)
+                self.record(
+                    "Scout Non-Existent Target",
+                    False,
+                    "Expected error on missing file but got none",
+                    time.time() - t0,
+                )
                 return
 
             # 1b. Empty file
@@ -72,7 +79,12 @@ class UATTester:
             empty_file.write_text("")
             res_empty = asyncio.run(scout.scout(empty_file))
             if res_empty.error:
-                self.record("Scout Empty File", False, f"Unexpected error on empty file: {res_empty.error}", time.time() - t0)
+                self.record(
+                    "Scout Empty File",
+                    False,
+                    f"Unexpected error on empty file: {res_empty.error}",
+                    time.time() - t0,
+                )
                 return
 
             # 1c. Hostile binary file (zero bytes / random non-UTF8)
@@ -80,7 +92,12 @@ class UATTester:
             bin_file.write_bytes(b"\x00\xff\xfe\x01\x02\x80\x99" * 500)
             res_bin = asyncio.run(scout.scout(bin_file))
             if not res_bin.findings:
-                self.record("Scout Binary Target", False, "Failed to produce findings for binary file", time.time() - t0)
+                self.record(
+                    "Scout Binary Target",
+                    False,
+                    "Failed to produce findings for binary file",
+                    time.time() - t0,
+                )
                 return
 
         self.record(
@@ -100,13 +117,23 @@ class UATTester:
 
         # 2a. is_safe_to_run should instantly be False
         if starved_supervisor.is_safe_to_run():
-            self.record("Thermal Circuit Breaker Safety", False, "Reported safe when free RAM < 500 GB", time.time() - t0)
+            self.record(
+                "Thermal Circuit Breaker Safety",
+                False,
+                "Reported safe when free RAM < 500 GB",
+                time.time() - t0,
+            )
             return
 
         # 2b. wait_if_throttled should cleanly timeout after 0.5s without hanging
         recovered = starved_supervisor.wait_if_throttled(poll_interval=0.1, max_wait=0.3)
         if recovered:
-            self.record("Thermal Circuit Breaker Timeout", False, "Reported recovered under impossible threshold", time.time() - t0)
+            self.record(
+                "Thermal Circuit Breaker Timeout",
+                False,
+                "Reported recovered under impossible threshold",
+                time.time() - t0,
+            )
             return
 
         self.record(
@@ -139,7 +166,12 @@ class UATTester:
             # Check if database is still intact
             counts = queue.query_queue_counts()
             if counts.get(JobStatus.QUEUED.value, 0) != 1:
-                self.record("Content Factory SQL Injection", False, "Queue counts corrupted after SQL payload", time.time() - t0)
+                self.record(
+                    "Content Factory SQL Injection",
+                    False,
+                    "Queue counts corrupted after SQL payload",
+                    time.time() - t0,
+                )
                 return
 
             # 3b. Empty / Weird Characters
@@ -159,7 +191,12 @@ class UATTester:
 
             manifest, tokens, elapsed = gen.generate_manifest(popped)
             if not manifest.turns or not manifest.title:
-                self.record("Content Factory Malformed Manifest", False, "Generated empty manifest", time.time() - t0)
+                self.record(
+                    "Content Factory Malformed Manifest",
+                    False,
+                    "Generated empty manifest",
+                    time.time() - t0,
+                )
                 return
 
         self.record(
@@ -179,7 +216,9 @@ class UATTester:
             queue = ContentFactoryQueue(db_path=db_path)
 
             # Enqueue EXACTLY 1 job
-            queue.enqueue_job(ContentJob(title="Prize Job", prompt="Winner takes all", characters=["Viv"]))
+            queue.enqueue_job(
+                ContentJob(title="Prize Job", prompt="Winner takes all", characters=["Viv"])
+            )
 
             # Launch 8 workers simultaneously trying to claim it
             winners = []
@@ -198,7 +237,12 @@ class UATTester:
                 concurrent.futures.wait(futures)
 
             if errors:
-                self.record("Concurrency Dogpile Errors", False, f"Workers encountered exceptions: {errors}", time.time() - t0)
+                self.record(
+                    "Concurrency Dogpile Errors",
+                    False,
+                    f"Workers encountered exceptions: {errors}",
+                    time.time() - t0,
+                )
                 return
 
             if len(winners) != 1:
@@ -229,7 +273,7 @@ class UATTester:
         garbage_outputs = [
             "I'm sorry, I cannot fulfill this request as JSON: { 'title': incomplete...",
             "Here is the dialogue: Viv said hello! Jake said hi!",
-            "```json\n{ \"title\": \"Broken\", \"turns\": [{\"speaker\": \"Viv\"}]}\n```",
+            '```json\n{ "title": "Broken", "turns": [{"speaker": "Viv"}]}\n```',
         ]
 
         for idx, garbage in enumerate(garbage_outputs):
@@ -237,7 +281,12 @@ class UATTester:
                 manifest = gen._parse_json_to_manifest(garbage, job)
                 # If parsing fails to produce turns, it should not crash
             except Exception as e:
-                self.record("Malformed JSON Crash", False, f"Crashed on garbage output #{idx+1}: {e}", time.time() - t0)
+                self.record(
+                    "Malformed JSON Crash",
+                    False,
+                    f"Crashed on garbage output #{idx + 1}: {e}",
+                    time.time() - t0,
+                )
                 return
 
         self.record(

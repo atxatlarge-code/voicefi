@@ -209,7 +209,11 @@ class ZeroRenderDubber:
         source_duration: Optional[float] = None,
     ) -> Path:
         """Time-stretch, delay, and pad generated audio to match source speech window and total video duration."""
-        target_win = spoken_window_duration if spoken_window_duration is not None else (source_duration if source_duration is not None else 1.0)
+        target_win = (
+            spoken_window_duration
+            if spoken_window_duration is not None
+            else (source_duration if source_duration is not None else 1.0)
+        )
         gen_duration = get_audio_duration(generated_wav)
         if gen_duration <= 0.05:
             shutil.copy(generated_wav, output_aligned_wav)
@@ -293,7 +297,6 @@ class ZeroRenderDubber:
         subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
         return time.perf_counter() - t0
 
-
     def dub_video(
         self,
         video_path: Union[str, Path],
@@ -309,7 +312,6 @@ class ZeroRenderDubber:
         video_path = Path(video_path).resolve()
         if not video_path.exists():
             raise FileNotFoundError(f"Video file not found: {video_path}")
-
 
         if output_video is None:
             clean_voice = voice.replace(" ", "_").lower()
@@ -371,7 +373,6 @@ class ZeroRenderDubber:
                 total_video_duration=video_dur,
             )
 
-
             # 5. Remux without video re-rendering (-c:v copy)
             logger.info("Remuxing video with zero pixel re-rendering...")
             remux_elapsed = self.remux(
@@ -381,7 +382,6 @@ class ZeroRenderDubber:
                 web_compat=web_compat,
             )
             total_elapsed = time.perf_counter() - t_total_start
-
 
             report = {
                 "input_video": str(video_path),
@@ -393,7 +393,9 @@ class ZeroRenderDubber:
                 "video_duration_sec": round(video_dur, 2),
                 "remux_time_sec": round(remux_elapsed, 3),
                 "total_time_sec": round(total_elapsed, 2),
-                "fps_saved": "100% (zero frames re-encoded)" if not web_compat else "Web-optimized (H.264 SDR)",
+                "fps_saved": "100% (zero frames re-encoded)"
+                if not web_compat
+                else "Web-optimized (H.264 SDR)",
             }
 
             return report

@@ -393,7 +393,10 @@ class VoiceCloneManager:
         if ref_text and ref_text.strip():
             labels_dict["ref_text"] = ref_text.strip()
         elif "ref_text" not in labels_dict:
-            if os.environ.get("VOICEFI_MOCK_AUDIO") == "1" or os.environ.get("VOICEFI_TESTING") == "1":
+            if (
+                os.environ.get("VOICEFI_MOCK_AUDIO") == "1"
+                or os.environ.get("VOICEFI_TESTING") == "1"
+            ):
                 if TRAINING_PROMPTS:
                     labels_dict["ref_text"] = TRAINING_PROMPTS[0]["text"]
             else:

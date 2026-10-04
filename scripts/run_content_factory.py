@@ -43,8 +43,12 @@ def main():
     parser.add_argument("--db", type=str, default=None, help="Path to SQLite queue database")
     parser.add_argument("--worker-id", type=str, default="worker_local_01", help="Worker ID")
     parser.add_argument("--poll-interval", type=float, default=2.0, help="Poll interval in seconds")
-    parser.add_argument("--max-jobs", type=int, default=0, help="Max jobs to process (0 = infinite)")
-    parser.add_argument("--enqueue-samples", type=int, default=0, help="Enqueue N sample test jobs on start")
+    parser.add_argument(
+        "--max-jobs", type=int, default=0, help="Max jobs to process (0 = infinite)"
+    )
+    parser.add_argument(
+        "--enqueue-samples", type=int, default=0, help="Enqueue N sample test jobs on start"
+    )
     args = parser.parse_args()
 
     signal.signal(signal.SIGINT, handle_shutdown)
@@ -56,17 +60,26 @@ def main():
     if args.enqueue_samples > 0:
         logger.info(f"Enqueuing {args.enqueue_samples} sample content jobs...")
         samples = [
-            ("Local AI vs Cloud API billing: why developers are switching to on-device models", ["Viv", "Jake"]),
-            ("The secret behind zero-latency full duplex voice barge-in on Apple Silicon", ["Christopher", "Stefan"]),
-            ("Why 100k context windows make agents lazy and local scouts make them sharp", ["Viv", "Christopher"]),
+            (
+                "Local AI vs Cloud API billing: why developers are switching to on-device models",
+                ["Viv", "Jake"],
+            ),
+            (
+                "The secret behind zero-latency full duplex voice barge-in on Apple Silicon",
+                ["Christopher", "Stefan"],
+            ),
+            (
+                "Why 100k context windows make agents lazy and local scouts make them sharp",
+                ["Viv", "Christopher"],
+            ),
         ]
         for i in range(args.enqueue_samples):
             prompt, chars = samples[i % len(samples)]
             new_job = ContentJob(
-                title=f"Sample Short {i+1}",
-                prompt=f"{prompt} (Batch {i+1})",
+                title=f"Sample Short {i + 1}",
+                prompt=f"{prompt} (Batch {i + 1})",
                 characters=chars,
-                target_duration_s=25
+                target_duration_s=25,
             )
             job_id = queue.enqueue_job(new_job)
             logger.info(f"Enqueued job {job_id}")
@@ -110,13 +123,17 @@ def main():
 
         except Exception as e:
             logger.error(f"Job {job.id} failed: {e}", exc_info=True)
-            queue.update_job_stage(job.id, stage="FAILED", status=JobStatus.FAILED.value, error_message=str(e))
+            queue.update_job_stage(
+                job.id, stage="FAILED", status=JobStatus.FAILED.value, error_message=str(e)
+            )
 
         if args.max_jobs > 0 and jobs_processed >= args.max_jobs:
             logger.info(f"Hit max jobs limit ({args.max_jobs}). Exiting loop.")
             break
 
-    logger.info(f"Worker {args.worker_id} finished. Processed {jobs_processed} jobs, saved {total_tokens_saved:,} on-device tokens.")
+    logger.info(
+        f"Worker {args.worker_id} finished. Processed {jobs_processed} jobs, saved {total_tokens_saved:,} on-device tokens."
+    )
 
 
 if __name__ == "__main__":

@@ -39,20 +39,22 @@ class Tools:
     ) -> str:
         """
         Pass a bug, traceback, or test failure to local on-device models to solve and verify.
-        
+
         :param target_file: Path to the file to modify on the host (e.g., src/voicefi/engine.py or full path).
         :param error_or_traceback: The traceback, error message, or explanation of what to fix.
         :param test_command: Optional verification test command (e.g., 'pytest tests/test_engine.py').
         :return: Unified git diff, verification status, and tokens saved.
         """
-        payload = json.dumps({
-            "target": target_file,
-            "error": error_or_traceback,
-            "test": test_command or "",
-            "apply": True,
-            "model_scout": self.valves.default_model_scout,
-            "model_coder": self.valves.default_model_coder,
-        }).encode("utf-8")
+        payload = json.dumps(
+            {
+                "target": target_file,
+                "error": error_or_traceback,
+                "test": test_command or "",
+                "apply": True,
+                "model_scout": self.valves.default_model_scout,
+                "model_coder": self.valves.default_model_coder,
+            }
+        ).encode("utf-8")
 
         req = urllib.request.Request(
             self.valves.bridge_url,
@@ -64,7 +66,7 @@ class Tools:
         try:
             with urllib.request.urlopen(req, timeout=120) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
-                
+
                 if data.get("error") and not data.get("diff"):
                     return f"❌ Fix failed: {data.get('error')}"
 

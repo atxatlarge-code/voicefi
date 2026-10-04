@@ -1084,9 +1084,7 @@ def speech_turn_lock(
         with _THREAD_LOCK:
             _LOCK_DEPTH += 1
         try:
-            with escape_to_stop_speech(
-                agent_name=agent_name, app_name=app_name, conv_id=conv_id
-            ):
+            with escape_to_stop_speech(agent_name=agent_name, app_name=app_name, conv_id=conv_id):
                 yield
         finally:
             _LOCAL_STATE.speech_depth = max(0, getattr(_LOCAL_STATE, "speech_depth", 1) - 1)
@@ -1179,9 +1177,7 @@ def speech_turn_lock(
                     "Interrupted by user while waiting in speech lock queue"
                 )
             if (now - post_stop_time) < 1.5:
-                raise DuplicateSpeechSuppressed(
-                    "Interrupted by user recently (post-lock guard)"
-                )
+                raise DuplicateSpeechSuppressed("Interrupted by user recently (post-lock guard)")
 
         # If another process or conversation is actively listening/hearing for the user,
         # wait politely until the user finishes their spoken turn before speaking aloud.
@@ -1195,13 +1191,9 @@ def speech_turn_lock(
                 if mic_pid == os.getpid() and conv_id and mic_cid == conv_id:
                     break
             if is_speech_interrupted(enqueue_time):
-                raise DuplicateSpeechSuppressed(
-                    "Interrupted by user while waiting for microphone"
-                )
+                raise DuplicateSpeechSuppressed("Interrupted by user while waiting for microphone")
             if (time.time() - mic_wait_start) > 40.0:
-                print(
-                    "[TTS] ⚠️ Timed out waiting for active mic recording to finish, proceeding..."
-                )
+                print("[TTS] ⚠️ Timed out waiting for active mic recording to finish, proceeding...")
                 break
             time.sleep(0.12)
 
@@ -1249,9 +1241,7 @@ def speech_turn_lock(
             # Brief pause for natural conversational handoff between agents
             if not os.environ.get("PYTEST_CURRENT_TEST"):
                 time.sleep(0.15)
-            with escape_to_stop_speech(
-                agent_name=agent_name, app_name=app_name, conv_id=conv_id
-            ):
+            with escape_to_stop_speech(agent_name=agent_name, app_name=app_name, conv_id=conv_id):
                 yield
     finally:
         # If speech completed cleanly without interruption, record successful turn in BrevityLearner
@@ -1478,6 +1468,7 @@ def stop_all_speech(broadcast_web: bool = True) -> None:
 
         # Notify companion server asynchronously to broadcast stop to connected web clients
         if broadcast_web and not os.environ.get("PYTEST_CURRENT_TEST"):
+
             def _async_broadcast():
                 try:
                     import urllib.request
@@ -1490,6 +1481,8 @@ def stop_all_speech(broadcast_web: bool = True) -> None:
                 except Exception:
                     pass
 
-            threading.Thread(target=_async_broadcast, daemon=True, name="AsyncStopBroadcast").start()
+            threading.Thread(
+                target=_async_broadcast, daemon=True, name="AsyncStopBroadcast"
+            ).start()
     finally:
         _STOPPING_ALL_SPEECH = False

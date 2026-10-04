@@ -337,10 +337,9 @@ def cmd_beatbox(args: Any) -> None:
             audio = generate_taras_beatbox_routine(bars=bars, bpm=bpm, include_guitar=True)
 
         save_beatbox_wav(audio, out_path)
-        print(f"✅ Saved beatbox audio: {out_path} ({len(audio)/44100:.2f}s)")
+        print(f"✅ Saved beatbox audio: {out_path} ({len(audio) / 44100:.2f}s)")
 
     if not no_play:
         print(f"🔊 Playing aloud via CoreAudio (vol={volume})...")
         play_beatbox(preset=preset, bpm=bpm, block=True, volume=volume)
         print("✨ Playback complete!\n")
-

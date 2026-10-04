@@ -2212,11 +2212,7 @@ class VoiceFiMCPServer:
                 ],
                 "isError": True,
             }
-        instruction = (
-            args.get("instruction")
-            or args.get("query")
-            or args.get("prompt")
-        )
+        instruction = args.get("instruction") or args.get("query") or args.get("prompt")
         if not instruction:
             return {
                 "content": [
@@ -2340,7 +2336,10 @@ class VoiceFiMCPServer:
         if not task:
             return {
                 "content": [
-                    {"type": "text", "text": "Error: 'task' parameter is required for voicefi_auto."}
+                    {
+                        "type": "text",
+                        "text": "Error: 'task' parameter is required for voicefi_auto.",
+                    }
                 ],
                 "isError": True,
             }
@@ -2426,9 +2425,7 @@ class VoiceFiMCPServer:
 
         if not records:
             return {
-                "content": [
-                    {"type": "text", "text": f"No AST symbols found matching '{query}'."}
-                ],
+                "content": [{"type": "text", "text": f"No AST symbols found matching '{query}'."}],
                 "isError": False,
             }
 

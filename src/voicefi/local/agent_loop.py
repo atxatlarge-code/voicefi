@@ -58,7 +58,9 @@ class AutonomousLoopResult:
                     "thought": s.thought,
                     "tool": s.tool,
                     "arguments": s.arguments,
-                    "observation": s.observation[:300] + "..." if len(s.observation) > 300 else s.observation,
+                    "observation": s.observation[:300] + "..."
+                    if len(s.observation) > 300
+                    else s.observation,
                     "duration": s.duration,
                 }
                 for s in self.steps
@@ -90,7 +92,7 @@ class LocalAutonomousLoop:
         "Respond with a brief THOUGHT followed by a single tool call formatted as JSON:\n"
         "THOUGHT: [Reasoning for next action]\n"
         "```json\n"
-        "{\"tool\": \"[tool_name]\", \"arguments\": {[args]}}\n"
+        '{"tool": "[tool_name]", "arguments": {[args]}}\n'
         "```\n"
         "Do not include conversational preamble."
     )
@@ -124,7 +126,9 @@ class LocalAutonomousLoop:
         for w in words:
             records = self.symbol_index.find_symbol(w, root_dir=self.repo_root, auto_refresh=False)
             for r in records[:2]:
-                symbol_hints.append(f"• `{r.name}` ({r.kind}) in `{r.file_path}` (lines {r.start_line}-{r.end_line})")
+                symbol_hints.append(
+                    f"• `{r.name}` ({r.kind}) in `{r.file_path}` (lines {r.start_line}-{r.end_line})"
+                )
 
         initial_user_msg = f"GOAL: {goal}"
         if symbol_hints:
@@ -165,7 +169,7 @@ class LocalAutonomousLoop:
                             "role": "user",
                             "content": (
                                 "JSON parse error in your tool call. Please output tool calls in valid JSON format: "
-                                "```json\n{\"tool\": \"[tool_name]\", \"arguments\": {[args]}}\n```\n"
+                                '```json\n{"tool": "[tool_name]", "arguments": {[args]}}\n```\n'
                                 "Ensure internal quotes are escaped or use single quotes inside Python code strings."
                             ),
                         }
@@ -187,7 +191,7 @@ class LocalAutonomousLoop:
                 conversation_history.append(
                     {
                         "role": "user",
-                        "content": "Please specify your tool call in ```json {\"tool\": \"...\", \"arguments\": {...}} ``` format, or finish(summary).",
+                        "content": 'Please specify your tool call in ```json {"tool": "...", "arguments": {...}} ``` format, or finish(summary).',
                     }
                 )
                 continue
@@ -270,7 +274,8 @@ class LocalAutonomousLoop:
         return AutonomousLoopResult(
             goal=goal,
             completed=completed,
-            summary=final_summary or ("Loop completed maximum turns." if not completed else "Done."),
+            summary=final_summary
+            or ("Loop completed maximum turns." if not completed else "Done."),
             steps=steps,
             modified_files=modified_files,
             total_duration=total_duration,
@@ -318,12 +323,16 @@ class LocalAutonomousLoop:
                 name = args.get("name", "")
                 records = self.symbol_index.find_symbol(name, root_dir=self.repo_root)
                 if not records:
-                    records = self.symbol_index.search_symbols(name, limit=5, root_dir=self.repo_root)
+                    records = self.symbol_index.search_symbols(
+                        name, limit=5, root_dir=self.repo_root
+                    )
                 if not records:
                     return f"Symbol '{name}' not found in index."
                 out = []
                 for r in records:
-                    out.append(f"{r.kind} {r.name}{r.signature} in {r.file_path} (L{r.start_line}-L{r.end_line})")
+                    out.append(
+                        f"{r.kind} {r.name}{r.signature} in {r.file_path} (L{r.start_line}-L{r.end_line})"
+                    )
                 return "\n".join(out)
 
             elif tool_name == "read_slice":
@@ -404,6 +413,7 @@ class LocalAutonomousLoop:
                 pass
             try:
                 import ast
+
                 data = ast.literal_eval(json_txt)
                 if isinstance(data, dict) and "tool" in data:
                     calls.append((thought_txt.strip(), data))
@@ -433,6 +443,7 @@ class LocalAutonomousLoop:
                 pass
             try:
                 import ast
+
                 data = ast.literal_eval(b)
                 if isinstance(data, dict) and "tool" in data:
                     return thought, data
@@ -450,6 +461,7 @@ class LocalAutonomousLoop:
                 pass
             try:
                 import ast
+
                 data = ast.literal_eval(m)
                 if isinstance(data, dict) and "tool" in data:
                     return thought, data

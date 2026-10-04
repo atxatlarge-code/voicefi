@@ -247,10 +247,7 @@ def init_telemetry():
     except Exception:
         config = None
 
-    api_key = (
-        os.getenv("POSTHOG_PROJECT_TOKEN", "")
-        or os.getenv("POSTHOG_API_KEY", "")
-    )
+    api_key = os.getenv("POSTHOG_PROJECT_TOKEN", "") or os.getenv("POSTHOG_API_KEY", "")
     if not api_key and config and hasattr(config, "posthog_api_key") and config.posthog_api_key:
         api_key = config.posthog_api_key
 
@@ -307,7 +304,9 @@ def init_telemetry():
                         distinct_id=user_id,
                         properties={
                             "command": _active_command or "unknown",
-                            "error_type": exc_type.__name__ if hasattr(exc_type, "__name__") else str(exc_type),
+                            "error_type": exc_type.__name__
+                            if hasattr(exc_type, "__name__")
+                            else str(exc_type),
                             "error_message": sanitize_telemetry_data(str(exc_value)),
                             "traceback_hash": tb_hash,
                             "traceback": sanitized_msg,
@@ -359,6 +358,7 @@ def capture_exception(
 
     try:
         from voicefi import __version__ as VOICEFI_VERSION
+
         props["$app_version"] = VOICEFI_VERSION
         props["voicefi_version"] = VOICEFI_VERSION
     except Exception:
@@ -499,6 +499,7 @@ def capture_exception(
         _send_https_fallback()
     else:
         import threading
+
         threading.Thread(target=_send_https_fallback, daemon=True).start()
     return True
 
@@ -571,6 +572,7 @@ def capture_event(event_name: str, properties: Optional[Dict[str, Any]] = None):
 
     try:
         from voicefi import __version__ as VOICEFI_VERSION
+
         if "$app_version" not in sanitized_props:
             sanitized_props["$app_version"] = VOICEFI_VERSION
     except Exception:

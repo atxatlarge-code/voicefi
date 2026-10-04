@@ -183,7 +183,15 @@ def get_tts_engine(
             voice=voice,
             speed=float(rate) / 200.0 if (rate and isinstance(rate, (int, float))) else 1.0,
         )
-    elif provider in ("qwen", "qwen_tts", "qwen_clone", "mlx_clone", "f5_tts", "local_clone", "luxtts"):
+    elif provider in (
+        "qwen",
+        "qwen_tts",
+        "qwen_clone",
+        "mlx_clone",
+        "f5_tts",
+        "local_clone",
+        "luxtts",
+    ):
         agent_key = (agent_name or "").lower().strip()
         agent_prof = None
         if hasattr(config, "agents") and agent_key in config.agents:
@@ -204,7 +212,9 @@ def get_tts_engine(
                 or "continental" in getattr(clone_prof, "name", "").lower()
                 or (voice and "continental" in str(voice).lower())
             )
-            if not ref_audio or (is_specific_clone and not getattr(agent_prof, "f5_ref_audio", None)):
+            if not ref_audio or (
+                is_specific_clone and not getattr(agent_prof, "f5_ref_audio", None)
+            ):
                 if clone_prof.sample_paths:
                     ref_audio = clone_prof.sample_paths[0]
                 if clone_prof.labels and clone_prof.labels.get("ref_text"):
@@ -215,12 +225,18 @@ def get_tts_engine(
             provider in ("qwen", "qwen_tts", "qwen_clone", "mlx_clone")
             or getattr(clone_prof, "provider", None) in ("qwen", "qwen_clone")
             or (cloning_engine == "qwen" and QwenTTS.is_available())
-            or (cloning_engine == "auto" and provider != "f5_tts" and QwenTTS.is_available() and not F5TTS.is_available())
+            or (
+                cloning_engine == "auto"
+                and provider != "f5_tts"
+                and QwenTTS.is_available()
+                and not F5TTS.is_available()
+            )
         )
 
         target_speed = 1.0
         if speed_override is not None:
             from voicefi.audio.speed_talk import resolve_speed_multiplier
+
             target_speed = resolve_speed_multiplier(speed_override)
         elif clone_prof and getattr(clone_prof, "speed", None):
             target_speed = float(getattr(clone_prof, "speed"))
@@ -243,7 +259,9 @@ def get_tts_engine(
                 ref_audio=ref_audio,
                 ref_text=ref_text,
                 speed=target_speed,
-                persona_name=clone_prof.name if clone_prof else getattr(config.tts, "voice", "Custom Clone"),
+                persona_name=clone_prof.name
+                if clone_prof
+                else getattr(config.tts, "voice", "Custom Clone"),
                 apply_silk_mastering=True,
                 intro_sfx=intro_sfx,
                 intro_sfx_volume=intro_sfx_vol,
@@ -260,14 +278,18 @@ def get_tts_engine(
                 device=getattr(config.tts, "f5_device", "auto"),
                 nfe_step=nfe,
                 speed=target_speed,
-                persona_name=clone_prof.name if clone_prof else getattr(config.tts, "voice", "Custom Clone"),
+                persona_name=clone_prof.name
+                if clone_prof
+                else getattr(config.tts, "voice", "Custom Clone"),
             )
         elif QwenTTS.is_available() and ref_audio:
             eng = QwenTTS(
                 ref_audio=ref_audio,
                 ref_text=ref_text,
                 speed=target_speed,
-                persona_name=clone_prof.name if clone_prof else getattr(config.tts, "voice", "Custom Clone"),
+                persona_name=clone_prof.name
+                if clone_prof
+                else getattr(config.tts, "voice", "Custom Clone"),
                 apply_silk_mastering=True,
                 intro_sfx=intro_sfx,
                 intro_sfx_volume=intro_sfx_vol,
@@ -402,13 +424,29 @@ def get_tts_engine(
         )
         agent_key = (agent_name or "").lower().strip()
         agent_prof = config.agents.get(agent_key) if hasattr(config, "agents") else None
-        intro_sfx = getattr(agent_prof, "intro_sfx", None) if agent_prof else getattr(config.tts, "intro_sfx", None)
-        intro_sfx_vol = getattr(agent_prof, "intro_sfx_volume", 0.25) if agent_prof else getattr(config.tts, "intro_sfx_volume", 0.25)
+        intro_sfx = (
+            getattr(agent_prof, "intro_sfx", None)
+            if agent_prof
+            else getattr(config.tts, "intro_sfx", None)
+        )
+        intro_sfx_vol = (
+            getattr(agent_prof, "intro_sfx_volume", 0.25)
+            if agent_prof
+            else getattr(config.tts, "intro_sfx_volume", 0.25)
+        )
         if intro_sfx_vol is None:
             intro_sfx_vol = 0.25
 
-        ref_audio = getattr(agent_prof, "f5_ref_audio", None) if agent_prof else getattr(config.tts, "f5_ref_audio", None)
-        ref_text = getattr(agent_prof, "f5_ref_text", None) if agent_prof else getattr(config.tts, "f5_ref_text", None)
+        ref_audio = (
+            getattr(agent_prof, "f5_ref_audio", None)
+            if agent_prof
+            else getattr(config.tts, "f5_ref_audio", None)
+        )
+        ref_text = (
+            getattr(agent_prof, "f5_ref_text", None)
+            if agent_prof
+            else getattr(config.tts, "f5_ref_text", None)
+        )
         if not ref_audio and clone_prof:
             if clone_prof.sample_paths:
                 ref_audio = clone_prof.sample_paths[0]

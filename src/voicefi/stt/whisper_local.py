@@ -158,7 +158,12 @@ class WhisperLocalSTT(BaseSTT):
             "bye",
             "bye bye",
         }
-        if norm in common_hallucinations or raw_lower in {"www.mooji.org", "mooji.org", "amara.org", "opensubtitles.org"}:
+        if norm in common_hallucinations or raw_lower in {
+            "www.mooji.org",
+            "mooji.org",
+            "amara.org",
+            "opensubtitles.org",
+        }:
             return ""
 
         # Subtitle credit lines & trailing volunteer attribution

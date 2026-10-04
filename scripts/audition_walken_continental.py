@@ -81,7 +81,7 @@ def run_audition(interactive: bool = False):
         print(f"\n[{i}/{len(CANDIDATES)}] 🎙️  Candidate: {c['name']}")
         print(f"       Description: {c['description']}")
         print(f"       Reference WAV: {Path(c['ref_audio']).name}")
-        print(f"       Spoken Line: \"{c['line']}\"")
+        print(f'       Spoken Line: "{c["line"]}"')
 
         wav_path = out_dir / f"{c['id']}.wav"
         t0 = time.time()
@@ -103,16 +103,20 @@ def run_audition(interactive: bool = False):
             continue
 
         import soundfile as sf
+
         data, sr = sf.read(str(wav_path))
         audio_dur = len(data) / sr
         rtf = synth_elapsed / audio_dur if audio_dur > 0 else 0.0
 
-        print(f"       ✅ Synthesized in {synth_elapsed:.2f}s (Duration: {audio_dur:.2f}s • RTF: {rtf:.2f}x)")
+        print(
+            f"       ✅ Synthesized in {synth_elapsed:.2f}s (Duration: {audio_dur:.2f}s • RTF: {rtf:.2f}x)"
+        )
         print("       🔊 Playing aloud through MacBook speakers...")
 
         # Play aloud under cross-process exclusive_audio lock
         with exclusive_audio(timeout=15.0, owner=f"audition_{c['id']}"):
             import subprocess
+
             subprocess.run(["afplay", str(wav_path)], check=False)
 
         # Brief intermission between audition takes

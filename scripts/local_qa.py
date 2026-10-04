@@ -81,7 +81,7 @@ def run_ruff_lint(files: list[str]) -> tuple[bool, str]:
             text=True,
             timeout=20.0,
         )
-        passed = (res.returncode == 0)
+        passed = res.returncode == 0
         output = res.stdout.strip() or res.stderr.strip()
         return passed, output or "All lint checks passed cleanly."
     except Exception as e:
@@ -97,7 +97,7 @@ def run_targeted_tests(test_target: str = "tests/") -> tuple[bool, str]:
             text=True,
             timeout=45.0,
         )
-        passed = (res.returncode == 0)
+        passed = res.returncode == 0
         output = res.stdout.strip()
         return passed, output
     except Exception as e:
@@ -176,10 +176,21 @@ def query_local_model_audit(diff_text: str, changed_files: list[str]) -> tuple[s
 def main():
     parser = argparse.ArgumentParser(description="VoiceFi On-Device QA Diff Auditor")
     parser.add_argument("--staged", action="store_true", help="Audit only staged changes")
-    parser.add_argument("--rev", "--revision", dest="revision", type=str, default=None, help="Git revision or commit range (e.g. HEAD~1 or main..HEAD)")
+    parser.add_argument(
+        "--rev",
+        "--revision",
+        dest="revision",
+        type=str,
+        default=None,
+        help="Git revision or commit range (e.g. HEAD~1 or main..HEAD)",
+    )
     parser.add_argument("--skip-tests", action="store_true", help="Skip running pytest")
-    parser.add_argument("--test-target", type=str, default="tests/test_content_factory.py", help="Pytest target")
-    parser.add_argument("--output-file", type=str, default=".agents/QA_AUDIT.md", help="Output report file")
+    parser.add_argument(
+        "--test-target", type=str, default="tests/test_content_factory.py", help="Pytest target"
+    )
+    parser.add_argument(
+        "--output-file", type=str, default=".agents/QA_AUDIT.md", help="Output report file"
+    )
     args = parser.parse_args()
 
     # Hardware check

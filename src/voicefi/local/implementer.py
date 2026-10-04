@@ -58,7 +58,9 @@ def apply_search_replace(content: str, search: str, replace: str) -> Tuple[str, 
     # Fallback: strip leading/trailing blank lines in search block
     search_stripped = search_clean.strip("\n")
     if search_stripped and search_stripped in content_clean:
-        return content_clean.replace(search_stripped, replace.replace("\r\n", "\n").strip("\n"), 1), True
+        return content_clean.replace(
+            search_stripped, replace.replace("\r\n", "\n").strip("\n"), 1
+        ), True
 
     # Fallback: line-by-line whitespace-tolerant match
     search_lines = [l.strip() for l in search_clean.splitlines() if l.strip()]
@@ -67,7 +69,11 @@ def apply_search_replace(content: str, search: str, replace: str) -> Tuple[str, 
         window = [content_lines[i + j].strip() for j in range(len(search_lines))]
         if window == search_lines:
             # Found match
-            new_lines = content_lines[:i] + replace.replace("\r\n", "\n").splitlines() + content_lines[i + len(search_lines):]
+            new_lines = (
+                content_lines[:i]
+                + replace.replace("\r\n", "\n").splitlines()
+                + content_lines[i + len(search_lines) :]
+            )
             return "\n".join(new_lines), True
 
     return content, False
@@ -125,7 +131,9 @@ async def query_model(
                 if choices and "message" in choices[0]:
                     return choices[0]["message"].get("content", "")
         except Exception as e:
-            logger.debug(f"HTTP litert-lm server query failed ({e}), falling back to direct engine.")
+            logger.debug(
+                f"HTTP litert-lm server query failed ({e}), falling back to direct engine."
+            )
 
     # For larger coder models (gemma4-26b) or if HTTP server is unavailable, run direct in-process LocalModelEngine
     engine = LocalModelEngine(model_name=model_name)
@@ -339,5 +347,7 @@ class ReconImplementer:
             model_scout=self.model_scout,
             model_coder=self.model_coder,
             scout_findings=scout_findings,
-            error=None if applied_any else "No matching SEARCH/REPLACE blocks could be applied automatically.",
+            error=None
+            if applied_any
+            else "No matching SEARCH/REPLACE blocks could be applied automatically.",
         )

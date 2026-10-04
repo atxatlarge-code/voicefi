@@ -134,4 +134,3 @@ def play_turn_complete_chime(chime_name: str = "Glass", block: bool = False) -> 
         else:
             path = "/System/Library/Sounds/Glass.aiff"
     play_chime(path, block=block)
-

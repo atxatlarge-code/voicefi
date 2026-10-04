@@ -517,7 +517,9 @@ def handle_claude_stop_hook(
         )
 
         if eval_res.category == SpokenIntentCategory.EXPAND_READOUT:
-            print(f"[Claude Hook] 📖 Spoken intent EXPAND_READOUT detected: '{clean_t}'", flush=True)
+            print(
+                f"[Claude Hook] 📖 Spoken intent EXPAND_READOUT detected: '{clean_t}'", flush=True
+            )
             from voicefi.integrations.turn_memory import TurnSessionMemory
             from voicefi.integrations.antigravity import clean_markdown_for_speech
 

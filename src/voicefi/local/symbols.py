@@ -100,8 +100,10 @@ class LocalSymbolIndex:
         for dirpath, dirnames, filenames in os.walk(root):
             # Skip hidden and cache dirs
             dirnames[:] = [
-                d for d in dirnames
-                if not d.startswith(".") and d not in ("venv", ".venv", "node_modules", "dist", "build", "__pycache__")
+                d
+                for d in dirnames
+                if not d.startswith(".")
+                and d not in ("venv", ".venv", "node_modules", "dist", "build", "__pycache__")
             ]
             for f in filenames:
                 if f.endswith(".py"):
@@ -174,7 +176,9 @@ class LocalSymbolIndex:
                 for item in node.body:
                     if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
                         m_doc = ast.get_docstring(item) or ""
-                        kind = "async_method" if isinstance(item, ast.AsyncFunctionDef) else "method"
+                        kind = (
+                            "async_method" if isinstance(item, ast.AsyncFunctionDef) else "method"
+                        )
                         symbols.append(
                             SymbolRecord(
                                 name=item.name,

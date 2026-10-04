@@ -317,7 +317,9 @@ class GeminiIntelligenceEngine:
                 logger.debug("On-device local model distillation fallback: %s", e)
 
         # Check if Gemini soundbite distillation is explicitly enabled (default False = instant deterministic heuristic)
-        if not getattr(getattr(self.config, "gemini", None), "enable_soundbite_distillation", False):
+        if not getattr(
+            getattr(self.config, "gemini", None), "enable_soundbite_distillation", False
+        ):
             if fallback_to_heuristics:
                 try:
                     from voicefi.integrations.antigravity import clean_markdown_for_speech

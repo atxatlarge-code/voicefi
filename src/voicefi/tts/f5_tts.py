@@ -154,7 +154,11 @@ class F5TTS(BaseTTS):
         if self.emotion:
             emo_clean = str(self.emotion).lower().strip()
             clones_dir = Path.home() / ".voicefi" / "cloned_voices"
-            for p_key in [getattr(self, "persona_name", None), getattr(self, "voice", None), "documentary_broadcaster"]:
+            for p_key in [
+                getattr(self, "persona_name", None),
+                getattr(self, "voice", None),
+                "documentary_broadcaster",
+            ]:
                 if not p_key:
                     continue
                 emo_dir = clones_dir / str(p_key) / "emotions"
@@ -259,18 +263,32 @@ class F5TTS(BaseTTS):
                 k in str(ref_file).lower() or k in str(getattr(self, "persona_name", "")).lower()
                 for k in ("walken", "christopher_walken", "continental")
             )
-            is_continental = "continental" in str(ref_file).lower() or "continental" in str(getattr(self, "persona_name", "")).lower()
-            non_direct_prefixes = (
-                "[", "Look...", "Listen...", "Guess what?", "Wow...", "Mmm...", "Champagne", "Oh my..."
+            is_continental = (
+                "continental" in str(ref_file).lower()
+                or "continental" in str(getattr(self, "persona_name", "")).lower()
             )
-            if direct_cadence and is_walken and "..." not in clean_text and not any(clean_text.startswith(p) for p in non_direct_prefixes):
+            non_direct_prefixes = (
+                "[",
+                "Look...",
+                "Listen...",
+                "Guess what?",
+                "Wow...",
+                "Mmm...",
+                "Champagne",
+                "Oh my...",
+            )
+            if (
+                direct_cadence
+                and is_walken
+                and "..." not in clean_text
+                and not any(clean_text.startswith(p) for p in non_direct_prefixes)
+            ):
                 from voicefi.tts.director import TheatricalDirector
 
                 archetype = "continental" if is_continental else "standard"
                 clean_text = TheatricalDirector.direct_walken_cadence(
                     clean_text, archetype=archetype, include_prefix=False
                 )
-
 
             f5_inst = self.get_f5_instance(self.model_name, self.device)
             if not ref_text:
@@ -315,6 +333,7 @@ class F5TTS(BaseTTS):
             print(f"[F5-TTS] Synthesis error: {e}")
             try:
                 from voicefi.telemetry import capture_exception
+
                 capture_exception(
                     e,
                     component="f5_tts",

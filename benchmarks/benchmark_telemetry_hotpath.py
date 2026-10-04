@@ -82,14 +82,17 @@ def calc_stats(latencies_ms: List[float]) -> Dict[str, float]:
 # Benchmark Suite 1: Telemetry Dispatch Latency (Sequential & Concurrent)
 # ============================================================================
 def benchmark_dispatch_latency(count: int = 100, concurrency: int = 20) -> Dict[str, Any]:
-    print(f"\n[Suite 1] Benchmarking Telemetry Dispatch Latency ({count} seq, {count * 5} concurrent)...")
+    print(
+        f"\n[Suite 1] Benchmarking Telemetry Dispatch Latency ({count} seq, {count * 5} concurrent)..."
+    )
     mock_ph = MagicMock()
 
-    with patch("voicefi.telemetry.posthog", mock_ph), \
-         patch("voicefi.telemetry._posthog_initialized", True), \
-         patch("voicefi.telemetry.is_telemetry_enabled", return_value=True), \
-         patch.dict(os.environ, {"VOICEFI_TESTING": "0", "PYTEST_CURRENT_TEST": ""}):
-
+    with (
+        patch("voicefi.telemetry.posthog", mock_ph),
+        patch("voicefi.telemetry._posthog_initialized", True),
+        patch("voicefi.telemetry.is_telemetry_enabled", return_value=True),
+        patch.dict(os.environ, {"VOICEFI_TESTING": "0", "PYTEST_CURRENT_TEST": ""}),
+    ):
         # 1. Sequential capture_exception
         seq_latencies: List[float] = []
         t_start = time.perf_counter()
@@ -111,7 +114,9 @@ def benchmark_dispatch_latency(count: int = 100, concurrency: int = 20) -> Dict[
             for i in range(total_conc // concurrency):
                 err = RuntimeError(f"Thread {w_id} exception {i}")
                 t0 = time.perf_counter()
-                capture_exception(err, properties={"component": "benchmark_concurrent", "worker": w_id})
+                capture_exception(
+                    err, properties={"component": "benchmark_concurrent", "worker": w_id}
+                )
                 t1 = time.perf_counter()
                 worker_times.append((t1 - t0) * 1000)
             return worker_times
@@ -143,16 +148,22 @@ def benchmark_dispatch_latency(count: int = 100, concurrency: int = 20) -> Dict[
 # Benchmark Suite 2: Sliding-Window Exception Deduplication Efficacy
 # ============================================================================
 def benchmark_deduplication_burst(burst_size: int = 500) -> Dict[str, Any]:
-    print(f"\n[Suite 2] Benchmarking Sliding-Window Deduplication Efficacy ({burst_size} error burst)...")
+    print(
+        f"\n[Suite 2] Benchmarking Sliding-Window Deduplication Efficacy ({burst_size} error burst)..."
+    )
     mock_ph = MagicMock()
 
-    with patch("voicefi.telemetry.posthog", mock_ph), \
-         patch("voicefi.telemetry._posthog_initialized", True), \
-         patch("voicefi.telemetry.is_telemetry_enabled", return_value=True), \
-         patch.dict(os.environ, {"VOICEFI_TESTING": "0", "PYTEST_CURRENT_TEST": "", "VOICEFI_TEST_SYNC": ""}):
-
+    with (
+        patch("voicefi.telemetry.posthog", mock_ph),
+        patch("voicefi.telemetry._posthog_initialized", True),
+        patch("voicefi.telemetry.is_telemetry_enabled", return_value=True),
+        patch.dict(
+            os.environ, {"VOICEFI_TESTING": "0", "PYTEST_CURRENT_TEST": "", "VOICEFI_TEST_SYNC": ""}
+        ),
+    ):
         # Reset recent hashes cache
         from voicefi.telemetry import _recent_exception_hashes
+
         _recent_exception_hashes.clear()
 
         # Identical exception repeated in tight burst
@@ -186,7 +197,9 @@ def benchmark_deduplication_burst(burst_size: int = 500) -> Dict[str, Any]:
 # Benchmark Suite 3: Zero-Dead-Air Audio Failover vs Synchronous Block
 # ============================================================================
 def benchmark_audio_failover_latency(runs: int = 30) -> Dict[str, Any]:
-    print(f"\n[Suite 3] Benchmarking Zero-Dead-Air Audio Failover vs Synchronous Block ({runs} runs)...")
+    print(
+        f"\n[Suite 3] Benchmarking Zero-Dead-Air Audio Failover vs Synchronous Block ({runs} runs)..."
+    )
 
     # 1. Old Synchronous Failover Simulation (blocking HTTP call before speech fallback)
     old_failover_latencies: List[float] = []
@@ -207,11 +220,14 @@ def benchmark_audio_failover_latency(runs: int = 30) -> Dict[str, Any]:
     new_failover_latencies: List[float] = []
     mock_ph = MagicMock()
 
-    with patch("voicefi.telemetry.posthog", mock_ph), \
-         patch("voicefi.telemetry._posthog_initialized", True), \
-         patch("voicefi.telemetry.is_telemetry_enabled", return_value=True), \
-         patch.dict(os.environ, {"VOICEFI_TESTING": "0", "PYTEST_CURRENT_TEST": "", "VOICEFI_TEST_SYNC": ""}):
-
+    with (
+        patch("voicefi.telemetry.posthog", mock_ph),
+        patch("voicefi.telemetry._posthog_initialized", True),
+        patch("voicefi.telemetry.is_telemetry_enabled", return_value=True),
+        patch.dict(
+            os.environ, {"VOICEFI_TESTING": "0", "PYTEST_CURRENT_TEST": "", "VOICEFI_TEST_SYNC": ""}
+        ),
+    ):
         for _ in range(runs):
             t0 = time.perf_counter()
             try:
@@ -223,14 +239,18 @@ def benchmark_audio_failover_latency(runs: int = 30) -> Dict[str, Any]:
                 new_failover_latencies.append(time_to_audio * 1000)
 
                 # 2. Async non-blocking telemetry in background
-                capture_exception(e, properties={"component": "tts_edge", "fallback": "offline_mac_say"})
+                capture_exception(
+                    e, properties={"component": "tts_edge", "fallback": "offline_mac_say"}
+                )
 
     old_stats = calc_stats(old_failover_latencies)
     new_stats = calc_stats(new_failover_latencies)
 
     # Calculate dead-air reduction
     dead_air_eliminated_ms = max(0.0, old_stats["mean"] - new_stats["mean"])
-    dead_air_reduction_pct = (dead_air_eliminated_ms / old_stats["mean"]) * 100.0 if old_stats["mean"] > 0 else 0
+    dead_air_reduction_pct = (
+        (dead_air_eliminated_ms / old_stats["mean"]) * 100.0 if old_stats["mean"] > 0 else 0
+    )
 
     return {
         "runs": runs,
@@ -245,7 +265,9 @@ def benchmark_audio_failover_latency(runs: int = 30) -> Dict[str, Any]:
 # Benchmark Suite 4: Zero-PII Regex Sanitization Microbenchmark
 # ============================================================================
 def benchmark_zero_pii_sanitization(iterations: int = 500) -> Dict[str, Any]:
-    print(f"\n[Suite 4] Benchmarking Zero-PII Regex Sanitization Microbenchmark ({iterations} iterations)...")
+    print(
+        f"\n[Suite 4] Benchmarking Zero-PII Regex Sanitization Microbenchmark ({iterations} iterations)..."
+    )
 
     sample_payload = {
         "command": "speak",
@@ -333,7 +355,9 @@ def benchmark_audio_profiling_overhead(runs: int = 50) -> Dict[str, Any]:
 def run_all_benchmarks() -> Dict[str, Any]:
     print("=" * 72)
     print("🎙️ VoiceFi Telemetry & Error Tracking Performance Benchmark")
-    print(f"Host: {platform.platform()} | Python {platform.python_version()} | Arch: {platform.machine()}")
+    print(
+        f"Host: {platform.platform()} | Python {platform.python_version()} | Arch: {platform.machine()}"
+    )
     print("=" * 72)
 
     t_global_start = time.perf_counter()
@@ -463,6 +487,8 @@ def generate_markdown_report(report: Dict[str, Any], output_path: Path):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="VoiceFi Telemetry & Error Tracking Performance Benchmark")
+    parser = argparse.ArgumentParser(
+        description="VoiceFi Telemetry & Error Tracking Performance Benchmark"
+    )
     args = parser.parse_args()
     run_all_benchmarks()

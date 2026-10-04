@@ -22,7 +22,7 @@ def check_python_environment() -> Dict[str, Any]:
     """Check Python interpreter, version, and virtual environment status."""
     ver = platform.python_version()
     major, minor, patch = map(int, ver.split(".")[:3])
-    is_supported = (major == 3 and minor in (10, 11, 12, 13))
+    is_supported = major == 3 and minor in (10, 11, 12, 13)
     is_venv = sys.prefix != sys.base_prefix
 
     status = "pass"
@@ -68,80 +68,98 @@ def check_package_dependencies() -> List[Dict[str, Any]]:
                 is_tok_compat = False
 
         if not is_tok_compat:
-            results.append({
-                "category": "Dependencies",
-                "name": "Tokenizers / MLX-Audio Alignment",
-                "status": "fail",
-                "details": f"tokenizers {tokenizers_ver} incompatible with mlx-audio {mlx_audio_ver}. Requires >= 0.23.1.",
-                "fix_command": f"{sys.executable} -m pip install 'tokenizers>=0.23.1,<0.24.0'",
-            })
+            results.append(
+                {
+                    "category": "Dependencies",
+                    "name": "Tokenizers / MLX-Audio Alignment",
+                    "status": "fail",
+                    "details": f"tokenizers {tokenizers_ver} incompatible with mlx-audio {mlx_audio_ver}. Requires >= 0.23.1.",
+                    "fix_command": f"{sys.executable} -m pip install 'tokenizers>=0.23.1,<0.24.0'",
+                }
+            )
         else:
-            results.append({
-                "category": "Dependencies",
-                "name": "Tokenizers & MLX-Audio",
-                "status": "pass",
-                "details": f"tokenizers {tokenizers_ver} aligned with mlx-audio {mlx_audio_ver or 'not installed'}",
-            })
+            results.append(
+                {
+                    "category": "Dependencies",
+                    "name": "Tokenizers & MLX-Audio",
+                    "status": "pass",
+                    "details": f"tokenizers {tokenizers_ver} aligned with mlx-audio {mlx_audio_ver or 'not installed'}",
+                }
+            )
     else:
-        results.append({
-            "category": "Dependencies",
-            "name": "Tokenizers",
-            "status": "warn",
-            "details": "tokenizers not installed (cloud TTS mode only)",
-        })
+        results.append(
+            {
+                "category": "Dependencies",
+                "name": "Tokenizers",
+                "status": "warn",
+                "details": "tokenizers not installed (cloud TTS mode only)",
+            }
+        )
 
     # 2. Faster-Whisper
     try:
         fw_ver = importlib.metadata.version("faster-whisper")
-        results.append({
-            "category": "Dependencies",
-            "name": "Faster-Whisper (Local STT)",
-            "status": "pass",
-            "details": f"faster-whisper {fw_ver} ready",
-        })
+        results.append(
+            {
+                "category": "Dependencies",
+                "name": "Faster-Whisper (Local STT)",
+                "status": "pass",
+                "details": f"faster-whisper {fw_ver} ready",
+            }
+        )
     except Exception:
-        results.append({
-            "category": "Dependencies",
-            "name": "Faster-Whisper (Local STT)",
-            "status": "warn",
-            "details": "faster-whisper not installed (cloud Groq STT available)",
-        })
+        results.append(
+            {
+                "category": "Dependencies",
+                "name": "Faster-Whisper (Local STT)",
+                "status": "warn",
+                "details": "faster-whisper not installed (cloud Groq STT available)",
+            }
+        )
 
     # 3. MLX / MLX-Whisper on Apple Silicon
     is_apple_silicon = platform.system() == "Darwin" and platform.machine() == "arm64"
     if is_apple_silicon:
         try:
             mlx_ver = importlib.metadata.version("mlx")
-            results.append({
-                "category": "Dependencies",
-                "name": "Apple MLX (Metal GPU)",
-                "status": "pass",
-                "details": f"Apple MLX {mlx_ver} active on Apple Silicon",
-            })
+            results.append(
+                {
+                    "category": "Dependencies",
+                    "name": "Apple MLX (Metal GPU)",
+                    "status": "pass",
+                    "details": f"Apple MLX {mlx_ver} active on Apple Silicon",
+                }
+            )
         except Exception:
-            results.append({
-                "category": "Dependencies",
-                "name": "Apple MLX (Metal GPU)",
-                "status": "warn",
-                "details": "mlx not installed (Metal GPU neural acceleration unavailable)",
-            })
+            results.append(
+                {
+                    "category": "Dependencies",
+                    "name": "Apple MLX (Metal GPU)",
+                    "status": "warn",
+                    "details": "mlx not installed (Metal GPU neural acceleration unavailable)",
+                }
+            )
 
     # 4. PostHog Telemetry SDK
     try:
         ph_ver = importlib.metadata.version("posthog")
-        results.append({
-            "category": "Dependencies",
-            "name": "PostHog SDK",
-            "status": "pass",
-            "details": f"posthog {ph_ver} ready",
-        })
+        results.append(
+            {
+                "category": "Dependencies",
+                "name": "PostHog SDK",
+                "status": "pass",
+                "details": f"posthog {ph_ver} ready",
+            }
+        )
     except Exception:
-        results.append({
-            "category": "Dependencies",
-            "name": "PostHog SDK",
-            "status": "warn",
-            "details": "posthog SDK not installed; falling back to direct HTTPS",
-        })
+        results.append(
+            {
+                "category": "Dependencies",
+                "name": "PostHog SDK",
+                "status": "warn",
+                "details": "posthog SDK not installed; falling back to direct HTTPS",
+            }
+        )
 
     return results
 
@@ -216,21 +234,25 @@ def check_port_availability() -> List[Dict[str, Any]]:
         sock.close()
 
         if is_open:
-            results.append({
-                "category": "Daemon & Ports",
-                "name": f"Port {port} ({label})",
-                "status": "pass",
-                "details": f"Active & listening at {url}",
-                "is_running": True,
-            })
+            results.append(
+                {
+                    "category": "Daemon & Ports",
+                    "name": f"Port {port} ({label})",
+                    "status": "pass",
+                    "details": f"Active & listening at {url}",
+                    "is_running": True,
+                }
+            )
         else:
-            results.append({
-                "category": "Daemon & Ports",
-                "name": f"Port {port} ({label})",
-                "status": "pass",
-                "details": "Port is free and ready to bind on startup",
-                "is_running": False,
-            })
+            results.append(
+                {
+                    "category": "Daemon & Ports",
+                    "name": f"Port {port} ({label})",
+                    "status": "pass",
+                    "details": "Port is free and ready to bind on startup",
+                    "is_running": False,
+                }
+            )
     return results
 
 
@@ -278,13 +300,19 @@ def check_hook_latency() -> Dict[str, Any]:
             if resp.status == 200:
                 if elapsed_ms < 100.0:
                     status = "pass"
-                    details = f"Hook fast path active: {elapsed_ms:.1f}ms IPC roundtrip (Target: < 100ms)"
+                    details = (
+                        f"Hook fast path active: {elapsed_ms:.1f}ms IPC roundtrip (Target: < 100ms)"
+                    )
                 elif elapsed_ms < 300.0:
                     status = "warn"
-                    details = f"Hook fast path active but elevated: {elapsed_ms:.1f}ms IPC roundtrip"
+                    details = (
+                        f"Hook fast path active but elevated: {elapsed_ms:.1f}ms IPC roundtrip"
+                    )
                 else:
                     status = "warn"
-                    details = f"Hook fast path sluggish: {elapsed_ms:.1f}ms IPC roundtrip (SLA exceeded)"
+                    details = (
+                        f"Hook fast path sluggish: {elapsed_ms:.1f}ms IPC roundtrip (SLA exceeded)"
+                    )
                 return {
                     "category": "Agent Integration",
                     "name": "Hook Dispatch Latency",

@@ -82,14 +82,21 @@ class ContentAudioSynthesizer:
             # Normalize immediately to standard 48kHz 16-bit stereo PCM WAV
             # This guarantees FFmpeg concat demuxer can stitch heterogeneous streams without skipping
             norm_cmd = [
-                "ffmpeg", "-y",
-                "-i", str(raw_temp),
-                "-ar", "48000",
-                "-ac", "2",
-                "-c:a", "pcm_s16le",
+                "ffmpeg",
+                "-y",
+                "-i",
+                str(raw_temp),
+                "-ar",
+                "48000",
+                "-ac",
+                "2",
+                "-c:a",
+                "pcm_s16le",
                 str(output_wav),
             ]
-            subprocess.run(norm_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+            subprocess.run(
+                norm_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True
+            )
             if raw_temp.exists():
                 raw_temp.unlink()
 
@@ -122,16 +129,27 @@ class ContentAudioSynthesizer:
             # 1. Generate short pause wav (48kHz stereo silence)
             pause_sec = max(0.05, pause_gap_ms / 1000.0)
             gen_silence_cmd = [
-                "ffmpeg", "-y",
-                "-f", "lavfi",
-                "-i", "anullsrc=r=48000:cl=stereo",
-                "-t", str(pause_sec),
-                "-ar", "48000",
-                "-ac", "2",
+                "ffmpeg",
+                "-y",
+                "-f",
+                "lavfi",
+                "-i",
+                "anullsrc=r=48000:cl=stereo",
+                "-t",
+                str(pause_sec),
+                "-ar",
+                "48000",
+                "-ac",
+                "2",
                 str(silence_wav),
             ]
             try:
-                subprocess.run(gen_silence_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+                subprocess.run(
+                    gen_silence_cmd,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    check=True,
+                )
             except Exception:
                 silence_wav = None
 
@@ -145,16 +163,24 @@ class ContentAudioSynthesizer:
 
             # 3. Concatenate to master output
             cmd = [
-                "ffmpeg", "-y",
-                "-f", "concat",
-                "-safe", "0",
-                "-i", str(concat_txt),
-                "-ar", "48000",
-                "-ac", "2",
+                "ffmpeg",
+                "-y",
+                "-f",
+                "concat",
+                "-safe",
+                "0",
+                "-i",
+                str(concat_txt),
+                "-ar",
+                "48000",
+                "-ac",
+                "2",
                 str(output_wav),
             ]
             try:
-                subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+                subprocess.run(
+                    cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True
+                )
                 return output_wav.exists() and output_wav.stat().st_size > 1000
             except Exception as e:
                 logger.error(f"FFmpeg turn concatenation failed: {e}")
@@ -179,14 +205,20 @@ class ContentAudioSynthesizer:
 
         # Vocal (0:a) + Backing Track (1:a) ducked with amix duration=first
         cmd = [
-            "ffmpeg", "-y",
-            "-i", str(vocal_wav),
-            "-i", str(backing_track),
+            "ffmpeg",
+            "-y",
+            "-i",
+            str(vocal_wav),
+            "-i",
+            str(backing_track),
             "-filter_complex",
             f"[1:a]volume={bg_volume}[bg];[0:a][bg]amix=inputs=2:duration=first:dropout_transition=2[out]",
-            "-map", "[out]",
-            "-ar", "48000",
-            "-ac", "2",
+            "-map",
+            "[out]",
+            "-ar",
+            "48000",
+            "-ac",
+            "2",
             str(output_wav),
         ]
         try:
@@ -273,7 +305,9 @@ class ContentAudioSynthesizer:
             emotion="neutral",
         )
         wav_path = output_file.with_suffix(".wav")
-        ok = self.synthesize_turn(dummy_turn, wav_path, voice_id=single_voice, speed_override=self.default_speed)
+        ok = self.synthesize_turn(
+            dummy_turn, wav_path, voice_id=single_voice, speed_override=self.default_speed
+        )
         if ok and wav_path.exists():
             # Convert to mp3 if requested
             if output_file.suffix == ".mp3":

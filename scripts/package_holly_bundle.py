@@ -4,6 +4,7 @@ import json
 import zipfile
 from pathlib import Path
 
+
 def main():
     staging = Path("/tmp/voicefi_clones_pack")
     shutil.rmtree(staging, ignore_errors=True)
@@ -33,7 +34,10 @@ def main():
     # 2. Copy voice-cloning skill
     skills_dir = staging / "skills" / "voice-cloning"
     skills_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copy2("/Users/jaketrigg/Projects/VoiceFi/.agents/skills/voice-cloning/SKILL.md", skills_dir / "SKILL.md")
+    shutil.copy2(
+        "/Users/jaketrigg/Projects/VoiceFi/.agents/skills/voice-cloning/SKILL.md",
+        skills_dir / "SKILL.md",
+    )
 
     # 3. Create install.sh
     install_sh = """#!/usr/bin/env bash
@@ -181,6 +185,7 @@ VoiceFi will automatically detect F5-TTS and synthesize speech with full neural 
     shutil.copy2(desktop_zip, downloads_zip)
     print(f"Created {desktop_zip} ({desktop_zip.stat().st_size / 1024:.1f} KB)")
     print(f"Created {downloads_zip} ({downloads_zip.stat().st_size / 1024:.1f} KB)")
+
 
 if __name__ == "__main__":
     main()

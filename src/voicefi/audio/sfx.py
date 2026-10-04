@@ -289,6 +289,7 @@ def _generate_crickets(sample_rate: int = SAMPLE_RATE) -> np.ndarray:
 def _generate_taras_guitar(sample_rate: int = SAMPLE_RATE) -> np.ndarray:
     """Taras Stanin style overdriven vocal electric guitar power riff."""
     from voicefi.audio.beatbox_synth import synth_taras_guitar_riff
+
     audio = synth_taras_guitar_riff(riff_style="rock", bpm=95.0, sr=sample_rate)
     return (np.clip(audio, -1.0, 1.0) * 32767).astype(np.int16)
 
@@ -296,6 +297,7 @@ def _generate_taras_guitar(sample_rate: int = SAMPLE_RATE) -> np.ndarray:
 def _generate_taras_laser(sample_rate: int = SAMPLE_RATE) -> np.ndarray:
     """Modular beatbox laser whistle zaps."""
     from voicefi.audio.beatbox_synth import synth_laser_zap
+
     z1 = synth_laser_zap(dur=0.08, sr=sample_rate)
     z2 = synth_laser_zap(dur=0.08, start_freq=4200.0, end_freq=380.0, sr=sample_rate)
     z3 = synth_laser_zap(dur=0.11, start_freq=3200.0, end_freq=220.0, sr=sample_rate)
@@ -307,6 +309,7 @@ def _generate_taras_laser(sample_rate: int = SAMPLE_RATE) -> np.ndarray:
 def _generate_taras_throat_bass(sample_rate: int = SAMPLE_RATE) -> np.ndarray:
     """Subharmonic false-fold throat bass drop."""
     from voicefi.audio.beatbox_synth import synth_throat_bass
+
     audio = synth_throat_bass(freq=55.0, dur=1.8, wobble_rate=3.2, sr=sample_rate)
     return (np.clip(audio, -1.0, 1.0) * 32767).astype(np.int16)
 
@@ -314,6 +317,7 @@ def _generate_taras_throat_bass(sample_rate: int = SAMPLE_RATE) -> np.ndarray:
 def _generate_beatbox_drop(sample_rate: int = SAMPLE_RATE) -> np.ndarray:
     """Complete multi-layered Taras Stanin beatbox routine with vocal guitar solo."""
     from voicefi.audio.beatbox_synth import generate_taras_beatbox_routine
+
     audio = generate_taras_beatbox_routine(bars=2, bpm=95.0, include_guitar=True, sr=sample_rate)
     return (np.clip(audio, -1.0, 1.0) * 32767).astype(np.int16)
 

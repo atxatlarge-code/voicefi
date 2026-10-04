@@ -193,13 +193,25 @@ def cmd_hook(args: Any) -> None:
     if not payload:
         extra = getattr(args, "extra_args", []) or []
         candidate_strings = []
-        if action and action not in ("enable", "disable", "status", "remove", "uninstall", "on", "off"):
+        if action and action not in (
+            "enable",
+            "disable",
+            "status",
+            "remove",
+            "uninstall",
+            "on",
+            "off",
+        ):
             candidate_strings.append(action)
         candidate_strings.extend(extra)
         candidate_strings.extend(sys.argv)
 
         for item in candidate_strings:
-            if isinstance(item, str) and item.strip().startswith("{") and item.strip().endswith("}"):
+            if (
+                isinstance(item, str)
+                and item.strip().startswith("{")
+                and item.strip().endswith("}")
+            ):
                 try:
                     payload = json.loads(item.strip())
                     break

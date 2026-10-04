@@ -69,7 +69,7 @@ async def _async_query_live_api(
         "invoke 'dispatch_to_antigravity' with their request so Antigravity can execute the task in their workspace, "
         "and give a brief spoken acknowledgment to the user that it's on it.\n"
         "3. If the user asks for sound effects (rimshot, applause), invoke 'trigger_sound_effect'.\n"
-        "4. For conversational remarks, questions, banter, or clarifications (such as \"You're joking\" or \"What did you do?\"), "
+        '4. For conversational remarks, questions, banter, or clarifications (such as "You\'re joking" or "What did you do?"), '
         "respond directly in spoken dialogue."
     )
 

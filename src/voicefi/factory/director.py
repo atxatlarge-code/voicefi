@@ -48,19 +48,26 @@ class ImageGenerator:
         for i, prompt in enumerate(prompts):
             output_file = self.output_dir / f"scene_{i:03d}.png"
             logger.info(
-                f"🎨 [FLUX.1-{self.model}] Rendering Scene {i+1}/{len(prompts)} "
+                f"🎨 [FLUX.1-{self.model}] Rendering Scene {i + 1}/{len(prompts)} "
                 f"({self.width}x{self.height}, Q{self.quantize}, {self.steps} steps): {prompt[:65]}..."
             )
 
             cmd = [
                 mflux_bin,
-                "--model", self.model,
-                "--prompt", prompt,
-                "--output", str(output_file),
-                "--steps", str(self.steps),
-                "--quantize", str(self.quantize),
-                "--width", str(self.width),
-                "--height", str(self.height),
+                "--model",
+                self.model,
+                "--prompt",
+                prompt,
+                "--output",
+                str(output_file),
+                "--steps",
+                str(self.steps),
+                "--quantize",
+                str(self.quantize),
+                "--width",
+                str(self.width),
+                "--height",
+                str(self.height),
             ]
 
             # FLUX.1-dev uses guidance; schnell requires no guidance flag
@@ -75,10 +82,10 @@ class ImageGenerator:
             stdout, stderr = await process.communicate()
 
             if process.returncode == 0 and output_file.exists():
-                logger.info(f"✓ Scene {i+1} saved: {output_file.name}")
+                logger.info(f"✓ Scene {i + 1} saved: {output_file.name}")
                 generated_files.append(output_file)
             else:
-                logger.error(f"✗ Scene {i+1} failed: {stderr.decode().strip()}")
+                logger.error(f"✗ Scene {i + 1} failed: {stderr.decode().strip()}")
 
             # Brief pause for OS kernel to reclaim deallocated wired pages
             await asyncio.sleep(0.2)
@@ -97,6 +104,7 @@ class TTSGenerator:
         """Select best available Apple Neural Voice installed on macOS."""
         try:
             from voicefi.tts.offline import is_voice_installed
+
             for preferred in ("Ava (Premium)", "Ava (Enhanced)", "Ava", "Samantha"):
                 installed, exact_name = is_voice_installed(preferred)
                 if installed and exact_name:
@@ -113,6 +121,7 @@ class TTSGenerator:
         clean_text = voiceover_script.strip()
         try:
             from voicefi.tts.normalizer import normalize_tts_text
+
             clean_text = normalize_tts_text(clean_text)
         except Exception:
             pass
@@ -130,9 +139,12 @@ class TTSGenerator:
             # 1. Synthesize locally using macOS native Neural CoreAudio
             cmd_say = [
                 "say",
-                "-v", voice,
-                "-r", rate,
-                "-o", str(tmp_aiff),
+                "-v",
+                voice,
+                "-r",
+                rate,
+                "-o",
+                str(tmp_aiff),
                 "--",
                 clean_text,
             ]
@@ -150,20 +162,30 @@ class TTSGenerator:
             if shutil.which("afconvert") and tmp_aiff.is_file():
                 cmd_resample = [
                     "afconvert",
-                    "-f", "WAVE",
-                    "-d", "LEI16@48000",
+                    "-f",
+                    "WAVE",
+                    "-d",
+                    "LEI16@48000",
                     str(tmp_aiff),
                     str(tmp_wav),
                 ]
                 subprocess.run(cmd_resample, capture_output=True, check=False)
 
             # Strategy B: FFmpeg fallback if afconvert was skipped
-            if (not tmp_wav.is_file() or tmp_wav.stat().st_size == 0) and shutil.which("ffmpeg") and tmp_aiff.is_file():
+            if (
+                (not tmp_wav.is_file() or tmp_wav.stat().st_size == 0)
+                and shutil.which("ffmpeg")
+                and tmp_aiff.is_file()
+            ):
                 cmd_ffmpeg = [
-                    "ffmpeg", "-y",
-                    "-i", str(tmp_aiff),
-                    "-ar", "48000",
-                    "-c:a", "pcm_s16le",
+                    "ffmpeg",
+                    "-y",
+                    "-i",
+                    str(tmp_aiff),
+                    "-ar",
+                    "48000",
+                    "-c:a",
+                    "pcm_s16le",
                     str(tmp_wav),
                 ]
                 subprocess.run(cmd_ffmpeg, capture_output=True, check=False)
@@ -172,6 +194,7 @@ class TTSGenerator:
             if tmp_wav.is_file() and tmp_wav.stat().st_size > 0:
                 try:
                     from voicefi.audio.mastering import apply_bbc_documentary_mastering
+
                     mastered_wav = apply_bbc_documentary_mastering(tmp_wav, output_wav)
                     if Path(mastered_wav).is_file() and Path(mastered_wav).stat().st_size > 0:
                         return Path(mastered_wav)
@@ -184,13 +207,23 @@ class TTSGenerator:
 
         # Fallback tone if say failed
         if not output_wav.exists() and shutil.which("ffmpeg"):
-            subprocess.run([
-                "ffmpeg", "-y", "-f", "lavfi",
-                "-i", "anullsrc=r=48000:cl=mono",
-                "-t", "3",
-                "-c:a", "pcm_s16le",
-                str(output_wav),
-            ], capture_output=True, check=False)
+            subprocess.run(
+                [
+                    "ffmpeg",
+                    "-y",
+                    "-f",
+                    "lavfi",
+                    "-i",
+                    "anullsrc=r=48000:cl=mono",
+                    "-t",
+                    "3",
+                    "-c:a",
+                    "pcm_s16le",
+                    str(output_wav),
+                ],
+                capture_output=True,
+                check=False,
+            )
 
         return output_wav
 
@@ -205,7 +238,9 @@ class TTSGenerator:
         try:
             res_path = await asyncio.to_thread(self._synthesize_sync, voiceover_script, output_file)
             if res_path and res_path.exists() and res_path.stat().st_size > 0:
-                logger.info(f"✓ Offline 48kHz audio synthesized: {res_path.name} ({res_path.stat().st_size} bytes)")
+                logger.info(
+                    f"✓ Offline 48kHz audio synthesized: {res_path.name} ({res_path.stat().st_size} bytes)"
+                )
                 return res_path
         except Exception as e:
             logger.error(f"VoiceFi Offline TTS error: {e}")
@@ -221,7 +256,9 @@ class VideoStitcher:
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.workspace_root = Path(workspace_root)
 
-    async def stitch(self, image_paths: List[Path], audio_path: Path, manifest_data: Dict) -> Optional[Path]:
+    async def stitch(
+        self, image_paths: List[Path], audio_path: Path, manifest_data: Dict
+    ) -> Optional[Path]:
         if not image_paths or not audio_path or not audio_path.exists():
             logger.error("Missing video assets or audio master. Cannot stitch.")
             return None
@@ -230,7 +267,9 @@ class VideoStitcher:
         logger.info("🎬 Assembly Line: Encoding 9:16 master reel via Apple VideoToolbox...")
 
         # 1. Write Tier 1 Declarative Manifest
-        manifest_path = self.workspace_root / "marketing" / "social" / "reels" / "latest_factory_reel.json"
+        manifest_path = (
+            self.workspace_root / "marketing" / "social" / "reels" / "latest_factory_reel.json"
+        )
         manifest_path.parent.mkdir(parents=True, exist_ok=True)
 
         manifest = {
@@ -246,9 +285,13 @@ class VideoStitcher:
 
         # 2. Derive Audio Duration via ffprobe
         probe_cmd = [
-            "ffprobe", "-v", "error",
-            "-show_entries", "format=duration",
-            "-of", "default=noprint_wrappers=1:nokey=1",
+            "ffprobe",
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "default=noprint_wrappers=1:nokey=1",
             str(audio_path),
         ]
         probe_proc = await asyncio.create_subprocess_exec(
@@ -274,13 +317,26 @@ class VideoStitcher:
 
         # 4. Hardware-Accelerated Encode via M5 Pro Media Engine (h264_videotoolbox)
         ffmpeg_cmd = [
-            "ffmpeg", "-y",
-            "-f", "concat", "-safe", "0", "-i", str(concat_txt),
-            "-i", str(audio_path),
-            "-c:v", "h264_videotoolbox",
-            "-b:v", "12M",
-            "-pix_fmt", "yuv420p",
-            "-c:a", "aac", "-b:a", "192k",
+            "ffmpeg",
+            "-y",
+            "-f",
+            "concat",
+            "-safe",
+            "0",
+            "-i",
+            str(concat_txt),
+            "-i",
+            str(audio_path),
+            "-c:v",
+            "h264_videotoolbox",
+            "-b:v",
+            "12M",
+            "-pix_fmt",
+            "yuv420p",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "192k",
             "-shortest",
             str(output_video),
         ]
@@ -349,6 +405,7 @@ JSON:"""
         # 1. Priority 1: Built-in VoiceFi LiteRT LocalModelEngine (On-Device Metal GPU)
         try:
             from voicefi.local import LocalModelEngine
+
             engine = LocalModelEngine(model_name="gemma4-26b")
             if not engine.model_exists:
                 engine = LocalModelEngine(model_name="gemma4-2b")
@@ -397,7 +454,11 @@ JSON:"""
             stdout, _ = await proc.communicate()
 
             # Immediately unload from VRAM to make room for FLUX
-            subprocess.run(["ollama", "stop", "gemma2:2b"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(
+                ["ollama", "stop", "gemma2:2b"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
             return self._clean_and_parse_json(stdout.decode())
         except Exception as e:
             logger.error(f"All local LLM engines failed: {e}")
@@ -427,7 +488,9 @@ JSON:"""
             logger.error("Failed to generate valid script and scene prompts. Aborting.")
             return None
 
-        logger.info(f"✓ Script generated with {len(image_prompts)} scenes. (VRAM completely freed for FLUX)")
+        logger.info(
+            f"✓ Script generated with {len(image_prompts)} scenes. (VRAM completely freed for FLUX)"
+        )
 
         # ─── STAGE 2: ASSET GENERATION (Decoupled: CPU TTS + Metal FLUX) ───
         # Audio uses CPU/CoreAudio; FLUX uses 100% of Apple Silicon GPU

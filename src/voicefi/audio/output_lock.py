@@ -94,7 +94,11 @@ def exclusive_audio(timeout: float = 30.0, owner: str = "", raise_on_timeout: bo
                         pid_match = re.search(r"\bpid=(\d+)", content)
                         if pid_match:
                             holder_pid = int(pid_match.group(1))
-                            if holder_pid > 0 and holder_pid != pid and not _is_pid_alive(holder_pid):
+                            if (
+                                holder_pid > 0
+                                and holder_pid != pid
+                                and not _is_pid_alive(holder_pid)
+                            ):
                                 # The recorded PID is dead!
                                 # Auto-reclaim stale lock by unlinking and reopening
                                 try:
@@ -117,9 +121,7 @@ def exclusive_audio(timeout: float = 30.0, owner: str = "", raise_on_timeout: bo
                 time.sleep(0.05)
 
         if not acquired:
-            msg = (
-                f"[AudioLock] ⚠️ Timeout ({timeout:.1f}s) waiting for audio output mutex (owner={owner_str})."
-            )
+            msg = f"[AudioLock] ⚠️ Timeout ({timeout:.1f}s) waiting for audio output mutex (owner={owner_str})."
             print(msg, file=sys.stderr)
             if raise_on_timeout:
                 raise TimeoutError(msg)

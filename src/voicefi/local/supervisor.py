@@ -20,6 +20,7 @@ from typing import Any, Callable, Dict, Optional, Tuple
 
 try:
     import psutil
+
     PSUTIL_AVAILABLE = True
 except ImportError:
     PSUTIL_AVAILABLE = False
@@ -125,7 +126,9 @@ class ThermalSupervisor:
             reason = f"macOS thermal state is {thermal_state} ({thermal_raw})"
         elif free_ram_gb > 0 and free_ram_gb < self.min_free_ram_gb:
             is_safe = False
-            reason = f"Free unified RAM ({free_ram_gb} GB) below threshold ({self.min_free_ram_gb} GB)"
+            reason = (
+                f"Free unified RAM ({free_ram_gb} GB) below threshold ({self.min_free_ram_gb} GB)"
+            )
         elif load_1m > self.max_load_avg:
             is_safe = False
             reason = f"Load average ({load_1m}) exceeds ceiling ({self.max_load_avg})"
@@ -177,6 +180,7 @@ class ThermalSupervisor:
 
     def guarded(self, min_free_ram_gb: Optional[float] = None) -> Callable:
         """Decorator to wrap any local inference function with automatic backoff."""
+
         def decorator(fn: Callable) -> Callable:
             @wraps(fn)
             def wrapper(*args: Any, **kwargs: Any) -> Any:
@@ -188,7 +192,9 @@ class ThermalSupervisor:
                     return fn(*args, **kwargs)
                 finally:
                     self.min_free_ram_gb = saved_min
+
             return wrapper
+
         return decorator
 
 
@@ -198,12 +204,15 @@ default_supervisor = ThermalSupervisor()
 
 if __name__ == "__main__":
     import json
+
     telem = default_supervisor.get_telemetry()
     print("=== Apple Silicon Hardware Telemetry ===")
     print(f"System:         {telem.system}")
     print(f"Thermal State:  {telem.thermal_state}")
     print(f"Thermal Raw:    {telem.thermal_raw}")
-    print(f"Memory:         {telem.free_ram_gb} GB free / {telem.total_ram_gb} GB total ({telem.ram_percent}% used)")
+    print(
+        f"Memory:         {telem.free_ram_gb} GB free / {telem.total_ram_gb} GB total ({telem.ram_percent}% used)"
+    )
     print(f"1m Load Avg:    {telem.load_avg_1m}")
     print(f"Safe to Run:    {telem.is_safe}")
     if telem.throttle_reason:

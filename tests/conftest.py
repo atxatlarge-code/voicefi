@@ -275,7 +275,9 @@ def isolate_test_config(tmp_path, monkeypatch):
     mock_analytics_store = MagicMock()
     mock_analytics_store.record_local_event.return_value = 1
     mock_analytics_store.db_path = test_analytics_db
-    monkeypatch.setattr("voicefi.analytics.store.get_analytics_store", lambda db_path=None: mock_analytics_store)
+    monkeypatch.setattr(
+        "voicefi.analytics.store.get_analytics_store", lambda db_path=None: mock_analytics_store
+    )
 
     # Isolate speech dedup, turns, and spoken history per test
     test_speech_lock = tmp_path / "voicefi_speech.lock"
@@ -411,6 +413,7 @@ def cleanup_ui_singletons():
 
         try:
             from voicefi.tts.base import clear_speech_stopped_time, clear_cross_process_hud_state
+
             clear_speech_stopped_time()
             clear_cross_process_hud_state()
         except Exception:

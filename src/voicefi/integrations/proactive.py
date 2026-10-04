@@ -58,7 +58,7 @@ class ProactiveTriageEngine:
         # 2. Synchronous Ollama System 1 Structured Output call
         import urllib.request
         import json
-        
+
         system_prompt = (
             "You are VoiceFi's proactive triage engine. Analyze ambient speech to extract actionable tasks. "
             "If the speech is filler or unrelated, classify it as 'IGNORE'.\n"
@@ -74,53 +74,53 @@ class ProactiveTriageEngine:
             "model": "gemma2:2b",
             "messages": [
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"Ambient Speech: {clean_text}"}
+                {"role": "user", "content": f"Ambient Speech: {clean_text}"},
             ],
             "format": {
                 "type": "object",
                 "properties": {
                     "category": {
                         "type": "string",
-                        "enum": ["IGNORE", "RESEARCH", "SCAFFOLD", "DIAGNOSE", "TICKET"]
+                        "enum": ["IGNORE", "RESEARCH", "SCAFFOLD", "DIAGNOSE", "TICKET"],
                     },
                     "summary": {
                         "type": "string",
-                        "description": "Short 3-6 word summary of the task."
+                        "description": "Short 3-6 word summary of the task.",
                     },
                     "action_prompt": {
                         "type": "string",
-                        "description": "Specific action the background subagent should perform."
+                        "description": "Specific action the background subagent should perform.",
                     },
                     "workspace": {
                         "type": "string",
                         "enum": ["inherit", "branch"],
-                        "description": "Use 'branch' for SCAFFOLD or unsafe changes. Use 'inherit' for research/diagnostics."
-                    }
+                        "description": "Use 'branch' for SCAFFOLD or unsafe changes. Use 'inherit' for research/diagnostics.",
+                    },
                 },
-                "required": ["category", "summary", "action_prompt", "workspace"]
+                "required": ["category", "summary", "action_prompt", "workspace"],
             },
             "stream": False,
-            "options": {"temperature": 0.0}
+            "options": {"temperature": 0.0},
         }
-        
+
         req = urllib.request.Request(
             "http://localhost:11434/api/chat",
             data=json.dumps(payload).encode("utf-8"),
             headers={"Content-Type": "application/json"},
-            method="POST"
+            method="POST",
         )
-        
+
         try:
             with urllib.request.urlopen(req, timeout=5.0) as response:
                 result = json.loads(response.read().decode())
                 parsed = json.loads(result["message"]["content"])
         except Exception as e:
             return None
-            
+
         cat_str = parsed.get("category", "IGNORE")
         if cat_str == "IGNORE":
             return None
-            
+
         try:
             category = TriageCategory(cat_str)
         except ValueError:

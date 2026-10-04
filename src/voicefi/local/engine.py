@@ -24,12 +24,14 @@ def is_litert_available() -> bool:
     """Check if LiteRT and/or Google Antigravity SDK are available in the Python environment."""
     try:
         import litert_lm  # noqa: F401
+
         return True
     except (ImportError, ModuleNotFoundError):
         pass
 
     try:
         from google.antigravity import LiteRTAgentConfig  # noqa: F401
+
         return True
     except (ImportError, ModuleNotFoundError):
         return False
@@ -440,36 +442,43 @@ class LocalModelEngine:
             "model": self.model_name if self.model_name else "gemma2:2b",
             "messages": [
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"Spoken prompt: {prompt}"}
+                {"role": "user", "content": f"Spoken prompt: {prompt}"},
             ],
             "format": {
                 "type": "object",
                 "properties": {
                     "target": {
                         "type": "string",
-                        "enum": ["local_command", "antigravity", "claude", "codex", "obsidian", "memo"],
-                        "description": "The routing destination."
+                        "enum": [
+                            "local_command",
+                            "antigravity",
+                            "claude",
+                            "codex",
+                            "obsidian",
+                            "memo",
+                        ],
+                        "description": "The routing destination.",
                     },
                     "action": {
                         "type": "string",
-                        "description": "A concise summary or specific command to run based on the prompt."
-                    }
+                        "description": "A concise summary or specific command to run based on the prompt.",
+                    },
                 },
-                "required": ["target", "action"]
+                "required": ["target", "action"],
             },
             "stream": False,
-            "options": {"temperature": 0.0, "num_predict": 40}
+            "options": {"temperature": 0.0, "num_predict": 40},
         }
 
         req = urllib.request.Request(
             "http://localhost:11434/api/chat",
             data=json.dumps(payload).encode("utf-8"),
             headers={"Content-Type": "application/json"},
-            method="POST"
+            method="POST",
         )
 
         start_time = time.perf_counter()
-        
+
         def _fetch():
             try:
                 with urllib.request.urlopen(req, timeout=10.0) as response:
@@ -480,19 +489,21 @@ class LocalModelEngine:
 
         result = await asyncio.to_thread(_fetch)
         total_time = max(0.001, time.perf_counter() - start_time)
-        
+
         parsed = {}
         if result and "message" in result and "content" in result["message"]:
             try:
                 parsed = json.loads(result["message"]["content"])
             except Exception:
                 pass
-                
+
         if not parsed:
             # Fallback heuristic
             target = "antigravity"
             low = prompt.lower()
-            if any(w in low for w in ("battery", "time", "branch", "volume", "pause", "stop audio")):
+            if any(
+                w in low for w in ("battery", "time", "branch", "volume", "pause", "stop audio")
+            ):
                 target = "local_command"
             elif "claude" in low:
                 target = "claude"

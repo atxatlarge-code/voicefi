@@ -369,7 +369,9 @@ def main():
             except urllib.error.HTTPError as e:
                 err_body = e.read().decode()
                 if e.code in (403, 404):
-                    print(f"  ℹ️ Alert rule '{al['name']}': PostHog Project Alert tier check ({e.code})")
+                    print(
+                        f"  ℹ️ Alert rule '{al['name']}': PostHog Project Alert tier check ({e.code})"
+                    )
                 else:
                     print(f"  ❌ Alert rule '{al['name']}' ({e.code}): {err_body[:100]}")
             except Exception as e:

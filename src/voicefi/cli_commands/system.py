@@ -445,7 +445,9 @@ def cmd_learn(args):
             provider_str = "HEURISTIC (100% Offline & Open-Source Deterministic)"
         else:
             provider = gem.get_active_provider()
-            provider_str = f"{provider.upper()} ({gem.model if provider == 'gemini' else gem.local_llm_model})"
+            provider_str = (
+                f"{provider.upper()} ({gem.model if provider == 'gemini' else gem.local_llm_model})"
+            )
 
         print("\n================= Distillation Benchmark =================")
         print(f"Provider:        {provider_str}")

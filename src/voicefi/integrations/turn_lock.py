@@ -767,4 +767,3 @@ def get_current_active_listener() -> Optional[str]:
     except Exception:
         pass
     return None
-

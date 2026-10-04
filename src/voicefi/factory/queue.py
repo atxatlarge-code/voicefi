@@ -97,7 +97,9 @@ class ContentFactoryQueue:
                 );
                 """
             )
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_jobs_status_priority ON content_jobs (status, priority DESC, id ASC);")
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_jobs_status_priority ON content_jobs (status, priority DESC, id ASC);"
+            )
             conn.execute("CREATE INDEX IF NOT EXISTS idx_jobs_batch ON content_jobs (batch_name);")
 
     def enqueue_job(self, job: ContentJob) -> int:
@@ -184,7 +186,9 @@ class ContentFactoryQueue:
                     jitter = 0.010 + (random.random() * 0.040)
                     time.sleep(jitter)
                 else:
-                    logger.debug(f"Queue busy during pop_next_job (exhausted {max_retries} attempts): {e}")
+                    logger.debug(
+                        f"Queue busy during pop_next_job (exhausted {max_retries} attempts): {e}"
+                    )
                     return None
         return None
 
@@ -210,7 +214,9 @@ class ContentFactoryQueue:
     ) -> None:
         conn = self._get_conn()
         now = time.time()
-        completed_at = now if status in (JobStatus.COMPLETED.value, JobStatus.FAILED.value) else None
+        completed_at = (
+            now if status in (JobStatus.COMPLETED.value, JobStatus.FAILED.value) else None
+        )
 
         fields = ["current_stage = ?", "updated_at = ?"]
         params: List[Any] = [stage, now]
@@ -302,17 +308,22 @@ class ContentFactoryQueue:
 
     def query_active_workers(self) -> List[Dict[str, Any]]:
         conn = self._get_conn()
-        cur = conn.execute("SELECT * FROM factory_workers WHERE last_heartbeat > ? ORDER BY last_heartbeat DESC;", (time.time() - 30.0,))
+        cur = conn.execute(
+            "SELECT * FROM factory_workers WHERE last_heartbeat > ? ORDER BY last_heartbeat DESC;",
+            (time.time() - 30.0,),
+        )
         res = []
         for r in cur.fetchall():
-            res.append({
-                "worker_id": r["worker_id"],
-                "job_id": r["job_id"],
-                "current_stage": r["current_stage"],
-                "status": r["status"],
-                "last_heartbeat": r["last_heartbeat"],
-                "metadata": json.loads(r["metadata"]) if r["metadata"] else {},
-            })
+            res.append(
+                {
+                    "worker_id": r["worker_id"],
+                    "job_id": r["job_id"],
+                    "current_stage": r["current_stage"],
+                    "status": r["status"],
+                    "last_heartbeat": r["last_heartbeat"],
+                    "metadata": json.loads(r["metadata"]) if r["metadata"] else {},
+                }
+            )
         return res
 
     def query_aggregate_metrics(self) -> Dict[str, Any]:

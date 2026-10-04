@@ -190,18 +190,29 @@ class WebSocketHandlersMixin:
                                         or has_gemma_intent
                                     )
                                     if is_gemma:
-                                        from voicefi.integrations.conversations import save_gemma_turn
+                                        from voicefi.integrations.conversations import (
+                                            save_gemma_turn,
+                                        )
                                         from voicefi.local.engine import LocalModelEngine
 
                                         configured_model = getattr(
-                                            getattr(self.config, "local_model", None), "model_name", "gemma4-2b"
+                                            getattr(self.config, "local_model", None),
+                                            "model_name",
+                                            "gemma4-2b",
                                         )
                                         model_choice = (
                                             "gemma4-26b"
-                                            if "26b" in str(payload.get("model") or engine or configured_model).lower()
+                                            if "26b"
+                                            in str(
+                                                payload.get("model") or engine or configured_model
+                                            ).lower()
                                             else "gemma4-2b"
                                         )
-                                        target_cid = cid if (cid and "gemma" in str(cid).lower()) else f"gemma_{int(time.time())}"
+                                        target_cid = (
+                                            cid
+                                            if (cid and "gemma" in str(cid).lower())
+                                            else f"gemma_{int(time.time())}"
+                                        )
                                         self.broadcast_event(
                                             {
                                                 "type": "agent_thinking",
@@ -598,7 +609,11 @@ class WebSocketHandlersMixin:
         resolved_voice = (
             "Christopher"
             if "antigravity" in str(agent_role).lower()
-            else ("Andrew" if "gemma" in str(agent_role).lower() else ("Emma" if "codex" in str(agent_role).lower() else "Viv"))
+            else (
+                "Andrew"
+                if "gemma" in str(agent_role).lower()
+                else ("Emma" if "codex" in str(agent_role).lower() else "Viv")
+            )
         )
         try:
             fresh_cfg = self.config

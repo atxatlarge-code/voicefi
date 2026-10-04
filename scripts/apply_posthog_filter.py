@@ -73,8 +73,12 @@ def main():
     try:
         with urllib.request.urlopen(req) as resp:
             data = json.loads(resp.read().decode())
-            print(f"✅ Success! Dashboard '{data.get('name')}' updated with filter: $ip != {args.exclude_ip}")
-            print(f"👉 Live Dashboard: {POSTHOG_HOST}/project/{args.project_id}/dashboard/{args.dashboard_id}")
+            print(
+                f"✅ Success! Dashboard '{data.get('name')}' updated with filter: $ip != {args.exclude_ip}"
+            )
+            print(
+                f"👉 Live Dashboard: {POSTHOG_HOST}/project/{args.project_id}/dashboard/{args.dashboard_id}"
+            )
     except urllib.error.HTTPError as e:
         print(f"❌ HTTP Error {e.code}: {e.read().decode()}")
         sys.exit(1)

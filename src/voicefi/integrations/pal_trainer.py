@@ -116,9 +116,7 @@ class PalTeachRecorder:
         if self._running:
             return
         self._running = True
-        self._thread = threading.Thread(
-            target=self._run_tap, daemon=True, name="PalTeachRecorder"
-        )
+        self._thread = threading.Thread(target=self._run_tap, daemon=True, name="PalTeachRecorder")
         self._thread.start()
 
     def stop(self) -> List[PalTeachRawStep]:
@@ -234,9 +232,7 @@ class PalTeachRecorder:
             # 1. Keyboard Events
             if event_type == Quartz.kCGEventKeyDown:
                 flags = Quartz.CGEventGetFlags(event)
-                keycode = Quartz.CGEventGetIntegerValueField(
-                    event, Quartz.kCGKeyboardEventKeycode
-                )
+                keycode = Quartz.CGEventGetIntegerValueField(event, Quartz.kCGKeyboardEventKeycode)
                 is_cmd = bool(flags & Quartz.kCGEventFlagMaskCommand)
                 is_ctrl = bool(flags & Quartz.kCGEventFlagMaskControl)
                 is_alt = bool(flags & Quartz.kCGEventFlagMaskAlternate)
@@ -258,7 +254,12 @@ class PalTeachRecorder:
                     combo = "+".join(mods + [key_name])
                     self._emit_step(
                         action="hotkey",
-                        params={"combo": combo, "keycode": keycode, "key": key_name, "modifiers": mods},
+                        params={
+                            "combo": combo,
+                            "keycode": keycode,
+                            "key": key_name,
+                            "modifiers": mods,
+                        },
                         spoken=f"Pressed {combo}",
                     )
                     return event
@@ -347,7 +348,9 @@ class PalTeachRecorder:
             None,
         )
         if not self._tap:
-            print("[PalTeachRecorder] Failed to create Quartz Event Tap. Check Accessibility permissions.")
+            print(
+                "[PalTeachRecorder] Failed to create Quartz Event Tap. Check Accessibility permissions."
+            )
             return
 
         self._loop_source = Quartz.CFMachPortCreateRunLoopSource(None, self._tap, 0)
@@ -367,7 +370,9 @@ class PalTrainer:
     Synthesizes recorded OS event streams into clean, declarative YAML workflows.
     """
 
-    def __init__(self, workflow_name: str, on_step: Optional[Callable[[PalTeachRawStep], None]] = None):
+    def __init__(
+        self, workflow_name: str, on_step: Optional[Callable[[PalTeachRawStep], None]] = None
+    ):
         self.workflow_name = workflow_name.strip()
         self.workflow_slug = re.sub(r"[^a-zA-Z0-9_-]+", "_", self.workflow_name.lower()).strip("_")
         self.recorder = PalTeachRecorder(on_step=on_step)

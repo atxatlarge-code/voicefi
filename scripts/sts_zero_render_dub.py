@@ -94,7 +94,7 @@ def main():
         print(f"📹 Input Video : {args.video}")
         print(f"🎭 Target Voice: {args.voice}")
         if args.instruct:
-            print(f"📜 Instruction : \"{args.instruct}\"")
+            print(f'📜 Instruction : "{args.instruct}"')
         if args.web_compat:
             print("🌐 Web Compat  : H.264 SDR (yuv420p)")
         print("──────────────────────────────────────────────────────────\n")
@@ -111,10 +111,9 @@ def main():
         web_compat=args.web_compat,
     )
 
-
     if not args.quiet:
         print("✨ Dubbing Complete!")
-        print(f"📝 Spoken Text : \"{report['transcript']}\"")
+        print(f'📝 Spoken Text : "{report["transcript"]}"')
         print(f"⏱️  Audio Timing: {report['source_duration_sec']}s (matched precisely)")
         print(f"⚡ Mux Time     : {report['remux_time_sec']}s (zero pixel re-rendering)")
         print(f"🚀 Total Time   : {report['total_time_sec']}s")

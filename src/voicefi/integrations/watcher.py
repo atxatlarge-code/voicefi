@@ -580,7 +580,6 @@ class TranscriptWatcher:
                 release_active_listener_lock,
             )
 
-
             from voicefi.tts import find_persona
 
             _, resolved_voice, _ = cfg.resolve_voice(
@@ -685,7 +684,9 @@ class TranscriptWatcher:
 
                 try:
                     audio_data, temp_wav = recorder.record_speech_auto(
-                        on_speech_start=lambda: self._notify_state("hearing", user_name=cfg.user_name),
+                        on_speech_start=lambda: self._notify_state(
+                            "hearing", user_name=cfg.user_name
+                        ),
                         on_pause_change=lambda paused: self._notify_state(
                             "speaking" if paused else "listening", user_name=cfg.user_name
                         ),
@@ -910,7 +911,9 @@ class TranscriptWatcher:
                         )
                     elif is_live_turn:
                         # Turn-end Live mode toggle: route spoken turn directly to Gemini Live API
-                        from voicefi.integrations.live_conversation import query_live_api_spoken_turn
+                        from voicefi.integrations.live_conversation import (
+                            query_live_api_spoken_turn,
+                        )
 
                         print(
                             f"[Watcher/GeminiLive] 🎙️ Live mode toggle active -> routing to Gemini Live API: '{content}'",

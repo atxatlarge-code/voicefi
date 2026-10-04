@@ -50,13 +50,25 @@ class WakeWordListener:
             getattr(
                 self.config.wakeword,
                 "aliases",
-                ["voicefi", "vi-fi", "hey voicefi", "hey vi-fi", "vifi", "hey vifi", "hey viv", "viv", "hey antigravity", "hey claude", "claude"],
+                [
+                    "voicefi",
+                    "vi-fi",
+                    "hey voicefi",
+                    "hey vi-fi",
+                    "vifi",
+                    "hey vifi",
+                    "hey viv",
+                    "viv",
+                    "hey antigravity",
+                    "hey claude",
+                    "claude",
+                ],
             )
         )
         alert_words = list(getattr(self.config.wakeword, "alert_words", []))
-        self.aliases = list(dict.fromkeys(
-            [w.lower() for w in alert_words + configured_aliases if w]
-        ))
+        self.aliases = list(
+            dict.fromkeys([w.lower() for w in alert_words + configured_aliases if w])
+        )
         for extra in ("hey claude", "claude", "voicefi", "vi-fi"):
             if extra not in [a.lower() for a in self.aliases]:
                 self.aliases.append(extra)
@@ -330,7 +342,9 @@ class WakeWordListener:
 
                 clean_text = transcript.strip()
                 # print candidate transcript if debug or testing
-                print(f"[WakeWord] Candidate ({dur:.2f}s) transcribed: {repr(clean_text)}", flush=True)
+                print(
+                    f"[WakeWord] Candidate ({dur:.2f}s) transcribed: {repr(clean_text)}", flush=True
+                )
 
                 from voicefi.audio.echo_canceller import is_acoustic_echo
 

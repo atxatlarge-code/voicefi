@@ -95,6 +95,7 @@ def cmd_hud(args):
     def _send_hud_ipc(subpath: str) -> bool:
         try:
             import urllib.request
+
             req = urllib.request.Request(
                 f"http://127.0.0.1:5141/api/hud/{subpath}",
                 data=b"{}",

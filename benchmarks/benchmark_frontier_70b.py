@@ -66,9 +66,11 @@ def query_ollama_generate(
     return res
 
 
-def run_ollama_benchmark(model: str = "llama3.3:70b", num_ctx: int = 4096, num_predict: int = 128) -> Dict[str, Any]:
+def run_ollama_benchmark(
+    model: str = "llama3.3:70b", num_ctx: int = 4096, num_predict: int = 128
+) -> Dict[str, Any]:
     print("=" * 70)
-    print(f"🚀 Benchmarking Frontier 70B on Ollama (Metal GGUF)")
+    print("🚀 Benchmarking Frontier 70B on Ollama (Metal GGUF)")
     print(f"   Model: {model} | Context Limit: {num_ctx} tokens | Gen: {num_predict} tokens")
     print("=" * 70)
 
@@ -80,8 +82,16 @@ def run_ollama_benchmark(model: str = "llama3.3:70b", num_ctx: int = 4096, num_p
     print(f"   Model weight ingestion complete in {load_time:.2f}s\n")
 
     test_tiers = [
-        ("Short Prompt (Code Analysis)", "Review this function: def add(a, b): return a + b. Explain its complexity and performance implications in detail.", 128),
-        ("Medium Prompt (System Design)", "You are a principal systems architect. Design a high-throughput, distributed event-streaming bus for 100,000 events/sec. Provide architectural trade-offs, storage layout, partitioning strategy, and failure recovery protocols.", 256),
+        (
+            "Short Prompt (Code Analysis)",
+            "Review this function: def add(a, b): return a + b. Explain its complexity and performance implications in detail.",
+            128,
+        ),
+        (
+            "Medium Prompt (System Design)",
+            "You are a principal systems architect. Design a high-throughput, distributed event-streaming bus for 100,000 events/sec. Provide architectural trade-offs, storage layout, partitioning strategy, and failure recovery protocols.",
+            256,
+        ),
     ]
 
     results = []
@@ -115,8 +125,12 @@ def run_ollama_benchmark(model: str = "llama3.3:70b", num_ctx: int = 4096, num_p
             "response_preview": res.get("response", "").strip()[:80] + "...",
         }
         results.append(metrics)
-        print(f"   Prefill / TTFT: {prompt_eval_rate:.2f} tokens/s ({prompt_eval_count} tokens in {prompt_eval_dur_s:.3f}s)")
-        print(f"   Generation:     {eval_rate:.2f} tokens/s ({eval_count} tokens in {eval_dur_s:.2f}s)")
+        print(
+            f"   Prefill / TTFT: {prompt_eval_rate:.2f} tokens/s ({prompt_eval_count} tokens in {prompt_eval_dur_s:.3f}s)"
+        )
+        print(
+            f"   Generation:     {eval_rate:.2f} tokens/s ({eval_count} tokens in {eval_dur_s:.2f}s)"
+        )
         print(f"   Bandwidth Est:  {effective_bandwidth_gbps:.1f} GB/s unified memory throughput\n")
 
     return {
@@ -132,7 +146,9 @@ def run_ollama_benchmark(model: str = "llama3.3:70b", num_ctx: int = 4096, num_p
 def main():
     parser = argparse.ArgumentParser(description="VoiceFi Frontier 70B Metal Benchmark")
     parser.add_argument("--model", type=str, default="llama3.3:70b", help="Model name on Ollama")
-    parser.add_argument("--num-ctx", type=int, default=4096, help="Context size (prevents 131k KV swap)")
+    parser.add_argument(
+        "--num-ctx", type=int, default=4096, help="Context size (prevents 131k KV swap)"
+    )
     parser.add_argument("--num-predict", type=int, default=128, help="Number of tokens to generate")
     args = parser.parse_args()
 
@@ -141,7 +157,9 @@ def main():
         print("❌ Error: Ollama daemon is not responding on http://localhost:11434.")
         sys.exit(1)
 
-    report = run_ollama_benchmark(model=args.model, num_ctx=args.num_ctx, num_predict=args.num_predict)
+    report = run_ollama_benchmark(
+        model=args.model, num_ctx=args.num_ctx, num_predict=args.num_predict
+    )
 
     # Persist report
     REPORT_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -151,10 +169,14 @@ def main():
     print("=" * 70)
     print("📊 Summary Scorecard")
     print("=" * 70)
-    print(f"{'Workload Tier':<32} | {'Prefill (t/s)':<14} | {'Gen (t/s)':<12} | {'Mem Bandwidth':<14}")
+    print(
+        f"{'Workload Tier':<32} | {'Prefill (t/s)':<14} | {'Gen (t/s)':<12} | {'Mem Bandwidth':<14}"
+    )
     print("-" * 78)
     for t in report["tiers"]:
-        print(f"{t['tier_name'][:32]:<32} | {t['prompt_eval_rate_tps']:<14.2f} | {t['eval_rate_tps']:<12.2f} | {t['effective_bandwidth_gbps']:<8.1f} GB/s")
+        print(
+            f"{t['tier_name'][:32]:<32} | {t['prompt_eval_rate_tps']:<14.2f} | {t['eval_rate_tps']:<12.2f} | {t['effective_bandwidth_gbps']:<8.1f} GB/s"
+        )
     print("=" * 78)
     print(f"Report saved to: {REPORT_FILE}\n")
 

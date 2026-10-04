@@ -64,7 +64,7 @@ def extract_js_frames(text: str) -> List[Tuple[str, int]]:
     """Extract (file_path, line_number) from JS/TS tracebacks."""
     # Matches: at func (/path/file.ts:12:3) OR at /path/file.ts:12:3
     pattern = re.compile(
-        r'at\s+(?:[^\(\n\r]+\((.+?):(\d+):\d+\)|(.+?):(\d+):\d+)',
+        r"at\s+(?:[^\(\n\r]+\((.+?):(\d+):\d+\)|(.+?):(\d+):\d+)",
         re.IGNORECASE,
     )
     frames = []
@@ -79,14 +79,14 @@ def extract_js_frames(text: str) -> List[Tuple[str, int]]:
 def extract_pytest_failure(text: str) -> Optional[Tuple[str, Optional[int]]]:
     """Extract failing test or source file from pytest output."""
     # Matches: FAILED tests/test_foo.py::test_bar
-    fail_pattern = re.compile(r'FAILED\s+([^\s:]+\.(?:py|ts|js))(?:::([^\s]+))?', re.IGNORECASE)
+    fail_pattern = re.compile(r"FAILED\s+([^\s:]+\.(?:py|ts|js))(?:::([^\s]+))?", re.IGNORECASE)
     match = fail_pattern.search(text)
     if match:
         file_path = match.group(1).strip()
         return (file_path, None)
 
     # Matches: >   line of failing code with ___ in file.py:123 ___
-    header_pattern = re.compile(r'_{3,}\s+([^\s]+\.(?:py|ts|js)):(\d+)\s+_{3,}')
+    header_pattern = re.compile(r"_{3,}\s+([^\s]+\.(?:py|ts|js)):(\d+)\s+_{3,}")
     match = header_pattern.search(text)
     if match:
         return (match.group(1).strip(), int(match.group(2)))
@@ -103,17 +103,21 @@ def extract_error_line(text: str) -> Tuple[Optional[str], Optional[str]]:
     # Search backwards for Exception: message
     for line in reversed(lines):
         # Python exception format: ValueError: invalid literal ...
-        py_match = re.match(r'^([A-Za-z_][A-Za-z0-9_]*(?:Error|Exception|Warning|Fault))(?::\s*(.*))?$', line)
+        py_match = re.match(
+            r"^([A-Za-z_][A-Za-z0-9_]*(?:Error|Exception|Warning|Fault))(?::\s*(.*))?$", line
+        )
         if py_match:
             return py_match.group(1), py_match.group(2) or ""
 
         # Pytest assertion failure: E   AssertionError: ...
-        pytest_match = re.match(r'^E\s+([A-Za-z_][A-Za-z0-9_]*(?:Error|Exception))(?::\s*(.*))?$', line)
+        pytest_match = re.match(
+            r"^E\s+([A-Za-z_][A-Za-z0-9_]*(?:Error|Exception))(?::\s*(.*))?$", line
+        )
         if pytest_match:
             return pytest_match.group(1), pytest_match.group(2) or ""
 
         # JS error: Error: something went wrong
-        js_match = re.match(r'^([A-Za-z_][A-Za-z0-9_]*Error):\s*(.*)$', line)
+        js_match = re.match(r"^([A-Za-z_][A-Za-z0-9_]*Error):\s*(.*)$", line)
         if js_match:
             return js_match.group(1), js_match.group(2) or ""
 
@@ -153,7 +157,9 @@ def parse_traceback(raw_text: str, fallback_target: Optional[str] = None) -> Par
 
     if not target_file:
         # Search for any referenced source files existing in current directory
-        file_candidates = re.findall(r'([a-zA-Z0-9_\-\./\\]+\.(?:py|ts|tsx|js|jsx|rs|go|swift))', cleaned)
+        file_candidates = re.findall(
+            r"([a-zA-Z0-9_\-\./\\]+\.(?:py|ts|tsx|js|jsx|rs|go|swift))", cleaned
+        )
         for cand in file_candidates:
             if is_user_project_path(cand) and os.path.isfile(cand):
                 target_file = cand

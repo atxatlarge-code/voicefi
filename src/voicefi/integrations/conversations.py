@@ -232,9 +232,7 @@ def save_session_cookie(
         "updatedAt": time.time(),
     }
     try:
-        tmp_file = cookie_path.with_name(
-            f"active_session_{os.getpid()}_{time.time_ns()}.tmp"
-        )
+        tmp_file = cookie_path.with_name(f"active_session_{os.getpid()}_{time.time_ns()}.tmp")
         with open(tmp_file, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
         tmp_file.replace(cookie_path)
@@ -933,7 +931,10 @@ class ConversationTracker:
                         clean_t in clean_win
                         or clean_win in clean_t
                         or (len(clean_win) >= 8 and clean_t.startswith(clean_win))
-                        or (len(clean_t) >= 8 and clean_win.startswith(clean_t[:min(len(clean_t), 20)]))
+                        or (
+                            len(clean_t) >= 8
+                            and clean_win.startswith(clean_t[: min(len(clean_t), 20)])
+                        )
                     ):
                         return cid
         except Exception:
@@ -1746,6 +1747,7 @@ def parse_full_claude_conversation_details(session_path: Path) -> Dict[str, Any]
 # Local Gemma On-Device Session Storage
 # =========================================================================
 
+
 def get_gemma_sessions_dir() -> Path:
     """Return ~/.voicefi/sessions/gemma directory for local Gemma sessions."""
     d = Path.home() / ".voicefi" / "sessions" / "gemma"
@@ -1812,7 +1814,11 @@ def parse_full_gemma_conversation_details(conv_id: str) -> Optional[Dict[str, An
                     "status": "COMPLETED" if t.get("agent") else "IN_PROGRESS",
                 }
             )
-        is_complete = all(t.get("status") == "COMPLETED" for t in formatted_turns) if formatted_turns else True
+        is_complete = (
+            all(t.get("status") == "COMPLETED" for t in formatted_turns)
+            if formatted_turns
+            else True
+        )
         return {
             "id": data.get("id", conv_id),
             "title": data.get("title", "Local Gemma"),
@@ -1877,4 +1883,3 @@ def save_gemma_turn(
     data["mtime"] = time.time()
     path.write_text(json.dumps(data, indent=2), encoding="utf-8")
     return path
-

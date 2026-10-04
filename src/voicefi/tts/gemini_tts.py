@@ -106,9 +106,11 @@ def extract_first_sentence(text: str, max_words: Optional[int] = 18) -> str:
         # If the first segment is trivial like "Done.", "Sure!", "Okay." (<= 2 words),
         # grab the subsequent sentence to form a complete thought
         if len(words) <= 2 and len(t) > len(first):
-            remainder = t[len(first):].strip()
+            remainder = t[len(first) :].strip()
             remainder = re.sub(r"^[#*`\-_—\s]+", "", remainder).strip()
-            second_match = re.search(r"^(.*?(?<!\.)[.!?](?!\.))(?:\s+|$)", remainder, flags=re.DOTALL)
+            second_match = re.search(
+                r"^(.*?(?<!\.)[.!?](?!\.))(?:\s+|$)", remainder, flags=re.DOTALL
+            )
             if second_match:
                 first = f"{first} {second_match.group(1).strip()}"
         if max_words:
@@ -123,7 +125,7 @@ def extract_first_sentence(text: str, max_words: Optional[int] = 18) -> str:
 DEFAULT_CHARACTER_PROMPT_TEMPLATE = (
     "You are {character_persona}.\n"
     "The user will be spoken the first sentence summarizing the work:\n"
-    "Sentence one: \"{first_sentence}\"\n"
+    'Sentence one: "{first_sentence}"\n'
     "Context of the work just completed:\n{context}\n\n"
     "TASK:\n"
     "Invent ONLY the SECOND sentence to follow sentence one.\n"
@@ -188,9 +190,7 @@ def clean_character_statement(raw_statement: str, first_sentence: str = "") -> s
     if re.search(r"sentence\s*1\s*[:\-]", text, flags=re.IGNORECASE) and re.search(
         r"sentence\s*2\s*[:\-]", text, flags=re.IGNORECASE
     ):
-        s2_match = re.search(
-            r"sentence\s*2\s*[:\-]\s*(.*)$", text, flags=re.DOTALL | re.IGNORECASE
-        )
+        s2_match = re.search(r"sentence\s*2\s*[:\-]\s*(.*)$", text, flags=re.DOTALL | re.IGNORECASE)
         if s2_match:
             text = s2_match.group(1).strip()
 
@@ -308,7 +308,9 @@ def is_joke_turn(text: str, conv_id: Optional[str] = None) -> bool:
                             "USER",
                         ):
                             content = str(step.get("content", "")).lower()
-                            if any(k in content for k in ("joke", "pun", "funny", "laugh", "humor")):
+                            if any(
+                                k in content for k in ("joke", "pun", "funny", "laugh", "humor")
+                            ):
                                 return True
                             break
                     except Exception:
@@ -413,14 +415,18 @@ class GeminiTTS(BaseTTS):
             return
 
         from voicefi.config import load_config
+
         cfg = load_config()
-        fallback_voice = getattr(cfg.tts, "live_fallback_voice", "en-ZA-LukeNeural") or "en-ZA-LukeNeural"
+        fallback_voice = (
+            getattr(cfg.tts, "live_fallback_voice", "en-ZA-LukeNeural") or "en-ZA-LukeNeural"
+        )
 
         print(
             f"[GeminiTTS] ⚠️ Gemini Live synthesis error; falling back to Microsoft voice 'Luke' ({fallback_voice})"
         )
         try:
             from voicefi.tts.edge_tts import EdgeTTS
+
             edge = EdgeTTS(
                 voice=fallback_voice,
                 streaming=True,
@@ -579,7 +585,10 @@ class GeminiTTS(BaseTTS):
         if inferred_styles:
             inferred_str = ", ".join(inferred_styles)
             if effective_style:
-                if not any(k in str(effective_style).lower() for k in ("giggle", "laugh", "sigh", "whisper", "gasp", "chuckle")):
+                if not any(
+                    k in str(effective_style).lower()
+                    for k in ("giggle", "laugh", "sigh", "whisper", "gasp", "chuckle")
+                ):
                     effective_style = f"{effective_style}, {inferred_str}"
             else:
                 effective_style = inferred_str
@@ -917,7 +926,7 @@ class GeminiTTS(BaseTTS):
         """Stream and speak audio with minimal latency using WebSockets and optional Character Interceptor."""
         if not text or not text.strip():
             return
-            
+
         if is_user_on_call():
             print("[GeminiTTS] User is on a call. Skipping speech synthesis.")
             return
@@ -925,9 +934,10 @@ class GeminiTTS(BaseTTS):
         clean_text = normalize_tts_text(text)
         self._stop_requested = False
         turn_start_time = time.time()
-        
+
         # Determine if this is Live API mode vs Standard turn-end
         from voicefi.config import load_config
+
         cfg = load_config()
         turn_end_mode = getattr(cfg.tts, "turn_end_mode", "standard")
         is_live_mode = (
@@ -937,7 +947,7 @@ class GeminiTTS(BaseTTS):
         )
         character_persona = getattr(cfg.tts, "character_persona", None)
         do_summary = getattr(cfg.tts, "character_summarization", False)
-        
+
         def _run():
             try:
                 with speech_turn_lock(
@@ -952,7 +962,7 @@ class GeminiTTS(BaseTTS):
                 ):
                     nonlocal turn_start_time
                     turn_start_time = time.time()
-                    
+
                     # 1. Speech Structuring & Character Interceptor
                     final_text = clean_text
                     speech_structure = getattr(
@@ -967,7 +977,9 @@ class GeminiTTS(BaseTTS):
                         final_text = clean_text
                     elif do_summary and character_persona and speech_structure != "verbatim":
                         first_sentence_word_limit = getattr(cfg.tts, "max_first_sentence_words", 18)
-                        first_sentence = extract_first_sentence(clean_text, max_words=first_sentence_word_limit)
+                        first_sentence = extract_first_sentence(
+                            clean_text, max_words=first_sentence_word_limit
+                        )
 
                         prompt_tmpl = (
                             getattr(cfg.tts, "character_prompt_template", None)
@@ -1010,14 +1022,16 @@ class GeminiTTS(BaseTTS):
                                 import urllib.request
                                 import json
 
-                                req_data = json.dumps({
-                                    "model": "gemma4-2b",
-                                    "messages": [
-                                        {"role": "system", "content": summary_prompt},
-                                        {"role": "user", "content": clean_text[:1500]},
-                                    ],
-                                    "max_tokens": 150,
-                                }).encode("utf-8")
+                                req_data = json.dumps(
+                                    {
+                                        "model": "gemma4-2b",
+                                        "messages": [
+                                            {"role": "system", "content": summary_prompt},
+                                            {"role": "user", "content": clean_text[:1500]},
+                                        ],
+                                        "max_tokens": 150,
+                                    }
+                                ).encode("utf-8")
 
                                 req = urllib.request.Request(
                                     "http://127.0.0.1:9379/v1/chat/completions",
@@ -1057,16 +1071,18 @@ class GeminiTTS(BaseTTS):
                                 )
                                 else clean_text
                             )
-                    
+
                     # Normalize bracketed stage directions (e.g. [giggles] -> [giggle], [sighs] -> [sigh])
                     final_text = normalize_stage_directions(final_text)
 
                     if self._stop_requested or is_speech_interrupted(turn_start_time):
                         return
-                        
+
                     if not is_live_mode:
                         # Clean bracketed stage directions for standard flash-tts so it sounds natural without reading bracket text
-                        clean_flash_text = re.sub(r"\[(?:dramatic\s+)?pause\]", "...", final_text, flags=re.IGNORECASE)
+                        clean_flash_text = re.sub(
+                            r"\[(?:dramatic\s+)?pause\]", "...", final_text, flags=re.IGNORECASE
+                        )
                         clean_flash_text = re.sub(r"\[[a-zA-Z\s_-]+\]", "", clean_flash_text)
                         clean_flash_text = re.sub(r"\s+", " ", clean_flash_text).strip()
 
@@ -1082,7 +1098,11 @@ class GeminiTTS(BaseTTS):
                             "contents": [{"parts": [part_dict]}],
                             "generationConfig": {
                                 "responseModalities": ["AUDIO"],
-                                "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": self.voice}}},
+                                "speechConfig": {
+                                    "voiceConfig": {
+                                        "prebuiltVoiceConfig": {"voiceName": self.voice}
+                                    }
+                                },
                             },
                         }
 
@@ -1090,7 +1110,9 @@ class GeminiTTS(BaseTTS):
                         resp = requests.post(url, json=body, timeout=20.0)
                         if resp.status_code == 200:
                             data = resp.json()
-                            parts = data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
+                            parts = (
+                                data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
+                            )
                             raw_b64 = parts[0].get("inlineData", {}).get("data", "")
                             if raw_b64:
                                 audio_bytes = base64.b64decode(raw_b64)
@@ -1099,7 +1121,9 @@ class GeminiTTS(BaseTTS):
                                     temp_path.write_bytes(audio_bytes)
 
                                 try:
-                                    if not self._stop_requested and not is_speech_interrupted(turn_start_time):
+                                    if not self._stop_requested and not is_speech_interrupted(
+                                        turn_start_time
+                                    ):
                                         proc = subprocess.Popen(
                                             ["afplay", str(temp_path)],
                                             stdout=subprocess.DEVNULL,
@@ -1115,7 +1139,7 @@ class GeminiTTS(BaseTTS):
                     import asyncio
                     from google import genai
                     from google.genai import types
-                    
+
                     client = genai.Client(api_key=self.api_key)
                     sys_parts = []
                     if character_persona:
@@ -1131,43 +1155,53 @@ class GeminiTTS(BaseTTS):
                                 )
                             )
                         )
-                        
+
                     config = types.LiveConnectConfig(
                         response_modalities=["AUDIO"],
                         system_instruction=types.Content(parts=sys_parts) if sys_parts else None,
                         speech_config=types.SpeechConfig(
                             voice_config=types.VoiceConfig(
-                                prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=self.voice)
+                                prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                                    voice_name=self.voice
+                                )
                             )
                         ),
                     )
-                    
+
                     async def stream_audio():
-                        async with client.aio.live.connect(model="gemini-3.8-live", config=config) as session:
+                        async with client.aio.live.connect(
+                            model="gemini-3.8-live", config=config
+                        ) as session:
                             prompt = f"Read this line verbatim: {final_text}"
                             await session.send_realtime_input(text=prompt)
-                            
+
                             set_agent_audio_playing(True)
-                            
+
                             # Using ffplay to stream PCM chunks directly from stdin
                             proc = subprocess.Popen(
                                 [
                                     "ffplay",
-                                    "-f", "s16le",
-                                    "-ar", "24000",
-                                    "-ch_layout", "mono",
+                                    "-f",
+                                    "s16le",
+                                    "-ar",
+                                    "24000",
+                                    "-ch_layout",
+                                    "mono",
                                     "-nodisp",
                                     "-autoexit",
-                                    "-probesize", "32",
-                                    "-sync", "audio",
-                                    "-i", "pipe:0",
+                                    "-probesize",
+                                    "32",
+                                    "-sync",
+                                    "audio",
+                                    "-i",
+                                    "pipe:0",
                                 ],
                                 stdin=subprocess.PIPE,
                                 stdout=subprocess.DEVNULL,
                                 stderr=subprocess.DEVNULL,
                             )
                             self._current_process = proc
-                            
+
                             async for response in session.receive():
                                 if self._stop_requested or is_speech_interrupted(turn_start_time):
                                     try:
@@ -1184,18 +1218,21 @@ class GeminiTTS(BaseTTS):
                                                 proc.stdin.flush()
                                             except Exception:
                                                 pass
-                                if response.server_content and response.server_content.turn_complete:
+                                if (
+                                    response.server_content
+                                    and response.server_content.turn_complete
+                                ):
                                     break
-                                    
+
                             if proc.stdin:
                                 try:
                                     proc.stdin.close()
                                 except Exception:
                                     pass
                             proc.wait()
-                            
+
                     asyncio.run(stream_audio())
-                    
+
             except DuplicateSpeechSuppressed:
                 pass
             except Exception as e:
@@ -1210,5 +1247,6 @@ class GeminiTTS(BaseTTS):
             _run()
         else:
             import threading
+
             t = threading.Thread(target=_run, daemon=True)
             t.start()

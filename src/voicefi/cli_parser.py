@@ -72,11 +72,12 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
     hook_p.add_argument(
         "--remove", action="store_true", help="Remove hook definitions from agent settings"
     )
+    hook_p.add_argument("--worker", action="store_true", help=argparse.SUPPRESS)
     hook_p.add_argument(
-        "--worker", action="store_true", help=argparse.SUPPRESS
-    )
-    hook_p.add_argument(
-        "--sync", "--block", action="store_true", help="Run hook synchronously without background detachment"
+        "--sync",
+        "--block",
+        action="store_true",
+        help="Run hook synchronously without background detachment",
     )
 
     # speak
@@ -1160,12 +1161,21 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
         "--orbit", "-o", action="store_true", help="Play 360-degree acoustic head orbit sweep"
     )
     spatial_p.add_argument(
-        "--binaural", "-b", action="store_true", help="Play true 360-degree binaural orbit with front-to-back HRTF & pinna filtering"
+        "--binaural",
+        "-b",
+        action="store_true",
+        help="Play true 360-degree binaural orbit with front-to-back HRTF & pinna filtering",
     )
     spatial_p.add_argument(
-        "--pan", "-p", type=float, default=None, help="Custom stereo pan from -1.0 (left) to 1.0 (right)"
+        "--pan",
+        "-p",
+        type=float,
+        default=None,
+        help="Custom stereo pan from -1.0 (left) to 1.0 (right)",
     )
-    spatial_p.add_argument("text", nargs="*", default=None, help="Optional text to speak with spatial panning")
+    spatial_p.add_argument(
+        "text", nargs="*", default=None, help="Optional text to speak with spatial panning"
+    )
 
     # obsidian
     obs_p = subparsers.add_parser(
@@ -1579,13 +1589,20 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
     )
     duel_p.add_argument("--topic", type=str, default="programming jokes", help="Duel topic")
     duel_p.add_argument(
-        "-s", "--spatial", action="store_true", help="Stage Antigravity on left ear and Claude Code on right ear"
+        "-s",
+        "--spatial",
+        action="store_true",
+        help="Stage Antigravity on left ear and Claude Code on right ear",
     )
     duel_p.add_argument(
         "-f", "--fast", action="store_true", help="Snappy, high-energy comedy cadence (+20% rate)"
     )
     duel_p.add_argument(
-        "-v", "--voice", type=str, default=None, help="Override Antigravity voice persona (e.g. 'Ava', 'Viv')"
+        "-v",
+        "--voice",
+        type=str,
+        default=None,
+        help="Override Antigravity voice persona (e.g. 'Ava', 'Viv')",
     )
     duel_p.add_argument(
         "--live", action="store_true", help="Live dispatch prompts to Claude Code terminal session"
@@ -1894,11 +1911,28 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
         help="Run on-device 2B scout -> 26B coder cascade to modify files and output git diffs",
     )
     impl_p.add_argument("target", help="File to modify")
-    impl_p.add_argument("-i", "--instruction", required=True, help="Instruction or refactoring prompt")
-    impl_p.add_argument("--auto", action="store_true", default=False, help="Run autonomous multi-turn on-device loop")
-    impl_p.add_argument("--no-apply", dest="apply", action="store_false", default=True, help="Do not write changes to disk (dry run)")
-    impl_p.add_argument("--model-scout", default="gemma4-2b", help="Scout model (default: gemma4-2b)")
-    impl_p.add_argument("--model-coder", default="gemma4-26b", help="Coder model (default: gemma4-26b)")
+    impl_p.add_argument(
+        "-i", "--instruction", required=True, help="Instruction or refactoring prompt"
+    )
+    impl_p.add_argument(
+        "--auto",
+        action="store_true",
+        default=False,
+        help="Run autonomous multi-turn on-device loop",
+    )
+    impl_p.add_argument(
+        "--no-apply",
+        dest="apply",
+        action="store_false",
+        default=True,
+        help="Do not write changes to disk (dry run)",
+    )
+    impl_p.add_argument(
+        "--model-scout", default="gemma4-2b", help="Scout model (default: gemma4-2b)"
+    )
+    impl_p.add_argument(
+        "--model-coder", default="gemma4-26b", help="Coder model (default: gemma4-26b)"
+    )
 
     # fix / solve
     fix_p = subparsers.add_parser(
@@ -1908,13 +1942,38 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
     )
     fix_p.add_argument("target", nargs="?", default=None, help="Target file or error description")
     fix_p.add_argument("-e", "--error", default=None, help="Explicit error string or traceback")
-    fix_p.add_argument("-i", "--instruction", default=None, help="Additional instruction or prompt for the fix")
-    fix_p.add_argument("-c", "--clip", action="store_true", help="Read bug or traceback from macOS clipboard")
-    fix_p.add_argument("-t", "--test", default=None, help="Test command to run for 2-attempt self-healing verification (e.g. 'pytest tests/test_foo.py')")
-    fix_p.add_argument("--auto", action="store_true", default=False, help="Run autonomous multi-turn on-device loop with tool calling")
-    fix_p.add_argument("--dry-run", "--no-apply", dest="apply", action="store_false", default=True, help="Preview diff without applying to disk")
-    fix_p.add_argument("--model-scout", default="gemma4-2b", help="Scout model (default: gemma4-2b)")
-    fix_p.add_argument("--model-coder", default="gemma4-26b", help="Coder model (default: gemma4-26b)")
+    fix_p.add_argument(
+        "-i", "--instruction", default=None, help="Additional instruction or prompt for the fix"
+    )
+    fix_p.add_argument(
+        "-c", "--clip", action="store_true", help="Read bug or traceback from macOS clipboard"
+    )
+    fix_p.add_argument(
+        "-t",
+        "--test",
+        default=None,
+        help="Test command to run for 2-attempt self-healing verification (e.g. 'pytest tests/test_foo.py')",
+    )
+    fix_p.add_argument(
+        "--auto",
+        action="store_true",
+        default=False,
+        help="Run autonomous multi-turn on-device loop with tool calling",
+    )
+    fix_p.add_argument(
+        "--dry-run",
+        "--no-apply",
+        dest="apply",
+        action="store_false",
+        default=True,
+        help="Preview diff without applying to disk",
+    )
+    fix_p.add_argument(
+        "--model-scout", default="gemma4-2b", help="Scout model (default: gemma4-2b)"
+    )
+    fix_p.add_argument(
+        "--model-coder", default="gemma4-26b", help="Coder model (default: gemma4-26b)"
+    )
 
     # auto / agent-loop
     auto_p = subparsers.add_parser(
@@ -1923,10 +1982,23 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
         help="Run autonomous multi-turn on-device engineering loop with local tool execution (grep, AST symbols, diff, test)",
     )
     auto_p.add_argument("goal", help="Engineering goal or bug description")
-    auto_p.add_argument("-t", "--test", default=None, help="Verification test command (e.g. 'pytest tests/test_antigravity.py')")
-    auto_p.add_argument("--max-turns", type=int, default=5, help="Maximum local tool-calling iterations (default: 5)")
-    auto_p.add_argument("--model", default="qwen2.5-coder:1.5b", help="Local model name (default: qwen2.5-coder:1.5b or gemma4-26b)")
-
+    auto_p.add_argument(
+        "-t",
+        "--test",
+        default=None,
+        help="Verification test command (e.g. 'pytest tests/test_antigravity.py')",
+    )
+    auto_p.add_argument(
+        "--max-turns",
+        type=int,
+        default=5,
+        help="Maximum local tool-calling iterations (default: 5)",
+    )
+    auto_p.add_argument(
+        "--model",
+        default="qwen2.5-coder:1.5b",
+        help="Local model name (default: qwen2.5-coder:1.5b or gemma4-26b)",
+    )
 
     # benchmark / qa / verify
     bench_p = subparsers.add_parser(

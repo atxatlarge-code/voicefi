@@ -40,17 +40,39 @@ PREFERRED_CREATIVE_MODELS = [
 ]
 
 DEFAULT_CHARACTERS = {
-    "Viv": {"voice_id": "en-US-AvaNeural", "tag_color": "#3186FF", "role": "Google Antigravity Planner", "speed": "-2%"},
-    "Stefan": {"voice_id": "en-US-SteffanNeural", "tag_color": "#D97757", "role": "Claude Code Architect", "speed": "0%"},
-    "Christopher": {"voice_id": "en-US-ChristopherNeural", "tag_color": "#00E5FF", "role": "Cursor Engineer", "speed": "+2%"},
-    "Jake": {"voice_id": "en-US-AndrewNeural", "tag_color": "#10B981", "role": "VoiceFi Founder", "speed": "-3%"},
+    "Viv": {
+        "voice_id": "en-US-AvaNeural",
+        "tag_color": "#3186FF",
+        "role": "Google Antigravity Planner",
+        "speed": "-2%",
+    },
+    "Stefan": {
+        "voice_id": "en-US-SteffanNeural",
+        "tag_color": "#D97757",
+        "role": "Claude Code Architect",
+        "speed": "0%",
+    },
+    "Christopher": {
+        "voice_id": "en-US-ChristopherNeural",
+        "tag_color": "#00E5FF",
+        "role": "Cursor Engineer",
+        "speed": "+2%",
+    },
+    "Jake": {
+        "voice_id": "en-US-AndrewNeural",
+        "tag_color": "#10B981",
+        "role": "VoiceFi Founder",
+        "speed": "-3%",
+    },
 }
 
 
 def discover_ollama_model(base_url: str = OLLAMA_ENDPOINT) -> Optional[str]:
     """Query local Ollama to find the best available model for scriptwriting."""
     try:
-        req = urllib.request.Request(f"{base_url.rstrip('/')}/api/tags", headers={"User-Agent": "VoiceFi"})
+        req = urllib.request.Request(
+            f"{base_url.rstrip('/')}/api/tags", headers={"User-Agent": "VoiceFi"}
+        )
         with urllib.request.urlopen(req, timeout=1.5) as resp:
             if resp.status == 200:
                 data = json.loads(resp.read().decode("utf-8"))
@@ -77,6 +99,7 @@ class LocalContentGenerator:
         # 0. Hardware Guardrail check
         try:
             from voicefi.local.supervisor import default_supervisor
+
             default_supervisor.wait_if_throttled(poll_interval=2.0, max_wait=10.0)
         except Exception:
             pass
@@ -112,7 +135,9 @@ class LocalContentGenerator:
                         res_json = json.loads(resp.read().decode("utf-8"))
                         msg = res_json.get("message", {}).get("content", "")
                         if msg:
-                            logger.info(f"Generated script via Ollama model '{self._discovered_ollama_model}'")
+                            logger.info(
+                                f"Generated script via Ollama model '{self._discovered_ollama_model}'"
+                            )
                             return msg
             except Exception as e:
                 logger.debug(f"Ollama native generation failed: {e}")
@@ -120,11 +145,13 @@ class LocalContentGenerator:
         # 2. Direct in-process LiteRT engine on Apple Silicon Metal GPU
         try:
             from voicefi.local import LocalModelEngine
+
             engine = LocalModelEngine(model_name="gemma4-2b")
             if not engine.model_exists:
                 engine = LocalModelEngine()
             if engine.is_installed and engine.model_exists:
                 import asyncio
+
                 coro = engine.chat_text(prompt=prompt, system_instructions=system_prompt)
                 try:
                     res = asyncio.run(coro)

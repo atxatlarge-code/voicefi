@@ -34,24 +34,26 @@ PERSONA = "A weary, sarcastic systems engineer delivering dry Elizabethan irony"
 def benchmark_local_gemma_2b(prompt: str) -> dict:
     """Benchmark warm local Gemma 4 2B on port 9379."""
     start = time.perf_counter()
-    req_data = json.dumps({
-        "model": "gemma4-2b",
-        "messages": [
-            {
-                "role": "system",
-                "content": f"You are {PERSONA}. Condense this into 1 or 2 spoken sentences with stage directions like [big sigh] or [deadpan]. Output ONLY dialogue."
-            },
-            {"role": "user", "content": prompt}
-        ],
-        "max_tokens": 70
-    }).encode("utf-8")
+    req_data = json.dumps(
+        {
+            "model": "gemma4-2b",
+            "messages": [
+                {
+                    "role": "system",
+                    "content": f"You are {PERSONA}. Condense this into 1 or 2 spoken sentences with stage directions like [big sigh] or [deadpan]. Output ONLY dialogue.",
+                },
+                {"role": "user", "content": prompt},
+            ],
+            "max_tokens": 70,
+        }
+    ).encode("utf-8")
 
     req = urllib.request.Request(
         "http://127.0.0.1:9379/v1/chat/completions",
         data=req_data,
-        headers={"Content-Type": "application/json"}
+        headers={"Content-Type": "application/json"},
     )
-    
+
     try:
         with urllib.request.urlopen(req, timeout=5.0) as resp:
             data = json.loads(resp.read().decode("utf-8"))
@@ -63,14 +65,14 @@ def benchmark_local_gemma_2b(prompt: str) -> dict:
                 "latency_ms": round(elapsed, 1),
                 "tokens": tokens,
                 "output": content,
-                "status": "success"
+                "status": "success",
             }
     except Exception as e:
         return {
             "model": "Local Gemma 4 2B",
             "latency_ms": round((time.perf_counter() - start) * 1000.0, 1),
             "error": str(e),
-            "status": "error"
+            "status": "error",
         }
 
 
@@ -84,7 +86,7 @@ def benchmark_gemini_cloud(model_name: str, prompt: str, api_key: str) -> dict:
             contents=(
                 f"You are {PERSONA}. Condense this into 1 or 2 spoken sentences with stage directions "
                 f"like [big sigh] or [deadpan]. Output ONLY dialogue:\n\n{prompt}"
-            )
+            ),
         )
         elapsed = (time.perf_counter() - start) * 1000.0
         text = resp.text.strip() if resp and resp.text else ""
@@ -92,14 +94,14 @@ def benchmark_gemini_cloud(model_name: str, prompt: str, api_key: str) -> dict:
             "model": f"Cloud {model_name}",
             "latency_ms": round(elapsed, 1),
             "output": text,
-            "status": "success"
+            "status": "success",
         }
     except Exception as e:
         return {
             "model": f"Cloud {model_name}",
             "latency_ms": round((time.perf_counter() - start) * 1000.0, 1),
             "error": str(e),
-            "status": "error"
+            "status": "error",
         }
 
 
@@ -118,12 +120,12 @@ async def benchmark_gemini_38_live_streaming(text: str, api_key: str) -> dict:
     start = time.perf_counter()
     ttfa = None
     total_bytes = 0
-    
+
     try:
         async with client.aio.live.connect(model="gemini-3.8-live", config=config) as session:
             conn_time = (time.perf_counter() - start) * 1000.0
             await session.send_realtime_input(text=f"Read this line verbatim: {text}")
-            
+
             async for response in session.receive():
                 if response.server_content and response.server_content.model_turn:
                     for part in response.server_content.model_turn.parts:
@@ -133,7 +135,7 @@ async def benchmark_gemini_38_live_streaming(text: str, api_key: str) -> dict:
                             total_bytes += len(part.inline_data.data)
                 if response.server_content and response.server_content.turn_complete:
                     break
-                    
+
         total_time = (time.perf_counter() - start) * 1000.0
         return {
             "engine": "Gemini 3.8 Live (WebSocket Streaming)",
@@ -141,13 +143,13 @@ async def benchmark_gemini_38_live_streaming(text: str, api_key: str) -> dict:
             "ttfa_ms": round(ttfa, 1) if ttfa else None,
             "total_ms": round(total_time, 1),
             "audio_bytes": total_bytes,
-            "status": "success"
+            "status": "success",
         }
     except Exception as e:
         return {
             "engine": "Gemini 3.8 Live (WebSocket Streaming)",
             "error": str(e),
-            "status": "error"
+            "status": "error",
         }
 
 
@@ -168,27 +170,31 @@ async def main():
     res_local = benchmark_local_gemma_2b(TEST_PROMPT)
     print(f"• {res_local['model']:<36}: {res_local['latency_ms']} ms")
     if "output" in res_local:
-        print(f"  └─ Line: \"{res_local['output']}\"")
+        print(f'  └─ Line: "{res_local["output"]}"')
 
     res_flash_lite = benchmark_gemini_cloud("gemini-2.5-flash-lite", TEST_PROMPT, api_key)
     print(f"• {res_flash_lite['model']:<36}: {res_flash_lite['latency_ms']} ms")
     if "output" in res_flash_lite:
-        print(f"  └─ Line: \"{res_flash_lite['output']}\"")
+        print(f'  └─ Line: "{res_flash_lite["output"]}"')
 
     res_flash = benchmark_gemini_cloud("gemini-2.5-flash", TEST_PROMPT, api_key)
     print(f"• {res_flash['model']:<36}: {res_flash['latency_ms']} ms")
     if "output" in res_flash:
-        print(f"  └─ Line: \"{res_flash['output']}\"")
+        print(f'  └─ Line: "{res_flash["output"]}"')
 
     # 2. Audio Latency Benchmark
     print("\n─── 2. Speech Synthesis Latency (TTFA) ───")
-    chosen_text = res_local.get("output") or res_flash.get("output") or "Your database pool is dead."
+    chosen_text = (
+        res_local.get("output") or res_flash.get("output") or "Your database pool is dead."
+    )
     res_audio = await benchmark_gemini_38_live_streaming(chosen_text, api_key)
     if res_audio.get("status") == "success":
         print(f"• {res_audio['engine']}")
         print(f"  ├─ WebSocket Connect: {res_audio['connect_ms']} ms")
         print(f"  ├─ Time to First Audio (TTFA): {res_audio['ttfa_ms']} ms ⚡")
-        print(f"  └─ Total Stream Transfer: {res_audio['total_ms']} ms ({res_audio['audio_bytes']:,} bytes)")
+        print(
+            f"  └─ Total Stream Transfer: {res_audio['total_ms']} ms ({res_audio['audio_bytes']:,} bytes)"
+        )
     else:
         print(f"• Audio Error: {res_audio.get('error')}")
 
@@ -197,13 +203,19 @@ async def main():
     print("=" * 65)
     if res_local.get("status") == "success" and res_audio.get("status") == "success":
         local_total = res_local["latency_ms"] + res_audio["ttfa_ms"]
-        print(f"  Option A [Local Gemma 4 2B + 3.8 Live]:  {local_total:.1f} ms to first audio sound")
+        print(
+            f"  Option A [Local Gemma 4 2B + 3.8 Live]:  {local_total:.1f} ms to first audio sound"
+        )
     if res_flash_lite.get("status") == "success" and res_audio.get("status") == "success":
         cloud_lite_total = res_flash_lite["latency_ms"] + res_audio["ttfa_ms"]
-        print(f"  Option B [Cloud 2.5 Flash Lite + 3.8 Live]: {cloud_lite_total:.1f} ms to first audio sound")
+        print(
+            f"  Option B [Cloud 2.5 Flash Lite + 3.8 Live]: {cloud_lite_total:.1f} ms to first audio sound"
+        )
     if res_flash.get("status") == "success" and res_audio.get("status") == "success":
         cloud_flash_total = res_flash["latency_ms"] + res_audio["ttfa_ms"]
-        print(f"  Option C [Cloud 2.5 Flash + 3.8 Live]:      {cloud_flash_total:.1f} ms to first audio sound")
+        print(
+            f"  Option C [Cloud 2.5 Flash + 3.8 Live]:      {cloud_flash_total:.1f} ms to first audio sound"
+        )
 
 
 if __name__ == "__main__":

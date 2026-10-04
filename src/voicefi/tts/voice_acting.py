@@ -142,13 +142,17 @@ class VoiceActingTTS(BaseTTS):
         else:
             self.model_name = DEFAULT_VOICE_ACTING_MODEL
 
-        raw_name = (persona_name or ("custom_clone" if ref_audio else "drill_sergeant")).lower().strip().replace(" ", "_")
+        raw_name = (
+            (persona_name or ("custom_clone" if ref_audio else "drill_sergeant"))
+            .lower()
+            .strip()
+            .replace(" ", "_")
+        )
         if raw_name in ("the_continental", "walken_continental", "continental"):
             raw_name = "the_continental"
         self.persona_name = raw_name
         self.preset = VOICE_ACTING_PRESETS.get(
-            self.persona_name,
-            VOICE_ACTING_PRESETS["deadpan_ironist"]
+            self.persona_name, VOICE_ACTING_PRESETS["deadpan_ironist"]
         )
         self.base_voice = base_voice or self.preset.get("base_voice", "ryan")
         self.instruct = instruct or self.preset.get("default_instruct", "")
@@ -169,6 +173,7 @@ class VoiceActingTTS(BaseTTS):
         try:
             import mlx.core as mx
             from mlx_audio.audio_io import read as audio_read
+
             ref_p = Path(self.ref_audio).expanduser()
             if ref_p.exists():
                 ref_np, _ = audio_read(str(ref_p))
@@ -186,6 +191,7 @@ class VoiceActingTTS(BaseTTS):
         try:
             import mlx.core  # noqa: F401
             import mlx_audio.tts.utils  # noqa: F401
+
             return True
         except ImportError:
             return False
@@ -197,6 +203,7 @@ class VoiceActingTTS(BaseTTS):
             return cls._cached_model
 
         from mlx_audio.tts.utils import load_model
+
         cls._cached_model = load_model(model_id)
         cls._cached_model_id = model_id
         return cls._cached_model
@@ -263,15 +270,19 @@ class VoiceActingTTS(BaseTTS):
                 down = s_sr // gcd
                 s_data = scipy.signal.resample_poly(s_data, up, down)
 
-            v_rms = np.sqrt(np.mean(v_data[:min(len(v_data), v_sr)]**2)) if len(v_data) > 0 else 0.1
-            s_rms = np.sqrt(np.mean(s_data[:min(len(s_data), v_sr)]**2)) if len(s_data) > 0 else 0.1
+            v_rms = (
+                np.sqrt(np.mean(v_data[: min(len(v_data), v_sr)] ** 2)) if len(v_data) > 0 else 0.1
+            )
+            s_rms = (
+                np.sqrt(np.mean(s_data[: min(len(s_data), v_sr)] ** 2)) if len(s_data) > 0 else 0.1
+            )
             scale = (v_rms / (s_rms + 1e-6)) * volume
             s_scaled = s_data * scale
 
             mix_len = max(len(v_data), len(s_scaled))
             mixed = np.zeros(mix_len, dtype=np.float32)
-            mixed[:len(v_data)] += v_data
-            mixed[:len(s_scaled)] += s_scaled
+            mixed[: len(v_data)] += v_data
+            mixed[: len(s_scaled)] += s_scaled
 
             peak = np.max(np.abs(mixed))
             if peak > 0.95:
@@ -296,6 +307,7 @@ class VoiceActingTTS(BaseTTS):
         # Mock / Testing Fast Path
         if os.environ.get("VOICEFI_MOCK_AUDIO") == "1" or os.environ.get("VOICEFI_TESTING") == "1":
             import wave
+
             with wave.open(str(out_p), "wb") as wf:
                 wf.setnchannels(1)
                 wf.setsampwidth(2)
@@ -316,23 +328,28 @@ class VoiceActingTTS(BaseTTS):
 
         try:
             from mlx_audio.audio_io import write as audio_write
+
             model = self.get_model(self.model_name)
 
             ref_input = self._get_ref_audio_input()
             if ref_input is not None:
-                results = list(model.generate(
-                    text=clean_text,
-                    ref_audio=ref_input,
-                    ref_text=self.ref_text,
-                    speed=float(self.speed),
-                ))
+                results = list(
+                    model.generate(
+                        text=clean_text,
+                        ref_audio=ref_input,
+                        ref_text=self.ref_text,
+                        speed=float(self.speed),
+                    )
+                )
             else:
-                results = list(model.generate(
-                    text=clean_text,
-                    voice=self.base_voice,
-                    instruct=effective_instruct,
-                    speed=float(self.speed),
-                ))
+                results = list(
+                    model.generate(
+                        text=clean_text,
+                        voice=self.base_voice,
+                        instruct=effective_instruct,
+                        speed=float(self.speed),
+                    )
+                )
 
             if not results:
                 logger.error("Voice Acting model produced zero audio results.")
@@ -359,6 +376,7 @@ class VoiceActingTTS(BaseTTS):
             logger.error(f"Voice Acting generation failed: {e}", exc_info=True)
             try:
                 from voicefi.telemetry import capture_exception
+
                 capture_exception(
                     e,
                     component="voice_acting",
@@ -390,9 +408,12 @@ class VoiceActingTTS(BaseTTS):
 
         if not ok or not tmp_path.exists() or tmp_path.stat().st_size == 0:
             tmp_path.unlink(missing_ok=True)
-            logger.warning("[VoiceActingTTS] Generation failed; cascading to EdgeTTS / MacSay fallback.")
+            logger.warning(
+                "[VoiceActingTTS] Generation failed; cascading to EdgeTTS / MacSay fallback."
+            )
             try:
                 from voicefi.tts.base import set_cross_process_hud_state
+
                 set_cross_process_hud_state(
                     "speaking",
                     text=text,
@@ -403,11 +424,15 @@ class VoiceActingTTS(BaseTTS):
                 pass
             try:
                 from voicefi.tts.edge_tts import EdgeTTS
-                edge = EdgeTTS(voice="en-US-AvaNeural", agent_name=getattr(self, "agent_name", "VoiceFi"))
+
+                edge = EdgeTTS(
+                    voice="en-US-AvaNeural", agent_name=getattr(self, "agent_name", "VoiceFi")
+                )
                 edge.speak(text, block=block)
                 return True
             except Exception:
                 from voicefi.tts.mac_say import MacSayTTS
+
                 MacSayTTS().speak(text, block=block)
                 return True
 
@@ -415,6 +440,7 @@ class VoiceActingTTS(BaseTTS):
             try:
                 try:
                     from voicefi.tts.base import set_cross_process_hud_state
+
                     set_cross_process_hud_state(
                         "speaking",
                         text=text,
@@ -469,4 +495,3 @@ class VoiceActingTTS(BaseTTS):
 # Aliases for explicit Qwen model addressing
 QwenTTS = VoiceActingTTS
 QwenCloneTTS = VoiceActingTTS
-

@@ -35,11 +35,13 @@ import aiohttp.tcp_helpers
 # Suppress Darwin EINVAL (Errno 22) on macOS when peer closes TCP connection before connection_made
 _orig_tcp_keepalive = getattr(aiohttp.tcp_helpers, "tcp_keepalive", None)
 if _orig_tcp_keepalive:
+
     def _safe_darwin_tcp_keepalive(transport):
         try:
             _orig_tcp_keepalive(transport)
         except OSError:
             pass
+
     aiohttp.tcp_helpers.tcp_keepalive = _safe_darwin_tcp_keepalive
 
 import numpy as np
@@ -252,7 +254,9 @@ class CompanionServer(
         self.app.router.add_post("/api/quick-bar/show", self.handle_quick_bar_show)
         self.app.router.add_post("/api/quick-bar/hide", self.handle_quick_bar_hide)
         self.app.router.add_post("/api/companion-window/show", self.handle_companion_window_show)
-        self.app.router.add_post("/api/companion-window/toggle", self.handle_companion_window_toggle)
+        self.app.router.add_post(
+            "/api/companion-window/toggle", self.handle_companion_window_toggle
+        )
         self.app.router.add_post("/api/hud/show", self.handle_hud_show)
         self.app.router.add_post("/api/hud/hide", self.handle_hud_hide)
         self.app.router.add_post("/api/hud/toggle", self.handle_hud_toggle)
@@ -324,10 +328,14 @@ class CompanionServer(
         self.app.router.add_get("/api/factory/queue", self.handle_factory_queue)
         self.app.router.add_get("/api/factory/reels", self.handle_factory_reels)
         self.app.router.add_post("/api/factory/reel/update", self.handle_factory_reel_update)
-        self.app.router.add_get("/api/factory/downloads/latest-video", self.handle_factory_latest_download_video)
+        self.app.router.add_get(
+            "/api/factory/downloads/latest-video", self.handle_factory_latest_download_video
+        )
         self.app.router.add_post("/api/factory/reel/attach-video", self.handle_factory_attach_video)
         self.app.router.add_get("/api/factory/video/{filename}", self.handle_factory_serve_video)
-        self.app.router.add_post("/api/factory/reel/generate-master-audio", self.handle_factory_generate_master_audio)
+        self.app.router.add_post(
+            "/api/factory/reel/generate-master-audio", self.handle_factory_generate_master_audio
+        )
         self.app.router.add_get("/api/factory/audio/{filename}", self.handle_factory_serve_audio)
         self.app.router.add_post("/api/factory/reel/render", self.handle_factory_render_reel)
         self.app.router.add_get("/ws", self.handle_ws)
@@ -377,16 +385,19 @@ class CompanionServer(
         """Return real-time queue counts, worker status, and aggregate token savings."""
         try:
             from voicefi.factory.queue import ContentFactoryQueue
+
             q = ContentFactoryQueue()
             counts = q.query_queue_counts()
             workers = q.query_active_workers()
             metrics = q.query_aggregate_metrics()
-            return web.json_response({
-                "status": "ok",
-                "counts": counts,
-                "workers": workers,
-                "metrics": metrics,
-            })
+            return web.json_response(
+                {
+                    "status": "ok",
+                    "counts": counts,
+                    "workers": workers,
+                    "metrics": metrics,
+                }
+            )
         except Exception as e:
             return web.json_response({"status": "error", "error": str(e)}, status=500)
 
@@ -394,6 +405,7 @@ class CompanionServer(
         """Return recently processed and queued content factory jobs."""
         try:
             from voicefi.factory.queue import ContentFactoryQueue
+
             q = ContentFactoryQueue()
             try:
                 raw_limit = int(request.query.get("limit", "25"))
@@ -401,16 +413,19 @@ class CompanionServer(
             except (ValueError, TypeError):
                 limit = 25
             jobs = q.query_recent_jobs(limit=limit)
-            return web.json_response({
-                "status": "ok",
-                "jobs": [j.to_dict() for j in jobs],
-            })
+            return web.json_response(
+                {
+                    "status": "ok",
+                    "jobs": [j.to_dict() for j in jobs],
+                }
+            )
         except Exception as e:
             return web.json_response({"status": "error", "error": str(e)}, status=500)
 
     async def handle_factory_reels(self, request: web.Request) -> web.Response:
         try:
             from voicefi.factory.markdown_sync import list_reels_in_vault
+
             reels = list_reels_in_vault()
             return web.json_response({"reels": reels, "status": "ok"})
         except Exception as e:
@@ -422,13 +437,18 @@ class CompanionServer(
             data = await request.json()
             raw_file = data.get("file_name") or data.get("file")
             if not raw_file:
-                return web.json_response({"error": "Missing file_name", "status": "error"}, status=400)
+                return web.json_response(
+                    {"error": "Missing file_name", "status": "error"}, status=400
+                )
 
             from voicefi.factory.markdown_sync import DEFAULT_REELS_DIR, update_reel_turn_in_file
+
             file_name = Path(raw_file).name
             file_path = DEFAULT_REELS_DIR / file_name
             if not file_path.exists():
-                return web.json_response({"error": f"File not found: {file_name}", "status": "error"}, status=404)
+                return web.json_response(
+                    {"error": f"File not found: {file_name}", "status": "error"}, status=404
+                )
 
             turn_idx = int(data.get("turn_index", 1))
             new_speaker = data.get("speaker")
@@ -446,9 +466,14 @@ class CompanionServer(
             )
 
             if success:
-                return web.json_response({"status": "ok", "file_name": file_name, "turn_index": turn_idx})
+                return web.json_response(
+                    {"status": "ok", "file_name": file_name, "turn_index": turn_idx}
+                )
             else:
-                return web.json_response({"error": "Failed to update turn in markdown note", "status": "error"}, status=400)
+                return web.json_response(
+                    {"error": "Failed to update turn in markdown note", "status": "error"},
+                    status=400,
+                )
         except Exception as e:
             return web.json_response({"error": str(e), "status": "error"}, status=500)
 
@@ -480,15 +505,18 @@ class CompanionServer(
         added_time, latest_path = candidates[0]
         size_mb = round(latest_path.stat().st_size / (1024 * 1024), 2)
         import datetime
+
         created_str = datetime.datetime.fromtimestamp(added_time).strftime("%I:%M %p")
 
-        return web.json_response({
-            "found": True,
-            "file_name": latest_path.name,
-            "path": str(latest_path),
-            "size_mb": size_mb,
-            "created_time": created_str,
-        })
+        return web.json_response(
+            {
+                "found": True,
+                "file_name": latest_path.name,
+                "path": str(latest_path),
+                "size_mb": size_mb,
+                "created_time": created_str,
+            }
+        )
 
     async def handle_factory_attach_video(self, request: web.Request) -> web.Response:
         """Copy a video file from Downloads or source path into vifi.co/reels/recordings/."""
@@ -501,7 +529,9 @@ class CompanionServer(
 
             source_path = Path(source_path_str)
             if not source_path.exists():
-                return web.json_response({"error": f"File not found: {source_path_str}"}, status=404)
+                return web.json_response(
+                    {"error": f"File not found: {source_path_str}"}, status=404
+                )
 
             dest_dir = Path("/Users/jaketrigg/Projects/vifi.co/reels/recordings")
             dest_dir.mkdir(parents=True, exist_ok=True)
@@ -510,6 +540,7 @@ class CompanionServer(
 
             import shutil
             import subprocess
+
             shutil.copy2(source_path, dest_path)
             # Also preserve an archived copy with original filename
             archive_path = dest_dir / source_path.name
@@ -518,13 +549,27 @@ class CompanionServer(
 
             # Probe duration
             ffprobe_res = subprocess.run(
-                ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", str(dest_path)],
-                capture_output=True, text=True
+                [
+                    "ffprobe",
+                    "-v",
+                    "error",
+                    "-show_entries",
+                    "format=duration",
+                    "-of",
+                    "default=noprint_wrappers=1:nokey=1",
+                    str(dest_path),
+                ],
+                capture_output=True,
+                text=True,
             )
             dur = round(float(ffprobe_res.stdout.strip()), 1) if ffprobe_res.stdout.strip() else 0.0
 
             # Update markdown note frontmatter
-            from voicefi.factory.markdown_sync import DEFAULT_REELS_DIR, update_reel_frontmatter_video
+            from voicefi.factory.markdown_sync import (
+                DEFAULT_REELS_DIR,
+                update_reel_frontmatter_video,
+            )
+
             matched_md = list(DEFAULT_REELS_DIR.glob(f"{reel_id}*.md"))
             if matched_md:
                 update_reel_frontmatter_video(
@@ -534,14 +579,16 @@ class CompanionServer(
                     duration_s=dur,
                 )
 
-            return web.json_response({
-                "status": "ok",
-                "attached_file": dest_filename,
-                "original_filename": source_path.name,
-                "video_url": f"/api/factory/video/{dest_filename}",
-                "duration_s": dur,
-                "size_mb": round(dest_path.stat().st_size / (1024 * 1024), 2),
-            })
+            return web.json_response(
+                {
+                    "status": "ok",
+                    "attached_file": dest_filename,
+                    "original_filename": source_path.name,
+                    "video_url": f"/api/factory/video/{dest_filename}",
+                    "duration_s": dur,
+                    "size_mb": round(dest_path.stat().st_size / (1024 * 1024), 2),
+                }
+            )
         except Exception as e:
             return web.json_response({"error": str(e)}, status=500)
 
@@ -567,6 +614,7 @@ class CompanionServer(
             raw_file = data.get("file_name") or f"{reel_id}_silent_terminals.md"
 
             from voicefi.factory.markdown_sync import DEFAULT_REELS_DIR, parse_reel_markdown
+
             file_name = Path(raw_file).name
             file_path = DEFAULT_REELS_DIR / file_name
 
@@ -575,11 +623,17 @@ class CompanionServer(
                 if matched:
                     file_path = matched[0]
                 else:
-                    return web.json_response({"error": f"Reel file not found: {raw_file}"}, status=404)
+                    return web.json_response(
+                        {"error": f"Reel file not found: {raw_file}"}, status=404
+                    )
 
-            manifest = parse_reel_markdown(file_path.read_text(encoding="utf-8"), file_path=file_path)
+            manifest = parse_reel_markdown(
+                file_path.read_text(encoding="utf-8"), file_path=file_path
+            )
             if not manifest.turns:
-                return web.json_response({"error": "No dialogue turns found in reel note"}, status=400)
+                return web.json_response(
+                    {"error": "No dialogue turns found in reel note"}, status=400
+                )
 
             from voicefi.config import load_config
             from voicefi.tts import get_tts_engine
@@ -594,15 +648,25 @@ class CompanionServer(
             turn_durations = []
 
             for i, t in enumerate(manifest.turns):
-                t_wav = out_dir / f"{reel_id}_turn_{i+1}_{t.speaker}.wav"
+                t_wav = out_dir / f"{reel_id}_turn_{i + 1}_{t.speaker}.wav"
                 voice = t.voice_id or ("Aoede" if "viv" in t.speaker.lower() else "Charon")
                 style = t.emotion or ""
                 eng = get_tts_engine(cfg, agent_name=t.speaker, voice_override=voice)
                 await asyncio.to_thread(eng.speak_to_file, t.text, t_wav, style=style)
 
                 ffprobe_res = subprocess.run(
-                    ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", str(t_wav)],
-                    capture_output=True, text=True
+                    [
+                        "ffprobe",
+                        "-v",
+                        "error",
+                        "-show_entries",
+                        "format=duration",
+                        "-of",
+                        "default=noprint_wrappers=1:nokey=1",
+                        str(t_wav),
+                    ],
+                    capture_output=True,
+                    text=True,
                 )
                 dur = float(ffprobe_res.stdout.strip()) if ffprobe_res.stdout.strip() else 4.0
                 turn_wavs.append(t_wav)
@@ -613,13 +677,15 @@ class CompanionServer(
             curr_pos = 0.0
 
             for i in range(1, len(turn_wavs)):
-                prev_text = manifest.turns[i-1].text.lower()
+                prev_text = manifest.turns[i - 1].text.lower()
                 curr_text = manifest.turns[i].text.lower()
-                prev_dur = turn_durations[i-1]
+                prev_dur = turn_durations[i - 1]
 
                 # If prev turn had giggles/laughs and curr turn has sigh/conversational reaction
                 overlap = 0.0
-                if any(k in prev_text for k in ("giggle", "laugh", "chuckle")) and any(k in curr_text for k in ("sigh", "you know", "and by")):
+                if any(k in prev_text for k in ("giggle", "laugh", "chuckle")) and any(
+                    k in curr_text for k in ("sigh", "you know", "and by")
+                ):
                     overlap = 1.6  # 1.6s overlap weaves laughter directly into sigh
                 elif any(k in curr_text for k in ("finish each", "like they", "sentences")):
                     overlap = 0.1  # Fast natural interruption cut
@@ -640,7 +706,19 @@ class CompanionServer(
             filter_str = f"{';'.join(filter_parts)};{mix_ins}amix=inputs={len(turn_wavs)}:duration=longest:dropout_transition=0,volume=2.0[out]"
 
             master_wav = out_dir / f"{reel_id}_master_dialogue.wav"
-            cmd_wav = ["ffmpeg", "-y"] + input_args + ["-filter_complex", filter_str, "-map", "[out]", "-c:a", "pcm_s16le", str(master_wav)]
+            cmd_wav = (
+                ["ffmpeg", "-y"]
+                + input_args
+                + [
+                    "-filter_complex",
+                    filter_str,
+                    "-map",
+                    "[out]",
+                    "-c:a",
+                    "pcm_s16le",
+                    str(master_wav),
+                ]
+            )
             await asyncio.to_thread(subprocess.run, cmd_wav, check=True)
 
             # Export to ~/Downloads for instant user access
@@ -653,37 +731,58 @@ class CompanionServer(
             await asyncio.to_thread(subprocess.run, cmd_48k, check=True)
 
             # Optional backing track mix
-            beat_path = Path("/Users/jaketrigg/Projects/vifi.co/marketing/social/assets/spicewood_texas_beat_85bpm.mp3")
+            beat_path = Path(
+                "/Users/jaketrigg/Projects/vifi.co/marketing/social/assets/spicewood_texas_beat_85bpm.mp3"
+            )
             master_mp3 = out_dir / f"{reel_id}_master_with_music.mp3"
             if beat_path.exists():
                 cmd_music = [
-                    "ffmpeg", "-y",
-                    "-i", str(master_wav),
-                    "-i", str(beat_path),
+                    "ffmpeg",
+                    "-y",
+                    "-i",
+                    str(master_wav),
+                    "-i",
+                    str(beat_path),
                     "-filter_complex",
                     "[1:a]volume=0.20[bg];[0:a]volume=1.0[vox];[vox][bg]amix=inputs=2:duration=first:dropout_transition=2[out]",
-                    "-map", "[out]",
-                    "-c:a", "libmp3lame", "-b:a", "192k",
-                    str(master_mp3)
+                    "-map",
+                    "[out]",
+                    "-c:a",
+                    "libmp3lame",
+                    "-b:a",
+                    "192k",
+                    str(master_mp3),
                 ]
                 await asyncio.to_thread(subprocess.run, cmd_music, check=True)
 
             ff_res = subprocess.run(
-                ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", str(master_wav)],
-                capture_output=True, text=True
+                [
+                    "ffprobe",
+                    "-v",
+                    "error",
+                    "-show_entries",
+                    "format=duration",
+                    "-of",
+                    "default=noprint_wrappers=1:nokey=1",
+                    str(master_wav),
+                ],
+                capture_output=True,
+                text=True,
             )
             total_dur = round(float(ff_res.stdout.strip()), 2) if ff_res.stdout.strip() else 24.2
 
-            return web.json_response({
-                "status": "ok",
-                "reel_id": reel_id,
-                "total_duration_s": total_dur,
-                "wav_file": master_wav.name,
-                "wav_url": f"/api/factory/audio/{master_wav.name}",
-                "music_url": f"/api/factory/audio/{master_mp3.name}",
-                "downloads_path": str(downloads_wav),
-                "turns_count": len(turn_wavs),
-            })
+            return web.json_response(
+                {
+                    "status": "ok",
+                    "reel_id": reel_id,
+                    "total_duration_s": total_dur,
+                    "wav_file": master_wav.name,
+                    "wav_url": f"/api/factory/audio/{master_wav.name}",
+                    "music_url": f"/api/factory/audio/{master_mp3.name}",
+                    "downloads_path": str(downloads_wav),
+                    "turns_count": len(turn_wavs),
+                }
+            )
         except Exception as e:
             return web.json_response({"error": str(e), "status": "error"}, status=500)
 
@@ -713,19 +812,35 @@ class CompanionServer(
                 audio_in = recordings_dir / f"{reel_id}_master_dialogue.wav"
 
             if not video_in.exists():
-                return web.json_response({"error": f"Video take not found: {video_in.name}"}, status=404)
+                return web.json_response(
+                    {"error": f"Video take not found: {video_in.name}"}, status=404
+                )
             if not audio_in.exists():
-                return web.json_response({"error": f"Audio source not found: {audio_in.name}"}, status=404)
+                return web.json_response(
+                    {"error": f"Audio source not found: {audio_in.name}"}, status=404
+                )
 
             # Ensure overlay PNGs exist
             ovl_files = [recordings_dir / f"overlay_turn_{i}.png" for i in range(1, 5)]
             if not all(f.exists() for f in ovl_files):
-                return web.json_response({"error": "Overlay PNGs missing. Generate overlays first."}, status=400)
+                return web.json_response(
+                    {"error": "Overlay PNGs missing. Generate overlays first."}, status=400
+                )
 
             # Probe audio duration
             ff_res = subprocess.run(
-                ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", str(audio_in)],
-                capture_output=True, text=True
+                [
+                    "ffprobe",
+                    "-v",
+                    "error",
+                    "-show_entries",
+                    "format=duration",
+                    "-of",
+                    "default=noprint_wrappers=1:nokey=1",
+                    str(audio_in),
+                ],
+                capture_output=True,
+                text=True,
             )
             dur = float(ff_res.stdout.strip()) if ff_res.stdout.strip() else 24.69
             offset_s = 10.652
@@ -745,29 +860,66 @@ class CompanionServer(
             )
 
             cmd = [
-                "ffmpeg", "-y",
-                "-i", str(video_in),
-                "-i", str(audio_in),
-                "-loop", "1", "-t", f"{dur + 1:.1f}", "-i", str(ovl_files[0]),
-                "-loop", "1", "-t", f"{dur + 1:.1f}", "-i", str(ovl_files[1]),
-                "-loop", "1", "-t", f"{dur + 1:.1f}", "-i", str(ovl_files[2]),
-                "-loop", "1", "-t", f"{dur + 1:.1f}", "-i", str(ovl_files[3]),
-                "-filter_complex", filter_complex,
-                "-map", "[vfinal]",
-                "-map", "1:a:0",
-                "-t", f"{dur:.2f}",
+                "ffmpeg",
+                "-y",
+                "-i",
+                str(video_in),
+                "-i",
+                str(audio_in),
+                "-loop",
+                "1",
+                "-t",
+                f"{dur + 1:.1f}",
+                "-i",
+                str(ovl_files[0]),
+                "-loop",
+                "1",
+                "-t",
+                f"{dur + 1:.1f}",
+                "-i",
+                str(ovl_files[1]),
+                "-loop",
+                "1",
+                "-t",
+                f"{dur + 1:.1f}",
+                "-i",
+                str(ovl_files[2]),
+                "-loop",
+                "1",
+                "-t",
+                f"{dur + 1:.1f}",
+                "-i",
+                str(ovl_files[3]),
+                "-filter_complex",
+                filter_complex,
+                "-map",
+                "[vfinal]",
+                "-map",
+                "1:a:0",
+                "-t",
+                f"{dur:.2f}",
                 "-shortest",
-                "-c:v", "hevc_videotoolbox",
-                "-b:v", "16M",
-                "-pix_fmt", "yuv420p10le",
-                "-color_primaries", "bt2020",
-                "-color_trc", "arib-std-b67",
-                "-colorspace", "bt2020nc",
-                "-c:a", "aac",
-                "-b:a", "192k",
-                "-movflags", "+faststart",
-                "-tag:v", "hvc1",
-                str(video_out)
+                "-c:v",
+                "hevc_videotoolbox",
+                "-b:v",
+                "16M",
+                "-pix_fmt",
+                "yuv420p10le",
+                "-color_primaries",
+                "bt2020",
+                "-color_trc",
+                "arib-std-b67",
+                "-colorspace",
+                "bt2020nc",
+                "-c:a",
+                "aac",
+                "-b:a",
+                "192k",
+                "-movflags",
+                "+faststart",
+                "-tag:v",
+                "hvc1",
+                str(video_out),
             ]
 
             await asyncio.to_thread(subprocess.run, cmd, check=True)
@@ -777,14 +929,16 @@ class CompanionServer(
             shutil.copy2(video_out, downloads_mp4)
 
             size_mb = round(video_out.stat().st_size / (1024 * 1024), 2)
-            return web.json_response({
-                "status": "ok",
-                "reel_id": reel_id,
-                "video_url": f"/api/factory/video/{video_out.name}",
-                "downloads_path": str(downloads_mp4),
-                "duration_s": dur,
-                "size_mb": size_mb,
-            })
+            return web.json_response(
+                {
+                    "status": "ok",
+                    "reel_id": reel_id,
+                    "video_url": f"/api/factory/video/{video_out.name}",
+                    "downloads_path": str(downloads_mp4),
+                    "duration_s": dur,
+                    "size_mb": size_mb,
+                }
+            )
         except Exception as e:
             return web.json_response({"error": str(e), "status": "error"}, status=500)
 
@@ -1296,8 +1450,13 @@ class CompanionServer(
                 if hasattr(cfg, "local_model") and cfg.local_model:
                     cfg.local_model.model_name = model_clean
                     cfg.local_model.model_path = f"~/.litert-lm/models/{model_clean}/model.litertlm"
-                    if getattr(cfg.global_hotkey, "quick_bar_agent", None) in ("gemma", "gemma-26b"):
-                        cfg.global_hotkey.quick_bar_agent = "gemma-26b" if "26b" in model_clean else "gemma"
+                    if getattr(cfg.global_hotkey, "quick_bar_agent", None) in (
+                        "gemma",
+                        "gemma-26b",
+                    ):
+                        cfg.global_hotkey.quick_bar_agent = (
+                            "gemma-26b" if "26b" in model_clean else "gemma"
+                        )
                     save_config(cfg)
                     self.config = cfg
                 self.broadcast_event(
@@ -1449,7 +1608,9 @@ class CompanionServer(
             try:
                 data = await request.json()
             except Exception:
-                return web.json_response({"error": "Invalid JSON body", "status": "error"}, status=400)
+                return web.json_response(
+                    {"error": "Invalid JSON body", "status": "error"}, status=400
+                )
 
             target = data.get("target")
             error_msg = data.get("error") or data.get("instruction") or ""
@@ -1539,7 +1700,6 @@ class CompanionServer(
             )
         except Exception as e:
             return web.json_response({"error": str(e), "status": "error"}, status=500)
-
 
     async def handle_sfx(self, request: web.Request) -> web.Response:
         """
@@ -1984,7 +2144,7 @@ class CompanionServer(
         if routing == "phone_only":
             should_speak_mac = False
         elif routing == "origin_only":
-            should_speak_mac = (origin != "mobile")
+            should_speak_mac = origin != "mobile"
         elif routing == "smart":
             if origin == "mobile":
                 should_speak_mac = False

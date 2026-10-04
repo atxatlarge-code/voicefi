@@ -21,7 +21,11 @@ def generate_synthetic_audio(duration_sec: float = 4.0, sample_rate: int = 16000
     """Generate multi-tone test audio with harmonics resembling human vocal frequencies."""
     t = np.linspace(0, duration_sec, int(sample_rate * duration_sec), endpoint=False)
     # Fundamental vocal frequencies ~150Hz, 300Hz, 600Hz
-    signal = 0.4 * np.sin(2 * np.pi * 150 * t) + 0.3 * np.sin(2 * np.pi * 300 * t) + 0.2 * np.sin(2 * np.pi * 600 * t)
+    signal = (
+        0.4 * np.sin(2 * np.pi * 150 * t)
+        + 0.3 * np.sin(2 * np.pi * 300 * t)
+        + 0.2 * np.sin(2 * np.pi * 600 * t)
+    )
     # Envelope shaping
     envelope = np.ones_like(t)
     attack_samples = int(sample_rate * 0.1)
@@ -98,6 +102,7 @@ def main():
     mlx_result = None
     try:
         from voicefi.stt.mlx_whisper import MLXWhisperSTT
+
         mlx_engine = MLXWhisperSTT(model_name="mlx-community/whisper-large-v3-turbo")
         mlx_result = benchmark_engine("MLX-Whisper (Metal GPU, Large-v3-Turbo)", mlx_engine, audio)
     except Exception as e:
@@ -109,9 +114,15 @@ def main():
         print("=" * 60)
         print("Metric                    Faster-Whisper (CPU)       MLX-Whisper (Metal)")
         print("----------------------------------------------------------------------")
-        print(f"Average Latency:          {fw_result['avg_latency_ms']:.1f} ms               {mlx_result['avg_latency_ms']:.1f} ms")
-        print(f"Speedup vs Real-time:     {fw_result['speedup_x_realtime']:.1f}x                      {mlx_result['speedup_x_realtime']:.1f}x")
-        print(f"CPU Utilization:          {fw_result['avg_cpu_percent']:.1f}%                     {mlx_result['avg_cpu_percent']:.1f}%")
+        print(
+            f"Average Latency:          {fw_result['avg_latency_ms']:.1f} ms               {mlx_result['avg_latency_ms']:.1f} ms"
+        )
+        print(
+            f"Speedup vs Real-time:     {fw_result['speedup_x_realtime']:.1f}x                      {mlx_result['speedup_x_realtime']:.1f}x"
+        )
+        print(
+            f"CPU Utilization:          {fw_result['avg_cpu_percent']:.1f}%                     {mlx_result['avg_cpu_percent']:.1f}%"
+        )
         print("=" * 60)
 
 

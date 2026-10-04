@@ -196,7 +196,6 @@ def cmd_setup(args):
                             if s_file.is_file():
                                 shutil.copy2(s_file, target_sub / s_file.name)
 
-
             # Register in ~/.gemini/config/config.json
             global_config_json = Path.home() / ".gemini" / "config" / "config.json"
             if global_config_json.is_file():

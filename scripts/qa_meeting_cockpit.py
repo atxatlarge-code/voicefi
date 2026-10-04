@@ -7,7 +7,10 @@ import time
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 
-SCREENSHOTS_DIR = Path("/Users/jaketrigg/.gemini/antigravity/brain/e3609773-1776-4f32-bf11-80e451353c9d")
+SCREENSHOTS_DIR = Path(
+    "/Users/jaketrigg/.gemini/antigravity/brain/e3609773-1776-4f32-bf11-80e451353c9d"
+)
+
 
 def run_qa():
     print("🚀 Starting Playwright Mobile Browser QA for VoiceFi Meeting Cockpit...")
@@ -17,10 +20,7 @@ def run_qa():
         # Emulate Google Pixel 7
         device = p.devices["Pixel 7"]
         browser = p.chromium.launch(headless=True)
-        context = browser.new_context(
-            **device,
-            permissions=["microphone"]
-        )
+        context = browser.new_context(**device, permissions=["microphone"])
         page = context.new_page()
 
         # Listen to console logs
@@ -121,7 +121,7 @@ def run_qa():
         print("⏹️ Ending meeting and synthesizing to Obsidian...")
         end_btn = page.locator("#meetingEndBtn")
         end_btn.click()
-        
+
         try:
             page.wait_for_selector("button:has-text('Saved to Obsidian')", timeout=15000)
             print("🎉 Synthesis completed and UI transitioned to Saved state!")
@@ -156,10 +156,12 @@ def run_qa():
     all_passed = True
     for k, v in results.items():
         status = "✅ PASS" if v else "❌ FAIL"
-        if not v: all_passed = False
+        if not v:
+            all_passed = False
         print(f"  {k:35}: {status} ({v})")
     print("================================================")
     return all_passed
+
 
 if __name__ == "__main__":
     success = run_qa()

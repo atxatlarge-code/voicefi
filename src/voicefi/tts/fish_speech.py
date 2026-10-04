@@ -79,6 +79,7 @@ class FishSpeechTTS(BaseTTS):
         # 1. Check if local HTTP daemon is listening
         try:
             import urllib.request
+
             req = urllib.request.Request(FISH_SPEECH_HTTP_URL.replace("/v1/tts", "/v1/models"))
             with urllib.request.urlopen(req, timeout=0.5):
                 return True
@@ -88,12 +89,14 @@ class FishSpeechTTS(BaseTTS):
         # 2. Check if mlx or fish_speech python module is importable
         try:
             import mlx.core  # noqa: F401
+
             return True
         except ImportError:
             pass
 
         try:
             import fish_speech  # noqa: F401
+
             return True
         except ImportError:
             pass
@@ -188,6 +191,7 @@ class FishSpeechTTS(BaseTTS):
         # Mock / Testing Fast Path
         if os.environ.get("VOICEFI_MOCK_AUDIO") == "1" or os.environ.get("VOICEFI_TESTING") == "1":
             import wave
+
             with wave.open(str(out_p), "wb") as wf:
                 wf.setnchannels(1)
                 wf.setsampwidth(2)

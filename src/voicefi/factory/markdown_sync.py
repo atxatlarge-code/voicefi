@@ -179,7 +179,7 @@ def dump_reel_markdown(manifest: ContentManifest, reel_id: str = "REEL-001") -> 
     lines = [
         "---",
         f"id: {reel_id}",
-        f"title: \"{manifest.title}\"",
+        f'title: "{manifest.title}"',
         "status: ready_to_render",
         f"aspect_ratio: {manifest.aspect_ratio}",
         f"target_duration_s: {manifest.target_duration_s}",
@@ -200,22 +200,28 @@ def dump_reel_markdown(manifest: ContentManifest, reel_id: str = "REEL-001") -> 
     ]
 
     for turn in manifest.turns:
-        callout_type = "viv" if "viv" in turn.speaker.lower() else ("stefan" if "stefan" in turn.speaker.lower() else "jake")
+        callout_type = (
+            "viv"
+            if "viv" in turn.speaker.lower()
+            else ("stefan" if "stefan" in turn.speaker.lower() else "jake")
+        )
         voice_str = f"{turn.voice_id} • " if turn.voice_id else ""
         emotion_str = f"({voice_str}{turn.emotion})" if turn.emotion or turn.voice_id else ""
         lines.append(f"> [!speech|{callout_type}] {turn.speaker} {emotion_str}".strip())
         lines.append(f"> {turn.text}")
         lines.append("")
 
-    lines.extend([
-        "---",
-        "",
-        "> [!sfx] Audio Bed & Video Render Notes",
-        f"* **Total Words**: {manifest.total_words} words",
-        f"* **Estimated Runtime**: ~{manifest.calculated_duration_s}s",
-        "* **Hardware Acceleration**: Apple Silicon VideoToolbox 1080x1920 @ 60 FPS",
-        "",
-    ])
+    lines.extend(
+        [
+            "---",
+            "",
+            "> [!sfx] Audio Bed & Video Render Notes",
+            f"* **Total Words**: {manifest.total_words} words",
+            f"* **Estimated Runtime**: ~{manifest.calculated_duration_s}s",
+            "* **Hardware Acceleration**: Apple Silicon VideoToolbox 1080x1920 @ 60 FPS",
+            "",
+        ]
+    )
 
     return "\n".join(lines)
 
@@ -227,7 +233,11 @@ def list_reels_in_vault(vault_reels_dir: Path = DEFAULT_REELS_DIR) -> List[Dict[
 
     reels = []
     for p in sorted(vault_reels_dir.glob("*.md")):
-        if p.name.startswith(".") or "command_center" in p.name.lower() or p.name.lower() in ("readme.md", "reel_template.md"):
+        if (
+            p.name.startswith(".")
+            or "command_center" in p.name.lower()
+            or p.name.lower() in ("readme.md", "reel_template.md")
+        ):
             continue
         try:
             content = p.read_text(encoding="utf-8")
@@ -254,32 +264,35 @@ def list_reels_in_vault(vault_reels_dir: Path = DEFAULT_REELS_DIR) -> List[Dict[
                 video_name = default_take.name
                 video_url = f"/api/factory/video/{video_name}"
 
-            reels.append({
-                "file_name": p.name,
-                "file_path": str(p),
-                "obsidian_uri": f"obsidian://open?vault=vifi.co&file=reels/{p.name}",
-                "id": meta.get("id", p.stem),
-                "title": manifest.title,
-                "status": meta.get("status", "draft"),
-                "turns_count": len(manifest.turns),
-                "words": manifest.total_words,
-                "duration_s": manifest.calculated_duration_s,
-                "target_duration_s": manifest.target_duration_s,
-                "cast": [t.speaker for t in manifest.turns],
-                "video": vid_meta if isinstance(vid_meta, dict) else {"file": vid_meta},
-                "video_url": video_url,
-                "video_name": video_name,
-                "turns": [
-                    {
-                        "spk": t.speaker,
-                        "voice": t.voice_id or ("Aoede" if "viv" in t.speaker.lower() else "Charon"),
-                        "infl": t.emotion or "natural",
-                        "dur": f"{t.duration_s:.1f}s",
-                        "text": t.text,
-                    }
-                    for t in manifest.turns
-                ],
-            })
+            reels.append(
+                {
+                    "file_name": p.name,
+                    "file_path": str(p),
+                    "obsidian_uri": f"obsidian://open?vault=vifi.co&file=reels/{p.name}",
+                    "id": meta.get("id", p.stem),
+                    "title": manifest.title,
+                    "status": meta.get("status", "draft"),
+                    "turns_count": len(manifest.turns),
+                    "words": manifest.total_words,
+                    "duration_s": manifest.calculated_duration_s,
+                    "target_duration_s": manifest.target_duration_s,
+                    "cast": [t.speaker for t in manifest.turns],
+                    "video": vid_meta if isinstance(vid_meta, dict) else {"file": vid_meta},
+                    "video_url": video_url,
+                    "video_name": video_name,
+                    "turns": [
+                        {
+                            "spk": t.speaker,
+                            "voice": t.voice_id
+                            or ("Aoede" if "viv" in t.speaker.lower() else "Charon"),
+                            "infl": t.emotion or "natural",
+                            "dur": f"{t.duration_s:.1f}s",
+                            "text": t.text,
+                        }
+                        for t in manifest.turns
+                    ],
+                }
+            )
         except Exception as e:
             continue
     return reels
@@ -310,7 +323,12 @@ def update_reel_frontmatter_video(
   duration_s: {duration_s}"""
 
     if re.search(r"^video:\s*.*?(?=^[a-zA-Z0-9_-]+:|\Z)", raw_yaml, re.MULTILINE | re.DOTALL):
-        new_yaml = re.sub(r"^video:\s*.*?(?=^[a-zA-Z0-9_-]+:|\Z)", vid_block + "\n", raw_yaml, flags=re.MULTILINE | re.DOTALL)
+        new_yaml = re.sub(
+            r"^video:\s*.*?(?=^[a-zA-Z0-9_-]+:|\Z)",
+            vid_block + "\n",
+            raw_yaml,
+            flags=re.MULTILINE | re.DOTALL,
+        )
     else:
         new_yaml = raw_yaml.rstrip() + "\n" + vid_block + "\n"
 
@@ -367,10 +385,17 @@ def update_reel_turn_in_file(
 
     low_spk = final_speaker.lower()
     callout_type = (
-        "viv" if "viv" in low_spk
-        else ("stefan" if "stefan" in low_spk
-        else ("christopher" if any(x in low_spk for x in ["puck", "christopher", "walken"])
-        else "jake"))
+        "viv"
+        if "viv" in low_spk
+        else (
+            "stefan"
+            if "stefan" in low_spk
+            else (
+                "christopher"
+                if any(x in low_spk for x in ["puck", "christopher", "walken"])
+                else "jake"
+            )
+        )
     )
 
     voice_part = f"{final_voice} • " if final_voice else ""
@@ -379,7 +404,6 @@ def update_reel_turn_in_file(
     new_body = f"> {final_text}"
     new_block = f"{new_header}\n{new_body}\n"
 
-    new_content = content[:target_match.start()] + new_block + content[target_match.end():]
+    new_content = content[: target_match.start()] + new_block + content[target_match.end() :]
     file_path.write_text(new_content, encoding="utf-8")
     return True
-

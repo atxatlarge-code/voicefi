@@ -87,20 +87,24 @@ except objc.nosuchclass_error:
                 self.win.hide()
             return False
 
+
 # Ensure handlers are bound even if class was previously loaded into runtime
 def _delegate_window_did_move(self, notification):
     if hasattr(self, "win") and self.win:
         self.win.schedule_save_geometry()
 
+
 def _delegate_window_did_resize(self, notification):
     if hasattr(self, "win") and self.win:
         self.win.schedule_save_geometry()
+
 
 def _delegate_window_should_close(self, sender):
     if hasattr(self, "win") and self.win:
         self.win.save_geometry()
         self.win.hide()
     return False
+
 
 CompanionWindowDelegate.windowDidMove_ = _delegate_window_did_move
 CompanionWindowDelegate.windowDidResize_ = _delegate_window_did_resize
@@ -150,6 +154,7 @@ class CompanionDesktopWindow:
             if port is None:
                 try:
                     from voicefi.config import load_config
+
                     cfg = load_config()
                     port = getattr(getattr(cfg, "companion", None), "port", 5141)
                 except Exception:
@@ -169,10 +174,13 @@ class CompanionDesktopWindow:
 
     def _build_window(self):
         """Construct the NSPanel and WKWebView on the main thread."""
+
         def _do_build():
             try:
                 screen = NSScreen.mainScreen()
-                screen_frame = screen.visibleFrame() if screen else NSRect(NSPoint(0, 0), NSSize(1440, 900))
+                screen_frame = (
+                    screen.visibleFrame() if screen else NSRect(NSPoint(0, 0), NSSize(1440, 900))
+                )
 
                 width = 460.0
                 height = 760.0
@@ -181,6 +189,7 @@ class CompanionDesktopWindow:
 
                 try:
                     from voicefi.config import load_config
+
                     cfg = load_config()
                     comp = getattr(cfg, "companion", None)
                     if comp:
@@ -198,10 +207,12 @@ class CompanionDesktopWindow:
                         screens = NSScreen.screens()
                         for sc in screens:
                             sf = sc.visibleFrame()
-                            if (saved_x + width > sf.origin.x + 30.0 and
-                                saved_x < sf.origin.x + sf.size.width - 30.0 and
-                                saved_y + height > sf.origin.y + 30.0 and
-                                saved_y < sf.origin.y + sf.size.height - 30.0):
+                            if (
+                                saved_x + width > sf.origin.x + 30.0
+                                and saved_x < sf.origin.x + sf.size.width - 30.0
+                                and saved_y + height > sf.origin.y + 30.0
+                                and saved_y < sf.origin.y + sf.size.height - 30.0
+                            ):
                                 x = saved_x
                                 y = saved_y
                                 placed = True
@@ -232,9 +243,7 @@ class CompanionDesktopWindow:
                 self._panel.setTitle_("VoiceFi Companion")
                 self._panel.setMinSize_(NSSize(380, 500))
                 self._panel.setBackgroundColor_(NSColor.blackColor())
-                self._panel.setCollectionBehavior_(
-                    NSWindowCollectionBehaviorMoveToActiveSpace
-                )
+                self._panel.setCollectionBehavior_(NSWindowCollectionBehaviorMoveToActiveSpace)
 
                 # WebKit Configuration
                 config = WKWebViewConfiguration.alloc().init()
@@ -313,6 +322,7 @@ class CompanionDesktopWindow:
                 pass
 
             from voicefi.config import load_config, save_config
+
             cfg = load_config()
             cfg.companion.window_x = x
             cfg.companion.window_y = y
@@ -325,6 +335,7 @@ class CompanionDesktopWindow:
 
     def show(self):
         """Bring the companion window to the front and focus it."""
+
         def _do_show():
             if not self._panel:
                 self._build_window()
@@ -335,7 +346,11 @@ class CompanionDesktopWindow:
                 if self._webview:
                     curr_url = self._webview.URL()
                     target_url = f"http://127.0.0.1:{self.port}"
-                    if not self._webview.isLoading() and (not curr_url or not curr_url.absoluteString() or not curr_url.absoluteString().startswith(f"http://127.0.0.1:{self.port}")):
+                    if not self._webview.isLoading() and (
+                        not curr_url
+                        or not curr_url.absoluteString()
+                        or not curr_url.absoluteString().startswith(f"http://127.0.0.1:{self.port}")
+                    ):
                         req = NSURLRequest.requestWithURL_(NSURL.URLWithString_(target_url))
                         self._webview.loadRequest_(req)
                 self._panel.makeKeyAndOrderFront_(None)
@@ -412,7 +427,10 @@ class CompanionDesktopWindow:
                         js = f"if (typeof fetchConversationDetails === 'function') {{ activeConvId = '{new_id}'; fetchConversationDetails('{new_id}'); }}"
                         self._webview.evaluateJavaScript_completionHandler_(js, None)
             except Exception as e:
-                print(f"[CompanionWindow] Notice: Companion server API unreachable ({e}), executing via direct LocalModelEngine...", flush=True)
+                print(
+                    f"[CompanionWindow] Notice: Companion server API unreachable ({e}), executing via direct LocalModelEngine...",
+                    flush=True,
+                )
                 try:
                     import asyncio
                     from voicefi.integrations.conversations import save_gemma_turn
@@ -434,6 +452,9 @@ class CompanionDesktopWindow:
                     except Exception as speak_err:
                         print(f"[CompanionWindow] TTS playback notice: {speak_err}", flush=True)
                 except Exception as fallback_err:
-                    print(f"[CompanionWindow] Direct local execution error: {fallback_err}", flush=True)
+                    print(
+                        f"[CompanionWindow] Direct local execution error: {fallback_err}",
+                        flush=True,
+                    )
 
         threading.Thread(target=_submit, daemon=True, name="CompanionPromptSubmit").start()

@@ -16,4 +16,3 @@ __all__ = [
     "FORMAT_PRESETS",
     "SPEAKER_PALETTES",
 ]
-

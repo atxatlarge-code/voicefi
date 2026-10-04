@@ -98,13 +98,21 @@ class ReconScout:
             }
             truncated = False
             for root, dirs, files in os.walk(path):
-                dirs[:] = [
-                    d for d in dirs
-                    if d not in ignore_dirs and not d.startswith(".")
-                ]
+                dirs[:] = [d for d in dirs if d not in ignore_dirs and not d.startswith(".")]
                 for file in files:
                     if file.startswith(".") or file.endswith(
-                        (".pyc", ".png", ".jpg", ".jpeg", ".wav", ".mp3", ".dmg", ".dylib", ".so", ".DS_Store")
+                        (
+                            ".pyc",
+                            ".png",
+                            ".jpg",
+                            ".jpeg",
+                            ".wav",
+                            ".mp3",
+                            ".dmg",
+                            ".dylib",
+                            ".so",
+                            ".DS_Store",
+                        )
                     ):
                         continue
                     fp = Path(root) / file
@@ -265,15 +273,23 @@ class ReconScout:
         """Query local Ollama instance with auto-discovery and thermal safety guard."""
         import json
         import urllib.request
+
         try:
             from voicefi.local.supervisor import default_supervisor
+
             default_supervisor.wait_if_throttled(poll_interval=2.0, max_wait=10.0)
         except Exception:
             pass
 
         base_url = os.environ.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
         # 1. Discover models
-        preferred = ["qwen2.5-coder:1.5b", "gemma2:2b", "llama3.2:1b", "tev1:latest", "nimble:latest"]
+        preferred = [
+            "qwen2.5-coder:1.5b",
+            "gemma2:2b",
+            "llama3.2:1b",
+            "tev1:latest",
+            "nimble:latest",
+        ]
         selected_model = None
         try:
             req = urllib.request.Request(f"{base_url}/api/tags")
@@ -356,7 +372,13 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="VoiceFi On-Device Recon Scout")
     parser.add_argument("target", type=str, help="Target file or directory to pre-digest")
-    parser.add_argument("--query", "-q", type=str, default="Analyze this file, identify any errors or anomalies, and extract key functions/logic.", help="Recon objective")
+    parser.add_argument(
+        "--query",
+        "-q",
+        type=str,
+        default="Analyze this file, identify any errors or anomalies, and extract key functions/logic.",
+        help="Recon objective",
+    )
     parser.add_argument("--json", action="store_true", help="Output results as JSON")
     args = parser.parse_args()
 
@@ -365,6 +387,7 @@ if __name__ == "__main__":
 
     if args.json:
         import json
+
         print(json.dumps(res.to_dict(), indent=2))
     else:
         print(f"=== VoiceFi Recon Scout [{res.model_name}] ===")

@@ -53,7 +53,13 @@ from voicefi.factory.models import ContentJob, ContentType, JobStatus
 from voicefi.factory.queue import ContentFactoryQueue
 from voicefi.factory.generator import LocalContentGenerator
 from voicefi.factory.server import ContentFactoryServer
-from voicefi.audio.live_stream import calculate_rms, MIC_SAMPLE_RATE, SPEAKER_SAMPLE_RATE, CHUNK_MS, MIC_BLOCK_SIZE
+from voicefi.audio.live_stream import (
+    calculate_rms,
+    MIC_SAMPLE_RATE,
+    SPEAKER_SAMPLE_RATE,
+    CHUNK_MS,
+    MIC_BLOCK_SIZE,
+)
 from voicefi.audio.output_lock import exclusive_audio, force_release_audio_lock
 from voicefi.tts.base import speech_turn_lock, set_agent_speaking, is_agent_speaking
 from voicefi.mcp_server import VoiceFiMCPServer
@@ -89,7 +95,7 @@ class HardwareGuard:
     def get_free_ram_gb(cls) -> float:
         if psutil is not None:
             try:
-                return psutil.virtual_memory().available / (1024.0 ** 3)
+                return psutil.virtual_memory().available / (1024.0**3)
             except Exception:
                 pass
         return 16.0  # Safe default if psutil unavailable
@@ -147,7 +153,9 @@ class OvernightStressHarness:
         self.db_path = db_path or (self.temp_dir / "overnight_factory.db")
 
         self.queue = ContentFactoryQueue(db_path=self.db_path)
-        self.generator = LocalContentGenerator(preferred_endpoint="http://127.0.0.1:99999/v1")  # deterministic local fallback
+        self.generator = LocalContentGenerator(
+            preferred_endpoint="http://127.0.0.1:99999/v1"
+        )  # deterministic local fallback
         self.mcp_server = VoiceFiMCPServer()
 
         self.running = True
@@ -185,7 +193,7 @@ class OvernightStressHarness:
             topic = STRESS_TOPICS[(cycle_idx + j) % len(STRESS_TOPICS)]
             job = ContentJob(
                 batch_name=f"cycle_{cycle_idx}",
-                title=f"Stress Cycle {cycle_idx} #{j+1}",
+                title=f"Stress Cycle {cycle_idx} #{j + 1}",
                 prompt=topic,
                 characters=["Viv", "Stefan"],
                 priority=10 + j,
@@ -233,8 +241,7 @@ class OvernightStressHarness:
                     )
 
         workers = [
-            asyncio.create_task(worker_task(w))
-            for w in range(min(self.concurrency, job_count))
+            asyncio.create_task(worker_task(w)) for w in range(min(self.concurrency, job_count))
         ]
         await asyncio.gather(*workers)
         elapsed = time.perf_counter() - t0
@@ -466,7 +473,7 @@ class OvernightStressHarness:
         max_mcp = max(mcp_lats)
 
         spoken_briefing = (
-            f"Good morning Jake. Overnight multi-job stress completed {cycles} cycles in {total_runtime_s/3600:.1f} hours. "
+            f"Good morning Jake. Overnight multi-job stress completed {cycles} cycles in {total_runtime_s / 3600:.1f} hours. "
             f"Content Factory processed {self.stats['jobs_processed']} jobs saving {self.stats['tokens_saved']:,} tokens locally. "
             f"Full-duplex barge-in sustained average latency of {avg_barge:.1f} milliseconds with {self.stats['buffer_underruns']} underruns. "
             f"Lock integrity passed with 0 deadlocks across {self.stats['lock_cycles']} cycles."
@@ -476,14 +483,14 @@ class OvernightStressHarness:
             "# 🌙 VoiceFi Autonomous Overnight Concurrency & Duplex Report",
             "",
             f"**Generated**: {time.strftime('%Y-%m-%d %H:%M:%S')}  ",
-            f"**Branch**: `test/overnight-duplex-concurrency-stress`  ",
+            "**Branch**: `test/overnight-duplex-concurrency-stress`  ",
             f"**Runtime**: {total_runtime_s / 60:.1f} minutes ({total_runtime_s / 3600:.2f} hours)  ",
             f"**Cycles Completed**: {cycles}  ",
             "",
             "---",
             "",
             "## 🎙️ Spoken Morning Briefing (Ava/Viv)",
-            f"> *\"{spoken_briefing}\"*",
+            f'> *"{spoken_briefing}"*',
             "",
             "---",
             "",
@@ -516,12 +523,27 @@ class OvernightStressHarness:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="VoiceFi Overnight Concurrency & Duplex Stress Harness")
-    parser.add_argument("--hours", type=float, default=6.0, help="Maximum execution hours (default: 6.0)")
-    parser.add_argument("--iterations", type=int, default=100, help="Maximum test cycles (default: 100)")
-    parser.add_argument("--concurrency", type=int, default=2, help="Number of concurrent factory workers (default: 2)")
-    parser.add_argument("--dry-run", action="store_true", help="Execute 1 rapid validation cycle and exit")
-    parser.add_argument("--infinite", action="store_true", help="Run infinitely until manually stopped")
+    parser = argparse.ArgumentParser(
+        description="VoiceFi Overnight Concurrency & Duplex Stress Harness"
+    )
+    parser.add_argument(
+        "--hours", type=float, default=6.0, help="Maximum execution hours (default: 6.0)"
+    )
+    parser.add_argument(
+        "--iterations", type=int, default=100, help="Maximum test cycles (default: 100)"
+    )
+    parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=2,
+        help="Number of concurrent factory workers (default: 2)",
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Execute 1 rapid validation cycle and exit"
+    )
+    parser.add_argument(
+        "--infinite", action="store_true", help="Run infinitely until manually stopped"
+    )
     parser.add_argument("--db-path", type=Path, default=None, help="Custom SQLite database path")
 
     args = parser.parse_args()

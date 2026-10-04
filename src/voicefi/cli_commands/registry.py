@@ -100,7 +100,6 @@ from voicefi.cli_commands.fix import cmd_fix
 from voicefi.cli_commands.doctor import cmd_doctor
 
 
-
 def get_command_handlers(parser: Any = None) -> Dict[str, Callable[[Any], Any]]:
     """Return dictionary of CLI subcommand names and aliases mapped to handlers."""
     handlers: Dict[str, Callable[[Any], Any]] = {

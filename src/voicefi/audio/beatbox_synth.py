@@ -45,11 +45,7 @@ def synth_beatbox_kick(dur: float = 0.32, sr: int = SAMPLE_RATE) -> np.ndarray:
     body += 0.22 * np.sin(phase * 2.0) * np.exp(-t / 0.08)
 
     # Lip pop transient (mouth air release click with sub-millisecond fade-in)
-    click = (
-        np.random.uniform(-0.6, 0.6, n)
-        * np.exp(-t / 0.005)
-        * np.minimum(t / 0.0005, 1.0)
-    )
+    click = np.random.uniform(-0.6, 0.6, n) * np.exp(-t / 0.005) * np.minimum(t / 0.0005, 1.0)
 
     kick = body * 0.88 + click * 0.25
     return np.clip(kick, -1.0, 1.0).astype(np.float32)
@@ -71,11 +67,7 @@ def synth_beatbox_snare(dur: float = 0.28, sr: int = SAMPLE_RATE) -> np.ndarray:
     tone = np.sin(tone_phase) * np.exp(-t / 0.038)
 
     # Tongue-palate release transient with micro-fade-in
-    click = (
-        np.random.uniform(-0.8, 0.8, n)
-        * np.exp(-t / 0.003)
-        * np.minimum(t / 0.0005, 1.0)
-    )
+    click = np.random.uniform(-0.8, 0.8, n) * np.exp(-t / 0.003) * np.minimum(t / 0.0005, 1.0)
 
     # Filtered vocal noise tail (simulating inward air rush)
     noise = np.random.normal(0, 1, n)
@@ -217,7 +209,7 @@ def synth_tongue_roll(
     # Tongue impact transients
     clicks = np.random.uniform(-0.3, 0.3, n) * (trill > 0.85)
 
-    roll = (voice * trill * 0.75 + clicks * 0.35)
+    roll = voice * trill * 0.75 + clicks * 0.35
     env = np.ones(n)
     att_len = int(0.01 * sr)
     fade_len = int(0.03 * sr)
@@ -436,7 +428,9 @@ def generate_taras_beatbox_routine(
 # --- File Output & Playback Utilities ---
 
 
-def save_beatbox_wav(audio_data: np.ndarray, file_path: Union[str, Path], sr: int = SAMPLE_RATE) -> Path:
+def save_beatbox_wav(
+    audio_data: np.ndarray, file_path: Union[str, Path], sr: int = SAMPLE_RATE
+) -> Path:
     """Save floating-point audio data as 16-bit PCM WAV."""
     p = Path(file_path).resolve()
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -532,9 +526,7 @@ def play_beatbox(
         # Clean up immediately if blocking or under test mode;
         # non-blocking playback is cleaned up by _play_async once finished.
         if (
-            block
-            or os.getenv("VOICEFI_TESTING") == "1"
-            or os.getenv("VOICEFI_HEADLESS") == "1"
+            block or os.getenv("VOICEFI_TESTING") == "1" or os.getenv("VOICEFI_HEADLESS") == "1"
         ) and tmp_path.is_file():
             try:
                 tmp_path.unlink()

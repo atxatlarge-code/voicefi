@@ -30,7 +30,9 @@ def main():
     # Backing track
     backing_track = Path("build/companion_static/downloads/spicewood_texas_beat_85bpm.mp3")
     if not backing_track.exists():
-        backing_track = Path("/Users/jaketrigg/Projects/vifi.co/marketing/social/assets/spicewood_texas_beat_85bpm.mp3")
+        backing_track = Path(
+            "/Users/jaketrigg/Projects/vifi.co/marketing/social/assets/spicewood_texas_beat_85bpm.mp3"
+        )
 
     logger.info("Generating punchy on-device vs cloud debate dialogue using local Ollama model...")
     job = ContentJob(
@@ -44,7 +46,7 @@ def main():
     manifest, tokens_saved, gen_sec = generator.generate_manifest(job)
     logger.info(f"Script ready in {gen_sec:.2f}s: '{manifest.title}' ({len(manifest.turns)} turns)")
     for idx, t in enumerate(manifest.turns):
-        logger.info(f"  Turn {idx+1} [{t.speaker}] ({t.emotion}): {t.text}")
+        logger.info(f"  Turn {idx + 1} [{t.speaker}] ({t.emotion}): {t.text}")
 
     # =========================================================================
     # 1. Generate Baseline (Flat Single-Voice Monologue)
@@ -52,14 +54,20 @@ def main():
     logger.info("\n--- Generating Baseline File (Flat Single-Voice Monologue) ---")
     t0 = time.time()
     baseline_mp3 = out_dir / "baseline_monotone_raw.mp3"
-    ok_base = synth.synthesize_baseline_monotone(manifest, baseline_mp3, single_voice="en-US-JennyNeural")
+    ok_base = synth.synthesize_baseline_monotone(
+        manifest, baseline_mp3, single_voice="en-US-JennyNeural"
+    )
     base_sec = time.time() - t0
-    logger.info(f"Baseline generated in {base_sec:.2f}s -> {baseline_mp3} ({baseline_mp3.stat().st_size} bytes)")
+    logger.info(
+        f"Baseline generated in {base_sec:.2f}s -> {baseline_mp3} ({baseline_mp3.stat().st_size} bytes)"
+    )
 
     # =========================================================================
     # 2. Generate Stage 2 (Multi-Speaker Turn Synthesis + Conversational Pauses + Ducking)
     # =========================================================================
-    logger.info("\n--- Generating Stage 2 Mastered Audio (Multi-Speaker + Pauses + Ducked Beat) ---")
+    logger.info(
+        "\n--- Generating Stage 2 Mastered Audio (Multi-Speaker + Pauses + Ducked Beat) ---"
+    )
     t0 = time.time()
     stage2_res = synth.synthesize_manifest(
         manifest=manifest,
@@ -73,6 +81,7 @@ def main():
     final_stage2_mp3 = out_dir / "stage2_multispeaker_mastered.mp3"
     if stage2_res.get("master_mix_mp3"):
         import shutil
+
         shutil.copy2(stage2_res["master_mix_mp3"], final_stage2_mp3)
 
     print("\n" + "=" * 70)
@@ -83,14 +92,14 @@ def main():
     print("-" * 70)
     print("1️⃣  BASELINE (Raw Generic Monologue):")
     print(f"    Path:     {baseline_mp3.resolve()}")
-    print(f"    Voice:    Single voice (Jenny), no character chemistry, zero music, flat pace.")
+    print("    Voice:    Single voice (Jenny), no character chemistry, zero music, flat pace.")
     print(f"    Size:     {baseline_mp3.stat().st_size} bytes")
     print("")
     print("2️⃣  STAGE 2 (VoiceFi Multi-Speaker Mastered Mix):")
     print(f"    Path:     {final_stage2_mp3.resolve()}")
-    print(f"    Voices:   Viv (AvaNeural) + Jake (AndrewNeural)")
-    print(f"    Features: Individual character formants, 140ms conversational gaps,")
-    print(f"              and sidechain ducking over 85 BPM Spicewood Texas beat.")
+    print("    Voices:   Viv (AvaNeural) + Jake (AndrewNeural)")
+    print("    Features: Individual character formants, 140ms conversational gaps,")
+    print("              and sidechain ducking over 85 BPM Spicewood Texas beat.")
     print(f"    Size:     {final_stage2_mp3.stat().st_size} bytes")
     print("=" * 70 + "\n")
 

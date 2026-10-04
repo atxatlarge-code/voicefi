@@ -282,8 +282,12 @@ def cmd_spatial(args):
         from voicefi.audio.spatial import create_binaural_360_orbit
 
         print("🌐 Playing True 360° Binaural HRTF Orbit...")
-        print("   Trajectory: Front (0°) ➔ Right (90°) ➔ Behind Neck (180°) ➔ Left (270°) ➔ Front (360°)")
-        print("   Acoustic Cues: ITD time delay, pinna shadow filtering, and rear attenuation active.")
+        print(
+            "   Trajectory: Front (0°) ➔ Right (90°) ➔ Behind Neck (180°) ➔ Left (270°) ➔ Front (360°)"
+        )
+        print(
+            "   Acoustic Cues: ITD time delay, pinna shadow filtering, and rear attenuation active."
+        )
         sweep = create_binaural_360_orbit(duration=7.0, sample_rate=44100)
         sd.play(sweep, samplerate=44100)
         sd.wait()
@@ -300,7 +304,9 @@ def cmd_spatial(args):
     elif text_args:
         text = " ".join(text_args) if isinstance(text_args, list) else str(text_args)
         agent = getattr(args, "agent", None) or "antigravity"
-        print(f"🗣️ Speaking with spatial pan ({pan_override if pan_override is not None else 'auto'}): \"{text}\"")
+        print(
+            f'🗣️ Speaking with spatial pan ({pan_override if pan_override is not None else "auto"}): "{text}"'
+        )
         success = play_spatial_speech(text, agent_name=agent, pan=pan_override, block=True)
     else:
         success = run_spatial_multiagent_audition(block=True, with_speech=with_speech)

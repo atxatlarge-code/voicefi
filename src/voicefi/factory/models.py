@@ -89,7 +89,7 @@ class ContentManifest:
                 spk = s.get("speaker", "Viv")
                 raw_text = s.get("hook", "")
                 # Clean quotation marks for natural speech delivery
-                clean_text = raw_text.replace("“", "").replace("”", "").replace('"', '').strip()
+                clean_text = raw_text.replace("“", "").replace("”", "").replace('"', "").strip()
                 turns.append(
                     ScriptDialogueTurn(
                         speaker=spk,
@@ -101,18 +101,26 @@ class ContentManifest:
                 )
 
         total_words = int(data.get("total_words", sum(len(t.text.split()) for t in turns)))
-        calc_dur = float(data.get("duration_seconds") or data.get("calculated_duration_s") or (total_words / 2.5))
+        calc_dur = float(
+            data.get("duration_seconds") or data.get("calculated_duration_s") or (total_words / 2.5)
+        )
         backing = data.get("backing_track")
         if not backing and isinstance(data.get("audio"), dict):
             backing = data["audio"].get("backing_track")
 
         if isinstance(backing, dict):
-            backing = backing.get("fallback_file") or backing.get("primary_file") or backing.get("recommendation")
+            backing = (
+                backing.get("fallback_file")
+                or backing.get("primary_file")
+                or backing.get("recommendation")
+            )
 
         return cls(
             title=data.get("title", "Untitled Content"),
             content_type=data.get("content_type", ContentType.REEL_9_16.value),
-            target_duration_s=float(data.get("duration_seconds", data.get("target_duration_s", 30.0))),
+            target_duration_s=float(
+                data.get("duration_seconds", data.get("target_duration_s", 30.0))
+            ),
             aspect_ratio=data.get("aspect_ratio", "9:16"),
             turns=turns,
             backing_track=backing,

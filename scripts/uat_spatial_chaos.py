@@ -37,13 +37,15 @@ class SpatialUATTester:
 
     def record(self, test_name: str, passed: bool, details: str, duration_s: float):
         status = "✅ SURVIVED" if passed else "❌ BROKEN"
-        print(f"{status} | {test_name:<38} ({duration_s*1000:6.2f}ms) - {details}")
-        self.results.append({
-            "test": test_name,
-            "passed": passed,
-            "details": details,
-            "duration_ms": round(duration_s * 1000, 2),
-        })
+        print(f"{status} | {test_name:<38} ({duration_s * 1000:6.2f}ms) - {details}")
+        self.results.append(
+            {
+                "test": test_name,
+                "passed": passed,
+                "details": details,
+                "duration_ms": round(duration_s * 1000, 2),
+            }
+        )
 
     def run_all(self):
         print("\n" + "=" * 70)
@@ -61,7 +63,9 @@ class SpatialUATTester:
         passed_count = sum(1 for r in self.results if r["passed"])
         total_count = len(self.results)
         pct = (passed_count / total_count) * 100
-        print(f"Overall Result: {passed_count}/{total_count} chaos tests survived ({pct:.1f}% resilient)")
+        print(
+            f"Overall Result: {passed_count}/{total_count} chaos tests survived ({pct:.1f}% resilient)"
+        )
         print("=" * 70 + "\n")
         return passed_count == total_count
 
@@ -105,7 +109,9 @@ class SpatialUATTester:
             assert res_empty.shape == (0, 2)
 
             # Audio containing NaNs and Infs
-            dirty = np.array([0.5, float("nan"), -0.5, float("inf"), float("-inf")], dtype=np.float32)
+            dirty = np.array(
+                [0.5, float("nan"), -0.5, float("inf"), float("-inf")], dtype=np.float32
+            )
             res_dirty = pan_audio(dirty, pan=0.5)
             assert not np.isnan(res_dirty).any()
             assert not np.isinf(res_dirty).any()
@@ -128,7 +134,9 @@ class SpatialUATTester:
                 time.time() - t0,
             )
         except Exception as e:
-            self.record("Pathological Audio Buffers", False, f"Failed on dirty audio: {e}", time.time() - t0)
+            self.record(
+                "Pathological Audio Buffers", False, f"Failed on dirty audio: {e}", time.time() - t0
+            )
 
     # 3. Extreme Buffer Stress
     def test_extreme_buffer_stress(self):
@@ -143,7 +151,7 @@ class SpatialUATTester:
             self.record(
                 "5M Sample Buffer Stress (~208s audio)",
                 True,
-                f"Processed 5,000,000 samples into stereo in {dur*1000:.1f}ms without memory exhaustion.",
+                f"Processed 5,000,000 samples into stereo in {dur * 1000:.1f}ms without memory exhaustion.",
                 dur,
             )
         except Exception as e:
@@ -179,18 +187,29 @@ class SpatialUATTester:
                 time.time() - t0,
             )
         except Exception as e:
-            self.record("Concurrency Dogpile (32 Threads)", False, f"Contention deadlock/failure: {e}", time.time() - t0)
+            self.record(
+                "Concurrency Dogpile (32 Threads)",
+                False,
+                f"Contention deadlock/failure: {e}",
+                time.time() - t0,
+            )
 
     # 5. CoreAudio Driver Chaos
     def test_coreaudio_driver_chaos(self):
         t0 = time.time()
         try:
             # Simulate CoreAudio daemon crash / device query explosion
-            with patch("voicefi.audio.device.is_headphone_or_headset_active", side_effect=RuntimeError("HAL server died")):
+            with patch(
+                "voicefi.audio.device.is_headphone_or_headset_active",
+                side_effect=RuntimeError("HAL server died"),
+            ):
                 res_pan = adapt_pan_for_active_device(-0.6)
                 assert res_pan == -0.6  # Fails open gracefully
 
-            with patch("voicefi.audio.device.is_headphone_or_headset_active", side_effect=OSError("CoreAudio device not found")):
+            with patch(
+                "voicefi.audio.device.is_headphone_or_headset_active",
+                side_effect=OSError("CoreAudio device not found"),
+            ):
                 agent_pan = get_agent_pan("antigravity", adapt_for_device=True)
                 assert agent_pan < 0.0  # Still resolves Antigravity to left channel
 
@@ -201,7 +220,9 @@ class SpatialUATTester:
                 time.time() - t0,
             )
         except Exception as e:
-            self.record("CoreAudio Driver Chaos", False, f"Failed on driver chaos: {e}", time.time() - t0)
+            self.record(
+                "CoreAudio Driver Chaos", False, f"Failed on driver chaos: {e}", time.time() - t0
+            )
 
     # 6. Power Conservation Invariant
     def test_power_conservation_invariant(self):
@@ -229,7 +250,12 @@ class SpatialUATTester:
                 time.time() - t0,
             )
         except Exception as e:
-            self.record("Acoustic Power Invariant", False, f"Power conservation broken: {e}", time.time() - t0)
+            self.record(
+                "Acoustic Power Invariant",
+                False,
+                f"Power conservation broken: {e}",
+                time.time() - t0,
+            )
 
 
 if __name__ == "__main__":

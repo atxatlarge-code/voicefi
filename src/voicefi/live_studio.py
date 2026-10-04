@@ -329,7 +329,10 @@ class GeminiLiveStudio:
                         print(f"\n🎤 You: {it.text}")
                         user_name = getattr(self.config, "user_name", "Jake")
                         set_cross_process_hud_state(
-                            "listening", text=it.text[:35], user_name=user_name, agent_name="Gemini Live"
+                            "listening",
+                            text=it.text[:35],
+                            user_name=user_name,
+                            agent_name="Gemini Live",
                         )
 
                     # Model speech transcription

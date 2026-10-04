@@ -84,10 +84,7 @@ def cmd_implement(args: Any) -> None:
     from voicefi.local import ReconImplementer
 
     target = getattr(args, "target", None)
-    instruction = (
-        getattr(args, "instruction", None)
-        or getattr(args, "query", None)
-    )
+    instruction = getattr(args, "instruction", None) or getattr(args, "query", None)
     apply = getattr(args, "apply", True)
     model_scout = getattr(args, "model_scout", "gemma4-2b") or "gemma4-2b"
     model_coder = getattr(args, "model_coder", "gemma4-26b") or "gemma4-26b"
@@ -99,13 +96,17 @@ def cmd_implement(args: Any) -> None:
     print(f"🛠️  Launching VoiceFi Recon Implementer on `{target}`...")
     print(f"   Tier 1 (Scout): {model_scout} | Tier 2 (Coder): {model_coder}")
     implementer = ReconImplementer(model_scout=model_scout, model_coder=model_coder)
-    res = asyncio.run(implementer.implement(target_path=target, instruction=instruction, apply=apply))
+    res = asyncio.run(
+        implementer.implement(target_path=target, instruction=instruction, apply=apply)
+    )
 
     if res.error and not res.diff:
         print(f"\n❌ Implementation failed: {res.error}")
         return
 
-    print(f"\n⚡ Completed in {res.total_duration}s (Scout: {res.scout_duration}s, Coder: {res.coder_duration}s)")
+    print(
+        f"\n⚡ Completed in {res.total_duration}s (Scout: {res.scout_duration}s, Coder: {res.coder_duration}s)"
+    )
     print(f"💰 Token Savings: {res.tokens_saved} tokens ({res.savings_pct}% context preserved)")
     print(f"📝 Applied to Disk: {'Yes' if res.applied else 'No (Dry Run / Unmatched)'}")
     print("-" * 60)
@@ -131,9 +132,7 @@ def cmd_auto(args: Any) -> int:
     test_cmd = getattr(args, "test", None)
     max_turns = getattr(args, "max_turns", 5) or 5
     model = (
-        getattr(args, "model", None)
-        or getattr(args, "model_coder", None)
-        or "qwen2.5-coder:1.5b"
+        getattr(args, "model", None) or getattr(args, "model_coder", None) or "qwen2.5-coder:1.5b"
     )
 
     print("🤖 Launching VoiceFi Autonomous Local Loop on Apple Silicon Metal GPU...")
@@ -158,11 +157,10 @@ def cmd_auto(args: Any) -> int:
         if s.thought:
             print(f"    Thought: {s.thought}")
         print(f"    Args: {json.dumps(s.arguments)}")
-        obs_preview = s.observation[:120].replace('\n', ' ')
+        obs_preview = s.observation[:120].replace("\n", " ")
         print(f"    Observation: {obs_preview}...\n")
 
     return 0 if res.completed else 1
-
 
 
 def cmd_benchmark(args: Any) -> None:

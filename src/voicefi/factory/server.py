@@ -111,7 +111,9 @@ class ContentFactoryServer:
                 status="ACTIVE",
                 job_id=job_id,
             )
-            self.queue.update_job_stage(job_id=job_id, stage="SCRIPTING", status=JobStatus.SCRIPTING.value)
+            self.queue.update_job_stage(
+                job_id=job_id, stage="SCRIPTING", status=JobStatus.SCRIPTING.value
+            )
 
             if job.manifest_data:
                 logger.info(f"[{worker_id}] Using pre-loaded manifest data for Job #{job_id}.")
@@ -122,7 +124,9 @@ class ContentFactoryServer:
                 manifest, tokens_saved, script_sec = await asyncio.to_thread(
                     self.generator.generate_manifest, job
                 )
-                logger.info(f"[{worker_id}] Job #{job_id} Script generated in {script_sec:.2f}s ({tokens_saved} tokens saved).")
+                logger.info(
+                    f"[{worker_id}] Job #{job_id} Script generated in {script_sec:.2f}s ({tokens_saved} tokens saved)."
+                )
 
             self.queue.update_job_stage(
                 job_id=job_id,
@@ -148,6 +152,7 @@ class ContentFactoryServer:
             turn_files: List[Path] = []
 
             import re
+
             for idx, turn in enumerate(manifest.turns):
                 turn_audio_path = job_out_dir / f"turn_{idx:02d}_{turn.speaker}.wav"
                 engine = get_tts_engine(
@@ -157,7 +162,9 @@ class ContentFactoryServer:
                 )
                 # Strip out [sfx:...] tags so speech synthesis doesn't verbalize sound effect markers
                 clean_spoken_text = re.sub(r"\[sfx:[^\]]+\]", "", turn.text).strip()
-                success = await asyncio.to_thread(engine.speak_to_file, clean_spoken_text, turn_audio_path)
+                success = await asyncio.to_thread(
+                    engine.speak_to_file, clean_spoken_text, turn_audio_path
+                )
                 if success and turn_audio_path.exists():
                     turn.audio_path = str(turn_audio_path)
                     turn_files.append(turn_audio_path)
@@ -176,7 +183,9 @@ class ContentFactoryServer:
                 candidates = [
                     Path(manifest.backing_track),
                     Path("/Users/jaketrigg/Projects/vifi.co") / manifest.backing_track,
-                    Path("/Users/jaketrigg/Projects/vifi.co/marketing/social/assets/spicewood_texas_beat_85bpm.mp3"),
+                    Path(
+                        "/Users/jaketrigg/Projects/vifi.co/marketing/social/assets/spicewood_texas_beat_85bpm.mp3"
+                    ),
                 ]
                 for c in candidates:
                     if c.exists() and c.is_file():
@@ -186,7 +195,9 @@ class ContentFactoryServer:
             final_audio_path = master_audio_path
             if backing_track_path and master_audio_path.exists():
                 mixed_audio_path = job_out_dir / f"job_{job_id:04d}_mix.wav"
-                await asyncio.to_thread(self._mix_backing_track, master_audio_path, backing_track_path, mixed_audio_path)
+                await asyncio.to_thread(
+                    self._mix_backing_track, master_audio_path, backing_track_path, mixed_audio_path
+                )
                 if mixed_audio_path.exists():
                     final_audio_path = mixed_audio_path
 
@@ -241,14 +252,20 @@ class ContentFactoryServer:
                 f.write(f"file '{p.resolve()}'\n")
 
         import subprocess
+
         cmd = [
             "ffmpeg",
             "-y",
-            "-f", "concat",
-            "-safe", "0",
-            "-i", str(concat_txt),
-            "-ar", "48000",
-            "-ac", "2",
+            "-f",
+            "concat",
+            "-safe",
+            "0",
+            "-i",
+            str(concat_txt),
+            "-ar",
+            "48000",
+            "-ac",
+            "2",
             str(output_wav),
         ]
         try:
@@ -261,24 +278,34 @@ class ContentFactoryServer:
     def _mix_backing_track(self, vocal_wav: Path, backing_track: Path, output_wav: Path) -> None:
         """Mix vocal audio with backing track applying ducking and 48kHz normalization."""
         import subprocess
+
         # Vocal (0:a) + Backing Track (1:a) ducked to -14dB (~0.20 volume)
         cmd = [
             "ffmpeg",
             "-y",
-            "-i", str(vocal_wav),
-            "-i", str(backing_track),
+            "-i",
+            str(vocal_wav),
+            "-i",
+            str(backing_track),
             "-filter_complex",
             "[1:a]volume=0.20[bg];[0:a][bg]amix=inputs=2:duration=first:dropout_transition=2[out]",
-            "-map", "[out]",
-            "-ar", "48000",
-            "-ac", "2",
+            "-map",
+            "[out]",
+            "-ar",
+            "48000",
+            "-ac",
+            "2",
             str(output_wav),
         ]
         try:
             subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
             # Also export an MP3 copy next to it
             mp3_out = output_wav.with_suffix(".mp3")
-            subprocess.run(["ffmpeg", "-y", "-i", str(output_wav), "-b:a", "192k", str(mp3_out)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(
+                ["ffmpeg", "-y", "-i", str(output_wav), "-b:a", "192k", str(mp3_out)],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
         except Exception as e:
             logger.warning(f"Backing track mix failed: {e}")
 
@@ -295,7 +322,7 @@ class ContentFactoryServer:
                 pass
 
         for i in range(self.concurrency):
-            worker_id = f"worker_{i+1:02d}_{uuid.uuid4().hex[:4]}"
+            worker_id = f"worker_{i + 1:02d}_{uuid.uuid4().hex[:4]}"
             task = asyncio.create_task(self.run_worker_loop(worker_id))
             self.active_workers[worker_id] = task
 
@@ -325,9 +352,19 @@ class ContentFactoryServer:
 
 def main():
     parser = argparse.ArgumentParser(description="VoiceFi Autonomous Content Factory Server")
-    parser.add_argument("--server", action="store_true", help="Run continuously in background daemon mode")
-    parser.add_argument("--run-once", action="store_true", help="Process all currently queued jobs and exit")
-    parser.add_argument("-c", "--concurrency", type=int, default=2, help="Number of concurrent worker pipelines (default: 2)")
+    parser.add_argument(
+        "--server", action="store_true", help="Run continuously in background daemon mode"
+    )
+    parser.add_argument(
+        "--run-once", action="store_true", help="Process all currently queued jobs and exit"
+    )
+    parser.add_argument(
+        "-c",
+        "--concurrency",
+        type=int,
+        default=2,
+        help="Number of concurrent worker pipelines (default: 2)",
+    )
     args = parser.parse_args()
 
     server = ContentFactoryServer(concurrency=args.concurrency)

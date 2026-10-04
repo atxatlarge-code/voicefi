@@ -288,7 +288,7 @@ class PalHarness:
         if "record" in act:
             script = (
                 'tell application "GarageBand" to activate\n'
-                'delay 0.1\n'
+                "delay 0.1\n"
                 'tell application "System Events" to keystroke "r"'
             )
             success, _ = cls.run_applescript(script)
@@ -302,7 +302,7 @@ class PalHarness:
         elif any(k in act for k in ("play", "stop", "pause", "toggle")):
             script = (
                 'tell application "GarageBand" to activate\n'
-                'delay 0.1\n'
+                "delay 0.1\n"
                 'tell application "System Events" to keystroke space'
             )
             success, _ = cls.run_applescript(script)
@@ -316,7 +316,7 @@ class PalHarness:
         elif any(k in act for k in ("setting", "preference", "audio", "midi")):
             script = (
                 'tell application "GarageBand" to activate\n'
-                'delay 0.1\n'
+                "delay 0.1\n"
                 'tell application "System Events" to keystroke "," using command down'
             )
             success, _ = cls.run_applescript(script)
@@ -336,7 +336,9 @@ class PalHarness:
         raw_clean = folder_key_or_path.strip(" \t\n\r.,!?:;\"'")
         clean = raw_clean.lower()
         # Strip common noise words: 'the', 'my', 'this', 'folder', 'directory'
-        clean = re.sub(r"\b(?:the|my|this|folder|directory)\b", "", clean, flags=re.IGNORECASE).strip(" \t\n\r.,!?:;\"'")
+        clean = re.sub(
+            r"\b(?:the|my|this|folder|directory)\b", "", clean, flags=re.IGNORECASE
+        ).strip(" \t\n\r.,!?:;\"'")
         target_path = cls.FOLDER_MAP.get(clean) or cls.FOLDER_MAP.get(raw_clean.lower())
 
         if not target_path:
@@ -429,7 +431,10 @@ class PalHarness:
 
         # 2. GarageBand specific triggers
         if "garageband" in p_lower or "garage band" in p_lower:
-            if any(k in p_lower for k in ("record", "play", "stop", "pause", "setting", "preference", "audio")):
+            if any(
+                k in p_lower
+                for k in ("record", "play", "stop", "pause", "setting", "preference", "audio")
+            ):
                 return cls.control_garageband(p_lower)
             return cls.launch_app("GarageBand")
 

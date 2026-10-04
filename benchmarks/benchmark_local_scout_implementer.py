@@ -133,7 +133,7 @@ def run_benchmark() -> Dict[str, Any]:
 
     print("=" * 70)
     print("🚀 VoiceFi Local Model vs Cloud Context Benchmark")
-    print(f"   Architecture: Apple Silicon Metal GPU (Gemma 4 2B Scout + 26B Coder)")
+    print("   Architecture: Apple Silicon Metal GPU (Gemma 4 2B Scout + 26B Coder)")
     print("=" * 70)
 
     for item in TARGET_FILES:
@@ -152,7 +152,7 @@ def run_benchmark() -> Dict[str, Any]:
         # Slice measurement
         start_l, end_l = item["slice_lines"]
         lines = full_content.splitlines()
-        slice_content = "\n".join(lines[max(0, start_l - 1):end_l])
+        slice_content = "\n".join(lines[max(0, start_l - 1) : end_l])
         slice_tokens = estimate_tokens(slice_content)
 
         # Local On-Device Ingest Speed (Memory-mapped 0.04ms read + AST isolation)
@@ -172,21 +172,23 @@ def run_benchmark() -> Dict[str, Any]:
         # Cloud network & ingestion latency avoided
         cloud_latency_est = (full_tokens / 1000.0) * CLOUD_LATENCY_PER_1K_TOKENS_SEC
 
-        results.append({
-            "id": item["id"],
-            "phase": item.get("phase", "Phase 1"),
-            "name": item["name"],
-            "task": item["task"],
-            "file_bytes": file_bytes,
-            "total_lines": total_lines,
-            "full_file_tokens": full_tokens,
-            "surgical_slice_tokens": slice_tokens,
-            "tokens_saved": tokens_saved,
-            "savings_pct": round(savings_pct, 2),
-            "scout_latency_ms": round(scout_latency * 1000, 3),
-            "cloud_latency_est_sec": round(cloud_latency_est, 2),
-            "cloud_cost_saved_usd": round(cost_saved, 4),
-        })
+        results.append(
+            {
+                "id": item["id"],
+                "phase": item.get("phase", "Phase 1"),
+                "name": item["name"],
+                "task": item["task"],
+                "file_bytes": file_bytes,
+                "total_lines": total_lines,
+                "full_file_tokens": full_tokens,
+                "surgical_slice_tokens": slice_tokens,
+                "tokens_saved": tokens_saved,
+                "savings_pct": round(savings_pct, 2),
+                "scout_latency_ms": round(scout_latency * 1000, 3),
+                "cloud_latency_est_sec": round(cloud_latency_est, 2),
+                "cloud_cost_saved_usd": round(cost_saved, 4),
+            }
+        )
 
         total_full_file_tokens += full_tokens
         total_slice_tokens += slice_tokens
@@ -195,9 +197,13 @@ def run_benchmark() -> Dict[str, Any]:
         total_scout_latency_sec += scout_latency
         total_cloud_latency_est_sec += cloud_latency_est
 
-        print(f"[{item['id']}] {item['name']:<28} | {total_lines:>5} lines | {full_tokens:>6} tokens -> {slice_tokens:>4} slice | {savings_pct:>5.1f}% saved | {scout_latency*1000:>5.2f}ms")
+        print(
+            f"[{item['id']}] {item['name']:<28} | {total_lines:>5} lines | {full_tokens:>6} tokens -> {slice_tokens:>4} slice | {savings_pct:>5.1f}% saved | {scout_latency * 1000:>5.2f}ms"
+        )
 
-    overall_savings_pct = (total_tokens_saved / total_full_file_tokens * 100) if total_full_file_tokens > 0 else 0.0
+    overall_savings_pct = (
+        (total_tokens_saved / total_full_file_tokens * 100) if total_full_file_tokens > 0 else 0.0
+    )
 
     summary = {
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -214,7 +220,9 @@ def run_benchmark() -> Dict[str, Any]:
         "total_cloud_cost_saved_usd": round(total_cloud_cost_saved, 4),
         "total_local_scout_latency_ms": round(total_scout_latency_sec * 1000, 3),
         "total_cloud_latency_avoided_sec": round(total_cloud_latency_est_sec, 2),
-        "speedup_factor": round((total_cloud_latency_est_sec / max(total_scout_latency_sec, 0.0001)), 1),
+        "speedup_factor": round(
+            (total_cloud_latency_est_sec / max(total_scout_latency_sec, 0.0001)), 1
+        ),
         "file_details": results,
     }
 
@@ -229,25 +237,43 @@ def run_benchmark() -> Dict[str, Any]:
         f.write("# ⚡ VoiceFi Local Model Savings & Acceleration Report\n\n")
         f.write(f"**Generated:** {summary['timestamp']}  \n")
         f.write(f"**Hardware Platform:** {summary['hardware']}  \n")
-        f.write(f"**Architecture:** 2-Tier On-Device Recon Cascade (Gemma 4 2B Scout + 26B Coder on LiteRT Metal GPU)  \n\n")
+        f.write(
+            "**Architecture:** 2-Tier On-Device Recon Cascade (Gemma 4 2B Scout + 26B Coder on LiteRT Metal GPU)  \n\n"
+        )
         f.write("---\n\n")
         f.write("## 📊 Summary Metrics\n\n")
-        f.write(f"- **Context Tokens Saved:** **{total_tokens_saved:,} tokens** ({overall_savings_pct:.1f}% reduction)\n")
-        f.write(f"- **Full Files Token Burden:** {total_full_file_tokens:,} tokens -> **{total_slice_tokens:,} surgical tokens**\n")
-        f.write(f"- **Local Metal GPU Processing Latency:** **{summary['total_local_scout_latency_ms']} ms total**\n")
-        f.write(f"- **Cloud Ingestion Latency Avoided:** **{total_cloud_latency_est_sec:.2f} seconds** ({summary['speedup_factor']}x faster)\n")
-        f.write(f"- **Estimated Cloud Cost Saved:** **${total_cloud_cost_saved:.4f} USD** per refactor run\n\n")
+        f.write(
+            f"- **Context Tokens Saved:** **{total_tokens_saved:,} tokens** ({overall_savings_pct:.1f}% reduction)\n"
+        )
+        f.write(
+            f"- **Full Files Token Burden:** {total_full_file_tokens:,} tokens -> **{total_slice_tokens:,} surgical tokens**\n"
+        )
+        f.write(
+            f"- **Local Metal GPU Processing Latency:** **{summary['total_local_scout_latency_ms']} ms total**\n"
+        )
+        f.write(
+            f"- **Cloud Ingestion Latency Avoided:** **{total_cloud_latency_est_sec:.2f} seconds** ({summary['speedup_factor']}x faster)\n"
+        )
+        f.write(
+            f"- **Estimated Cloud Cost Saved:** **${total_cloud_cost_saved:.4f} USD** per refactor run\n\n"
+        )
         f.write("---\n\n")
         f.write("## 📋 Per-File Breakdown\n\n")
-        f.write("| ID | Phase | File | Lines | Full Tokens | Surgical Slice | Context Saved | Local Latency | Cloud Wait Avoided |\n")
+        f.write(
+            "| ID | Phase | File | Lines | Full Tokens | Surgical Slice | Context Saved | Local Latency | Cloud Wait Avoided |\n"
+        )
         f.write("| :--- | :---: | :--- | :---: | :---: | :---: | :---: | :---: | :---: |\n")
         for r in results:
-            f.write(f"| **{r['id']}** | {r['phase']} | `{r['name']}` | {r['total_lines']:,} | {r['full_file_tokens']:,} | {r['surgical_slice_tokens']:,} | **{r['savings_pct']}%** | {r['scout_latency_ms']} ms | ~{r['cloud_latency_est_sec']}s |\n")
+            f.write(
+                f"| **{r['id']}** | {r['phase']} | `{r['name']}` | {r['total_lines']:,} | {r['full_file_tokens']:,} | {r['surgical_slice_tokens']:,} | **{r['savings_pct']}%** | {r['scout_latency_ms']} ms | ~{r['cloud_latency_est_sec']}s |\n"
+            )
         f.write("\n---\n")
 
     print("=" * 70)
-    print(f"✅ Benchmark Complete! Saved {total_tokens_saved:,} tokens ({overall_savings_pct:.1f}%) | {total_cloud_latency_est_sec:.1f}s cloud latency avoided")
-    print(f"📄 Reports saved to:")
+    print(
+        f"✅ Benchmark Complete! Saved {total_tokens_saved:,} tokens ({overall_savings_pct:.1f}%) | {total_cloud_latency_est_sec:.1f}s cloud latency avoided"
+    )
+    print("📄 Reports saved to:")
     print(f"   - {report_json_path}")
     print(f"   - {report_md_path}")
     print("=" * 70)

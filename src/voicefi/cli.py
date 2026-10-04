@@ -13,7 +13,11 @@ import sys
 if len(sys.argv) >= 2 and sys.argv[1] == "hook":
     mgmt_actions = ("disable", "enable", "status", "remove", "uninstall", "on", "off")
     is_mgmt = any(arg in mgmt_actions for arg in sys.argv[2:3])
-    is_worker = "--worker" in sys.argv or "--sync" in sys.argv or os.environ.get("VOICEFI_HOOK_WORKER") == "1"
+    is_worker = (
+        "--worker" in sys.argv
+        or "--sync" in sys.argv
+        or os.environ.get("VOICEFI_HOOK_WORKER") == "1"
+    )
     if not is_mgmt and not is_worker:
         try:
             import json

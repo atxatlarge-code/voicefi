@@ -452,7 +452,9 @@ class ActiveListeningEngine:
             if re.search(pat, text_lower):
                 return (True, f"Matched destructive pattern: {pat}")
 
-        if os.environ.get("VOICEFI_TESTING") == "1" and not os.environ.get("VOICEFI_TEST_LIVE_OLLAMA"):
+        if os.environ.get("VOICEFI_TESTING") == "1" and not os.environ.get(
+            "VOICEFI_TEST_LIVE_OLLAMA"
+        ):
             return (False, "")
 
         system_prompt = (
@@ -467,30 +469,25 @@ class ActiveListeningEngine:
             "model": "gemma2:2b",
             "messages": [
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"Command: {text}"}
+                {"role": "user", "content": f"Command: {text}"},
             ],
             "format": {
                 "type": "object",
                 "properties": {
-                    "safety": {
-                        "type": "string",
-                        "enum": ["safe", "unsafe"]
-                    },
-                    "reason": {
-                        "type": "string"
-                    }
+                    "safety": {"type": "string", "enum": ["safe", "unsafe"]},
+                    "reason": {"type": "string"},
                 },
-                "required": ["safety", "reason"]
+                "required": ["safety", "reason"],
             },
             "stream": False,
-            "options": {"temperature": 0.0}
+            "options": {"temperature": 0.0},
         }
 
         req = urllib.request.Request(
             "http://localhost:11434/api/chat",
             data=json.dumps(payload).encode("utf-8"),
             headers={"Content-Type": "application/json"},
-            method="POST"
+            method="POST",
         )
 
         try:

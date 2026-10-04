@@ -54,7 +54,10 @@ def enqueue_from_json_file(file_path: Path, batch_name: Optional[str] = None) ->
 
     # Detect single manifest file (e.g. content_factory_reel_manifest.json)
     if isinstance(data, dict) and ("slides" in data or "turns" in data):
-        chars = [c.get("character") for c in data.get("cast", []) if isinstance(c, dict)] or ["Viv", "Stefan"]
+        chars = [c.get("character") for c in data.get("cast", []) if isinstance(c, dict)] or [
+            "Viv",
+            "Stefan",
+        ]
         job = ContentJob(
             batch_name=b_name,
             title=data.get("title", file_path.stem),
@@ -92,17 +95,32 @@ def main():
     parser = argparse.ArgumentParser(description="Enqueue jobs into the VoiceFi Content Factory")
     parser.add_argument("prompt", nargs="?", help="Direct prompt or topic to enqueue")
     parser.add_argument("-t", "--title", help="Optional title for the job")
-    parser.add_argument("-f", "--file", type=Path, help="Path to JSON file containing a batch of jobs")
-    parser.add_argument("-c", "--chars", default="Viv,Stefan", help="Comma-separated characters (default: Viv,Stefan)")
+    parser.add_argument(
+        "-f", "--file", type=Path, help="Path to JSON file containing a batch of jobs"
+    )
+    parser.add_argument(
+        "-c",
+        "--chars",
+        default="Viv,Stefan",
+        help="Comma-separated characters (default: Viv,Stefan)",
+    )
     parser.add_argument("-p", "--priority", type=int, default=10, help="Priority (default: 10)")
     parser.add_argument("-b", "--batch", default="ad_hoc", help="Batch name")
-    parser.add_argument("-d", "--duration", type=float, default=30.0, help="Target duration in seconds (default: 30.0)")
+    parser.add_argument(
+        "-d",
+        "--duration",
+        type=float,
+        default=30.0,
+        help="Target duration in seconds (default: 30.0)",
+    )
 
     args = parser.parse_args()
 
     if args.file:
         count = enqueue_from_json_file(args.file, batch_name=args.batch)
-        console.print(f"[bold green]✓ Enqueued {count} jobs from {args.file} into batch '{args.batch}'.[/bold green]")
+        console.print(
+            f"[bold green]✓ Enqueued {count} jobs from {args.file} into batch '{args.batch}'.[/bold green]"
+        )
     elif args.prompt:
         chars = [c.strip() for c in args.chars.split(",") if c.strip()]
         job_id = enqueue_single_prompt(
@@ -113,7 +131,9 @@ def main():
             priority=args.priority,
             batch_name=args.batch,
         )
-        console.print(f"[bold green]✓ Enqueued Job #{job_id}: '{args.title or args.prompt[:40]}'[/bold green]")
+        console.print(
+            f"[bold green]✓ Enqueued Job #{job_id}: '{args.title or args.prompt[:40]}'[/bold green]"
+        )
     else:
         parser.print_help()
         sys.exit(1)

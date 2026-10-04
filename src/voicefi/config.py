@@ -95,7 +95,17 @@ TurnCompleteFormat = Literal[
 
 class TTSConfig(BaseModel):
     provider: Literal[
-        "mac_say", "edge_tts", "elevenlabs", "f5_tts", "local_clone", "gemini", "gemini_live", "voice_acting", "qwen", "qwen_tts", "qwen_clone"
+        "mac_say",
+        "edge_tts",
+        "elevenlabs",
+        "f5_tts",
+        "local_clone",
+        "gemini",
+        "gemini_live",
+        "voice_acting",
+        "qwen",
+        "qwen_tts",
+        "qwen_clone",
     ] = "edge_tts"
     voice: str = "en-US-AvaNeural"
     rate: Optional[int] = 200
@@ -107,9 +117,9 @@ class TTSConfig(BaseModel):
     gemini_api_key: Optional[str] = ""
     character_persona: Optional[str] = None
     character_summarization: bool = False
-    speech_structure: Literal[
-        "first_sentence_plus_character", "character_only", "verbatim"
-    ] = "first_sentence_plus_character"
+    speech_structure: Literal["first_sentence_plus_character", "character_only", "verbatim"] = (
+        "first_sentence_plus_character"
+    )
     character_prompt_template: Optional[str] = None
     character_quip_instruction: Optional[str] = None
     max_first_sentence_words: int = 18
@@ -134,7 +144,9 @@ class TTSConfig(BaseModel):
 
 
 class STTConfig(BaseModel):
-    provider: Literal["auto", "whisper_local", "mlx_whisper", "groq", "apple_speech"] = "whisper_local"
+    provider: Literal["auto", "whisper_local", "mlx_whisper", "groq", "apple_speech"] = (
+        "whisper_local"
+    )
     model_size: str = "base.en"
     mlx_model: str = "mlx-community/whisper-large-v3-turbo"
     language: str = "en"
@@ -268,7 +280,17 @@ class GlobalHotkeyConfig(BaseModel):
 class AgentVoiceProfile(BaseModel):
     provider: Optional[
         Literal[
-            "mac_say", "edge_tts", "elevenlabs", "f5_tts", "local_clone", "gemini", "gemini_live", "voice_acting", "qwen", "qwen_tts", "qwen_clone"
+            "mac_say",
+            "edge_tts",
+            "elevenlabs",
+            "f5_tts",
+            "local_clone",
+            "gemini",
+            "gemini_live",
+            "voice_acting",
+            "qwen",
+            "qwen_tts",
+            "qwen_clone",
         ]
     ] = None
     voice: str = "en-US-AvaNeural"

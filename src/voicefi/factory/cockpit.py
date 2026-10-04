@@ -65,9 +65,15 @@ class ContentFactoryCockpit:
         table.add_row("Audio Gen (VoiceFi TTS)", str(counts.get("AUDIO_GEN", 0)), style="bold blue")
         table.add_row("Rendering (FFmpeg)", str(counts.get("RENDERING", 0)), style="bold magenta")
         table.add_row("Completed", str(counts.get("COMPLETED", 0)), style="bold green")
-        table.add_row("Failed", str(counts.get("FAILED", 0)), style="bold red" if counts.get("FAILED", 0) > 0 else "dim")
+        table.add_row(
+            "Failed",
+            str(counts.get("FAILED", 0)),
+            style="bold red" if counts.get("FAILED", 0) > 0 else "dim",
+        )
 
-        return Panel(table, title="[bold]Queue Velocity[/bold]", box=box.ROUNDED, border_style="cyan")
+        return Panel(
+            table, title="[bold]Queue Velocity[/bold]", box=box.ROUNDED, border_style="cyan"
+        )
 
     def generate_metrics_panel(self, metrics: Dict[str, Any]) -> Panel:
         table = Table(box=box.SIMPLE, show_header=False)
@@ -80,7 +86,12 @@ class ContentFactoryCockpit:
         table.add_row("Unified Memory Ingress", "0.04 ms")
         table.add_row("API Cost Incurred", "$0.00 (Local Metal)")
 
-        return Panel(table, title="[bold]On-Device Speed Bursts[/bold]", box=box.ROUNDED, border_style="green")
+        return Panel(
+            table,
+            title="[bold]On-Device Speed Bursts[/bold]",
+            box=box.ROUNDED,
+            border_style="green",
+        )
 
     def generate_workers_table(self, workers: List[Dict[str, Any]]) -> Table:
         table = Table(box=box.ROUNDED, title="[bold]Active Factory Workers[/bold]", expand=True)
@@ -106,7 +117,9 @@ class ContentFactoryCockpit:
         return table
 
     def generate_jobs_table(self, jobs: list) -> Table:
-        table = Table(box=box.ROUNDED, title="[bold]Recent Content Pipeline Jobs[/bold]", expand=True)
+        table = Table(
+            box=box.ROUNDED, title="[bold]Recent Content Pipeline Jobs[/bold]", expand=True
+        )
         table.add_column("ID", style="dim", width=5)
         table.add_column("Title / Topic", style="bold white")
         table.add_column("Characters", style="cyan")
@@ -115,10 +128,16 @@ class ContentFactoryCockpit:
         table.add_column("Master Audio / Output", style="dim")
 
         if not jobs:
-            table.add_row("-", "No jobs processed yet. Enqueue using './factory enqueue'", "-", "-", "-", "-")
+            table.add_row(
+                "-", "No jobs processed yet. Enqueue using './factory enqueue'", "-", "-", "-", "-"
+            )
         else:
             for j in jobs:
-                status_style = "green" if j.status == "COMPLETED" else ("red" if j.status == "FAILED" else "yellow")
+                status_style = (
+                    "green"
+                    if j.status == "COMPLETED"
+                    else ("red" if j.status == "FAILED" else "yellow")
+                )
                 out_path = Path(j.output_audio_path).name if j.output_audio_path else "-"
                 chars_str = ", ".join(j.characters) if j.characters else "-"
                 table.add_row(

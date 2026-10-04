@@ -3185,7 +3185,9 @@ class VoicePanelRequestHandler(http.server.BaseHTTPRequestHandler):
             if "turn_complete_chime" in payload:
                 self.server.config.tts.turn_complete_chime = payload["turn_complete_chime"]
             if "character_quip_instruction" in payload:
-                self.server.config.tts.character_quip_instruction = payload["character_quip_instruction"]
+                self.server.config.tts.character_quip_instruction = payload[
+                    "character_quip_instruction"
+                ]
             save_config(self.server.config)
             self._send_json({"status": "saved", "config": self.server.config.tts.model_dump()})
             return
