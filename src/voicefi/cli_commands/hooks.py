@@ -304,6 +304,9 @@ def cmd_hook(args: Any) -> None:
         if hasattr(args, "_telemetry_extra") and isinstance(args._telemetry_extra, dict):
             args._telemetry_extra["ipc_forwarded"] = True
         print(json.dumps({}))
+        sys.stdout.flush()
+        if not bool(os.environ.get("PYTEST_CURRENT_TEST")):
+            os._exit(0)
         return
 
     # Standalone execution: determine if synchronous or background worker
@@ -361,6 +364,9 @@ def cmd_hook(args: Any) -> None:
             )
             # Parent process returns clean JSON instantly
             print(json.dumps({}))
+            sys.stdout.flush()
+            if not bool(os.environ.get("PYTEST_CURRENT_TEST")):
+                os._exit(0)
             return
         except Exception:
             # Fallback to in-process execution if detached spawn fails

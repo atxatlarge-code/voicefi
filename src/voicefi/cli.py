@@ -6,6 +6,52 @@ Lightweight entrypoint and command dispatcher (<200 lines).
 
 import os
 import sys
+
+# Fast-path hook interception: if this process was launched as an AI agent lifecycle hook
+# (e.g. Antigravity, Claude Code, Codex turn-end), forward to the background daemon and exit
+# in < 50ms before importing heavy CLI libraries, argument parsers, or telemetry.
+if len(sys.argv) >= 2 and sys.argv[1] == "hook":
+    mgmt_actions = ("disable", "enable", "status", "remove", "uninstall", "on", "off")
+    is_mgmt = any(arg in mgmt_actions for arg in sys.argv[2:3])
+    is_worker = "--worker" in sys.argv or "--sync" in sys.argv or os.environ.get("VOICEFI_HOOK_WORKER") == "1"
+    if not is_mgmt and not is_worker:
+        try:
+            import json
+            import urllib.request
+            import select
+
+            payload = {}
+            if not sys.stdin.isatty():
+                try:
+                    fd = sys.stdin.fileno()
+                    r, _, _ = select.select([fd], [], [], 0.05)
+                    if r:
+                        raw = os.read(fd, 65536).decode("utf-8").strip()
+                        if raw:
+                            payload = json.loads(raw)
+                except Exception:
+                    pass
+
+            if "agent" not in payload:
+                payload["agent"] = "antigravity"
+
+            url = "http://127.0.0.1:5141/api/hook/event"
+            data_bytes = json.dumps(payload).encode("utf-8")
+            req = urllib.request.Request(
+                url,
+                data=data_bytes,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=0.8) as resp:
+                if resp.status == 200:
+                    print(json.dumps({}))
+                    sys.stdout.flush()
+                    if not bool(os.environ.get("PYTEST_CURRENT_TEST")):
+                        os._exit(0)
+        except Exception:
+            pass
+
 import time
 from typing import Optional
 
@@ -185,12 +231,13 @@ def main():
             if hasattr(args, "_telemetry_extra") and isinstance(args._telemetry_extra, dict):
                 props.update(args._telemetry_extra)
 
-            try:
-                from voicefi.telemetry import capture_event
+            if getattr(args, "command", None) != "hook":
+                try:
+                    from voicefi.telemetry import capture_event
 
-                capture_event("cli_command", props)
-            except Exception:
-                pass
+                    capture_event("cli_command", props)
+                except Exception:
+                    pass
 
 
 if __name__ == "__main__":
