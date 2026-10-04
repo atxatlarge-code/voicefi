@@ -395,7 +395,11 @@ def get_tts_engine(
     elif provider in ("voice_acting", "local_actor", "actor", "mlx_actor", "fish_speech", "fish"):
         from voicefi.tts.voice_acting import VoiceActingTTS
 
-        effective_speed = float(rate) / 200.0 if (rate and isinstance(rate, (int, float))) else 1.0
+        effective_speed = (
+            float(rate) / 200.0
+            if (rate and isinstance(rate, (int, float)) and rate != 200)
+            else None
+        )
         agent_key = (agent_name or "").lower().strip()
         agent_prof = config.agents.get(agent_key) if hasattr(config, "agents") else None
         intro_sfx = getattr(agent_prof, "intro_sfx", None) if agent_prof else getattr(config.tts, "intro_sfx", None)

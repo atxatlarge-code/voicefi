@@ -5,6 +5,7 @@ and multi-agent tool integrations.
 """
 
 import os
+import re
 import subprocess
 import threading
 import time
@@ -234,6 +235,13 @@ class VoiceFiTrayApp(_TrayAppBase):
         self.speech_hud = AgentSpeechHUD.get_instance()
         self.hud = UnifiedDynamicIslandHUD.get_instance()
         self.quick_bar = QuickPromptBarWindow.get_instance()
+        try:
+            from voicefi.ui.screen_highlight import PalHighlightOverlay
+
+            self.pal_overlay = PalHighlightOverlay.get_instance()
+        except Exception as e:
+            print(f"[Tray] PalHighlightOverlay init failed: {e}")
+            self.pal_overlay = None
         hud_cfg = getattr(self.config, "hud", None)
         if hud_cfg:
             self.hud.set_fullscreen_overlay(getattr(hud_cfg, "fullscreen_overlay", True))
@@ -494,12 +502,37 @@ class VoiceFiTrayApp(_TrayAppBase):
                     except Exception:
                         rss_mb = 0.0
 
-                    # Adjust thresholds if local cloning/PyTorch is loaded in memory
+                    # Adjust thresholds if local cloning/PyTorch or local MLX models are loaded in memory
                     is_local_cloning = any(
                         p in sys.modules for p in ("f5_tts", "torch", "torchcodec")
                     )
-                    warn_thresh = 2600.0 if is_local_cloning else 1200.0
-                    crit_thresh = 3800.0 if is_local_cloning else 1800.0
+                    is_local_mlx = any(
+                        p in sys.modules for p in ("mlx", "mlx.core", "mlx_audio", "mlx_whisper", "mlx_lm")
+                    ) or (
+                        hasattr(self, "config")
+                        and getattr(getattr(self, "config", None), "tts", None)
+                        and getattr(self.config.tts, "provider", "")
+                        in (
+                            "voice_acting",
+                            "qwen",
+                            "qwen_tts",
+                            "qwen_clone",
+                            "mlx_clone",
+                            "local_actor",
+                            "actor",
+                            "mlx_actor",
+                        )
+                    )
+
+                    if is_local_cloning:
+                        warn_thresh = 2600.0
+                        crit_thresh = 3800.0
+                    elif is_local_mlx:
+                        warn_thresh = 2400.0
+                        crit_thresh = 2800.0
+                    else:
+                        warn_thresh = 1200.0
+                        crit_thresh = 1800.0
 
                     if rss_mb > warn_thresh:
                         print(
@@ -3416,12 +3449,100 @@ class VoiceFiTrayApp(_TrayAppBase):
 
         if is_pal:
             hud = UnifiedDynamicIslandHUD.get_instance()
+            try:
+                from voicefi.ui.screen_highlight import PalHighlightOverlay
+                overlay = PalHighlightOverlay.get_instance()
+            except Exception:
+                overlay = None
+
             if prompt and len(prompt.strip()) >= 2:
                 from voicefi.stt.biasing import PhoneticNormalizer
                 from voicefi.integrations.pal_harness import PalHarness
 
                 norm_prompt = PhoneticNormalizer.normalize(prompt.strip())
+                norm_lower = norm_prompt.lower()
+
+                # 1. Training Start Check
+                start_train_match = re.match(
+                    r"^(?:start\s+training|watch\s+me(?:\s+do)?|record\s+workflow|learn\s+how\s+to)\s+(?:a\s+|the\s+)?(.+)$",
+                    norm_lower,
+                    re.IGNORECASE,
+                )
+                if start_train_match:
+                    wf_name = start_train_match.group(1).strip()
+
+                    def _on_step_callback(step):
+                        try:
+                            trainer = PalHarness.get_active_trainer()
+                            elapsed = time.time() - trainer.start_time if trainer else 0.0
+                            hud.update_training_step(
+                                step_count=step.step_number,
+                                last_action=step.spoken_summary,
+                                elapsed_seconds=elapsed,
+                            )
+                        except Exception:
+                            pass
+
+                    res = PalHarness.start_training(wf_name, on_step=_on_step_callback)
+                    if self.config.audio_cues.enabled:
+                        play_chime("start", block=False)
+                    hud.set_training(wf_name)
+                    if overlay:
+                        overlay.show_screen_perimeter(color_type="training", badge_text=f"Pal: {wf_name[:12]}")
+                    try:
+                        rumps.notification("VoiceFi • Pal Training", f"Recording '{wf_name}'", res.spoken_summary)
+                    except Exception:
+                        pass
+                    return
+
+                # 2. Active Training Session Commands
+                if PalHarness.is_training_active():
+                    if re.match(
+                        r"^(?:stop\s+training|done\s+training|finish\s+training|stop\s+watching|save\s+workflow)$",
+                        norm_lower,
+                        re.IGNORECASE,
+                    ):
+                        res = PalHarness.stop_training()
+                        if self.config.audio_cues.enabled:
+                            play_chime("done", block=False)
+                        hud.show_done(preview_text=res.spoken_summary[:35])
+                        if overlay:
+                            overlay.hide()
+                        try:
+                            rumps.notification("VoiceFi • Pal Workflow Saved", res.spoken_summary, "")
+                        except Exception:
+                            pass
+                        return
+
+                    if re.match(
+                        r"^(?:cancel\s+training|abort\s+training|discard\s+training)$",
+                        norm_lower,
+                        re.IGNORECASE,
+                    ):
+                        res = PalHarness.cancel_training()
+                        if self.config.audio_cues.enabled:
+                            play_chime(self.config.audio_cues.error_chime or "error", block=False)
+                        hud.set_idle()
+                        if overlay:
+                            overlay.hide()
+                        return
+
+                    # Spoken intent during training - record as voice annotation and execute if actionable
+                    PalHarness.record_voice_annotation(norm_prompt)
+                    res = PalHarness.execute_command(norm_prompt)
+                    trainer = PalHarness.get_active_trainer()
+                    elapsed = time.time() - trainer.start_time if trainer else 0.0
+                    hud.update_training_step(
+                        step_count=len(trainer.recorder.steps) if trainer else 1,
+                        last_action=res.spoken_summary,
+                        elapsed_seconds=elapsed,
+                    )
+                    return
+
+                # 3. Standard Pal Command or Workflow Execution
                 hud.set_hearing(user_name="Pal (Mac OS)")
+                if overlay:
+                    overlay.show_screen_perimeter(color_type="hearing")
                 time.sleep(0.1)
 
                 res = PalHarness.execute_command(norm_prompt)
@@ -3429,6 +3550,8 @@ class VoiceFiTrayApp(_TrayAppBase):
                     chime = self.config.audio_cues.sent_chime if res.success else self.config.audio_cues.error_chime
                     play_chime(chime or "done", block=False)
                 hud.show_done(preview_text=res.spoken_summary[:30])
+                if overlay:
+                    overlay.hide()
                 try:
                     rumps.notification(
                         "VoiceFi • Pal Computer Use",
@@ -3439,6 +3562,8 @@ class VoiceFiTrayApp(_TrayAppBase):
                     pass
             else:
                 hud.set_hearing(user_name="Pal (Ready)")
+                if overlay:
+                    overlay.show_screen_perimeter(color_type="hearing")
                 if self.config.audio_cues.enabled:
                     play_chime("start", block=False)
             return

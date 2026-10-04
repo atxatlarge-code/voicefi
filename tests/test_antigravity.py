@@ -526,3 +526,42 @@ def test_antigravity_hook_barge_in_sequencing(monkeypatch, tmp_path):
     assert idx_play < idx_rec, f"Barge-in sequencing failed: {events}"
 
 
+def test_extract_latest_agent_summary_joke_pair_with_first_sentence_only(tmp_path):
+    """Verify that a question setup and punchline are paired together even when first_sentence_only is true."""
+    from voicefi.integrations.antigravity import extract_latest_agent_summary
+
+    transcript_file = tmp_path / "transcript.jsonl"
+    joke_text = "Why do programmers prefer dark mode? Because light attracts bugs!"
+    transcript_file.write_text(
+        json.dumps({
+            "type": "PLANNER_RESPONSE",
+            "source": "MODEL",
+            "content": f"{joke_text} It really is quite fascinating.",
+        }) + "\n"
+    )
+
+    summary = extract_latest_agent_summary(transcript_file, max_words=35, first_sentence_only=True)
+    assert "Why do programmers prefer dark mode?" in summary
+    assert "Because light attracts bugs!" in summary
+    assert "fascinating" not in summary
+
+
+def test_extract_latest_agent_summary_does_not_false_alarm_on_explained_errors(tmp_path):
+    """Verify that explaining a past bug or AttributeError does not cause the summary to say 'The agent encountered an error:'."""
+    from voicefi.integrations.antigravity import extract_latest_agent_summary
+
+    transcript_file = tmp_path / "transcript.jsonl"
+    explanation = "Here is what we solved: we fixed an AttributeError: 'str' object has no attribute 'is_file'. Everything is now passing."
+    transcript_file.write_text(
+        json.dumps({
+            "type": "PLANNER_RESPONSE",
+            "source": "MODEL",
+            "content": explanation,
+        }) + "\n"
+    )
+
+    summary = extract_latest_agent_summary(transcript_file, max_words=35, first_sentence_only=True)
+    assert "The agent encountered an error:" not in summary
+    assert "Here is what we solved" in summary
+
+

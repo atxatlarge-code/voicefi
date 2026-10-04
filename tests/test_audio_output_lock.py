@@ -153,3 +153,24 @@ def test_streaming_audio_player_drain_and_close():
     assert player.wait_until_drained(timeout=1.0)
     player.stop()
     assert player._drained_event.is_set()
+
+
+def test_exclusive_audio_stale_lock_dead_pid_recovery(tmp_path, monkeypatch):
+    """Test exclusive_audio auto-reclaims lock when held by a dead PID."""
+    test_lock = tmp_path / "test_stale.lock"
+    monkeypatch.setenv("VOICEFI_AUDIO_LOCK", str(test_lock))
+
+    # Simulate a stale lock file written by a non-existent PID (e.g., 9999999)
+    test_lock.write_text("owner=antigravity:tts pid=9999999 acquired_at=1000000.0\n")
+
+    # is_audio_output_locked should report False (auto-reclaimed)
+    assert not is_audio_output_locked()
+
+    # Re-write the stale lock file to test acquisition
+    test_lock.write_text("owner=antigravity:tts pid=9999999 acquired_at=1000000.0\n")
+
+    # exclusive_audio should acquire successfully without waiting 30 seconds
+    t0 = time.time()
+    with exclusive_audio(timeout=2.0, owner="fresh_worker"):
+        assert is_audio_output_locked()
+    assert time.time() - t0 < 1.0

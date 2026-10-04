@@ -494,6 +494,7 @@ def clean_lock_files(only_stale: bool = False):
     known_files = [
         LOCK_FILE,
         PID_FILE,
+        Path("/tmp/voicefi_audio_output.lock"),
         Path("/tmp/voicefi_active_turns.lock"),
         Path("/tmp/voicefi_speech.lock"),
         Path("/tmp/voicefi_cross_process_hud.json"),
@@ -544,6 +545,12 @@ def clean_lock_files(only_stale: bool = False):
                         parts = content.split(":")
                         if len(parts) >= 2 and parts[0].isdigit():
                             f_pid = int(parts[0])
+                            if not is_pid_running(f_pid):
+                                is_stale = True
+                    elif "pid=" in content:
+                        pid_match = re.search(r"\bpid=(\d+)", content)
+                        if pid_match:
+                            f_pid = int(pid_match.group(1))
                             if not is_pid_running(f_pid):
                                 is_stale = True
                 except Exception:

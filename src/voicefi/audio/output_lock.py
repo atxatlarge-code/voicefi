@@ -6,12 +6,24 @@ subagents, CLI scripts) never play audio simultaneously over CoreAudio.
 
 import fcntl
 import os
+import re
 import sys
 import threading
 import time
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Optional
+
+
+def _is_pid_alive(p: int) -> bool:
+    """Check if process with given PID is currently active."""
+    if p <= 0:
+        return False
+    try:
+        os.kill(p, 0)
+        return True
+    except OSError:
+        return False
 
 
 def get_audio_lock_path() -> Path:
@@ -75,6 +87,33 @@ def exclusive_audio(timeout: float = 30.0, owner: str = "", raise_on_timeout: bo
                 acquired = True
                 break
             except (BlockingIOError, IOError):
+                # Check for stale lock held by a terminated PID
+                try:
+                    if lock_path.exists():
+                        content = lock_path.read_text(errors="ignore").strip()
+                        pid_match = re.search(r"\bpid=(\d+)", content)
+                        if pid_match:
+                            holder_pid = int(pid_match.group(1))
+                            if holder_pid > 0 and holder_pid != pid and not _is_pid_alive(holder_pid):
+                                # The recorded PID is dead!
+                                # Auto-reclaim stale lock by unlinking and reopening
+                                try:
+                                    lock_path.unlink(missing_ok=True)
+                                except Exception:
+                                    pass
+                                try:
+                                    if lock_file_obj and not lock_file_obj.closed:
+                                        lock_file_obj.close()
+                                except Exception:
+                                    pass
+                                lock_file_obj = open(lock_path, "a+")
+                                lock_fd = lock_file_obj.fileno()
+                                with _IN_PROCESS_LOCK:
+                                    _CURRENT_LOCK_FD = lock_fd
+                                    _CURRENT_LOCK_FILE_OBJ = lock_file_obj
+                                continue
+                except Exception:
+                    pass
                 time.sleep(0.05)
 
         if not acquired:
@@ -107,6 +146,12 @@ def exclusive_audio(timeout: float = 30.0, owner: str = "", raise_on_timeout: bo
             try:
                 if not lock_file_obj.closed and lock_fd is not None:
                     try:
+                        lock_file_obj.seek(0)
+                        lock_file_obj.truncate()
+                        lock_file_obj.flush()
+                    except Exception:
+                        pass
+                    try:
                         fcntl.flock(lock_fd, fcntl.LOCK_UN)
                     except Exception:
                         pass
@@ -127,6 +172,17 @@ def is_audio_output_locked() -> bool:
     lock_path = get_audio_lock_path()
     if not lock_path.exists():
         return False
+
+    try:
+        content = lock_path.read_text(errors="ignore").strip()
+        pid_match = re.search(r"\bpid=(\d+)", content)
+        if pid_match:
+            holder_pid = int(pid_match.group(1))
+            if holder_pid > 0 and not _is_pid_alive(holder_pid):
+                lock_path.unlink(missing_ok=True)
+                return False
+    except Exception:
+        pass
 
     try:
         with open(lock_path, "r") as f:
@@ -158,3 +214,7 @@ def force_release_audio_lock():
                 pass
             _CURRENT_LOCK_FILE_OBJ = None
         _LOCK_DEPTH = 0
+    try:
+        get_audio_lock_path().unlink(missing_ok=True)
+    except Exception:
+        pass

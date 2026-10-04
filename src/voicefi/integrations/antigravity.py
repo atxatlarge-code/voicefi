@@ -117,8 +117,11 @@ def clean_markdown_for_speech(
         if body_text:
             text = body_text
 
-    # 2. Check for raw stack traces / errors first
-    if "Traceback (most recent call last):" in text or "Error:" in text:
+    # 2. Check for raw stack traces / unhandled errors only if response is predominantly a raw crash dump
+    raw_stripped = text.strip()
+    if raw_stripped.startswith("Traceback (most recent call last):") or (
+        raw_stripped.startswith("Error:") and len(raw_stripped.splitlines()) <= 5
+    ):
         err_match = re.search(r"(\b[A-Za-z0-9_]*Error:\s+[^\n]+)", text)
         if err_match:
             return f"The agent encountered an error: {err_match.group(1)}."
@@ -231,6 +234,12 @@ def clean_markdown_for_speech(
             len(sentences) >= 2
             and len(first_s.split()) <= 2
             and first_s.lower().rstrip(".!?,") in filler_tokens
+        ):
+            first_s = f"{first_s} {sentences[1]}"
+        elif (
+            len(sentences) >= 2
+            and first_s.endswith("?")
+            and (len(first_s.split()) + len(sentences[1].split())) <= (target_max_words or 45)
         ):
             first_s = f"{first_s} {sentences[1]}"
         max_budget = target_max_words if (target_max_words and target_max_words > 0) else 45
@@ -346,7 +355,8 @@ def extract_latest_agent_summary(
     If return_role is True, returns (summary_text, agent_role).
     Else returns summary_text.
     """
-    if not transcript_path.is_file():
+    transcript_path = Path(transcript_path) if transcript_path else None
+    if not transcript_path or not transcript_path.is_file():
         default_msg = "I have finished the task. What would you like to do next?"
         if return_role and return_step_index:
             return (default_msg, None, None)
