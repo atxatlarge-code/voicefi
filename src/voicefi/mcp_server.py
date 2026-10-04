@@ -2246,6 +2246,13 @@ class VoiceFiMCPServer:
                     implementer.implement(target, instruction=instruction, apply=apply)
                 )
 
+            if res.error and not res.diff:
+                text_output = f"⚠️ **VoiceFi Recon Implementer Halted**\n\n{res.error}"
+                return {
+                    "content": [{"type": "text", "text": text_output}],
+                    "isError": True,
+                }
+
             diff_block = f"```diff\n{res.diff}\n```" if res.diff else "_No diff generated_"
             text_output = (
                 f"🛠️ **VoiceFi Recon Implementer ({res.model_coder})**\n\n"

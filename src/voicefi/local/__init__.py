@@ -9,7 +9,12 @@ from typing import Any
 import importlib
 
 from voicefi.local.engine import LocalModelEngine, is_litert_available
-from voicefi.local.supervisor import ThermalSupervisor, HardwareTelemetry, default_supervisor
+from voicefi.local.supervisor import (
+    ThermalSupervisor,
+    HardwareTelemetry,
+    ResourceGateError,
+    default_supervisor,
+)
 
 _LAZY_IMPORTS = {
     "ReconScout": ("voicefi.local.scout", "ReconScout"),
@@ -68,5 +73,6 @@ __all__ = [
     "LoopStep",
     "ThermalSupervisor",
     "HardwareTelemetry",
+    "ResourceGateError",
     "default_supervisor",
 ]

@@ -99,6 +99,10 @@ async def query_model(
     Query local model via warm litert-lm HTTP server if available,
     falling back to direct LocalModelEngine.
     """
+    from voicefi.local.supervisor import default_supervisor
+
+    default_supervisor.assert_can_load(model_name)
+
     messages = []
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
@@ -205,6 +209,34 @@ class ReconImplementer:
                 model_coder=self.model_coder,
                 error=f"File not found: {path}",
             )
+
+        # Check resource headroom for both scout and coder models
+        from voicefi.local.supervisor import default_supervisor
+
+        for m_name in (self.model_scout, self.model_coder):
+            approved, reason, alert = default_supervisor.can_load_model(m_name)
+            if not approved:
+                alert_box = default_supervisor.format_resource_alert(alert) if alert else reason
+                logger.warning(
+                    f"[ReconImplementer] Model '{m_name}' blocked by ResourceGate: {reason}"
+                )
+                return ImplementResult(
+                    target_path=str(path),
+                    instruction=instruction,
+                    diff="",
+                    applied=False,
+                    scout_duration=0.0,
+                    coder_duration=0.0,
+                    total_duration=round(time.perf_counter() - start_total, 3),
+                    tokens_saved=0,
+                    savings_pct=0.0,
+                    input_tokens_est=0,
+                    diff_tokens_est=0,
+                    model_scout=self.model_scout,
+                    model_coder=self.model_coder,
+                    scout_findings="",
+                    error=f"ResourceGate Blocked: {reason}\n\n{alert_box}",
+                )
 
         with open(path, "r", encoding="utf-8", errors="replace") as f:
             original_content = f.read(max_file_bytes)

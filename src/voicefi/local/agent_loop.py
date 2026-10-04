@@ -116,6 +116,27 @@ class LocalAutonomousLoop:
     async def execute(self, goal: str, context: Optional[str] = None) -> AutonomousLoopResult:
         """Run the autonomous local loop until finish() or max_turns."""
         start_time = time.perf_counter()
+
+        # Check resource headroom for local model
+        from voicefi.local.supervisor import default_supervisor
+
+        approved, reason, alert = default_supervisor.can_load_model(self.model_name)
+        if not approved:
+            alert_box = default_supervisor.format_resource_alert(alert) if alert else reason
+            logger.warning(
+                f"[LocalAutonomousLoop] Model '{self.model_name}' blocked by ResourceGate: {reason}"
+            )
+            return AutonomousLoopResult(
+                goal=goal,
+                completed=False,
+                summary=f"ResourceGate Blocked: Insufficient hardware headroom for '{self.model_name}'.\n\n{alert_box}",
+                steps=[],
+                modified_files=[],
+                total_duration=0.0,
+                model=self.model_name,
+                error=reason,
+            )
+
         steps: List[LoopStep] = []
         modified_files: List[str] = []
         conversation_history: List[Dict[str, str]] = []
@@ -472,6 +493,10 @@ class LocalAutonomousLoop:
 
     async def _query_model(self, messages: List[Dict[str, str]]) -> str:
         """Send chat messages to warm local model server (LiteRT or Ollama)."""
+        from voicefi.local.supervisor import default_supervisor
+
+        default_supervisor.assert_can_load(self.model_name)
+
         # 1. Check Ollama API first
         ollama_url = "http://127.0.0.1:11434/api/chat"
         try:

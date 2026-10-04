@@ -113,13 +113,16 @@ class LocalModelEngine:
     ):
         if not model_path:
             target_path = os.path.expanduser(f"~/.litert-lm/models/{model_name}/model.litertlm")
-            if not os.path.exists(target_path):
-                imported = list_imported_models()
-                if imported:
-                    target_path = imported[0]["path"]
-                    model_name = imported[0]["name"]
             self.model_path = target_path
             self.model_name = model_name
+            if not os.path.exists(target_path):
+                imported = list_imported_models()
+                matched = next((m for m in imported if m["name"] == model_name), None)
+                if matched:
+                    self.model_path = matched["path"]
+                elif model_name == "gemma4-2b" and imported:
+                    self.model_path = imported[0]["path"]
+                    self.model_name = imported[0]["name"]
         else:
             self.model_path = os.path.expanduser(model_path)
             self.model_name = model_name
@@ -206,6 +209,10 @@ class LocalModelEngine:
         Stream tokens directly from the local LiteRT model on Metal GPU.
         Supports both Google Antigravity Agent and native litert_lm.Engine.
         """
+        from voicefi.local.supervisor import default_supervisor
+
+        default_supervisor.assert_can_load(self.model_name)
+
         # 1. Try google.antigravity Agent only if tool execution is required
         if tools:
             try:
