@@ -156,7 +156,27 @@ class VoiceActingTTS(BaseTTS):
         self.apply_silk_mastering = apply_silk_mastering
         self.director = TheatricalDirector()
         self._current_process: Optional[subprocess.Popen] = None
+        self._current_player: Optional[Any] = None
+        self._cached_ref_mx = None
         self._stop_requested = False
+
+    def _get_ref_audio_input(self):
+        """Return cached mx.array waveform if available, otherwise file path or None."""
+        if not self.ref_audio:
+            return None
+        if self._cached_ref_mx is not None:
+            return self._cached_ref_mx
+        try:
+            import mlx.core as mx
+            from mlx_audio.audio_io import read as audio_read
+            ref_p = Path(self.ref_audio).expanduser()
+            if ref_p.exists():
+                ref_np, _ = audio_read(str(ref_p))
+                self._cached_ref_mx = mx.array(ref_np)
+                return self._cached_ref_mx
+        except Exception:
+            pass
+        return self.ref_audio
 
     @classmethod
     def is_available(cls) -> bool:
@@ -298,10 +318,11 @@ class VoiceActingTTS(BaseTTS):
             from mlx_audio.audio_io import write as audio_write
             model = self.get_model(self.model_name)
 
-            if self.ref_audio:
+            ref_input = self._get_ref_audio_input()
+            if ref_input is not None:
                 results = list(model.generate(
                     text=clean_text,
-                    ref_audio=self.ref_audio,
+                    ref_audio=ref_input,
                     ref_text=self.ref_text,
                     speed=float(self.speed),
                 ))
@@ -427,9 +448,123 @@ class VoiceActingTTS(BaseTTS):
             threading.Thread(target=_play, daemon=True).start()
             return True
 
+    def stream_speak(self, text: str, block: bool = True) -> bool:
+        """
+        Stream neural audio chunks directly to macOS CoreAudio as they are generated.
+        Time-to-first-sound: ~160-220ms on Apple Silicon Metal GPU.
+        Falls back seamlessly to file-based speak() on any streaming failure.
+        """
+        if not text or not text.strip():
+            return False
+
+        if os.environ.get("VOICEFI_MOCK_AUDIO") == "1" or os.environ.get("VOICEFI_TESTING") == "1":
+            return self.speak(text, block=block)
+
+        # Pre-clean prompt & extract bracket tags if any
+        clean_text = text.strip()
+        brackets = re.findall(r"\[(.*?)\]", clean_text)
+        effective_instruct = self.instruct
+        if brackets:
+            bracket_desc = ", ".join(brackets)
+            effective_instruct = f"{self.instruct}. Performance details: {bracket_desc}"
+            clean_text = re.sub(r"\[.*?\]", "", clean_text).strip()
+
+        if not clean_text:
+            return False
+
+        self._stop_requested = False
+
+        def _stream_playback():
+            player = None
+            try:
+                from voicefi.audio.player import StreamingAudioPlayer
+                from voicefi.audio.output_lock import exclusive_audio
+                import numpy as np
+
+                model = self.get_model(self.model_name)
+                player = StreamingAudioPlayer(sample_rate=model.sample_rate)
+                self._current_player = player
+
+                # Set cross-process HUD state
+                try:
+                    from voicefi.tts.base import set_cross_process_hud_state
+                    set_cross_process_hud_state(
+                        "speaking",
+                        text=clean_text,
+                        agent_name=getattr(self, "agent_name", "VoiceFi"),
+                        persona_name=getattr(self, "persona_name", "the_continental"),
+                        tag_text="⚡ Stream Metal",
+                    )
+                except Exception:
+                    pass
+
+                ref_input = self._get_ref_audio_input()
+
+                with speech_turn_lock(
+                    text=clean_text,
+                    agent_name=getattr(self, "agent_name", "VoiceFi"),
+                    persona_name=getattr(self, "persona_name", "the_continental"),
+                ):
+                    with exclusive_audio():
+                        set_agent_audio_playing(True)
+                        player.start()
+
+                        if ref_input is not None:
+                            gen_stream = model.generate(
+                                text=clean_text,
+                                ref_audio=ref_input,
+                                ref_text=self.ref_text,
+                                speed=float(self.speed),
+                                stream=True,
+                                streaming_interval=0.35,
+                            )
+                        else:
+                            gen_stream = model.generate(
+                                text=clean_text,
+                                voice=self.base_voice,
+                                instruct=effective_instruct,
+                                speed=float(self.speed),
+                                stream=True,
+                                streaming_interval=0.35,
+                            )
+
+                        for chunk in gen_stream:
+                            if self._stop_requested:
+                                break
+                            if hasattr(chunk, "audio") and chunk.audio is not None:
+                                audio_np = np.array(chunk.audio, copy=False)
+                                player.feed(audio_np)
+
+                        if not self._stop_requested:
+                            player.wait_until_drained()
+
+                        return True
+            except Exception as e:
+                logger.warning(
+                    f"[VoiceActingTTS] Streaming playback failed: {e}; falling back to standard speak."
+                )
+                return self.speak(clean_text, block=True)
+            finally:
+                if player:
+                    player.stop()
+                self._current_player = None
+                set_agent_audio_playing(False)
+
+        if block:
+            return _stream_playback()
+        else:
+            threading.Thread(target=_stream_playback, daemon=True).start()
+            return True
+
     def stop(self) -> None:
         """Stop active playback process immediately."""
         self._stop_requested = True
+        if hasattr(self, "_current_player") and self._current_player:
+            try:
+                self._current_player.stop()
+            except Exception:
+                pass
+            self._current_player = None
         if self._current_process:
             safe_terminate_process(self._current_process)
             self._current_process = None

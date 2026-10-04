@@ -54,6 +54,14 @@ def test_cli_hook_subshell_execution_latency():
         "test_ping": True,
     })
 
+    import socket
+    s = socket.socket()
+    s.settimeout(0.3)
+    is_daemon_up = (s.connect_ex(("127.0.0.1", 5141)) == 0)
+    s.close()
+    if not is_daemon_up:
+        pytest.skip("VoiceFi companion daemon is not running on port 5141 (fast path requires running daemon)")
+
     start = time.perf_counter()
     proc = subprocess.run(
         [sys.executable, "-m", "voicefi", "hook"],
