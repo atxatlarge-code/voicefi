@@ -407,8 +407,18 @@ def get_tts_engine(
         if intro_sfx_vol is None:
             intro_sfx_vol = 0.25
 
+        ref_audio = getattr(agent_prof, "f5_ref_audio", None) if agent_prof else getattr(config.tts, "f5_ref_audio", None)
+        ref_text = getattr(agent_prof, "f5_ref_text", None) if agent_prof else getattr(config.tts, "f5_ref_text", None)
+        if not ref_audio and clone_prof:
+            if clone_prof.sample_paths:
+                ref_audio = clone_prof.sample_paths[0]
+            if clone_prof.labels and clone_prof.labels.get("ref_text"):
+                ref_text = clone_prof.labels.get("ref_text")
+
         eng = VoiceActingTTS(
             persona_name=voice or "drill_sergeant",
+            ref_audio=ref_audio,
+            ref_text=ref_text,
             speed=effective_speed,
             intro_sfx=intro_sfx,
             intro_sfx_volume=intro_sfx_vol,

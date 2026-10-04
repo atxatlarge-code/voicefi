@@ -303,6 +303,7 @@ class VoiceActingTTS(BaseTTS):
                     text=clean_text,
                     ref_audio=self.ref_audio,
                     ref_text=self.ref_text,
+                    speed=float(self.speed),
                 ))
             else:
                 results = list(model.generate(
@@ -397,11 +398,16 @@ class VoiceActingTTS(BaseTTS):
                         "speaking",
                         text=text,
                         agent_name=getattr(self, "agent_name", "VoiceFi"),
+                        persona_name=getattr(self, "persona_name", "the_continental"),
                         tag_text="⚡ Local Metal",
                     )
                 except Exception:
                     pass
-                with speech_turn_lock(text=text, agent_name=getattr(self, "agent_name", "VoiceFi")):
+                with speech_turn_lock(
+                    text=text,
+                    agent_name=getattr(self, "agent_name", "VoiceFi"),
+                    persona_name=getattr(self, "persona_name", "the_continental"),
+                ):
                     set_agent_audio_playing(True)
                     self._current_process = subprocess.Popen(
                         ["afplay", str(tmp_path)],

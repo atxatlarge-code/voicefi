@@ -201,8 +201,14 @@ class MacSayTTS(BaseTTS):
         clean_text = normalize_tts_text(text)
         try:
             out_p = Path(output_path)
+            fmt_flags = (
+                ["--file-format=WAVE", "--data-format=LEI16@24000"]
+                if out_p.suffix.lower() == ".wav"
+                else []
+            )
             cmd = [
                 "say",
+                *fmt_flags,
                 "-v",
                 self.voice,
                 "-r",
@@ -215,7 +221,7 @@ class MacSayTTS(BaseTTS):
             res = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             if res.returncode != 0:
                 fallback = subprocess.run(
-                    ["say", "-o", str(out_p), "--", clean_text],
+                    ["say", *fmt_flags, "-o", str(out_p), "--", clean_text],
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                 )
