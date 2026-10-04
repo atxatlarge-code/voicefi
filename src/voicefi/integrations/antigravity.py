@@ -856,6 +856,8 @@ def handle_antigravity_stop_hook(
                 conv_id=conv_id,
             )
 
+            playback_finished = threading.Event()
+
             def _speak_and_finish():
                 try:
                     tts.stream_speak(spoken_text, block=True)
@@ -864,6 +866,7 @@ def handle_antigravity_stop_hook(
                 except Exception:
                     pass
                 finally:
+                    playback_finished.set()
                     if cfg.antigravity.show_speech_popup:
                         try:
                             from voicefi.ui.speech_hud import AgentSpeechHUD
@@ -878,6 +881,25 @@ def handle_antigravity_stop_hook(
                 daemon=True,
             )
             tts_thread.start()
+
+            from voicefi.tts.base import is_agent_audio_playing, is_speech_interrupted
+
+            # Wait for audio synthesis to complete and physical audio playback to commence
+            # before opening the microphone. This avoids pre-playback ambient mic noise
+            # or VAD false-positives aborting MLX/neural synthesis before afplay begins.
+            synth_wait_start = time.time()
+            max_synth_wait = 15.0
+            while not is_agent_audio_playing() and not playback_finished.is_set():
+                if is_speech_interrupted(hook_start_time):
+                    break
+                if time.time() - synth_wait_start > max_synth_wait:
+                    break
+                time.sleep(0.05)
+
+            if is_speech_interrupted(hook_start_time):
+                release_active_listener_lock(conv_id)
+                clear_cross_process_hud_state()
+                return {}
 
             def _on_barge_in():
                 stop_all_speech()

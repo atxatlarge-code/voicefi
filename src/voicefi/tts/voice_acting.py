@@ -92,6 +92,15 @@ VOICE_ACTING_PRESETS: Dict[str, Dict[str, Any]] = {
         ),
         "speed": 0.98,
     },
+    "the_continental": {
+        "base_voice": "eric",
+        "default_instruct": (
+            "Christopher Walken performing as The Continental in a velvet robe holding champagne. "
+            "Suave absurdity, intimate breathy rasp, theatrical eccentric cadence, "
+            "unexpected elongated pregnant pauses, lingering consonants, and seductive comedic charm."
+        ),
+        "speed": 0.92,
+    },
 }
 
 CANONICAL_PERSONAS = VOICE_ACTING_PRESETS
@@ -114,7 +123,7 @@ class VoiceActingTTS(BaseTTS):
         ref_audio: Optional[str] = None,
         ref_text: Optional[str] = None,
         model_name: Optional[str] = None,
-        speed: float = 1.0,
+        speed: Optional[float] = None,
         apply_silk_mastering: bool = False,
         intro_sfx: Optional[Union[str, Path]] = None,
         intro_sfx_volume: float = 0.25,
@@ -133,14 +142,17 @@ class VoiceActingTTS(BaseTTS):
         else:
             self.model_name = DEFAULT_VOICE_ACTING_MODEL
 
-        self.persona_name = (persona_name or ("custom_clone" if ref_audio else "drill_sergeant")).lower().strip()
+        raw_name = (persona_name or ("custom_clone" if ref_audio else "drill_sergeant")).lower().strip().replace(" ", "_")
+        if raw_name in ("the_continental", "walken_continental", "continental"):
+            raw_name = "the_continental"
+        self.persona_name = raw_name
         self.preset = VOICE_ACTING_PRESETS.get(
             self.persona_name,
             VOICE_ACTING_PRESETS["deadpan_ironist"]
         )
         self.base_voice = base_voice or self.preset.get("base_voice", "ryan")
         self.instruct = instruct or self.preset.get("default_instruct", "")
-        self.speed = speed or self.preset.get("speed", 1.0)
+        self.speed = speed if speed is not None else self.preset.get("speed", 1.0)
         self.apply_silk_mastering = apply_silk_mastering
         self.director = TheatricalDirector()
         self._current_process: Optional[subprocess.Popen] = None

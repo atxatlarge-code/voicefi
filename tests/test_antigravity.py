@@ -432,3 +432,97 @@ def test_voice_acting_fallback_cascade():
                 assert res is True
                 mock_say.assert_called_once()
 
+
+def test_continental_voice_acting_preset_and_intro_sfx(tmp_path):
+    """Verify The Continental preset configuration and intro SFX mixing."""
+    import wave
+    from voicefi.tts.voice_acting import VoiceActingTTS, VOICE_ACTING_PRESETS
+
+    assert "the_continental" in VOICE_ACTING_PRESETS
+    preset = VOICE_ACTING_PRESETS["the_continental"]
+    assert "The Continental" in preset["default_instruct"]
+    assert preset["speed"] == 0.92
+
+    # Create dummy speech WAV and dummy SFX WAV
+    speech_wav = tmp_path / "speech.wav"
+    sfx_wav = tmp_path / "sfx.wav"
+    out_wav = tmp_path / "mixed.wav"
+
+    with wave.open(str(speech_wav), "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(24000)
+        wf.writeframes(b"\x00\x10" * 4800)
+
+    with wave.open(str(sfx_wav), "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(24000)
+        wf.writeframes(b"\x00\x08" * 2400)
+
+    eng = VoiceActingTTS(
+        persona_name="the_continental",
+        intro_sfx=sfx_wav,
+        intro_sfx_volume=0.25,
+    )
+    assert eng.persona_name == "the_continental"
+    assert eng.speed == 0.92
+
+    ok = eng.mix_intro_sfx(speech_wav, sfx_wav, out_wav, volume=0.25)
+    assert ok is True
+    assert out_wav.exists()
+    assert out_wav.stat().st_size > 0
+
+
+def test_antigravity_hook_barge_in_sequencing(monkeypatch, tmp_path):
+    """Verify that barge-in does not open mic until audio playback starts."""
+    import time
+    from unittest.mock import MagicMock, patch
+    from voicefi.integrations.antigravity import handle_antigravity_stop_hook
+    from voicefi.config import VoiceFiConfig
+
+    cfg = VoiceFiConfig()
+    cfg.enabled = True
+    cfg.antigravity.auto_listen = True
+    cfg.antigravity.read_summary_aloud = True
+    cfg.vad.barge_in = True
+
+    events = []
+
+    class MockTTS:
+        def stream_speak(self, text, block=True):
+            time.sleep(0.05)
+            from voicefi.tts.base import set_agent_audio_playing
+            events.append("playback_started")
+            set_agent_audio_playing(True)
+            time.sleep(0.05)
+            set_agent_audio_playing(False)
+            events.append("playback_finished")
+
+    class MockRecorder:
+        def __init__(self, *args, **kwargs):
+            events.append("recorder_initialized")
+
+        def record_speech_auto(self, *args, **kwargs):
+            events.append("record_speech_started")
+            return None, None
+
+    monkeypatch.setattr("voicefi.integrations.antigravity.get_tts_engine", lambda *a, **kw: MockTTS())
+    monkeypatch.setattr("voicefi.integrations.antigravity.AudioRecorder", MockRecorder)
+    monkeypatch.setattr("voicefi.integrations.antigravity.claim_turn", lambda *a, **kw: True)
+    monkeypatch.setattr("voicefi.integrations.antigravity.extract_latest_agent_summary", lambda *a, **kw: ("Done!", "antigravity", 1, "Done!"))
+    monkeypatch.setattr("voicefi.integrations.conversations.ConversationTracker.is_conversation_focused", lambda self, cid: True)
+
+    payload = {"conversationId": "test_conv", "transcriptPath": str(tmp_path / "transcript.jsonl")}
+    (tmp_path / "transcript.jsonl").write_text('{"step_index": 1}\n')
+
+    handle_antigravity_stop_hook(payload, config=cfg)
+
+    # Invariant: playback_started must happen before record_speech_started
+    assert "playback_started" in events
+    assert "record_speech_started" in events
+    idx_play = events.index("playback_started")
+    idx_rec = events.index("record_speech_started")
+    assert idx_play < idx_rec, f"Barge-in sequencing failed: {events}"
+
+

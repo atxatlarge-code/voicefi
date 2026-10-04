@@ -334,9 +334,10 @@ VoiceFi creates an autonomous, full-duplex conversational loop between developer
 | **ProActive Ambient Meeting Co-Pilot (`ambient`)** | ✅ Included | ✅ Included |
 | **Global `<ctrl>+t` macOS Dictation Hotkey** | ✅ Included | ✅ Included |
 | **ElevenLabs High-Definition Custom Voices** | User API Key | Managed API |
-| **Local F5-TTS Diffusion Voice Cloning Studio** | ✅ Included | ✅ Included |
+| **Local Zero-Shot Voice Cloning (MLX Qwen3, Apache 2.0)** | ✅ Included | ✅ Included |
 | **Local Discrete Voice Acting Engine (MLX Qwen3)** | ✅ Included (Apple Silicon) | ✅ Included |
 | **Speech-to-Speech Zero-Render Lip-Sync (STS)** | ✅ Included | ✅ Included |
+| **Research Voice Cloning Studio (F5-TTS, CC-BY-NC)** | ✅ Non-Commercial Only | ✅ Research Mode |
 | **Commercial License & Priority SLA** | MIT License | Enterprise SLA |
 
 ---
@@ -381,7 +382,7 @@ VoiceFi exposes over 45 subcommands and aliases through the unified `vifi` CLI (
 | `vifi voice audition` | — | Play multi-agent voice showcase across speakers |
 | `vifi download-ava` | `vifi install-ava`, `setup-ava` | Download and configure Apple's Ava (Premium) neural voice for 0ms offline speech |
 | `vifi ping [voice]` | `vifi speed-test`, `check-voice` | Silent TTFB latency, throughput (chars/s), and payload test (`--all`, `--json`, `-n`) |
-| `vifi clone studio` | — | Launch local open-source voice cloning web studio (F5-TTS) |
+| `vifi clone studio` | — | Launch local open-source voice cloning web studio (MLX Qwen3 / F5-TTS) |
 | `vifi clone record <name>` | — | Record voice samples via interactive microphone wizard |
 | `vifi clone import <name> <files>` | — | Train custom voice clone from existing audio files (`.wav`, `.mp3`) |
 | `vifi clone list` / `delete` / `test` | — | Manage custom trained voice clone profiles |

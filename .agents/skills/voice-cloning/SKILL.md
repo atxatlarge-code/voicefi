@@ -1,6 +1,6 @@
 ---
 name: voice-cloning
-description: Guides the creation, calibration, neural diffusion cloning (F5-TTS), broadcast mastering, and fine-tuning of custom voice personas in VoiceFi, including the complete documentary broadcaster nature documentary voice recipe.
+description: Guides the creation, calibration, zero-shot neural voice cloning (MLX Qwen3-TTS Apache 2.0 / F5-TTS), broadcast mastering, and fine-tuning of custom voice personas in VoiceFi, including the complete documentary broadcaster nature documentary voice recipe.
 ---
 
 # 🧬 Voice Cloning & Persona Crafting Studio — VoiceFi™
@@ -13,7 +13,15 @@ Use this skill whenever the user asks to clone a voice, create a new vocal perso
 
 ## 🏗️ Architecture & Engine Overview
 
-VoiceFi's voice cloning engine operates on **zero-shot neural diffusion** powered by **F5-TTS** (`F5TTS_v1_Base` / `E2-TTS`), running completely locally and privately on Apple Silicon Metal Performance Shaders (`device="mps"`).
+VoiceFi provides two zero-shot voice cloning options on Apple Silicon:
+
+1. **Production & Commercial Engine: MLX Qwen3-TTS Base 0.6B (Apache 2.0 — Recommended)**
+   - **Model:** `mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit` (~964MB VRAM, 4-bit quantized).
+   - **License:** **Apache 2.0** (fully permissive for commercial and enterprise distribution).
+   - **Performance:** **0.98x Real-Time Factor (RTF)** running natively on Apple Silicon Metal GPU via `mlx-audio`. Eliminates PyTorch MPS command queue contention.
+2. **Research & Non-Commercial Engine: F5-TTS Flow Matching (CC-BY-NC 4.0)**
+   - **Model:** `F5TTS_v1_Base` / `E2-TTS` (300M parameters).
+   - **License:** **CC-BY-NC 4.0 (Non-Commercial only)**. Retained for offline personal research; cannot be distributed in commercial builds.
 
 ```
 [Reference Audio (10-15s clean WAV)] + [Reference Transcript]
@@ -36,9 +44,10 @@ VoiceFi's voice cloning engine operates on **zero-shot neural diffusion** powere
 ```
 
 ### Key Technical Safeguards:
-1. **MPS Metal Threading Safety**: PyTorch MPS Metal command queues on macOS are **not thread-safe**. VoiceFi patches `f5_tts.infer.utils_infer.ThreadPoolExecutor` to enforce `max_workers=1`, preventing hard `SIGSEGV` crashes.
-2. **Batch-Seam Glitch Prevention**: Feeding long paragraphs (>25 words) to neural diffusion models causes drift, unnatural pitch warping, or abrupt batch-boundary clicks. Scripts must be broken into natural thought clauses and stitched with 350ms–500ms room-tone pauses.
-3. **Environment Requirement**: Requires `DYLD_FALLBACK_LIBRARY_PATH="/opt/homebrew/lib"` on macOS for `torchcodec` and FFmpeg shared libraries.
+1. **Commercial Compliance**: Always use `QwenCloneTTS` or `cloning_engine: qwen` for any commercial features, apps, or distributed client media (Apache 2.0). F5-TTS is restricted to non-commercial research (CC-BY-NC 4.0).
+2. **MPS Metal Threading Safety (F5-TTS only)**: PyTorch MPS Metal command queues on macOS are **not thread-safe**. VoiceFi patches `f5_tts.infer.utils_infer.ThreadPoolExecutor` to enforce `max_workers=1`, preventing hard `SIGSEGV` crashes. (MLX Qwen3-TTS runs natively on Metal GPU without this limitation).
+3. **Batch-Seam Glitch Prevention**: Feeding long paragraphs (>25 words) to neural models causes drift, unnatural pitch warping, or abrupt batch-boundary clicks. Scripts must be broken into natural thought clauses and stitched with 350ms–500ms room-tone pauses.
+4. **Environment Requirement**: Requires `DYLD_FALLBACK_LIBRARY_PATH="/opt/homebrew/lib"` on macOS for `torchcodec` and FFmpeg shared libraries when using F5-TTS.
 
 ---
 
@@ -142,7 +151,28 @@ clean_audio = np.concatenate([p1, p2]).astype(np.int16)
 
 ## 🛠️ Python SDK Usage
 
-Synthesize speech using the VoiceFi F5-TTS engine directly:
+### 1. Commercial Zero-Shot Cloning with MLX Qwen3-TTS (Apache 2.0 — Recommended)
+
+Synthesize speech using the Apache 2.0 4-bit MLX model on Apple Silicon Metal GPU:
+
+```python
+from pathlib import Path
+from voicefi.tts.voice_acting import QwenCloneTTS
+
+tts = QwenCloneTTS(
+    ref_audio="/Users/jaketrigg/.voicefi/cloned_voices/documentary_broadcaster/samples/sample_01_clean.wav",
+    ref_text="Carved over millennia... this limestone artery sustains life across the Texas hill country.",
+    speed=0.92,
+)
+
+out_path = Path("/tmp/documentary_broadcaster_take.wav")
+ok = tts.speak_to_file(
+    "Carved over millennia... this limestone artery sustains life across the Texas hill country.",
+    out_path
+)
+```
+
+### 2. Research Non-Commercial Cloning with F5-TTS (CC-BY-NC 4.0)
 
 ```python
 import os
@@ -153,12 +183,10 @@ os.environ["DYLD_FALLBACK_LIBRARY_PATH"] = "/opt/homebrew/lib"
 
 from voicefi.tts.f5_tts import F5TTS
 
-# Initialize on Apple Silicon Metal (MPS)
 tts = F5TTS(device="mps")
 tts.persona_name = "documentary_broadcaster"
 
-# Synthesize directly to broadcast WAV
-out_path = Path("/tmp/documentary_broadcaster_take.wav")
+out_path = Path("/tmp/documentary_broadcaster_take_f5.wav")
 ok = tts.speak_to_file(
     "Carved over millennia... this limestone artery sustains life across the Texas hill country.",
     out_path

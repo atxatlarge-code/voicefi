@@ -33,8 +33,8 @@ All TTS providers in VoiceFi inherit from the abstract base class `BaseTTS` defi
 │   (macOS Native)        (Microsoft Neural)     (ElevenLabs Cloud)              │
 │          │                      │                      │                       │
 │          ▼                      ▼                      ▼                       │
-│   `F5TTS`                `CustomNeuralTTS`      (Your Provider Here)           │
-│   (Diffusion Clone)     (e.g., Piper / OpenAI)                                 │
+│   `QwenTTS` / `F5TTS`    `CustomNeuralTTS`      (Your Provider Here)           │
+│   (MLX / Diffusion)     (e.g., Piper / OpenAI)                                 │
 │                                                                                │
 └────────────────────────────────────────────────────────────────────────────────┘
 ```

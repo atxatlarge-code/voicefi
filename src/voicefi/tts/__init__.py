@@ -396,9 +396,18 @@ def get_tts_engine(
         from voicefi.tts.voice_acting import VoiceActingTTS
 
         effective_speed = float(rate) / 200.0 if (rate and isinstance(rate, (int, float))) else 1.0
+        agent_key = (agent_name or "").lower().strip()
+        agent_prof = config.agents.get(agent_key) if hasattr(config, "agents") else None
+        intro_sfx = getattr(agent_prof, "intro_sfx", None) if agent_prof else getattr(config.tts, "intro_sfx", None)
+        intro_sfx_vol = getattr(agent_prof, "intro_sfx_volume", 0.25) if agent_prof else getattr(config.tts, "intro_sfx_volume", 0.25)
+        if intro_sfx_vol is None:
+            intro_sfx_vol = 0.25
+
         eng = VoiceActingTTS(
             persona_name=voice or "drill_sergeant",
             speed=effective_speed,
+            intro_sfx=intro_sfx,
+            intro_sfx_volume=intro_sfx_vol,
         )
     elif provider == "edge_tts":
         offline_v = None

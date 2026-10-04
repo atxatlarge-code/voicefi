@@ -1,6 +1,6 @@
 ---
 name: voice-acting
-description: Directs and synthesizes high-expression local Voice Acting, character performances, theatrical delivery, and staccato cadence on Apple Silicon Metal GPU using VoiceFi's discrete codec MLX engine (Qwen3-TTS) and F5-TTS multi-emotion flow matching without cloud APIs.
+description: Directs and synthesizes high-expression local Voice Acting, character performances, theatrical delivery, and staccato cadence on Apple Silicon Metal GPU using VoiceFi's discrete codec MLX engine (Qwen3-TTS Apache 2.0) and F5-TTS multi-emotion flow matching without cloud APIs.
 ---
 
 # 🎭 Voice Acting Skill — VoiceFi™
@@ -121,8 +121,9 @@ ffmpeg -i original.mp4 -i converted_voice.wav -c:v copy -map 0:v:0 -map 1:a:0 du
 ## 🎨 Authentic Character Voice Seed Recipe (The Sketch-to-Character Blueprint)
 
 When cloning comedic or theatrical personas (e.g. Christopher Walken's *The Continental* vs *Bruce Dickinson / More Cowbell*):
-* **Diffusion models inherit performance energy:** Never use flat generic interview clips or synthetic TTS samples as seeds.
-* **The Rule:** The F5-TTS reference seed (`ref_audio`) must be an authentic 5-10 second clip of the actor **performing in that specific character role**.
+* **Conditioning models inherit performance energy:** Never use flat generic interview clips or synthetic TTS samples as seeds.
+* **The Rule:** The reference seed (`ref_audio`) must be an authentic 5-10 second clip of the actor **performing in that specific character role**.
+* **Engines:** Feeds directly into **MLX Qwen3-TTS Base (`QwenCloneTTS`, Apache 2.0 commercial)** or F5-TTS (CC-BY-NC 4.0 research mode).
 * **Detailed Blueprint:** See [`docs/AUTHENTIC_VOICE_CHARACTER_TEMPLATE.md`](file:///Users/jaketrigg/Projects/VoiceFi/docs/AUTHENTIC_VOICE_CHARACTER_TEMPLATE.md).
 
 ```bash
@@ -132,6 +133,6 @@ yt-dlp -x --audio-format wav -o "/tmp/character.%(ext)s" "<URL>"
 # 2. Slice 5-10s at 24kHz mono
 ffmpeg -y -ss <START> -to <END> -i /tmp/character.wav -ar 24000 -ac 1 ~/.voicefi/cloned_voices/<actor>/<char>/ref_<char>.wav
 
-# 3. Transcribe exact reference text for f5_ref_text
-# 4. Synthesize with directed script cadence
+# 3. Transcribe exact reference text for ref_text
+# 4. Synthesize with directed script cadence using QwenCloneTTS or VoiceActingTTS
 ```

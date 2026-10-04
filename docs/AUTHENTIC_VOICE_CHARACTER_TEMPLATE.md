@@ -1,6 +1,11 @@
 # 🎭 Authentic Voice Character Template — The "Sketch-to-Character" Blueprint
 
-> **Purpose:** A standardized, repeatable pipeline for transforming iconic film and sketch performances into distinct, affective AI voice characters on Apple Silicon (F5-TTS & MLX).
+> **Purpose:** A standardized, repeatable pipeline for transforming iconic film and sketch performances into distinct, affective AI voice characters on Apple Silicon (MLX Qwen3-TTS & F5-TTS).
+
+> [!IMPORTANT]
+> **Commercial Licensing & Engine Hierarchy:**
+> * **Production & Commercial Builds:** VoiceFi standardizes on **MLX Qwen3-TTS** (`mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit` for cloning, `CustomVoice-4bit` for acting), licensed under **Apache 2.0** (fully permissive for commercial and enterprise distribution).
+> * **Non-Commercial / Research Engine:** **F5-TTS** is licensed under **CC-BY-NC 4.0 (Non-Commercial)**. It is retained solely for offline personal research and cannot be bundled into commercial deliverables.
 
 ---
 
@@ -8,7 +13,7 @@
 
 Traditional voice cloning tries to capture a generic speaker profile from clean interviews. This creates **flat, uncanny results** because:
 
-1. **Diffusion models inherit performance energy:** Neural flow-matching (F5-TTS) does not just clone frequency timbre; **it clones the exact emotional posture, breath tension, vocal fry, and projection of the reference audio**.
+1. **Conditioning models inherit performance energy:** Both neural flow-matching (F5-TTS) and discrete codec transformers (Qwen3-TTS) clone far more than frequency timbre; **they inherit the exact emotional posture, breath tension, vocal fry, and projection of the reference audio**.
 2. **Actors play characters, not themselves:** Christopher Walken in *The Continental* has a completely different pitch floor, rasp, and vocal pacing than Walken in *More Cowbell* or Walken in an interview about film pragmatism.
 3. **The Rule:** If you want a voice character to sound like a specific comedic persona, **the reference seed audio MUST be an authentic clip of the actor performing that specific character**.
 
@@ -151,15 +156,16 @@ directed = "Wow... look at you. Champagne... and a clean build. Does it get any 
 ```
 
 #### B. Synthesize & Audition
-```python
-from voicefi.tts.f5_tts import F5TTS
-from pathlib import Path
 
-tts = F5TTS(
+##### Option 1: Commercial Zero-Shot Cloning with MLX Qwen3-TTS (Apache 2.0 — Recommended)
+```python
+from voicefi.tts.voice_acting import QwenCloneTTS
+
+# Zero-shot cloning via 4-bit MLX model on Apple Silicon Metal GPU (Apache 2.0)
+tts = QwenCloneTTS(
     ref_audio="~/.voicefi/cloned_voices/christopher_walken/continental/ref_continental_bubble.wav",
     ref_text="Each bubble like the story of one life. Would you like to hear my story?",
     speed=0.92,
-    nfe_step=24,
 )
 
 tts.speak_to_file(directed, "/tmp/audition.wav")
@@ -167,13 +173,36 @@ tts.speak_to_file(directed, "/tmp/audition.wav")
 # afplay /tmp/audition.wav
 ```
 
+##### Option 2: Prompt-Directed Acting with Zero Reference Audio (`VoiceActingTTS`)
+```python
+from voicefi.tts.voice_acting import VoiceActingTTS
+
+# Uses MLX Qwen3-TTS CustomVoice with built-in character preset
+tts = VoiceActingTTS(persona_name="the_continental", speed=0.92)
+tts.speak(directed)
+```
+
+##### Option 3: Non-Commercial Research with F5-TTS (CC-BY-NC 4.0)
+```python
+from voicefi.tts.f5_tts import F5TTS
+
+# Retained strictly for non-commercial personal research
+tts = F5TTS(
+    ref_audio="~/.voicefi/cloned_voices/christopher_walken/continental/ref_continental_bubble.wav",
+    ref_text="Each bubble like the story of one life. Would you like to hear my story?",
+    speed=0.92,
+    nfe_step=24,
+)
+tts.speak_to_file(directed, "/tmp/audition_f5.wav")
+```
+
 #### C. Wire into VoiceFi Turn Completion
 Update `~/.voicefi/config.yaml`:
 ```yaml
 tts:
+  cloning_engine: qwen             # Uses Apache 2.0 MLX Qwen3-TTS Base
   provider: local_clone
-  voice: christopher_walken
-  f5_nfe_step: 24
+  voice: walken_continental
   f5_ref_audio: ~/.voicefi/cloned_voices/christopher_walken/continental/ref_continental_bubble.wav
   f5_ref_text: "Each bubble like the story of one life. Would you like to hear my story?"
 ```

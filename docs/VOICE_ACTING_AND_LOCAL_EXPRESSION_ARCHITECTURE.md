@@ -39,10 +39,12 @@ flowchart TD
     
     Director --> Router{"Tier 2: Voice Provider Routing"}
     
-    Router -->|provider='voice_acting'| MLX["MLX Discrete Codec Engine\n(Qwen3-TTS 0.6B 4-bit on Metal GPU)\nPrompt-directed acting with zero reference seeds\n0.98x RTF"]
-    Router -->|provider='local_clone'| F5["F5-TTS Multi-Emotion Flow Matching\n(Acoustic Reference Seed Matrix)\nExact biometric clone of Walken, Stefan, Viv, etc."]
+    Router -->|provider='voice_acting'| MLX["MLX Qwen3-TTS CustomVoice (Apache 2.0)\nPrompt-directed acting with zero reference seeds\n0.98x RTF"]
+    Router -->|provider='local_clone'| QwenBase["MLX Qwen3-TTS Base (Apache 2.0)\nCommercial zero-shot biometric clone\n0.98x RTF"]
+    Router -.->|provider='f5_tts'| F5["F5-TTS Flow Matching (CC-BY-NC 4.0)\nNon-commercial research only"]
     
     MLX --> DSP["Tier 3: BBC Broadcast Silk Mastering\n(70Hz Rumble Cut, 125Hz Chest Resonance, 5.6kHz De-Esser)"]
+    QwenBase --> DSP
     F5 --> DSP
     
     DSP --> CoreAudio["CoreAudio afplay / Social Reel Video Muxer"]
@@ -81,9 +83,9 @@ Automatically parses turn summaries into erratic Walken phrasing:
 Configured in `~/.voicefi/config.yaml`:
 ```yaml
 tts:
+  cloning_engine: qwen             # Uses Apache 2.0 MLX Qwen3-TTS Base
   provider: local_clone
   voice: christopher_walken
-  f5_nfe_step: 24
   f5_ref_audio: ~/.voicefi/cloned_voices/christopher_walken/samples/sample_cowbell_snl.wav
   f5_ref_text: "Guess what? I got a fever, and the only prescription is more cowbell."
 ```
@@ -157,5 +159,5 @@ VoiceFi provides three distinct tiers of voice synthesis. Knowing when to escala
 | Speech Tier | Engine / Provider | Core Archetype | Strengths & Capabilities | Best Use Cases | Cost / Constraints |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Tier 1: Multimodal Theatrical Stage** | **Gemini 3.8 Live** (`gemini-3.8-live` Native Audio) | **The Improv Acting Troupe** (*"The Three Stooges"*) | Generates direct acoustic tokens in model latent space. Performs gasps, laughter, shouting, comedic timing, voice squeaks, and bickering banter. | Viral comedy shorts, Three Stooges roasts, AI rap battles, interactive live voice roleplay. | Cloud API dependency; token metered billing; requires WAN. |
-| **Tier 2: On-Device Voice Acting & Clones** | **MLX Qwen3-TTS** & **F5-TTS Flow Matching** | **The Method Actor** (*"Walken, Attenborough, Drill Sergeant"*) | On-device autoregressive codec LLM and diffusion flow matching on Apple Silicon GPU. Directable with `--instruct` prompts and biometric audio reference seeds. | Custom founder cloned voices, character monologues, offline theatrical delivery. | Requires ~3.3GB unified RAM on Apple Silicon Metal GPU; 0.98x RTF. |
+| **Tier 2: On-Device Voice Acting & Clones** | **MLX Qwen3-TTS** (Apache 2.0) & **F5-TTS** (CC-BY-NC 4.0 Research) | **The Method Actor** (*"Walken, Attenborough, Drill Sergeant"*) | On-device autoregressive codec LLM (Apache 2.0 commercial) and diffusion flow matching (research mode) on Apple Silicon GPU. Directable with `--instruct` prompts and biometric audio reference seeds. | Custom founder cloned voices, character monologues, offline theatrical delivery. | Requires ~3.3GB unified RAM on Apple Silicon Metal GPU; 0.98x RTF. |
 | **Tier 3: Autonomous Content Factory Stage 2** | **Edge-TTS / CoreAudio** with 48kHz PCM Stitching | **The Professional Broadcast Announcers** (*"Viv & Jake"*) | Rapid multi-speaker turn synthesis, acoustic tag stripping, 140ms conversational gaps, and automatic sidechain music ducking. | Overnight soak runs (4,000+ jobs), technical change recaps, customer briefings, automated batch reels. | $0 cloud cost; 100% reliable; fast (~8s per 30s reel); clean announcer delivery without slapstick physical acting. |
