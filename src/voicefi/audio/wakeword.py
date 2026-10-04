@@ -83,6 +83,8 @@ class WakeWordListener:
         self._stt_instance = None
         self._current_state = "stopped"
         self._last_wake_time = 0.0
+        self._pending_wake_phrase: Optional[str] = None
+        self._pending_wake_time: float = 0.0
 
     def _set_state(self, state: str):
         if self._current_state != state:
@@ -339,24 +341,47 @@ class WakeWordListener:
                     )
                     return
 
+                is_followup = False
                 # Check for wake word prefix
                 matched_phrase, prompt = ActiveListeningEngine.extract_wakeword_and_prompt(
                     clean_text, aliases=self.aliases
                 )
 
+                # Conversational follow-up: if user previously said just the wake word (e.g. "Hey Pal")
+                # within 8 seconds and paused, treat this follow-up utterance as the prompt!
+                if not matched_phrase and self._pending_wake_phrase:
+                    if time.time() - self._pending_wake_time <= 8.0:
+                        matched_phrase = self._pending_wake_phrase
+                        prompt = clean_text
+                        self._pending_wake_phrase = None
+                        is_followup = True
+                        print(
+                            f"\n⚡ [WakeWord] PENDING WAKE FOLLOW-UP: '{matched_phrase}' | Prompt: '{prompt}'",
+                            flush=True,
+                        )
+                    else:
+                        self._pending_wake_phrase = None
+
                 if matched_phrase:
                     self._last_wake_time = time.time()
-                    print(
-                        f"\n⚡ [WakeWord] WAKE WORD DETECTED: '{matched_phrase}' | Prompt: '{prompt}'",
-                        flush=True,
-                    )
-                    self._set_state("wake_triggered")
+                    if not prompt:
+                        self._pending_wake_phrase = matched_phrase
+                        self._pending_wake_time = time.time()
+                    else:
+                        self._pending_wake_phrase = None
 
-                    if getattr(self.config.wakeword, "chime", True):
-                        try:
-                            play_chime("start")
-                        except Exception:
-                            pass
+                    if not is_followup:
+                        print(
+                            f"\n⚡ [WakeWord] WAKE WORD DETECTED: '{matched_phrase}' | Prompt: '{prompt}'",
+                            flush=True,
+                        )
+                        self._set_state("wake_triggered")
+
+                        if getattr(self.config.wakeword, "chime", True):
+                            try:
+                                play_chime("start")
+                            except Exception:
+                                pass
 
                     if self.on_wake:
                         try:

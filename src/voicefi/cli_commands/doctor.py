@@ -149,16 +149,32 @@ def check_package_dependencies() -> List[Dict[str, Any]]:
 def check_audio_devices() -> Dict[str, Any]:
     """Inspect CoreAudio hardware device sample rates and profiles."""
     try:
-        from voicefi.audio.device import get_default_audio_devices
+        from voicefi.audio.device import (
+            get_default_audio_devices,
+            is_bluetooth_input_active,
+            is_headphone_or_headset_active,
+        )
 
         in_dev, out_dev = get_default_audio_devices()
         out_name = out_dev.get("name", "Unknown") if out_dev else "None detected"
         out_sr = out_dev.get("default_samplerate", 0) if out_dev else 0
         in_name = in_dev.get("name", "Unknown") if in_dev else "None detected"
 
+        bt_input = is_bluetooth_input_active()
+        headphones = is_headphone_or_headset_active()
+
         if out_dev and in_dev:
-            status = "pass"
-            msg = f"Output: {out_name} ({out_sr}Hz) | Input: {in_name}"
+            if headphones and bt_input:
+                status = "warn"
+                msg = (
+                    f"Output: {out_name} ({out_sr}Hz) | Input: {in_name}\n"
+                    f"  ⚠️ Audio Input Device Lock: Input is set to Bluetooth earbuds. "
+                    f"Keeping input on MacBook Pro Microphone in System Settings → Sound → Input "
+                    f"will keep your earbuds in high-fidelity stereo (prevents SCO/HFP mono downgrade)."
+                )
+            else:
+                status = "pass"
+                msg = f"Output: {out_name} ({out_sr}Hz) | Input: {in_name}"
         elif out_dev:
             status = "warn"
             msg = f"Output: {out_name} ({out_sr}Hz) | Input: None (Microphone missing)"
@@ -174,6 +190,7 @@ def check_audio_devices() -> Dict[str, Any]:
             "output_device": out_name,
             "output_samplerate": out_sr,
             "input_device": in_name,
+            "audio_input_lock_recommended": headphones and bt_input,
         }
     except Exception as e:
         return {

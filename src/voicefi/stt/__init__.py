@@ -70,17 +70,22 @@ def get_stt_engine(config: VoiceFiConfig) -> BaseSTT:
         elif provider == "apple_speech":
             engine = AppleSpeechSTT(language=language)
         elif provider in ("mlx_whisper", "mlx", "metal"):
-            from voicefi.stt.mlx_whisper import MLXWhisperSTT
+            import importlib.util
 
-            model_name = getattr(config.stt, "mlx_model", None) or getattr(
-                config.stt, "model_size", "mlx-community/whisper-large-v3-turbo"
-            )
-            if not model_name.startswith("mlx-community/") and "/" not in model_name:
-                if "turbo" in model_name:
-                    model_name = "mlx-community/whisper-large-v3-turbo"
-                elif "distil" in model_name:
-                    model_name = "mlx-community/distil-whisper-large-v3"
-            engine = MLXWhisperSTT(model_name=model_name, language=language)
+            if importlib.util.find_spec("mlx_whisper") is not None:
+                from voicefi.stt.mlx_whisper import MLXWhisperSTT
+
+                model_name = getattr(config.stt, "mlx_model", None) or getattr(
+                    config.stt, "model_size", "mlx-community/whisper-large-v3-turbo"
+                )
+                if not model_name.startswith("mlx-community/") and "/" not in model_name:
+                    if "turbo" in model_name:
+                        model_name = "mlx-community/whisper-large-v3-turbo"
+                    elif "distil" in model_name:
+                        model_name = "mlx-community/distil-whisper-large-v3"
+                engine = MLXWhisperSTT(model_name=model_name, language=language)
+            else:
+                engine = WhisperLocalSTT(model_size=model_size, language=language)
         else:
             # Local faster-whisper (streaming gated behind Pro/Org tier)
             if streaming and FeatureGate.can_use_feature("streaming_stt", config):

@@ -125,11 +125,41 @@ def is_headphone_or_headset_active() -> bool:
         return False
 
 
+def is_bluetooth_input_active() -> bool:
+    """
+    Check if the current default audio input device is a Bluetooth headset or earbuds.
+    When true, macOS CoreAudio switches the Bluetooth profile from high-fidelity A2DP stereo
+    to low-fidelity SCO/HFP mono to service the microphone channel.
+    """
+    try:
+        in_dev, _ = get_default_audio_devices()
+        if not in_dev:
+            return False
+
+        in_name = str(in_dev.get("name", "")).lower()
+        headphone_markers = (
+            "headphone",
+            "headset",
+            "airpod",
+            "buds",
+            "ear",
+            "bluetooth",
+            "wireless",
+            "in-ear",
+            "iem",
+        )
+        return any(marker in in_name for marker in headphone_markers)
+    except Exception:
+        return False
+
+
 def get_audio_device_profile() -> Dict[str, Any]:
     """Return a comprehensive hardware acoustic profile for diagnostics and telemetry."""
     in_dev, out_dev = get_default_audio_devices()
     builtin_spk = is_using_builtin_speakers()
     headphones = is_headphone_or_headset_active()
+    bt_input = is_bluetooth_input_active()
+    lock_recommended = headphones and bt_input
     try:
         from voicefi.audio.native_vpio import is_vpio_supported
 
@@ -142,6 +172,13 @@ def get_audio_device_profile() -> Dict[str, Any]:
         "default_output": out_dev.get("name") if out_dev else "None",
         "is_builtin_speakers": builtin_spk,
         "is_headphones_active": headphones,
+        "is_bluetooth_input_active": bt_input,
+        "audio_input_lock_recommended": lock_recommended,
+        "audio_input_lock_tip": (
+            "Keep input on MacBook Pro Microphone in System Settings → Sound → Input to lock earbuds in high-fidelity stereo."
+            if lock_recommended
+            else ""
+        ),
         "hardware_aec_supported": hardware_aec,
         "hardware_aec_backend": "Apple AUVoiceProcessing (VoiceProcessingIO)"
         if hardware_aec

@@ -2921,6 +2921,57 @@ class UnifiedDynamicIslandHUD:
             agent_name=agent_name,
         )
 
+    def set_training(
+        self,
+        workflow_name: str,
+        step_count: int = 1,
+        elapsed_seconds: float = 0.0,
+        current_action: str = "Demonstrate steps • Say 'stop training' when done",
+    ):
+        """Set to Pal Teach Mode Training State with radiant crimson recording badge."""
+        mins = int(elapsed_seconds) // 60
+        secs = int(elapsed_seconds) % 60
+        tag = f"🔴 Step {step_count} • {mins:02d}:{secs:02d}"
+        crimson_border = NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 0.18, 0.25, 0.85)
+        crimson_tag = NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 0.22, 0.28, 0.98)
+
+        self._apply_rich_state(
+            state="training",
+            avatar_emoji="🔴",
+            avatar_bg=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.9, 0.1, 0.2, 0.25),
+            title="Pal Training",
+            tag_text=tag,
+            tag_color=crimson_tag,
+            body_text=current_action,
+            border_color=crimson_border,
+            conv_title=workflow_name.title(),
+            app_name="Pal",
+            linger=None,
+        )
+
+    def update_training_step(
+        self,
+        step_count: int,
+        last_action: str,
+        elapsed_seconds: float = 0.0,
+    ):
+        """Update training step count and last action subtitle on main thread without layout flicker."""
+        mins = int(elapsed_seconds) // 60
+        secs = int(elapsed_seconds) % 60
+        tag = f"🔴 Step {step_count} • {mins:02d}:{secs:02d}"
+
+        def _update():
+            if hasattr(self, "_tag_lbl") and self._tag_lbl and self._panel and self._panel.isVisible():
+                self._tag_lbl.setStringValue_(tag)
+            if hasattr(self, "_body_lbl") and self._body_lbl and self._panel and self._panel.isVisible():
+                self._body_lbl.setStringValue_(last_action[:60])
+
+        try:
+            from PyObjCTools import AppHelper
+            AppHelper.callAfter(_update)
+        except Exception:
+            _update()
+
     def set_user_prompt(
         self,
         prompt: str,

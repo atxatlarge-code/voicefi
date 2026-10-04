@@ -42,6 +42,20 @@ def test_check_audio_devices():
         assert res["status"] == "pass"
         assert res["output_samplerate"] == 48000.0
         assert "Studio Monitors" in res["details"]
+        assert res["audio_input_lock_recommended"] is False
+
+
+def test_check_audio_devices_bluetooth_input_lock_warning():
+    with patch("voicefi.audio.device.get_default_audio_devices") as mock_devs:
+        mock_devs.return_value = (
+            {"name": "Pixel Buds Pro 2"},
+            {"name": "Pixel Buds Pro 2", "default_samplerate": 44100.0},
+        )
+        res = check_audio_devices()
+        assert res["status"] == "warn"
+        assert res["audio_input_lock_recommended"] is True
+        assert "Audio Input Device Lock" in res["details"]
+        assert "MacBook Pro Microphone" in res["details"]
 
 
 def test_check_port_availability():

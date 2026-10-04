@@ -90,6 +90,26 @@ Not all features are locked to specific hardware. VoiceFi implements a **gracefu
 - If someone walks into your office while an agent is reading a 30-line code plan, you simply say *"Hey, what's up?"*.
 - The Pixel Buds Pro 2 instantly engage Transparency mode and pause audio stream. You do not have to fumble for a mute button or take your phone out of your pocket.
 
+### 4. Audio Input Device Lock: Keeping Earbuds in High-Fidelity Stereo
+> **CoreAudio Reality:** When macOS routes audio input to a Bluetooth headset, Bluetooth Classic is forced to switch from the high-fidelity **A2DP** stereo profile (44.1/48 kHz AAC/SBC) to the bidirectional **HFP/HSP** (Hands-Free Profile) with SCO/eSCO channels. This violently collapses audio output to **16 kHz (mSBC) or 8 kHz mono telephone quality**, ruining agent voice acting formants, audio mastering, and spatial staging.
+
+#### The macOS Auto-Switching Quirk:
+If you frequently connect/disconnect Bluetooth devices (or place Pixel Buds / AirPods in and out of their charging case), macOS CoreAudio occasionally attempts to switch the default input back to the earbuds.
+
+#### The Recommended Configuration:
+Keep the input locked to **MacBook Pro Microphone** in **System Settings → Sound → Input**:
+
+```
+System Settings → Sound:
+  • Output: "Pixel Buds Pro 2" (or your Bluetooth headphones) -> High-Fidelity Stereo (A2DP, 44.1/48kHz)
+  • Input:  "MacBook Pro Microphone"                         -> Studio 3-Mic Directional Array
+```
+
+This guarantees:
+1. **Permanent High-Fidelity Stereo**: Earbuds remain strictly on A2DP with zero sample-rate or bandwidth throttling.
+2. **Superior Speech Recognition**: VoiceFi leverages the high-SNR 3-mic directional array on Apple Silicon MacBooks.
+3. **Full-Duplex Barge-In**: VoiceFi recognizes `is_headphone_or_headset_active() == True` and safely unlocks natural full-duplex interruption without echo bleed.
+
 ---
 
 ## 🧪 How to Verify Your Current Setup
@@ -103,7 +123,7 @@ vifi doctor
 Under the **Audio Hardware Profile** section, look for:
 ```yaml
 Audio Device Profile:
-  Default Input: "Pixel Buds Pro 2"
+  Default Input: "MacBook Pro Microphone"
   Default Output: "Pixel Buds Pro 2"
   Is Headphone Active: true
   Acoustic Safe Mode Recommended: false

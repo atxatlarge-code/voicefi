@@ -123,6 +123,15 @@ class TestPalHarnessExecution:
         assert res.action_type == "open_folder"
         assert "Downloads" in res.details
 
+    @patch("subprocess.run")
+    def test_open_folder_with_punctuation_and_stop_words(self, mock_run):
+        mock_run.return_value = MagicMock(returncode=0)
+        for phrase in ("open the Downloads folder.", "open downloads.", "open my downloads folder", "show downloads."):
+            res = PalHarness.execute_command(phrase)
+            assert res.success is True
+            assert res.action_type == "open_folder"
+            assert "Downloads" in res.details
+
     @patch("voicefi.integrations.pal_harness.PalHarness.run_applescript")
     def test_quit_app(self, mock_as):
         mock_as.return_value = (True, "")
@@ -130,6 +139,22 @@ class TestPalHarnessExecution:
         assert res.success is True
         assert res.action_type == "quit_app"
         assert 'tell application "GarageBand" to quit' in mock_as.call_args[0][0]
+
+    @patch("voicefi.integrations.pal_harness.PalHarness.run_applescript")
+    def test_quit_and_launch_app_with_punctuation(self, mock_as):
+        mock_as.return_value = (True, "")
+        res = PalHarness.execute_command("quit Safari.")
+        assert res.success is True
+        assert res.action_type == "quit_app"
+        assert 'tell application "Safari" to quit' in mock_as.call_args[0][0]
+
+    @patch("voicefi.integrations.pal_harness.PalHarness.run_applescript")
+    def test_volume_mute_variants(self, mock_as):
+        mock_as.return_value = (True, "")
+        res = PalHarness.execute_command("mute the volume.")
+        assert res.success is True
+        assert res.action_type == "volume"
+        assert "output muted" in mock_as.call_args[0][0]
 
 
 class TestConfigPalSupport:
