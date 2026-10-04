@@ -201,20 +201,22 @@ class ZeroRenderDubber:
 
     def align_audio_to_duration(
         self,
-        spoken_window_duration: float,
-        generated_wav: Path,
-        output_aligned_wav: Path,
+        spoken_window_duration: Optional[float] = None,
+        generated_wav: Path = None,
+        output_aligned_wav: Path = None,
         start_offset: float = 0.0,
         total_video_duration: Optional[float] = None,
+        source_duration: Optional[float] = None,
     ) -> Path:
         """Time-stretch, delay, and pad generated audio to match source speech window and total video duration."""
+        target_win = spoken_window_duration if spoken_window_duration is not None else (source_duration if source_duration is not None else 1.0)
         gen_duration = get_audio_duration(generated_wav)
         if gen_duration <= 0.05:
             shutil.copy(generated_wav, output_aligned_wav)
             return output_aligned_wav
 
         # Target duration of the spoken section
-        target_spoken_duration = max(0.2, spoken_window_duration)
+        target_spoken_duration = max(0.2, target_win)
         tempo_ratio = gen_duration / target_spoken_duration
 
         # Build atempo filter chain (each stage must be between 0.5 and 2.0)

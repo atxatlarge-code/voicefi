@@ -187,7 +187,7 @@ def cmd_fix(args: Any) -> int:
         return 0
 
     # Both attempts failed
-    print(f"\n❌ Verification still FAILED after 2 attempts.")
+    print("\n❌ Verification still FAILED after 2 attempts.")
     print(f"Output:\n{retry_test_output[-400:]}\n")
 
     # Rollback to pre-fix backup if available

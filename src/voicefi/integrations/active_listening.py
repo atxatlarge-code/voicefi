@@ -20,6 +20,7 @@ class SpokenIntentCategory(str, Enum):
     ACTIONABLE_COMMAND = "ACTIONABLE_COMMAND"
     ROUTED_COMMAND = "ROUTED_COMMAND"
     UNSAFE_COMMAND = "UNSAFE_COMMAND"
+    EXPAND_READOUT = "EXPAND_READOUT"
     IGNORED = "IGNORED"
 
 
@@ -59,6 +60,10 @@ class ActiveListeningEngine:
     CONVERSATIONAL_FILLER_PATTERNS = [
         r"^(?:okay|ok|nice|cool|sweet|awesome|perfect|thank you|thanks|got it|sounds good|sounds great)[\s.?!]*$",
         r"^(?:okay\s+)?(?:nice\s+)?(?:that\s+)?(?:sounds|looks)\s+(?:great|good|awesome|nice|fine|solid)[\s.?!]*$",
+    ]
+
+    EXPAND_READOUT_PATTERNS = [
+        r"\b(?:tell\s+me\s+everything|read\s+(?:it\s+)?(?:to\s+me\s+)?fully|read\s+(?:the\s+)?whole\s+thing|read\s+(?:it\s+)?all|give\s+me\s+the\s+full\s+(?:report|readout|story)|what\s+else)\b",
     ]
 
     # Stop words for word overlap comparison
@@ -107,6 +112,17 @@ class ActiveListeningEngine:
         clean = text.strip().lower()
         for pat in cls.CONVERSATIONAL_FILLER_PATTERNS:
             if re.match(pat, clean, re.IGNORECASE):
+                return True
+        return False
+
+    @classmethod
+    def is_expand_readout(cls, text: str) -> bool:
+        """Return True if user asks to expand or read the full turn output."""
+        if not text or not text.strip():
+            return False
+        clean = text.strip().lower()
+        for pat in cls.EXPAND_READOUT_PATTERNS:
+            if re.search(pat, clean, re.IGNORECASE):
                 return True
         return False
 
@@ -349,6 +365,15 @@ class ActiveListeningEngine:
                         selected_option=matched_option,
                     )
 
+        # 3.5 Check for Turn Readout Expansion ("Tell me everything", "Read it fully")
+        if cls.is_expand_readout(raw_text) or cls.is_expand_readout(normalized_text):
+            return ActiveListeningResult(
+                category=SpokenIntentCategory.EXPAND_READOUT,
+                raw_text=raw_text,
+                normalized_text=normalized_text,
+                is_actionable=True,
+            )
+
         # 4. Check for Conversational Filler / Smalltalk
         if cls.is_conversational_filler(raw_text):
             # Check if there is an actionable command attached (e.g. "Looks great, deploy to staging now")
@@ -410,8 +435,25 @@ class ActiveListeningEngine:
         Cognitive guardrail that checks if a command is destructive/irreversible.
         Uses local Ollama structured outputs for sub-100ms classification.
         """
+        import os
         import urllib.request
         import json
+
+        # Fast deterministic heuristics first
+        destructive_patterns = [
+            r"\brm\s+-[a-zA-Z]*r[a-zA-Z]*f\b",
+            r"\bdrop\s+(table|database)\b",
+            r"\bdelete\s+branch\b",
+            r"\bgit\s+push\s+--force\b",
+            r"\bwipe\s+(database|disk|repo)\b",
+        ]
+        text_lower = text.lower()
+        for pat in destructive_patterns:
+            if re.search(pat, text_lower):
+                return (True, f"Matched destructive pattern: {pat}")
+
+        if os.environ.get("VOICEFI_TESTING") == "1" and not os.environ.get("VOICEFI_TEST_LIVE_OLLAMA"):
+            return (False, "")
 
         system_prompt = (
             "You are VoiceFi's cognitive safety guardrail. "
@@ -504,6 +546,8 @@ class ActiveListeningEngine:
             "wi-fi",
             "wifi",
             "antigravity",
+            "pal",
+            "paypal",
         ] + claude_names
         prefixes = ["hey", "hi", "okay", "ok", "yo", "hello", "all right", "alright", "so"]
 
@@ -538,6 +582,8 @@ class ActiveListeningEngine:
                     matched_phrase = "hey vi-fi"
                 elif mp_lower in ("vi fi",):
                     matched_phrase = "vi-fi"
+                elif any(k in mp_lower for k in ("pal", "paypal")):
+                    matched_phrase = "hey pal" if has_pfx else "pal"
 
                 remainder = m.group(1) if m.group(1) else ""
                 # Strip leading punctuation and conjunctions

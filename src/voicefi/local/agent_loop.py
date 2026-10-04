@@ -128,7 +128,7 @@ class LocalAutonomousLoop:
 
         initial_user_msg = f"GOAL: {goal}"
         if symbol_hints:
-            initial_user_msg += f"\n\nKNOWN AST SYMBOLS:\n" + "\n".join(symbol_hints)
+            initial_user_msg += "\n\nKNOWN AST SYMBOLS:\n" + "\n".join(symbol_hints)
         if context:
             initial_user_msg += f"\n\nCONTEXT:\n{context}"
 

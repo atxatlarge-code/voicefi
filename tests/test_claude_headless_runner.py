@@ -94,8 +94,9 @@ def test_headless_runner_dispatch_new_conversation():
         assert res.target_conv_id.startswith("claude_")
         assert res.engine == "claude"
 
-        mock_run.assert_called_once()
-        cmd = mock_run.call_args[0][0]
+        claude_calls = [call[0][0] for call in mock_run.call_args_list if call[0] and call[0][0] and call[0][0][0] == "/usr/local/bin/claude"]
+        assert len(claude_calls) == 1
+        cmd = claude_calls[0]
         assert "--session-id" in cmd
         assert "--output-format" in cmd
         assert "json" in cmd

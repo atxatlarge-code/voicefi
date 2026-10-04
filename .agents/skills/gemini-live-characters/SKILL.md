@@ -155,3 +155,10 @@ When using the **Flow** web interface:
 3. Under **"Customize performance"**, paste the exact Character System Instruction.
 4. Save as a named preset (e.g., `Puck - Drill Sergeant`, `Puck - Game Show Host`).
 5. Assign that preset to the corresponding timeline clip.
+
+---
+
+## ⚖️ When to Use Gemini 3.8 Live vs. Local Factory Stage 2
+
+* **Use Gemini 3.8 Live (`gemini-3.8-live`)**: When you need **theatrical acting, slapstick comedy (e.g., The Three Stooges), aggressive shouting, sarcastic chuckles, vocal fry, or rap battles**. Gemini Live generates direct acoustic tokens with throat resonance and comedic timing.
+* **Use Local Stage 2 (`local-content` / `audio_synth.py`)**: When you need **high-volume autonomous production (thousands of jobs overnight), $0 cloud API cost, clean podcast/technical reading, and offline generation**. Stage 2 provides calibrated pacing, multi-speaker turn-taking gaps, and sidechain ducked music without cloud token spend.

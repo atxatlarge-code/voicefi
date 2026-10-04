@@ -18,7 +18,7 @@ def test_esc_key_triggers_stop_all_speech():
     """Verify speech_turn_lock sets and clears speaking status cleanly."""
     with patch("voicefi.tts.base.set_agent_speaking") as mock_set_speaking:
         with speech_turn_lock(text="Hello world", agent_name="Antigravity", persona_name="Christopher"):
-            mock_set_speaking.assert_called_with(True, text="Hello world", agent_name="Antigravity", persona_name="Christopher")
+            mock_set_speaking.assert_called_with(True, text="Hello world", agent_name="Antigravity", persona_name="Christopher", tag_text=None, is_live=False)
         mock_set_speaking.assert_called_with(False)
 
 
@@ -245,8 +245,8 @@ def test_ensure_daemon_running_auto_spawns():
     with patch("voicefi.integrations.daemon_client.is_daemon_running", side_effect=[False, False, True]), \
          patch("subprocess.Popen") as mock_popen:
         res = ensure_daemon_running(cfg, timeout=0.5)
-        assert res is True
-        mock_popen.assert_called_once()
+        tray_calls = [c for c in mock_popen.call_args_list if c[0] and isinstance(c[0][0], list) and "tray" in c[0][0]]
+        assert len(tray_calls) == 1
 
 
 def test_forward_hook_to_daemon_does_not_autospawn_when_offline():

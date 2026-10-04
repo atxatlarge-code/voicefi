@@ -317,6 +317,9 @@ class VoiceFiTrayApp(_TrayAppBase):
         self.turn_end_mode_menu = rumps.MenuItem("✨ Turn-End Mode")
         self._build_turn_end_mode_submenu()
 
+        self.turn_complete_format_menu = rumps.MenuItem("✨ Turn Completion Readout")
+        self._build_turn_complete_format_submenu()
+
         # Fibonacci Pause Delay Submenu
         self.pause_delay_menu = rumps.MenuItem("⏱️ Pause Delay (Fibonacci)")
         self._build_pause_delay_submenu()
@@ -476,6 +479,7 @@ class VoiceFiTrayApp(_TrayAppBase):
 
         def _watchdog_loop():
             import gc
+            import sys
             from voicefi.tts.base import is_agent_speaking, is_agent_audio_playing
 
             time.sleep(30.0)  # Initial settle
@@ -1443,18 +1447,23 @@ class VoiceFiTrayApp(_TrayAppBase):
         self._preferences_built = True
 
         self.listening_options_menu = rumps.MenuItem("🎙️ Listening & Barge-In Options")
-        self.listening_options_menu.update(
-            [
-                self.wakeword_item,
-                self.auto_listen_item,
-                self.turn_end_mode_menu,
-                self.barge_in_item,
-                self.read_summary_item,
-                self.meeting_item,
-                rumps.separator,
-                self.voice_mode_menu,
-            ]
-        )
+        turn_complete_menu = getattr(self, "turn_complete_format_menu", None)
+        if not turn_complete_menu:
+            turn_complete_menu = rumps.MenuItem("✨ Turn Completion Readout")
+            self.turn_complete_format_menu = turn_complete_menu
+
+        listening_items = [
+            getattr(self, "wakeword_item", None),
+            getattr(self, "auto_listen_item", None),
+            turn_complete_menu,
+            getattr(self, "turn_end_mode_menu", None),
+            getattr(self, "barge_in_item", None),
+            getattr(self, "read_summary_item", None),
+            getattr(self, "meeting_item", None),
+            rumps.separator,
+            getattr(self, "voice_mode_menu", None),
+        ]
+        self.listening_options_menu.update([item for item in listening_items if item is not None])
 
         items = [
             self.voice_personas_menu,
@@ -3399,6 +3408,41 @@ class VoiceFiTrayApp(_TrayAppBase):
         print(f"[VoiceFi] ⚡ Wake word triggered: '{phrase}' (prompt: '{prompt}')")
 
         phrase_lower = phrase.lower().strip()
+        is_pal = (
+            "pal" in phrase_lower
+            or any(k in phrase_lower for k in ("paypal", "pay pal", "paul"))
+            or getattr(getattr(self.config, "wakeword", None), "target_engine", "") == "pal"
+        )
+
+        if is_pal:
+            hud = UnifiedDynamicIslandHUD.get_instance()
+            if prompt and len(prompt.strip()) >= 2:
+                from voicefi.stt.biasing import PhoneticNormalizer
+                from voicefi.integrations.pal_harness import PalHarness
+
+                norm_prompt = PhoneticNormalizer.normalize(prompt.strip())
+                hud.set_hearing(user_name="Pal (Mac OS)")
+                time.sleep(0.1)
+
+                res = PalHarness.execute_command(norm_prompt)
+                if self.config.audio_cues.enabled:
+                    chime = self.config.audio_cues.sent_chime if res.success else self.config.audio_cues.error_chime
+                    play_chime(chime or "done", block=False)
+                hud.show_done(preview_text=res.spoken_summary[:30])
+                try:
+                    rumps.notification(
+                        "VoiceFi • Pal Computer Use",
+                        f"Action: {res.action_type}",
+                        res.spoken_summary,
+                    )
+                except Exception:
+                    pass
+            else:
+                hud.set_hearing(user_name="Pal (Ready)")
+                if self.config.audio_cues.enabled:
+                    play_chime("start", block=False)
+            return
+
         is_claude = "claude" in phrase_lower or any(
             k in phrase_lower for k in ("claud", "clod", "clawed", "glenn", "hague")
         )
@@ -3488,6 +3532,50 @@ class VoiceFiTrayApp(_TrayAppBase):
             "VoiceFi Turn-End Mode",
             f"Switched to {label}",
             "Spoken turns converse with Gemini Live" if mode == "gemini_live" else "Spoken turns inject into Antigravity chat",
+        )
+
+    def _build_turn_complete_format_submenu(self):
+        if not getattr(self, "turn_complete_format_menu", None):
+            self.turn_complete_format_menu = rumps.MenuItem("✨ Turn Completion Readout")
+        self._safe_clear(self.turn_complete_format_menu)
+        current = getattr(
+            getattr(self.config, "tts", None), "turn_complete_format", "first_sentence"
+        )
+        options = [
+            ("first_sentence", "Short (First Sentence)"),
+            ("distilled", "Distilled Soundbite"),
+            ("full", "Full Readout"),
+            ("character_quip", "Character Quip"),
+            ("chime_only", "Chime Only"),
+        ]
+        items = []
+        for val, label in options:
+            item = rumps.MenuItem(
+                label,
+                callback=lambda sender, m=val: self._set_turn_complete_format(m),
+            )
+            item.state = 1 if current == val else 0
+            items.append(item)
+        self.turn_complete_format_menu.update(items)
+
+    def _set_turn_complete_format(self, mode: str):
+        from voicefi.ui.notifications import show_notification
+
+        self.config.tts.turn_complete_format = mode
+        save_config(self.config)
+        self._build_turn_complete_format_submenu()
+        labels = {
+            "first_sentence": "Short (First Sentence)",
+            "distilled": "Distilled Soundbite",
+            "full": "Full Readout",
+            "character_quip": "Character Quip",
+            "chime_only": "Chime Only",
+        }
+        lbl = labels.get(mode, mode)
+        show_notification(
+            "VoiceFi Turn Readout",
+            f"Switched to {lbl}",
+            "Spoken turn completion format updated",
         )
 
     def toggle_auto_listen(self, sender):

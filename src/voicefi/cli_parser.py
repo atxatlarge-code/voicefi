@@ -1147,6 +1147,26 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
     )
     bias_p.add_argument("text", nargs="*", default=None, help="Spoken developer input to normalize")
 
+    # spatial multi-agent audio audition
+    spatial_p = subparsers.add_parser(
+        "spatial",
+        aliases=["spatial-audio", "panning"],
+        help="Test and audition spatial stereo panning across active headphones/Pixel Buds",
+    )
+    spatial_p.add_argument(
+        "--speech", "-s", action="store_true", help="Audition with synthesized neural agent voices"
+    )
+    spatial_p.add_argument(
+        "--orbit", "-o", action="store_true", help="Play 360-degree acoustic head orbit sweep"
+    )
+    spatial_p.add_argument(
+        "--binaural", "-b", action="store_true", help="Play true 360-degree binaural orbit with front-to-back HRTF & pinna filtering"
+    )
+    spatial_p.add_argument(
+        "--pan", "-p", type=float, default=None, help="Custom stereo pan from -1.0 (left) to 1.0 (right)"
+    )
+    spatial_p.add_argument("text", nargs="*", default=None, help="Optional text to speak with spatial panning")
+
     # obsidian
     obs_p = subparsers.add_parser(
         "obsidian", help="Manage and install VoiceFi plugin for Obsidian vaults"
@@ -1554,8 +1574,19 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
         aliases=["banter", "acoustic-test"],
         help="Run acoustic banter & voice benchmark test (Ava ↔ Steffan personas)",
     )
-    duel_p.add_argument("--turns", type=int, default=3, help="Number of joke turns (default: 3)")
+    duel_p.add_argument(
+        "-t", "--turns", type=int, default=3, help="Number of joke turns (default: 3)"
+    )
     duel_p.add_argument("--topic", type=str, default="programming jokes", help="Duel topic")
+    duel_p.add_argument(
+        "-s", "--spatial", action="store_true", help="Stage Antigravity on left ear and Claude Code on right ear"
+    )
+    duel_p.add_argument(
+        "-f", "--fast", action="store_true", help="Snappy, high-energy comedy cadence (+20% rate)"
+    )
+    duel_p.add_argument(
+        "-v", "--voice", type=str, default=None, help="Override Antigravity voice persona (e.g. 'Ava', 'Viv')"
+    )
     duel_p.add_argument(
         "--live", action="store_true", help="Live dispatch prompts to Claude Code terminal session"
     )

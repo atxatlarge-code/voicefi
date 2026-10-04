@@ -35,10 +35,40 @@ def cmd_duel(args: Any) -> None:
     """Run an acoustic voice banter / joke duel between Antigravity and Claude Code."""
     turns = getattr(args, "turns", 3) or 3
     live = getattr(args, "live", False)
+    fast = getattr(args, "fast", False)
+    voice_override = getattr(args, "voice", None)
+    rate_override = "+20%" if fast else None
+    provider_override = None
+
+    use_spatial = getattr(args, "spatial", False)
+    if not use_spatial:
+        try:
+            from voicefi.audio.device import is_headphone_or_headset_active
+
+            use_spatial = is_headphone_or_headset_active()
+        except Exception:
+            use_spatial = False
 
     cfg = load_config()
-    tts_antigravity = _resolve_get_tts_engine(cfg, agent_name="antigravity")
-    tts_claude = _resolve_get_tts_engine(cfg, agent_name="claude")
+
+    if (fast or voice_override) and not provider_override:
+        ag_prof = cfg.agents.get("antigravity")
+        if ag_prof and ag_prof.provider == "local_clone":
+            voice_override = voice_override or "en-US-AvaNeural"
+            provider_override = "edge_tts"
+
+    tts_antigravity = _resolve_get_tts_engine(
+        cfg,
+        agent_name="antigravity",
+        voice_override=voice_override,
+        provider_override=provider_override,
+        rate_override=rate_override,
+    )
+    tts_claude = _resolve_get_tts_engine(
+        cfg,
+        agent_name="claude",
+        rate_override=rate_override,
+    )
 
     rounds = [
         (
@@ -60,16 +90,29 @@ def cmd_duel(args: Any) -> None:
     print("\n🎭 ══════════════════════════════════════════════════════════════════")
     print("   VoiceFi Acoustic Voice Banter Test: Ava ↔ Steffan")
     print(
-        f"   Rounds: {min(turns, len(rounds))} | Mode: Audio Benchmark | Live Dispatch: {'ON' if live else 'OFF'}"
+        f"   Rounds: {min(turns, len(rounds))} | Mode: Audio Benchmark | Spatial: {'ENABLED (Left/Right Ear)' if use_spatial else 'OFF'} | Speed: {'FAST (+20%)' if fast else 'NORMAL'}"
     )
     print("══════════════════════════════════════════════════════════════════\n")
 
     for i in range(min(turns, len(rounds))):
         joke_ag, joke_cl = rounds[i]
-        print(f"--- [Round {i + 1}] Antigravity Speaks ---")
+        print(f"--- [Round {i + 1}] Antigravity Speaks (Left Ear) ---")
         print(f'🤖 Ava: "{joke_ag}"')
         t0 = time.time()
-        tts_antigravity.speak(joke_ag, block=True)
+        if use_spatial:
+            from voicefi.audio.spatial import play_spatial_speech
+
+            play_spatial_speech(
+                joke_ag,
+                agent_name="antigravity",
+                pan=-0.65,
+                voice_override=voice_override,
+                provider_override=provider_override,
+                rate_override=rate_override,
+                block=True,
+            )
+        else:
+            tts_antigravity.speak(joke_ag, block=True)
         print(f"   ⏱️ Playback latency: {round((time.time() - t0) * 1000)}ms\n")
         time.sleep(0.4)
 
@@ -87,10 +130,21 @@ def cmd_duel(args: Any) -> None:
                 include_envelope=True,
             )
 
-        print(f"--- [Round {i + 1}] Claude Code Responds ---")
+        print(f"--- [Round {i + 1}] Claude Code Responds (Right Ear) ---")
         print(f'🤖 Steffan: "{joke_cl}"')
         t0 = time.time()
-        tts_claude.speak(joke_cl, block=True)
+        if use_spatial:
+            from voicefi.audio.spatial import play_spatial_speech
+
+            play_spatial_speech(
+                joke_cl,
+                agent_name="claude",
+                pan=0.65,
+                rate_override=rate_override,
+                block=True,
+            )
+        else:
+            tts_claude.speak(joke_cl, block=True)
         print(f"   ⏱️ Playback latency: {round((time.time() - t0) * 1000)}ms\n")
         time.sleep(0.6)
 

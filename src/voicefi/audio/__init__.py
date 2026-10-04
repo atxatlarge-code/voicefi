@@ -38,6 +38,16 @@ from voicefi.audio.speed_talk import (
     build_intelligibility_filter_chain,
 )
 
+from voicefi.audio.spatial import (
+    pan_audio,
+    get_agent_pan,
+    adapt_pan_for_active_device,
+    run_spatial_multiagent_audition,
+    create_orbit_sweep,
+    create_binaural_360_orbit,
+    AGENT_PAN_PRESETS,
+)
+
 __all__ = [
     "play_chime",
     "AudioRecorder",
@@ -64,4 +74,11 @@ __all__ = [
     "compress_speech_silence",
     "dynamic_ramp_audio",
     "build_intelligibility_filter_chain",
+    "pan_audio",
+    "get_agent_pan",
+    "adapt_pan_for_active_device",
+    "run_spatial_multiagent_audition",
+    "create_orbit_sweep",
+    "create_binaural_360_orbit",
+    "AGENT_PAN_PRESETS",
 ]

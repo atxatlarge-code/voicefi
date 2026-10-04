@@ -10,7 +10,7 @@ import sys
 import time
 import threading
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Any
 
 try:
     import objc

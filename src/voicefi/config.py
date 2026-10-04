@@ -84,6 +84,15 @@ def detect_system_user_name(prefer_first_name: bool = True) -> str:
     return "Developer"
 
 
+TurnCompleteFormat = Literal[
+    "first_sentence",
+    "distilled",
+    "full",
+    "character_quip",
+    "chime_only",
+]
+
+
 class TTSConfig(BaseModel):
     provider: Literal[
         "mac_say", "edge_tts", "elevenlabs", "f5_tts", "local_clone", "gemini", "gemini_live", "voice_acting", "qwen", "qwen_tts", "qwen_clone"
@@ -92,6 +101,7 @@ class TTSConfig(BaseModel):
     rate: Optional[int] = 200
     volume: float = 1.0
     streaming: bool = True
+    cache_dir: str = "~/.voicefi/cache/audio"
     elevenlabs_api_key: Optional[str] = ""
     elevenlabs_voice_id: Optional[str] = "21m00Tcm4TlvDq8ikWAM"
     gemini_api_key: Optional[str] = ""
@@ -101,9 +111,12 @@ class TTSConfig(BaseModel):
         "first_sentence_plus_character", "character_only", "verbatim"
     ] = "first_sentence_plus_character"
     character_prompt_template: Optional[str] = None
+    character_quip_instruction: Optional[str] = None
     max_first_sentence_words: int = 18
     verbatim_jokes: bool = True
     turn_end_mode: Literal["standard", "gemini_live"] = "standard"
+    turn_complete_format: TurnCompleteFormat = "first_sentence"
+    turn_complete_chime: str = "Glass"
     live_fallback_voice: str = "en-ZA-LukeNeural"
     cloning_engine: Literal["auto", "qwen", "f5"] = "auto"
     qwen_model_name: str = "mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit"
@@ -378,6 +391,8 @@ class WakeWordConfig(BaseModel):
             "Viv",
             "Hey VoiceFi",
             "Hey Vi-Fi",
+            "Hey Pal",
+            "Pal",
         ]
     )
     aliases: list[str] = Field(
@@ -394,11 +409,14 @@ class WakeWordConfig(BaseModel):
             "antigravity",
             "hey claude",
             "claude",
+            "hey pal",
+            "pal",
         ]
     )
     sensitivity: float = 0.6
     chime: bool = True
     target_engine: str = "antigravity"
+    pal_computer_use: bool = True  # Enable local macOS computer use when 'Hey Pal' triggers
     source: Literal["mic", "default"] = "mic"
     energy_threshold: float = 0.005
     silence_duration: float = 0.7

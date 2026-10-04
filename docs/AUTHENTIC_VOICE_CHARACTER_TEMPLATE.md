@@ -124,7 +124,7 @@ Store files in the standard VoiceFi cloned voice hierarchy:
   "name": "The Continental",
   "actor": "Christopher Walken",
   "archetype": "Suave Absurdity / Velvet Monologue",
-  "ref_audio": "/Users/jaketrigg/.voicefi/cloned_voices/christopher_walken/continental/ref_continental_bubble.wav",
+  "ref_audio": "~/.voicefi/cloned_voices/christopher_walken/continental/ref_continental_bubble.wav",
   "ref_text": "Each bubble like the story of one life. Would you like to hear my story?",
   "speed": 0.92,
   "nfe_step": 24,
@@ -143,7 +143,7 @@ Store files in the standard VoiceFi cloned voice hierarchy:
 ### Step 5: Theatrical Directing & Turn Integration
 
 #### A. Direct Script Cadence in `TheatricalDirector`
-Ensure [`TheatricalDirector.direct_walken_cadence`](file:///Users/jaketrigg/Projects/VoiceFi/src/voicefi/tts/director.py) formats dynamic text to match the character's pause style:
+Ensure [`TheatricalDirector.direct_walken_cadence`](../src/voicefi/tts/director.py) formats dynamic text to match the character's pause style:
 
 ```python
 # Format incoming turn summary with character's rhythm:
@@ -174,7 +174,7 @@ tts:
   provider: local_clone
   voice: christopher_walken
   f5_nfe_step: 24
-  f5_ref_audio: /Users/jaketrigg/.voicefi/cloned_voices/christopher_walken/continental/ref_continental_bubble.wav
+  f5_ref_audio: ~/.voicefi/cloned_voices/christopher_walken/continental/ref_continental_bubble.wav
   f5_ref_text: "Each bubble like the story of one life. Would you like to hear my story?"
 ```
 

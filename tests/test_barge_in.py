@@ -536,6 +536,7 @@ def test_antigravity_stop_hook_with_barge_in(tmp_path):
          patch("voicefi.integrations.antigravity.get_tts_engine", return_value=mock_tts), \
          patch("voicefi.integrations.antigravity.get_stt_engine", return_value=mock_stt), \
          patch("voicefi.integrations.antigravity.send_message_to_antigravity") as mock_send, \
+         patch("voicefi.integrations.conversations.ConversationTracker.is_conversation_focused", return_value=True), \
          patch("voicefi.integrations.antigravity.AudioRecorder.record_speech_auto", return_value=(np.zeros(16000), fake_wav)):
 
         handle_antigravity_stop_hook({"conversationId": "test-conv-123"}, config=cfg)

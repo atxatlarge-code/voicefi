@@ -1,7 +1,7 @@
 # 🛡️ VoiceFi Local QA Audit & Verification Scorecard
 - **Model**: `qwen2.5-coder:1.5b` (On-Device via Ollama, $0 Cloud Cost)
-- **Inference Duration**: 4.3s (~688 local tokens processed)
-- **Scope**: 1 modified files
+- **Inference Duration**: 8.23s (~11416 local tokens processed)
+- **Scope**: 50 modified files
 
 ## 🚦 Automated Test & Lint Gates
 - **Linter (`ruff`)**: ✅ PASS
@@ -10,23 +10,53 @@ All checks passed!
 ```
 - **Targeted Tests (`pytest`)**: ✅ PASS
 ```text
-Skipped
+...                                                                      [100%]
+3 passed in 9.70s
 ```
 
 ## 🔬 Local Model Architectural Review & Edge-Case Synthesis
-1. Risk Assessment (High)
-2. Potential Edge Cases & Vulnerabilities:
-   - The script uses `subprocess.run` to execute commands, which can lead to command injection if the input is not properly sanitized.
-   - The script does not handle exceptions, which can lead to crashes if the command fails.
-   - The script does not handle concurrency, which can lead to deadlocks if multiple processes try to access the same resource.
-   - The script does not handle unhandled edge cases, which can lead to unexpected behavior if the input is not properly validated.
-3. Proposed Missing Unit Test Cases:
-   - `test_run_ruff_lint`: This test should check that the `run_ruff_lint` function correctly executes the `ruff` command with the specified files.
-   - `test_run_ruff_lint_with_invalid_input`: This test should check that the `run_ruff_lint` function raises an exception if the input files are invalid.
-   - `test_run_ruff_lint_with_timeout`: This test should check that the `run_ruff_lint` function raises an exception if the command execution times out.
-   - `test_run_ruff_lint_with_command_injection`: This test should check that the `run_ruff_lint` function raises an exception if the input files contain malicious commands.
-   - `test_run_ruff_lint_with_concurrency`: This test should check that the `run_ruff_lint` function does not deadlock if multiple processes try to access the same resource.
-   - `test_run_ruff_lint_with_unhandled_edge_cases`: This test should check that the `run_ruff_lint` function does not raise an exception if the input files contain unexpected edge cases.
+1. **Risk Assessment (High)**:
+   - The script introduces a new option (`--timestamp`) to the `codesign` command, which is not a standard option. This could lead to unexpected behavior or security issues if not handled properly.
+   - **Potential Edge Cases & Vulnerabilities**:
+     - **Timestamp Verification**: The `--timestamp` option is used to verify the signature of the DMG disk image. This is important for ensuring that the signature has not been tampered with. However, if the `--timestamp` option is not used, the signature verification might fail, leading to potential security vulnerabilities.
+     - **Developer ID**: The `--sign` option requires a Developer ID to be provided. If the Developer ID is not provided, the signature might not be valid, leading to potential security vulnerabilities.
+     
+   - **Proposed Missing Unit Test Cases**:
+     - **Test Signing with Developer ID**: A unit test case should be added to verify that the `codesign` command with the `--timestamp` option is executed correctly and that the signature is verified successfully.
+     - **Test Missing Developer ID**: A unit test case should be added to verify that the `codesign` command with the `--timestamp` option is executed correctly and that the signature is verified successfully, even if the Developer ID is not provided.
++     ```python
++     # Test signing with Developer ID
++     def test_sign_with_developer_id():
++         # Create a temporary file to hold the DMG
++         dmg_path = Path("temp.dmg")
++         dmg_path.write_text("This is a temporary DMG file.")
++         
++         # Sign the DMG with the Developer ID
++         subprocess.run(["codesign", "--force", "--options", "runtime", "--timestamp", "--sign", "Developer ID", str(dmg_path)], check=True)
++         
++         # Verify the signature of the DMG
++         subprocess.run(["codesign", "--verify", "--strict", str(dmg_path)], check=True)
++         
++     # Test missing Developer ID
++     def test_missing_developer_id():
++         # Create a temporary file to hold the DMG
++         dmg_path = Path("temp.dmg")
++         dmg_path.write_text("This is a temporary DMG file.")
++         
++         # Sign the DMG without the Developer ID
++         subprocess.run(["codesign", "--force", "--options", "runtime", "--timestamp", "--sign", "Developer ID", str(dmg_path)], check=True)
++         
++         # Verify the signature of the DMG
++         try:
++             subprocess.run(["codesign", "--verify", "--strict", str(dmg_path)], check=True)
++             assert False, "Signature verification should fail without the Developer ID"
++         except subprocess.CalledProcessError:
++             pass
++     ```
++     These test cases ensure that the `codesign` command with the `--timestamp` option is executed correctly and that the signature is verified successfully, even if the Developer ID is not provided.
++
++2. **Potential Edge Cases & Vulnerabilities**:
++   - **Timestamp Verification**: The `--timestamp` option is used to verify the signature of the DMG disk image. This is important for ensuring that the signature has not been tampered with. However, if the `--timestamp` option
 
 ---
-*Generated automatically on Apple Silicon at 2026-10-02 06:32:46*
+*Generated automatically on Apple Silicon at 2026-10-03 19:49:35*

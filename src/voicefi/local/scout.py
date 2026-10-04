@@ -79,21 +79,49 @@ class ReconScout:
             content_parts = [f"Directory listing for: {path}"]
             total_size = 0
             file_count = 0
+            ignore_dirs = {
+                ".git",
+                ".venv",
+                "__pycache__",
+                "node_modules",
+                ".gemini",
+                ".pytest_cache",
+                ".ruff_cache",
+                ".mypy_cache",
+                "garageband_session",
+                "parody_takes",
+                "dist",
+                "build",
+                ".eggs",
+                ".tox",
+                "site-packages",
+            }
+            truncated = False
             for root, dirs, files in os.walk(path):
-                # Ignore git and venv dirs
                 dirs[:] = [
-                    d for d in dirs if d not in (".git", ".venv", "__pycache__", "node_modules")
+                    d for d in dirs
+                    if d not in ignore_dirs and not d.startswith(".")
                 ]
-                for file in files[:30]:  # Cap at 30 files
+                for file in files:
+                    if file.startswith(".") or file.endswith(
+                        (".pyc", ".png", ".jpg", ".jpeg", ".wav", ".mp3", ".dmg", ".dylib", ".so", ".DS_Store")
+                    ):
+                        continue
                     fp = Path(root) / file
                     try:
                         sz = fp.stat().st_size
                         total_size += sz
                         file_count += 1
                         content_parts.append(f" - {fp.relative_to(path)} ({sz} bytes)")
+                        if file_count >= 60:
+                            truncated = True
+                            break
                     except Exception:
                         pass
-            return "\n".join(content_parts), total_size, False
+                if truncated:
+                    content_parts.append(" ... [listing capped at 60 files for fast local context]")
+                    break
+            return "\n".join(content_parts), total_size, truncated
         else:
             raise ValueError(f"Unsupported path type: {path}")
 
@@ -131,10 +159,19 @@ class ReconScout:
                 error=str(e),
             )
 
+        # Cap prompt context to 16,000 characters (~4,000 tokens) to ensure sub-5s local inference
+        if len(raw_content) > 16_000:
+            raw_content = (
+                raw_content[:10_000]
+                + "\n\n... [Content truncated for on-device scout context window] ...\n\n"
+                + raw_content[-4_000:]
+            )
+            truncated = True
+
         input_tokens = estimate_tokens(raw_content)
 
         # Formulate prompt
-        truncation_note = " [Content truncated to 500KB]" if truncated else ""
+        truncation_note = " [Content truncated]" if truncated else ""
         resolved_path = Path(os.path.expanduser(str(target_path))).resolve()
         prompt = (
             f"Objective: {query}\n\n"
@@ -275,7 +312,7 @@ class ReconScout:
                 headers={"Content-Type": "application/json"},
                 method="POST",
             )
-            with urllib.request.urlopen(req, timeout=25.0) as resp:
+            with urllib.request.urlopen(req, timeout=35.0) as resp:
                 if resp.status == 200:
                     res = json.loads(resp.read().decode())
                     content = res.get("message", {}).get("content", "").strip()

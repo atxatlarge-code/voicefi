@@ -507,7 +507,8 @@ class ConversationsHandlersMixin:
                             if u and a:
                                 history_turns.append(f"User: {u}\nModel: {a}")
                         if history_turns:
-                            prompt_to_send = f"{'\n\n'.join(history_turns)}\n\nUser: {text}"
+                            joined_history = "\n\n".join(history_turns)
+                            prompt_to_send = f"{joined_history}\n\nUser: {text}"
 
                 engine_inst = LocalModelEngine(model_name=model_choice)
                 ans = await engine_inst.chat_text(prompt_to_send)

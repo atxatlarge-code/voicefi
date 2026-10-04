@@ -53,7 +53,8 @@ def test_align_audio_duration_filter(tmp_path):
 
 def test_provider_auto_routing():
     dubber = ZeroRenderDubber()
-    with patch("voicefi.tts.voice_acting.VoiceActingTTS.speak_to_file") as mock_speak:
+    with patch("voicefi.tts.voice_acting.VoiceActingTTS.speak_to_file") as mock_speak, \
+         patch("pathlib.Path.exists", return_value=False):
         out_wav = Path(tempfile.mktemp(suffix=".wav"))
         dubber.synthesize_voice(
             text="Attention recruits!",

@@ -228,7 +228,7 @@ def sign_app_bundle(identity: str):
     if frameworks_dir.is_dir():
         for item in frameworks_dir.rglob("*"):
             if item.is_file() and (item.suffix in (".dylib", ".so") or os.access(item, os.X_OK)):
-                cmd = ["codesign", "--force", "--options", "runtime", "--sign", identity, str(item)]
+                cmd = ["codesign", "--force", "--options", "runtime", "--timestamp", "--sign", identity, str(item)]
                 if ENTITLEMENTS_FILE.is_file():
                     cmd.extend(["--entitlements", str(ENTITLEMENTS_FILE)])
                 subprocess.run(cmd, stderr=subprocess.DEVNULL)
@@ -240,6 +240,7 @@ def sign_app_bundle(identity: str):
         "--force",
         "--options",
         "runtime",
+        "--timestamp",
         "--sign",
         identity,
     ]
@@ -435,7 +436,7 @@ def build_dmg(version: str, identity: str = None) -> Path:
     # Sign the DMG disk image if identity provided
     if identity:
         print(f"🔏 Signing {dmg_name} with Developer ID...")
-        subprocess.run(["codesign", "--sign", identity, str(dmg_path)], check=True)
+        subprocess.run(["codesign", "--force", "--timestamp", "--sign", identity, str(dmg_path)], check=True)
 
     print(f"🎉 SUCCESS: Generated {dmg_path} ({dmg_path.stat().st_size / (1024 * 1024):.1f} MB)")
     universal_dmg = DIST_DIR / "VoiceFi_macOS.dmg"

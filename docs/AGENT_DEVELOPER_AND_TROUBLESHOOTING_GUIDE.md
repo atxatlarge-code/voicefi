@@ -240,29 +240,51 @@ When diagnosing audio, turn completion speech, or stop behavior, run checks in t
 
 ---
 
-### 11. Time on Task (ToT) Benchmark & Context Bloat Prevention
+### 11. Time on Task (ToT) Benchmark, Recon Scout & Context Bloat Prevention
 *(Full architectural breakdown in [TIME_ON_TASK_BENCHMARK_ANALYSIS.md](TIME_ON_TASK_BENCHMARK_ANALYSIS.md))*
 * **The Problem**: In multi-turn coding sessions, re-transmitting raw 20KB–250KB source files across WAN causes compounding quadratic prefill latency, high cloud billing, and context degradation.
-* **On-Device Pre-Digestion**: AI agents should use `vifi scout <target>` or on-device Gemma 4 via LiteRT on Apple Silicon Metal GPU to pre-digest large files into concise findings (~200 tokens).
+* **On-Device Pre-Digestion**: AI agents should use `uv run python -m voicefi.local.scout <target> -q "<query>"` or `vifi scout <target>` to pre-digest large files into concise findings (~200 tokens).
+  - Automatically queries local Ollama (`qwen2.5-coder:1.5b`, `gemma2:2b`, `llama3.2:1b`, `tev1:latest`, `nimble:latest`) with in-process LiteRT fallback.
 * **Empirical Speedup**:
-  - Ingress transport: 0.04 ms (Unified RAM) vs 31.9 ms (WAN RTT) -> **700x faster**.
+  - Ingress transport: 0.04–0.08 ms (Unified RAM) vs 31.9 ms (WAN RTT) -> **500x–700x faster**.
   - Follow-up turns (Turns 2 & 3): 0.36s vs 6.11s -> **16x–17x faster**.
-  - Context bloat: 87%+ reduction (1,033 tokens vs 8,033 tokens).
+  - Context bloat: 85%+ reduction (1,033 tokens vs 8,033 tokens).
   - 100% WAN bandwidth saved and $0 cloud cost.
-* **Running Live ToT Benchmark**:
+* **Running Live ToT Benchmark & Scout**:
   ```bash
+  # Pre-digest a file before pulling into cloud context:
+  uv run python -m voicefi.local.scout src/voicefi/local/supervisor.py -q "Summarize thermal thresholds"
+
+  # Run live empirical benchmark:
   vifi eval --target src/voicefi/local/benchmark.py --turns 3
-  # or inspect historical scorecards:
   vifi eval --history
   ```
 
 ---
 
-### 12. Hybrid Orchestration & Automatic On-Device Delegation Protocol
-* **The Rule**: Cloud models act as high-level planners and architects (<150 cloud tokens). Token-heavy tasks (pre-digesting large source files >300 lines, AST audits, reverse-engineering protocols, running repetitive `pytest` loops) MUST be delegated to on-device **Gemma 4 26B** running via LiteRT on the local Apple Silicon Metal GPU (`~/.litert-lm/models/gemma4-26b`).
+### 12. Hybrid Orchestration, Hardware Guardrails & Verification Gate
+* **The Rule**: Cloud models act as high-level planners and architects (<150 cloud tokens). Token-heavy tasks (pre-digesting large source files >300 lines, AST audits, reverse-engineering protocols, running repetitive `pytest` loops) MUST be delegated on-device to local models (Ollama Qwen 2.5 Coder / Gemma 2 / Llama 3.3 70B, or LiteRT on Metal GPU).
+* **Hardware Telemetry & Thermal Supervision (`ThermalSupervisor`)**:
+  - `src/voicefi/local/supervisor.py` monitors macOS thermal pressure (`pmset -g therm`), unified RAM headroom, and CPU load.
+  - Automatically pauses local inference if thermal state reaches `SERIOUS`/`CRITICAL` or free unified RAM drops below 4.0 GB (`wait_if_throttled()`).
+* **Automated Pre-Commit Verification Gate (`scripts/local_qa.py`)**:
+  - Before merging or accepting code changes, agents and developers run the on-device verification suite:
+    ```bash
+    # Audit staged changes and generate scorecard:
+    uv run python scripts/local_qa.py --staged
+
+    # Audit recent commit:
+    uv run python scripts/local_qa.py --rev HEAD~1
+    ```
+  - Synthesizes risk assessment, edge cases, and unit tests directly into `.agents/QA_AUDIT.md`.
+* **Autonomous Content Creation Factory (`scripts/run_content_factory.py`)**:
+  - Background worker loop pulling from `ContentFactoryQueue` (SQLite WAL mode) and generating declarative reel manifests via native JSON mode (`format: "json"`):
+    ```bash
+    uv run python scripts/run_content_factory.py --worker-id worker_01 --poll-interval 2.0
+    ```
 * **Circuit Breaker / Escalation Ladder**:
-  - Local worker runs up to 2 autonomous patch/test attempts.
-  - If tests fail after 2 iterations, the local worker escalates a lean 200-token diagnostic packet (stack trace + diff) to the cloud architect to step in.
+  - Local worker runs up to 3 autonomous patch/test attempts (`vifi fix` or `voicefi_auto`).
+  - If tests fail after 3 iterations, the local worker escalates a lean 200-token diagnostic packet (stack trace + diff) to the cloud architect to step in.
 
 ---
 

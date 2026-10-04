@@ -13,6 +13,7 @@ from voicefi.cli_commands.audio import (
     cmd_vad,
     cmd_record,
     cmd_bias,
+    cmd_spatial,
 )
 from voicefi.cli_commands.setup import (
     cmd_setup,
@@ -260,6 +261,9 @@ def get_command_handlers(parser: Any = None) -> Dict[str, Callable[[Any], Any]]:
         "meeting": cmd_meeting,
         "feedbackloop": cmd_feedback_loop,
         "bias": cmd_bias,
+        "spatial": cmd_spatial,
+        "spatial-audio": cmd_spatial,
+        "panning": cmd_spatial,
         "vad": cmd_vad,
         "mcp": cmd_mcp,
         "mcp-server": cmd_mcp,

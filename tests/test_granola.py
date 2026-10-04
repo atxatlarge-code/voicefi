@@ -65,10 +65,14 @@ class TestGranolaSynthesizer:
         cfg.obsidian.vault_path = str(tmp_path)
         cfg.obsidian.meetings_folder = "Meetings"
 
+        import datetime
+
+        target_date = datetime.date(2026, 9, 30)
         res = save_meeting_note(
             "# 🎙️ 2026-09-30 - Client Standup\n\n## 📌 Summary\nGreat call.",
             title="Client Standup",
             vault_path=tmp_path,
+            today=target_date,
             config=cfg,
         )
 

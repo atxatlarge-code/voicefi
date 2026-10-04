@@ -52,7 +52,7 @@ flowchart TD
 
 ## 🎙️ Canonical Persona Presets
 
-VoiceFi comes pre-configured with 6 theatrical character profiles in [`src/voicefi/tts/voice_acting.py`](file:///Users/jaketrigg/Projects/VoiceFi/src/voicefi/tts/voice_acting.py):
+VoiceFi comes pre-configured with 6 theatrical character profiles in [`src/voicefi/tts/voice_acting.py`](../src/voicefi/tts/voice_acting.py):
 
 | Persona Key | Base Actor | Default Acting Directive (`--instruct`) | Character Archetype |
 | :--- | :--- | :--- | :--- |
@@ -69,7 +69,7 @@ VoiceFi comes pre-configured with 6 theatrical character profiles in [`src/voice
 
 Antigravity turn completions use Christopher Walken's iconic cadence with two interlocking systems:
 
-### 1. Staccato Cadence Director ([`TheatricalDirector.direct_walken_cadence`](file:///Users/jaketrigg/Projects/VoiceFi/src/voicefi/tts/director.py#L196))
+### 1. Staccato Cadence Director ([`TheatricalDirector.direct_walken_cadence`](../src/voicefi/tts/director.py))
 Automatically parses turn summaries into erratic Walken phrasing:
 * Injects mid-clause dramatic ellipses (`...`).
 * Replaces flat starts with signature prefixes (*"Look..."*, *"Listen..."*, *"Guess what?..."*).
@@ -147,3 +147,15 @@ actor.speak_to_file(
 # Or speak immediately on macOS CoreAudio
 actor.speak("Listen up recruits!")
 ```
+
+---
+
+## ⚖️ Architectural Decision Matrix: When to Use Which Speech Engine
+
+VoiceFi provides three distinct tiers of voice synthesis. Knowing when to escalate from utility reading to theatrical acting is essential:
+
+| Speech Tier | Engine / Provider | Core Archetype | Strengths & Capabilities | Best Use Cases | Cost / Constraints |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Tier 1: Multimodal Theatrical Stage** | **Gemini 3.8 Live** (`gemini-3.8-live` Native Audio) | **The Improv Acting Troupe** (*"The Three Stooges"*) | Generates direct acoustic tokens in model latent space. Performs gasps, laughter, shouting, comedic timing, voice squeaks, and bickering banter. | Viral comedy shorts, Three Stooges roasts, AI rap battles, interactive live voice roleplay. | Cloud API dependency; token metered billing; requires WAN. |
+| **Tier 2: On-Device Voice Acting & Clones** | **MLX Qwen3-TTS** & **F5-TTS Flow Matching** | **The Method Actor** (*"Walken, Attenborough, Drill Sergeant"*) | On-device autoregressive codec LLM and diffusion flow matching on Apple Silicon GPU. Directable with `--instruct` prompts and biometric audio reference seeds. | Custom founder cloned voices, character monologues, offline theatrical delivery. | Requires ~3.3GB unified RAM on Apple Silicon Metal GPU; 0.98x RTF. |
+| **Tier 3: Autonomous Content Factory Stage 2** | **Edge-TTS / CoreAudio** with 48kHz PCM Stitching | **The Professional Broadcast Announcers** (*"Viv & Jake"*) | Rapid multi-speaker turn synthesis, acoustic tag stripping, 140ms conversational gaps, and automatic sidechain music ducking. | Overnight soak runs (4,000+ jobs), technical change recaps, customer briefings, automated batch reels. | $0 cloud cost; 100% reliable; fast (~8s per 30s reel); clean announcer delivery without slapstick physical acting. |

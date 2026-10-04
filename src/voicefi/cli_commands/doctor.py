@@ -211,7 +211,7 @@ def check_port_availability() -> List[Dict[str, Any]]:
                 "category": "Daemon & Ports",
                 "name": f"Port {port} ({label})",
                 "status": "pass",
-                "details": f"Port is free and ready to bind on startup",
+                "details": "Port is free and ready to bind on startup",
                 "is_running": False,
             })
     return results

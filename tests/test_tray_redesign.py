@@ -133,8 +133,8 @@ def test_companion_submenu_builder(mock_tray_app):
 
     titles = [item.title for item in app.companion_menu.values() if hasattr(item, "title")]
 
-    # Verify pairing QR code is at the top (first item)
-    assert "Show Pairing QR Code" in titles[0]
+    # Verify pairing QR code is at the top (first item or right after desktop companion window)
+    assert any("Show Pairing QR Code" in t for t in titles[:2])
     assert any("Open in Browser" in t for t in titles)
     assert any("Copy Pairing Link" in t for t in titles)
     assert any("Selected Agent" in t for t in titles)

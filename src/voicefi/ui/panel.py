@@ -1457,6 +1457,54 @@ HTML_CONTROL_PANEL = """<!DOCTYPE html>
         <p style="font-size: 12px; color: var(--text-muted); line-height: 1.4;">
           Tip: You can also say <b>"Faster"</b>, <b>"Slower"</b>, or <b>"75% speed"</b> at any time using voice control.
         </p>
+
+        <!-- Turn Completion Readout Format Controls -->
+        <div style="margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border-color, #e2e8f0);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <label style="font-size: 13px; font-weight: 600; color: var(--text-primary);">Turn Completion Readout</label>
+            <button class="btn-audition" id="btnConfigureTurnFormat" style="width: auto; padding: 3px 10px; font-size: 12px;" onclick="toggleTurnFormatConfig()">Configure...</button>
+          </div>
+          <select id="turnCompleteFormatSelect" class="input-field" style="width: 100%; padding: 8px 10px; font-size: 13px; border-radius: 8px; margin-bottom: 4px;" onchange="updateTurnCompleteFormat(this.value)">
+            <option value="first_sentence">Short (First Sentence)</option>
+            <option value="distilled">Distilled Soundbite</option>
+            <option value="full">Full Readout</option>
+            <option value="character_quip">Character Quip</option>
+            <option value="chime_only">Chime Only</option>
+          </select>
+
+          <!-- Drawer for Configure... -->
+          <div id="turnFormatConfigDrawer" style="display: none; margin-top: 10px; padding: 12px; background: rgba(0,0,0,0.03); border: 1px solid var(--border-color, #e2e8f0); border-radius: 8px;">
+            <!-- Sound picker -->
+            <div id="turnChimeConfigSection" style="margin-bottom: 10px;">
+              <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 4px;">Completion Sound (Chime Only)</label>
+              <div style="display: flex; gap: 8px;">
+                <select id="turnCompleteChimeSelect" class="input-field" style="flex: 1; padding: 6px 8px; font-size: 12px;" onchange="updateTurnCompleteChime(this.value)">
+                  <option value="Glass">Glass</option>
+                  <option value="Hero">Hero</option>
+                  <option value="Ping">Ping</option>
+                  <option value="Pop">Pop</option>
+                  <option value="Tink">Tink</option>
+                  <option value="Submarine">Submarine</option>
+                  <option value="Bottle">Bottle</option>
+                  <option value="Purr">Purr</option>
+                  <option value="Sosumi">Sosumi</option>
+                </select>
+                <button class="btn-audition" style="width: auto; padding: 6px 12px; font-size: 12px;" onclick="testTurnCompleteChime()">▶ Play</button>
+              </div>
+            </div>
+
+            <!-- Character Quip Instruction & Baseline -->
+            <div id="turnCharacterConfigSection" style="margin-bottom: 10px;">
+              <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 4px;">Character Quip Persona & Instruction</label>
+              <div id="characterBaselineToneText" style="font-size: 12px; color: var(--text-muted); margin-bottom: 6px;">Baseline: Inherits active agent voice & cadence</div>
+              <input type="text" id="characterQuipInstructionInput" class="input-field" placeholder="Optional reaction prompt (e.g. celebration, dry observation)..." onchange="updateCharacterQuipInstruction(this.value)" style="font-size: 12px; padding: 6px 8px;">
+            </div>
+
+            <div style="font-size: 11px; color: var(--text-muted); line-height: 1.4;">
+              Tip: When in Short or Distilled mode, say <b>"Tell me everything"</b> or <b>"Read it to me fully"</b> to expand the full turn readout on the fly.
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -1790,6 +1838,23 @@ HTML_CONTROL_PANEL = """<!DOCTYPE html>
       document.getElementById('rateSlider').value = state.config.tts.rate;
       document.getElementById('rateLabel').textContent = `${state.config.tts.rate} WPM`;
     }
+    if (state?.config?.tts?.turn_complete_format) {
+      const fEl = document.getElementById('turnCompleteFormatSelect');
+      if (fEl) fEl.value = state.config.tts.turn_complete_format;
+    }
+    if (state?.config?.tts?.turn_complete_chime) {
+      const cEl = document.getElementById('turnCompleteChimeSelect');
+      if (cEl) cEl.value = state.config.tts.turn_complete_chime;
+    }
+    if (state?.config?.tts?.character_quip_instruction) {
+      const iEl = document.getElementById('characterQuipInstructionInput');
+      if (iEl) iEl.value = state.config.tts.character_quip_instruction;
+    }
+    const baselineEl = document.getElementById('characterBaselineToneText');
+    if (baselineEl) {
+      const activeName = getActiveVoiceForTarget(currentTarget) || 'Viv';
+      baselineEl.textContent = `Baseline: ${activeName} persona cadence & voice`;
+    }
   }
 
   // Training Stepper & Recorder Logic
@@ -2070,6 +2135,65 @@ HTML_CONTROL_PANEL = """<!DOCTYPE html>
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rate: parseInt(val) })
       });
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  function toggleTurnFormatConfig() {
+    const drawer = document.getElementById('turnFormatConfigDrawer');
+    if (drawer) {
+      drawer.style.display = drawer.style.display === 'none' ? 'block' : 'none';
+    }
+  }
+
+  async function updateTurnCompleteFormat(val) {
+    try {
+      await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ turn_complete_format: val })
+      });
+      showToast(`Turn readout format updated to: ${val}`);
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  async function updateTurnCompleteChime(val) {
+    try {
+      await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ turn_complete_chime: val })
+      });
+      showToast(`Completion chime set to: ${val}`);
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  async function testTurnCompleteChime() {
+    const val = document.getElementById('turnCompleteChimeSelect')?.value || 'Glass';
+    try {
+      await fetch('/api/chime/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chime: val })
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  async function updateCharacterQuipInstruction(val) {
+    try {
+      await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ character_quip_instruction: val })
+      });
+      showToast('Character quip instruction updated');
     } catch (e) {
       console.error(e);
     }
@@ -3056,8 +3180,22 @@ class VoicePanelRequestHandler(http.server.BaseHTTPRequestHandler):
                     self.server.config.agents["antigravity"].voice = payload["voice"]
                     if "provider" in payload:
                         self.server.config.agents["antigravity"].provider = payload["provider"]
+            if "turn_complete_format" in payload:
+                self.server.config.tts.turn_complete_format = payload["turn_complete_format"]
+            if "turn_complete_chime" in payload:
+                self.server.config.tts.turn_complete_chime = payload["turn_complete_chime"]
+            if "character_quip_instruction" in payload:
+                self.server.config.tts.character_quip_instruction = payload["character_quip_instruction"]
             save_config(self.server.config)
             self._send_json({"status": "saved", "config": self.server.config.tts.model_dump()})
+            return
+
+        if path == "/api/chime/test":
+            chime = payload.get("chime", "Glass")
+            from voicefi.audio.chimes import play_turn_complete_chime
+
+            play_turn_complete_chime(chime, block=False)
+            self._send_json({"status": "played", "chime": chime})
             return
 
         if path == "/api/voice_command":

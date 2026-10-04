@@ -335,6 +335,7 @@ def extract_latest_agent_summary(
     retry_delay: float = 0.12,
     full_read: bool = False,
     first_sentence_only: Optional[bool] = None,
+    return_raw: bool = False,
 ):
     """
     Extract the latest assistant response or question from transcript.jsonl.
@@ -448,9 +449,58 @@ def extract_latest_agent_summary(
         full_read=full_read,
         first_sentence_only=first_sentence_only,
     )
+    if return_raw:
+        if return_role and return_step_index:
+            return (cleaned, detected_role, detected_step_index, last_model_content)
+        return (cleaned, detected_role, last_model_content) if return_role else (cleaned, last_model_content)
     if return_role and return_step_index:
         return (cleaned, detected_role, detected_step_index)
     return (cleaned, detected_role) if return_role else cleaned
+
+
+def append_character_quip(
+    first_sentence: str,
+    active_agent: str = "antigravity",
+    instruction: Optional[str] = None,
+) -> str:
+    """Append a snappy 1-sentence character quip / reaction to the first sentence summary."""
+    if not first_sentence or not first_sentence.strip():
+        return first_sentence
+
+    fs = first_sentence.strip()
+    if not fs.endswith((".", "!", "?")):
+        fs += "."
+
+    try:
+        from voicefi.integrations.gemini_ai import GeminiIntelligenceEngine
+
+        engine = GeminiIntelligenceEngine()
+        if engine.is_available():
+            prompt = (
+                instruction
+                or f"You are {active_agent}. In 1 short punchy sentence, give an in-character reaction to this completed task."
+            )
+            res = engine.distill_spoken_soundbite(
+                f"{prompt}\nTask completed: {fs}", max_words=16, timeout=0.8
+            )
+            if res and len(res.strip()) > 3:
+                return f"{fs} {res.strip()}"
+    except Exception:
+        pass
+
+    quips = {
+        "ricky bobby": "Shake and bake, baby!",
+        "christopher": "Right, jolly good then.",
+        "viv": "All clean and ready to roll.",
+        "guy": "Locked, loaded, and ready to ship.",
+        "sonia": "Observations verified.",
+        "william": "Architecture holds solid.",
+    }
+    agent_key = active_agent.lower()
+    for k, q in quips.items():
+        if k in agent_key:
+            return f"{fs} {q}"
+    return f"{fs} All set."
 
 
 def handle_antigravity_stop_hook(
@@ -576,34 +626,72 @@ def handle_antigravity_stop_hook(
         or peek_live_turn_origin(conv_id)
     )
 
-    first_sentence_only = getattr(
-        getattr(cfg, "antigravity", None),
-        "first_sentence_only",
-        getattr(getattr(cfg, "tts", None), "first_sentence_only", False),
-    )
+    turn_format = getattr(getattr(cfg, "tts", None), "turn_complete_format", "first_sentence")
+    if turn_format == "full" or is_live_turn:
+        req_full_read = True
+        req_first_sentence = False
+    elif turn_format == "first_sentence":
+        req_full_read = False
+        req_first_sentence = True
+    elif turn_format == "distilled":
+        req_full_read = False
+        req_first_sentence = False
+    elif turn_format == "character_quip":
+        req_full_read = False
+        req_first_sentence = True
+    else:  # chime_only
+        req_full_read = False
+        req_first_sentence = True
+
     summary_res = extract_latest_agent_summary(
         transcript_path,
         max_words=cfg.antigravity.max_spoken_words,
         return_role=True,
         return_step_index=True,
-        full_read=is_live_turn,
-        first_sentence_only=first_sentence_only,
+        return_raw=True,
+        full_read=req_full_read,
+        first_sentence_only=req_first_sentence,
     )
-    if isinstance(summary_res, tuple) and len(summary_res) == 3:
+    if isinstance(summary_res, tuple) and len(summary_res) == 4:
+        summary, detected_role, step_index, raw_content = summary_res
+    elif isinstance(summary_res, tuple) and len(summary_res) == 3:
         summary, detected_role, step_index = summary_res
+        raw_content = summary
     elif isinstance(summary_res, tuple) and len(summary_res) == 2:
         summary, detected_role = summary_res
         step_index = None
+        raw_content = summary
     else:
         summary = str(summary_res)
         detected_role = None
         step_index = None
+        raw_content = summary
 
     if not summary or not summary.strip():
         # Intermediate tool step or turn in progress with no final model text yet
         return {}
 
     active_agent = hook_agent_role or detected_role or "antigravity"
+
+    if turn_format == "character_quip" and summary:
+        quip_instruction = getattr(getattr(cfg, "tts", None), "character_quip_instruction", None)
+        summary = append_character_quip(
+            summary, active_agent=active_agent, instruction=quip_instruction
+        )
+
+    # Persist in turn session memory for contextual expansion ("tell me everything")
+    try:
+        from voicefi.integrations.turn_memory import TurnSessionMemory
+
+        TurnSessionMemory.get_instance().record_turn(
+            conv_id=conv_id,
+            full_text=raw_content or summary,
+            spoken_text=summary,
+            agent_name=active_agent,
+            format_used=turn_format,
+        )
+    except Exception:
+        pass
 
     turn_sig = f"{conv_id}:{summary[:35]}"
     try:
@@ -714,6 +802,16 @@ def handle_antigravity_stop_hook(
             )
 
         should_speak = bool(cfg.antigravity.read_summary_aloud and spoken_text)
+        if turn_format == "chime_only":
+            try:
+                from voicefi.audio.chimes import play_turn_complete_chime
+
+                chime_name = getattr(getattr(cfg, "tts", None), "turn_complete_chime", "Glass")
+                play_turn_complete_chime(chime_name)
+            except Exception:
+                pass
+            should_speak = False
+
         if should_speak:
             mark_turn_spoken_on_mac(conv_id, turn_sig, step_index=step_index)
             try:
@@ -739,7 +837,7 @@ def handle_antigravity_stop_hook(
 
         if barge_in_active and not acquire_active_listener_lock(conv_id):
             print(
-                f"[AntigravityHook] ⏸️ Another conversation is already actively listening. Yielding mic.",
+                "[AntigravityHook] ⏸️ Another conversation is already actively listening. Yielding mic.",
                 flush=True,
             )
             should_listen = False
@@ -900,7 +998,7 @@ def handle_antigravity_stop_hook(
 
                 if not acquire_active_listener_lock(conv_id):
                     print(
-                        f"[AntigravityHook] ⏸️ Another conversation is already actively listening. Yielding mic.",
+                        "[AntigravityHook] ⏸️ Another conversation is already actively listening. Yielding mic.",
                         flush=True,
                     )
                     should_listen = False
@@ -1045,6 +1143,37 @@ def handle_antigravity_stop_hook(
                 f"[ActiveListening] Intent evaluation: {eval_res.category.value} (is_actionable={eval_res.is_actionable})",
                 flush=True,
             )
+
+            if eval_res.category == SpokenIntentCategory.EXPAND_READOUT:
+                print(f"[Antigravity] 📖 Spoken intent EXPAND_READOUT detected: '{clean_t}'", flush=True)
+                from voicefi.integrations.turn_memory import TurnSessionMemory
+
+                full_raw = TurnSessionMemory.get_instance().get_full_readout_text(conv_id)
+                if not full_raw or not full_raw.strip():
+                    full_raw = summary or "I don't have additional details for the latest turn."
+                expanded_spoken = clean_markdown_for_speech(full_raw, full_read=True)
+                set_cross_process_hud_state(
+                    "speaking",
+                    text=expanded_spoken[:80],
+                    agent_name=active_agent,
+                    app_name="Antigravity",
+                    conv_id=conv_id,
+                )
+                tts = get_tts_engine(
+                    cfg,
+                    agent_name=active_agent,
+                    voice_override=voice_override,
+                    app_name="Antigravity",
+                    conv_id=conv_id,
+                )
+                try:
+                    tts.stream_speak(expanded_spoken, block=True)
+                except Exception as e:
+                    print(f"[Antigravity] Expand speech error: {e}")
+                finally:
+                    clear_cross_process_hud_state()
+                    _safe_cleanup_hud_state()
+                return {}
 
             if eval_res.category == SpokenIntentCategory.PENDING_ANSWER:
                 print(

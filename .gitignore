@@ -51,6 +51,8 @@ assets/audio/
 PXL_*
 IMG_*
 Screenshot_*
+garageband_session/
+parody_takes/
 .cache/
 
 # User config, credentials & secrets

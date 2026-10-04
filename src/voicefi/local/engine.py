@@ -214,12 +214,13 @@ class LocalModelEngine:
             )
 
             async with Agent(config=config) as agent:
-                response = await agent.chat(prompt)
-                async for token in response:
-                    yield token
+                async with asyncio.timeout(15.0):
+                    response = await agent.chat(prompt)
+                    async for token in response:
+                        yield token
             return
-        except (ImportError, ModuleNotFoundError):
-            pass
+        except Exception as e:
+            logger.debug(f"Antigravity Agent skipped/fell back ({e}), proceeding to native engine.")
 
         # 2. Native direct LiteRT-LM execution on Metal GPU / CPU
         if not self.model_exists:

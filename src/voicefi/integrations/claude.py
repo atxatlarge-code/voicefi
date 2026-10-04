@@ -88,14 +88,17 @@ def extract_latest_claude_summary(
     session_path: Optional[Path] = None,
     max_words: Optional[int] = None,
     first_sentence_only: Optional[bool] = None,
-) -> str:
+    full_read: bool = False,
+    return_raw: bool = False,
+):
     """
     Extract the latest assistant response from a Claude Code session JSONL file.
     Cleans markdown and code blocks to produce a crisp spoken soundbite.
     """
     target_path = session_path or find_latest_claude_session()
     if not target_path or not target_path.is_file():
-        return "Claude finished the task. Ready for your input."
+        default_t = "Claude finished the task. Ready for your input."
+        return (default_t, default_t) if return_raw else default_t
 
     last_assistant_text = ""
     try:
@@ -126,13 +129,16 @@ def extract_latest_claude_summary(
         print(f"[Claude] Error reading session JSONL: {e}", file=sys.stderr)
 
     if not last_assistant_text:
-        return "Claude is ready for your next instruction."
+        default_t = "Claude is ready for your next instruction."
+        return (default_t, default_t) if return_raw else default_t
 
-    return clean_markdown_for_speech(
+    cleaned = clean_markdown_for_speech(
         last_assistant_text,
         max_words=max_words,
         first_sentence_only=first_sentence_only,
+        full_read=full_read,
     )
+    return (cleaned, last_assistant_text) if return_raw else cleaned
 
 
 def handle_claude_stop_hook(
@@ -206,21 +212,75 @@ def handle_claude_stop_hook(
     if not session_file:
         session_file = find_latest_claude_session()
 
+    turn_format = getattr(getattr(cfg, "tts", None), "turn_complete_format", "first_sentence")
+    if turn_format == "full":
+        req_full_read = True
+        req_first_sentence = False
+    elif turn_format == "first_sentence":
+        req_full_read = False
+        req_first_sentence = True
+    elif turn_format == "distilled":
+        req_full_read = False
+        req_first_sentence = False
+    elif turn_format == "character_quip":
+        req_full_read = False
+        req_first_sentence = True
+    else:  # chime_only
+        req_full_read = False
+        req_first_sentence = True
+
+    raw_assistant_text = ""
     if not text_to_speak:
-        first_sentence_only = getattr(
-            getattr(cfg, "claude", None),
-            "first_sentence_only",
-            getattr(getattr(cfg, "tts", None), "first_sentence_only", False),
-        )
-        text_to_speak = extract_latest_claude_summary(
+        res = extract_latest_claude_summary(
             session_path=session_file,
             max_words=cfg.claude.max_spoken_words,
-            first_sentence_only=first_sentence_only,
+            first_sentence_only=req_first_sentence,
+            full_read=req_full_read,
+            return_raw=True,
+        )
+        if isinstance(res, tuple):
+            text_to_speak, raw_assistant_text = res
+        else:
+            text_to_speak = res
+            raw_assistant_text = res
+    else:
+        raw_assistant_text = text_to_speak
+
+    if turn_format == "character_quip" and text_to_speak:
+        from voicefi.integrations.antigravity import append_character_quip
+
+        quip_instruction = getattr(getattr(cfg, "tts", None), "character_quip_instruction", None)
+        text_to_speak = append_character_quip(
+            text_to_speak, active_agent="claude", instruction=quip_instruction
         )
 
     # Guard 3: Session turn deduplication
     conv_id = session_file.stem if session_file else "claude_active"
     cid_key = f"claude_{conv_id}" if not conv_id.startswith("claude_") else conv_id
+
+    # Persist in turn session memory for contextual expansion ("tell me everything")
+    try:
+        from voicefi.integrations.turn_memory import TurnSessionMemory
+
+        TurnSessionMemory.get_instance().record_turn(
+            conv_id=cid_key,
+            full_text=raw_assistant_text or text_to_speak,
+            spoken_text=text_to_speak,
+            agent_name="claude",
+            format_used=turn_format,
+        )
+    except Exception:
+        pass
+
+    if turn_format == "chime_only":
+        try:
+            from voicefi.audio.chimes import play_turn_complete_chime
+
+            chime_name = getattr(getattr(cfg, "tts", None), "turn_complete_chime", "Glass")
+            play_turn_complete_chime(chime_name)
+        except Exception:
+            pass
+        text_to_speak = ""
 
     # Update session cookie so Mobile Companion knows Claude is the active agent
     save_session_cookie(
@@ -455,6 +515,34 @@ def handle_claude_stop_hook(
             f"[ActiveListening/Claude] Intent evaluation: {eval_res.category.value}",
             flush=True,
         )
+
+        if eval_res.category == SpokenIntentCategory.EXPAND_READOUT:
+            print(f"[Claude Hook] 📖 Spoken intent EXPAND_READOUT detected: '{clean_t}'", flush=True)
+            from voicefi.integrations.turn_memory import TurnSessionMemory
+            from voicefi.integrations.antigravity import clean_markdown_for_speech
+
+            full_raw = (
+                TurnSessionMemory.get_instance().get_full_readout_text(cid_key)
+                or TurnSessionMemory.get_instance().get_full_readout_text()
+            )
+            if not full_raw or not full_raw.strip():
+                full_raw = text_to_speak or "I don't have additional details for the latest turn."
+            expanded_spoken = clean_markdown_for_speech(full_raw, full_read=True)
+            set_cross_process_hud_state(
+                "speaking",
+                text=expanded_spoken[:80],
+                agent_name="claude",
+                app_name="Claude",
+                conv_id=cid_key,
+            )
+            tts = get_tts_engine(cfg, agent_name="claude", app_name="Claude", conv_id=cid_key)
+            try:
+                tts.stream_speak(expanded_spoken, block=True)
+            except Exception as e:
+                print(f"[Claude Hook] Expand speech error: {e}")
+            finally:
+                clear_cross_process_hud_state()
+            return {"status": "readout_expanded"}
 
         if eval_res.category == SpokenIntentCategory.CONVERSATIONAL_FILLER:
             print(f"[Claude Hook] 🤫 Ignored conversational filler: '{clean_t}'", flush=True)

@@ -262,3 +262,49 @@ def cmd_bias(args):
         print(f"📁 Project Root: {extractor.root_dir}")
         print(f"🔑 Extracted Symbols ({len(symbols)}): {', '.join(symbols[:20])}...")
         print(f'\n📋 Full Whisper / Groq Bias Prompt:\n"{prompt}"\n')
+
+
+def cmd_spatial(args):
+    """Test and audition spatial multi-agent stereo panning directly on active headphones/buds."""
+    from voicefi.audio.spatial import run_spatial_multiagent_audition, play_spatial_speech
+
+    pan_override = getattr(args, "pan", None)
+    text_args = getattr(args, "text", None)
+    with_speech = getattr(args, "speech", False)
+    with_orbit = getattr(args, "orbit", False)
+    with_binaural = getattr(args, "binaural", False)
+
+    print("\n🎧 VoiceFi™ Spatial Multi-Agent Audio Audition")
+    print("=" * 60)
+
+    if with_binaural:
+        import sounddevice as sd
+        from voicefi.audio.spatial import create_binaural_360_orbit
+
+        print("🌐 Playing True 360° Binaural HRTF Orbit...")
+        print("   Trajectory: Front (0°) ➔ Right (90°) ➔ Behind Neck (180°) ➔ Left (270°) ➔ Front (360°)")
+        print("   Acoustic Cues: ITD time delay, pinna shadow filtering, and rear attenuation active.")
+        sweep = create_binaural_360_orbit(duration=7.0, sample_rate=44100)
+        sd.play(sweep, samplerate=44100)
+        sd.wait()
+        success = True
+    elif with_orbit:
+        import sounddevice as sd
+        from voicefi.audio.spatial import create_orbit_sweep
+
+        print("🔄 Playing 360° Acoustic Orbit Sweep (Left ➔ Center ➔ Right ➔ Center ➔ Left)...")
+        sweep = create_orbit_sweep(duration=5.0, sample_rate=44100)
+        sd.play(sweep, samplerate=44100)
+        sd.wait()
+        success = True
+    elif text_args:
+        text = " ".join(text_args) if isinstance(text_args, list) else str(text_args)
+        agent = getattr(args, "agent", None) or "antigravity"
+        print(f"🗣️ Speaking with spatial pan ({pan_override if pan_override is not None else 'auto'}): \"{text}\"")
+        success = play_spatial_speech(text, agent_name=agent, pan=pan_override, block=True)
+    else:
+        success = run_spatial_multiagent_audition(block=True, with_speech=with_speech)
+
+    if success:
+        print("\n✨ Audition complete! Spatial stereo separation verified.")
+    print("=" * 60 + "\n")

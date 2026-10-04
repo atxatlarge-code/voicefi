@@ -104,3 +104,34 @@ def play_chime(sound_key_or_path: str, block: bool = False) -> None:
     else:
         thread = threading.Thread(target=_run, daemon=True)
         thread.start()
+
+
+AVAILABLE_TURN_CHIMES = {
+    "Glass": "/System/Library/Sounds/Glass.aiff",
+    "Hero": "/System/Library/Sounds/Hero.aiff",
+    "Ping": "/System/Library/Sounds/Ping.aiff",
+    "Pop": "/System/Library/Sounds/Pop.aiff",
+    "Tink": "/System/Library/Sounds/Tink.aiff",
+    "Submarine": "/System/Library/Sounds/Submarine.aiff",
+    "Bottle": "/System/Library/Sounds/Bottle.aiff",
+    "Purr": "/System/Library/Sounds/Purr.aiff",
+    "Sosumi": "/System/Library/Sounds/Sosumi.aiff",
+}
+
+
+def play_turn_complete_chime(chime_name: str = "Glass", block: bool = False) -> None:
+    """Play the selected turn complete chime tone."""
+    if not chime_name:
+        chime_name = "Glass"
+    path = AVAILABLE_TURN_CHIMES.get(chime_name)
+    if not path or not os.path.exists(path):
+        # Check direct path or System Library Sounds
+        sys_path = f"/System/Library/Sounds/{chime_name}.aiff"
+        if os.path.exists(sys_path):
+            path = sys_path
+        elif os.path.exists(chime_name):
+            path = chime_name
+        else:
+            path = "/System/Library/Sounds/Glass.aiff"
+    play_chime(path, block=block)
+

@@ -580,10 +580,6 @@ class TranscriptWatcher:
                 release_active_listener_lock,
             )
 
-            from voicefi.integrations.turn_lock import (
-                acquire_active_listener_lock,
-                release_active_listener_lock,
-            )
 
             from voicefi.tts import find_persona
 
@@ -603,7 +599,7 @@ class TranscriptWatcher:
 
             if barge_in_active and not acquire_active_listener_lock(turn_cid):
                 print(
-                    f"[Watcher] ⏸️ Another conversation is already actively listening. Yielding mic.",
+                    "[Watcher] ⏸️ Another conversation is already actively listening. Yielding mic.",
                     flush=True,
                 )
                 should_listen = False
@@ -745,7 +741,7 @@ class TranscriptWatcher:
                 if should_listen:
                     if not acquire_active_listener_lock(turn_cid):
                         print(
-                            f"[Watcher] ⏸️ Another conversation is already actively listening. Yielding mic.",
+                            "[Watcher] ⏸️ Another conversation is already actively listening. Yielding mic.",
                             flush=True,
                         )
                         should_listen = False

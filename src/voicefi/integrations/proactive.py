@@ -127,13 +127,18 @@ class ProactiveTriageEngine:
             return None
 
         task_id = str(uuid.uuid4())[:8]
+        workspace = parsed.get("workspace", "inherit")
+        action_prompt = parsed.get("action_prompt", clean_text)
+        if workspace == "branch" and "isolated branch" not in action_prompt.lower():
+            action_prompt = f"On an isolated branch: {action_prompt}"
+
         return ProactiveTask(
             id=task_id,
             category=category,
             raw_utterance=clean_text,
             summary=parsed.get("summary", f"{cat_str}: {clean_text[:60]}..."),
-            action_prompt=parsed.get("action_prompt", clean_text),
-            suggested_workspace=parsed.get("workspace", "inherit"),
+            action_prompt=action_prompt,
+            suggested_workspace=workspace,
         )
 
 

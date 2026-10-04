@@ -16,10 +16,10 @@ def test_default_config_values():
     assert config.antigravity.max_spoken_words == 60
     assert config.vad.barge_in == "auto"
     assert config.telemetry is True
-    assert "Mail Sent.aiff" in config.audio_cues.sent_chime
-    assert "Mail Sent.aiff" in config.audio_cues.done_chime
+    assert config.audio_cues.sent_chime == ""
+    assert config.audio_cues.done_chime == ""
     assert config.global_hotkey.focus_and_talk_hotkey == "<ctrl>+r"
-    assert config.global_hotkey.dictate_hotkey == "<ctrl>+t"
+    assert config.global_hotkey.dictate_hotkey == "<alt>+d"
     assert config.global_hotkey.new_conversation_hotkey == "<cmd>+<shift>+n"
     assert config.hud.enabled is True
     assert config.hud.persistent is True

@@ -56,5 +56,5 @@ For production validation, the Content Creation Factory was subjected to a conti
 - **Duplex Barge-In Latency**: `0.065 ms` average (0 underruns)
 - **Lock Contention**: `0 deadlocks` across 168,960 contender iterations
 - **MCP Server Response**: `0.17 ms` average JSON-RPC tool reflection
-- **Full Report**: See [`benchmarks/OVERNIGHT_CONCURRENCY_REPORT.md`](file:///Users/jaketrigg/Projects/VoiceFi/benchmarks/OVERNIGHT_CONCURRENCY_REPORT.md)
+- **Full Report**: See [`benchmarks/OVERNIGHT_CONCURRENCY_REPORT.md`](../benchmarks/OVERNIGHT_CONCURRENCY_REPORT.md)
 

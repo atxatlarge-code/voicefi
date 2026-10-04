@@ -258,7 +258,7 @@ class LocalContentGenerator:
             ),
             ScriptDialogueTurn(
                 speaker=char2,
-                text=f"Yeah, running this through the factory queue cut our turnaround from hours down to seconds.",
+                text="Yeah, running this through the factory queue cut our turnaround from hours down to seconds.",
                 emotion="confident",
                 voice_id=c2_info.get("voice_id"),
                 speed=c2_info.get("speed"),

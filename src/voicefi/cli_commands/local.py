@@ -4,6 +4,7 @@ CLI commands for on-device local models: LiteRT, Gemma, Recon Scout, benchmarks,
 
 import asyncio
 import logging
+import os
 from typing import Any
 
 from voicefi.config import load_config
@@ -135,7 +136,7 @@ def cmd_auto(args: Any) -> int:
         or "qwen2.5-coder:1.5b"
     )
 
-    print(f"🤖 Launching VoiceFi Autonomous Local Loop on Apple Silicon Metal GPU...")
+    print("🤖 Launching VoiceFi Autonomous Local Loop on Apple Silicon Metal GPU...")
     print(f"   Model: {model} | Max Turns: {max_turns} | Verification: {test_cmd or 'None'}")
     print(f"   Goal: {goal}\n")
 
