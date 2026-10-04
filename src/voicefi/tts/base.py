@@ -632,7 +632,7 @@ _LAST_SYSTEM_AUDIO_CHECK = 0.0
 _LAST_SYSTEM_AUDIO_STATE = False
 
 
-def is_system_audio_playing() -> bool:
+def is_system_audio_playing(force_fresh: bool = False) -> bool:
     """Check if any macOS speech playback process (afplay/say) or streaming audio output is currently producing audio."""
     global _LAST_SYSTEM_AUDIO_CHECK, _LAST_SYSTEM_AUDIO_STATE
 
@@ -648,7 +648,7 @@ def is_system_audio_playing() -> bool:
         pass
 
     now = time.time()
-    if (now - _LAST_SYSTEM_AUDIO_CHECK) < 0.75:
+    if not force_fresh and (now - _LAST_SYSTEM_AUDIO_CHECK) < 0.25:
         return _LAST_SYSTEM_AUDIO_STATE
 
     _LAST_SYSTEM_AUDIO_CHECK = now

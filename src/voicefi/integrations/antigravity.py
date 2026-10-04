@@ -1040,12 +1040,12 @@ def handle_antigravity_stop_hook(
                     from voicefi.tts.base import is_system_audio_playing
 
                     max_audio_wait = 30
-                    while is_system_audio_playing() and max_audio_wait > 0:
-                        time.sleep(0.1)
+                    while is_system_audio_playing(force_fresh=True) and max_audio_wait > 0:
+                        time.sleep(0.05)
                         max_audio_wait -= 1
 
                     # Immediate seamless transition: open mic right after speech finishes
-                    time.sleep(0.2)
+                    time.sleep(0.1)
 
                     if getattr(cfg.audio_cues, "mic_open_chime", False) and cfg.audio_cues.enabled:
                         play_chime("start", block=True)
