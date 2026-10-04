@@ -923,9 +923,18 @@ class ConversationTracker:
             )
             win_title = proc.stdout.strip()
             if win_title:
+                clean_win = win_title.rstrip(".… ").strip().lower()
                 titles = self._get_pb_titles()
                 for cid, title in titles.items():
-                    if title and len(title) >= 4 and (title in win_title or win_title.startswith(title)):
+                    if not title or len(title) < 4:
+                        continue
+                    clean_t = title.lower()
+                    if (
+                        clean_t in clean_win
+                        or clean_win in clean_t
+                        or (len(clean_win) >= 8 and clean_t.startswith(clean_win))
+                        or (len(clean_t) >= 8 and clean_win.startswith(clean_t[:min(len(clean_t), 20)]))
+                    ):
                         return cid
         except Exception:
             pass
