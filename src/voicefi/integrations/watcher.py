@@ -358,48 +358,56 @@ class TranscriptWatcher:
                 break  # Finished turn handling initiated
             elif step_type == "PLANNER_RESPONSE" and tool_calls:
                 self._processed_steps[path_str] = idx
-                first_tool = tool_calls[0] if isinstance(tool_calls, list) and tool_calls else {}
-                tool_desc, tag_text = format_tool_details(first_tool)
-                self._notify_state(
-                    "working",
-                    agent_name=str(detected_role),
-                    tool_action=tool_desc,
-                    tag_text=tag_text,
-                )
-            elif step_type == "GENERIC" and content:
-                self._processed_steps[path_str] = idx
-                log_summary = extract_log_summary(str(content))
-                if log_summary:
+                hud_cfg = getattr(self.config, "hud", None)
+                if hud_cfg and getattr(hud_cfg, "show_working_steps", False):
+                    first_tool = tool_calls[0] if isinstance(tool_calls, list) and tool_calls else {}
+                    tool_desc, tag_text = format_tool_details(first_tool)
                     self._notify_state(
                         "working",
                         agent_name=str(detected_role),
-                        tool_action=log_summary,
-                        tag_text="Ran Command",
+                        tool_action=tool_desc,
+                        tag_text=tag_text,
                     )
-            elif step_type == "SYSTEM_MESSAGE":
+            elif step_type == "GENERIC" and content:
                 self._processed_steps[path_str] = idx
-                c = str(content or "")
-                task_match = re.search(
-                    r'Task id "[^"]+" finished with result:\s*(.*)', c, re.DOTALL
-                )
-                if task_match:
-                    task_res = task_match.group(1).strip()
-                    log_summary = extract_log_summary(task_res)
+                hud_cfg = getattr(self.config, "hud", None)
+                if hud_cfg and getattr(hud_cfg, "show_working_steps", False):
+                    log_summary = extract_log_summary(str(content))
                     if log_summary:
                         self._notify_state(
                             "working",
                             agent_name=str(detected_role),
-                            tool_action=f"Task: {log_summary}",
-                            tag_text="Background Task",
+                            tool_action=log_summary,
+                            tag_text="Ran Command",
                         )
+            elif step_type == "SYSTEM_MESSAGE":
+                self._processed_steps[path_str] = idx
+                hud_cfg = getattr(self.config, "hud", None)
+                if hud_cfg and getattr(hud_cfg, "show_working_steps", False):
+                    c = str(content or "")
+                    task_match = re.search(
+                        r'Task id "[^"]+" finished with result:\s*(.*)', c, re.DOTALL
+                    )
+                    if task_match:
+                        task_res = task_match.group(1).strip()
+                        log_summary = extract_log_summary(task_res)
+                        if log_summary:
+                            self._notify_state(
+                                "working",
+                                agent_name=str(detected_role),
+                                tool_action=f"Task: {log_summary}",
+                                tag_text="Background Task",
+                            )
             elif step_type == "PLANNER_RESPONSE" and thinking:
                 self._processed_steps[path_str] = idx
-                thought_summary = extract_thought_summary(str(thinking))
-                self._notify_state(
-                    "thinking",
-                    agent_name=str(detected_role),
-                    detail=thought_summary or "Reasoning...",
-                )
+                hud_cfg = getattr(self.config, "hud", None)
+                if hud_cfg and getattr(hud_cfg, "show_working_steps", False):
+                    thought_summary = extract_thought_summary(str(thinking))
+                    self._notify_state(
+                        "thinking",
+                        agent_name=str(detected_role),
+                        detail=thought_summary or "Reasoning...",
+                    )
             elif step_type == "USER_INPUT":
                 self._processed_steps[path_str] = idx
                 user_content = step.get("content", "")
@@ -432,11 +440,13 @@ class TranscriptWatcher:
                     except Exception:
                         pass
                 else:
-                    self._notify_state(
-                        "thinking",
-                        agent_name="Antigravity",
-                        detail="Processing...",
-                    )
+                    hud_cfg = getattr(self.config, "hud", None)
+                    if hud_cfg and getattr(hud_cfg, "show_working_steps", False):
+                        self._notify_state(
+                            "thinking",
+                            agent_name="Antigravity",
+                            detail="Processing...",
+                        )
 
     def _handle_turn_ready(
         self,

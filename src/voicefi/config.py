@@ -212,6 +212,7 @@ class HUDConfig(BaseModel):
     linger_seconds: float = 2.0
     always_on_vad: bool = True
     dynamic_tray_icon: bool = False
+    show_working_steps: bool = False  # Suppress fine-grained tool execution/line-item updates from transcript watcher
 
 
 class ClaudeConfig(BaseModel):

@@ -555,3 +555,63 @@ def test_unified_hud_hover_expand_collapse(mock_appkit):
     assert hud._current_height == hud.STANDARD_HEIGHT
 
 
+def test_unified_hud_turn_end_persona_resolution(mock_appkit):
+    """Verify that at turn end, finish_speech preserves persona and does not duplicate agent name."""
+    hud = UnifiedDynamicIslandHUD.get_instance()
+    hud._visualizer = MagicMock()
+
+    hud.set_speaking(text="Speech output", agent_name="Antigravity", persona_name="Christopher")
+    assert hud._current_state == "speaking"
+    assert hud._current_persona == "Christopher"
+
+    hud.finish_speech(text="Speech output")
+    assert hud._current_state == "spoken"
+    tag_val = str(hud._tag_lbl.setStringValue_.call_args[0][0])
+    assert tag_val == "Christopher [Spoken ✓]"
+    assert "Antigravity [Spoken" not in tag_val
+    assert hud._visualizer.reset.called
+
+
+def test_unified_hud_turn_end_agent_specific_persona_fallback(mock_appkit):
+    """Verify agent-specific persona fallbacks (Claude -> Stefan, Codex -> Emma) at turn end."""
+    hud = UnifiedDynamicIslandHUD.get_instance()
+
+    hud.set_speaking(text="Claude turn done", agent_name="Claude", app_name="Claude")
+    hud.finish_speech(text="Claude turn done")
+    assert hud._current_state == "spoken"
+    tag_val = str(hud._tag_lbl.setStringValue_.call_args[0][0])
+    assert tag_val == "Stefan [Spoken ✓]"
+
+    hud.set_speaking(text="Codex turn done", agent_name="Codex", app_name="Codex")
+    hud.finish_speech(text="Codex turn done")
+    assert hud._current_state == "spoken"
+    tag_val = str(hud._tag_lbl.setStringValue_.call_args[0][0])
+    assert tag_val == "Emma [Spoken ✓]"
+
+
+def test_unified_hud_turn_end_idle_clears_persona(mock_appkit):
+    """Verify set_idle clears the active persona tracking."""
+    hud = UnifiedDynamicIslandHUD.get_instance()
+    hud.set_speaking(text="Speaking", persona_name="Christopher")
+    assert hud._current_persona == "Christopher"
+
+    hud.set_idle()
+    assert hud._current_state == "idle"
+    assert hud._current_persona is None
+
+
+def test_unified_hud_auto_listen_cancels_hide_timer(mock_appkit):
+    """Verify transitioning to listening cancels any pending hide/idle timer."""
+    with patch("voicefi.ui.unified_hud.is_headless", return_value=False):
+        hud = UnifiedDynamicIslandHUD.get_instance()
+        hud.persistent = False
+
+        hud.set_spoken(text="Speech complete", linger=10.0)
+        assert hud._hide_timer is not None
+
+        hud.set_listening(user_name="Jake")
+        assert hud._current_state == "listening"
+        assert hud._hide_timer is None
+
+
+

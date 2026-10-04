@@ -105,7 +105,7 @@ class LocalModelEngine:
     def __init__(
         self,
         model_path: Optional[str] = None,
-        model_name: str = "gemma4-26b",
+        model_name: str = "gemma4-2b",
         backend: Optional[str] = None,
         max_context_tokens: int = 65536,
         enable_speculative_decoding: bool = True,
@@ -206,23 +206,24 @@ class LocalModelEngine:
         Stream tokens directly from the local LiteRT model on Metal GPU.
         Supports both Google Antigravity Agent and native litert_lm.Engine.
         """
-        # 1. Try google.antigravity Agent if available
-        try:
-            from google.antigravity import Agent
+        # 1. Try google.antigravity Agent only if tool execution is required
+        if tools:
+            try:
+                from google.antigravity import Agent
 
-            config = self.build_agent_config(
-                tools=tools,
-                system_instructions=system_instructions,
-            )
+                config = self.build_agent_config(
+                    tools=tools,
+                    system_instructions=system_instructions,
+                )
 
-            async with Agent(config=config) as agent:
-                async with asyncio.timeout(15.0):
-                    response = await agent.chat(prompt)
-                    async for token in response:
-                        yield token
-            return
-        except Exception as e:
-            logger.debug(f"Antigravity Agent skipped/fell back ({e}), proceeding to native engine.")
+                async with Agent(config=config) as agent:
+                    async with asyncio.timeout(15.0):
+                        response = await agent.chat(prompt)
+                        async for token in response:
+                            yield token
+                return
+            except Exception as e:
+                logger.debug(f"Antigravity Agent skipped/fell back ({e}), proceeding to native engine.")
 
         # 2. Native direct LiteRT-LM execution on Metal GPU / CPU
         if not self.model_exists:

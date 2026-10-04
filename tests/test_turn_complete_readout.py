@@ -75,7 +75,8 @@ def test_expand_readout_spoken_intents():
         assert res.is_actionable is True
 
 
-def test_append_character_quip_heuristics():
+def test_append_character_quip_heuristics(monkeypatch):
+    monkeypatch.setattr("voicefi.local.engine.is_litert_available", lambda: False)
     quip_viv = append_character_quip("Task complete.", active_agent="Viv")
     assert "Task complete." in quip_viv
     assert "All clean" in quip_viv

@@ -565,3 +565,28 @@ def test_extract_latest_agent_summary_does_not_false_alarm_on_explained_errors(t
     assert "Here is what we solved" in summary
 
 
+def test_append_character_quip_static_fallback():
+    """Verify that static quip fallbacks work reliably for various personas."""
+    from voicefi.integrations.antigravity import append_character_quip
+    from unittest.mock import patch
+
+    # Mock LiteRT and Gemini to test static table fallbacks
+    with patch("voicefi.local.engine.is_litert_available", return_value=False):
+        with patch("voicefi.integrations.gemini_ai.GeminiIntelligenceEngine.is_available", return_value=False):
+            res_walken = append_character_quip("Task complete.", active_agent="Christopher Walken")
+            assert "Clean, quiet, and exquisite." in res_walken or "Right, jolly good then." in res_walken
+
+            res_ricky = append_character_quip("Engine tuned.", active_agent="Ricky Bobby")
+            assert "Shake and bake, baby!" in res_ricky
+
+
+def test_append_character_quip_local_litert():
+    """Verify that append_character_quip executes cleanly with on-device LiteRT."""
+    from voicefi.integrations.antigravity import append_character_quip
+
+    res = append_character_quip("All tests passed cleanly.", active_agent="Christopher Walken")
+    assert res.startswith("All tests passed cleanly.")
+    assert len(res) > len("All tests passed cleanly.")
+
+
+

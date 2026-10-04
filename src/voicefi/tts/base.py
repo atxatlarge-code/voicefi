@@ -245,7 +245,10 @@ def get_cross_process_hud_state() -> Optional[Dict[str, Any]]:
             if isinstance(data, dict):
                 pid = int(data.get("pid", 0))
                 ts = float(data.get("timestamp", 0))
-                if is_pid_alive(pid) and (time.time() - ts) < 60.0:
+                state = data.get("state")
+                # Transient settled "spoken" state expires after 4.0s; others live up to 60.0s
+                max_age = 4.0 if state == "spoken" else 60.0
+                if is_pid_alive(pid) and (time.time() - ts) < max_age:
                     return data
                 else:
                     HUD_STATE_STATUS_FILE.unlink(missing_ok=True)
@@ -389,7 +392,16 @@ def set_agent_speaking(
                 from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
 
                 if UnifiedDynamicIslandHUD._instance:
-                    UnifiedDynamicIslandHUD._instance.finish_speech(linger_seconds=2.0)
+                    info = _LAST_AGENT_SPEAKING_INFO or {}
+                    UnifiedDynamicIslandHUD._instance.finish_speech(
+                        linger_seconds=2.0,
+                        text=info.get("text"),
+                        speaker=info.get("persona_name"),
+                        persona_name=info.get("persona_name"),
+                        agent_name=info.get("agent_name"),
+                        app_name=info.get("app_name"),
+                        conv_id=info.get("conv_id"),
+                    )
             except Exception:
                 pass
     except Exception:

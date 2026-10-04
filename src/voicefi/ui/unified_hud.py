@@ -728,6 +728,8 @@ class UnifiedDynamicIslandHUD:
         self._active_agent_name: Optional[str] = None
         self._active_app_name: Optional[str] = None
         self._active_conv_id: Optional[str] = None
+        self._current_persona: Optional[str] = None
+        self._active_speaker: Optional[str] = None
         self._edit_container: Optional[NSView] = None
         self._edit_header: Optional[NSTextField] = None
         self._edit_hint: Optional[NSTextField] = None
@@ -2386,6 +2388,7 @@ class UnifiedDynamicIslandHUD:
                         "idle",
                         "working",
                         "hearing",
+                        "spoken",
                     )
                 ) and state not in ("auditing", "verified", "repairing", "repaired"):
                     self._visualizer.setHidden_(False)
@@ -2409,7 +2412,7 @@ class UnifiedDynamicIslandHUD:
                             )
                         else:
                             self._visualizer.setSpeechBarColor_(None)
-                    if state in ("listening", "new_conversation"):
+                    if state in ("listening", "new_conversation", "spoken", "idle"):
                         self._visualizer.reset()
                 else:
                     self._visualizer.setHidden_(True)
@@ -2627,6 +2630,14 @@ class UnifiedDynamicIslandHUD:
         resolved_cid = conv_id or getattr(self, "_active_conv_id", None)
         resolved_agent = agent_name or getattr(self, "_active_agent_name", None)
 
+        self._current_persona = None
+        try:
+            from voicefi.tts.base import clear_cross_process_hud_state
+
+            clear_cross_process_hud_state()
+        except Exception:
+            pass
+
         self._apply_rich_state(
             state="idle",
             avatar_emoji="",
@@ -2745,10 +2756,14 @@ class UnifiedDynamicIslandHUD:
         conv_id: Optional[str] = None,
         conv_title: Optional[str] = None,
         engine_badge: Optional[str] = None,
+        tag_text: Optional[str] = None,
+        **kwargs: Any,
     ):
         """Set to Speaking State with rich live speech subtitles (540x82)."""
         self._is_speaking = True
         self._active_agent_name = agent_name
+        self._current_persona = persona_name
+        self._active_speaker = persona_name if persona_name else agent_name.capitalize()
         resolved_app = app_name or agent_name
         self._active_app_name = resolved_app
         if conv_id:
@@ -2758,7 +2773,9 @@ class UnifiedDynamicIslandHUD:
         app_icon = self._resolve_app_icon(resolved_app)
         display_title = (resolved_app or agent_name).capitalize()
         resolved_conv = conv_title or self._resolve_conversation_title(conv_id=conv_id)
-        if engine_badge:
+        if tag_text:
+            tag_str = tag_text
+        elif engine_badge:
             tag_str = (
                 f"{speaker} • {engine_badge} [Esc]"
                 if resolved_conv
@@ -2783,7 +2800,7 @@ class UnifiedDynamicIslandHUD:
         )
         is_live = "live" in (agent_name or "").lower() or "live" in (resolved_app or "").lower()
         self._active_is_live = is_live
-        if is_live:
+        if is_live and not tag_text:
             tag_str = "● LIVE"
 
         self._apply_rich_state(
@@ -2806,22 +2823,57 @@ class UnifiedDynamicIslandHUD:
     def set_spoken(
         self,
         text: str,
-        speaker: str = "Viv",
+        speaker: Optional[str] = None,
         agent_name: str = "Antigravity",
         persona_name: Optional[str] = None,
         linger: Optional[float] = 2.0,
         app_name: Optional[str] = None,
         conv_id: Optional[str] = None,
         conv_title: Optional[str] = None,
+        **kwargs: Any,
     ):
         """Set to Spoken Settled State ([Spoken ✓]) with emerald glow and neutral avatar mouth (540x82)."""
         self._is_speaking = False
-        resolved_app = app_name or agent_name
+        resolved_app = app_name or agent_name or getattr(self, "_active_app_name", None)
         self._active_agent_name = agent_name
         self._active_app_name = resolved_app
         if conv_id:
             self._active_conv_id = conv_id
-        resolved_speaker = persona_name or speaker or "Viv"
+
+        # Resolve voice persona with precedence: persona_name -> self._current_persona -> speaker (if not generic agent) -> agent-calibrated fallback
+        current_persona = getattr(self, "_current_persona", None)
+        active_speaker = getattr(self, "_active_speaker", None)
+        candidate = persona_name or current_persona
+        if not candidate:
+            generic_names = (
+                "antigravity",
+                "claude",
+                "codex",
+                "gemini",
+                "voicefi",
+                "main",
+                "gemma",
+                "terminal",
+                "cursor",
+                "windsurf",
+            )
+            if speaker and speaker.lower() not in generic_names:
+                candidate = speaker
+            elif active_speaker and active_speaker.lower() not in generic_names:
+                candidate = active_speaker
+            else:
+                ag_lower = (resolved_app or agent_name or "").lower()
+                if "claude" in ag_lower:
+                    candidate = "Stefan"
+                elif "codex" in ag_lower:
+                    candidate = "Emma"
+                elif "gemma" in ag_lower:
+                    candidate = "Andrew"
+                else:
+                    candidate = "Viv"
+
+        resolved_speaker = candidate
+        self._current_persona = resolved_speaker
         app_icon = self._resolve_app_icon(resolved_app)
         display_title = (resolved_app or agent_name).capitalize()
         clean = text.strip() or "Speech complete"
@@ -3244,6 +3296,7 @@ class UnifiedDynamicIslandHUD:
                     "idle",
                     "working",
                     "hearing",
+                    "spoken",
                 ):
                     self._visualizer.setHidden_(False)
                 prob = (
@@ -3425,15 +3478,18 @@ class UnifiedDynamicIslandHUD:
         linger_seconds: float = 2.0,
         text: Optional[str] = None,
         speaker: Optional[str] = None,
+        persona_name: Optional[str] = None,
         app_name: Optional[str] = None,
         conv_id: Optional[str] = None,
         agent_name: Optional[str] = None,
+        **kwargs: Any,
     ):
         """Conclude speech turn and transition into settled spoken state before idle/auto-hide."""
         self._is_speaking = False
         resolved_app = app_name or getattr(self, "_active_app_name", None)
         resolved_cid = conv_id or getattr(self, "_active_conv_id", None)
         resolved_agent = agent_name or getattr(self, "_active_agent_name", None)
+        eff_persona = persona_name or getattr(self, "_current_persona", None)
 
         body_to_settle = text
         if not body_to_settle and self._body_lbl:
@@ -3449,7 +3505,8 @@ class UnifiedDynamicIslandHUD:
         if body_to_settle and self._current_state in ("speaking", "spoken"):
             self.set_spoken(
                 text=body_to_settle,
-                speaker=speaker or resolved_agent or "Viv",
+                speaker=speaker,
+                persona_name=eff_persona,
                 linger=linger_seconds,
                 agent_name=resolved_agent or "Antigravity",
                 app_name=resolved_app,

@@ -498,6 +498,35 @@ def append_character_quip(
     if not fs.endswith((".", "!", "?")):
         fs += "."
 
+    # 1. Tier 1: Local In-Process LiteRT on Metal GPU (<80ms, 0 WAN latency)
+    try:
+        from voicefi.local.engine import is_litert_available, LocalModelEngine
+        import asyncio
+        import concurrent.futures
+
+        if is_litert_available():
+            # Prefer gemma4-2b for ultra-fast low-latency reaction, fallback to default
+            local_engine = LocalModelEngine(model_name="gemma4-2b")
+            if local_engine.model_exists:
+                prompt = (
+                    instruction
+                    or f"You are {active_agent}. In 1 short punchy sentence under 12 words, give an in-character reaction to this completed task:\nTask completed: {fs}\nReaction:"
+                )
+
+                def _run_local():
+                    return asyncio.run(local_engine.chat_text(prompt))
+
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                    future = pool.submit(_run_local)
+                    res = future.result(timeout=3.5)
+                    if res and len(res.strip()) > 3:
+                        cleaned = res.strip().strip('"\'').split("\n")[0].strip()
+                        if cleaned:
+                            return f"{fs} {cleaned}"
+    except Exception:
+        pass
+
+    # 2. Tier 2: Cloud Gemini Engine (if local is unavailable or times out)
     try:
         from voicefi.integrations.gemini_ai import GeminiIntelligenceEngine
 
@@ -515,9 +544,12 @@ def append_character_quip(
     except Exception:
         pass
 
+    # 3. Tier 3: Static Character Quip Table Fallback
     quips = {
         "ricky bobby": "Shake and bake, baby!",
         "christopher": "Right, jolly good then.",
+        "continental": "Clean, quiet, and exquisite.",
+        "walken": "Clean, quiet, and exquisite.",
         "viv": "All clean and ready to roll.",
         "guy": "Locked, loaded, and ready to ship.",
         "sonia": "Observations verified.",
@@ -705,6 +737,28 @@ def handle_antigravity_stop_hook(
         summary = append_character_quip(
             summary, active_agent=active_agent, instruction=quip_instruction
         )
+    elif turn_format == "distilled" and (raw_content or summary):
+        try:
+            from voicefi.local.engine import is_litert_available, LocalModelEngine
+            import asyncio
+            import concurrent.futures
+
+            if is_litert_available():
+                local_engine = LocalModelEngine(model_name="gemma4-2b")
+                if local_engine.model_exists:
+
+                    def _run_distill():
+                        return asyncio.run(
+                            local_engine.distill_turn(raw_content or summary, max_words=24)
+                        )
+
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                        future = pool.submit(_run_distill)
+                        distilled_text, _ = future.result(timeout=1.5)
+                        if distilled_text and len(distilled_text.strip()) > 5:
+                            summary = distilled_text.strip()
+        except Exception:
+            pass
 
     # Persist in turn session memory for contextual expansion ("tell me everything")
     try:
@@ -736,6 +790,17 @@ def handle_antigravity_stop_hook(
             state_info = get_cross_process_hud_state()
             if state_info and state_info.get("state") in ("listening", "hearing", "transcribing"):
                 clear_cross_process_hud_state()
+            try:
+                from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
+
+                if (
+                    getattr(UnifiedDynamicIslandHUD, "_instance", None)
+                    and UnifiedDynamicIslandHUD._instance._current_state
+                    in ("listening", "hearing", "transcribing")
+                ):
+                    UnifiedDynamicIslandHUD._instance.set_idle()
+            except Exception:
+                pass
         except Exception:
             pass
 
@@ -989,19 +1054,52 @@ def handle_antigravity_stop_hook(
 
             try:
                 audio_data, temp_wav = recorder.record_speech_auto(
-                    on_speech_start=lambda: set_cross_process_hud_state(
-                        "hearing",
-                        agent_name=active_agent,
-                        user_name=cfg.user_name,
-                        app_name="Antigravity",
-                        conv_id=conv_id,
+                    on_speech_start=lambda: (
+                        set_cross_process_hud_state(
+                            "hearing",
+                            agent_name=active_agent,
+                            user_name=cfg.user_name,
+                            app_name="Antigravity",
+                            conv_id=conv_id,
+                        ),
+                        (
+                            UnifiedDynamicIslandHUD.get_instance().set_hearing(
+                                user_name=cfg.user_name,
+                                app_name="Antigravity",
+                                agent_name=active_agent,
+                                conv_id=conv_id,
+                            )
+                            if getattr(UnifiedDynamicIslandHUD, "_instance", None)
+                            else None
+                        ),
                     ),
-                    on_pause_change=lambda paused: set_cross_process_hud_state(
-                        "hearing" if not paused else "listening",
-                        agent_name=active_agent,
-                        user_name=cfg.user_name,
-                        app_name="Antigravity",
-                        conv_id=conv_id,
+                    on_pause_change=lambda paused: (
+                        set_cross_process_hud_state(
+                            "hearing" if not paused else "listening",
+                            agent_name=active_agent,
+                            user_name=cfg.user_name,
+                            app_name="Antigravity",
+                            conv_id=conv_id,
+                        ),
+                        (
+                            (
+                                UnifiedDynamicIslandHUD.get_instance().set_hearing(
+                                    user_name=cfg.user_name,
+                                    app_name="Antigravity",
+                                    agent_name=active_agent,
+                                    conv_id=conv_id,
+                                )
+                                if not paused
+                                else UnifiedDynamicIslandHUD.get_instance().set_listening(
+                                    user_name=cfg.user_name,
+                                    app_name="Antigravity",
+                                    agent_name=active_agent,
+                                    conv_id=conv_id,
+                                )
+                            )
+                            if getattr(UnifiedDynamicIslandHUD, "_instance", None)
+                            else None
+                        ),
                     ),
                     on_barge_in=_on_barge_in,
                     on_live_transcript=_on_live,
@@ -1083,6 +1181,17 @@ def handle_antigravity_stop_hook(
                         app_name="Antigravity",
                         conv_id=conv_id,
                     )
+                    try:
+                        from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
+
+                        UnifiedDynamicIslandHUD.get_instance().set_listening(
+                            user_name=cfg.user_name,
+                            app_name="Antigravity",
+                            agent_name=active_agent,
+                            conv_id=conv_id,
+                        )
+                    except Exception:
+                        pass
 
                     def _on_live(txt: str):
                         set_cross_process_hud_state(
@@ -1128,12 +1237,24 @@ def handle_antigravity_stop_hook(
 
                     listen_start_time = time.time()
                     audio_data, temp_wav = recorder.record_speech_auto(
-                        on_speech_start=lambda: set_cross_process_hud_state(
-                            "hearing",
-                            agent_name=active_agent,
-                            user_name=cfg.user_name,
-                            app_name="Antigravity",
-                            conv_id=conv_id,
+                        on_speech_start=lambda: (
+                            set_cross_process_hud_state(
+                                "hearing",
+                                agent_name=active_agent,
+                                user_name=cfg.user_name,
+                                app_name="Antigravity",
+                                conv_id=conv_id,
+                            ),
+                            (
+                                UnifiedDynamicIslandHUD.get_instance().set_hearing(
+                                    user_name=cfg.user_name,
+                                    app_name="Antigravity",
+                                    agent_name=active_agent,
+                                    conv_id=conv_id,
+                                )
+                                if getattr(UnifiedDynamicIslandHUD, "_instance", None)
+                                else None
+                            ),
                         ),
                         on_live_transcript=_on_live,
                         on_listening_tick=_on_tick,

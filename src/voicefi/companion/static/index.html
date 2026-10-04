@@ -7128,6 +7128,35 @@
         if (latestText) latestText.innerText = data.summary || "";
         if (data.conv_id) activeConvId = data.conv_id;
 
+        // Immediately settle local working state so orb does not stay stuck in "thinking"
+        if (activeConversationData) {
+          activeConversationData.status = "completed";
+          if (activeConversationData.turns && activeConversationData.turns.length > 0) {
+            const lastTurn = activeConversationData.turns[activeConversationData.turns.length - 1];
+            lastTurn.status = "completed";
+            lastTurn.completed = true;
+          }
+        }
+
+        // Update Dynamic Island HUD capsule to Spoken Settled state, transitioning to Idle
+        if (typeof updateVoiceFiHud === 'function') {
+          const persona = data.persona_name || (data.voice ? data.voice : (isGemma ? 'Andrew' : (isCodex ? 'Emma' : (isClaude ? 'Stefan' : 'Christopher'))));
+          const cleanSummary = data.summary ? (data.summary.length > 50 ? data.summary.slice(0, 47) + '...' : data.summary) : 'Speech complete';
+          updateVoiceFiHud('spoken', {
+            title: agentName,
+            tag: `${persona} [Spoken ✓]`,
+            tagColor: 'text-emerald-400',
+            body: `"${cleanSummary}"`,
+            personaName: persona,
+            showAppIcon: true,
+          });
+          setTimeout(() => {
+            if (!isListening && !isSpeaking && typeof updateVoiceFiHud === 'function') {
+              updateVoiceFiHud('idle');
+            }
+          }, 2500);
+        }
+
         // Refresh conversation details and list for full view
         fetchConversationDetails(activeConvId);
         fetchConversations();

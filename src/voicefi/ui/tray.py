@@ -2059,21 +2059,26 @@ class VoiceFiTrayApp(_TrayAppBase):
                 self._current_status = ext_state
                 hud_cfg = getattr(self.config, "hud", None)
                 if getattr(hud_cfg, "enabled", True):
-                    self.handle_state_change(
-                        ext_state,
-                        text=hud_state.get("text", ""),
-                        detail=hud_state.get("detail", ""),
-                        tool_action=hud_state.get("tool_action", ""),
-                        tag_text=hud_state.get("tag_text"),
-                        agent_name=hud_state.get("agent_name", "Antigravity"),
-                        persona_name=hud_state.get("persona_name"),
-                        user_name=hud_state.get(
-                            "user_name", getattr(self.config, "user_name", "Jake")
-                        ),
-                        live_stream=hud_state.get("live_stream", False),
-                        app_name=hud_state.get("app_name"),
-                        conv_id=hud_state.get("conv_id"),
-                    )
+                    if ext_state in ("working", "thinking") and not getattr(
+                        hud_cfg, "show_working_steps", False
+                    ):
+                        pass
+                    else:
+                        self.handle_state_change(
+                            ext_state,
+                            text=hud_state.get("text", ""),
+                            detail=hud_state.get("detail", ""),
+                            tool_action=hud_state.get("tool_action", ""),
+                            tag_text=hud_state.get("tag_text"),
+                            agent_name=hud_state.get("agent_name", "Antigravity"),
+                            persona_name=hud_state.get("persona_name"),
+                            user_name=hud_state.get(
+                                "user_name", getattr(self.config, "user_name", "Jake")
+                            ),
+                            live_stream=hud_state.get("live_stream", False),
+                            app_name=hud_state.get("app_name"),
+                            conv_id=hud_state.get("conv_id"),
+                        )
         elif not hud_state and getattr(self, "_last_ext_hud_sig", None) is not None:
             self._last_ext_hud_sig = None
             if self._current_status not in ("idle", "speaking"):
@@ -2275,6 +2280,9 @@ class VoiceFiTrayApp(_TrayAppBase):
                     conv_id=kwargs.get("conv_id"),
                 )
             elif state == "thinking":
+                hud_cfg = getattr(self.config, "hud", None)
+                if hud_cfg and not getattr(hud_cfg, "show_working_steps", False):
+                    return
                 hud.set_thinking(
                     agent_name=kwargs.get("agent_name", "Antigravity"),
                     detail=kwargs.get("detail", "Thinking..."),
@@ -2282,6 +2290,9 @@ class VoiceFiTrayApp(_TrayAppBase):
                     conv_id=kwargs.get("conv_id"),
                 )
             elif state == "working":
+                hud_cfg = getattr(self.config, "hud", None)
+                if hud_cfg and not getattr(hud_cfg, "show_working_steps", False):
+                    return
                 hud.set_working(
                     agent_name=kwargs.get("agent_name", "Antigravity"),
                     tool_action=kwargs.get("tool_action", "Running tools..."),

@@ -517,12 +517,16 @@ curl -s -X POST http://localhost:5141/api/send -H "Content-Type: application/jso
                             clear_cross_process_hud_state,
                         )
 
-                        set_cross_process_hud_state("speaking", summary, agent_name="Claude")
+                        set_cross_process_hud_state(
+                            "speaking", summary, agent_name="Claude", app_name="Claude", persona_name="Stefan"
+                        )
                         try:
                             from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
 
                             hud = UnifiedDynamicIslandHUD.get_instance()
-                            hud.set_speaking("Claude", summary)
+                            hud.set_speaking(
+                                text=summary, agent_name="Claude", app_name="Claude", persona_name="Stefan"
+                            )
                         except Exception:
                             pass
 
@@ -531,6 +535,19 @@ curl -s -X POST http://localhost:5141/api/send -H "Content-Type: application/jso
                     except Exception as ex:
                         print(f"[ClaudeRunner] Desktop spoken playback error: {ex}", flush=True)
                     finally:
+                        try:
+                            from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
+
+                            hud = UnifiedDynamicIslandHUD.get_instance()
+                            hud.finish_speech(
+                                linger_seconds=2.0,
+                                text=summary,
+                                agent_name="Claude",
+                                app_name="Claude",
+                                persona_name="Stefan",
+                            )
+                        except Exception:
+                            pass
                         try:
                             clear_cross_process_hud_state()
                         except Exception:
