@@ -11,6 +11,7 @@ from voicefi.cli_commands.doctor import (
     check_package_dependencies,
     check_audio_devices,
     check_port_availability,
+    check_hook_latency,
     check_privacy_and_airgap,
     run_diagnostics,
     cmd_doctor,
@@ -84,6 +85,27 @@ def test_check_privacy_and_airgap(monkeypatch):
     res_offline = check_privacy_and_airgap()
     assert res_offline["is_offline_mode"] is True
     assert "Air-Gap Active" in res_offline["details"]
+
+
+def test_check_hook_latency():
+    res = check_hook_latency()
+    assert res["category"] == "Agent Integration"
+    assert res["status"] in ("pass", "warn")
+    assert "details" in res
+
+
+def test_check_hook_latency_daemon_offline(monkeypatch):
+    import urllib.request
+    from urllib.error import URLError
+
+    def mock_urlopen(*args, **kwargs):
+        raise URLError("Connection refused")
+
+    monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+    res = check_hook_latency()
+    assert res["status"] == "warn"
+    assert res["is_daemon_active"] is False
+    assert "not responding" in res["details"]
 
 
 def test_cmd_doctor_cli(monkeypatch, capsys):

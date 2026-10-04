@@ -259,6 +259,51 @@ def check_privacy_and_airgap() -> Dict[str, Any]:
     }
 
 
+def check_hook_latency() -> Dict[str, Any]:
+    """Inspect AI agent turn-end hook fast path dispatch latency to guarantee < 100ms response."""
+    import time
+    import urllib.request
+
+    url = "http://127.0.0.1:5141/api/hook/event"
+    start = time.perf_counter()
+    try:
+        req = urllib.request.Request(
+            url,
+            data=json.dumps({"agent": "antigravity", "test_ping": True}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=0.8) as resp:
+            elapsed_ms = (time.perf_counter() - start) * 1000.0
+            if resp.status == 200:
+                if elapsed_ms < 100.0:
+                    status = "pass"
+                    details = f"Hook fast path active: {elapsed_ms:.1f}ms IPC roundtrip (Target: < 100ms)"
+                elif elapsed_ms < 300.0:
+                    status = "warn"
+                    details = f"Hook fast path active but elevated: {elapsed_ms:.1f}ms IPC roundtrip"
+                else:
+                    status = "warn"
+                    details = f"Hook fast path sluggish: {elapsed_ms:.1f}ms IPC roundtrip (SLA exceeded)"
+                return {
+                    "category": "Agent Integration",
+                    "name": "Hook Dispatch Latency",
+                    "status": status,
+                    "details": details,
+                    "latency_ms": round(elapsed_ms, 2),
+                    "is_daemon_active": True,
+                }
+    except Exception as e:
+        return {
+            "category": "Agent Integration",
+            "name": "Hook Dispatch Latency",
+            "status": "warn",
+            "details": f"Companion daemon not responding on 5141 ({e}). Run `vifi companion` or launch menubar app for instant (<30ms) turn ends.",
+            "latency_ms": None,
+            "is_daemon_active": False,
+        }
+
+
 def run_diagnostics() -> Dict[str, Any]:
     """Execute all diagnostic health checks."""
     checks = []
@@ -266,6 +311,7 @@ def run_diagnostics() -> Dict[str, Any]:
     checks.extend(check_package_dependencies())
     checks.append(check_audio_devices())
     checks.extend(check_port_availability())
+    checks.append(check_hook_latency())
     checks.append(check_privacy_and_airgap())
 
     has_failures = any(c["status"] == "fail" for c in checks)

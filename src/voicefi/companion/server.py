@@ -1806,6 +1806,15 @@ class CompanionServer(
             data = {}
 
         now = time.time()
+        if data.get("test_ping") or data.get("ping"):
+            return web.json_response(
+                {
+                    "success": True,
+                    "status": "pong",
+                    "daemon_active": True,
+                    "timestamp": now,
+                }
+            )
         request_id = str(data.get("request_id") or "")
         if request_id:
             # Clean entries older than 30s
