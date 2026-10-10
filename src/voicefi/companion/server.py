@@ -2874,8 +2874,24 @@ class CompanionServer(
             self._processed_steps[str(p)] = self._get_highest_codex_line_index(p)
 
         def _loop():
+            last_focused_conv_id = None
             while self._watcher_running:
                 try:
+                    active_conv = self.tracker.get_active_or_latest()
+                    if active_conv and active_conv.id != last_focused_conv_id:
+                        last_focused_conv_id = active_conv.id
+                        self.broadcast_event(
+                            {
+                                "type": "status_update",
+                                "active_conversation": {
+                                    "id": active_conv.id,
+                                    "title": active_conv.title,
+                                    "status": active_conv.status,
+                                    "engine": getattr(active_conv, "engine", "antigravity"),
+                                },
+                            }
+                        )
+
                     for p in get_recent_transcript_paths(limit=3):
                         self._check_transcript_turn(p)
                     for p in find_recent_claude_sessions(limit=3):

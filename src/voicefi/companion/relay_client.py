@@ -221,9 +221,25 @@ class RelayClient:
         elif msg_type == "peer_connected":
             self.has_peer = True
             try:
-                from voicefi.integrations.conversations import record_companion_heartbeat
+                from voicefi.integrations.conversations import (
+                    record_companion_heartbeat,
+                    ConversationTracker,
+                )
 
                 record_companion_heartbeat(1, num_mobile_clients=1, has_mobile=True)
+                active = ConversationTracker().get_active_or_latest()
+                if active:
+                    await self.broadcast(
+                        {
+                            "type": "status_update",
+                            "active_conversation": {
+                                "id": active.id,
+                                "title": active.title,
+                                "status": active.status,
+                                "engine": getattr(active, "engine", "antigravity"),
+                            },
+                        }
+                    )
             except Exception:
                 pass
             logger.info("[RelayClient] 📱 Remote phone connected!")
@@ -251,6 +267,7 @@ class RelayClient:
             from voicefi.integrations.conversations import (
                 set_mobile_turn_origin,
                 record_companion_heartbeat,
+                ConversationTracker,
             )
 
             try:
@@ -263,6 +280,24 @@ class RelayClient:
             conv_id = payload.get("conv_id")
             sender_name = payload.get("sender_name") or "Pixel Remote"
             title = payload.get("title") or f"Message from {sender_name}"
+
+            tracker = ConversationTracker()
+            recent_convs = tracker.get_all_conversations(limit=12)
+            recent_ids = {c.id for c in recent_convs}
+            front_id = tracker.get_frontmost_antigravity_conv_id()
+            active_latest = tracker.get_active_or_latest()
+            active_id = front_id or (active_latest.id if active_latest else None)
+
+            if not conv_id or conv_id in ("active", "null", "none"):
+                conv_id = active_id
+            elif conv_id not in recent_ids and conv_id != "obsidian":
+                if active_id:
+                    print(
+                        f"[RelayClient] ⚠️ Phone requested stale session {conv_id[:8]}... Rerouting to active desktop session {active_id[:8]}",
+                        flush=True,
+                    )
+                    conv_id = active_id
+
             print(
                 f"[RelayClient] 📥 Received voice/text command from phone: '{text_prompt}' (conv: {conv_id})",
                 flush=True,

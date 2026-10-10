@@ -4701,60 +4701,77 @@
       isListening = false;
     }
 
-    // Android 1-Tap Widget Shortcut Handler (/?action=record or /?action=memo)
-    window.addEventListener('DOMContentLoaded', () => {
+    // Android & Mobile 1-Tap Widget Shortcut Handler (/?action=record or /?action=memo)
+    let oneTapShortcutStarted = false;
+    function checkAndRunShortcut() {
       const urlParams = new URLSearchParams(window.location.search);
       const action = urlParams.get('action');
-      if (action === 'record' || action === 'memo') {
-        const actionLabel = action === 'memo' ? "Walking Memo" : "Meeting Recording";
-        // Clean URL so refresh / view switch does not re-trigger recording
-        try {
-          const cleanUrl = new URL(window.location.href);
-          cleanUrl.searchParams.delete('action');
-          window.history.replaceState({}, '', cleanUrl.pathname + (cleanUrl.search ? cleanUrl.search : ''));
-        } catch (e) {}
+      if (action !== 'record' && action !== 'memo') return;
 
-        let oneTapStarted = false;
-        const triggerRecording = () => {
-          if (oneTapStarted) return;
-          oneTapStarted = true;
-          unlockAudio();
-          if (action === 'record') {
-            openMeetingCockpit();
-            if (typeof showToast === 'function') {
-              showToast("🎙️ Granola Meeting Cockpit started...", 3500);
-            }
-          } else {
-            openObsidianTakeover('memo');
-            if (typeof showToast === 'function') {
-              showToast("🎙️ Walking memo recording started...", 3500);
-            }
+      const actionLabel = action === 'memo' ? "Walking Memo" : "Meeting Recording";
+      // Clean URL so refresh / view switch does not re-trigger recording, but preserve session query / hash
+      try {
+        const cleanUrl = new URL(window.location.href);
+        cleanUrl.searchParams.delete('action');
+        window.history.replaceState({}, '', cleanUrl.pathname + (cleanUrl.search ? cleanUrl.search : '') + window.location.hash);
+      } catch (e) {}
+
+      const triggerRecording = () => {
+        if (oneTapShortcutStarted) return;
+        oneTapShortcutStarted = true;
+        unlockAudio();
+        if (action === 'record') {
+          openMeetingCockpit();
+          if (typeof showToast === 'function') {
+            showToast("🎙️ Meeting Cockpit recording started...", 3500);
           }
-        };
-
-        // If user already interacted or browser allows immediate userActivation
-        const hasActivation = typeof navigator !== 'undefined' && navigator.userActivation && navigator.userActivation.hasBeenActive;
-        if (hasActivation) {
-          setTimeout(triggerRecording, 250);
         } else {
-          // Arm a one-time gesture listener on the document so the very first tap starts recording immediately with user activation
-          const onFirstInteraction = () => {
-            window.removeEventListener('pointerdown', onFirstInteraction, true);
-            window.removeEventListener('touchstart', onFirstInteraction, true);
-            window.removeEventListener('click', onFirstInteraction, true);
-            triggerRecording();
-          };
-          window.addEventListener('pointerdown', onFirstInteraction, true);
-          window.addEventListener('touchstart', onFirstInteraction, true);
-          window.addEventListener('click', onFirstInteraction, true);
-
-          // Attempt automatic start in case browser allows getUserMedia without user gesture (e.g. Android Chrome with saved permission)
+          openObsidianTakeover('memo');
           setTimeout(() => {
-            if (!oneTapStarted) {
-              triggerRecording();
+            if (!isListening && typeof startListening === 'function') {
+              startListening(false);
             }
-          }, 500);
+          }, 250);
+          if (typeof showToast === 'function') {
+            showToast("🎙️ Walking memo recording started...", 3500);
+          }
         }
+      };
+
+      // If user already interacted or browser allows immediate userActivation
+      const hasActivation = typeof navigator !== 'undefined' && navigator.userActivation && navigator.userActivation.hasBeenActive;
+      if (hasActivation) {
+        setTimeout(triggerRecording, 150);
+      } else {
+        // Arm a one-time gesture listener on the document so the very first tap starts recording immediately with user activation
+        const onFirstInteraction = () => {
+          window.removeEventListener('pointerdown', onFirstInteraction, true);
+          window.removeEventListener('touchstart', onFirstInteraction, true);
+          window.removeEventListener('click', onFirstInteraction, true);
+          triggerRecording();
+        };
+        window.addEventListener('pointerdown', onFirstInteraction, true);
+        window.addEventListener('touchstart', onFirstInteraction, true);
+        window.addEventListener('click', onFirstInteraction, true);
+
+        // Attempt automatic start in case browser allows getUserMedia without user gesture (e.g. Android Chrome with saved permission)
+        setTimeout(() => {
+          if (!oneTapShortcutStarted) {
+            triggerRecording();
+          }
+        }, 400);
+      }
+    }
+
+    if (document.readyState === 'loading') {
+      window.addEventListener('DOMContentLoaded', checkAndRunShortcut);
+    } else {
+      checkAndRunShortcut();
+    }
+    window.addEventListener('pageshow', checkAndRunShortcut);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        checkAndRunShortcut();
       }
     });
 
@@ -7308,11 +7325,19 @@
           audioRoutingMode = data.audio_routing;
           if (audioRoutingSelect) audioRoutingSelect.value = audioRoutingMode;
         }
-        if (data.active_conversation) {
-          activeConvId = data.active_conversation.id;
-          if (agentRoleBadge) agentRoleBadge.innerText = data.active_conversation.status;
-          fetchConversationDetails(activeConvId);
-          updateHeaderCapsuleText();
+        if (data.active_conversation && data.active_conversation.id) {
+          const newActiveId = data.active_conversation.id;
+          if (activeConvId !== newActiveId) {
+            activeConvId = newActiveId;
+            try {
+              localStorage.setItem("voicefi_active_conv_id", activeConvId);
+            } catch (e) {}
+            if (convSelect) convSelect.value = activeConvId;
+            if (agentRoleBadge) agentRoleBadge.innerText = data.active_conversation.status;
+            fetchConversationDetails(activeConvId);
+            fetchConversations();
+            updateHeaderCapsuleText();
+          }
         }
       } else if (data.type === "gemma_model_changed") {
         if (data.model) {
@@ -7840,7 +7865,9 @@
 
           meetingRecognition.onerror = (event) => {
             console.warn("Meeting SpeechRecognition error:", event.error);
-            if (event.error === 'no-speech' || event.error === 'network') {
+            if (event.error === 'not-allowed') {
+              showToast("Microphone access blocked. Tap the orb or check Site Settings to allow microphone.", 5000);
+            } else if (event.error === 'no-speech' || event.error === 'network') {
               if (isMeetingActive && !userExplicitlyStoppedMeeting && !isMeetingPaused) {
                 setTimeout(() => {
                   try { meetingRecognition.start(); } catch (e) {}
@@ -8275,7 +8302,27 @@
       try {
         storedId = localStorage.getItem("voicefi_active_conv_id") || "";
       } catch (e) {}
-      let preferredId = activeConvId || storedId || data.active_id;
+
+      const storedIdIsValid = storedId && conversations.some(c => c.id === storedId);
+      if (storedId && !storedIdIsValid) {
+        try { localStorage.removeItem("voicefi_active_conv_id"); } catch (e) {}
+        storedId = "";
+      }
+
+      // Desktop active session sync: prioritize data.active_id from Mac unless in-memory activeConvId is currently valid
+      let preferredId = "";
+      if (activeConvId && conversations.some(c => c.id === activeConvId)) {
+        preferredId = activeConvId;
+      } else if (data.active_id && conversations.some(c => c.id === data.active_id)) {
+        preferredId = data.active_id;
+      } else if (storedIdIsValid) {
+        preferredId = storedId;
+      } else if (data.active_id) {
+        preferredId = data.active_id;
+      } else if (conversations.length > 0) {
+        preferredId = conversations[0].id;
+      }
+
       if (currentAppFilter === 'codex' && preferredId && !preferredId.startsWith("codex_") && !preferredId.toLowerCase().includes("codex")) {
         preferredId = (conversations.length > 0) ? conversations[0].id : "";
       } else if (currentAppFilter === 'claude' && preferredId && !preferredId.startsWith("claude_") && !preferredId.toLowerCase().includes("claude")) {
@@ -8446,7 +8493,7 @@
           }
         }
 
-        if (!matched && preferredId && preferredId !== "obsidian") {
+        if (!matched && preferredId && preferredId !== "obsidian" && (preferredId === data.active_id)) {
           const isClaude = preferredId.startsWith("claude_") || preferredId.toLowerCase().includes("claude");
           const isCodex = preferredId.startsWith("codex_") || preferredId.toLowerCase().includes("codex");
           const isGemma = preferredId.startsWith("gemma_") || preferredId.toLowerCase().includes("gemma");
