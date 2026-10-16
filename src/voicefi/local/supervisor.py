@@ -61,7 +61,19 @@ DEFAULT_MODEL_REQUIREMENTS: Dict[str, Dict[str, Any]] = {
         "min_free_ram_gb": 6.5,
         "max_load_avg": 12.0,
         "disallow_swap": False,
-        "recommended_fallback": "gemma2:2b",
+        "recommended_fallback": "tev1:latest",
+    },
+    "nimble:latest": {
+        "min_free_ram_gb": 7.5,
+        "max_load_avg": 12.0,
+        "disallow_swap": False,
+        "recommended_fallback": "tev1:latest",
+    },
+    "tev1:latest": {
+        "min_free_ram_gb": 4.0,
+        "max_load_avg": 13.0,
+        "disallow_swap": False,
+        "recommended_fallback": "voicefi-coder:1.5b",
     },
     # Small Scouts & Intent Distillers (0.8B - 2.6B)
     "gemma2:2b": {
@@ -72,6 +84,19 @@ DEFAULT_MODEL_REQUIREMENTS: Dict[str, Dict[str, Any]] = {
     },
     "gemma4-2b": {
         "min_free_ram_gb": 2.5,
+        "max_load_avg": 14.0,
+        "disallow_swap": False,
+        "recommended_fallback": None,
+    },
+    "voicefi-coder-mlx": {
+        "min_free_ram_gb": 1.5,
+        "max_load_avg": 14.0,
+        "disallow_swap": False,
+        "recommended_fallback": "voicefi-coder:1.5b",
+        "is_tier0": True,
+    },
+    "voicefi-coder:1.5b": {
+        "min_free_ram_gb": 2.0,
         "max_load_avg": 14.0,
         "disallow_swap": False,
         "recommended_fallback": None,
@@ -93,6 +118,22 @@ DEFAULT_MODEL_REQUIREMENTS: Dict[str, Dict[str, Any]] = {
         "max_load_avg": 14.0,
         "disallow_swap": False,
         "recommended_fallback": None,
+        "is_tier0": True,
+    },
+    # Tier 0 Multimodal Vector Embeddings (EmbeddingGemma 2)
+    "embedding-gemma-2:740m": {
+        "min_free_ram_gb": 0.8,
+        "max_load_avg": 14.0,
+        "disallow_swap": False,
+        "recommended_fallback": None,
+        "is_tier0": True,
+    },
+    "embedding-gemma-2": {
+        "min_free_ram_gb": 0.8,
+        "max_load_avg": 14.0,
+        "disallow_swap": False,
+        "recommended_fallback": None,
+        "is_tier0": True,
     },
 }
 
@@ -206,6 +247,33 @@ class ThermalSupervisor:
             except Exception as e:
                 logger.debug(f"psutil memory read error: {e}")
 
+        if total_ram_gb == 0.0 and self.is_macos:
+            try:
+                memsize_out = subprocess.check_output(
+                    ["sysctl", "-n", "hw.memsize"], text=True, timeout=1.5
+                ).strip()
+                total_bytes = int(memsize_out)
+                total_ram_gb = round(total_bytes / (1024**3), 2)
+
+                vm_out = subprocess.check_output(["vm_stat"], text=True, timeout=1.5)
+                page_size = 16384
+                m_ps = re.search(r"page size of (\d+) bytes", vm_out)
+                if m_ps:
+                    page_size = int(m_ps.group(1))
+
+                avail_pages = 0
+                for key in ("Pages free", "Pages inactive", "Pages speculative", "Pages purgeable"):
+                    m_pg = re.search(rf"{key}:\s+(\d+)", vm_out)
+                    if m_pg:
+                        avail_pages += int(m_pg.group(1))
+
+                avail_bytes = avail_pages * page_size
+                free_ram_gb = round(avail_bytes / (1024**3), 2)
+                if total_bytes > 0:
+                    ram_percent = round(((total_bytes - avail_bytes) / total_bytes) * 100.0, 1)
+            except Exception as e:
+                logger.debug(f"macOS vm_stat fallback error: {e}")
+
         swap_used_gb, _ = self.get_swap_usage_macos()
 
         # Load average (1 min)
@@ -283,6 +351,14 @@ class ThermalSupervisor:
                 "disallow_swap": False,
                 "recommended_fallback": "qwen2.5-coder:1.5b",
             }
+        elif any(token in key for token in ("embed", "embedding")):
+            return {
+                "min_free_ram_gb": 0.8,
+                "max_load_avg": 14.0,
+                "disallow_swap": False,
+                "recommended_fallback": None,
+                "is_tier0": True,
+            }
         elif any(token in key for token in ("2b", "3b", "1.5b", "1b", "0.8b")):
             return {
                 "min_free_ram_gb": 2.5,
@@ -301,31 +377,27 @@ class ThermalSupervisor:
     def can_load_model(
         self,
         model_name: str,
+        is_tier0: Optional[bool] = None,
     ) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
         """
         Evaluate if system has sufficient hardware and unified RAM headroom to load a model.
         Returns: (can_load, reason_or_status, alert_options_dict)
-        If can_load is False, alert_options_dict contains structured user choice options:
-        {
-            "model": model_name,
-            "required_ram_gb": req["min_free_ram_gb"],
-            "available_ram_gb": telem.free_ram_gb,
-            "swap_used_gb": telem.swap_used_gb,
-            "fallback_model": req.get("recommended_fallback"),
-            "options": [
-                {"id": "cloud", "label": "Route to Cloud Frontier (Antigravity/Gemini)"},
-                {"id": "fallback", "label": f"Use Mid-Tier Local Model ({fallback})"},
-                {"id": "free_ram", "label": "Free RAM and Retry"}
-            ]
-        }
+        Tier 0 models (reflex routing, EmbeddingGemma 2, TEV 0.8B) receive a thermal reflex exemption
+        under 'SERIOUS' thermal pressure to allow rapid dispatch and user notifications.
         """
         telem = self.get_telemetry()
         req = self.get_model_requirement(model_name)
         required_ram = req["min_free_ram_gb"]
         fallback = req.get("recommended_fallback") or "gemma2:2b"
+        tier0_exempt = is_tier0 if is_tier0 is not None else req.get("is_tier0", False)
 
-        # Check 1: Thermal Pressure Guard
-        if telem.thermal_state in ("SERIOUS", "CRITICAL") and self.pause_on_serious:
+        # Check 1: Thermal Pressure Guard (Tier 0 allowed under SERIOUS, blocked only on CRITICAL)
+        thermal_blocked = (
+            telem.thermal_state == "CRITICAL"
+            if tier0_exempt
+            else (telem.thermal_state in ("SERIOUS", "CRITICAL") and self.pause_on_serious)
+        )
+        if thermal_blocked:
             reason = (
                 f"Blocked {model_name} spin-up: macOS thermal state is {telem.thermal_state}. "
                 "Pausing to allow hardware cooling."

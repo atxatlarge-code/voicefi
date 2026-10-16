@@ -15,8 +15,9 @@ Use this skill when VoiceFi is running in ambient background mode during meeting
    - Executive Brief & Key Takeaways
    - Architectural Decisions & Constraints
    - Action Items mapped directly to Linear / GitHub ticket format
-2. **Proactive Subagent Dispatch**: While a feature or bug is being discussed, automatically spawns a background subagent in an isolated workspace (`Workspace="branch"`) to pre-fetch docs, draft routes, or scaffold components.
-3. **Audio Context Retention**: Links transcription timestamps with project diffs and decision logs.
+2. **Foresight On-Device Context Grounding (Tier 0 Vector RAG)**: Powered by `EmbeddingGemma 2` and `LocalGroundingStore`. Spoken clauses are matched in real time against local code symbols, recent PR diffs, and notes (`similarity >= 0.75`), surfacing relevant files to the HUD without interrupting active speech.
+3. **Proactive Subagent Dispatch**: While a feature or bug is being discussed, automatically spawns a background subagent in an isolated workspace (`Workspace="branch"`) to pre-fetch docs, draft routes, or scaffold components.
+4. **Audio Context Retention**: Links transcription timestamps with project diffs and decision logs.
 
 ---
 

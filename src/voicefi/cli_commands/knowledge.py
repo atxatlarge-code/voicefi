@@ -43,7 +43,13 @@ def cmd_ambient(args):
         print(f"📋 Title: {session.title}")
         print(f"📄 Notes File: {session.markdown_path}")
         print(f"⚡ Auto-Execute Actions: {'✅ Enabled' if auto_exec else '❌ Disabled'}")
-        print("💡 Listening in the background. Press Ctrl+C to finalize & save meeting notes.\n")
+        # Tier 0 Edge Vector Grounding (Foresight/Granola Local Intelligence)
+        grounding_store = None
+        try:
+            from voicefi.local.embed import LocalGroundingStore
+            grounding_store = LocalGroundingStore()
+        except Exception:
+            pass
 
         def _on_utterance(audio_data, sample_rate):
             text = stt.transcribe(audio_data, sample_rate=sample_rate)
@@ -51,6 +57,16 @@ def cmd_ambient(args):
                 utt = note_taker.record_utterance(text, speaker_name=speaker)
                 action_badge = " ⚡ [Action Triggered]" if utt.is_actionable else ""
                 print(f'📝 `[{utt.timestamp_str}]` {utt.speaker}: "{utt.text}"{action_badge}')
+
+                # Foresight-style local file & context grounding
+                if grounding_store:
+                    try:
+                        matches = grounding_store.search(text, top_k=1, min_similarity=0.75)
+                        if matches:
+                            top_m = matches[0]
+                            print(f"   🔍 [Foresight Grounding] {top_m.title or top_m.bundle_id} ({int(top_m.similarity * 100)}% match)")
+                    except Exception:
+                        pass
 
                 if utt.is_actionable and session.action_items:
                     latest_action = session.action_items[-1]
@@ -306,6 +322,53 @@ def cmd_obsidian(args):
         else:
             print(f"\n❌ Error launching agent: {res.get('error')}\n")
         return
+
+    elif action in ("ask", "query", "socratic"):
+        from voicefi.integrations.vault_agent import VaultAgent
+
+        raw_query = getattr(args, "query", None) or getattr(args, "text", None)
+        if isinstance(raw_query, list):
+            query = " ".join(str(x) for x in raw_query).strip()
+        elif isinstance(raw_query, str):
+            query = raw_query.strip()
+        else:
+            query = ""
+
+        if not query:
+            print('💡 Usage: vifi obsidian ask "<question>" [--socratic] [--persona Sonia]\n')
+            return
+
+        socratic = (action == "socratic") or bool(getattr(args, "socratic", False))
+        persona = getattr(args, "persona", None) or ("Sonia" if socratic else "Christopher")
+        speak = bool(getattr(args, "speak", False))
+        vp = Path(args.vault) if getattr(args, "vault", None) else None
+
+        res = VaultAgent().ask_spoken_rag(
+            query=query,
+            vault_path=vp,
+            socratic=socratic,
+            persona=persona,
+            speak_aloud=speak,
+        )
+
+        header = (
+            "🧠 VoiceFi Socratic Brainstorming Partner"
+            if socratic
+            else "⚡ VoiceFi Sub-20ms Spoken Vault Q&A"
+        )
+        print(f"\n{header}")
+        print("─" * 60)
+        print(
+            f"Retrieval Latency: {res['retrieval_latency_ms']} ms | "
+            f"Model: {res['model_used']} | "
+            f"Persona: {res['persona']}"
+        )
+        citations_str = ", ".join(res["citations"])
+        print(f"Citations: {citations_str}")
+        print("─" * 60)
+        print(f"Spoken Answer: {res['spoken_response']}")
+        print("─" * 60 + "\n")
+        return res
 
 
 def cmd_capture(args):
