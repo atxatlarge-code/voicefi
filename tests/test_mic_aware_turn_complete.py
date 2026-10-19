@@ -585,3 +585,38 @@ def test_pressure_watcher_on_turn_complete_waits_for_dictation_and_native_mic(mo
         "tts_spoke",
     ]
 
+
+def test_transcribe_in_app_filler_resilience():
+    """
+    Verifies that spoken 'transcribe in <app>' commands with wake words and vocal fillers
+    (e.g. 'Hey Pal, uh, transcribe in, uh, LinkedIn.') cleanly parse target_app='LinkedIn'
+    and route as deterministic transcribe_app_focus actions instead of chat prompts.
+    """
+    from voicefi.integrations.app_focus import AppFocusRegistry
+    from voicefi.integrations.pal_harness import PalHarness
+
+    cases = [
+        ("Hey Pal, uh, transcribe in, uh, LinkedIn.", False, (True, "LinkedIn", "")),
+        ("uh, transcribe in, uh, LinkedIn.", False, (True, "LinkedIn", "")),
+        ("transcribe in LinkedIn", False, (True, "LinkedIn", "")),
+        ("transcribe in, uh, LinkedIn, hello world", False, (True, "LinkedIn", "hello world")),
+        ("Type in Chrome.", False, (True, "Google Chrome", "")),
+        ("in, uh, LinkedIn.", True, (True, "LinkedIn", "")),
+        ("uh, in, uh, LinkedIn.", True, (True, "LinkedIn", "")),
+        ("transcribe", False, (True, None, "")),
+        ("type hello world", False, (False, None, "type hello world")),
+    ]
+    for text, allow_bare, expected in cases:
+        got = AppFocusRegistry.parse_transcribe_intent(text, allow_bare_in_app=allow_bare)
+        assert got == expected, f"Failed for {text!r}: got {got!r}, expected {expected!r}"
+
+    assert PalHarness.is_deterministic_os_command("Hey Pal, uh, transcribe in, uh, LinkedIn.") is True
+    assert PalHarness.is_deterministic_os_command("Type in Chrome.") is True
+    assert (
+        AppFocusRegistry.strip_transcribe_command_prefix(
+            "Hey Pal, uh, transcribe in, uh, LinkedIn.", target_app="LinkedIn"
+        )
+        == ""
+    )
+
+

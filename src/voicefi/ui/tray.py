@@ -2914,6 +2914,29 @@ class VoiceFiTrayApp(_TrayAppBase):
                         )
                         return
 
+                    # Check if user spoke a 'transcribe in <app>' command (e.g. 'Hey Pal, transcribe in LinkedIn')
+                    try:
+                        from voicefi.integrations.app_focus import AppFocusRegistry
+
+                        is_trans_cmd, trans_target_app, trans_rem = (
+                            AppFocusRegistry.parse_transcribe_intent(text)
+                        )
+                        if is_trans_cmd:
+                            self.active_recorder = None
+                            self._current_status = "idle"
+                            threading.Timer(
+                                0.08,
+                                lambda: self.trigger_manual_listen(
+                                    from_wakeword=True,
+                                    wake_phrase="transcribe",
+                                    initial_prompt=trans_rem,
+                                    target_app=trans_target_app,
+                                ),
+                            ).start()
+                            return
+                    except Exception:
+                        pass
+
                     conv_id = active_conv.id if active_conv else None
                     is_auto_send = getattr(
                         getattr(self.config, "hud", None), "auto_send", True
@@ -4389,13 +4412,27 @@ class VoiceFiTrayApp(_TrayAppBase):
                     self.watcher.interrupt(notify_idle=False)
                 self.finish_active_recording(reason="dictate_wakeword_trigger")
 
-                # Check if prompt begins with 'in <app>' (e.g. 'transcribe in chrome', 'transcribe in slack')
+                # Check if prompt begins with 'in <app>' or 'uh, in, uh, <app>' (e.g. 'transcribe in LinkedIn')
                 target_app = None
                 clean_prompt = prompt or ""
-                in_app_match = re.match(r"^in\s+([a-zA-Z0-9_\-\s]+?)(?:[\s,.:;!?-]+(.*)|$)", clean_prompt, re.IGNORECASE)
-                if in_app_match:
-                    target_app = in_app_match.group(1).strip()
-                    clean_prompt = (in_app_match.group(2) or "").strip()
+                try:
+                    from voicefi.integrations.app_focus import AppFocusRegistry
+
+                    is_t_cmd, parsed_app, parsed_rem = AppFocusRegistry.parse_transcribe_intent(
+                        clean_prompt, allow_bare_in_app=True
+                    )
+                    if is_t_cmd:
+                        target_app = parsed_app
+                        clean_prompt = parsed_rem
+                except Exception:
+                    in_app_match = re.match(
+                        r"^in\s+([a-zA-Z0-9_\-\s]+?)(?:[\s,.:;!?-]+(.*)|$)",
+                        clean_prompt,
+                        re.IGNORECASE,
+                    )
+                    if in_app_match:
+                        target_app = in_app_match.group(1).strip()
+                        clean_prompt = (in_app_match.group(2) or "").strip()
 
                 self.trigger_manual_listen(
                     from_wakeword=True,
@@ -4405,6 +4442,31 @@ class VoiceFiTrayApp(_TrayAppBase):
                     target_app=target_app,
                 )
                 return
+
+        # If user said 'Hey Pal, uh, transcribe in, uh, LinkedIn' (or 'Hey Viv, transcribe in Chrome'),
+        # route directly to live dictation in the target app without round-tripping through Pal/agent chat.
+        if prompt and prompt.strip() and not is_streaming_prefix:
+            try:
+                from voicefi.integrations.app_focus import AppFocusRegistry
+
+                is_t_cmd, parsed_app, parsed_rem = AppFocusRegistry.parse_transcribe_intent(
+                    prompt, allow_bare_in_app=False
+                )
+                if is_t_cmd:
+                    stop_all_speech()
+                    if self.watcher:
+                        self.watcher.interrupt(notify_idle=False)
+                    self.finish_active_recording(reason="dictate_wakeword_trigger")
+                    self.trigger_manual_listen(
+                        from_wakeword=True,
+                        wake_phrase="transcribe",
+                        initial_prompt=parsed_rem,
+                        initial_audio=handoff_audio if parsed_rem else None,
+                        target_app=parsed_app,
+                    )
+                    return
+            except Exception:
+                pass
 
         is_brok = any(k in phrase_lower for k in ("brok", "brock", "broc", "brook", "grok"))
         is_channel_wake = "channel" in phrase_lower
@@ -4642,13 +4704,23 @@ class VoiceFiTrayApp(_TrayAppBase):
                 hud.show_done(preview_text=res.spoken_summary[:30])
 
                 if getattr(res, "action_type", "") == "transcribe_app_focus":
-                    m_app = re.match(r"^transcribe(?:\s+in\s+(.+))?$", norm_prompt, re.IGNORECASE)
-                    target_app_name = m_app.group(1).strip() if m_app and m_app.group(1) else None
+                    target_app_name = None
+                    trans_rem = ""
+                    try:
+                        from voicefi.integrations.app_focus import AppFocusRegistry
+
+                        _, target_app_name, trans_rem = AppFocusRegistry.parse_transcribe_intent(
+                            norm_prompt
+                        )
+                    except Exception:
+                        m_app = re.match(r"^transcribe(?:\s+in\s+(.+))?$", norm_prompt, re.IGNORECASE)
+                        target_app_name = m_app.group(1).strip() if m_app and m_app.group(1) else None
                     threading.Timer(
                         0.1,
                         lambda: self.trigger_manual_listen(
                             from_wakeword=True,
                             wake_phrase="transcribe",
+                            initial_prompt=trans_rem,
                             target_app=target_app_name,
                         ),
                     ).start()
@@ -5522,7 +5594,23 @@ class VoiceFiTrayApp(_TrayAppBase):
                     )
 
                 def _on_live(txt: str):
-                    clean_txt = re.sub(r"^(?:transcribe|talk\s*now)[\s,.:;!?-]*", "", txt, flags=re.IGNORECASE).strip()
+                    try:
+                        from voicefi.integrations.app_focus import AppFocusRegistry
+
+                        is_retarget, retarget_app, _ = AppFocusRegistry.parse_transcribe_intent(txt)
+                        if is_retarget and retarget_app:
+                            # User is speaking a 'transcribe in <app>' command; do not autotype the command into the current window
+                            return
+                        clean_txt = AppFocusRegistry.strip_transcribe_command_prefix(
+                            txt, target_app=target_app if from_wakeword else None
+                        )
+                    except Exception:
+                        clean_txt = re.sub(
+                            r"^(?:transcribe|talk\s*now)[\s,.:;!?-]*",
+                            "",
+                            txt,
+                            flags=re.IGNORECASE,
+                        ).strip()
                     clean_txt = re.sub(r"(?i)[,\s]*(?:transcribe\s+done|stop\s+transcrib(?:ing|e)|done\s+transcribing|stop\s+dictat(?:ing|e))[.!?\s]*$", "", clean_txt).strip()
                     if clean_txt:
                         print(f"[VoiceFi] Dictation partial live: {repr(clean_txt)}", flush=True)
@@ -5608,6 +5696,34 @@ class VoiceFiTrayApp(_TrayAppBase):
                 else:
                     text = ""
 
+                # Check if user spoke a 'transcribe in <app>' retarget command during dictation
+                if text and text.strip():
+                    try:
+                        from voicefi.integrations.app_focus import AppFocusRegistry
+
+                        is_retarget, retarget_app, retarget_rem = (
+                            AppFocusRegistry.parse_transcribe_intent(text)
+                        )
+                        if is_retarget and retarget_app and (
+                            not from_wakeword
+                            or retarget_app.lower() != (target_app or "").lower()
+                        ):
+                            if autotyper:
+                                autotyper.cancel()
+                            self._current_status = "idle"
+                            threading.Timer(
+                                0.08,
+                                lambda: self.trigger_manual_listen(
+                                    from_wakeword=True,
+                                    wake_phrase="transcribe",
+                                    initial_prompt=retarget_rem,
+                                    target_app=retarget_app,
+                                ),
+                            ).start()
+                            return
+                    except Exception:
+                        pass
+
                 if from_wakeword and text and text.strip():
                     try:
                         from voicefi.integrations.active_listening import ActiveListeningEngine
@@ -5617,7 +5733,19 @@ class VoiceFiTrayApp(_TrayAppBase):
                             text = stripped
                     except Exception:
                         pass
-                    text = re.sub(r"^(?:transcribe|talk\s*now)[\s,.:;!?-]*", "", text, flags=re.IGNORECASE).strip()
+                    try:
+                        from voicefi.integrations.app_focus import AppFocusRegistry
+
+                        text = AppFocusRegistry.strip_transcribe_command_prefix(
+                            text, target_app=target_app
+                        )
+                    except Exception:
+                        text = re.sub(
+                            r"^(?:transcribe|talk\s*now)[\s,.:;!?-]*",
+                            "",
+                            text,
+                            flags=re.IGNORECASE,
+                        ).strip()
                     text = re.sub(r"(?i)[,\s]*(?:transcribe\s+done|stop\s+transcrib(?:ing|e)|done\s+transcribing|stop\s+dictat(?:ing|e))[.!?\s]*$", "", text).strip()
 
                 if initial_prompt and initial_prompt.strip():
