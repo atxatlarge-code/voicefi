@@ -273,6 +273,20 @@ class VoiceFiTrayApp(_TrayAppBase):
             except Exception as e:
                 print(f"[Tray] Wake word listener failed to start: {e}")
 
+        # Start Live Audio Route Watcher (Headphones <-> Laptop Speakers Barge-In Auto Switcher)
+        self.audio_route_watcher = None
+        if not os.environ.get("PYTEST_CURRENT_TEST"):
+            try:
+                from voicefi.audio.device import AudioRouteWatcher
+
+                self.audio_route_watcher = AudioRouteWatcher(
+                    on_route_change=self._handle_audio_route_change,
+                    interval_s=1.2,
+                )
+                self.audio_route_watcher.start()
+            except Exception as e:
+                print(f"[Tray] AudioRouteWatcher failed to start: {e}")
+
         # Build Menu Items with explicit keyboard shortcut hints
         self.stop_speaking_item = rumps.MenuItem(
             "🛑 Stop Talking (Esc)", callback=self.stop_speaking_now
@@ -505,7 +519,10 @@ class VoiceFiTrayApp(_TrayAppBase):
                     except Exception:
                         rss_mb = 0.0
 
-                    # Adjust thresholds if local cloning/PyTorch or local MLX models are loaded in memory
+                    # Adjust thresholds if local cloning/PyTorch, LiteRT-LM (Gemma 4 2B Metal host-mapped), or local MLX models are loaded in memory
+                    is_litert_loaded = any(
+                        p in sys.modules for p in ("litert_lm", "ai_edge_litert")
+                    ) or bool(getattr(self, "_active_pal_conv_id", None))
                     is_local_cloning = any(
                         p in sys.modules for p in ("f5_tts", "torch", "torchcodec")
                     )
@@ -528,25 +545,39 @@ class VoiceFiTrayApp(_TrayAppBase):
                         )
                     )
 
-                    if is_local_cloning:
-                        warn_thresh = 2600.0
-                        crit_thresh = 3800.0
+                    if is_litert_loaded:
+                        # LiteRT-LM maps ~2.2GB of gemma4-2b Metal buffers into host RSS alongside Whisper + Kokoro
+                        warn_thresh = 4800.0
+                        crit_thresh = 5800.0
+                    elif is_local_cloning:
+                        warn_thresh = 3800.0
+                        crit_thresh = 4800.0
                     elif is_local_mlx:
-                        warn_thresh = 2400.0
-                        crit_thresh = 2800.0
+                        warn_thresh = 3400.0
+                        crit_thresh = 4400.0
                     else:
-                        warn_thresh = 1200.0
-                        crit_thresh = 1800.0
+                        warn_thresh = 1600.0
+                        crit_thresh = 2400.0
 
                     if rss_mb > warn_thresh:
-                        print(
-                            f"[VoiceFi] ⚠️ Memory ceiling warning: {rss_mb:.1f}MB > {warn_thresh:.0f}MB. Compacting caches...",
-                            flush=True,
-                        )
-                        from voicefi.stt import clear_stt_engine_cache
+                        from voicefi.tts.base import is_mic_recording_active
 
-                        clear_stt_engine_cache()
-                        gc.collect()
+                        recently_active = (
+                            time.time() - getattr(self, "_last_wake_session_start", 0.0)
+                        ) < 60.0
+                        is_busy = (
+                            is_agent_speaking()
+                            or is_agent_audio_playing()
+                            or is_mic_recording_active()
+                            or getattr(self, "_current_status", "idle") != "idle"
+                            or recently_active
+                        )
+                        if not is_busy:
+                            print(
+                                f"[VoiceFi] ⚠️ Memory ceiling warning: {rss_mb:.1f}MB > {warn_thresh:.0f}MB. Compacting caches...",
+                                flush=True,
+                            )
+                            gc.collect()
 
                         try:
                             rss_mb = psutil.Process().memory_info().rss / (1024 * 1024)
@@ -554,10 +585,10 @@ class VoiceFiTrayApp(_TrayAppBase):
                             pass
 
                         if rss_mb > crit_thresh:
-                            # CRITICAL: Never recycle while the agent is actively speaking aloud or playing audio!
-                            if is_agent_speaking() or is_agent_audio_playing():
+                            # CRITICAL: Never recycle while the agent is speaking, listening, or recently triggered!
+                            if is_busy:
                                 print(
-                                    f"[VoiceFi] ⏸️ Memory critical ({rss_mb:.1f}MB > {crit_thresh:.0f}MB) but agent is speaking. Deferring recycle...",
+                                    f"[VoiceFi] ⏸️ Memory critical ({rss_mb:.1f}MB > {crit_thresh:.0f}MB) but session is active. Deferring recycle...",
                                     flush=True,
                                 )
                             else:
@@ -958,6 +989,15 @@ class VoiceFiTrayApp(_TrayAppBase):
 
         items = [
             rumps.MenuItem(
+                "✨ Start Channel Session (Creative Partner)...",
+                callback=self.trigger_desktop_channel_session,
+            ),
+            rumps.MenuItem(
+                "🪟 Open Channel Studio Window...",
+                callback=self.open_desktop_channel_window,
+            ),
+            rumps.separator,
+            rumps.MenuItem(
                 "▶️ Start 3-Minute Voice Memo (Pacing Dump)", callback=_launch_memo("3m")
             ),
             rumps.MenuItem("▶️ Start 5-Minute Voice Memo", callback=_launch_memo("5m")),
@@ -1050,6 +1090,25 @@ class VoiceFiTrayApp(_TrayAppBase):
             CompanionDesktopWindow.get_instance(port=port).toggle()
         except Exception as e:
             print(f"[Tray] Error opening desktop companion window: {e}")
+
+    def open_desktop_channel_window(self, _=None):
+        """Open the native macOS desktop Companion window directly in ✨ Channel (Creative Partner) mode."""
+        self._ensure_companion_server_running()
+        try:
+            from voicefi.ui.companion_window import CompanionDesktopWindow
+
+            port = (
+                getattr(getattr(self, "config", None), "companion", None)
+                and self.config.companion.port
+                or 5141
+            )
+            CompanionDesktopWindow.get_instance(port=port).open_channel_mode(mac_mic_active=False)
+            if hasattr(self, "server") and self.server:
+                self.server.broadcast_event(
+                    {"type": "open_obsidian_channel", "mode": "channel", "mac_mic_active": False}
+                )
+        except Exception as e:
+            print(f"[Tray] Error opening desktop channel window: {e}")
 
     def open_mobile_companion(self, _=None):
         """Open the Mobile Companion pairing page with QR code."""
@@ -1197,6 +1256,10 @@ class VoiceFiTrayApp(_TrayAppBase):
             rumps.MenuItem(
                 "🖥️ Open Desktop Companion Window",
                 callback=self.open_desktop_companion,
+            ),
+            rumps.MenuItem(
+                "✨ Start Channel Session (Creative Partner)",
+                callback=self.trigger_desktop_channel_session,
             ),
             rumps.MenuItem(
                 "📱 Open in Browser (localhost:5141/rc)",
@@ -1567,7 +1630,10 @@ class VoiceFiTrayApp(_TrayAppBase):
                 or 5141
             )
             try:
-                server = CompanionServer(config=self.config, port=port, host="127.0.0.1")
+                from voicefi.companion.server import ensure_ssl_context
+
+                server = CompanionServer(config=self.config, port=port, host="0.0.0.0")
+                server._on_stop_mac_recording = self.finish_active_recording
                 self.server = server
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
@@ -1576,8 +1642,16 @@ class VoiceFiTrayApp(_TrayAppBase):
 
                 app_runner = web.AppRunner(server.app, tcp_keepalive=False)
                 loop.run_until_complete(app_runner.setup())
-                site = web.TCPSite(app_runner, "127.0.0.1", port)
+                site = web.TCPSite(app_runner, "0.0.0.0", port)
                 loop.run_until_complete(site.start())
+
+                ssl_ctx = ensure_ssl_context()
+                if ssl_ctx:
+                    try:
+                        site_https = web.TCPSite(app_runner, "0.0.0.0", port + 1, ssl_context=ssl_ctx)
+                        loop.run_until_complete(site_https.start())
+                    except Exception:
+                        pass
 
                 # Connect to Cloudflare Relay Session (companion.voicefi.app)
                 try:
@@ -1711,16 +1785,45 @@ class VoiceFiTrayApp(_TrayAppBase):
             "📌 Persistent Resting Pill (Always Visible)",
             callback=self.toggle_persistent_hud,
         )
-        item_persistent.state = 1 if hud_cfg.persistent else 0
+        item_persistent.state = (
+            1 if hud_cfg.persistent and getattr(hud_cfg, "visibility_mode", "always") == "always" else 0
+        )
         items.append(item_persistent)
 
-        # 3. Prompt Delivery Mode (Instant Auto-Send vs Review & Edit)
-        item_auto_send = rumps.MenuItem(
-            "⚡ Auto-Send Prompts (Instant)",
-            callback=self.toggle_auto_send,
+        # 2b. Show Only When Speaking
+        item_speaking_only = rumps.MenuItem(
+            "🔊 Show Only When Speaking (Subtitles Only)",
+            callback=self.toggle_speaking_only_hud,
         )
-        item_auto_send.state = 1 if hud_cfg.auto_send else 0
-        items.append(item_auto_send)
+        item_speaking_only.state = (
+            1 if getattr(hud_cfg, "visibility_mode", "always") == "speaking_only" else 0
+        )
+        items.append(item_speaking_only)
+
+        items.append(rumps.separator)
+
+        # 3. Window Stacking & Layer Options
+        is_aot = getattr(hud_cfg, "always_on_top", True)
+        item_always_on_top = rumps.MenuItem(
+            "🔝 Always on Top (Floating Above All Apps)",
+            callback=self.toggle_always_on_top,
+        )
+        item_always_on_top.state = 1 if is_aot else 0
+        items.append(item_always_on_top)
+
+        item_behind = rumps.MenuItem(
+            "🪟 Behind Active Windows (Normal Window Layer)",
+            callback=self.toggle_behind_windows,
+        )
+        item_behind.state = 0 if is_aot else 1
+        items.append(item_behind)
+
+        item_bring_front = rumps.MenuItem(
+            "✨ Pop to Front When Speaking (Auto-Raise)",
+            callback=self.toggle_bring_to_front_on_speech,
+        )
+        item_bring_front.state = 1 if getattr(hud_cfg, "bring_to_front_on_speech", True) else 0
+        items.append(item_bring_front)
 
         # 4. Full-Screen Overlay
         item_fs = rumps.MenuItem(
@@ -1730,7 +1833,17 @@ class VoiceFiTrayApp(_TrayAppBase):
         item_fs.state = 1 if getattr(hud_cfg, "fullscreen_overlay", True) else 0
         items.append(item_fs)
 
-        # 5. Live Typing Stream
+        items.append(rumps.separator)
+
+        # 5. Prompt Delivery Mode (Instant Auto-Send vs Review & Edit)
+        item_auto_send = rumps.MenuItem(
+            "⚡ Auto-Send Prompts (Instant)",
+            callback=self.toggle_auto_send,
+        )
+        item_auto_send.state = 1 if hud_cfg.auto_send else 0
+        items.append(item_auto_send)
+
+        # 6. Live Typing Stream
         item_typing = rumps.MenuItem(
             "✍️ Live Dictation Typing Stream",
             callback=self.toggle_live_transcript,
@@ -1738,7 +1851,7 @@ class VoiceFiTrayApp(_TrayAppBase):
         item_typing.state = 1 if getattr(hud_cfg, "show_live_transcript", True) else 0
         items.append(item_typing)
 
-        # 6. Speech Subtitles Pop-up
+        # 7. Speech Subtitles Pop-up
         item_speech = rumps.MenuItem(
             "🔊 Show Speech Subtitles & Waveforms",
             callback=self.toggle_speech_popup,
@@ -2091,25 +2204,35 @@ class VoiceFiTrayApp(_TrayAppBase):
             "hearing": "waveform.circle.fill",
             "transcribing": "ellipsis.bubble",
             "ptt_listening": "mic.fill",
+            "new_conversation": "mic.fill",
             "paused_agent_speaking": "pause.fill",
             "paused": "pause.fill",
             "dispatching": "paperplane.fill",
         }
 
-        dynamic_icon = getattr(getattr(self.config, "hud", None), "dynamic_tray_icon", False)
+        dynamic_icon = getattr(getattr(self.config, "hud", None), "dynamic_tray_icon", True)
 
         if dynamic_icon and self._current_status in status_map:
             symbol_name = status_map[self._current_status]
         else:
             symbol_name = "voicefi"
 
-        # Ensure no text title appears next to the menu bar icon
-        if hasattr(self, "_nsapp") and hasattr(self._nsapp, "nsstatusitem"):
-            try:
-                if self._nsapp.nsstatusitem.title():
-                    self._nsapp.nsstatusitem.setTitle_("")
-            except Exception:
-                pass
+        # Dynamic live status bar label while mic is active
+        desired_title = ""
+        if dynamic_icon and self._current_status in (
+            "listening",
+            "hearing",
+            "ptt_listening",
+            "new_conversation",
+            "transcribing",
+        ):
+            target_lbl = getattr(self, "_active_listen_label", None) or "VoiceFi"
+            if self._current_status == "hearing":
+                desired_title = f" {target_lbl} • Hearing"
+            elif self._current_status == "transcribing":
+                desired_title = f" {target_lbl} • ..."
+            else:
+                desired_title = f" {target_lbl}"
 
         current_symbol = getattr(self, "_current_symbol", None)
         if current_symbol != symbol_name:
@@ -2133,10 +2256,14 @@ class VoiceFiTrayApp(_TrayAppBase):
                     self._icon_nsimage = image
                     if hasattr(self, "_nsapp"):
                         self._nsapp.setStatusBarIcon()
-                        if hasattr(self._nsapp, "nsstatusitem"):
-                            self._nsapp.nsstatusitem.setTitle_("")
             except Exception as e:
                 print(f"[VoiceFi] Error updating menu bar icon: {e}")
+
+        if hasattr(self, "_nsapp") and hasattr(self._nsapp, "nsstatusitem"):
+            try:
+                if (self._nsapp.nsstatusitem.title() or "") != desired_title:
+                    self._nsapp.nsstatusitem.setTitle_(desired_title)
+            except Exception:
                 pass
 
         # Periodically reload config if changed externally
@@ -2197,6 +2324,40 @@ class VoiceFiTrayApp(_TrayAppBase):
                 self._update_barge_in_menu_item()
         except Exception:
             pass
+
+    def _handle_audio_route_change(
+        self,
+        prev_out: str,
+        new_out: str,
+        is_builtin_speakers: bool,
+        is_headphones: bool,
+    ) -> None:
+        """Handle live macOS output device hot-swap (Headphones <-> Laptop Speakers)."""
+        try:
+            from voicefi.ui.notifications import show_notification
+
+            # Ensure Barge-In Auto mode is active so speaker/headphone switches self-manage
+            if getattr(self.config.vad, "barge_in", "auto") is False:
+                self.config.vad.barge_in = "auto"
+                save_config(self.config)
+
+            self._update_barge_in_menu_item()
+
+            if getattr(self.config.vad, "barge_in", "auto") == "auto":
+                if is_headphones:
+                    show_notification(
+                        "VoiceFi Audio Route Watcher",
+                        f"🎧 Switched to {new_out}",
+                        "Full-duplex Voice Barge-In automatically ENABLED.",
+                    )
+                elif is_builtin_speakers:
+                    show_notification(
+                        "VoiceFi Audio Route Watcher",
+                        f"🔇 Switched to {new_out}",
+                        "Voice Barge-In automatically PAUSED on laptop speakers to prevent echo.",
+                    )
+        except Exception as e:
+            print(f"[Tray] Audio route change handler error: {e}")
 
     def _update_barge_in_menu_item(self):
         """Update barge-in menu item label with live device-aware status."""
@@ -2390,33 +2551,72 @@ class VoiceFiTrayApp(_TrayAppBase):
         import traceback
         caller = "".join(traceback.format_stack()[-3:-1]).strip()
         print(f"[VoiceFi] 🛑 finish_active_recording invoked (reason={reason}) from:\n{caller}", flush=True)
+        if reason == "enter_key_press":
+            active_at = getattr(self, "_active_autotyper", None)
+            if active_at is not None:
+                try:
+                    active_at.close()
+                except Exception:
+                    pass
+            if self.active_recorder:
+                self.active_recorder.stopped_by_enter = True
         if hasattr(self, "_ptt_stop_event") and self._ptt_stop_event:
             self._ptt_stop_event.set()
         if self.active_recorder:
             self.active_recorder.stop()
         if self.watcher:
             self.watcher.finish_listening()
+        if hasattr(self, "_fn_state"):
+            self._fn_state["is_recording"] = False
+        if hasattr(self, "_ctrl_t_state"):
+            self._ctrl_t_state["is_recording"] = False
 
     def handle_escape_press(self, _=None):
         """
         Handle Escape key press.
         Instantly stops all speech synthesis, cancels any active recording/dictation,
-        and resets VoiceFi to idle.
+        hides any screen highlight overlay, and resets VoiceFi to idle.
         """
+        overlay_visible = False
+        try:
+            from voicefi.ui.screen_highlight import PalHighlightOverlay
+
+            overlay_visible = bool(PalHighlightOverlay.get_instance()._is_visible)
+        except Exception:
+            pass
+
+        hud_active = False
+        try:
+            if hasattr(self, "hud") and self.hud:
+                hud_active = getattr(self.hud, "_current_state", "idle") != "idle"
+        except Exception:
+            pass
+
+        from voicefi.tts.base import is_mic_recording_active
+
         is_speaking = self._current_status == "speaking" or is_agent_speaking()
         is_recording = (
-            self._current_status in ("listening", "hearing", "ptt_listening", "new_conversation")
+            self._current_status
+            in ("listening", "hearing", "ptt_listening", "new_conversation", "transcribing")
             or self.active_recorder is not None
+            or is_mic_recording_active()
         )
-        if not is_speaking and not is_recording:
+        if not is_speaking and not is_recording and not overlay_visible and not hud_active:
             return
 
         print("[VoiceFi] ⏹️ Escape pressed: stopping all speech and cancelling active recording")
         self.stop_speaking_now()
 
     def stop_speaking_now(self, _=None):
-        """Instantly stop speech synthesis or cancel recording."""
+        """Instantly stop speech synthesis, cancel recording, and clear all HUD/screen overlays."""
+        self._recording_cancelled = True
         stop_all_speech()
+        try:
+            from voicefi.ui.screen_highlight import PalHighlightOverlay
+
+            PalHighlightOverlay.get_instance().hide()
+        except Exception:
+            pass
         if hasattr(self, "speech_hud") and self.speech_hud:
             self.speech_hud.hide()
         if hasattr(self, "dictation_hud") and self.dictation_hud:
@@ -2424,9 +2624,29 @@ class VoiceFiTrayApp(_TrayAppBase):
         if hasattr(self, "_ptt_stop_event") and self._ptt_stop_event:
             self._ptt_stop_event.set()
         if self.active_recorder:
-            self.active_recorder.stop()
+            if hasattr(self.active_recorder, "cancel"):
+                self.active_recorder.cancel()
+            else:
+                self.active_recorder.stop()
         if self.watcher:
             self.watcher.interrupt()
+        try:
+            from voicefi.tts.base import set_mic_recording, clear_cross_process_hud_state
+
+            set_mic_recording(False)
+            clear_cross_process_hud_state()
+        except Exception:
+            pass
+        self._active_listen_label = None
+        self._current_status = "idle"
+        if hasattr(self, "hud") and self.hud:
+            try:
+                if self.hud.persistent:
+                    self.hud.set_idle()
+                else:
+                    self.hud.hide()
+            except Exception:
+                pass
         if hasattr(self, "wakeword_listener") and self.wakeword_listener:
             try:
                 self.wakeword_listener.pause()
@@ -2448,7 +2668,6 @@ class VoiceFiTrayApp(_TrayAppBase):
                 self.server.broadcast_event({"type": "speech_stopped", "timestamp": time.time()})
             except Exception:
                 pass
-        self._current_status = "idle"
 
     def open_permissions(self, _=None):
         """Open macOS Accessibility settings pane."""
@@ -2479,28 +2698,86 @@ class VoiceFiTrayApp(_TrayAppBase):
         threading.Thread(target=_worker, daemon=True).start()
 
     def trigger_talk_to_antigravity(
-        self, ptt_mode: bool = False, target_engine: Optional[str] = None
+        self,
+        ptt_mode: bool = False,
+        target_engine: Optional[str] = None,
+        from_wakeword: bool = False,
+        wake_phrase: Optional[str] = None,
+        initial_prompt: str = "",
+        initial_audio: Optional[Any] = None,
+        display_app: Optional[str] = None,
     ):
-        """Record voice prompt for active agent (Antigravity or Claude Code) without stealing window focus."""
+        """Record voice prompt for active agent (Antigravity, Claude Code, or VoiceFi wake-word) without stealing window focus."""
         with self._listen_lock:
-            if self._current_status in ("listening", "hearing", "ptt_listening"):
-                self.finish_active_recording()
-                return
-            if self._current_status in ("transcribing", "paused_agent_speaking"):
-                return
+            if from_wakeword:
+                if (
+                    self._current_status in ("listening", "hearing", "ptt_listening")
+                    and (time.time() - getattr(self, "_last_wake_session_start", 0.0)) < 1.5
+                ):
+                    return
+                if self.active_recorder:
+                    if hasattr(self.active_recorder, "cancel"):
+                        self.active_recorder.cancel()
+                    else:
+                        self.active_recorder.stop()
+                self._last_wake_session_start = time.time()
+            else:
+                if self._current_status in ("listening", "hearing", "ptt_listening"):
+                    self.finish_active_recording()
+                    return
+                if self._current_status in ("transcribing", "paused_agent_speaking"):
+                    return
             self._current_status = "ptt_listening" if ptt_mode else "listening"
+            self._recording_cancelled = False
 
         is_claude = target_engine == "claude"
-        agent_label = "Claude Code" if is_claude else "Active Agent"
-        print(f"[VoiceFi] 🎙️ Triggered Talk to {agent_label} (keeping current window focus)")
+        eff_display_app = display_app or (
+            "Claude" if is_claude else ("VoiceFi" if from_wakeword else "Antigravity")
+        )
+        self._active_listen_label = eff_display_app
+        source_tag = (
+            f"Wake Word ('{wake_phrase}')"
+            if (from_wakeword and wake_phrase)
+            else ("Wake Word" if from_wakeword else ("Claude (⌃R)" if is_claude else "Voice Prompt (⌃R)"))
+        )
+        user_lbl = (
+            eff_display_app
+            if from_wakeword
+            else ("Claude" if is_claude else getattr(self.config, "user_name", "Jake"))
+        )
+        print(f"[VoiceFi] 🎙️ Triggered Talk to {eff_display_app} (keeping current window focus)")
         stop_all_speech()
         if self.watcher:
-            self.watcher.interrupt()
+            self.watcher.interrupt(notify_idle=False)
 
         hud = UnifiedDynamicIslandHUD.get_instance()
         hud.set_listening(
-            user_name="Claude" if is_claude else getattr(self.config, "user_name", "Jake")
+            prompt_preview=initial_prompt or "",
+            user_name=user_lbl,
+            live_stream=bool(initial_prompt),
+            source=source_tag,
+            app_name=eff_display_app,
+            agent_name=eff_display_app,
         )
+
+        overlay = None
+        if from_wakeword:
+            try:
+                from voicefi.ui.screen_highlight import PalHighlightOverlay
+
+                overlay = PalHighlightOverlay.get_instance()
+                perim_color = (
+                    "claude"
+                    if is_claude
+                    else (
+                        "antigravity"
+                        if eff_display_app.lower() == "antigravity"
+                        else "voicefi"
+                    )
+                )
+                overlay.show_screen_perimeter(color_type=perim_color, max_duration_s=10.0)
+            except Exception:
+                overlay = None
 
         self._ptt_stop_event = threading.Event()
 
@@ -2514,43 +2791,53 @@ class VoiceFiTrayApp(_TrayAppBase):
                     if self.watcher
                     else None
                 )
-                if self.config.audio_cues.enabled:
-                    play_chime("start", block=False)
-                time.sleep(0.25)
+                if not from_wakeword:
+                    if self.config.audio_cues.enabled:
+                        play_chime("start", block=False)
+                    time.sleep(0.12)
+
+                eff_silence = (
+                    min(1.2, float(self.config.vad.silence_duration))
+                    if from_wakeword
+                    else self.config.vad.silence_duration
+                )
+                if from_wakeword and initial_prompt and initial_prompt.strip():
+                    eff_silence = min(0.7, eff_silence)
 
                 recorder = AudioRecorder(
                     sample_rate=self.config.vad.sample_rate,
                     energy_threshold=self.config.vad.energy_threshold,
-                    silence_duration=self.config.vad.silence_duration,
+                    silence_duration=eff_silence,
                 )
                 self.active_recorder = recorder
 
                 def _on_pause(is_paused: bool):
                     if is_paused:
                         self._current_status = "paused_agent_speaking"
-                        hud.show_paused("⏸️ Agent Speaking (Paused)...")
+                        hud.show_paused("⏸️ Agent Speaking (Paused)...", app_name=eff_display_app)
                     else:
                         self._current_status = "ptt_listening" if ptt_mode else "listening"
                         hud.set_listening(
-                            user_name="Claude"
-                            if is_claude
-                            else getattr(self.config, "user_name", "Jake")
+                            user_name=user_lbl,
+                            source=source_tag,
+                            app_name=eff_display_app,
+                            agent_name=eff_display_app,
                         )
 
                 def _on_speech_start():
                     self._current_status = "hearing"
                     hud.set_hearing(
-                        user_name="Claude"
-                        if is_claude
-                        else getattr(self.config, "user_name", "Jake")
+                        prompt_preview=initial_prompt or "",
+                        user_name=user_lbl,
+                        source=source_tag,
+                        app_name=eff_display_app,
+                        agent_name=eff_display_app,
                     )
 
                 def _on_live(txt: str):
                     hud.update_live_transcription(
                         txt,
-                        user_name="Claude"
-                        if is_claude
-                        else getattr(self.config, "user_name", "Jake"),
+                        user_name=user_lbl,
                     )
 
                 def _on_tick(energy: float, conf: float = 0.0, is_spk: bool = False):
@@ -2572,17 +2859,75 @@ class VoiceFiTrayApp(_TrayAppBase):
                         on_listening_tick=_on_tick,
                         stop_event=self._ptt_stop_event,
                         cancel_on_typing=False,
+                        initial_audio=initial_audio,
+                        initial_prompt_preview=initial_prompt or None,
+                        agent_name=eff_display_app,
                     )
 
                 self.active_recorder = None
+                if overlay:
+                    overlay.hide()
+                if getattr(self, "_recording_cancelled", False) or getattr(
+                    recorder, "cancelled", False
+                ):
+                    self._current_status = "idle"
+                    if hud.persistent:
+                        hud.set_idle()
+                    else:
+                        hud.hide()
+                    return
+
                 if temp_wav and Path(temp_wav).is_file():
                     self._current_status = "transcribing"
-                    hud.show_transcribing()
+                    hud.show_transcribing(app_name=eff_display_app)
                     stt = get_stt_engine(self.config)
                     text = stt.transcribe(temp_wav)
                 else:
                     text = ""
+
+                if from_wakeword and text and text.strip():
+                    try:
+                        from voicefi.integrations.active_listening import ActiveListeningEngine
+
+                        mw, stripped = ActiveListeningEngine.extract_wakeword_and_prompt(text)
+                        if mw:
+                            text = stripped
+                    except Exception:
+                        pass
+
+                if initial_prompt and initial_prompt.strip():
+                    clean_init = initial_prompt.strip()
+                    if not text or not text.strip():
+                        text = clean_init
+                    elif not text.strip().lower().startswith(clean_init.lower()):
+                        text = f"{clean_init} {text.strip()}".strip()
+
                 if text and text.strip():
+                    try:
+                        from voicefi.stt.biasing import PhoneticNormalizer
+
+                        text = PhoneticNormalizer.normalize(text.strip())
+                    except Exception:
+                        text = text.strip()
+
+                    # Check if user triggered Creative Partner (✨ Channel) via 'Hey Viv' / hotkey
+                    chan_intent, chan_body = self._parse_channel_voice_intent(text)
+                    if chan_intent == "open_session":
+                        self.active_recorder = None
+                        self._current_status = "idle"
+                        threading.Timer(
+                            0.08,
+                            lambda: self.trigger_desktop_channel_session(persona_tag="viv"),
+                        ).start()
+                        return
+                    elif chan_intent == "direct_channel" and chan_body:
+                        self.active_recorder = None
+                        self._current_status = "idle"
+                        self._execute_desktop_channel_from_text(
+                            chan_body, persona_tag="viv", hud=hud, overlay=overlay
+                        )
+                        return
+
                     conv_id = active_conv.id if active_conv else None
                     is_auto_send = getattr(
                         getattr(self.config, "hud", None), "auto_send", True
@@ -2623,7 +2968,7 @@ class VoiceFiTrayApp(_TrayAppBase):
                             title = (
                                 active_conv.title
                                 if active_conv
-                                else ("Claude Code" if is_claude else "Active Agent")
+                                else ("Claude Code" if is_claude else eff_display_app)
                             )
                             rumps.notification(
                                 f"VoiceFi • {title[:30]}", "Prompt Sent", payload_text[:80]
@@ -2633,12 +2978,12 @@ class VoiceFiTrayApp(_TrayAppBase):
 
                     if is_auto_send:
                         _send_action(text)
-                        hud.show_done(preview_text=text[:20])
+                        hud.show_done(preview_text=text[:20], app_name=eff_display_app)
                     else:
                         target_name = (
                             active_conv.title[:20]
                             if (active_conv and active_conv.title)
-                            else ("Claude" if is_claude else "Antigravity")
+                            else ("Claude" if is_claude else eff_display_app)
                         )
                         hud.set_editing(text, on_submit=_send_action, target_name=target_name)
                 else:
@@ -2659,7 +3004,13 @@ class VoiceFiTrayApp(_TrayAppBase):
                     temp_wav.unlink(missing_ok=True)
                 self.active_recorder = None
                 self._current_status = "idle"
+                self._active_listen_label = None
                 self._key_down_times.clear()
+                if overlay:
+                    try:
+                        overlay.hide()
+                    except Exception:
+                        pass
                 if self.wakeword_listener and getattr(
                     getattr(self.config, "wakeword", None), "enabled", True
                 ):
@@ -2686,7 +3037,7 @@ class VoiceFiTrayApp(_TrayAppBase):
         print("[VoiceFi] ✨ Triggered Start New Conversation with Connected Tools (⌘⇧N)")
         stop_all_speech()
         if self.watcher:
-            self.watcher.interrupt()
+            self.watcher.interrupt(notify_idle=False)
 
         hud = UnifiedDynamicIslandHUD.get_instance()
         hud.set_new_conversation(user_name=getattr(self.config, "user_name", "Jake"))
@@ -2861,6 +3212,7 @@ class VoiceFiTrayApp(_TrayAppBase):
                     is_tab_key,
                     is_option_tab_event,
                     is_agent_speaking,
+                    is_mic_recording_active,
                     get_recent_speaking_info,
                 )
                 from voicefi.integrations.injector import focus_speaking_agent_window
@@ -2876,6 +3228,11 @@ class VoiceFiTrayApp(_TrayAppBase):
                     last_triggers[action_name] = now
                     return True
 
+                # Exact set of macOS virtual key codes that VoiceFi ever cares about:
+                # 53=Esc, 48=Tab, 36=Return, 76=NumpadEnter, 49=Space, 8=C, 45=N, 38=J, 0=A, 2=D, 17=T, 9=V, 15=R
+                _HOTKEY_VKS = frozenset((53, 48, 36, 76, 49, 8, 45, 38, 0, 2, 17, 9, 15))
+                _MODIFIER_VKS = frozenset((54, 55, 56, 58, 59, 60, 61, 62))
+
                 def on_press(key):
                     try:
                         vk = getattr(key, "vk", None)
@@ -2884,12 +3241,22 @@ class VoiceFiTrayApp(_TrayAppBase):
                         # 0. Track modifier keys (both Enum and macOS virtual key codes)
                         if key in (Key.ctrl, Key.ctrl_l, Key.ctrl_r) or vk in (59, 62):
                             modifiers.add("ctrl")
+                            return
                         if key in (Key.cmd, Key.cmd_l, Key.cmd_r) or vk in (54, 55):
                             modifiers.add("cmd")
+                            return
                         if key in (Key.shift, Key.shift_l, Key.shift_r) or vk in (56, 60):
                             modifiers.add("shift")
+                            return
                         if key in (Key.alt, Key.alt_l, Key.alt_r, Key.alt_gr) or vk in (58, 61):
                             modifiers.add("alt")
+                            return
+
+                        # Zero-Latency Gaming Fast-Path:
+                        # If the pressed key's virtual key code is not one of VoiceFi's specific action keys
+                        # (e.g. Ctrl+1..9, WASD without modifiers, arrow keys, etc.), exit in <1us BEFORE any disk I/O!
+                        if vk is not None and vk not in _HOTKEY_VKS and char != "√":
+                            return
 
                         ctrl = "ctrl" in modifiers
                         cmd = "cmd" in modifiers
@@ -2897,27 +3264,27 @@ class VoiceFiTrayApp(_TrayAppBase):
                         alt = "alt" in modifiers
                         mod = ctrl or cmd
 
-                        is_speaking = self._current_status == "speaking" or is_agent_speaking()
-                        is_recently_speaking = is_speaking or bool(
-                            get_recent_speaking_info(window_seconds=3.0)
-                        )
                         is_recording = (
                             self._current_status
                             in ("listening", "hearing", "ptt_listening", "new_conversation")
                             or self.active_recorder is not None
                         )
 
-                        # Instant Fast-Path: If no modifiers are held and VoiceFi is idle (not speaking/recording),
-                        # early-exit in microseconds so bare keys (Esc in games/vim, Enter, typing) have 0ms latency.
+                        # If no modifiers are held and we are not recording, only Esc (vk=53) matters while speaking
                         if not (mod or alt or char == "√"):
-                            if not (is_recently_speaking or is_recording):
+                            if not is_recording and vk != 53 and key != Key.esc:
                                 return
-                            if vk not in (53, 36, 76) and key not in (Key.esc, Key.enter):
+                            if is_recording and vk not in (53, 36, 76) and key not in (Key.esc, Key.enter):
                                 return
 
+                        # Only query cross-process speaking files when Esc or Option+Tab is actually pressed!
+                        is_esc = vk == 53 or key == Key.esc or is_escape_key(key)
+                        is_tab = vk == 48 or key == Key.tab
+
                         # 1. Escape: stop speech or cancel recording (dispatched asynchronously off event tap thread)
-                        if is_escape_key(key):
-                            if (is_speaking or is_recording) and _debounce(
+                        if is_esc:
+                            is_speaking = self._current_status == "speaking" or is_agent_speaking()
+                            if (is_speaking or is_recording or is_mic_recording_active()) and _debounce(
                                 "esc_stop", interval=0.2
                             ):
                                 threading.Thread(
@@ -2926,20 +3293,26 @@ class VoiceFiTrayApp(_TrayAppBase):
                             return
 
                         # 1.5 Option+Tab while speaking: focus the window where speech originated
-                        if is_option_tab_event(key, modifiers):
+                        if is_tab and is_option_tab_event(key, modifiers):
+                            is_recently_speaking = (
+                                self._current_status == "speaking"
+                                or is_agent_speaking()
+                                or bool(get_recent_speaking_info(window_seconds=3.0))
+                            )
                             if is_recently_speaking and _debounce("tab_focus", interval=0.35):
                                 threading.Thread(
                                     target=focus_speaking_agent_window, daemon=True
                                 ).start()
                             return
 
-                        # 2. Enter while recording: finish active recording immediately
-                        if key == Key.enter or vk in (36, 76):
+                        # 2. Bare Enter while recording: finish active recording immediately (Shift+Enter creates newline)
+                        if (key == Key.enter or vk in (36, 76)) and not shift and not mod and not alt:
                             if is_recording:
                                 threading.Thread(
-                                    target=self.finish_active_recording, daemon=True
+                                    target=lambda: self.finish_active_recording(reason="enter_key_press"),
+                                    daemon=True,
                                 ).start()
-                                return
+                            return
 
                         # 2.5 Quick Prompt Bar (Option+Space or Ctrl+Space)
                         is_space = (
@@ -2981,7 +3354,8 @@ class VoiceFiTrayApp(_TrayAppBase):
                             return
 
                         # 4. Companion Activity Hub (Ctrl+Shift+J or Cmd+Shift+J)
-                        if mod and shift and (vk == 38 or char in ("j", "J", "\n")):
+                        # Note: never match '\n' without vk==38, or Ctrl+Enter in games will trigger this!
+                        if mod and shift and (vk == 38 or (vk is None and char in ("j", "J", "\n"))):
                             if _debounce("hub"):
                                 self.toggle_hub()
                             return
@@ -2994,27 +3368,28 @@ class VoiceFiTrayApp(_TrayAppBase):
                             and not cmd
                             and (vk == 0 or char in ("a", "A", "å"))
                         )
-                        is_jump_j = mod and not shift and (vk == 38 or char in ("j", "\n"))
+                        is_jump_j = mod and not shift and (vk == 38 or (vk is None and char in ("j", "\n")))
                         if is_opt_a or is_jump_j:
                             if _debounce("jump"):
                                 self.trigger_focus_antigravity()
                             return
 
-                        # 6. Universal Dictation (Option+D, or backwards-compatible Ctrl+T)
-                        is_opt_d = (
-                            alt
-                            and not shift
-                            and not ctrl
-                            and not cmd
-                            and (vk == 2 or char in ("d", "D", "∂"))
-                        )
-                        is_ctrl_t = ctrl and not shift and (vk == 17 or char in ("t", "T", "\x14"))
-                        if is_opt_d or is_ctrl_t:
-                            if self.config.global_hotkey.enabled and _debounce("dictate"):
-                                self._key_down_times["dictate"] = time.time()
-                                is_ptt = self.config.vad.mode == "ptt"
-                                self.trigger_manual_listen(ptt_mode=is_ptt)
-                            return
+                        # 6. Universal Dictation fallback (only when Quartz hardware interception is unavailable)
+                        if Quartz is None:
+                            is_opt_d = (
+                                alt
+                                and not shift
+                                and not ctrl
+                                and not cmd
+                                and (vk == 2 or char in ("d", "D", "∂"))
+                            )
+                            is_ctrl_t = ctrl and not shift and (vk == 17 or char in ("t", "T", "\x14"))
+                            if is_opt_d or is_ctrl_t:
+                                if self.config.global_hotkey.enabled and _debounce("dictate"):
+                                    self._key_down_times["dictate"] = time.time()
+                                    is_ptt = self.config.vad.mode == "ptt"
+                                    self.trigger_manual_listen(ptt_mode=is_ptt)
+                                return
 
                         # 7. Ambient Zero-Focus Voice Prompt to Antigravity (Option+V / ⌥V, Control+V, Shift+Option+Space, or Ctrl+R)
                         is_option_v = (alt and (vk == 9 or char in ("v", "V", "√"))) or char == "√"
@@ -3076,9 +3451,8 @@ class VoiceFiTrayApp(_TrayAppBase):
                             or self.active_recorder is not None
                         )
 
-                        # Instant Fast-Path: If not actively recording and not releasing a modifier,
-                        # exit immediately to prevent release event overhead.
-                        if not is_active_recording and not is_modifier_release:
+                        # Instant Fast-Path: If not actively recording, exit immediately!
+                        if not is_active_recording:
                             return
 
                         is_respond_key = (
@@ -3139,36 +3513,62 @@ class VoiceFiTrayApp(_TrayAppBase):
                 except Exception:
                     Quartz = None
 
-                _fn_state = {"down": False, "down_time": 0.0, "is_recording": False}
-                _ctrl_t_state = {"down": False, "down_time": 0.0, "is_recording": False}
+                self._fn_state = {"down": False, "down_time": 0.0, "is_recording": False}
+                self._ctrl_t_state = {"down": False, "down_time": 0.0, "is_recording": False}
+                _fn_state = self._fn_state
+                _ctrl_t_state = self._ctrl_t_state
+                _INTERCEPT_VKS = frozenset((49, 8, 17, 0, 2, 9))
 
                 def _darwin_intercept(event_type, event):
                     if Quartz is None:
                         return event
                     try:
-                        # 0. Function / Globe Key (vk 63 or SecondaryFn mask on flagsChanged)
-                        # Suppresses macOS emoji picker and enables Walkie-Talkie (Hold) & Open-Mic (Tap)
+                        # 0. Function / Globe Key (strictly vk == 63 on flagsChanged)
+                        # CRITICAL: Never use `bool(flags & _mask_fn) != _fn_state["down"]` when vk != 63,
+                        # because Arrow keys and Numpad Enter set `_mask_fn` on macOS, which would cause
+                        # pressing Ctrl/Shift/Alt to be mistaken for Fn and swallowed (`return None`)!
                         if event_type == _k_flags_changed:
                             flags = _cg_get_flags(event)
                             vk = _cg_get_int(event, _k_keycode)
                             now = time.time()
 
+                            # Keep Python `modifiers` set strictly synchronized with OS hardware flags
+                            # so sticky/stuck Ctrl never happens after rapid Ctrl+number chords!
+                            if flags & _mask_ctrl:
+                                modifiers.add("ctrl")
+                            else:
+                                modifiers.discard("ctrl")
+                            if flags & _mask_cmd:
+                                modifiers.add("cmd")
+                            else:
+                                modifiers.discard("cmd")
+                            if flags & _mask_shift:
+                                modifiers.add("shift")
+                            else:
+                                modifiers.discard("shift")
+                            if flags & _mask_alt:
+                                modifiers.add("alt")
+                            else:
+                                modifiers.discard("alt")
+
                             # If Control was released during a Ctrl+T hold, trigger walkie-talkie finish
                             if _ctrl_t_state["down"] and not (flags & _mask_ctrl):
                                 _ctrl_t_state["down"] = False
                                 held_dur = now - _ctrl_t_state["down_time"]
-                                if held_dur >= 0.45 and _ctrl_t_state["is_recording"]:
+                                if held_dur >= 0.40 and _ctrl_t_state["is_recording"]:
                                     self.finish_active_recording(reason="ctrl_release_walkie_talkie")
                                     _ctrl_t_state["is_recording"] = False
 
-                            if vk == 63 or bool(flags & _mask_fn) != _fn_state["down"]:
+                            # Only trigger Fn/Globe when the physical Fn key (vk == 63) is pressed/released
+                            # and no other modifier (Ctrl/Cmd/Alt/Shift) is held!
+                            if vk == 63 and not (flags & (_mask_ctrl | _mask_cmd | _mask_alt | _mask_shift)):
                                 is_fn_now_down = bool(flags & _mask_fn)
                                 if is_fn_now_down and not _fn_state["down"]:
                                     _fn_state["down"] = True
                                     _fn_state["down_time"] = now
                                     # If already recording, tapping Fn again toggles off & finishes recording
                                     if self._current_status in ("listening", "hearing", "ptt_listening"):
-                                        if (now - getattr(self, "_recording_start_time", 0.0)) >= 0.5:
+                                        if (now - getattr(self, "_recording_start_time", 0.0)) >= 0.3:
                                             self.finish_active_recording(reason="fn_toggle_off")
                                             _fn_state["is_recording"] = False
                                     else:
@@ -3180,16 +3580,19 @@ class VoiceFiTrayApp(_TrayAppBase):
                                 elif not is_fn_now_down and _fn_state["down"]:
                                     _fn_state["down"] = False
                                     held_dur = now - _fn_state["down_time"]
-                                    # If held >= 450ms, this was a walkie-talkie hold -> finish recording on release!
-                                    if held_dur >= 0.45 and _fn_state["is_recording"]:
+                                    # If held >= 400ms, this was a walkie-talkie hold -> finish recording on release!
+                                    if held_dur >= 0.40 and _fn_state["is_recording"]:
                                         self.finish_active_recording(reason="fn_walkie_talkie_release")
                                         _fn_state["is_recording"] = False
-                                    # If tapped (<450ms), leave open-mic running until next Fn tap or Enter!
+                                    # If tapped (<400ms), leave open-mic running until next Fn tap or Enter!
                                     return None
 
                         if event_type == _k_key_down or event_type == _k_key_up:
-                            flags = _cg_get_flags(event)
                             vk = _cg_get_int(event, _k_keycode)
+                            # Instant 0-Overhead Bypass for all non-intercepted keys (e.g. numbers 0-9, Enter, WASD, etc.)
+                            if vk not in _INTERCEPT_VKS:
+                                return event
+                            flags = _cg_get_flags(event)
                             now = time.time()
 
                             # 0. Backwards-compatible Quick Prompt Bar: vk 49 (Space) with Control held ONLY
@@ -3233,7 +3636,7 @@ class VoiceFiTrayApp(_TrayAppBase):
                                             _ctrl_t_state["down_time"] = now
                                             # If already recording, tapping again toggles off & finishes recording
                                             if self._current_status in ("listening", "hearing", "ptt_listening"):
-                                                if (now - getattr(self, "_recording_start_time", 0.0)) >= 0.5:
+                                                if (now - getattr(self, "_recording_start_time", 0.0)) >= 0.3:
                                                     self.finish_active_recording(reason="ctrl_t_toggle_off")
                                                     _ctrl_t_state["is_recording"] = False
                                             else:
@@ -3246,11 +3649,11 @@ class VoiceFiTrayApp(_TrayAppBase):
                                         if _ctrl_t_state["down"]:
                                             _ctrl_t_state["down"] = False
                                             held_dur = now - _ctrl_t_state["down_time"]
-                                            # If held >= 450ms, this was a walkie-talkie hold -> finish recording on release!
-                                            if held_dur >= 0.45 and _ctrl_t_state["is_recording"]:
+                                            # If held >= 400ms, this was a walkie-talkie hold -> finish recording on release!
+                                            if held_dur >= 0.40 and _ctrl_t_state["is_recording"]:
                                                 self.finish_active_recording(reason="ctrl_t_walkie_talkie_release")
                                                 _ctrl_t_state["is_recording"] = False
-                                            # If tapped (<450ms), leave open-mic running until next tap or Enter!
+                                            # If tapped (<400ms), leave open-mic running until next tap or Enter!
                                         return None
 
                             # Instant Microsecond Fast-Path: If Option/Alt is not held, never intercept!
@@ -3262,7 +3665,6 @@ class VoiceFiTrayApp(_TrayAppBase):
                             if (flags & _mask_cmd) or (flags & _mask_ctrl):
                                 return event
 
-                            vk = _cg_get_int(event, _k_keycode)
                             has_shift = bool(flags & _mask_shift)
 
                             # 1. Option+Space: Main VoiceFi Quick Prompt Bar (vk 49 without Shift)
@@ -3311,6 +3713,9 @@ class VoiceFiTrayApp(_TrayAppBase):
                 )
                 listener.daemon = True
                 listener.start()
+                import voicefi.tts.base as _tts_base
+
+                _tts_base._GLOBAL_HOTKEY_LISTENER_ACTIVE = True
                 print(
                     "[VoiceFi] ⌨️ Unified global hotkeys active: Ctrl+Space (Quick Bar), Ctrl+Option+C (Companion), ⌥A / Ctrl+J (Agent Focus), ⌥D / Ctrl+T (Dictate), ⌥V (Prompt Agent), Cmd+Shift+N (New Conv), Ctrl+Shift+J (Hub)"
                 )
@@ -3344,9 +3749,67 @@ class VoiceFiTrayApp(_TrayAppBase):
             self.config.hud = HUDConfig()
         self.config.hud.persistent = new_val
         self.config.antigravity.persistent_hud = new_val
+        self.config.hud.visibility_mode = "always" if new_val else "active_only"
         if sender and hasattr(sender, "state"):
             sender.state = 1 if new_val else 0
         hud.set_persistent(new_val)
+        save_config(self.config)
+        self._build_hud_submenu()
+
+    def toggle_speaking_only_hud(self, sender=None):
+        hud = UnifiedDynamicIslandHUD.get_instance()
+        if not hasattr(self.config, "hud") or self.config.hud is None:
+            from voicefi.config import HUDConfig
+
+            self.config.hud = HUDConfig()
+        current = getattr(self.config.hud, "visibility_mode", "always")
+        if current == "speaking_only":
+            new_mode = "always"
+            self.config.hud.persistent = True
+            self.config.antigravity.persistent_hud = True
+        else:
+            new_mode = "speaking_only"
+            self.config.hud.persistent = False
+            self.config.antigravity.persistent_hud = False
+        self.config.hud.visibility_mode = new_mode
+        hud.set_visibility_mode(new_mode)
+        save_config(self.config)
+        self._build_hud_submenu()
+
+    def toggle_always_on_top(self, sender=None):
+        hud = UnifiedDynamicIslandHUD.get_instance()
+        if not hasattr(self.config, "hud") or self.config.hud is None:
+            from voicefi.config import HUDConfig
+
+            self.config.hud = HUDConfig()
+        new_val = not getattr(self.config.hud, "always_on_top", True)
+        self.config.hud.always_on_top = new_val
+        hud.set_always_on_top(new_val)
+        save_config(self.config)
+        self._build_hud_submenu()
+
+    def toggle_behind_windows(self, sender=None):
+        hud = UnifiedDynamicIslandHUD.get_instance()
+        if not hasattr(self.config, "hud") or self.config.hud is None:
+            from voicefi.config import HUDConfig
+
+            self.config.hud = HUDConfig()
+        current_aot = getattr(self.config.hud, "always_on_top", True)
+        new_aot = not current_aot
+        self.config.hud.always_on_top = new_aot
+        hud.set_always_on_top(new_aot)
+        save_config(self.config)
+        self._build_hud_submenu()
+
+    def toggle_bring_to_front_on_speech(self, sender=None):
+        hud = UnifiedDynamicIslandHUD.get_instance()
+        if not hasattr(self.config, "hud") or self.config.hud is None:
+            from voicefi.config import HUDConfig
+
+            self.config.hud = HUDConfig()
+        new_val = not getattr(self.config.hud, "bring_to_front_on_speech", True)
+        self.config.hud.bring_to_front_on_speech = new_val
+        hud.set_bring_to_front_on_speech(new_val)
         save_config(self.config)
         self._build_hud_submenu()
 
@@ -3406,6 +3869,7 @@ class VoiceFiTrayApp(_TrayAppBase):
     def preview_hud_state(self, state_name: str):
         """Preview any of the 6 dynamic HUD states directly on the macOS screen."""
         hud = UnifiedDynamicIslandHUD.get_instance()
+        hud._is_previewing = True
         _, resolved_voice, _ = self.config.resolve_voice("antigravity")
         from voicefi.tts import find_persona
 
@@ -3470,13 +3934,20 @@ class VoiceFiTrayApp(_TrayAppBase):
 
             def _return_to_idle():
                 time.sleep(3.5)
+                hud._is_previewing = False
                 hud_cfg = getattr(self.config, "hud", None)
-                if getattr(hud_cfg, "persistent", True) and getattr(hud_cfg, "enabled", True):
+                if (
+                    getattr(hud_cfg, "persistent", True)
+                    and getattr(hud_cfg, "visibility_mode", "always") == "always"
+                    and getattr(hud_cfg, "enabled", True)
+                ):
                     hud.set_idle()
                 else:
-                    hud.finish_speech(linger_seconds=1.0)
+                    hud.hide()
 
             threading.Thread(target=_return_to_idle, daemon=True).start()
+        else:
+            hud._is_previewing = False
 
     def launch_hud_debug_studio(self, _=None):
         """Launch interactive Terminal HUD Debug Studio with real-time keystroke triggers."""
@@ -3540,19 +4011,492 @@ class VoiceFiTrayApp(_TrayAppBase):
             except Exception:
                 pass
 
-    def _handle_wakeword_trigger(self, phrase: str, prompt: str):
-        """Handle wake word detection (Hey Viv, Hey Claude, etc.) from background listener."""
-        print(f"[VoiceFi] ⚡ Wake word triggered: '{phrase}' (prompt: '{prompt}')")
+    def _parse_channel_voice_intent(self, text: str) -> tuple[Optional[str], str]:
+        """
+        Inspect spoken text for Creative Partner (✨ Channel) commands or inline spoken bookends.
+        Returns:
+          - ("open_session", "") if user asked to open/start Channel Mode
+          - ("direct_channel", cleaned_text) if user spoke a monologue with Channel prefix or spoken bookends
+          - (None, text) otherwise
+        """
+        if not text or not text.strip():
+            return None, ""
+        clean = text.strip()
+        words = clean.split()
+
+        # 1. Short mode-switch commands ("channel mode", "take a note", "brain dump", "start channeling", "creative partner", "speak a book")
+        if len(words) <= 10:
+            short_open_pat = re.compile(
+                r"\b(?:channel(?:\s+mode|\s+studio|\s+session)|"
+                r"(?:start|open|enter|launch|let'?s|go\s+to|switch\s+to)\s+channel(?:ing)?|"
+                r"channeling(?:\s+mode)?|"
+                r"creative\s+(?:partner|director)(?:\s+mode)?|"
+                r"speak(?:ing)?\s+a\s+book(?:\s+mode)?|"
+                r"take\s+a\s+note|"
+                r"capture\s+this\s+thought|"
+                r"(?:start\s+a\s+)?brain\s+dump(?:\s+mode)?)\b",
+                re.IGNORECASE,
+            )
+            if short_open_pat.search(clean) or clean.lower().strip(" .?!") in (
+                "channel",
+                "channeling",
+                "brain dump",
+            ):
+                return "open_session", ""
+
+        # 2. Explicit prefix with body ("channel this: <monologue>", "take a note: <monologue>", "creative partner: <monologue>")
+        prefix_pat = re.compile(
+            r"^(?:(?:hey|okay|ok|uh|um|please)\s+)*(?:channel(?:\s+this|\s+mode)?|creative\s+partner|creative\s+director|take\s+a\s+note|capture\s+this(?:\s+thought)?|brain\s+dump)[\s,.:;-]+(.+)$",
+            re.IGNORECASE | re.DOTALL,
+        )
+        m_pfx = prefix_pat.match(clean)
+        if m_pfx:
+            remainder = m_pfx.group(1).strip()
+            if len(remainder.split()) >= 5:
+                return "direct_channel", remainder
+            return "open_session", remainder
+
+        # 3. Auto-detect inline spoken end-set / preset bookends in longer monologues
+        try:
+            from voicefi.memo.creative_partner import CreativePartnerSynthesizer
+
+            if len(words) >= 12 and CreativePartnerSynthesizer.has_spoken_bookends(clean):
+                return "direct_channel", clean
+        except Exception:
+            pass
+
+        return None, clean
+
+    def _execute_desktop_channel_from_text(
+        self,
+        raw_text: str,
+        persona_tag: str = "viv",
+        hud=None,
+        overlay=None,
+    ):
+        """Run CreativePartnerSynthesizer on raw_text, save to Obsidian, open Post-Channel Studio on desktop, and read back."""
+        if hud is None:
+            hud = UnifiedDynamicIslandHUD.get_instance()
+
+        self._ensure_companion_server_running()
+        try:
+            hud.set_working(
+                text="✨ Sculpting Voice-Print Channel...",
+                detail="Peeling spoken directions & structuring into Obsidian...",
+                agent_name="Creative Partner",
+            )
+        except Exception:
+            pass
+
+        try:
+            from voicefi.memo.creative_partner import CreativePartnerSynthesizer
+            from voicefi.integrations.obsidian import save_memo_to_vault
+            from voicefi.ui.companion_window import CompanionDesktopWindow
+
+            cp_synth = CreativePartnerSynthesizer(config=self.config)
+            cp_res = cp_synth.channel(raw_speech=raw_text, speak_back=False)
+            markdown = cp_res.to_markdown()
+
+            vault_res = save_memo_to_vault(
+                memo_markdown=markdown,
+                title=cp_res.title,
+                config=self.config,
+            )
+
+            memo_name = vault_res.get("memo_name") or f"{cp_res.title}.md"
+            memo_path = vault_res.get("memo_path") or ""
+            payload = {
+                "type": "vault_memo_saved",
+                "status": "ok",
+                "mode": "channel",
+                "open_studio": True,
+                "part_number": 1,
+                "raw_text": raw_text,
+                "memo_name": memo_name,
+                "memo_path": str(memo_path),
+                "title": cp_res.title,
+                "summary": cp_res.cleaned_core,
+                "spoken_readback_summary": cp_res.spoken_readback_summary,
+                "key_points": [s.heading for s in cp_res.sections],
+                "action_items": [
+                    f"{c.thinker_or_source}: {c.work_or_concept}" for c in cp_res.citations
+                ],
+                "pr_checklist": [],
+                "voice_print": cp_res.voice_print.model_dump(),
+                "bookends": cp_res.bookends.model_dump(),
+                "sections": [s.model_dump() for s in cp_res.sections],
+                "citations": [c.model_dump() for c in cp_res.citations],
+                "markdown": vault_res.get("combined_markdown") or markdown,
+            }
+
+            if self.config.audio_cues.enabled:
+                play_chime("done", block=False)
+            hud.show_done(preview_text=f"✨ {cp_res.title[:26]}", app_name="Channel")
+            if overlay:
+                try:
+                    overlay.hide()
+                except Exception:
+                    pass
+
+            # Broadcast to web clients & pop open Desktop Companion Window Studio
+            if hasattr(self, "server") and self.server:
+                self.server.broadcast_event(payload)
+
+            port = (
+                getattr(getattr(self, "config", None), "companion", None)
+                and self.config.companion.port
+                or 5141
+            )
+            CompanionDesktopWindow.get_instance(port=port).open_channel_studio(payload)
+
+            try:
+                rumps.notification(
+                    "VoiceFi • ✨ Channel Saved",
+                    cp_res.title,
+                    cp_res.spoken_readback_summary[:90],
+                )
+            except Exception:
+                pass
+
+            # Speak the readback summary aloud using the active desktop voice
+            if cp_res.spoken_readback_summary:
+                try:
+                    from voicefi.tts import get_tts_engine
+
+                    agent_key = "pal" if persona_tag in ("brok", "pal") else "antigravity"
+                    tts = get_tts_engine(self.config, agent_name=agent_key)
+                    tts.speak(cp_res.spoken_readback_summary, block=False)
+                except Exception as tts_err:
+                    print(f"[VoiceFi] Channel readback TTS notice: {tts_err}")
+
+        except Exception as e:
+            print(f"[VoiceFi] Error executing desktop channel: {e}")
+            hud.set_idle()
+            if overlay:
+                try:
+                    overlay.hide()
+                except Exception:
+                    pass
+
+    def trigger_desktop_channel_session(
+        self,
+        _=None,
+        initial_prompt: str = "",
+        initial_audio: Optional[Any] = None,
+        persona_tag: str = "viv",
+    ):
+        """
+        Launch a hands-free desktop ✨ Channel session:
+        Opens CompanionDesktopWindow in Channel mode, illuminates the screen perimeter,
+        and records on the Mac mic with extended pacing pause tolerance (8s).
+        """
+        with self._listen_lock:
+            if self._current_status in ("listening", "hearing", "ptt_listening"):
+                self.finish_active_recording(reason="channel_session_start")
+                time.sleep(0.15)
+            self._current_status = "listening"
+
+        self._active_listen_label = "✨ Channel"
+        print(
+            f"[VoiceFi] ✨ Starting Desktop Channel Session (persona={persona_tag})",
+            flush=True,
+        )
+
+        stop_all_speech()
+        if self.watcher:
+            self.watcher.interrupt(notify_idle=False)
+
+        self._ensure_companion_server_running()
+        try:
+            from voicefi.ui.companion_window import CompanionDesktopWindow
+
+            port = (
+                getattr(getattr(self, "config", None), "companion", None)
+                and self.config.companion.port
+                or 5141
+            )
+            CompanionDesktopWindow.get_instance(port=port).open_channel_mode(mac_mic_active=True)
+            if hasattr(self, "server") and self.server:
+                self.server.broadcast_event(
+                    {"type": "open_obsidian_channel", "mode": "channel", "mac_mic_active": True}
+                )
+        except Exception as e:
+            print(f"[VoiceFi] Companion window channel launch notice: {e}", flush=True)
+
+        # Unmistakable visual feedback: Screen perimeter + Dynamic Island HUD + macOS Banner
+        overlay = None
+        try:
+            from voicefi.ui.screen_highlight import PalHighlightOverlay
+
+            overlay = PalHighlightOverlay.get_instance()
+            overlay.show_screen_perimeter(color_type="training", badge_text="✨ CHANNEL MODE")
+        except Exception:
+            overlay = None
+
+        try:
+            rumps.notification(
+                "VoiceFi • ✨ Channel Mode Active",
+                "Creative Partner Pacing Mode (8s Pause Tolerance)",
+                "Speak freely and end with directions, or say 'Save Channel'.",
+            )
+        except Exception:
+            pass
+
+        hud = UnifiedDynamicIslandHUD.get_instance()
+        hud.set_listening(
+            prompt_preview=initial_prompt or "✨ Channel Mode Active • Speak freely (8s pause tolerance)",
+            user_name="✨ Channel (Pacing)",
+            live_stream=True,
+            source="Channel Mode",
+            app_name="Obsidian",
+            agent_name="Creative Partner",
+        )
+
+        self._ptt_stop_event = threading.Event()
+
+        def _worker():
+            temp_wav = None
+            if self.wakeword_listener:
+                self.wakeword_listener.pause()
+            try:
+                if self.config.audio_cues.enabled:
+                    play_chime("start", block=False)
+                time.sleep(0.10)
+
+                # Generous 8.0s Fibonacci pause tolerance so user can pace and think without cutoff
+                recorder = AudioRecorder(
+                    sample_rate=self.config.vad.sample_rate,
+                    energy_threshold=self.config.vad.energy_threshold,
+                    silence_duration=max(8.0, float(self.config.vad.silence_duration)),
+                    max_record_seconds=300.0,
+                )
+                self.active_recorder = recorder
+
+                def _on_speech_start():
+                    self._current_status = "hearing"
+                    hud.set_hearing(
+                        prompt_preview=initial_prompt or "",
+                        user_name="✨ Channel (Pacing)",
+                        source="Channel Mode",
+                        app_name="Obsidian",
+                        agent_name="Creative Partner",
+                    )
+
+                def _on_live(txt: str):
+                    hud.update_live_transcription(txt, user_name="✨ Channel")
+                    if hasattr(self, "server") and self.server:
+                        self.server.broadcast_event(
+                            {"type": "obsidian_live_stream", "text": txt}
+                        )
+                    # Check if speaker said "save channel" at the tail end of their stream
+                    if txt and re.search(
+                        r"\b(?:save\s+channel|stop\s+channeling|finish\s+channel)[\s.?!]*$",
+                        txt.strip(),
+                        re.IGNORECASE,
+                    ):
+                        self._ptt_stop_event.set()
+
+                def _on_tick(energy: float, conf: float = 0.0, is_spk: bool = False):
+                    hud.update_audio_level(energy, conf, is_spk)
+
+                audio_data, temp_wav = recorder.record_speech_auto(
+                    on_speech_start=_on_speech_start,
+                    on_live_transcript=_on_live,
+                    on_listening_tick=_on_tick,
+                    stop_event=self._ptt_stop_event,
+                    cancel_on_typing=False,
+                    initial_audio=initial_audio,
+                    initial_prompt_preview=initial_prompt or None,
+                    agent_name="Creative Partner",
+                )
+
+                self.active_recorder = None
+                if temp_wav and Path(temp_wav).is_file():
+                    self._current_status = "transcribing"
+                    hud.show_transcribing(app_name="Channel")
+                    stt = get_stt_engine(self.config)
+                    text = stt.transcribe(temp_wav)
+                else:
+                    text = ""
+
+                if initial_prompt and initial_prompt.strip():
+                    clean_init = initial_prompt.strip()
+                    if not text or not text.strip():
+                        text = clean_init
+                    elif not text.strip().lower().startswith(clean_init.lower()):
+                        text = f"{clean_init} {text.strip()}".strip()
+
+                if text and text.strip():
+                    # Strip trailing "save channel" command if used to stop
+                    text = re.sub(
+                        r"[\s,.:;-]*\b(?:save\s+channel|stop\s+channeling|finish\s+channel)[\s.?!]*$",
+                        "",
+                        text.strip(),
+                        flags=re.IGNORECASE,
+                    ).strip()
+
+                if text and text.strip():
+                    self._execute_desktop_channel_from_text(
+                        text, persona_tag=persona_tag, hud=hud, overlay=overlay
+                    )
+                else:
+                    self._current_status = "idle"
+                    if overlay:
+                        try:
+                            overlay.hide()
+                        except Exception:
+                            pass
+                    if hud.persistent:
+                        hud.set_idle()
+                    else:
+                        hud.hide()
+            except Exception as e:
+                print(f"[VoiceFi] Error in desktop channel session: {e}", flush=True)
+                self._current_status = "idle"
+                if overlay:
+                    try:
+                        overlay.hide()
+                    except Exception:
+                        pass
+                if hud.persistent:
+                    hud.set_idle()
+                else:
+                    hud.hide()
+            finally:
+                if temp_wav and isinstance(temp_wav, Path):
+                    temp_wav.unlink(missing_ok=True)
+                self.active_recorder = None
+                self._current_status = "idle"
+                self._active_listen_label = None
+                if overlay:
+                    try:
+                        overlay.hide()
+                    except Exception:
+                        pass
+                if self.wakeword_listener and getattr(
+                    getattr(self.config, "wakeword", None), "enabled", True
+                ):
+                    self.wakeword_listener.resume()
+
+        threading.Thread(target=_worker, daemon=True, name="DesktopChannelSession").start()
+
+    def _handle_wakeword_trigger(
+        self, phrase: str, prompt: str, is_streaming_prefix: bool = False
+    ):
+        """Handle wake word detection (Hey Viv, Hey Brok, Hey Pal, Hey Claude, Hey Channel, etc.) from background listener."""
+        print(f"[VoiceFi] ⚡ Wake word triggered: '{phrase}' (prompt: '{prompt}', prefix={is_streaming_prefix})")
+
+        handoff_audio = None
+        if self.wakeword_listener and hasattr(self.wakeword_listener, "consume_handoff_audio"):
+            try:
+                handoff_audio = self.wakeword_listener.consume_handoff_audio()
+            except Exception:
+                handoff_audio = None
 
         phrase_lower = phrase.lower().strip()
+        is_dictate_wake = any(w in phrase_lower for w in ("transcribe", "talk now", "talk-now", "talknow"))
+        if is_dictate_wake:
+            talk_target = getattr(getattr(self.config, "wakeword", None), "talk_now_target", "dictate")
+            if talk_target == "dictate":
+                stop_all_speech()
+                if self.watcher:
+                    self.watcher.interrupt(notify_idle=False)
+                self.finish_active_recording(reason="dictate_wakeword_trigger")
+                self.trigger_manual_listen(
+                    from_wakeword=True,
+                    wake_phrase=phrase,
+                    initial_prompt=prompt or "",
+                    initial_audio=handoff_audio if prompt else None,
+                )
+                return
+
+        is_brok = any(k in phrase_lower for k in ("brok", "brock", "broc", "brook", "grok"))
+        is_channel_wake = "channel" in phrase_lower
+
+        # Check if wakeword or initial prompt explicitly requests Creative Partner Channel Mode
+        if is_channel_wake:
+            stop_all_speech()
+            if self.watcher:
+                self.watcher.interrupt(notify_idle=False)
+            self.finish_active_recording(reason="channel_wakeword_trigger")
+            self.trigger_desktop_channel_session(
+                initial_prompt=prompt or "",
+                initial_audio=handoff_audio,
+                persona_tag="brok" if is_brok else "viv",
+            )
+            return
+
+        if prompt and prompt.strip():
+            chan_intent, chan_body = self._parse_channel_voice_intent(prompt)
+            if chan_intent == "open_session":
+                stop_all_speech()
+                if self.watcher:
+                    self.watcher.interrupt(notify_idle=False)
+                self.finish_active_recording(reason="channel_wakeword_trigger")
+                self.trigger_desktop_channel_session(
+                    initial_prompt=chan_body,
+                    initial_audio=handoff_audio,
+                    persona_tag="brok" if is_brok else "viv",
+                )
+                return
+
         is_pal = (
-            "pal" in phrase_lower
+            is_brok
+            or "pal" in phrase_lower
             or any(k in phrase_lower for k in ("paypal", "pay pal", "paul"))
             or getattr(getattr(self.config, "wakeword", None), "target_engine", "") == "pal"
         )
 
         if is_pal:
+            persona_tag = "brok" if is_brok else "pal"
+            # Stop any ongoing speech and transition immediately into continuous live mic session
+            stop_all_speech()
+            if self.watcher:
+                self.watcher.interrupt(notify_idle=False)
+            self.trigger_talk_to_pal(
+                persona_tag=persona_tag,
+                from_wakeword=True,
+                wake_phrase=phrase,
+                initial_prompt=prompt or "",
+                initial_audio=handoff_audio,
+                is_streaming_prefix=is_streaming_prefix,
+            )
+            return
+
+        is_claude = "claude" in phrase_lower or any(
+            k in phrase_lower for k in ("claud", "clod", "clawed", "glenn", "hague")
+        )
+        is_explicit_agy = any(
+            k in phrase_lower for k in ("antigravity", "anti-gravity", "anti gravity")
+        )
+        target_engine = "claude" if is_claude else "antigravity"
+        display_app = (
+            "Claude"
+            if is_claude
+            else ("Antigravity" if is_explicit_agy else "VoiceFi")
+        )
+
+        self.trigger_talk_to_antigravity(
+            target_engine=target_engine,
+            from_wakeword=True,
+            wake_phrase=phrase,
+            initial_prompt=prompt or "",
+            initial_audio=handoff_audio,
+            display_app=display_app,
+        )
+
+    def _dispatch_pal_intent(
+        self,
+        raw_prompt: str,
+        persona_tag: str = "pal",
+        label_tag: str = "VoiceFi",
+        hud=None,
+        overlay=None,
+    ):
+        """Execute or route a recognized Pal / Brok voice command."""
+        if hud is None:
             hud = UnifiedDynamicIslandHUD.get_instance()
+        if overlay is None:
             try:
                 from voicefi.ui.screen_highlight import PalHighlightOverlay
 
@@ -3560,103 +4504,138 @@ class VoiceFiTrayApp(_TrayAppBase):
             except Exception:
                 overlay = None
 
-            if prompt and len(prompt.strip()) >= 2:
-                from voicefi.stt.biasing import PhoneticNormalizer
-                from voicefi.integrations.pal_harness import PalHarness
+        from voicefi.integrations.pal_harness import PalHarness
+        from voicefi.stt.biasing import PhoneticNormalizer
 
-                norm_prompt = PhoneticNormalizer.normalize(prompt.strip())
-                norm_lower = norm_prompt.lower()
+        norm_prompt = PhoneticNormalizer.normalize(raw_prompt.strip())
+        norm_lower = norm_prompt.lower()
 
-                # 1. Training Start Check
-                start_train_match = re.match(
-                    r"^(?:start\s+training|watch\s+me(?:\s+do)?|record\s+workflow|learn\s+how\s+to)\s+(?:a\s+|the\s+)?(.+)$",
+        try:
+            # 0. Creative Partner (✨ Channel) Intent Check ("Hey Brok, channel mode" / "Hey Brok, channel this: ...")
+            chan_intent, chan_body = self._parse_channel_voice_intent(norm_prompt)
+            if chan_intent == "open_session":
+                if overlay:
+                    overlay.hide()
+                threading.Timer(
+                    0.08,
+                    lambda: self.trigger_desktop_channel_session(persona_tag=persona_tag),
+                ).start()
+                return
+            elif chan_intent == "direct_channel" and chan_body:
+                self._execute_desktop_channel_from_text(
+                    chan_body, persona_tag=persona_tag, hud=hud, overlay=overlay
+                )
+                return
+
+            # 1. Training Start Check
+            start_train_match = re.match(
+                r"^(?:start\s+training|watch\s+me(?:\s+do)?|record\s+workflow|learn\s+how\s+to)\s+(?:a\s+|the\s+)?(.+)$",
+                norm_lower,
+                re.IGNORECASE,
+            )
+            if start_train_match:
+                wf_name = start_train_match.group(1).strip()
+
+                def _on_step_callback(step):
+                    try:
+                        trainer = PalHarness.get_active_trainer()
+                        elapsed = time.time() - trainer.start_time if trainer else 0.0
+                        hud.update_training_step(
+                            step_count=step.step_number,
+                            last_action=step.spoken_summary,
+                            elapsed_seconds=elapsed,
+                        )
+                    except Exception:
+                        pass
+
+                res = PalHarness.start_training(wf_name, on_step=_on_step_callback)
+                if self.config.audio_cues.enabled:
+                    play_chime("start", block=False)
+                hud.set_training(wf_name)
+                if overlay:
+                    overlay.show_screen_perimeter(
+                        color_type="training", badge_text=f"Pal: {wf_name[:12]}"
+                    )
+                try:
+                    rumps.notification(
+                        "VoiceFi • Pal Training", f"Recording '{wf_name}'", res.spoken_summary
+                    )
+                except Exception:
+                    pass
+                return
+
+            # 2. Active Training Session Commands
+            if PalHarness.is_training_active():
+                if re.match(
+                    r"^(?:stop\s+training|done\s+training|finish\s+training|stop\s+watching|save\s+workflow)$",
                     norm_lower,
                     re.IGNORECASE,
-                )
-                if start_train_match:
-                    wf_name = start_train_match.group(1).strip()
-
-                    def _on_step_callback(step):
-                        try:
-                            trainer = PalHarness.get_active_trainer()
-                            elapsed = time.time() - trainer.start_time if trainer else 0.0
-                            hud.update_training_step(
-                                step_count=step.step_number,
-                                last_action=step.spoken_summary,
-                                elapsed_seconds=elapsed,
-                            )
-                        except Exception:
-                            pass
-
-                    res = PalHarness.start_training(wf_name, on_step=_on_step_callback)
+                ):
+                    res = PalHarness.stop_training()
                     if self.config.audio_cues.enabled:
-                        play_chime("start", block=False)
-                    hud.set_training(wf_name)
+                        play_chime("done", block=False)
+                    hud.show_done(preview_text=res.spoken_summary[:35])
                     if overlay:
-                        overlay.show_screen_perimeter(
-                            color_type="training", badge_text=f"Pal: {wf_name[:12]}"
-                        )
+                        overlay.hide()
                     try:
                         rumps.notification(
-                            "VoiceFi • Pal Training", f"Recording '{wf_name}'", res.spoken_summary
+                            "VoiceFi • Pal Workflow Saved", res.spoken_summary, ""
                         )
                     except Exception:
                         pass
                     return
 
-                # 2. Active Training Session Commands
-                if PalHarness.is_training_active():
-                    if re.match(
-                        r"^(?:stop\s+training|done\s+training|finish\s+training|stop\s+watching|save\s+workflow)$",
-                        norm_lower,
-                        re.IGNORECASE,
-                    ):
-                        res = PalHarness.stop_training()
-                        if self.config.audio_cues.enabled:
-                            play_chime("done", block=False)
-                        hud.show_done(preview_text=res.spoken_summary[:35])
-                        if overlay:
-                            overlay.hide()
-                        try:
-                            rumps.notification(
-                                "VoiceFi • Pal Workflow Saved", res.spoken_summary, ""
-                            )
-                        except Exception:
-                            pass
-                        return
-
-                    if re.match(
-                        r"^(?:cancel\s+training|abort\s+training|discard\s+training)$",
-                        norm_lower,
-                        re.IGNORECASE,
-                    ):
-                        res = PalHarness.cancel_training()
-                        if self.config.audio_cues.enabled:
-                            play_chime(self.config.audio_cues.error_chime or "error", block=False)
-                        hud.set_idle()
-                        if overlay:
-                            overlay.hide()
-                        return
-
-                    # Spoken intent during training - record as voice annotation and execute if actionable
-                    PalHarness.record_voice_annotation(norm_prompt)
-                    res = PalHarness.execute_command(norm_prompt)
-                    trainer = PalHarness.get_active_trainer()
-                    elapsed = time.time() - trainer.start_time if trainer else 0.0
-                    hud.update_training_step(
-                        step_count=len(trainer.recorder.steps) if trainer else 1,
-                        last_action=res.spoken_summary,
-                        elapsed_seconds=elapsed,
-                    )
+                if re.match(
+                    r"^(?:cancel\s+training|abort\s+training|discard\s+training)$",
+                    norm_lower,
+                    re.IGNORECASE,
+                ):
+                    res = PalHarness.cancel_training()
+                    if self.config.audio_cues.enabled:
+                        play_chime(self.config.audio_cues.error_chime or "error", block=False)
+                    hud.set_idle()
+                    if overlay:
+                        overlay.hide()
                     return
 
-                # 3. Standard Pal Command or Workflow Execution
-                hud.set_hearing(user_name="Pal (Mac OS)")
-                if overlay:
-                    overlay.show_screen_perimeter(color_type="hearing")
-                time.sleep(0.1)
+                # Spoken intent during training - record as voice annotation and execute if actionable
+                PalHarness.record_voice_annotation(norm_prompt)
+                res = PalHarness.execute_command(norm_prompt, persona=persona_tag)
+                trainer = PalHarness.get_active_trainer()
+                elapsed = time.time() - trainer.start_time if trainer else 0.0
+                hud.update_training_step(
+                    step_count=len(trainer.recorder.steps) if trainer else 1,
+                    last_action=res.spoken_summary,
+                    elapsed_seconds=elapsed,
+                )
+                return
 
-                res = PalHarness.execute_command(norm_prompt)
+            # 3. Two-Speed Brain / LocalIntentRouter (Email, Two-Speed Handoff, Vision, Commands)
+            hud.set_working(agent_name=label_tag, tool_action=norm_prompt[:45])
+            time.sleep(0.05)
+
+            def _get_persona_tts():
+                from voicefi.tts import get_tts_engine
+
+                base_provider = str(
+                    getattr(getattr(self.config, "tts", None), "provider", "kokoro") or "kokoro"
+                ).lower()
+                if persona_tag == "brok":
+                    v_override = "am_puck" if base_provider == "kokoro" else "Puck"
+                    return get_tts_engine(
+                        self.config, agent_name="brok", voice_override=v_override
+                    )
+                v_override = "am_liam" if base_provider == "kokoro" else None
+                return get_tts_engine(
+                    self.config, agent_name="pal", voice_override=v_override
+                )
+
+            t_pal_start = time.monotonic()
+
+            # 2.5 Tier 0 Fast-Path: Deterministic OS Commands (sub-15ms execution, e.g. "open Spotify", "open Chrome", "mute", "volume 50")
+            if PalHarness.is_deterministic_os_command(norm_prompt):
+                res = PalHarness.execute_command(norm_prompt, persona=persona_tag)
+                spoken_result = res.spoken_summary or ""
                 if self.config.audio_cues.enabled:
                     chime = (
                         self.config.audio_cues.sent_chime
@@ -3665,86 +4644,488 @@ class VoiceFiTrayApp(_TrayAppBase):
                     )
                     play_chime(chime or "done", block=False)
                 hud.show_done(preview_text=res.spoken_summary[:30])
-                if overlay:
-                    overlay.hide()
+
                 try:
                     rumps.notification(
-                        "VoiceFi • Pal Computer Use",
+                        "VoiceFi",
                         f"Action: {res.action_type}",
                         res.spoken_summary,
                     )
                 except Exception:
                     pass
-            else:
-                hud.set_hearing(user_name="Pal (Ready)")
-                if overlay:
-                    overlay.show_screen_perimeter(color_type="hearing")
-                if self.config.audio_cues.enabled:
-                    play_chime("start", block=False)
-            return
 
-        is_claude = "claude" in phrase_lower or any(
-            k in phrase_lower for k in ("claud", "clod", "clawed", "glenn", "hague")
-        )
-        target_engine = "claude" if is_claude else "antigravity"
+                if getattr(res, "should_speak", False) and res.spoken_summary:
+                    try:
+                        tts = _get_persona_tts()
+                        tts.speak(res.spoken_summary, block=True)
+                    except Exception as e:
+                        print(f"[VoiceFi] Pal/Brok TTS error: {e}")
 
-        hud = UnifiedDynamicIslandHUD.get_instance()
-        active_conv = (
-            self.watcher.tracker.get_active_or_latest(engine=target_engine)
-            if self.watcher
-            else None
-        )
-        conv_id = active_conv.id if active_conv else None
-
-        if prompt and len(prompt.strip()) >= 3:
-            from voicefi.stt.biasing import PhoneticNormalizer
-
-            norm_prompt = PhoneticNormalizer.normalize(prompt.strip())
-
-            hud.set_hearing(
-                user_name="Claude" if is_claude else getattr(self.config, "user_name", "Developer")
-            )
-            time.sleep(0.2)
-
-            def _send_action(payload_text: str):
-                send_message_to_agent(
-                    conv_id=conv_id,
-                    text=payload_text,
-                    sender_name=f"{self.config.user_name} (Voice)",
-                    target_engine=target_engine,
-                    use_headless=True if is_claude else None,
-                )
-                if self.config.audio_cues.enabled:
-                    play_chime(self.config.audio_cues.sent_chime, block=False)
+                # Record turn into Local Model session
                 try:
-                    title = (
-                        active_conv.title
-                        if active_conv
-                        else ("Claude Code" if is_claude else "Antigravity")
+                    from voicefi.integrations.conversations import save_gemma_turn
+                    import uuid
+
+                    pal_duration_s = round(time.monotonic() - t_pal_start, 2)
+                    if not getattr(self, "_active_pal_conv_id", None):
+                        self._active_pal_conv_id = str(uuid.uuid4())
+                    save_gemma_turn(
+                        conv_id=self._active_pal_conv_id,
+                        user_text=norm_prompt,
+                        agent_text=spoken_result,
+                        model="pal-deterministic",
+                        title=f"{label_tag}: {norm_prompt[:35]}",
+                        duration_s=pal_duration_s,
+                        mode="chat",
+                        origin="mac_voice",
                     )
+                except Exception as t_err:
+                    print(f"[VoiceFi] Pal telemetry record notice: {t_err}")
+
+                return
+
+            router = None
+            router_res = {"status": "unhandled"}
+
+            # Only run LocalIntentRouter for Pal ("Hey Pal") so Brok ("Hey Brok") always stays in its playful Grok-style persona
+            if persona_tag != "brok":
+                try:
+                    from voicefi.local.intent import LocalIntentRouter
+
+                    router = LocalIntentRouter(config=self.config)
+                    router_res = router.route_prompt(norm_prompt, use_local_model=True)
+                except Exception as r_err:
+                    print(f"[VoiceFi] LocalIntentRouter fallback notice: {r_err}")
+                    router = None
+                    router_res = {"status": "unhandled"}
+
+            spoken_result = ""
+            if router_res.get("status", "").startswith("handled_"):
+                spoken = router_res.get("spoken_response", "")
+                spoken_result = spoken
+                if self.config.audio_cues.enabled:
+                    play_chime("done", block=False)
+                hud.show_done(preview_text=spoken[:30])
+                try:
                     rumps.notification(
-                        f"VoiceFi • {title[:30]}", f"Prompt Sent via '{phrase}'", payload_text[:80]
+                        "VoiceFi",
+                        f"Action: {router_res.get('target', 'done')}",
+                        spoken,
+                    )
+                except Exception:
+                    pass
+                if spoken:
+                    try:
+                        tts = _get_persona_tts()
+                        tts.speak(spoken, block=True)
+                    except Exception as e:
+                        print(f"[VoiceFi] Pal/Brok TTS error: {e}")
+            else:
+                # 4. Pal OS Automation / Brok Grok-Style Sidekick Execution
+                res = PalHarness.execute_command(norm_prompt, persona=persona_tag)
+                spoken_result = res.spoken_summary or ""
+                if self.config.audio_cues.enabled:
+                    chime = (
+                        self.config.audio_cues.sent_chime
+                        if res.success
+                        else self.config.audio_cues.error_chime
+                    )
+                    play_chime(chime or "done", block=False)
+                hud.show_done(preview_text=res.spoken_summary[:30])
+
+                try:
+                    rumps.notification(
+                        "VoiceFi",
+                        f"Action: {res.action_type}",
+                        res.spoken_summary,
                     )
                 except Exception:
                     pass
 
-            is_auto_send = getattr(getattr(self.config, "hud", None), "auto_send", True) and (
-                getattr(self.config.claude, "auto_send", True)
-                if is_claude
-                else getattr(self.config.antigravity, "auto_send", True)
-            )
-            if is_auto_send:
-                _send_action(norm_prompt)
-                hud.show_done(preview_text=norm_prompt[:25])
-            else:
-                target_name = (
-                    active_conv.title[:20]
-                    if (active_conv and active_conv.title)
-                    else ("Claude" if is_claude else "Antigravity")
+                if getattr(res, "should_speak", False) and res.spoken_summary:
+                    try:
+                        tts = _get_persona_tts()
+                        tts.speak(res.spoken_summary, block=True)
+                    except Exception as e:
+                        print(f"[VoiceFi] Pal/Brok TTS error: {e}")
+
+            # Always record turn into Local Model session (~/.voicefi/sessions/gemma/ & Companion Local tab)
+            try:
+                from voicefi.integrations.conversations import save_gemma_turn
+
+                pal_duration_s = round(time.monotonic() - t_pal_start, 2)
+                if not getattr(self, "_active_pal_conv_id", None):
+                    self._active_pal_conv_id = f"gemma_{int(time.time())}"
+                pal_cid = self._active_pal_conv_id
+                local_model_name = (
+                    getattr(getattr(router, "engine", None), "model_name", None)
+                    or getattr(getattr(self.config, "local_model", None), "model_name", None)
+                    or "voicefi-coder:1.5b"
                 )
-                hud.set_editing(norm_prompt, on_submit=_send_action, target_name=target_name)
-        else:
-            self.trigger_talk_to_antigravity(target_engine=target_engine)
+                save_gemma_turn(
+                    conv_id=pal_cid,
+                    user_text=norm_prompt,
+                    agent_text=spoken_result,
+                    model=local_model_name,
+                    title=f"Pal: {norm_prompt[:35]}",
+                    duration_s=pal_duration_s,
+                    mode="chat",
+                    origin="mac_voice",
+                )
+                if hasattr(self, "server") and self.server:
+                    self.server.broadcast_event(
+                        {
+                            "type": "user_command_injected",
+                            "text": norm_prompt,
+                            "target": f"Local ({local_model_name})",
+                            "origin": "mac_voice",
+                            "conv_id": pal_cid,
+                            "engine": "gemma",
+                        }
+                    )
+                    self.server.broadcast_event(
+                        {
+                            "type": "agent_response",
+                            "engine": "gemma",
+                            "avatar": "🧠",
+                            "text": spoken_result,
+                            "conv_id": pal_cid,
+                            "model": local_model_name,
+                            "mode": "chat",
+                            "duration_s": pal_duration_s,
+                        }
+                    )
+                    self.server.broadcast_event(
+                        {
+                            "type": "turn_completed",
+                            "conv_id": pal_cid,
+                            "title": f"Pal: {norm_prompt[:35]}",
+                            "engine": "gemma",
+                            "agent_role": persona_tag,
+                            "text": spoken_result,
+                        }
+                    )
+            except Exception as conv_err:
+                print(f"[VoiceFi] Notice saving Pal local turn: {conv_err}")
+        finally:
+            if overlay:
+                overlay.hide()
+            try:
+                from voicefi.tts.base import set_mic_recording
+
+                set_mic_recording(False)
+            except Exception:
+                pass
+
+    def trigger_talk_to_pal(
+        self,
+        persona_tag: str = "pal",
+        ptt_mode: bool = False,
+        from_wakeword: bool = False,
+        wake_phrase: Optional[str] = None,
+        initial_prompt: str = "",
+        initial_audio: Optional[Any] = None,
+        is_streaming_prefix: bool = False,
+    ):
+        """Record voice prompt or directly dispatch for Pal / Brok local workflow engine without stealing focus."""
+        with self._listen_lock:
+            prev_rec = None
+            if from_wakeword:
+                if self.active_recorder:
+                    prev_rec = self.active_recorder
+                    if hasattr(self.active_recorder, "cancel"):
+                        self.active_recorder.cancel()
+                    else:
+                        self.active_recorder.stop()
+                self._last_wake_session_start = time.time()
+            else:
+                if self._current_status in ("listening", "hearing", "ptt_listening"):
+                    self.finish_active_recording(reason="pal_toggle_off")
+                    return
+                if self._current_status in ("transcribing", "paused_agent_speaking"):
+                    return
+            self._current_status = "listening"
+
+        if prev_rec is not None:
+            closed_evt = getattr(prev_rec, "_stream_closed_event", None)
+            if closed_evt is not None:
+                closed_evt.wait(timeout=0.6)
+
+        self._recording_cancelled = False
+        label_tag = "Brok" if persona_tag == "brok" else "Pal"
+        short_app = label_tag
+        self._active_listen_label = label_tag
+        source_tag = (
+            f"Wake Word ('{wake_phrase}')"
+            if (from_wakeword and wake_phrase)
+            else ("Wake Word" if from_wakeword else label_tag)
+        )
+        print(f"[VoiceFi] 🎙️ Triggered Talk to {label_tag} (persona={persona_tag})")
+
+        stop_all_speech()
+        if self.watcher:
+            self.watcher.interrupt(notify_idle=False)
+
+        hud = UnifiedDynamicIslandHUD.get_instance()
+
+        overlay = None
+        try:
+            from voicefi.ui.screen_highlight import PalHighlightOverlay
+
+            overlay = PalHighlightOverlay.get_instance()
+        except Exception:
+            overlay = None
+
+        # ⚡ Direct Fast-Path: Wake word already captured a complete command (no streaming prefix, >=2 chars)
+        # Execute immediately with zero microphone delay and zero dead-air re-transcription!
+        if from_wakeword and initial_prompt and len(initial_prompt.strip()) >= 2 and not is_streaming_prefix:
+            clean_cmd = initial_prompt.strip()
+            print(f"[VoiceFi] ⚡ Direct Pal/Brok fast-path dispatch: '{clean_cmd}' (persona={persona_tag})")
+            self._current_status = "transcribing"
+            if overlay:
+                overlay.show_screen_perimeter(color_type="voicefi", max_duration_s=15.0)
+            hud.set_working(agent_name=label_tag, tool_action=clean_cmd[:45])
+
+            def _fast_worker():
+                if self.wakeword_listener:
+                    self.wakeword_listener.pause()
+                try:
+                    self._dispatch_pal_intent(
+                        clean_cmd,
+                        persona_tag=persona_tag,
+                        label_tag=label_tag,
+                        hud=hud,
+                        overlay=overlay,
+                    )
+                except Exception as e:
+                    print(f"[VoiceFi] Direct Pal dispatch error: {e}", flush=True)
+                    hud.set_idle() if hud.persistent else hud.hide()
+                finally:
+                    self._current_status = "idle"
+                    self._active_listen_label = None
+                    try:
+                        from voicefi.tts.base import set_mic_recording
+
+                        set_mic_recording(False)
+                    except Exception:
+                        pass
+                    if overlay:
+                        overlay.hide()
+                    if self.wakeword_listener and getattr(
+                        getattr(self.config, "wakeword", None), "enabled", True
+                    ):
+                        self.wakeword_listener.resume()
+
+            threading.Thread(target=_fast_worker, daemon=True, name="PalFastWorker").start()
+            return
+
+        try:
+            from voicefi.tts.base import set_mic_recording
+
+            set_mic_recording(True, state="listening", agent_name=label_tag)
+        except Exception:
+            pass
+
+        hud.set_listening(
+            prompt_preview=initial_prompt or "",
+            user_name=label_tag,
+            live_stream=bool(initial_prompt),
+            source=source_tag,
+            app_name=short_app,
+            agent_name=label_tag,
+        )
+
+        if overlay:
+            overlay.show_screen_perimeter(color_type="voicefi", max_duration_s=20.0)
+
+        self._ptt_stop_event = threading.Event()
+
+        def _worker():
+            temp_wav = None
+            if self.wakeword_listener:
+                self.wakeword_listener.pause()
+            try:
+                stop_all_speech()
+                if not from_wakeword:
+                    if self.config.audio_cues.enabled:
+                        play_chime("start", block=False)
+                    time.sleep(0.08)
+
+                eff_silence = (
+                    0.7
+                    if (from_wakeword and initial_prompt and initial_prompt.strip())
+                    else min(1.2, max(0.9, float(self.config.vad.silence_duration)))
+                )
+
+                recorder = AudioRecorder(
+                    sample_rate=self.config.vad.sample_rate,
+                    energy_threshold=self.config.vad.energy_threshold,
+                    silence_duration=eff_silence,
+                )
+                self.active_recorder = recorder
+
+                def _on_pause(is_paused: bool):
+                    if is_paused:
+                        self._current_status = "paused_agent_speaking"
+                        hud.show_paused("⏸️ Paused...", app_name=short_app)
+                    else:
+                        self._current_status = "listening"
+                        hud.set_listening(
+                            user_name=label_tag,
+                            source=source_tag,
+                            app_name=short_app,
+                            agent_name=label_tag,
+                        )
+
+                def _on_speech_start():
+                    self._current_status = "hearing"
+                    hud.set_hearing(
+                        prompt_preview=initial_prompt or "",
+                        user_name=label_tag,
+                        source=source_tag,
+                        app_name=short_app,
+                        agent_name=label_tag,
+                    )
+
+                def _on_live(txt: str):
+                    hud.update_live_transcription(txt, user_name=label_tag)
+
+                def _on_tick(energy: float, conf: float = 0.0, is_spk: bool = False):
+                    hud.update_audio_level(energy, conf, is_spk)
+
+                if ptt_mode:
+                    audio_data, temp_wav = recorder.record_push_to_talk(
+                        stop_event=self._ptt_stop_event,
+                        on_pause_change=_on_pause,
+                        on_live_transcript=_on_live,
+                        on_listening_tick=_on_tick,
+                        ptt_release_delay_ms=self.config.vad.ptt_release_delay_ms,
+                    )
+                else:
+                    audio_data, temp_wav = recorder.record_speech_auto(
+                        on_speech_start=_on_speech_start,
+                        on_pause_change=_on_pause,
+                        on_live_transcript=_on_live,
+                        on_listening_tick=_on_tick,
+                        stop_event=self._ptt_stop_event,
+                        cancel_on_typing=False,
+                        timeout=7.0 if from_wakeword else None,
+                        initial_audio=initial_audio,
+                        initial_prompt_preview=initial_prompt or None,
+                        agent_name=label_tag,
+                        keep_wakeword_paused=True,
+                    )
+
+                self.active_recorder = None
+
+                if getattr(self, "_recording_cancelled", False) or getattr(
+                    recorder, "cancelled", False
+                ):
+                    self._current_status = "idle"
+                    if overlay:
+                        overlay.hide()
+                    if hud.persistent:
+                        hud.set_idle()
+                    else:
+                        hud.hide()
+                    return
+
+                if temp_wav and Path(temp_wav).is_file():
+                    self._current_status = "transcribing"
+                    hud.show_transcribing(app_name=short_app)
+                    print(
+                        f"[VoiceFi] 🎙️ Pal captured audio ({temp_wav}), transcribing with STT...",
+                        flush=True,
+                    )
+                    stt = get_stt_engine(self.config)
+                    pal_stt_prompt = (
+                        "Voice commands: Open Spotify, Open Chrome, Open Safari, Open Slack, "
+                        "Open Terminal, Open Finder, mute, unmute, volume, screenshot, search, "
+                        "what time is it, weather, channel mode."
+                    )
+                    text = stt.transcribe(temp_wav, prompt=pal_stt_prompt)
+                    print(f"[VoiceFi] 🎙️ Pal transcribed: '{text}'", flush=True)
+                else:
+                    text = ""
+
+                if getattr(self, "_recording_cancelled", False):
+                    self._current_status = "idle"
+                    if overlay:
+                        overlay.hide()
+                    if hud.persistent:
+                        hud.set_idle()
+                    else:
+                        hud.hide()
+                    return
+
+                if text and text.strip():
+                    try:
+                        from voicefi.integrations.active_listening import ActiveListeningEngine
+
+                        mw, stripped = ActiveListeningEngine.extract_wakeword_and_prompt(text)
+                        if mw:
+                            text = stripped
+                    except Exception:
+                        pass
+                    try:
+                        from voicefi.stt.whisper_local import WhisperLocalSTT
+
+                        text = WhisperLocalSTT.filter_hallucinations(text)
+                    except Exception:
+                        pass
+
+                if initial_prompt and initial_prompt.strip():
+                    clean_init = initial_prompt.strip()
+                    if not text or not text.strip():
+                        text = clean_init
+                    elif not text.strip().lower().startswith(clean_init.lower()):
+                        text = f"{clean_init} {text.strip()}".strip()
+
+                if text and text.strip():
+                    self._dispatch_pal_intent(
+                        text.strip(),
+                        persona_tag=persona_tag,
+                        label_tag=label_tag,
+                        hud=hud,
+                        overlay=overlay,
+                    )
+                else:
+                    self._current_status = "idle"
+                    if overlay:
+                        overlay.hide()
+                    if hud.persistent:
+                        hud.set_idle()
+                    else:
+                        hud.hide()
+            except Exception as e:
+                print(f"[VoiceFi] Error during Pal voice capture: {e}")
+                self._current_status = "idle"
+                if overlay:
+                    overlay.hide()
+                if hud.persistent:
+                    hud.set_idle()
+                else:
+                    hud.hide()
+            finally:
+                if temp_wav and isinstance(temp_wav, Path):
+                    temp_wav.unlink(missing_ok=True)
+                self.active_recorder = None
+                self._current_status = "idle"
+                self._active_listen_label = None
+                try:
+                    from voicefi.tts.base import set_mic_recording
+
+                    set_mic_recording(False)
+                except Exception:
+                    pass
+                if overlay:
+                    overlay.hide()
+                if self.wakeword_listener and getattr(
+                    getattr(self.config, "wakeword", None), "enabled", True
+                ):
+                    self.wakeword_listener.resume()
+
+        threading.Thread(target=_worker, daemon=True).start()
 
     def _build_turn_end_mode_submenu(self):
         self._safe_clear(self.turn_end_mode_menu)
@@ -3955,26 +5336,94 @@ class VoiceFiTrayApp(_TrayAppBase):
 
         webbrowser.open("https://voicefi.org#pricing")
 
-    def trigger_manual_listen(self, ptt_mode: bool = False):
+    def trigger_manual_listen(
+        self,
+        ptt_mode: bool = False,
+        from_wakeword: bool = False,
+        wake_phrase: Optional[str] = None,
+        initial_prompt: str = "",
+        initial_audio: Optional[Any] = None,
+    ):
         with self._listen_lock:
             now = time.time()
-            if self._current_status in ("listening", "hearing", "ptt_listening"):
-                # Prevent rapid mouse double-click or button bounce from instantly cancelling dictation
-                if (now - getattr(self, "_recording_start_time", 0.0)) >= 0.5:
-                    self.finish_active_recording()
-                return
-            if self._current_status in ("transcribing", "paused_agent_speaking"):
-                return
+            if from_wakeword:
+                if (
+                    self._current_status in ("listening", "hearing", "ptt_listening")
+                    and (now - getattr(self, "_last_wake_session_start", 0.0)) < 1.5
+                ):
+                    return
+                if self.active_recorder:
+                    if hasattr(self.active_recorder, "cancel"):
+                        self.active_recorder.cancel()
+                    else:
+                        self.active_recorder.stop()
+                self._last_wake_session_start = now
+            else:
+                if self._current_status in ("listening", "hearing", "ptt_listening"):
+                    # Prevent rapid mouse double-click or button bounce from instantly cancelling dictation
+                    if (now - getattr(self, "_recording_start_time", 0.0)) >= 0.3:
+                        self.finish_active_recording(reason="manual_listen_toggle_off")
+                    return
+                if self._current_status in ("transcribing", "paused_agent_speaking"):
+                    return
             self._recording_start_time = now
             self._current_status = "ptt_listening" if ptt_mode else "listening"
 
+        self._recording_cancelled = False
+        dict_app_label = "VoiceFi"
+        try:
+            from AppKit import NSWorkspace
+
+            front_app = NSWorkspace.sharedWorkspace().frontmostApplication()
+            if front_app and front_app.localizedName():
+                fname = str(front_app.localizedName()).strip()
+                if fname and fname.lower() not in ("python", "python3", "voicefi"):
+                    dict_app_label = f"VoiceFi › {fname}" if len(fname) <= 12 else "VoiceFi"
+        except Exception:
+            pass
+        self._active_listen_label = "VoiceFi"
+        source_tag = (
+            f"Wake Word ('{wake_phrase}')"
+            if (from_wakeword and wake_phrase)
+            else ("Wake Word" if from_wakeword else "Dictation")
+        )
+
         hud = UnifiedDynamicIslandHUD.get_instance()
         if self.config.global_hotkey.show_dictation_hud:
-            hud.set_listening(user_name=getattr(self.config, "user_name", "Jake"))
+            hud.set_listening(
+                prompt_preview=initial_prompt or "",
+                user_name=getattr(self.config, "user_name", "Jake"),
+                live_stream=bool(initial_prompt),
+                source=source_tag,
+                app_name="VoiceFi",
+                agent_name=dict_app_label,
+            )
+        else:
+            try:
+                from voicefi.ui.mic_pill import TopBarMicIndicatorPill
+
+                TopBarMicIndicatorPill.get_instance().show(
+                    state="listening",
+                    app_name="VoiceFi",
+                    agent_name=dict_app_label,
+                    source=source_tag,
+                )
+            except Exception:
+                pass
+
+        overlay = None
+        if from_wakeword:
+            try:
+                from voicefi.ui.screen_highlight import PalHighlightOverlay
+
+                overlay = PalHighlightOverlay.get_instance()
+                overlay.show_screen_perimeter(color_type="voicefi", max_duration_s=10.0)
+            except Exception:
+                overlay = None
 
         stop_all_speech()
         if self.watcher:
-            self.watcher.interrupt()
+            self.watcher.interrupt(notify_idle=False)
 
         self._ptt_stop_event = threading.Event()
 
@@ -3983,33 +5432,71 @@ class VoiceFiTrayApp(_TrayAppBase):
             if self.wakeword_listener:
                 self.wakeword_listener.pause()
             try:
-                if self.config.audio_cues.enabled:
-                    play_chime("start", block=False)
-                time.sleep(0.25)
+                if not from_wakeword:
+                    start_chime = getattr(self.config.audio_cues, "start_chime", "")
+                    if self.config.audio_cues.enabled and start_chime:
+                        play_chime("start", block=False)
+                        time.sleep(0.10)
+
+                eff_silence = max(8.0, float(getattr(self.config.vad, "silence_duration", 8.0)))
+
+                autotyper = None
+                is_autotype_enabled = (
+                    getattr(getattr(self.config, "global_hotkey", None), "live_autotype", True)
+                    and getattr(getattr(self.config, "hud", None), "live_autotype", True)
+                )
+                if is_autotype_enabled and not os.environ.get("PYTEST_CURRENT_TEST"):
+                    try:
+                        from voicefi.integrations.injector import LiveAutotyper
+
+                        autotyper = LiveAutotyper(enabled=True)
+                        if initial_prompt and initial_prompt.strip():
+                            autotyper.update(initial_prompt.strip())
+                    except Exception:
+                        autotyper = None
+
+                self._active_autotyper = autotyper
 
                 recorder = AudioRecorder(
                     sample_rate=self.config.vad.sample_rate,
                     energy_threshold=self.config.vad.energy_threshold,
-                    silence_duration=self.config.vad.silence_duration,
+                    silence_duration=eff_silence,
                 )
                 self.active_recorder = recorder
 
                 def _on_pause(is_paused: bool):
                     if is_paused:
                         self._current_status = "paused_agent_speaking"
-                        hud.show_paused("⏸️ Agent Speaking (Paused)...")
+                        hud.show_paused("⏸️ Agent Speaking (Paused)...", app_name="VoiceFi")
                     else:
                         self._current_status = "ptt_listening" if ptt_mode else "listening"
-                        hud.set_listening(user_name=getattr(self.config, "user_name", "Jake"))
+                        hud.set_listening(
+                            user_name=getattr(self.config, "user_name", "Jake"),
+                            source=source_tag,
+                            app_name="VoiceFi",
+                            agent_name=dict_app_label,
+                        )
 
                 def _on_speech_start():
                     self._current_status = "hearing"
-                    hud.set_hearing(user_name=getattr(self.config, "user_name", "Jake"))
+                    hud.set_hearing(
+                        prompt_preview=initial_prompt or "",
+                        user_name=getattr(self.config, "user_name", "Jake"),
+                        source=source_tag,
+                        app_name="VoiceFi",
+                        agent_name=dict_app_label,
+                    )
 
                 def _on_live(txt: str):
-                    hud.update_live_transcription(
-                        txt, user_name=getattr(self.config, "user_name", "Jake")
-                    )
+                    clean_txt = re.sub(r"^(?:transcribe|talk\s*now)[\s,.:;!?-]*", "", txt, flags=re.IGNORECASE).strip()
+                    clean_txt = re.sub(r"(?i)[,\s]*(?:transcribe\s+done|stop\s+transcrib(?:ing|e)|done\s+transcribing|stop\s+dictat(?:ing|e))[.!?\s]*$", "", clean_txt).strip()
+                    if clean_txt:
+                        print(f"[VoiceFi] Dictation partial live: {repr(clean_txt)}", flush=True)
+                        hud.update_live_transcription(
+                            clean_txt, user_name=getattr(self.config, "user_name", "Jake")
+                        )
+                        if autotyper:
+                            autotyper.update(clean_txt)
 
                 def _on_tick(energy: float, conf: float = 0.0, is_spk: bool = False):
                     hud.update_audio_level(energy, conf, is_spk)
@@ -4030,41 +5517,137 @@ class VoiceFiTrayApp(_TrayAppBase):
                         on_listening_tick=_on_tick,
                         stop_event=self._ptt_stop_event,
                         cancel_on_typing=False,
+                        initial_audio=initial_audio,
+                        initial_prompt_preview=initial_prompt or None,
+                        agent_name="VoiceFi",
+                        is_dictation=True,
                     )
 
                 self.active_recorder = None
+                self._active_autotyper = None
+                if overlay:
+                    overlay.hide()
+
+                if getattr(self, "_recording_cancelled", False) or getattr(
+                    recorder, "cancelled", False
+                ):
+                    if autotyper:
+                        autotyper.cancel()
+                    self._current_status = "idle"
+                    if hud.persistent:
+                        hud.set_idle()
+                    else:
+                        hud.hide()
+                    return
+
+                if getattr(recorder, "stopped_by_enter", False):
+                    print(
+                        "[VoiceFi] ⌨️ Dictation cleanly finished by physical Enter key -> closing autotyper (text already submitted by user)",
+                        flush=True,
+                    )
+                    if autotyper:
+                        autotyper.close()
+                    self._current_status = "idle"
+                    hud.show_done(preview_text="Sent", app_name="VoiceFi")
+                    if hud.persistent:
+                        hud.set_idle()
+                    else:
+                        hud.hide()
+                    return
+
                 if temp_wav and Path(temp_wav).is_file():
                     self._current_status = "transcribing"
-                    hud.show_transcribing()
+                    hud.show_transcribing(app_name="VoiceFi")
                     stt = get_stt_engine(self.config)
                     text = stt.transcribe(temp_wav)
+                    print(f"[VoiceFi] Dictation full transcribed: {repr(text)}", flush=True)
                 else:
                     text = ""
+
+                if from_wakeword and text and text.strip():
+                    try:
+                        from voicefi.integrations.active_listening import ActiveListeningEngine
+
+                        mw, stripped = ActiveListeningEngine.extract_wakeword_and_prompt(text)
+                        if mw:
+                            text = stripped
+                    except Exception:
+                        pass
+                    text = re.sub(r"^(?:transcribe|talk\s*now)[\s,.:;!?-]*", "", text, flags=re.IGNORECASE).strip()
+                    text = re.sub(r"(?i)[,\s]*(?:transcribe\s+done|stop\s+transcrib(?:ing|e)|done\s+transcribing|stop\s+dictat(?:ing|e))[.!?\s]*$", "", text).strip()
+
+                if initial_prompt and initial_prompt.strip():
+                    clean_init = initial_prompt.strip()
+                    if not text or not text.strip():
+                        text = clean_init
+                    elif not text.strip().lower().startswith(clean_init.lower()):
+                        text = f"{clean_init} {text.strip()}".strip()
+
                 if text and text.strip():
-                    is_auto_send = getattr(getattr(self.config, "hud", None), "auto_send", True)
+                    try:
+                        from voicefi.stt.biasing import PhoneticNormalizer
 
-                    def _inject_action(payload_text: str):
-                        injected = inject_text_to_active_app(
-                            payload_text,
-                            submit_enter=False,
-                            preserve_clipboard=self.config.global_hotkey.preserve_clipboard,
-                        )
-                        if injected:
-                            hud.show_done(preview_text=payload_text[:20])
-                            if self.config.audio_cues.enabled:
-                                play_chime(self.config.audio_cues.sent_chime, block=False)
-                            try:
-                                rumps.notification("VoiceFi", "Transcribed", payload_text[:80])
-                            except Exception:
-                                pass
+                        text = PhoneticNormalizer.normalize(text.strip())
+                    except Exception:
+                        text = text.strip()
 
-                    if is_auto_send:
-                        _inject_action(text)
+                    from voicefi.integrations.injector import process_dictation_macros
+
+                    macro_text = process_dictation_macros(text)
+                    if macro_text is None:
+                        if autotyper:
+                            autotyper.cancel()
+                        hud.show_done(preview_text="Cancelled", app_name="VoiceFi")
+                        self._current_status = "idle"
+                        if hud.persistent:
+                            hud.set_idle()
+                        else:
+                            hud.hide()
+                        return
+                    text = macro_text
+
+                    print(
+                        f"[VoiceFi] Dictation final text: {repr(text)}, autotyper_has_typed={getattr(autotyper, 'has_typed', None)}",
+                        flush=True,
+                    )
+                    if autotyper and autotyper.has_typed:
+                        print(f"[VoiceFi] LiveAutotyper finishing with: {repr(text)}", flush=True)
+                        autotyper.finish(text, submit_enter=False)
+                        hud.show_done(preview_text=text[:20], app_name="VoiceFi")
+                        if self.config.audio_cues.enabled:
+                            play_chime(self.config.audio_cues.sent_chime, block=False)
+                        try:
+                            rumps.notification("VoiceFi", "Transcribed", text[:80])
+                        except Exception:
+                            pass
                     else:
-                        hud.set_editing(
-                            text, on_submit=_inject_action, target_name="Universal Dictation"
-                        )
+                        print(f"[VoiceFi] Fallback clipboard injecting: {repr(text)}", flush=True)
+                        is_auto_send = getattr(getattr(self.config, "hud", None), "auto_send", True)
+
+                        def _inject_action(payload_text: str):
+                            injected = inject_text_to_active_app(
+                                payload_text,
+                                submit_enter=False,
+                                preserve_clipboard=self.config.global_hotkey.preserve_clipboard,
+                            )
+                            if injected:
+                                hud.show_done(preview_text=payload_text[:20], app_name="VoiceFi")
+                                if self.config.audio_cues.enabled:
+                                    play_chime(self.config.audio_cues.sent_chime, block=False)
+                                try:
+                                    rumps.notification("VoiceFi", "Transcribed", payload_text[:80])
+                                except Exception:
+                                    pass
+
+                        if is_auto_send:
+                            _inject_action(text)
+                        else:
+                            hud.set_editing(
+                                text, on_submit=_inject_action, target_name="Universal Dictation"
+                            )
                 else:
+                    if autotyper:
+                        autotyper.cancel()
                     self._current_status = "idle"
                     if hud.persistent:
                         hud.set_idle()
@@ -4078,10 +5661,26 @@ class VoiceFiTrayApp(_TrayAppBase):
                 else:
                     hud.hide()
             finally:
+                if overlay:
+                    try:
+                        overlay.hide()
+                    except Exception:
+                        pass
                 if temp_wav and isinstance(temp_wav, Path):
                     temp_wav.unlink(missing_ok=True)
                 self.active_recorder = None
                 self._current_status = "idle"
+                self._active_listen_label = None
+                try:
+                    from voicefi.ui.mic_pill import TopBarMicIndicatorPill
+
+                    TopBarMicIndicatorPill.get_instance().hide()
+                except Exception:
+                    pass
+                if hasattr(self, "_fn_state"):
+                    self._fn_state["is_recording"] = False
+                if hasattr(self, "_ctrl_t_state"):
+                    self._ctrl_t_state["is_recording"] = False
                 if self.wakeword_listener and getattr(
                     getattr(self.config, "wakeword", None), "enabled", True
                 ):

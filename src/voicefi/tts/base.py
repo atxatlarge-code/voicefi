@@ -195,13 +195,16 @@ def set_cross_process_hud_state(
             elif ag_lower not in ("voicefi", ""):
                 resolved_app = agent_name.capitalize()
 
-        if not resolved_app:
+        resolved_conv_id = conv_id
+        if (not resolved_app or not resolved_conv_id) and not os.environ.get("PYTEST_CURRENT_TEST"):
             try:
                 from voicefi.integrations.conversations import load_session_cookie
 
                 cookie = load_session_cookie() or {}
+                if not resolved_conv_id:
+                    resolved_conv_id = cookie.get("conv_id") or cookie.get("conversationId")
                 c_eng = cookie.get("app_name") or cookie.get("engine")
-                if c_eng:
+                if not resolved_app and c_eng:
                     c_str = str(c_eng).lower().strip()
                     if c_str in ("codex", "openai_codex"):
                         resolved_app = "Codex"
@@ -227,7 +230,7 @@ def set_cross_process_hud_state(
             "tag_text": tag_text or "",
             "live_stream": live_stream,
             "app_name": resolved_app or "",
-            "conv_id": conv_id or "",
+            "conv_id": resolved_conv_id or "",
         }
         HUD_STATE_STATUS_FILE.write_text(json.dumps(payload))
     except Exception:
@@ -315,6 +318,16 @@ def set_agent_speaking(
                 elif ag_lower not in ("voicefi", ""):
                     speaking_app = agent_name.capitalize()
 
+            resolved_conv_id = conv_id
+            if not resolved_conv_id and not os.environ.get("PYTEST_CURRENT_TEST"):
+                try:
+                    from voicefi.integrations.conversations import load_session_cookie
+
+                    cookie = load_session_cookie() or {}
+                    resolved_conv_id = cookie.get("conv_id") or cookie.get("conversationId")
+                except Exception:
+                    pass
+
             if is_live and not tag_text:
                 tag_text = "● LIVE"
 
@@ -325,7 +338,7 @@ def set_agent_speaking(
                 "agent_name": agent_name or "VoiceFi",
                 "persona_name": persona_name or "Viv",
                 "app_name": speaking_app or "",
-                "conv_id": conv_id or "",
+                "conv_id": resolved_conv_id or "",
                 "workspace_path": workspace_path or "",
                 "tag_text": tag_text or "",
                 "is_live": is_live,
@@ -339,7 +352,7 @@ def set_agent_speaking(
                 agent_name=agent_name or "VoiceFi",
                 persona_name=persona_name or "Viv",
                 app_name=speaking_app or "",
-                conv_id=conv_id or "",
+                conv_id=resolved_conv_id or "",
                 tag_text=tag_text,
                 live_stream=is_live,
             )
@@ -881,6 +894,22 @@ _LOCAL_STATE = threading.local()
 
 _ESCAPE_MONITOR_DEPTH = 0
 _ESCAPE_MONITOR_LOCK = threading.Lock()
+_GLOBAL_HOTKEY_LISTENER_ACTIVE = False
+
+
+def is_tray_hotkey_listener_active() -> bool:
+    """Return True if the main menu bar tray process is active and owning the singleListenOnly CGEventTap."""
+    if os.environ.get("PYTEST_CURRENT_TEST") or "pytest" in sys.modules:
+        return False
+    if _GLOBAL_HOTKEY_LISTENER_ACTIVE:
+        return True
+    try:
+        owner_file = Path("/tmp/voicefi_hud_owner.json")
+        if owner_file.is_file():
+            return True
+    except Exception:
+        pass
+    return False
 
 
 @contextmanager
@@ -918,84 +947,85 @@ def escape_to_stop_speech(
 
     listener = None
     last_tab_time = [0.0]
-    try:
-        from pynput import keyboard
+    if not is_tray_hotkey_listener_active():
+        try:
+            from pynput import keyboard
 
-        modifiers = set()
+            modifiers = set()
 
-        def _on_press(key):
-            try:
-                vk = getattr(key, "vk", None)
-                if key in (
-                    keyboard.Key.alt,
-                    keyboard.Key.alt_l,
-                    keyboard.Key.alt_r,
-                    keyboard.Key.alt_gr,
-                ) or vk in (58, 61):
-                    modifiers.add("alt")
-                if key in (keyboard.Key.cmd, keyboard.Key.cmd_l, keyboard.Key.cmd_r) or vk in (
-                    54,
-                    55,
-                ):
-                    modifiers.add("cmd")
-                if key in (keyboard.Key.ctrl, keyboard.Key.ctrl_l, keyboard.Key.ctrl_r) or vk in (
-                    59,
-                    62,
-                ):
-                    modifiers.add("ctrl")
+            def _on_press(key):
+                try:
+                    vk = getattr(key, "vk", None)
+                    if key in (
+                        keyboard.Key.alt,
+                        keyboard.Key.alt_l,
+                        keyboard.Key.alt_r,
+                        keyboard.Key.alt_gr,
+                    ) or vk in (58, 61):
+                        modifiers.add("alt")
+                    if key in (keyboard.Key.cmd, keyboard.Key.cmd_l, keyboard.Key.cmd_r) or vk in (
+                        54,
+                        55,
+                    ):
+                        modifiers.add("cmd")
+                    if key in (keyboard.Key.ctrl, keyboard.Key.ctrl_l, keyboard.Key.ctrl_r) or vk in (
+                        59,
+                        62,
+                    ):
+                        modifiers.add("ctrl")
 
-                if is_escape_key(key):
-                    stop_all_speech()
-                    try:
-                        from voicefi.telemetry import capture_barge_in_event
+                    if is_escape_key(key):
+                        stop_all_speech()
+                        try:
+                            from voicefi.telemetry import capture_barge_in_event
 
-                        capture_barge_in_event(device_type="keyboard_esc", is_full_duplex=False)
-                    except Exception:
-                        pass
-                elif is_option_tab_event(key, modifiers):
-                    now = time.time()
-                    if (now - last_tab_time[0]) >= 0.35:
-                        last_tab_time[0] = now
-                        threading.Thread(
-                            target=focus_speaking_window,
-                            kwargs={
-                                "agent_name": agent_name,
-                                "app_name": app_name,
-                                "conv_id": conv_id,
-                            },
-                            daemon=True,
-                        ).start()
-            except Exception:
-                pass
+                            capture_barge_in_event(device_type="keyboard_esc", is_full_duplex=False)
+                        except Exception:
+                            pass
+                    elif is_option_tab_event(key, modifiers):
+                        now = time.time()
+                        if (now - last_tab_time[0]) >= 0.35:
+                            last_tab_time[0] = now
+                            threading.Thread(
+                                target=focus_speaking_window,
+                                kwargs={
+                                    "agent_name": agent_name,
+                                    "app_name": app_name,
+                                    "conv_id": conv_id,
+                                },
+                                daemon=True,
+                            ).start()
+                except Exception:
+                    pass
 
-        def _on_release(key):
-            try:
-                vk = getattr(key, "vk", None)
-                if key in (
-                    keyboard.Key.alt,
-                    keyboard.Key.alt_l,
-                    keyboard.Key.alt_r,
-                    keyboard.Key.alt_gr,
-                ) or vk in (58, 61):
-                    modifiers.discard("alt")
-                if key in (keyboard.Key.cmd, keyboard.Key.cmd_l, keyboard.Key.cmd_r) or vk in (
-                    54,
-                    55,
-                ):
-                    modifiers.discard("cmd")
-                if key in (keyboard.Key.ctrl, keyboard.Key.ctrl_l, keyboard.Key.ctrl_r) or vk in (
-                    59,
-                    62,
-                ):
-                    modifiers.discard("ctrl")
-            except Exception:
-                pass
+            def _on_release(key):
+                try:
+                    vk = getattr(key, "vk", None)
+                    if key in (
+                        keyboard.Key.alt,
+                        keyboard.Key.alt_l,
+                        keyboard.Key.alt_r,
+                        keyboard.Key.alt_gr,
+                    ) or vk in (58, 61):
+                        modifiers.discard("alt")
+                    if key in (keyboard.Key.cmd, keyboard.Key.cmd_l, keyboard.Key.cmd_r) or vk in (
+                        54,
+                        55,
+                    ):
+                        modifiers.discard("cmd")
+                    if key in (keyboard.Key.ctrl, keyboard.Key.ctrl_l, keyboard.Key.ctrl_r) or vk in (
+                        59,
+                        62,
+                    ):
+                        modifiers.discard("ctrl")
+                except Exception:
+                    pass
 
-        listener = keyboard.Listener(on_press=_on_press, on_release=_on_release)
-        listener.daemon = True
-        listener.start()
-    except Exception:
-        pass
+            listener = keyboard.Listener(on_press=_on_press, on_release=_on_release)
+            listener.daemon = True
+            listener.start()
+        except Exception:
+            pass
 
     stop_media_monitor = threading.Event()
     media_thread = None
@@ -1334,7 +1364,11 @@ class BaseTTS(ABC):
     async def synthesize_to_file(self, text: str, output_path: Path) -> bool:
         """
         Asynchronously synthesize speech directly to an audio file without playing.
+        Delegates to speak_to_file in a worker thread if implemented by subclass.
         """
+        import asyncio
+
+        return await asyncio.to_thread(self.speak_to_file, text, output_path)
 
 
 _LAST_SPEECH_STOP_FILE = Path("/tmp/voicefi_last_speech_stop.ts")

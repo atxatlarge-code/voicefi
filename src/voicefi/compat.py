@@ -128,6 +128,39 @@ def patch_pynput_darwin() -> None:
         if hasattr(pynput_darwin, "ListenerMixin"):
             _orig_mixin_stop = pynput_darwin.ListenerMixin._stop_platform
 
+            _orig_handler = getattr(pynput_darwin.ListenerMixin, "_handler", None)
+
+            def _safe_darwin_handler(self, proxy, event_type, event, refcon):
+                # Re-enable tap if macOS WindowServer ever sends kCGEventTapDisabledByTimeout (0xFFFFFFFE)
+                if event_type in (0xFFFFFFFE, 0xFFFFFFFF) or event is None:
+                    if getattr(self, "_tap", None) is not None and getattr(self, "running", False):
+                        try:
+                            import Quartz
+
+                            Quartz.CGEventTapEnable(self._tap, True)
+                        except Exception:
+                            pass
+                    return event
+                if _orig_handler is not None:
+                    return _orig_handler(self, proxy, event_type, event, refcon)
+                return event
+
+            def _listen_only_create_event_tap(self):
+                import Quartz
+
+                # CRITICAL: Always use kCGEventTapOptionListenOnly (1) instead of kCGEventTapOptionDefault (0)!
+                # A kCGEventTapOptionDefault tap blocks macOS WindowServer from delivering ANY keystroke to
+                # games/apps whenever the Python process holds the GIL (e.g. during turn-end TTS synthesis,
+                # Silero VAD, or Whisper STT), which locks up the user's keyboard at turn end!
+                return Quartz.CGEventTapCreate(
+                    Quartz.kCGSessionEventTap,
+                    Quartz.kCGHeadInsertEventTap,
+                    Quartz.kCGEventTapOptionListenOnly,
+                    self._EVENTS,
+                    self._handler,
+                    None,
+                )
+
             def _clean_darwin_run(self):
                 try:
                     import HIServices
@@ -143,7 +176,7 @@ def patch_pynput_darwin() -> None:
                 self._tap = None
                 self._loop_source = None
                 try:
-                    self._tap = self._create_event_tap()
+                    self._tap = _listen_only_create_event_tap(self)
                     if self._tap is None:
                         self._mark_ready()
                         return
@@ -221,6 +254,8 @@ def patch_pynput_darwin() -> None:
                 except Exception:
                     pass
 
+            pynput_darwin.ListenerMixin._handler = _safe_darwin_handler
+            pynput_darwin.ListenerMixin._create_event_tap = _listen_only_create_event_tap
             pynput_darwin.ListenerMixin._run = _clean_darwin_run
             pynput_darwin.ListenerMixin._stop_platform = _clean_darwin_stop
 

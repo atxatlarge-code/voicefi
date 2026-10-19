@@ -45,6 +45,8 @@ class LiveVADMonitor:
         self._paused = False
         self._thread: Optional[threading.Thread] = None
         self._stop_event = threading.Event()
+        self._stream_closed_event = threading.Event()
+        self._stream_closed_event.set()
         self._listeners: List[Callable[[float, float, bool, np.ndarray, float, float], None]] = []
 
     def reload_config(self):
@@ -99,6 +101,15 @@ class LiveVADMonitor:
     def pause(self):
         """Yield the microphone to another process (e.g. active AudioRecorder)."""
         self._paused = True
+        import os
+
+        if (
+            self._thread
+            and self._thread.is_alive()
+            and threading.current_thread() is not self._thread
+            and not os.environ.get("PYTEST_CURRENT_TEST")
+        ):
+            self._stream_closed_event.wait(timeout=0.15)
 
     def resume(self):
         """Resume monitoring the microphone."""
@@ -110,20 +121,71 @@ class LiveVADMonitor:
     def is_running(self) -> bool:
         return self._running and not self._paused
 
+    def dispatch_external_chunk(
+        self,
+        energy: float,
+        confidence: float,
+        is_speech: bool,
+        audio_chunk: np.ndarray,
+        noise_floor: float,
+        active_threshold: float,
+    ):
+        """Receive VAD telemetry from WakeWordListener without opening a second PortAudio InputStream."""
+        if self._paused or not self._listeners:
+            return
+        for listener in list(self._listeners):
+            try:
+                listener(
+                    energy,
+                    confidence,
+                    is_speech,
+                    audio_chunk,
+                    noise_floor,
+                    active_threshold,
+                )
+            except Exception as e:
+                print(f"[LiveVADMonitor] Error in listener: {e}")
+
     def _stream_loop(self):
         while not self._stop_event.is_set():
-            if self._paused or not self._listeners:
+            from voicefi.audio.wakeword import WakeWordListener
+            from voicefi.tts.base import is_mic_recording_active
+
+            wakeword_sharing_mic = any(
+                inst.is_running for inst in list(WakeWordListener._ACTIVE_INSTANCES)
+            )
+            if (
+                self._paused
+                or not self._listeners
+                or wakeword_sharing_mic
+                or is_mic_recording_active()
+            ):
+                self._stream_closed_event.set()
                 time.sleep(0.1)
                 continue
 
             try:
+                self._stream_closed_event.clear()
                 # Open short-lived stream to allow quick yielding if paused
                 with sd.InputStream(
                     samplerate=self.sample_rate, channels=1, dtype="float32"
                 ) as stream:
-                    while not self._stop_event.is_set() and not self._paused and self._listeners:
+                    while (
+                        not self._stop_event.is_set()
+                        and not self._paused
+                        and self._listeners
+                        and not is_mic_recording_active()
+                    ):
+                        if any(
+                            inst.is_running for inst in list(WakeWordListener._ACTIVE_INSTANCES)
+                        ):
+                            break
                         chunk, overflowed = stream.read(self.chunk_size)
-                        if self._stop_event.is_set() or self._paused:
+                        if (
+                            self._stop_event.is_set()
+                            or self._paused
+                            or is_mic_recording_active()
+                        ):
                             break
 
                         audio_chunk = chunk.flatten()
@@ -135,7 +197,7 @@ class LiveVADMonitor:
                         noise_floor = self.vad.running_noise_floor
                         active_threshold = vad_res["active_threshold"]
 
-                        for listener in self._listeners:
+                        for listener in list(self._listeners):
                             try:
                                 listener(
                                     energy,
@@ -148,6 +210,8 @@ class LiveVADMonitor:
                             except Exception as e:
                                 print(f"[LiveVADMonitor] Error in listener: {e}")
 
-            except Exception as e:
+            except Exception:
                 # E.g. Device unavailable, wait before retrying
                 time.sleep(1.0)
+            finally:
+                self._stream_closed_event.set()

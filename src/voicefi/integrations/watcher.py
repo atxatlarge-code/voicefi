@@ -148,7 +148,7 @@ class TranscriptWatcher:
         self._running = False
         TranscriptWatcher._ACTIVE_INSTANCES.discard(self)
 
-    def interrupt(self):
+    def interrupt(self, notify_idle: bool = True):
         """Interrupt active turn handling and stop speaking."""
         self._interrupted = True
         stop_all_speech()
@@ -158,10 +158,17 @@ class TranscriptWatcher:
             AgentSpeechHUD.get_instance().hide()
         except Exception:
             pass
-        if self.active_recorder:
-            self.active_recorder.stop()
+        rec = self.active_recorder
+        if rec:
+            if hasattr(rec, "cancel"):
+                rec.cancel()
+            else:
+                rec.stop()
+            closed_evt = getattr(rec, "_stream_closed_event", None)
+            if closed_evt is not None and not os.environ.get("PYTEST_CURRENT_TEST"):
+                closed_evt.wait(timeout=0.5)
         self._is_handling_turn = False
-        if self.on_state_change:
+        if notify_idle and self.on_state_change:
             self.on_state_change("idle")
 
     def _notify_state(self, state: str, **kwargs):
@@ -474,15 +481,32 @@ class TranscriptWatcher:
                 or tts_provider == "gemini_live"
                 or (cid_check and peek_live_turn_origin(cid_check))
             )
+            turn_format = getattr(getattr(cfg, "tts", None), "turn_complete_format", "first_sentence")
+            if turn_format == "full" or is_live_turn:
+                req_full_read = True
+                req_first_sentence = False
+            elif turn_format == "first_sentence":
+                req_full_read = False
+                req_first_sentence = True
+            elif turn_format == "distilled":
+                req_full_read = False
+                req_first_sentence = False
+            elif turn_format == "character_quip":
+                req_full_read = False
+                req_first_sentence = True
+            else:  # chime_only
+                req_full_read = False
+                req_first_sentence = True
+
             first_sentence_only = getattr(
                 getattr(cfg, "antigravity", None),
                 "first_sentence_only",
-                getattr(getattr(cfg, "tts", None), "first_sentence_only", False),
+                req_first_sentence,
             )
             summary = clean_markdown_for_speech(
                 agent_message,
                 max_words=cfg.antigravity.max_spoken_words,
-                full_read=is_live_turn,
+                full_read=req_full_read,
                 first_sentence_only=first_sentence_only,
             )
 
@@ -548,6 +572,38 @@ class TranscriptWatcher:
                     short_title = conv_info.title[:24] if conv_info.title else "background agent"
                     spoken_text = f"Update from {short_title}: {summary}"
 
+            # Apply Walken voice acting cadence only if Walken / Continental is the active voice or active clone provider
+            active_provider = str(getattr(getattr(cfg, "tts", None), "provider", "edge_tts") or "").lower()
+            active_voice = str(
+                getattr(getattr(cfg, "tts", None), "voice", "")
+                or ""
+            ).lower()
+            active_ref = str(
+                (
+                    getattr(cfg.agents.get("antigravity"), "f5_ref_audio", None)
+                    if hasattr(cfg, "agents") and "antigravity" in cfg.agents
+                    else None
+                )
+                or getattr(getattr(cfg, "tts", None), "f5_ref_audio", "")
+                or ""
+            ).lower()
+            is_walken = (
+                "walken" in active_voice
+                or "continental" in active_voice
+                or (active_provider in ("f5_tts", "local_clone") and "continental" in active_ref)
+            )
+            if is_walken:
+                from voicefi.tts.director import TheatricalDirector
+
+                archetype = (
+                    "continental"
+                    if ("continental" in active_voice or "continental" in active_ref)
+                    else "standard"
+                )
+                spoken_text = TheatricalDirector.direct_walken_cadence(
+                    spoken_text, archetype=archetype, include_prefix=False
+                )
+
             ws_path = conv_info.workspace_path if conv_info else None
             proj_name = conv_info.project_name if conv_info else None
 
@@ -578,6 +634,15 @@ class TranscriptWatcher:
                 except Exception:
                     pass
 
+            from voicefi.tts.base import is_mic_recording_active
+
+            if is_mic_recording_active():
+                print(
+                    "[Watcher] 🎙️ Microphone is actively recording/listening. Skipping spoken feedback and auto-listen.",
+                    flush=True,
+                )
+                return
+
             target_agent = agent_role or "antigravity"
             should_speak = bool(
                 cfg.antigravity.read_summary_aloud and spoken_text and not self._interrupted
@@ -604,7 +669,9 @@ class TranscriptWatcher:
             from voicefi.audio.recorder import resolve_barge_in_mode
 
             is_barge_in_on, _ = resolve_barge_in_mode(getattr(cfg.vad, "barge_in", "auto"))
-            barge_in_active = bool(should_speak and should_listen and is_barge_in_on)
+            barge_in_active = bool(
+                should_speak and is_active and is_barge_in_on and not self._interrupted
+            )
 
             if barge_in_active and not acquire_active_listener_lock(turn_cid):
                 print(
@@ -629,6 +696,8 @@ class TranscriptWatcher:
                     conv_id=turn_cid,
                 )
 
+                playback_finished = threading.Event()
+
                 def _speak_and_finish_hud():
                     try:
                         tts.stream_speak(spoken_text, block=True)
@@ -638,6 +707,7 @@ class TranscriptWatcher:
                     except Exception:
                         pass
                     finally:
+                        playback_finished.set()
                         if cfg.antigravity.show_speech_popup:
                             try:
                                 from voicefi.ui.speech_hud import AgentSpeechHUD
@@ -678,6 +748,7 @@ class TranscriptWatcher:
                     vad_engine=getattr(cfg.vad, "engine", "auto"),
                     speech_threshold=getattr(cfg.vad, "speech_threshold", 0.37),
                 )
+                self.active_recorder = recorder
 
                 def _on_tick(energy: float, conf: float = 0.0, is_spk: bool = False):
                     try:
@@ -698,13 +769,16 @@ class TranscriptWatcher:
                             "hearing", user_name=cfg.user_name
                         ),
                         on_pause_change=lambda paused: self._notify_state(
-                            "speaking" if paused else "listening", user_name=cfg.user_name
+                            "speaking" if paused else ("listening" if should_listen else "idle"),
+                            user_name=cfg.user_name,
                         ),
                         on_barge_in=_on_barge_in,
                         on_listening_tick=_on_tick,
                         timeout=listen_timeout,
                         conv_id=turn_cid,
                         agent_name=target_agent,
+                        stop_when_agent_finishes=(not should_listen),
+                        agent_done_event=playback_finished,
                     )
                 finally:
                     self.active_recorder = None
