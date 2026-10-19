@@ -335,6 +335,18 @@ def handle_claude_stop_hook(
                 return {"status": "mac_muted", "agent": "claude"}
 
         # 2. Speak the soundbite aloud using Claude's voice persona (Guy / Steffan)
+        from voicefi.tts.base import (
+            is_blocking_mic_recording_active,
+            is_mic_recording_active,
+            wait_for_mic_to_clear,
+        )
+
+        mic_blocked, _ = is_blocking_mic_recording_active(conv_id=conv_id)
+        if mic_blocked:
+            cleared = wait_for_mic_to_clear(conv_id=conv_id)
+            if not cleared:
+                return {"status": "mic_busy", "agent": "claude"}
+
         hook_start_time = time.time()
         agent_name = (
             payload.get("agent") if isinstance(payload, dict) and payload.get("agent") else "claude"
@@ -383,6 +395,12 @@ def handle_claude_stop_hook(
                 return {"status": "media_playing", "agent": "claude"}
         except Exception:
             pass
+
+        if is_mic_recording_active():
+            print(
+                "[Claude Hook] 🎙️ Microphone already active (dictation or native mic). Skipping auto-listen handoff."
+            )
+            return {"status": "spoken", "agent": "claude"}
 
         if not cfg.claude.auto_listen or is_mobile:
             if is_mobile:

@@ -2210,29 +2210,20 @@ class VoiceFiTrayApp(_TrayAppBase):
             "dispatching": "paperplane.fill",
         }
 
-        dynamic_icon = getattr(getattr(self.config, "hud", None), "dynamic_tray_icon", True)
+        dynamic_icon = getattr(getattr(self.config, "hud", None), "dynamic_tray_icon", False)
 
         if dynamic_icon and self._current_status in status_map:
             symbol_name = status_map[self._current_status]
         else:
             symbol_name = "voicefi"
 
-        # Dynamic live status bar label while mic is active
-        desired_title = ""
-        if dynamic_icon and self._current_status in (
-            "listening",
-            "hearing",
-            "ptt_listening",
-            "new_conversation",
-            "transcribing",
-        ):
-            target_lbl = getattr(self, "_active_listen_label", None) or "VoiceFi"
-            if self._current_status == "hearing":
-                desired_title = f" {target_lbl} • Hearing"
-            elif self._current_status == "transcribing":
-                desired_title = f" {target_lbl} • ..."
-            else:
-                desired_title = f" {target_lbl}"
+        # Ensure no text title appears next to the menu bar icon
+        if hasattr(self, "_nsapp") and hasattr(self._nsapp, "nsstatusitem"):
+            try:
+                if self._nsapp.nsstatusitem.title():
+                    self._nsapp.nsstatusitem.setTitle_("")
+            except Exception:
+                pass
 
         current_symbol = getattr(self, "_current_symbol", None)
         if current_symbol != symbol_name:
@@ -2256,15 +2247,10 @@ class VoiceFiTrayApp(_TrayAppBase):
                     self._icon_nsimage = image
                     if hasattr(self, "_nsapp"):
                         self._nsapp.setStatusBarIcon()
+                        if hasattr(self._nsapp, "nsstatusitem"):
+                            self._nsapp.nsstatusitem.setTitle_("")
             except Exception as e:
                 print(f"[VoiceFi] Error updating menu bar icon: {e}")
-
-        if hasattr(self, "_nsapp") and hasattr(self._nsapp, "nsstatusitem"):
-            try:
-                if (self._nsapp.nsstatusitem.title() or "") != desired_title:
-                    self._nsapp.nsstatusitem.setTitle_(desired_title)
-            except Exception:
-                pass
 
         # Periodically reload config if changed externally
         self._check_config_reload()
@@ -4402,11 +4388,21 @@ class VoiceFiTrayApp(_TrayAppBase):
                 if self.watcher:
                     self.watcher.interrupt(notify_idle=False)
                 self.finish_active_recording(reason="dictate_wakeword_trigger")
+
+                # Check if prompt begins with 'in <app>' (e.g. 'transcribe in chrome', 'transcribe in slack')
+                target_app = None
+                clean_prompt = prompt or ""
+                in_app_match = re.match(r"^in\s+([a-zA-Z0-9_\-\s]+?)(?:[\s,.:;!?-]+(.*)|$)", clean_prompt, re.IGNORECASE)
+                if in_app_match:
+                    target_app = in_app_match.group(1).strip()
+                    clean_prompt = (in_app_match.group(2) or "").strip()
+
                 self.trigger_manual_listen(
                     from_wakeword=True,
                     wake_phrase=phrase,
-                    initial_prompt=prompt or "",
-                    initial_audio=handoff_audio if prompt else None,
+                    initial_prompt=clean_prompt,
+                    initial_audio=handoff_audio if clean_prompt else None,
+                    target_app=target_app,
                 )
                 return
 
@@ -4644,6 +4640,19 @@ class VoiceFiTrayApp(_TrayAppBase):
                     )
                     play_chime(chime or "done", block=False)
                 hud.show_done(preview_text=res.spoken_summary[:30])
+
+                if getattr(res, "action_type", "") == "transcribe_app_focus":
+                    m_app = re.match(r"^transcribe(?:\s+in\s+(.+))?$", norm_prompt, re.IGNORECASE)
+                    target_app_name = m_app.group(1).strip() if m_app and m_app.group(1) else None
+                    threading.Timer(
+                        0.1,
+                        lambda: self.trigger_manual_listen(
+                            from_wakeword=True,
+                            wake_phrase="transcribe",
+                            target_app=target_app_name,
+                        ),
+                    ).start()
+                    return
 
                 try:
                     rumps.notification(
@@ -5343,6 +5352,7 @@ class VoiceFiTrayApp(_TrayAppBase):
         wake_phrase: Optional[str] = None,
         initial_prompt: str = "",
         initial_audio: Optional[Any] = None,
+        target_app: Optional[str] = None,
     ):
         with self._listen_lock:
             now = time.time()
@@ -5370,6 +5380,14 @@ class VoiceFiTrayApp(_TrayAppBase):
             self._current_status = "ptt_listening" if ptt_mode else "listening"
 
         self._recording_cancelled = False
+
+        # Automatically elevate target application and focus its input/chat box
+        from voicefi.integrations.app_focus import AppFocusRegistry
+        try:
+            AppFocusRegistry.focus_app_input(target_app)
+        except Exception as e:
+            print(f"[VoiceFi] App focus error for {target_app}: {e}")
+
         dict_app_label = "VoiceFi"
         try:
             from AppKit import NSWorkspace
@@ -5398,18 +5416,6 @@ class VoiceFiTrayApp(_TrayAppBase):
                 app_name="VoiceFi",
                 agent_name=dict_app_label,
             )
-        else:
-            try:
-                from voicefi.ui.mic_pill import TopBarMicIndicatorPill
-
-                TopBarMicIndicatorPill.get_instance().show(
-                    state="listening",
-                    app_name="VoiceFi",
-                    agent_name=dict_app_label,
-                    source=source_tag,
-                )
-            except Exception:
-                pass
 
         overlay = None
         if from_wakeword:
@@ -5421,9 +5427,37 @@ class VoiceFiTrayApp(_TrayAppBase):
             except Exception:
                 overlay = None
 
-        stop_all_speech()
+        try:
+            from voicefi.tts.base import (
+                is_agent_audio_playing,
+                is_agent_speaking,
+                set_mic_recording,
+            )
+
+            set_mic_recording(True, state="dictating", agent_name="VoiceFi")
+        except Exception:
+            pass
+
+        try:
+            from voicefi.tts.base import is_agent_audio_playing, is_agent_speaking
+
+            if is_agent_speaking() or is_agent_audio_playing():
+                stop_all_speech()
+        except Exception:
+            stop_all_speech()
+
         if self.watcher:
-            self.watcher.interrupt(notify_idle=False)
+            try:
+                from voicefi.tts.base import is_agent_audio_playing, is_agent_speaking
+
+                if (
+                    is_agent_speaking()
+                    or is_agent_audio_playing()
+                    or getattr(self.watcher, "active_recorder", None) is not None
+                ):
+                    self.watcher.interrupt(notify_idle=False)
+            except Exception:
+                self.watcher.interrupt(notify_idle=False)
 
         self._ptt_stop_event = threading.Event()
 
@@ -5508,6 +5542,9 @@ class VoiceFiTrayApp(_TrayAppBase):
                         on_live_transcript=_on_live,
                         on_listening_tick=_on_tick,
                         ptt_release_delay_ms=self.config.vad.ptt_release_delay_ms,
+                        agent_name="VoiceFi",
+                        is_dictation=True,
+                        keep_mic_recording_flag=True,
                     )
                 else:
                     audio_data, temp_wav = recorder.record_speech_auto(
@@ -5521,6 +5558,7 @@ class VoiceFiTrayApp(_TrayAppBase):
                         initial_prompt_preview=initial_prompt or None,
                         agent_name="VoiceFi",
                         is_dictation=True,
+                        keep_mic_recording_flag=True,
                     )
 
                 self.active_recorder = None
@@ -5557,6 +5595,12 @@ class VoiceFiTrayApp(_TrayAppBase):
 
                 if temp_wav and Path(temp_wav).is_file():
                     self._current_status = "transcribing"
+                    try:
+                        from voicefi.tts.base import set_mic_recording
+
+                        set_mic_recording(True, state="transcribing", agent_name="VoiceFi")
+                    except Exception:
+                        pass
                     hud.show_transcribing(app_name="VoiceFi")
                     stt = get_stt_engine(self.config)
                     text = stt.transcribe(temp_wav)
@@ -5671,6 +5715,12 @@ class VoiceFiTrayApp(_TrayAppBase):
                 self.active_recorder = None
                 self._current_status = "idle"
                 self._active_listen_label = None
+                try:
+                    from voicefi.tts.base import set_mic_recording
+
+                    set_mic_recording(False)
+                except Exception:
+                    pass
                 try:
                     from voicefi.ui.mic_pill import TopBarMicIndicatorPill
 

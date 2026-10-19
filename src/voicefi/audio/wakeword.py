@@ -232,7 +232,7 @@ class WakeWordListener:
             and threading.current_thread() is not self._thread
             and not os.environ.get("PYTEST_CURRENT_TEST")
         ):
-            self._stream_closed_event.wait(timeout=0.6)
+            self._stream_closed_event.wait(timeout=1.5)
 
     def resume(self):
         """Resume wake-word listening."""
@@ -271,6 +271,7 @@ class WakeWordListener:
     def _listener_loop(self):
         """Background continuous stream monitoring for wake phrases."""
         from collections import deque
+        from voicefi.audio.device import PORTAUDIO_STREAM_LOCK
 
         pre_roll: deque = deque(maxlen=8)  # ~400ms pre-speech onset buffer
         recorded_frames: List[np.ndarray] = []
@@ -301,8 +302,20 @@ class WakeWordListener:
                 time.sleep(0.05)
                 continue
 
+            if not PORTAUDIO_STREAM_LOCK.acquire(blocking=False):
+                time.sleep(0.05)
+                continue
+
+            pending_prefix_dispatch: Optional[Tuple[str, str]] = None
             try:
                 self._stream_closed_event.clear()
+                if (
+                    self._paused
+                    or self._stop_event.is_set()
+                    or is_mic_recording_active()
+                    or not getattr(self.config.wakeword, "enabled", True)
+                ):
+                    continue
                 try:
                     from voicefi.audio.device import auto_pin_mac_microphone
 
@@ -311,15 +324,34 @@ class WakeWordListener:
                         time.sleep(0.06)
                 except Exception:
                     pass
+                if (
+                    self._paused
+                    or self._stop_event.is_set()
+                    or is_mic_recording_active()
+                    or not getattr(self.config.wakeword, "enabled", True)
+                ):
+                    continue
                 with sd.InputStream(
                     samplerate=self.sample_rate, channels=1, dtype="float32"
                 ) as stream:
                     while not self._stop_event.is_set() and not self._paused:
                         if is_mic_recording_active():
+                            recorded_frames.clear()
+                            pre_roll.clear()
+                            speech_started = False
+                            speech_chunks_since_start = 0
+                            silence_chunks = 0
+                            self.vad.reset()
                             break
                         # Always read from stream to drain hardware buffer
                         chunk, overflowed = stream.read(self.chunk_size)
                         if self._stop_event.is_set() or self._paused or is_mic_recording_active():
+                            recorded_frames.clear()
+                            pre_roll.clear()
+                            speech_started = False
+                            speech_chunks_since_start = 0
+                            silence_chunks = 0
+                            self.vad.reset()
                             break
 
                         # Check if streaming prefix spotter found a wake word mid-utterance
@@ -338,9 +370,7 @@ class WakeWordListener:
                             speech_chunks_since_start = 0
                             silence_chunks = 0
                             self.vad.reset()
-                            self._dispatch_wake_match(
-                                matched_p, partial_pr, is_followup=False, is_streaming_prefix=True
-                            )
+                            pending_prefix_dispatch = (matched_p, partial_pr)
                             break
 
                         # Suppress listening while agent is speaking, audio is playing, or recently interrupted
@@ -474,7 +504,17 @@ class WakeWordListener:
                 # If audio device error, sleep briefly and retry
                 time.sleep(0.5)
             finally:
+                try:
+                    PORTAUDIO_STREAM_LOCK.release()
+                except Exception:
+                    pass
                 self._stream_closed_event.set()
+
+            if pending_prefix_dispatch is not None:
+                mp, ppr = pending_prefix_dispatch
+                self._dispatch_wake_match(
+                    mp, ppr, is_followup=False, is_streaming_prefix=True
+                )
 
     def _check_streaming_prefix(self, audio_snapshot: np.ndarray, snapshot_idx: int):
         """Check an in-progress speech prefix (~600ms-1.1s) for a wake word while the user keeps talking."""
@@ -619,12 +659,18 @@ class WakeWordListener:
         self._prefix_wake_signal = None
 
         # Acoustic echo guard: ignore candidates if on a call, agent is speaking, audio is playing, or recently interrupted
-        from voicefi.tts.base import is_speech_interrupted, is_system_audio_playing
+        from voicefi.tts.base import (
+            is_mic_recording_active,
+            is_speech_interrupted,
+            is_system_audio_playing,
+        )
         from voicefi.audio.meeting_detection import is_user_on_call
         from voicefi.audio.media_detection import is_active_media_playing
 
         if (
-            is_user_on_call()
+            self._paused
+            or is_mic_recording_active()
+            or is_user_on_call()
             or is_active_media_playing()
             or is_agent_speaking()
             or is_agent_audio_playing()

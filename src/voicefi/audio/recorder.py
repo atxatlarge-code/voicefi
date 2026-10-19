@@ -45,6 +45,9 @@ def resolve_barge_in_mode(barge_in_setting: Any) -> Tuple[bool, bool]:
 class AudioRecorder:
     """Records audio from default input device with robust, snappy neural Silero VAD and Active Barge-In."""
 
+    _ACTIVE_RECORDERS: set = set()
+    _RECORDER_LOCK = threading.Lock()
+
     def __init__(
         self,
         sample_rate: int = 16000,
@@ -191,6 +194,12 @@ class AudioRecorder:
                             )
                 raise
 
+    @classmethod
+    def has_active_dictation_recorder(cls) -> bool:
+        """Return True if an active dictation AudioRecorder instance is currently running."""
+        with cls._RECORDER_LOCK:
+            return any(getattr(r, "is_dictation", False) for r in cls._ACTIVE_RECORDERS)
+
     def record_speech_auto(
         self,
         on_speech_start: Optional[Callable[[], None]] = None,
@@ -220,12 +229,45 @@ class AudioRecorder:
         cancelled_by_user = False
         _last_speech_stop_time = 0.0
         is_dictation = bool(kwargs.get("is_dictation", False))
+        self.is_dictation = is_dictation
+        is_passive_barge_monitor = bool(kwargs.get("stop_when_agent_finishes", False))
+        agent_done_event = kwargs.get("agent_done_event")
+
+        with AudioRecorder._RECORDER_LOCK:
+            if is_passive_barge_monitor and AudioRecorder._ACTIVE_RECORDERS:
+                return np.zeros(0, dtype=np.float32), None
+            if not is_dictation and any(
+                getattr(r, "is_dictation", False)
+                for r in AudioRecorder._ACTIVE_RECORDERS
+                if r is not self
+            ):
+                print(
+                    "[AudioRecorder] 🎙️ Active dictation in progress. Skipping background auto-listen capture.",
+                    flush=True,
+                )
+                return np.zeros(0, dtype=np.float32), None
+            prev_recorders = [r for r in list(AudioRecorder._ACTIVE_RECORDERS) if r is not self]
+            AudioRecorder._ACTIVE_RECORDERS.add(self)
+            self._stream_closed_event.clear()
+
+        for prev_r in prev_recorders:
+            try:
+                prev_r.cancel()
+            except Exception:
+                pass
 
         # Set cross-process recording flag to yield device from background LaunchAgent
         try:
             from voicefi.tts.base import set_mic_recording
 
-            set_mic_recording(True, state="listening", conv_id=conv_id, agent_name=agent_name)
+            initial_mic_state = (
+                "dictating"
+                if is_dictation
+                else ("barge_in_monitor" if agent_done_event is not None else "listening")
+            )
+            set_mic_recording(
+                True, state=initial_mic_state, conv_id=conv_id, agent_name=agent_name
+            )
         except Exception:
             pass
 
@@ -243,7 +285,7 @@ class AudioRecorder:
         except ImportError:
             pass
 
-        # Check active media playback (Quick Look or QuickTime) before capturing audio
+        # Check active media playback (Quick Look or QuickTime) or external native mic before capturing audio
         try:
             from voicefi.audio.media_detection import is_active_media_playing
 
@@ -253,6 +295,17 @@ class AudioRecorder:
                 )
                 cancelled_by_user = True
                 self.stop_event.set()
+            elif not is_dictation:
+                from voicefi.audio.device import get_external_mic_recording_info
+
+                ext_mic = get_external_mic_recording_info()
+                if ext_mic is not None:
+                    print(
+                        f"[AudioRecorder] 🎙️ External microphone active ({ext_mic.get('detail', 'native mic')}). Yielding VoiceFi auto-listen.",
+                        flush=True,
+                    )
+                    cancelled_by_user = True
+                    self.stop_event.set()
         except Exception:
             pass
 
@@ -566,8 +619,13 @@ class AudioRecorder:
                 transcription_thread.start()
 
 
+            from voicefi.audio.device import PORTAUDIO_STREAM_LOCK
+
             self._stream_closed_event.clear()
+            stream_lock_acquired = PORTAUDIO_STREAM_LOCK.acquire(timeout=2.5)
             try:
+                if not stream_lock_acquired and not is_test:
+                    return np.zeros(0, dtype=np.float32), None
                 with self._create_input_stream() as stream:
                     chunk_count = 0
                     while True:
@@ -621,8 +679,40 @@ class AudioRecorder:
                             except Exception:
                                 pass
 
+                        if not is_dictation and chunk_count % 4 == 0:
+                            try:
+                                from voicefi.audio.device import get_external_mic_recording_info
+
+                                ext_mic = get_external_mic_recording_info()
+                                if ext_mic is not None:
+                                    print(
+                                        f"[AudioRecorder] 🎙️ External microphone opened ({ext_mic.get('detail', 'native mic')}) during listen. Yielding immediately.",
+                                        flush=True,
+                                    )
+                                    try:
+                                        from voicefi.tts.base import stop_all_speech
+
+                                        stop_all_speech()
+                                    except Exception:
+                                        pass
+                                    cancelled_by_user = True
+                                    break
+                            except Exception:
+                                pass
+
                         # Check if an AI agent is speaking aloud
                         agent_speaking = is_agent_speaking()
+                        if is_dictation and agent_speaking:
+                            # User is actively dictating (transcribe): never pause or clear dictated speech;
+                            # immediately silence any background speech that attempted to start.
+                            try:
+                                from voicefi.tts.base import stop_all_speech
+
+                                stop_all_speech()
+                            except Exception:
+                                pass
+                            agent_speaking = False
+
                         if agent_speaking:
                             if not saw_agent_speaking:
                                 saw_agent_speaking = True
@@ -877,6 +967,17 @@ class AudioRecorder:
                             print(
                                 "[VAD] Agent finished speaking -> cooling down & resuming mic capture"
                             )
+                            try:
+                                from voicefi.tts.base import set_mic_recording
+
+                                set_mic_recording(
+                                    True,
+                                    state="dictating" if is_dictation else "listening",
+                                    conv_id=conv_id,
+                                    agent_name=agent_name,
+                                )
+                            except Exception:
+                                pass
                             if on_pause_change:
                                 try:
                                     on_pause_change(False)
@@ -980,7 +1081,7 @@ class AudioRecorder:
 
                                         set_mic_recording(
                                             True,
-                                            state="hearing",
+                                            state="dictating" if is_dictation else "hearing",
                                             conv_id=conv_id,
                                             agent_name=agent_name,
                                         )
@@ -1145,6 +1246,11 @@ class AudioRecorder:
                             )
                             break
             finally:
+                if stream_lock_acquired:
+                    try:
+                        PORTAUDIO_STREAM_LOCK.release()
+                    except Exception:
+                        pass
                 self._stream_closed_event.set()
 
             if cancelled_by_user or self.cancelled:
@@ -1201,28 +1307,34 @@ class AudioRecorder:
                 except Exception:
                     pass
 
-            # Clear cross-process recording flag
-            try:
-                from voicefi.tts.base import set_mic_recording
+            with AudioRecorder._RECORDER_LOCK:
+                AudioRecorder._ACTIVE_RECORDERS.discard(self)
+                no_other_recorders = len(AudioRecorder._ACTIVE_RECORDERS) == 0
 
-                set_mic_recording(False)
-            except Exception:
-                pass
+            if no_other_recorders:
+                if not kwargs.get("keep_mic_recording_flag", False):
+                    # Clear cross-process recording flag only when no newer recorder has taken over
+                    try:
+                        from voicefi.tts.base import set_mic_recording
 
-            if not kwargs.get("keep_wakeword_paused", False):
-                # Resume background monitor and wake-word listener
-                try:
-                    from voicefi.audio.wakeword import WakeWordListener
+                        set_mic_recording(False)
+                    except Exception:
+                        pass
 
-                    WakeWordListener.resume_all()
-                except Exception:
-                    pass
-                try:
-                    from voicefi.audio.monitor import LiveVADMonitor
+                if not kwargs.get("keep_wakeword_paused", False):
+                    # Resume background monitor and wake-word listener
+                    try:
+                        from voicefi.audio.wakeword import WakeWordListener
 
-                    LiveVADMonitor.get_instance().resume()
-                except ImportError:
-                    pass
+                        WakeWordListener.resume_all()
+                    except Exception:
+                        pass
+                    try:
+                        from voicefi.audio.monitor import LiveVADMonitor
+
+                        LiveVADMonitor.get_instance().resume()
+                    except ImportError:
+                        pass
 
     def record_push_to_talk(
         self,
@@ -1246,14 +1358,33 @@ class AudioRecorder:
         to prevent trailing phoneme cutoffs, then immediately stops with 0ms silence delay.
         """
         self.stop_event.clear()
+        self.cancelled = False
         trigger_stop = stop_event or self.stop_event
         cancelled_by_user = False
+        is_dictation = bool(kwargs.get("is_dictation", False))
+        self.is_dictation = is_dictation
+
+        with AudioRecorder._RECORDER_LOCK:
+            prev_recorders = [r for r in list(AudioRecorder._ACTIVE_RECORDERS) if r is not self]
+            AudioRecorder._ACTIVE_RECORDERS.add(self)
+            self._stream_closed_event.clear()
+
+        for prev_r in prev_recorders:
+            try:
+                prev_r.cancel()
+            except Exception:
+                pass
 
         # Set cross-process recording flag to yield device from background LaunchAgent
         try:
             from voicefi.tts.base import set_mic_recording
 
-            set_mic_recording(True, state="hearing", conv_id=conv_id, agent_name=agent_name)
+            set_mic_recording(
+                True,
+                state="dictating" if is_dictation else "hearing",
+                conv_id=conv_id,
+                agent_name=agent_name,
+            )
         except Exception:
             pass
 
@@ -1309,6 +1440,7 @@ class AudioRecorder:
 
             is_paused = False
             cooldown_remaining_chunks = 0
+            is_test = bool(os.environ.get("PYTEST_CURRENT_TEST"))
 
             # Live streaming transcription worker
             streaming_lock = threading.Lock()
@@ -1366,106 +1498,120 @@ class AudioRecorder:
                 transcription_thread = threading.Thread(target=_partial_worker, daemon=True)
                 transcription_thread.start()
 
-            self._stream_closed_event.clear()
-            try:
-                with self._create_input_stream() as stream:
-                    chunk_count = 0
-                    while True:
-                        chunk, overflowed = stream.read(chunk_size)
-                        audio_chunk = chunk.flatten()
-                        chunk_count += 1
+            from voicefi.audio.device import PORTAUDIO_STREAM_LOCK
 
-                        agent_speaking = is_agent_speaking()
-                        if agent_speaking:
-                            is_barge_in_on, _ = resolve_barge_in_mode(self.barge_in)
-                            if is_barge_in_on:
+            self._stream_closed_event.clear()
+            stream_lock_acquired = PORTAUDIO_STREAM_LOCK.acquire(timeout=2.5)
+            try:
+                if stream_lock_acquired or is_test:
+                    with self._create_input_stream() as stream:
+                        chunk_count = 0
+                        while True:
+                            chunk, overflowed = stream.read(chunk_size)
+                            audio_chunk = chunk.flatten()
+                            chunk_count += 1
+
+                            agent_speaking = is_agent_speaking()
+                            if agent_speaking and is_dictation:
                                 from voicefi.tts.base import stop_all_speech
 
                                 stop_all_speech()
-                                if on_barge_in:
-                                    try:
-                                        on_barge_in()
-                                    except Exception:
-                                        pass
-                                is_paused = False
-                            else:
-                                if not is_paused:
-                                    is_paused = True
-                                    if on_pause_change:
+                                agent_speaking = False
+                            if agent_speaking:
+                                is_barge_in_on, _ = resolve_barge_in_mode(self.barge_in)
+                                if is_barge_in_on:
+                                    from voicefi.tts.base import stop_all_speech
+
+                                    stop_all_speech()
+                                    if on_barge_in:
                                         try:
-                                            on_pause_change(True)
+                                            on_barge_in()
                                         except Exception:
                                             pass
-                                    if recorded_frames:
-                                        recorded_frames = (
-                                            recorded_frames[:-5] if len(recorded_frames) > 5 else []
-                                        )
+                                    is_paused = False
+                                else:
+                                    if not is_paused:
+                                        is_paused = True
+                                        if on_pause_change:
+                                            try:
+                                                on_pause_change(True)
+                                            except Exception:
+                                                pass
+                                        if recorded_frames:
+                                            recorded_frames = (
+                                                recorded_frames[:-5] if len(recorded_frames) > 5 else []
+                                            )
+                                    start_time += chunk_duration
+                                    continue
+
+                            if is_paused and not agent_speaking:
+                                is_paused = False
+                                cooldown_remaining_chunks = 5
+                                if on_pause_change:
+                                    try:
+                                        on_pause_change(False)
+                                    except Exception:
+                                        pass
+
+                            if cooldown_remaining_chunks > 0:
+                                cooldown_remaining_chunks -= 1
                                 start_time += chunk_duration
                                 continue
 
-                        if is_paused and not agent_speaking:
-                            is_paused = False
-                            cooldown_remaining_chunks = 5
-                            if on_pause_change:
+                            recorded_frames.append(audio_chunk)
+
+                            if on_chunk:
                                 try:
-                                    on_pause_change(False)
+                                    on_chunk(audio_chunk)
                                 except Exception:
                                     pass
 
-                        if cooldown_remaining_chunks > 0:
-                            cooldown_remaining_chunks -= 1
-                            start_time += chunk_duration
-                            continue
+                            now = time.time()
+                            if (now - last_touch_time) >= 3.0:
+                                last_touch_time = now
+                                try:
+                                    from voicefi.tts.base import touch_mic_recording
 
-                        recorded_frames.append(audio_chunk)
+                                    touch_mic_recording()
+                                except Exception:
+                                    pass
 
-                        if on_chunk:
-                            try:
-                                on_chunk(audio_chunk)
-                            except Exception:
-                                pass
+                            # Process VAD for UI visualizer & speech tracking
+                            vad_result = self.vad.process(audio_chunk)
+                            smoothed_energy = vad_result["energy"]
+                            speech_confidence = vad_result["confidence"]
+                            is_speech = vad_result["is_speech"]
 
-                        now = time.time()
-                        if (now - last_touch_time) >= 3.0:
-                            last_touch_time = now
-                            try:
-                                from voicefi.tts.base import touch_mic_recording
+                            if on_listening_tick:
+                                try:
+                                    on_listening_tick(smoothed_energy, speech_confidence, is_speech)
+                                except TypeError:
+                                    on_listening_tick(smoothed_energy)
 
-                                touch_mic_recording()
-                            except Exception:
-                                pass
+                            # Stream partial live transcription to HUD
+                            if on_live_transcript and (chunk_count - last_stream_chunk_count) >= 6:
+                                last_stream_chunk_count = chunk_count
+                                with streaming_lock:
+                                    if not is_transcribing and recorded_frames:
+                                        latest_partial_audio = np.concatenate(recorded_frames, axis=0)
 
-                        # Process VAD for UI visualizer & speech tracking
-                        vad_result = self.vad.process(audio_chunk)
-                        smoothed_energy = vad_result["energy"]
-                        speech_confidence = vad_result["confidence"]
-                        is_speech = vad_result["is_speech"]
+                            if trigger_stop.is_set() or self.stop_event.is_set():
+                                stop_signaled_count += 1
+                                if stop_signaled_count >= extra_chunks_after_stop:
+                                    break
 
-                        if on_listening_tick:
-                            try:
-                                on_listening_tick(smoothed_energy, speech_confidence, is_speech)
-                            except TypeError:
-                                on_listening_tick(smoothed_energy)
-
-                        # Stream partial live transcription to HUD
-                        if on_live_transcript and (chunk_count - last_stream_chunk_count) >= 6:
-                            last_stream_chunk_count = chunk_count
-                            with streaming_lock:
-                                if not is_transcribing and recorded_frames:
-                                    latest_partial_audio = np.concatenate(recorded_frames, axis=0)
-
-                        if trigger_stop.is_set():
-                            stop_signaled_count += 1
-                            if stop_signaled_count >= extra_chunks_after_stop:
+                            # Max duration safety cutoff
+                            if (time.time() - start_time) >= self.max_record_seconds:
                                 break
-
-                        # Max duration safety cutoff
-                        if (time.time() - start_time) >= self.max_record_seconds:
-                            break
             finally:
+                if stream_lock_acquired:
+                    try:
+                        PORTAUDIO_STREAM_LOCK.release()
+                    except Exception:
+                        pass
                 self._stream_closed_event.set()
 
-            if cancelled_by_user or not recorded_frames:
+            if cancelled_by_user or self.cancelled or not recorded_frames:
                 full_audio = np.zeros(self.sample_rate, dtype=np.float32)
             else:
                 full_audio = np.concatenate(recorded_frames, axis=0)
@@ -1477,33 +1623,40 @@ class AudioRecorder:
             sf.write(str(temp_path), full_audio, self.sample_rate)
             return full_audio, temp_path
         finally:
+            self.is_dictation = False
             if kb_listener is not None:
                 try:
                     kb_listener.stop()
                 except Exception:
                     pass
 
-            # Clear cross-process recording flag
-            try:
-                from voicefi.tts.base import set_mic_recording
+            with AudioRecorder._RECORDER_LOCK:
+                AudioRecorder._ACTIVE_RECORDERS.discard(self)
+                no_other_recorders = len(AudioRecorder._ACTIVE_RECORDERS) == 0
 
-                set_mic_recording(False)
-            except Exception:
-                pass
+            if no_other_recorders:
+                if not kwargs.get("keep_mic_recording_flag", False):
+                    # Clear cross-process recording flag
+                    try:
+                        from voicefi.tts.base import set_mic_recording
 
-            # Resume background monitor and wake-word listener
-            try:
-                from voicefi.audio.wakeword import WakeWordListener
+                        set_mic_recording(False)
+                    except Exception:
+                        pass
 
-                WakeWordListener.resume_all()
-            except Exception:
-                pass
-            try:
-                from voicefi.audio.monitor import LiveVADMonitor
+                # Resume background monitor and wake-word listener
+                try:
+                    from voicefi.audio.wakeword import WakeWordListener
 
-                LiveVADMonitor.get_instance().resume()
-            except ImportError:
-                pass
+                    WakeWordListener.resume_all()
+                except Exception:
+                    pass
+                try:
+                    from voicefi.audio.monitor import LiveVADMonitor
+
+                    LiveVADMonitor.get_instance().resume()
+                except ImportError:
+                    pass
 
     def record_fixed_duration(self, seconds: float) -> Tuple[np.ndarray, Path]:
         """Record for an exact duration in seconds."""

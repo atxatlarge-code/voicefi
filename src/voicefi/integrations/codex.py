@@ -1102,6 +1102,18 @@ def handle_codex_stop_hook(
             pass
 
     # Speak the soundbite aloud using Codex's voice persona (Emma)
+    from voicefi.tts.base import (
+        is_blocking_mic_recording_active,
+        is_mic_recording_active,
+        wait_for_mic_to_clear,
+    )
+
+    mic_blocked, _ = is_blocking_mic_recording_active(conv_id=thread_id)
+    if mic_blocked:
+        cleared = wait_for_mic_to_clear(conv_id=thread_id)
+        if not cleared:
+            return {"status": "mic_busy", "agent": "codex"}
+
     hook_start_time = time.time()
     agent_name = (
         payload.get("agent") if isinstance(payload, dict) and payload.get("agent") else "codex"
@@ -1139,6 +1151,12 @@ def handle_codex_stop_hook(
         if is_speech_interrupted(hook_start_time):
             clear_cross_process_hud_state()
             return {"status": "interrupted", "agent": "codex"}
+
+    if is_mic_recording_active():
+        print(
+            "[Codex Hook] 🎙️ Microphone already active (dictation or native mic). Skipping auto-listen."
+        )
+        auto_listen = False
 
     # If auto_listen is disabled, finish early
     if not auto_listen:

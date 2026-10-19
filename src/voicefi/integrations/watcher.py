@@ -634,14 +634,26 @@ class TranscriptWatcher:
                 except Exception:
                     pass
 
-            from voicefi.tts.base import is_mic_recording_active
+            from voicefi.tts.base import (
+                is_agent_audio_playing,
+                is_blocking_mic_recording_active,
+                is_mic_recording_active,
+                is_speech_interrupted,
+                wait_for_mic_to_clear,
+            )
 
-            if is_mic_recording_active():
-                print(
-                    "[Watcher] 🎙️ Microphone is actively recording/listening. Skipping spoken feedback and auto-listen.",
-                    flush=True,
+            mic_blocked, _ = is_blocking_mic_recording_active(conv_id=turn_cid)
+            if mic_blocked:
+                cleared = wait_for_mic_to_clear(
+                    conv_id=turn_cid, turn_start_time=turn_start_time
                 )
-                return
+                if not cleared or self._interrupted:
+                    print(
+                        "[Watcher] 🎙️ Microphone still active after wait or interrupted. Skipping spoken feedback and auto-listen.",
+                        flush=True,
+                    )
+                    return
+                turn_start_time = time.time()
 
             target_agent = agent_role or "antigravity"
             should_speak = bool(
@@ -727,6 +739,19 @@ class TranscriptWatcher:
                     daemon=True,
                 )
                 tts_thread.start()
+
+                synth_wait_start = time.time()
+                max_synth_wait = 15.0
+                while not is_agent_audio_playing() and not playback_finished.is_set():
+                    if self._interrupted or is_speech_interrupted(turn_start_time):
+                        break
+                    if time.time() - synth_wait_start > max_synth_wait:
+                        break
+                    time.sleep(0.05)
+
+                if self._interrupted or is_speech_interrupted(turn_start_time):
+                    release_active_listener_lock(turn_cid)
+                    return
 
                 def _on_barge_in():
                     self._notify_state("hearing", user_name=cfg.user_name)
@@ -822,6 +847,14 @@ class TranscriptWatcher:
                     time.sleep(0.1)
                     max_audio_wait -= 1
                 time.sleep(0.3)
+
+                if should_listen:
+                    if is_mic_recording_active():
+                        print(
+                            "[Watcher] 🎙️ Microphone already active (dictation or native mic). Skipping auto-listen.",
+                            flush=True,
+                        )
+                        should_listen = False
 
                 if should_listen:
                     if not acquire_active_listener_lock(turn_cid):

@@ -209,14 +209,6 @@ def clean_markdown_for_speech(
     if not text:
         return ""
 
-    if full_read:
-        return normalize_tts_text(text)
-
-    # 8. Extract sentences & assemble punchy natural spoken summary (Standard Turn-End Mode)
-    sentences = [s.strip() for s in re.split(r"(?<!\.\.)(?<=[.!?])(?!\.)\s+", text) if s.strip()]
-    if not sentences:
-        return normalize_tts_text(text[: target_max_words * 6])
-
     def _truncate_sentence(s: str, budget: int) -> str:
         words = s.split()
         if len(words) <= budget:
@@ -228,6 +220,32 @@ def clean_markdown_for_speech(
         if last_punct > len(truncated) // 2:
             return truncated[: last_punct + 1]
         return truncated + "..."
+
+    if full_read:
+        if max_words and max_words > 0 and len(text.split()) > max_words:
+            # Respect max_words budget by assembling complete sentences
+            raw_s = [s.strip() for s in re.split(r"(?<!\.\.)(?<=[.!?])(?!\.)\s+", text) if s.strip()]
+            if raw_s:
+                res_s = []
+                w_count = 0
+                for s in raw_s:
+                    cnt = len(s.split())
+                    if w_count + cnt <= max_words:
+                        res_s.append(s)
+                        w_count += cnt
+                    elif not res_s:
+                        res_s.append(_truncate_sentence(s, max_words))
+                        break
+                    else:
+                        break
+                if res_s:
+                    return normalize_tts_text(" ".join(res_s))
+        return normalize_tts_text(text)
+
+    # 8. Extract sentences & assemble punchy natural spoken summary (Standard Turn-End Mode)
+    sentences = [s.strip() for s in re.split(r"(?<!\.\.)(?<=[.!?])(?!\.)\s+", text) if s.strip()]
+    if not sentences:
+        return normalize_tts_text(text[: target_max_words * 6])
 
     if first_sentence_only:
         first_s = sentences[0]
@@ -242,12 +260,39 @@ def clean_markdown_for_speech(
             "all set",
             "no problem",
             "look",
+            "glad",
+            "great",
+            "awesome",
+            "perfect",
+            "nice",
+            "cool",
+            "yep",
+            "yeah",
+            "sweet",
+            "sounds good",
         )
-        if (
-            len(sentences) >= 2
-            and len(first_s.split()) <= 2
+        is_short_filler = (
+            len(first_s.split()) <= 2
             and first_s.lower().rstrip(".!?,") in filler_tokens
-        ):
+        )
+        is_conversational_opener = (
+            len(first_s.split()) <= 10
+            and any(
+                first_s.lower().startswith(tok)
+                for tok in (
+                    "glad",
+                    "great",
+                    "awesome",
+                    "perfect",
+                    "nice",
+                    "cool",
+                    "sounds good",
+                    "no problem",
+                    "all set",
+                )
+            )
+        )
+        if len(sentences) >= 2 and (is_short_filler or is_conversational_opener):
             first_s = f"{first_s} {sentences[1]}"
         elif (
             len(sentences) >= 2
@@ -664,9 +709,15 @@ def handle_antigravity_stop_hook(
     is_active = True
     if conv_id:
         from voicefi.integrations.conversations import ConversationTracker
+        from voicefi.integrations.injector import get_frontmost_app_name
 
         tracker = ConversationTracker()
-        is_active = tracker.is_conversation_focused(conv_id)
+        front_app = get_frontmost_app_name().lower()
+        if "antigravity" in front_app:
+            is_active = True
+        else:
+            is_active = tracker.is_conversation_focused(conv_id)
+
         if is_active:
             save_session_cookie(
                 conv_id=conv_id,
@@ -846,6 +897,21 @@ def handle_antigravity_stop_hook(
             print("[AntigravityHook] User is on a call. Skipping spoken feedback and auto-listen.")
             return {}
 
+        from voicefi.tts.base import (
+            is_blocking_mic_recording_active,
+            is_mic_recording_active,
+            wait_for_mic_to_clear,
+        )
+
+        mic_blocked, _ = is_blocking_mic_recording_active(conv_id=conv_id)
+        if mic_blocked:
+            cleared = wait_for_mic_to_clear(conv_id=conv_id)
+            if not cleared:
+                print(
+                    "[AntigravityHook] 🎙️ Microphone still active after wait timeout. Skipping spoken feedback and auto-listen."
+                )
+                return {}
+
         respect_media = getattr(getattr(cfg, "tts", None), "respect_media_playback", True)
         if respect_media:
             try:
@@ -874,7 +940,12 @@ def handle_antigravity_stop_hook(
             short_title = pb_titles.get(conv_id, "background agent")[:24]
             spoken_text = f"Update from {short_title}: {summary}"
 
-        # Apply Walken voice acting cadence if Walken / Continental is configured
+        # Apply Walken voice acting cadence only if Walken / Continental is the active voice or active clone provider
+        active_provider = str(
+            (payload.get("provider") if isinstance(payload, dict) else None)
+            or getattr(getattr(cfg, "tts", None), "provider", "edge_tts")
+            or ""
+        ).lower()
         active_voice = str(
             (payload.get("voice") if isinstance(payload, dict) else None)
             or getattr(getattr(cfg, "tts", None), "voice", "")
@@ -889,7 +960,12 @@ def handle_antigravity_stop_hook(
             or getattr(getattr(cfg, "tts", None), "f5_ref_audio", "")
             or ""
         ).lower()
-        if "walken" in active_voice or "continental" in active_voice or "continental" in active_ref:
+        is_walken = (
+            "walken" in active_voice
+            or "continental" in active_voice
+            or (active_provider in ("f5_tts", "local_clone") and "continental" in active_ref)
+        )
+        if is_walken:
             from voicefi.tts.director import TheatricalDirector
 
             archetype = (
@@ -933,7 +1009,7 @@ def handle_antigravity_stop_hook(
         from voicefi.audio.recorder import resolve_barge_in_mode
 
         is_barge_in_on, _ = resolve_barge_in_mode(getattr(cfg.vad, "barge_in", "auto"))
-        barge_in_active = bool(should_speak and should_listen and is_barge_in_on)
+        barge_in_active = bool(should_speak and is_active and is_barge_in_on)
 
         if barge_in_active and not acquire_active_listener_lock(conv_id):
             print(
@@ -1001,8 +1077,15 @@ def handle_antigravity_stop_hook(
                 clear_cross_process_hud_state()
                 return {}
 
+            try:
+                from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
+            except Exception:
+                UnifiedDynamicIslandHUD = None
+
             def _on_barge_in():
+                nonlocal hook_start_time
                 stop_all_speech()
+                hook_start_time = time.time() + 0.05
                 if cfg.antigravity.show_speech_popup:
                     try:
                         from voicefi.ui.speech_hud import AgentSpeechHUD
@@ -1033,19 +1116,19 @@ def handle_antigravity_stop_hook(
                     conv_id=conv_id,
                 )
                 try:
-                    from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
-
-                    UnifiedDynamicIslandHUD.get_instance().update_live_transcription(
-                        txt, user_name=cfg.user_name
-                    )
+                    if UnifiedDynamicIslandHUD is not None:
+                        UnifiedDynamicIslandHUD.get_instance().update_live_transcription(
+                            txt, user_name=cfg.user_name
+                        )
                 except Exception:
                     pass
 
             def _on_tick(energy: float, conf: float = 0.0, is_spk: bool = False):
                 try:
-                    from voicefi.ui.unified_hud import UnifiedDynamicIslandHUD
-
-                    UnifiedDynamicIslandHUD.get_instance().update_audio_level(energy, conf, is_spk)
+                    if UnifiedDynamicIslandHUD is not None:
+                        UnifiedDynamicIslandHUD.get_instance().update_audio_level(
+                            energy, conf, is_spk
+                        )
                 except Exception:
                     pass
 
@@ -1069,7 +1152,10 @@ def handle_antigravity_stop_hook(
                                 agent_name=active_agent,
                                 conv_id=conv_id,
                             )
-                            if getattr(UnifiedDynamicIslandHUD, "_instance", None)
+                            if (
+                                UnifiedDynamicIslandHUD is not None
+                                and getattr(UnifiedDynamicIslandHUD, "_instance", None)
+                            )
                             else None
                         ),
                     ),
@@ -1080,7 +1166,9 @@ def handle_antigravity_stop_hook(
                             user_name=cfg.user_name,
                             app_name="Antigravity",
                             conv_id=conv_id,
-                        ),
+                        )
+                        if (not paused or should_listen)
+                        else None,
                         (
                             (
                                 UnifiedDynamicIslandHUD.get_instance().set_hearing(
@@ -1090,14 +1178,21 @@ def handle_antigravity_stop_hook(
                                     conv_id=conv_id,
                                 )
                                 if not paused
-                                else UnifiedDynamicIslandHUD.get_instance().set_listening(
-                                    user_name=cfg.user_name,
-                                    app_name="Antigravity",
-                                    agent_name=active_agent,
-                                    conv_id=conv_id,
+                                else (
+                                    UnifiedDynamicIslandHUD.get_instance().set_listening(
+                                        user_name=cfg.user_name,
+                                        app_name="Antigravity",
+                                        agent_name=active_agent,
+                                        conv_id=conv_id,
+                                    )
+                                    if should_listen
+                                    else None
                                 )
                             )
-                            if getattr(UnifiedDynamicIslandHUD, "_instance", None)
+                            if (
+                                UnifiedDynamicIslandHUD is not None
+                                and getattr(UnifiedDynamicIslandHUD, "_instance", None)
+                            )
                             else None
                         ),
                     ),
@@ -1107,6 +1202,8 @@ def handle_antigravity_stop_hook(
                     timeout=listen_timeout,
                     conv_id=conv_id,
                     agent_name=active_agent,
+                    stop_when_agent_finishes=(not should_listen),
+                    agent_done_event=playback_finished,
                 )
             finally:
                 release_active_listener_lock(conv_id)
@@ -1143,6 +1240,17 @@ def handle_antigravity_stop_hook(
                     if is_active_media_playing():
                         print(
                             "[AntigravityHook] 🎬 Media playback active. Skipping auto-listen handoff."
+                        )
+                        should_listen = False
+                except Exception:
+                    pass
+
+            if should_listen:
+                try:
+                    if is_mic_recording_active():
+                        print(
+                            "[AntigravityHook] 🎙️ Microphone already active (dictation or native mic). Skipping auto-listen handoff.",
+                            flush=True,
                         )
                         should_listen = False
                 except Exception:

@@ -10,7 +10,7 @@ import weakref
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Tuple
 
 SPEECH_LOCK_FILE = Path(os.environ.get("VOICEFI_SPEECH_LOCK", "/tmp/voicefi_speech.lock"))
 AGENT_SPEAKING_STATUS_FILE = Path(
@@ -459,7 +459,34 @@ def get_recent_speaking_info(window_seconds: float = 3.5) -> Optional[Dict[str, 
 
 def set_agent_audio_playing(playing: bool) -> None:
     """Set indicator that physical sound is actively streaming out of the speakers."""
-    global _IN_PROCESS_AUDIO_PLAYING
+    global _IN_PROCESS_AUDIO_PLAYING, _IN_PROCESS_SPEAKING, _LAST_AGENT_SPEAKING_INFO
+    if playing:
+        # If the user opened a microphone (e.g. VoiceFi transcribe or Antigravity native talk)
+        # during the TTS synthesis window right before physical playback starts, wait politely!
+        try:
+            current_cid = (_LAST_AGENT_SPEAKING_INFO or {}).get("conv_id") or None
+            blocking, _ = is_blocking_mic_recording_active(conv_id=current_cid)
+            if blocking:
+                was_speaking = _IN_PROCESS_SPEAKING
+                saved_info = dict(_LAST_AGENT_SPEAKING_INFO) if _LAST_AGENT_SPEAKING_INFO else None
+                _IN_PROCESS_SPEAKING = False
+                try:
+                    AGENT_SPEAKING_STATUS_FILE.unlink(missing_ok=True)
+                except Exception:
+                    pass
+                wait_for_mic_to_clear(conv_id=current_cid)
+                if was_speaking:
+                    _IN_PROCESS_SPEAKING = True
+                    if saved_info:
+                        saved_info["timestamp"] = time.time()
+                        _LAST_AGENT_SPEAKING_INFO = saved_info
+                        try:
+                            AGENT_SPEAKING_STATUS_FILE.write_text(json.dumps(saved_info))
+                        except Exception:
+                            pass
+        except Exception:
+            pass
+
     _IN_PROCESS_AUDIO_PLAYING = playing
     try:
         if playing:
@@ -543,40 +570,167 @@ def touch_mic_recording() -> None:
         pass
 
 
-def get_mic_recording_info() -> Optional[Dict[str, Any]]:
-    """Retrieve active cross-process microphone recording state if valid and non-expired."""
+def get_mic_recording_info(include_external: bool = True) -> Optional[Dict[str, Any]]:
+    """
+    Retrieve active cross-process microphone recording state if valid and non-expired.
+    When include_external is True, also checks macOS CoreAudio process objects for
+    external applications actively capturing from the microphone (e.g. Antigravity native talk).
+    """
     try:
         if MIC_RECORDING_STATUS_FILE.is_file():
-            raw = MIC_RECORDING_STATUS_FILE.read_text().strip()
-            if not raw:
-                return None
-            try:
-                data = json.loads(raw)
-                if isinstance(data, dict):
-                    pid = int(data.get("pid", 0))
-                    ts = float(data.get("timestamp", 0))
-                    if is_pid_alive(pid) and (time.time() - ts) < 60.0:
-                        return data
-                    else:
-                        MIC_RECORDING_STATUS_FILE.unlink(missing_ok=True)
-                        return None
-            except json.JSONDecodeError:
-                parts = raw.split(":")
-                if len(parts) == 2:
-                    pid = int(parts[0])
-                    ts = float(parts[1])
-                    if is_pid_alive(pid) and (time.time() - ts) < 60.0:
-                        return {"pid": pid, "timestamp": ts, "state": "listening"}
-                    else:
-                        MIC_RECORDING_STATUS_FILE.unlink(missing_ok=True)
+            raw = MIC_RECORDING_STATUS_FILE.read_text(encoding="utf-8", errors="ignore").strip()
+            if raw:
+                valid_data: Optional[Dict[str, Any]] = None
+                try:
+                    data = json.loads(raw)
+                    if isinstance(data, dict):
+                        pid = int(data.get("pid") or 0)
+                        ts = float(data.get("timestamp") or 0.0)
+                        age = time.time() - ts
+                        if pid > 0 and is_pid_alive(pid) and 0.0 <= age < 60.0:
+                            valid_data = data
+                except (json.JSONDecodeError, ValueError, TypeError):
+                    try:
+                        parts = raw.split(":")
+                        if len(parts) == 2:
+                            pid = int(parts[0])
+                            ts = float(parts[1])
+                            age = time.time() - ts
+                            if pid > 0 and is_pid_alive(pid) and 0.0 <= age < 60.0:
+                                valid_data = {"pid": pid, "timestamp": ts, "state": "listening"}
+                    except (ValueError, TypeError):
+                        valid_data = None
+
+                if valid_data is not None:
+                    return valid_data
+                else:
+                    MIC_RECORDING_STATUS_FILE.unlink(missing_ok=True)
     except Exception:
         pass
+
+    if include_external:
+        try:
+            from voicefi.audio.device import get_external_mic_recording_info
+
+            ext_info = get_external_mic_recording_info()
+            if ext_info is not None:
+                return ext_info
+        except Exception:
+            pass
+
     return None
 
 
-def is_mic_recording_active() -> bool:
-    """Check if any process is actively recording from the microphone."""
-    return get_mic_recording_info() is not None
+def is_mic_recording_active(include_external: bool = True) -> bool:
+    """Check if any process (VoiceFi or external native mic) is actively recording from the microphone."""
+    return get_mic_recording_info(include_external=include_external) is not None
+
+
+def is_blocking_mic_recording_active(
+    conv_id: Optional[str] = None,
+    include_external: bool = True,
+) -> Tuple[bool, Optional[Dict[str, Any]]]:
+    """
+    Check if any microphone recording session is active that should pause/defer turn-complete speech.
+    Only exempts a passive barge-in monitor belonging to the exact same process and conversation ID.
+    """
+    mic_info = get_mic_recording_info(include_external=include_external)
+    if not mic_info or not isinstance(mic_info, dict):
+        return False, None
+
+    state = str(mic_info.get("state") or "listening")
+    try:
+        mic_pid = int(mic_info.get("pid") or 0)
+    except (ValueError, TypeError):
+        mic_pid = 0
+    mic_cid = str(mic_info.get("conv_id") or "")
+
+    # Active dictation, transcription, spoken user capture, or external native mic always blocks speech
+    if state in ("dictating", "transcribing", "external_recording", "hearing"):
+        return True, mic_info
+
+    # Same-process passive barge-in monitor for the speaking conversation does not block its own speech
+    if mic_pid == os.getpid() and conv_id and mic_cid == conv_id and state == "barge_in_monitor":
+        return False, None
+
+    return True, mic_info
+
+
+def wait_for_mic_to_clear(
+    max_wait_seconds: float = 120.0,
+    poll_interval: float = 0.15,
+    settle_seconds: float = 0.6,
+    turn_start_time: float = 0.0,
+    conv_id: Optional[str] = None,
+    include_external: bool = True,
+) -> bool:
+    """
+    Politely wait if any microphone recording session (VoiceFi dictation/transcribe,
+    another agent's voice turn, or external/native app microphone like Antigravity native talk)
+    is currently open, resuming as soon as the microphone closes and settles.
+
+    Returns:
+        True if the microphone is clear (safe to speak), False if interrupted or timed out.
+    """
+    blocking, mic_info = is_blocking_mic_recording_active(
+        conv_id=conv_id, include_external=include_external
+    )
+    if not blocking:
+        return True
+
+    in_pytest = bool(os.environ.get("PYTEST_CURRENT_TEST"))
+    eff_poll = min(poll_interval, 0.03) if in_pytest else poll_interval
+    eff_settle = min(settle_seconds, 0.05) if in_pytest else settle_seconds
+
+    start_time = time.time()
+    last_mic_active_time = start_time
+    inactive_start: Optional[float] = None
+    logged_waiting = False
+
+    while True:
+        now = time.time()
+        elapsed = now - start_time
+        if max_wait_seconds and max_wait_seconds > 0 and elapsed >= max_wait_seconds:
+            print(
+                f"[VoiceFi] ⚠️ Timed out ({max_wait_seconds:.1f}s) waiting for microphone to close."
+            )
+            return False
+
+        blocking, mic_info = is_blocking_mic_recording_active(
+            conv_id=conv_id, include_external=include_external
+        )
+        if blocking:
+            inactive_start = None
+            last_mic_active_time = now
+            if not logged_waiting:
+                state_lbl = (mic_info or {}).get("state", "recording")
+                agent_lbl = (
+                    (mic_info or {}).get("detail")
+                    or (mic_info or {}).get("agent_name")
+                    or "microphone"
+                )
+                print(
+                    f"[VoiceFi] 🎙️ Microphone is open ({agent_lbl} • {state_lbl}). Waiting politely for recording to finish before speaking...",
+                    flush=True,
+                )
+                logged_waiting = True
+        else:
+            if inactive_start is None:
+                inactive_start = now
+            if is_speech_interrupted(inactive_start):
+                return False
+            if (now - inactive_start) >= eff_settle:
+                break
+
+        time.sleep(eff_poll)
+
+    if logged_waiting:
+        print(
+            "[VoiceFi] 🎙️ Microphone closed! Delivering turn-complete speech now.",
+            flush=True,
+        )
+
+    return True
 
 
 def get_agent_speaking_info() -> Optional[Dict[str, Any]]:
@@ -1033,6 +1187,7 @@ def escape_to_stop_speech(
 
         def _monitor_media():
             positive_hits = 0
+            ext_mic_hits = 0
             while not stop_media_monitor.is_set():
                 try:
                     from voicefi.audio.media_detection import (
@@ -1052,6 +1207,34 @@ def escape_to_stop_speech(
                             break
                     else:
                         positive_hits = 0
+
+                    # If physical speech audio is playing and the user opens dictation or an external native mic,
+                    # stop agent speech immediately so the user can speak without interruption.
+                    if is_agent_audio_playing():
+                        local_mic = get_mic_recording_info(include_external=False)
+                        if local_mic and local_mic.get("state") in ("dictating", "transcribing"):
+                            print(
+                                "[TTS] 🎙️ Dictation started while speaking. Stopping speech immediately."
+                            )
+                            stop_all_speech()
+                            break
+
+                        from voicefi.audio.device import get_external_mic_recording_info
+
+                        ext_info = get_external_mic_recording_info(use_cache=False)
+                        if ext_info is not None:
+                            ext_mic_hits += 1
+                            if ext_mic_hits >= 2:
+                                detail = ext_info.get("detail", "native microphone")
+                                print(
+                                    f"[TTS] 🎙️ External microphone opened ({detail}) while speaking. Stopping speech immediately."
+                                )
+                                stop_all_speech()
+                                break
+                        else:
+                            ext_mic_hits = 0
+                    else:
+                        ext_mic_hits = 0
                 except Exception:
                     pass
                 stop_media_monitor.wait(0.25)
@@ -1140,11 +1323,26 @@ def speech_turn_lock(
     SPEECH_LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
     lock_fd = None
     enqueue_time = time.time()
+    waited_for_mic = False
     try:
-        # Pre-lock stop guard: if speech was recently stopped by user (< 1.5s), abort immediately
-        stop_time = get_last_speech_stop_time()
-        if stop_time > 0 and (enqueue_time - stop_time) < 1.5:
-            raise DuplicateSpeechSuppressed("Interrupted by user recently (pre-lock guard)")
+        # Pre-lock polite microphone wait: if user is dictating (transcribe), speaking to another
+        # agent, or using native talk (external mic), wait politely before checking stop guards
+        # or holding SPEECH_LOCK_FILE!
+        if is_blocking_mic_recording_active(conv_id=conv_id)[0]:
+            cleared_mic = wait_for_mic_to_clear(
+                max_wait_seconds=120.0, turn_start_time=enqueue_time, conv_id=conv_id
+            )
+            if not cleared_mic:
+                raise DuplicateSpeechSuppressed(
+                    "Interrupted or timed out while waiting for active microphone to close"
+                )
+            enqueue_time = time.time()
+            waited_for_mic = True
+        else:
+            # Pre-lock stop guard: if speech was recently stopped by user (< 1.5s), abort immediately
+            stop_time = get_last_speech_stop_time()
+            if stop_time > 0 and (enqueue_time - stop_time) < 1.5:
+                raise DuplicateSpeechSuppressed("Interrupted by user recently (pre-lock guard)")
 
         # Pre-lock polite media wait: DO NOT hold SPEECH_LOCK_FILE while user watches media!
         try:
@@ -1181,7 +1379,9 @@ def speech_turn_lock(
         flock_timeout = 30.0
         acquired = False
         while time.time() - start_flock < flock_timeout:
-            if is_speech_interrupted(enqueue_time):
+            if not is_blocking_mic_recording_active(conv_id=conv_id)[0] and is_speech_interrupted(
+                enqueue_time
+            ):
                 raise DuplicateSpeechSuppressed(
                     "Interrupted by user while waiting in speech lock queue"
                 )
@@ -1210,34 +1410,27 @@ def speech_turn_lock(
             except ImportError:
                 pass
 
-        # Post-lock queue guard: if user stopped speech while this turn was waiting in queue, abort!
-        now = time.time()
-        post_stop_time = get_last_speech_stop_time()
-        if post_stop_time > 0:
-            if post_stop_time > enqueue_time:
-                raise DuplicateSpeechSuppressed(
-                    "Interrupted by user while waiting in speech lock queue"
-                )
-            if (now - post_stop_time) < 1.5:
-                raise DuplicateSpeechSuppressed("Interrupted by user recently (post-lock guard)")
-
-        # If another process or conversation is actively listening/hearing for the user,
-        # wait politely until the user finishes their spoken turn before speaking aloud.
-        mic_wait_start = time.time()
-        while is_mic_recording_active():
-            mic_info = get_mic_recording_info()
-            if mic_info:
-                mic_pid = int(mic_info.get("pid", 0))
-                mic_cid = mic_info.get("conv_id")
-                # If this mic session belongs to the same process and conv_id (e.g. barge-in), proceed
-                if mic_pid == os.getpid() and conv_id and mic_cid == conv_id:
-                    break
-            if is_speech_interrupted(enqueue_time):
+        # If a microphone session (transcribe, native talk, or another conversation's mic)
+        # opened while waiting for SPEECH_LOCK_FILE, wait politely until it closes!
+        if is_blocking_mic_recording_active(conv_id=conv_id)[0]:
+            cleared_mic = wait_for_mic_to_clear(
+                max_wait_seconds=120.0, turn_start_time=enqueue_time, conv_id=conv_id
+            )
+            if not cleared_mic:
                 raise DuplicateSpeechSuppressed("Interrupted by user while waiting for microphone")
-            if (time.time() - mic_wait_start) > 40.0:
-                print("[TTS] ⚠️ Timed out waiting for active mic recording to finish, proceeding...")
-                break
-            time.sleep(0.12)
+            enqueue_time = time.time()
+            waited_for_mic = True
+        else:
+            # Post-lock queue guard: if user stopped speech while this turn was waiting in queue, abort!
+            now = time.time()
+            post_stop_time = get_last_speech_stop_time()
+            if post_stop_time > 0:
+                if post_stop_time > enqueue_time:
+                    raise DuplicateSpeechSuppressed(
+                        "Interrupted by user while waiting in speech lock queue"
+                    )
+                if not waited_for_mic and (now - post_stop_time) < 1.5:
+                    raise DuplicateSpeechSuppressed("Interrupted by user recently (post-lock guard)")
 
         # Check if this exact speech was already delivered by another process while waiting for lock
         if text and is_duplicate_speech(text, window_seconds=6.0):
