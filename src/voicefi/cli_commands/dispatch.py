@@ -3,13 +3,74 @@ Cross-agent prompt dispatch, peer Mac discovery, clipboard sync, companion, and 
 """
 
 import os
+import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from voicefi.config import load_config
 from voicefi.audio.chimes import play_chime
+
+
+def build_git_cwd_context_envelope(
+    text: str,
+    cwd: Optional[str] = None,
+    max_status_lines: int = 50,
+) -> str:
+    """
+    Wrap a prompt string in a lightweight XML context header containing:
+      - os.getcwd()
+      - git rev-parse --abbrev-ref HEAD
+      - git status --short (bounded to max_status_lines to prevent context bloat)
+    Executes in <10ms and degrades gracefully outside Git repositories.
+    """
+    try:
+        work_dir = cwd or os.getcwd()
+    except OSError:
+        work_dir = str(Path.home())
+
+    branch = "none"
+    git_status = ""
+
+    try:
+        br_res = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=work_dir,
+            capture_output=True,
+            text=True,
+            timeout=1.5,
+        )
+        if br_res.returncode == 0 and br_res.stdout.strip():
+            branch = br_res.stdout.strip()
+
+            st_res = subprocess.run(
+                ["git", "status", "--short", "-u"],
+                cwd=work_dir,
+                capture_output=True,
+                text=True,
+                timeout=1.5,
+            )
+            if st_res.returncode == 0:
+                raw_lines = [ln for ln in st_res.stdout.splitlines() if ln.strip()]
+                if len(raw_lines) > max_status_lines:
+                    omitted = len(raw_lines) - max_status_lines
+                    git_status = (
+                        "\n".join(raw_lines[:max_status_lines])
+                        + f"\n... (+{omitted} more files)"
+                    )
+                else:
+                    git_status = "\n".join(raw_lines)
+    except Exception:
+        pass
+
+    status_block = git_status if git_status else "(clean)"
+    return (
+        f'<context cwd="{work_dir}" branch="{branch}">\n'
+        f"<git_status>\n{status_block}\n</git_status>\n"
+        f"</context>\n\n"
+        f"{text.strip()}"
+    )
 
 
 def cmd_new(args):
@@ -37,6 +98,9 @@ def cmd_send(args):
     if not text.strip():
         print("❌ Error: message text cannot be empty.", file=sys.stderr)
         sys.exit(1)
+
+    if getattr(args, "ctx", False):
+        text = build_git_cwd_context_envelope(text)
 
     target_engine = getattr(args, "to", "claude") or "claude"
     conv_id = getattr(args, "conv_id", None)
@@ -336,3 +400,197 @@ def cmd_panel(args):
             time.sleep(1)
     except KeyboardInterrupt:
         print("\n👋 Voice Control Panel closed.")
+
+
+def cmd_replay(args):
+    """Re-dispatch the last spoken utterance from /tmp/vifi_history.jsonl, re-route to another target, or print to stdout."""
+    import datetime
+    import json
+    from voicefi.ipc.history import (
+        dispatch_payload_over_socket,
+        get_last_utterance,
+        load_utterance_history,
+        resolve_history_path,
+    )
+
+    history_path = resolve_history_path(getattr(args, "history_file", None))
+    is_json = bool(getattr(args, "json", False))
+    is_list = bool(getattr(args, "list", False))
+    is_print = bool(getattr(args, "print_only", False) or getattr(args, "print", False))
+
+    if is_list:
+        entries = load_utterance_history(history_path=history_path)
+        if is_json:
+            print(json.dumps(entries, indent=2))
+            return 0
+        if not entries:
+            print(f"ℹ️ No spoken utterances recorded in {history_path} yet.")
+            return 0
+        print(f"\n🔁 VoiceFi Utterance Ring Buffer ({len(entries)}/10 entries — {history_path})")
+        print("=" * 72)
+        for i, item in enumerate(entries):
+            ts = float(item.get("timestamp", 0.0) or 0.0)
+            ts_str = (
+                datetime.datetime.fromtimestamp(ts).strftime("%H:%M:%S") if ts > 0 else "unknown"
+            )
+            dur = float(item.get("audio_duration", 0.0) or 0.0)
+            route = item.get("target_route") or "antigravity"
+            text_val = (item.get("transcript") or item.get("payload") or "").strip()
+            preview = text_val if len(text_val) <= 75 else text_val[:72] + "..."
+            latest_tag = " [latest]" if i == len(entries) - 1 else ""
+            print(f"  [{i}] {ts_str} ({dur:.1f}s) ➔ {route}{latest_tag}")
+            print(f'      "{preview}"')
+        print("=" * 72 + "\n")
+        return 0
+
+    index = getattr(args, "index", -1)
+    if index is None:
+        index = -1
+    entry = get_last_utterance(history_path=history_path, index=int(index))
+    if not entry:
+        print(
+            f"❌ Error: No spoken utterance found in history buffer ({history_path}).",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    text = (entry.get("transcript") or entry.get("payload") or "").strip()
+    if not text:
+        print(
+            f"❌ Error: Last utterance in {history_path} has an empty payload.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    if is_print:
+        if is_json:
+            print(json.dumps(entry))
+        else:
+            print(text)
+        return 0
+
+    orig_route = (entry.get("target_route") or "antigravity").strip()
+    target_override = getattr(args, "to", None)
+    target_route = (target_override or orig_route or "antigravity").strip()
+    audio_duration = float(entry.get("audio_duration", 0.0) or 0.0)
+    conv_id = getattr(args, "conv_id", None) or entry.get("session_id")
+
+    if target_route.lower() in ("stdout", "print"):
+        print(text)
+        return 0
+
+    if getattr(args, "dry_run", False):
+        print(
+            f"🔍 [Dry-Run Replay] Target: {target_route} (original: {orig_route}) | Duration: {audio_duration:.1f}s"
+        )
+        print(f"📝 Payload ({len(text)} chars): {text}")
+        return 0
+
+    # 1. Dispatch over /tmp/vifi.sock (or /tmp/voicefi.sock) if an IPC listener is active
+    socket_path = getattr(args, "socket", None)
+    socket_sent = dispatch_payload_over_socket(
+        transcript=text,
+        target_route=target_route,
+        audio_duration=audio_duration,
+        session_id=conv_id,
+        source="replay",
+        metadata=entry.get("metadata"),
+        socket_path=socket_path,
+        record_history=False,
+        history_path=history_path,
+    )
+
+    if target_route.lower() in ("ipc", "socket", "daemon"):
+        if socket_sent:
+            print(
+                f"🔁 Replayed utterance ({audio_duration:.1f}s, {len(text)} chars) over IPC socket ➔ {target_route}."
+            )
+            return 0
+        print("❌ Error: Could not connect to IPC socket (/tmp/vifi.sock).", file=sys.stderr)
+        sys.exit(1)
+
+    # 2. Local Ollama / on-device model routing
+    if target_route.lower() in ("ollama", "local", "gemma") or target_route.lower().startswith(
+        "ollama:"
+    ):
+        model_name = (
+            target_route.split(":", 1)[1] if ":" in target_route else "qwen2.5-coder:1.5b"
+        )
+        print(f"🔁 Re-routing spoken thought ({audio_duration:.1f}s) to local Ollama ({model_name})...")
+        try:
+            import asyncio
+            from voicefi.local.engine import OllamaEngine
+
+            eng = OllamaEngine(model_name=model_name)
+            resp = asyncio.run(eng.generate(prompt=text))
+            if resp:
+                print(resp)
+                return 0
+        except Exception as e:
+            if not socket_sent:
+                print(f"⚠️ Local Ollama replay notice: {e}", file=sys.stderr)
+
+    # 3. Check if target is a remote peer Mac on LAN
+    local_engines = {
+        "claude",
+        "claude_code",
+        "antigravity",
+        "gemini",
+        "chatgpt",
+        "codex",
+        "active",
+        "spark",
+        "viv",
+        "ollama",
+        "local",
+        "gemma",
+    }
+    if target_route.lower() not in local_engines and not target_route.lower().startswith("ollama:"):
+        try:
+            from voicefi.network.peers import PeerDiscoveryEngine, PeerClient
+
+            peer_match = PeerDiscoveryEngine.resolve_target(target_route)
+            if peer_match:
+                print(
+                    f"🔁 Re-routing spoken thought ({audio_duration:.1f}s) to peer {peer_match.friendly_name} ({peer_match.ip})..."
+                )
+                res = PeerClient.send_task(
+                    peer=peer_match,
+                    text=text,
+                    target_engine=getattr(args, "engine", "auto") or "auto",
+                )
+                if res.get("success") or res.get("delivered"):
+                    print(f"✅ Replayed successfully to {peer_match.friendly_name}!")
+                    return 0
+        except Exception:
+            pass
+
+    # 4. Standard Agent / Persona Dispatch (Antigravity, Claude Code, Codex, Gemini, etc.)
+    from voicefi.integrations.injector import send_message_to_agent
+
+    send_kwargs = {
+        "conv_id": conv_id,
+        "text": text,
+        "target_engine": target_route,
+        "sender_name": getattr(args, "sender_name", None),
+        "_is_replay": True,
+    }
+    use_headless = getattr(args, "headless", None)
+    if use_headless is not None:
+        send_kwargs["use_headless"] = use_headless
+
+    res = send_message_to_agent(**send_kwargs)
+    agent_sent = bool(getattr(res, "success", res))
+
+    if agent_sent or socket_sent:
+        action_desc = (
+            f"re-routed from {orig_route} ➔ {target_route}"
+            if target_override and target_route != orig_route
+            else f"dispatched to {target_route}"
+        )
+        print(f"🔁 Replayed utterance ({audio_duration:.1f}s, {len(text)} chars) — {action_desc}.")
+        return 0
+
+    print(f"⚠️ Could not deliver replayed utterance to {target_route}.", file=sys.stderr)
+    sys.exit(1)
+

@@ -662,8 +662,9 @@ def is_blocking_mic_recording_active(
         return True, mic_info
 
     # Same-process passive barge-in monitor for the speaking conversation does not block its own speech
-    if mic_pid == os.getpid() and conv_id and mic_cid == conv_id and state == "barge_in_monitor":
-        return False, None
+    if mic_pid == os.getpid() and state == "barge_in_monitor":
+        if not conv_id or not mic_cid or mic_cid == conv_id:
+            return False, None
 
     return True, mic_info
 
@@ -1448,8 +1449,15 @@ def speech_turn_lock(
                 pass
 
         # If a microphone session (transcribe, native talk, or another conversation's mic)
-        # opened while waiting for SPEECH_LOCK_FILE, wait politely until it closes!
+        # opened while waiting for SPEECH_LOCK_FILE, release SPEECH_LOCK_FILE while waiting
+        # politely until the mic closes so we never starve other speech callers for 30s!
         if is_blocking_mic_recording_active(conv_id=conv_id)[0]:
+            if acquired and lock_fd is not None:
+                try:
+                    fcntl.flock(lock_fd, fcntl.LOCK_UN)
+                    acquired = False
+                except Exception:
+                    pass
             cleared_mic = wait_for_mic_to_clear(
                 max_wait_seconds=120.0, turn_start_time=enqueue_time, conv_id=conv_id
             )
@@ -1457,6 +1465,15 @@ def speech_turn_lock(
                 raise DuplicateSpeechSuppressed("Interrupted by user while waiting for microphone")
             enqueue_time = time.time()
             waited_for_mic = True
+            if lock_fd is not None and not acquired:
+                re_start = time.time()
+                while time.time() - re_start < flock_timeout:
+                    try:
+                        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                        acquired = True
+                        break
+                    except (BlockingIOError, IOError):
+                        time.sleep(0.04)
         else:
             # Post-lock queue guard: if user stopped speech while this turn was waiting in queue, abort!
             now = time.time()

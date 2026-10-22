@@ -157,20 +157,27 @@ class VoiceFiIPCBridge:
                 await asyncio.sleep(self.reconnect_interval)
 
     async def _attempt_connect(self) -> bool:
-        # 1. Try Unix domain socket first
-        sock_p = Path(self.socket_path)
-        if sock_p.is_socket() or sock_p.exists():
-            try:
-                reader, writer = await asyncio.open_unix_connection(self.socket_path)
-                self._unix_reader = reader
-                self._unix_writer = writer
-                self._active_transport = "unix"
-                logger.info(
-                    "🔗 Connected to VoiceFi daemon via Unix domain socket (%s)", self.socket_path
-                )
-                return True
-            except Exception as e:
-                logger.debug("Unix socket connection failed: %s", e)
+        # 1. Try Unix domain socket first (check configured path plus /tmp/vifi.sock alias)
+        cand_paths = [self.socket_path]
+        if self.socket_path == "/tmp/voicefi.sock":
+            cand_paths.append("/tmp/vifi.sock")
+        elif self.socket_path == "/tmp/vifi.sock":
+            cand_paths.append("/tmp/voicefi.sock")
+
+        for cand in cand_paths:
+            sock_p = Path(cand)
+            if sock_p.is_socket() or sock_p.exists():
+                try:
+                    reader, writer = await asyncio.open_unix_connection(cand)
+                    self._unix_reader = reader
+                    self._unix_writer = writer
+                    self._active_transport = "unix"
+                    logger.info(
+                        "🔗 Connected to VoiceFi daemon via Unix domain socket (%s)", cand
+                    )
+                    return True
+                except Exception as e:
+                    logger.debug("Unix socket connection failed (%s): %s", cand, e)
 
         # 2. Try WebSocket fallback
         try:

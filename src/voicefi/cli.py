@@ -56,6 +56,30 @@ if len(sys.argv) >= 2 and sys.argv[1] == "hook":
         except Exception:
             pass
 
+# Fast-path doctor interception: run the 4-point pipe & latency health check in <200ms
+# without importing heavy TTS, UI, or media submodules.
+if (
+    len(sys.argv) >= 2
+    and sys.argv[1] in ("doctor", "health", "check")
+    and not any(a in ("-h", "--help") for a in sys.argv[2:])
+    and not bool(os.environ.get("PYTEST_CURRENT_TEST"))
+):
+    import argparse as _argparse
+    from voicefi.cli_commands.doctor import cmd_doctor as _fast_cmd_doctor
+
+    _doc_p = _argparse.ArgumentParser(add_help=False)
+    _doc_p.add_argument("command")
+    _doc_p.add_argument("--fix", action="store_true")
+    _doc_p.add_argument("--full", action="store_true")
+    _doc_p.add_argument("--json", action="store_true")
+    _doc_p.add_argument("--socket", type=str, default=None)
+    _doc_p.add_argument("--config", type=str, default=None)
+    _known, _extra = _doc_p.parse_known_args()
+    if not _extra:
+        _rc = _fast_cmd_doctor(_known)
+        sys.stdout.flush()
+        os._exit(_rc if isinstance(_rc, int) else 0)
+
 import time
 from typing import Optional
 
@@ -81,7 +105,9 @@ from voicefi.cli_commands.audio import (
 from voicefi.cli_commands.setup import cmd_setup, cmd_mcp, cmd_onboarding, cmd_permissions
 from voicefi.cli_commands.knowledge import cmd_ambient, cmd_meeting, cmd_obsidian, cmd_capture
 from voicefi.cli_commands.dispatch import (
+    build_git_cwd_context_envelope,
     cmd_send,
+    cmd_replay,
     cmd_peers,
     cmd_vandelay,
     cmd_clip,
@@ -125,6 +151,7 @@ from voicefi.cli_commands.memo import cmd_memo
 from voicefi.cli_commands.media import cmd_duel, cmd_sfx, cmd_fx, cmd_reel, cmd_trim, cmd_beatbox
 from voicefi.cli_commands.live import cmd_live, cmd_bridge
 from voicefi.cli_commands.local import cmd_spark, cmd_scout, cmd_benchmark, cmd_local
+from voicefi.cli_commands.doctor import cmd_doctor
 from voicefi.tts import get_tts_engine
 from voicefi.config import load_config, save_config
 

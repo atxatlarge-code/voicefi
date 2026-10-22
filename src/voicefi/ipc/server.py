@@ -27,6 +27,11 @@ from voicefi.ipc.protocol import (
     build_signal_interrupt_event,
     parse_jsonrpc_message,
 )
+from voicefi.ipc.history import (
+    DEFAULT_HISTORY_PATH,
+    DEFAULT_VIFI_SOCKET_PATH,
+    record_utterance_history,
+)
 from voicefi.tts import get_tts_engine, stop_all_speech
 from voicefi.tts.base import set_cross_process_hud_state
 
@@ -40,6 +45,7 @@ if not logger.handlers:
 logger.setLevel(logging.INFO)
 
 DEFAULT_SOCKET_PATH = "/tmp/voicefi.sock"
+ALIAS_SOCKET_PATH = DEFAULT_VIFI_SOCKET_PATH
 DEFAULT_WS_PORT = 8765
 DEFAULT_WS_HOST = "127.0.0.1"
 
@@ -57,6 +63,8 @@ class VoiceFiIPCServer:
         enable_ws: bool = True,
         config: Optional[VoiceFiConfig] = None,
         on_agent_event: Optional[Callable[[Dict[str, Any]], Any]] = None,
+        on_prompt_dispatch: Optional[Callable[[Dict[str, Any]], Any]] = None,
+        history_path: Optional[str] = None,
     ):
         self.socket_path = socket_path
         self.ws_port = ws_port
@@ -64,6 +72,19 @@ class VoiceFiIPCServer:
         self.enable_ws = enable_ws
         self.config = config or load_config()
         self.on_agent_event = on_agent_event
+        self.on_prompt_dispatch = on_prompt_dispatch
+        if history_path is not None:
+            self.history_path = history_path
+        elif os.environ.get("VIFI_HISTORY_PATH"):
+            self.history_path = os.environ["VIFI_HISTORY_PATH"]
+        elif os.environ.get("PYTEST_CURRENT_TEST") and socket_path not in (
+            DEFAULT_SOCKET_PATH,
+            ALIAS_SOCKET_PATH,
+        ):
+            self.history_path = f"{socket_path}.history.jsonl"
+        else:
+            self.history_path = DEFAULT_HISTORY_PATH
+        self._alias_symlink_created = False
 
         self._unix_server: Optional[asyncio.AbstractServer] = None
         self._ws_app: Optional[web.Application] = None
@@ -121,6 +142,21 @@ class VoiceFiIPCServer:
             # Set secure socket permissions (read/write for user and group)
             os.chmod(self.socket_path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP)
             logger.info("Bound Unix domain socket at %s", self.socket_path)
+
+            # Create /tmp/vifi.sock alias symlink when bound to /tmp/voicefi.sock (or vice versa)
+            if self.socket_path in (DEFAULT_SOCKET_PATH, ALIAS_SOCKET_PATH):
+                other_path = (
+                    Path(ALIAS_SOCKET_PATH)
+                    if self.socket_path == DEFAULT_SOCKET_PATH
+                    else Path(DEFAULT_SOCKET_PATH)
+                )
+                try:
+                    if other_path.is_symlink() or other_path.exists():
+                        other_path.unlink()
+                    other_path.symlink_to(self.socket_path)
+                    self._alias_symlink_created = True
+                except Exception as sym_err:
+                    logger.debug("Could not create socket alias %s: %s", other_path, sym_err)
         except Exception as e:
             logger.error("Failed to bind Unix domain socket at %s: %s", self.socket_path, e)
             if not self.enable_ws:
@@ -225,6 +261,8 @@ class VoiceFiIPCServer:
 
         if method == METHOD_AGENT_EVENT:
             await self._handle_agent_event(params, msg_id=msg_id, writer=writer, ws=ws)
+        elif method == METHOD_PROMPT_DISPATCH:
+            await self._handle_prompt_dispatch(params, msg_id=msg_id, writer=writer, ws=ws)
         elif method == "vifi.ping":
             resp = {"jsonrpc": "2.0", "result": {"pong": True}, "id": msg_id}
             await self._send_to_single_client(resp, writer=writer, ws=ws)
@@ -237,6 +275,58 @@ class VoiceFiIPCServer:
                     "id": msg_id,
                 }
                 await self._send_to_single_client(resp, writer=writer, ws=ws)
+
+    async def _handle_prompt_dispatch(
+        self,
+        params: Dict[str, Any],
+        msg_id: Optional[Union[str, int]] = None,
+        writer: Optional[asyncio.StreamWriter] = None,
+        ws: Optional[web.WebSocketResponse] = None,
+    ):
+        transcript = (params.get("transcript") or params.get("payload") or "").strip()
+        session_id = params.get("session_id")
+        source = params.get("source", "ipc")
+        confidence = float(params.get("confidence", 1.0))
+        metadata = params.get("metadata") if isinstance(params.get("metadata"), dict) else {}
+        target_route = (
+            params.get("target_route")
+            or metadata.get("target_route")
+            or metadata.get("target")
+            or "antigravity"
+        )
+        audio_duration = float(
+            params.get("audio_duration")
+            if params.get("audio_duration") is not None
+            else metadata.get("audio_duration", 0.0)
+        )
+        record_hist = params.get("record_history", source != "replay")
+
+        if self.on_prompt_dispatch:
+            try:
+                res = self.on_prompt_dispatch(params)
+                if asyncio.iscoroutine(res):
+                    await res
+            except Exception as e:
+                logger.error("Error in on_prompt_dispatch callback: %s", e)
+
+        await self.broadcast_prompt_dispatch(
+            transcript=transcript,
+            session_id=session_id,
+            source=source,
+            confidence=confidence,
+            metadata=metadata,
+            audio_duration=audio_duration,
+            target_route=target_route,
+            record_history=bool(record_hist),
+        )
+
+        if msg_id is not None:
+            resp = {
+                "jsonrpc": "2.0",
+                "result": {"dispatched": True, "target_route": target_route},
+                "id": msg_id,
+            }
+            await self._send_to_single_client(resp, writer=writer, ws=ws)
 
     async def _handle_agent_event(
         self,
@@ -358,15 +448,52 @@ class VoiceFiIPCServer:
         source: str = "whisperkit",
         confidence: float = 1.0,
         metadata: Optional[Dict[str, Any]] = None,
+        audio_duration: Optional[float] = None,
+        target_route: Optional[str] = None,
+        record_history: bool = True,
     ):
         """Broadcast an inbound transcribed speech prompt to all connected agent bridges."""
+        meta: Dict[str, Any] = dict(metadata) if isinstance(metadata, dict) else {}
+        resolved_route = (
+            target_route
+            or meta.get("target_route")
+            or meta.get("target")
+            or meta.get("agent")
+            or "antigravity"
+        )
+        resolved_duration = float(
+            audio_duration
+            if audio_duration is not None
+            else (meta.get("audio_duration") or meta.get("duration") or 0.0)
+        )
+        meta.setdefault("target_route", resolved_route)
+        meta.setdefault("audio_duration", resolved_duration)
+
+        # Write to lightweight ring buffer at /tmp/vifi_history.jsonl right before dispatching over socket
+        if record_history and transcript and transcript.strip():
+            entry = record_utterance_history(
+                transcript=transcript,
+                target_route=resolved_route,
+                audio_duration=resolved_duration,
+                timestamp=meta.get("timestamp"),
+                source=source,
+                session_id=session_id,
+                metadata=meta,
+                history_path=self.history_path,
+            )
+            meta.setdefault("timestamp", entry["timestamp"])
+
         event = build_prompt_dispatch_event(
             transcript=transcript,
             session_id=session_id,
             source=source,
             confidence=confidence,
-            metadata=metadata,
+            metadata=meta,
         )
+        event["params"]["target_route"] = resolved_route
+        event["params"]["audio_duration"] = resolved_duration
+        if "timestamp" in meta:
+            event["params"]["timestamp"] = meta["timestamp"]
         logger.info('📢 Broadcasting vifi.prompt.dispatch: "%s"', transcript)
         await self.broadcast_message(event)
 
@@ -403,11 +530,30 @@ class VoiceFiIPCServer:
 
         # Clean socket file
         sock_p = Path(self.socket_path)
-        if sock_p.exists():
+        if sock_p.exists() or sock_p.is_symlink():
             try:
                 sock_p.unlink()
             except Exception:
                 pass
+
+        if self.history_path and self.history_path.endswith(".sock.history.jsonl"):
+            try:
+                Path(self.history_path).unlink(missing_ok=True)
+            except Exception:
+                pass
+
+        if self._alias_symlink_created:
+            other_path = (
+                Path(ALIAS_SOCKET_PATH)
+                if self.socket_path == DEFAULT_SOCKET_PATH
+                else Path(DEFAULT_SOCKET_PATH)
+            )
+            if other_path.is_symlink():
+                try:
+                    other_path.unlink()
+                except Exception:
+                    pass
+            self._alias_symlink_created = False
 
         # Close WebSocket clients and runner
         for ws in list(self._ws_clients):

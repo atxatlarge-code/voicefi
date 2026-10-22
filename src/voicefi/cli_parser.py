@@ -734,12 +734,23 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
     doc_p = subparsers.add_parser(
         "doctor",
         aliases=["health", "check"],
-        help="Run comprehensive system, audio DAC, dependency & self-healing diagnostics",
+        help="Instant <200ms 4-point pipe, companion bridge, audio input & local LLM warmth health check",
     )
     doc_p.add_argument(
         "--fix",
         action="store_true",
         help="Attempt automated self-healing for detected issues",
+    )
+    doc_p.add_argument(
+        "--full",
+        action="store_true",
+        help="Include extended Python runtime, dependency, and privacy diagnostics",
+    )
+    doc_p.add_argument(
+        "--socket",
+        type=str,
+        default=None,
+        help="Override Unix domain socket path to ping (default: /tmp/vifi.sock)",
     )
     doc_p.add_argument(
         "--json",
@@ -1042,6 +1053,18 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
     )
     m_rec.add_argument("-t", "--title", type=str, default=None, help="Title for the voice memo")
     m_rec.add_argument(
+        "-m",
+        "--mode",
+        choices=["auto", "spec", "creative", "channel"],
+        default="auto",
+        help="Synthesis mode: 'spec' (engineering plan), 'creative'/'channel' (Voice-Print bookend peeling), or 'auto'",
+    )
+    m_rec.add_argument(
+        "--speak",
+        action="store_true",
+        help="Speak back the structured synthesis aloud via VoiceFi TTS (Speak -> Listen -> Riff loop)",
+    )
+    m_rec.add_argument(
         "-o", "--out", type=str, default=None, help="Export synthesized plan to markdown file"
     )
     m_rec.add_argument(
@@ -1053,7 +1076,7 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
     m_synth = memo_sub.add_parser(
         "synth",
         aliases=["synthesize"],
-        help="Synthesize stream-of-consciousness thoughts into code plan",
+        help="Synthesize stream-of-consciousness thoughts into code plan or creative essay",
     )
     m_synth.add_argument("memo_id", nargs="?", default=None, help="Memo ID to synthesize")
     m_synth.add_argument(
@@ -1062,12 +1085,56 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
     m_synth.add_argument(
         "-f", "--file", type=str, default=None, help="Text or transcript file to synthesize"
     )
+    m_synth.add_argument(
+        "-m",
+        "--mode",
+        choices=["auto", "spec", "creative", "channel"],
+        default="auto",
+        help="Synthesis mode: 'spec' (engineering plan), 'creative'/'channel' (Voice-Print bookend peeling), or 'auto'",
+    )
+    m_synth.add_argument(
+        "--speak",
+        action="store_true",
+        help="Speak back the structured synthesis aloud via VoiceFi TTS",
+    )
     m_synth.add_argument("--title", type=str, default=None, help="Custom title for generated plan")
     m_synth.add_argument(
         "-o", "--out", type=str, default=None, help="Export path for generated markdown"
     )
     m_synth.add_argument(
         "-c", "--clipboard", action="store_true", help="Copy generated plan to clipboard"
+    )
+
+    # memo channel (Creative Partner Mode shortcut)
+    m_chan = memo_sub.add_parser(
+        "channel",
+        help="Creative Partner Mode: peel spoken preset/end-set directions & sculpt in your exact Voice-Print",
+    )
+    m_chan.add_argument("memo_id", nargs="?", default=None, help="Optional Memo ID to channel")
+    m_chan.add_argument(
+        "-d",
+        "--duration",
+        type=str,
+        default=None,
+        help="Target recording duration if recording live (e.g. '3m', '5m')",
+    )
+    m_chan.add_argument(
+        "-t", "--text", nargs="+", default=None, help="Raw speech text (with optional spoken end-set) to channel"
+    )
+    m_chan.add_argument(
+        "-f", "--file", type=str, default=None, help="Text or audio file to channel"
+    )
+    m_chan.add_argument("--title", type=str, default=None, help="Custom title for channeled piece")
+    m_chan.add_argument(
+        "--speak",
+        action="store_true",
+        help="Read back the structured draft aloud via VoiceFi TTS (Speak -> Listen -> Riff loop)",
+    )
+    m_chan.add_argument(
+        "-o", "--out", type=str, default=None, help="Export path for generated markdown"
+    )
+    m_chan.add_argument(
+        "-c", "--clipboard", action="store_true", help="Copy generated markdown to clipboard"
     )
 
     # memo list
@@ -1230,6 +1297,35 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
         default="antigravity",
         help="Agent engine to launch",
     )
+    for rag_cmd, rag_help in (
+        ("ask", "Ask a question over your Obsidian notes & git context (Sub-20ms Local Spoken RAG)"),
+        ("query", "Query your Obsidian vault with Sub-20ms Local Spoken RAG"),
+        ("socratic", "Challenge an idea or architecture against your vault (Socratic Partner)"),
+    ):
+        rag_p = obs_sub.add_parser(rag_cmd, help=rag_help)
+        rag_p.add_argument(
+            "text", nargs="*", default=None, help="Question or idea to query against your vault"
+        )
+        rag_p.add_argument(
+            "-v", "--vault", type=str, default=None, help="Target specific Obsidian vault directory"
+        )
+        rag_p.add_argument(
+            "--socratic",
+            action="store_true",
+            default=(rag_cmd == "socratic"),
+            help="Engage Socratic Brainstorming Partner mode",
+        )
+        rag_p.add_argument(
+            "--persona",
+            type=str,
+            default=None,
+            help="Studio neural persona for spoken response (e.g., Christopher, Sonia)",
+        )
+        rag_p.add_argument(
+            "--speak",
+            action="store_true",
+            help="Synthesize and play spoken response aloud",
+        )
 
     # capture (top-level shortcut for direct voice-to-vault)
     cap_top_p = subparsers.add_parser(
@@ -1286,6 +1382,30 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
         help="Enable/disable persistent resting pill",
     )
     cfg_p.add_argument(
+        "--visibility-mode",
+        dest="visibility_mode",
+        type=str,
+        default=None,
+        choices=["always", "speaking_only", "active_only"],
+        help="HUD visibility mode (always, speaking_only, active_only)",
+    )
+    cfg_p.add_argument(
+        "--always-on-top",
+        dest="always_on_top",
+        type=str,
+        default=None,
+        choices=["true", "false", "on", "off"],
+        help="Float above normal application windows (true) or sit behind active windows (false)",
+    )
+    cfg_p.add_argument(
+        "--bring-to-front-on-speech",
+        dest="bring_to_front_on_speech",
+        type=str,
+        default=None,
+        choices=["true", "false", "on", "off"],
+        help="Temporarily elevate HUD to front when speaking in behind/normal window mode",
+    )
+    cfg_p.add_argument(
         "--fullscreen-overlay",
         dest="fullscreen_overlay",
         type=str,
@@ -1338,6 +1458,26 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
         default="toggle",
         choices=["on", "off", "toggle", "status"],
         help="Enable/disable persistent HUD",
+    )
+
+    spk_p = hud_sub.add_parser("speaking-only", help="Toggle or set speaking-only visibility mode")
+    spk_p.add_argument(
+        "speaking_only_state",
+        nargs="?",
+        default="toggle",
+        choices=["on", "off", "toggle", "status"],
+        help="Enable/disable speaking-only HUD mode",
+    )
+
+    layer_p = hud_sub.add_parser(
+        "layer", help="Toggle or set HUD window layer (always-on-top vs behind)"
+    )
+    layer_p.add_argument(
+        "layer_state",
+        nargs="?",
+        default="toggle",
+        choices=["always-on-top", "behind", "toggle", "status"],
+        help="HUD window stacking layer",
     )
 
     fs_p = hud_sub.add_parser(
@@ -1578,6 +1718,13 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
         help="Sender attribution (e.g. Claude, Antigravity)",
     )
     send_p.add_argument(
+        "-c",
+        "--ctx",
+        dest="ctx",
+        action="store_true",
+        help="Automatically wrap message in a lightweight Git & CWD context envelope (cwd, branch, git status --short)",
+    )
+    send_p.add_argument(
         "--no-envelope", action="store_true", help="Do not include provenance metadata header"
     )
     send_p.add_argument(
@@ -1590,6 +1737,76 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
         "--dry-run",
         action="store_true",
         help="Simulate dispatch without sending to target agent or peer",
+    )
+
+    # replay / retry
+    replay_p = subparsers.add_parser(
+        "replay",
+        aliases=["retry"],
+        help="Re-dispatch the last spoken utterance from /tmp/vifi_history.jsonl, re-route (--to), or pipe to stdout (--print)",
+    )
+    replay_p.add_argument(
+        "--to",
+        "-t",
+        type=str,
+        default=None,
+        help="Re-route last spoken utterance to a different target agent, handler, or peer (e.g. claude, antigravity, codex, ollama)",
+    )
+    replay_p.add_argument(
+        "--print",
+        "-p",
+        dest="print_only",
+        action="store_true",
+        help="Pipe the last transcribed utterance directly to stdout without re-dispatching",
+    )
+    replay_p.add_argument(
+        "--list",
+        "-l",
+        action="store_true",
+        help="List the last 10 utterances in the /tmp/vifi_history.jsonl ring buffer",
+    )
+    replay_p.add_argument(
+        "--index",
+        "-n",
+        type=int,
+        default=-1,
+        help="Ring buffer index to replay (default: -1 for latest utterance)",
+    )
+    replay_p.add_argument(
+        "--history-file",
+        type=str,
+        default=None,
+        help="Path to utterance history JSONL file (default: /tmp/vifi_history.jsonl)",
+    )
+    replay_p.add_argument(
+        "--socket",
+        type=str,
+        default=None,
+        help="Path to Unix domain socket (default: /tmp/vifi.sock)",
+    )
+    replay_p.add_argument(
+        "--conv-id",
+        "--id",
+        dest="conv_id",
+        type=str,
+        default=None,
+        help="Target conversation ID override",
+    )
+    replay_p.add_argument(
+        "--headless",
+        action="store_true",
+        default=None,
+        help="Execute via background headless CLI without window focus changes",
+    )
+    replay_p.add_argument(
+        "--json",
+        action="store_true",
+        help="Output utterance metadata or ring buffer in JSON format",
+    )
+    replay_p.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Preview replay target and payload without dispatching",
     )
 
     # duel / banter
@@ -1795,38 +2012,46 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
     )
     spark_p.add_argument("--socket", type=str, default=None, help="Path to Unix domain socket")
 
-    # live / gemini 3.8 live runner
+    # live / multi-provider live runner
     live_p = subparsers.add_parser(
         "live",
         aliases=["comedy", "gemini-live"],
-        help="Run real-time Gemini 3.8 Live voice/comedy session with co-timed sound effects",
+        help="Run real-time full-duplex live voice studio (Gemini, OpenAI GPT-Live-1.1, xAI Grok)",
     )
     live_p.add_argument(
         "prompt", nargs="*", default=None, help="Prompt or joke topic to execute once"
     )
     live_p.add_argument(
+        "-P",
+        "--provider",
+        default="gemini",
+        choices=["gemini", "openai", "grok", "xai"],
+        help="Live speech-to-speech provider (gemini, openai, grok/xai; default: gemini)",
+    )
+    live_p.add_argument(
         "--model",
-        default="gemini-2.5-flash-native-audio-latest",
-        choices=[
-            "gemini-2.5-flash-native-audio-latest",
-            "gemini-3.8-live",
-            "gemini-3.8-live-extended-thinking",
-        ],
-        help="Live model ID (default: gemini-2.5-flash-native-audio-latest for native audio speech)",
+        default=None,
+        help="Live model ID (e.g. gemini-2.5-flash-native-audio-latest, gpt-live-1.1, grok-voice-latest)",
     )
     live_p.add_argument(
         "-v",
         "--voice",
-        default="Puck",
-        choices=sorted(list(VALID_GEMINI_LIVE_VOICES)),
-        help="Voice persona (default: Puck)",
+        default=None,
+        help="Voice persona (e.g. Puck, Aoede, bubbie, coral, verse, eve, ara)",
     )
     live_p.add_argument(
         "-m",
         "--mode",
         default="comedy",
-        choices=["comedy", "roast", "banter", "assistant"],
+        choices=["comedy", "roast", "banter", "assistant", "brok"],
         help="Persona mode (default: comedy)",
+    )
+    live_p.add_argument(
+        "-p",
+        "--persona",
+        default=None,
+        choices=["default", "brok", "roast"],
+        help="Live studio persona ('brok' launches full-duplex Brok mode with Mac tools)",
     )
     live_p.add_argument(
         "-t",
@@ -2085,15 +2310,39 @@ def build_parser(prog: Optional[str] = None) -> VoiceFiArgumentParser:
     # local model management
     local_p = subparsers.add_parser(
         "local",
-        aliases=["litert", "gemma"],
-        help="Inspect and manage on-device LiteRT and Gemma models",
+        aliases=["litert", "gemma", "ollama"],
+        help="Inspect, bootstrap, and manage on-device Ollama, LiteRT, and Gemma models",
     )
     local_p.add_argument(
         "action",
         nargs="?",
         default="status",
-        choices=["status", "list", "download"],
-        help="Action (status, list, download)",
+        choices=["status", "list", "download", "setup", "init", "install", "pull"],
+        help="Action (status, setup, pull, list, download)",
+    )
+    local_p.add_argument(
+        "model",
+        nargs="?",
+        default=None,
+        help="Optional model name to pull or configure (e.g. qwen2.5-coder:1.5b, gemma2:2b)",
+    )
+    local_p.add_argument(
+        "-m",
+        "--model-name",
+        dest="model_flag",
+        type=str,
+        default=None,
+        help="Specify local model name (e.g. qwen2.5-coder:1.5b, gemma2:2b, auto)",
+    )
+    local_p.add_argument(
+        "--no-qr",
+        action="store_true",
+        help="Skip printing the Mobile Companion QR code after setup",
+    )
+    local_p.add_argument(
+        "--auto-install",
+        action="store_true",
+        help="Automatically install Ollama via Homebrew if not present",
     )
 
     # help

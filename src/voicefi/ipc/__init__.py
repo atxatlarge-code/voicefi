@@ -25,6 +25,15 @@ from voicefi.ipc.protocol import (
 )
 from voicefi.ipc.server import VoiceFiIPCServer
 from voicefi.ipc.bridge import VoiceFiIPCBridge
+from voicefi.ipc.history import (
+    DEFAULT_HISTORY_PATH,
+    DEFAULT_VIFI_SOCKET_PATH,
+    MAX_HISTORY_ENTRIES,
+    record_utterance_history,
+    load_utterance_history,
+    get_last_utterance,
+    dispatch_payload_over_socket,
+)
 
 __all__ = [
     "JSONRPCRequest",
@@ -46,4 +55,11 @@ __all__ = [
     "parse_jsonrpc_message",
     "VoiceFiIPCServer",
     "VoiceFiIPCBridge",
+    "DEFAULT_HISTORY_PATH",
+    "DEFAULT_VIFI_SOCKET_PATH",
+    "MAX_HISTORY_ENTRIES",
+    "record_utterance_history",
+    "load_utterance_history",
+    "get_last_utterance",
+    "dispatch_payload_over_socket",
 ]

@@ -30,6 +30,7 @@ from voicefi.cli_commands.knowledge import (
 )
 from voicefi.cli_commands.dispatch import (
     cmd_send,
+    cmd_replay,
     cmd_peers,
     cmd_vandelay,
     cmd_clip,
@@ -135,6 +136,8 @@ def get_command_handlers(parser: Any = None) -> Dict[str, Callable[[Any], Any]]:
         "insights": cmd_stats,
         "send": cmd_send,
         "dispatch": cmd_send,
+        "replay": cmd_replay,
+        "retry": cmd_replay,
         "peers": cmd_peers,
         "peer": cmd_peers,
         "discover": cmd_peers,

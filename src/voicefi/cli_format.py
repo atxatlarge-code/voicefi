@@ -105,6 +105,7 @@ COMMAND_CATEGORIES = [
             ("live / -l", "Gemini 3.8 Live direct speech-to-speech studio with parallel tools"),
             ("speak", "Speak text aloud with neural or local offline voice"),
             ("listen", "Listen from microphone, transcribe, and inject into active app"),
+            ("replay", "Zero-cost retry, re-route (--to), or stdout pipe (--print) of last utterance"),
             ("wake", "Run interactive 'Hey Viv' wake word listener & dispatcher"),
             ("loop", "Start continuous interactive voice loop"),
             ("new", "Start a new AI agent conversation with connected tools"),
@@ -142,6 +143,7 @@ COMMAND_CATEGORIES = [
     (
         "🛠️ Diagnostics & Audio",
         [
+            ("doctor", "Instant 4-point pipe, bridge, mic & local LLM warmth health check"),
             ("mic", "Inspect, switch, or lock microphone input (Mac mic vs Earbuds)"),
             ("troubleshoot", "Comprehensive audio, mic, VAD, and TTS diagnostic suite"),
             ("feedback-loop", "Acoustic loopback test (Speak → Listen → Transcribe)"),
