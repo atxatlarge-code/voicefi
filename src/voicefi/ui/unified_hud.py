@@ -2265,23 +2265,6 @@ class UnifiedDynamicIslandHUD:
         if conv_title:
             self._active_conv_title = conv_title
 
-        try:
-            from voicefi.ui.mic_pill import TopBarMicIndicatorPill
-
-            pill = TopBarMicIndicatorPill.get_instance()
-            if state in ("listening", "hearing", "new_conversation", "transcribing", "training"):
-                pill.show(
-                    state=state,
-                    app_name=app_name or getattr(self, "_active_app_name", None),
-                    agent_name=agent_name or getattr(self, "_active_agent_name", None),
-                    source=getattr(self, "_active_source", None),
-                    user_name=title,
-                )
-            else:
-                pill.hide()
-        except Exception:
-            pass
-
         with self._lock:
             self._current_state = state
             if state != "speaking":
@@ -2299,7 +2282,7 @@ class UnifiedDynamicIslandHUD:
 
         # Visibility mode restrictions: 'speaking_only' hides when not speaking, 'active_only' hides when idle
         is_preview = getattr(self, "_is_previewing", False)
-        if not is_preview:
+        if not is_preview and state != "training":
             v_mode = getattr(self, "visibility_mode", "always")
             if v_mode == "speaking_only" and state not in ("speaking", "spoken"):
                 self.hide()
@@ -2613,6 +2596,7 @@ class UnifiedDynamicIslandHUD:
                         "working",
                         "hearing",
                         "spoken",
+                        "training",
                     )
                 ) and state not in ("auditing", "verified", "repairing", "repaired"):
                     self._visualizer.setHidden_(False)
@@ -2663,13 +2647,29 @@ class UnifiedDynamicIslandHUD:
                 hasattr(self._panel, "assert_called") or type(self._panel).__name__ == "MagicMock"
             )
             if self._panel and not is_headless() and not getattr(self, "_is_proxy", False):
+                # Pass-through mouse events while speaking subtitles so game aim and clicks are never intercepted
+                if state == "speaking":
+                    try:
+                        self._panel.setIgnoresMouseEvents_(True)
+                    except Exception:
+                        pass
+                else:
+                    try:
+                        self._panel.setIgnoresMouseEvents_(False)
+                    except Exception:
+                        pass
+
+                # Window Stacking: Only order front when transitioning to visible to prevent
+                # continuous WindowServer compositor reordering and input focus jitter in games.
+                panel_is_vis = self._panel.isVisible()
                 if getattr(self, "always_on_top", True):
-                    if not self._panel.isVisible() or state == "speaking":
+                    if not panel_is_vis:
                         self._panel.orderFrontRegardless()
                 elif state == "speaking" and getattr(self, "bring_to_front_on_speech", True):
-                    self._panel.orderFrontRegardless()
+                    if not panel_is_vis:
+                        self._panel.orderFrontRegardless()
                 else:
-                    if not self._panel.isVisible():
+                    if not panel_is_vis:
                         self._panel.orderFront_(None)
                     try:
                         self._panel.orderBack_(None)
@@ -2905,6 +2905,21 @@ class UnifiedDynamicIslandHUD:
         agent_name: Optional[str] = None,
     ):
         """Set to Idle State (Fixed 480x58 persistent capsule)."""
+        try:
+            from voicefi.integrations.pal_harness import PalHarness
+
+            trainer = PalHarness.get_active_trainer()
+            if trainer is not None:
+                elapsed = max(0.0, time.time() - float(getattr(trainer, "start_time", time.time())))
+                steps = getattr(getattr(trainer, "recorder", None), "steps", []) or []
+                self.set_training(
+                    getattr(trainer, "workflow_name", "Workflow"),
+                    step_count=len(steps),
+                    elapsed_seconds=elapsed,
+                )
+                return
+        except Exception:
+            pass
         if (
             not self.persistent
             or getattr(self, "visibility_mode", "always") in ("speaking_only", "active_only")
@@ -3435,15 +3450,17 @@ class UnifiedDynamicIslandHUD:
     def set_training(
         self,
         workflow_name: str,
-        step_count: int = 1,
+        step_count: int = 0,
         elapsed_seconds: float = 0.0,
         current_action: str = "Demonstrate steps • Say 'stop training' when done",
     ):
         """Set to Pal Teach Mode Training State with radiant crimson recording badge."""
+        self._training_step_count = int(step_count)
+        self._training_last_action = current_action
         mins = int(elapsed_seconds) // 60
         secs = int(elapsed_seconds) % 60
         tag = f"🔴 Step {step_count} • {mins:02d}:{secs:02d}"
-        crimson_border = NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 0.18, 0.25, 0.85)
+        crimson_border = NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 0.18, 0.25, 0.92)
         crimson_tag = NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 0.22, 0.28, 0.98)
 
         self._apply_rich_state(
@@ -3459,6 +3476,52 @@ class UnifiedDynamicIslandHUD:
             app_name="Pal",
             linger=None,
         )
+        self._start_training_hud_ticker()
+
+    def _start_training_hud_ticker(self):
+        """Tick the elapsed timer on the HUD every second while Pal training is active."""
+        old_t = getattr(self, "_training_hud_timer", None)
+        if old_t:
+            try:
+                old_t.cancel()
+            except Exception:
+                pass
+            self._training_hud_timer = None
+        if is_headless():
+            return
+
+        def _tick():
+            if getattr(self, "_current_state", "") != "training":
+                return
+            try:
+                from voicefi.integrations.pal_harness import PalHarness
+
+                trainer = PalHarness.get_active_trainer()
+                if trainer is None:
+                    return
+                elapsed = max(0.0, time.time() - float(getattr(trainer, "start_time", time.time())))
+                steps = getattr(getattr(trainer, "recorder", None), "steps", []) or []
+                cnt = len(steps) if steps else int(getattr(self, "_training_step_count", 0))
+                act = getattr(
+                    self,
+                    "_training_last_action",
+                    "Demonstrate steps • Say 'stop training' when done",
+                )
+                self.update_training_step(
+                    step_count=cnt, last_action=act, elapsed_seconds=elapsed
+                )
+            except Exception:
+                pass
+            if getattr(self, "_current_state", "") == "training":
+                t = threading.Timer(1.0, _tick)
+                t.daemon = True
+                self._training_hud_timer = t
+                t.start()
+
+        t = threading.Timer(1.0, _tick)
+        t.daemon = True
+        self._training_hud_timer = t
+        t.start()
 
     def update_training_step(
         self,
@@ -3467,6 +3530,9 @@ class UnifiedDynamicIslandHUD:
         elapsed_seconds: float = 0.0,
     ):
         """Update training step count and last action subtitle on main thread without layout flicker."""
+        self._training_step_count = int(step_count)
+        if last_action:
+            self._training_last_action = last_action
         mins = int(elapsed_seconds) // 60
         secs = int(elapsed_seconds) % 60
         tag = f"🔴 Step {step_count} • {mins:02d}:{secs:02d}"
@@ -3746,6 +3812,13 @@ class UnifiedDynamicIslandHUD:
                 TopBarMicIndicatorPill.get_instance().update_audio_level(energy, prob, spk)
             except Exception:
                 pass
+            if self._current_state == "training":
+                try:
+                    from voicefi.ui.training_panel import GranolaTrainingPanel
+
+                    GranolaTrainingPanel.get_instance().update_audio_level(energy, prob, spk)
+                except Exception:
+                    pass
 
         def _do_update():
             if not self._panel or not self._panel.isVisible():
@@ -3759,6 +3832,7 @@ class UnifiedDynamicIslandHUD:
                     "working",
                     "hearing",
                     "spoken",
+                    "training",
                 ):
                     self._visualizer.setHidden_(False)
                 self._visualizer.setAudioLevel_prob_speech_(energy, prob, spk)
@@ -3999,6 +4073,21 @@ class UnifiedDynamicIslandHUD:
         self._active_source = None
         self._active_is_live = False
         try:
+            from voicefi.integrations.pal_harness import PalHarness
+
+            trainer = PalHarness.get_active_trainer()
+            if trainer is not None:
+                elapsed = max(0.0, time.time() - float(getattr(trainer, "start_time", time.time())))
+                steps = getattr(getattr(trainer, "recorder", None), "steps", []) or []
+                self.set_training(
+                    getattr(trainer, "workflow_name", "Workflow"),
+                    step_count=len(steps),
+                    elapsed_seconds=elapsed,
+                )
+                return
+        except Exception:
+            pass
+        try:
             from voicefi.ui.screen_highlight import PalHighlightOverlay
 
             PalHighlightOverlay.get_instance().hide()
@@ -4204,6 +4293,7 @@ class UnifiedDynamicIslandHUD:
         preview_text: str = "",
         app_name: Optional[str] = None,
         conv_id: Optional[str] = None,
+        tag_text: Optional[str] = None,
     ):
         """Compatibility bridge for DictationHUD.show_done."""
         self._active_source = None
@@ -4220,7 +4310,7 @@ class UnifiedDynamicIslandHUD:
             avatar_emoji="",
             avatar_bg=NSColor.clearColor(),
             title="VoiceFi",
-            tag_text="Done",
+            tag_text=tag_text or "Done",
             tag_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.4, 0.95, 0.5, 0.98),
             body_text=disp,
             border_color=NSColor.colorWithCalibratedRed_green_blue_alpha_(0.25, 0.85, 0.45, 0.85),

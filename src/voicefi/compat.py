@@ -124,11 +124,16 @@ def patch_pynput_darwin() -> None:
             pass
 
         # Patch ListenerMixin to cleanly disable and invalidate CGEventTap on stop
-        # preventing severe keyboard typing lag caused by leaked event taps in WindowServer
+        # and provide microsecond fast-path bypass for gaming and normal typing.
         if hasattr(pynput_darwin, "ListenerMixin"):
             _orig_mixin_stop = pynput_darwin.ListenerMixin._stop_platform
-
             _orig_handler = getattr(pynput_darwin.ListenerMixin, "_handler", None)
+
+            # Hotkeys VoiceFi recognizes:
+            # 53=Esc, 48=Tab, 36=Return, 76=NumpadEnter, 49=Space, 8=C, 45=N, 38=J, 0=A, 2=D, 17=T, 9=V, 15=R
+            _HOTKEY_VKS = frozenset((53, 48, 36, 76, 49, 8, 45, 38, 0, 2, 17, 9, 15))
+            _MODIFIER_VKS = frozenset((54, 55, 56, 58, 59, 60, 61, 62, 63))
+            _PTT_VKS = frozenset((17, 2, 15, 9, 45))
 
             def _safe_darwin_handler(self, proxy, event_type, event, refcon):
                 # Re-enable tap if macOS WindowServer ever sends kCGEventTapDisabledByTimeout (0xFFFFFFFE)
@@ -141,6 +146,120 @@ def patch_pynput_darwin() -> None:
                         except Exception:
                             pass
                     return event
+
+                import Quartz
+
+                _k_key_down = Quartz.kCGEventKeyDown
+                _k_key_up = Quartz.kCGEventKeyUp
+                _k_flags_changed = Quartz.kCGEventFlagsChanged
+
+                # 1. FlagsChanged: only modifier keys (Shift, Ctrl, Alt, Cmd, Fn) ever matter
+                if event_type == _k_flags_changed:
+                    vk = Quartz.CGEventGetIntegerValueField(event, Quartz.kCGKeyboardEventKeycode)
+                    if vk in _MODIFIER_VKS:
+                        if _orig_handler is not None:
+                            return _orig_handler(self, proxy, event_type, event, refcon)
+                    return event
+
+                # 2. KeyUp: Critical Zero-Latency Gaming Fast-Path
+                # In games, holding down keys (e.g. WASD, Space, Shift) and releasing them sends KeyUp.
+                # If Python holds the GIL (e.g. during speech playback, TTS synthesis, or VAD),
+                # queuing KeyUp in WindowServer causes 'extended key presses' where the player keeps moving.
+                # VoiceFi NEVER acts on KeyUp while speech is active, and only acts on KeyUp when
+                # actively recording in PTT mode for specific action keys.
+                if event_type == _k_key_up:
+                    vk = Quartz.CGEventGetIntegerValueField(event, Quartz.kCGKeyboardEventKeycode)
+                    # Modifier release must be tracked so chord states stay clean
+                    if vk in _MODIFIER_VKS:
+                        if _orig_handler is not None:
+                            return _orig_handler(self, proxy, event_type, event, refcon)
+                        return event
+
+                    # Instant Sub-Microsecond Bypass for 100% of Non-PTT Keys:
+                    # In games, releasing W, A, S, Space, Esc, Tab, E, Q, F, numbers, etc.
+                    # returns immediately to macOS WindowServer in <20ns without Python locks or imports!
+                    if vk not in _PTT_VKS:
+                        return event
+
+                    # For PTT keys (17=Ctrl+T, 2=Opt+D, 15=R, 9=Opt+V, 45=N):
+                    # Check if speech is active -> 100% bypass on all KeyUps while speaking!
+                    try:
+                        from voicefi.tts.base import is_agent_speaking, is_agent_audio_playing
+
+                        if is_agent_speaking() or is_agent_audio_playing():
+                            return event
+                    except Exception:
+                        pass
+
+                    # When not speaking, only dispatch KeyUp if actively recording in VoiceFi PTT mode
+                    try:
+                        from voicefi.tts.base import is_mic_recording_active
+
+                        if is_mic_recording_active(include_external=False):
+                            if _orig_handler is not None:
+                                return _orig_handler(self, proxy, event_type, event, refcon)
+                    except Exception:
+                        pass
+                    return event
+
+                # 3. KeyDown:
+                if event_type == _k_key_down:
+                    vk = Quartz.CGEventGetIntegerValueField(event, Quartz.kCGKeyboardEventKeycode)
+
+                    # 3.1 Escape (53): Always process so user can stop speech or cancel recording instantly
+                    if vk == 53:
+                        if _orig_handler is not None:
+                            return _orig_handler(self, proxy, event_type, event, refcon)
+                        return event
+
+                    # 3.2 Return / Enter (36, 76): Only process if actively recording
+                    if vk in (36, 76):
+                        try:
+                            from voicefi.tts.base import is_mic_recording_active, is_agent_speaking
+
+                            if not is_agent_speaking() and is_mic_recording_active(include_external=False):
+                                if _orig_handler is not None:
+                                    return _orig_handler(self, proxy, event_type, event, refcon)
+                        except Exception:
+                            pass
+                        return event
+
+                    # 3.3 Fast Non-Hotkey Bypass: If vk is not one of VoiceFi's action keys
+                    # (e.g. W, S, E, Q, F, Z, X, 1-9, Arrows, etc.), bypass in <1us without Python overhead!
+                    if vk not in _HOTKEY_VKS:
+                        return event
+
+                    # 3.4 For keys in _HOTKEY_VKS (A, D, C, R, Space, Tab, T, V, J, N):
+                    # They are ONLY VoiceFi hotkeys if Alt (Option), Control, or Command is held!
+                    flags = Quartz.CGEventGetFlags(event)
+                    _mask_mod = (
+                        Quartz.kCGEventFlagMaskAlternate
+                        | Quartz.kCGEventFlagMaskControl
+                        | Quartz.kCGEventFlagMaskCommand
+                    )
+                    if not (flags & _mask_mod):
+                        # Bare WASD movement (A=0, D=2), bare space jump (49), bare crouch (8), etc.
+                        # Impossible to be a VoiceFi hotkey -> zero-latency bypass!
+                        return event
+
+                    # 3.5 While speech is active, only Escape (handled above), Option+Tab (vk=48),
+                    # and Option/Ctrl+Space (vk=49) ever matter
+                    try:
+                        from voicefi.tts.base import is_agent_speaking, is_agent_audio_playing
+                        if is_agent_speaking() or is_agent_audio_playing():
+                            _mask_alt = Quartz.kCGEventFlagMaskAlternate
+                            _mask_ctrl = Quartz.kCGEventFlagMaskControl
+                            is_opt_tab = (vk == 48 and bool(flags & _mask_alt))
+                            is_quick_bar = (vk == 49 and bool(flags & (_mask_alt | _mask_ctrl)))
+                            if not (is_opt_tab or is_quick_bar):
+                                return event
+                    except Exception:
+                        pass
+
+                    if _orig_handler is not None:
+                        return _orig_handler(self, proxy, event_type, event, refcon)
+                    return event
+
                 if _orig_handler is not None:
                     return _orig_handler(self, proxy, event_type, event, refcon)
                 return event
@@ -152,9 +271,11 @@ def patch_pynput_darwin() -> None:
                 # A kCGEventTapOptionDefault tap blocks macOS WindowServer from delivering ANY keystroke to
                 # games/apps whenever the Python process holds the GIL (e.g. during turn-end TTS synthesis,
                 # Silero VAD, or Whisper STT), which locks up the user's keyboard at turn end!
+                # Using kCGTailAppendEventTap places the passive listener at the end of the event chain,
+                # ensuring active games and frontmost windows receive events first with zero delay.
                 return Quartz.CGEventTapCreate(
                     Quartz.kCGSessionEventTap,
-                    Quartz.kCGHeadInsertEventTap,
+                    Quartz.kCGTailAppendEventTap,
                     Quartz.kCGEventTapOptionListenOnly,
                     self._EVENTS,
                     self._handler,

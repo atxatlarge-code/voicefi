@@ -189,7 +189,9 @@ class KokoroTTS(BaseTTS):
             return cls._kokoro_instance
 
         try:
+            import onnxruntime as rt
             from kokoro_onnx import Kokoro
+            from kokoro_onnx.session import resolve_providers
 
             if not model_file.exists() or not voices_file.exists():
                 raise FileNotFoundError(
@@ -197,7 +199,16 @@ class KokoroTTS(BaseTTS):
                     "Download with: 'vifi voice download-kokoro'"
                 )
 
-            instance = Kokoro(str(model_file), str(voices_file))
+            # Cap CPU thread pool to avoid pinning all hardware cores and starving OS/game loops
+            sess_opts = rt.SessionOptions()
+            sess_opts.intra_op_num_threads = min(4, max(2, (os.cpu_count() or 4) // 2))
+            sess_opts.inter_op_num_threads = 1
+            sess_opts.execution_mode = rt.ExecutionMode.ORT_SEQUENTIAL
+
+            session = rt.InferenceSession(
+                str(model_file), sess_options=sess_opts, providers=resolve_providers()
+            )
+            instance = Kokoro.from_session(session, str(voices_file))
             # Pre-warm espeak phonemizer once so subsequent calls take 0.2ms instead of 500ms
             try:
                 instance.tokenizer.phonemize("warmup", lang="en-us")
@@ -389,6 +400,8 @@ class KokoroTTS(BaseTTS):
                                             break
                                         self.synthesize_to_wav(chunk_txt, out_wav)
                                         wav_queue.put(out_wav)
+                                        # Yield GIL to prevent starving audio playback or OS event taps
+                                        time.sleep(0.002)
                                 except Exception:
                                     pass
                                 finally:

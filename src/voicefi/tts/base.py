@@ -497,11 +497,21 @@ def set_agent_audio_playing(playing: bool) -> None:
         pass
 
 
+_LAST_AUDIO_PLAYING_CHECK = 0.0
+_LAST_AUDIO_PLAYING_STATE = False
+
+
 def is_agent_audio_playing() -> bool:
     """Check if audio playback is physically outputting sound right now."""
-    global _IN_PROCESS_AUDIO_PLAYING
-    if _IN_PROCESS_AUDIO_PLAYING:
+    global _IN_PROCESS_AUDIO_PLAYING, _IN_PROCESS_SPEAKING
+    if _IN_PROCESS_AUDIO_PLAYING or _IN_PROCESS_SPEAKING:
         return True
+
+    now = time.time()
+    global _LAST_AUDIO_PLAYING_CHECK, _LAST_AUDIO_PLAYING_STATE
+    if (now - _LAST_AUDIO_PLAYING_CHECK) < 0.050:
+        return _LAST_AUDIO_PLAYING_STATE
+    _LAST_AUDIO_PLAYING_CHECK = now
 
     try:
         if AUDIO_PLAYING_STATUS_FILE.is_file():
@@ -511,14 +521,16 @@ def is_agent_audio_playing() -> bool:
                 if len(parts) == 2:
                     pid = int(parts[0])
                     ts = float(parts[1])
-                    if is_pid_alive(pid) and (time.time() - ts) < 25.0:
+                    if is_pid_alive(pid) and (now - ts) < 25.0:
+                        _LAST_AUDIO_PLAYING_STATE = True
                         return True
                     else:
                         AUDIO_PLAYING_STATUS_FILE.unlink(missing_ok=True)
     except Exception:
         pass
 
-    return is_system_audio_playing()
+    _LAST_AUDIO_PLAYING_STATE = is_system_audio_playing()
+    return _LAST_AUDIO_PLAYING_STATE
 
 
 def is_pid_alive(pid: int) -> bool:
@@ -733,58 +745,81 @@ def wait_for_mic_to_clear(
     return True
 
 
+_LAST_AGENT_SPEAKING_CHECK_TIME = 0.0
+_LAST_AGENT_SPEAKING_CACHED_INFO: Optional[Dict[str, Any]] = None
+
+
 def get_agent_speaking_info() -> Optional[Dict[str, Any]]:
     """
     Retrieve active cross-process speaking status payload if any agent is currently speaking.
     Handles JSON and legacy pid:timestamp formats.
     """
-    global _IN_PROCESS_SPEAKING
+    global _IN_PROCESS_SPEAKING, _LAST_AGENT_SPEAKING_INFO
+    if _IN_PROCESS_SPEAKING and _LAST_AGENT_SPEAKING_INFO and not os.environ.get("PYTEST_CURRENT_TEST"):
+        return dict(_LAST_AGENT_SPEAKING_INFO)
+
+    global _LAST_AGENT_SPEAKING_CHECK_TIME, _LAST_AGENT_SPEAKING_CACHED_INFO
+    now = time.time()
+    is_testing = bool(os.environ.get("PYTEST_CURRENT_TEST"))
+    if not is_testing and (now - _LAST_AGENT_SPEAKING_CHECK_TIME) < 0.050:
+        return _LAST_AGENT_SPEAKING_CACHED_INFO
+
+    _LAST_AGENT_SPEAKING_CHECK_TIME = now
     try:
         if AGENT_SPEAKING_STATUS_FILE.is_file():
             raw = AGENT_SPEAKING_STATUS_FILE.read_text().strip()
             if not raw:
+                _LAST_AGENT_SPEAKING_CACHED_INFO = None
                 return None
             try:
                 data = json.loads(raw)
                 if isinstance(data, dict):
                     pid = int(data.get("pid", 0))
                     ts = float(data.get("timestamp", 0))
-                    if is_pid_alive(pid) and (time.time() - ts) < 45.0:
+                    if is_pid_alive(pid) and (now - ts) < 45.0:
+                        _LAST_AGENT_SPEAKING_CACHED_INFO = data
                         return data
                     else:
                         AGENT_SPEAKING_STATUS_FILE.unlink(missing_ok=True)
+                        _LAST_AGENT_SPEAKING_CACHED_INFO = None
                         return None
             except json.JSONDecodeError:
                 parts = raw.split(":")
                 if len(parts) == 2:
                     pid = int(parts[0])
                     ts = float(parts[1])
-                    if is_pid_alive(pid) and (time.time() - ts) < 30.0:
-                        return {
+                    if is_pid_alive(pid) and (now - ts) < 30.0:
+                        res = {
                             "pid": pid,
                             "timestamp": ts,
                             "text": "",
                             "agent_name": "VoiceFi",
                             "persona_name": "Viv",
                         }
+                        _LAST_AGENT_SPEAKING_CACHED_INFO = res
+                        return res
                     else:
                         AGENT_SPEAKING_STATUS_FILE.unlink(missing_ok=True)
                 else:
                     ts = float(parts[0])
-                    if (time.time() - ts) < 20.0:
-                        return {
+                    if (now - ts) < 20.0:
+                        res = {
                             "pid": os.getpid(),
                             "timestamp": ts,
                             "text": "",
                             "agent_name": "VoiceFi",
                             "persona_name": "Viv",
                         }
+                        _LAST_AGENT_SPEAKING_CACHED_INFO = res
+                        return res
                     else:
                         AGENT_SPEAKING_STATUS_FILE.unlink(missing_ok=True)
     except Exception:
         pass
 
     if _IN_PROCESS_SPEAKING:
+        if _LAST_AGENT_SPEAKING_INFO:
+            return dict(_LAST_AGENT_SPEAKING_INFO)
         return {
             "pid": os.getpid(),
             "timestamp": time.time(),
@@ -793,6 +828,7 @@ def get_agent_speaking_info() -> Optional[Dict[str, Any]]:
             "persona_name": "Viv",
         }
 
+    _LAST_AGENT_SPEAKING_CACHED_INFO = None
     return None
 
 
@@ -827,7 +863,7 @@ def is_system_audio_playing(force_fresh: bool = False) -> bool:
         pass
 
     now = time.time()
-    if not force_fresh and (now - _LAST_SYSTEM_AUDIO_CHECK) < 0.25:
+    if not force_fresh and (now - _LAST_SYSTEM_AUDIO_CHECK) < 1.0:
         return _LAST_SYSTEM_AUDIO_STATE
 
     _LAST_SYSTEM_AUDIO_CHECK = now
@@ -1195,10 +1231,11 @@ def escape_to_stop_speech(
                         get_active_media_info,
                     )
 
-                    if is_active_media_playing(use_cache=False):
+                    # Use cache=True to avoid locking macOS WindowServer window lists 4 times/sec
+                    if is_active_media_playing(use_cache=True):
                         positive_hits += 1
                         if positive_hits >= 2:
-                            info = get_active_media_info(use_cache=False) or {}
+                            info = get_active_media_info(use_cache=True) or {}
                             detail = info.get("detail", "media clip")
                             print(
                                 f"[TTS] 🎬 Media playback confirmed ({detail}) while speaking. Stopping speech immediately."
@@ -1221,7 +1258,7 @@ def escape_to_stop_speech(
 
                         from voicefi.audio.device import get_external_mic_recording_info
 
-                        ext_info = get_external_mic_recording_info(use_cache=False)
+                        ext_info = get_external_mic_recording_info(use_cache=True)
                         if ext_info is not None:
                             ext_mic_hits += 1
                             if ext_mic_hits >= 2:
@@ -1237,7 +1274,7 @@ def escape_to_stop_speech(
                         ext_mic_hits = 0
                 except Exception:
                     pass
-                stop_media_monitor.wait(0.25)
+                stop_media_monitor.wait(0.50)
 
         media_thread = threading.Thread(
             target=_monitor_media, daemon=True, name="MediaPlaybackMonitor"
