@@ -121,6 +121,11 @@ class ConversationsHandlersMixin:
         except Exception:
             pass
 
+        from voicefi.integrations.conversations import (
+            discover_available_projects,
+            resolve_project_workspace,
+        )
+
         return web.json_response(
             {
                 "conversations": [
@@ -131,11 +136,13 @@ class ConversationsHandlersMixin:
                         "mtime": c.mtime,
                         "engine": getattr(c, "engine", "antigravity"),
                         "project_name": getattr(c, "project_name", None),
+                        "workspace_path": getattr(c, "workspace_path", None),
                     }
                     for c in convs
                 ],
                 "active_id": active_id,
                 "vault": vault_info,
+                "projects": discover_available_projects(),
             }
         )
 
@@ -159,8 +166,14 @@ class ConversationsHandlersMixin:
         return web.json_response(art)
 
     async def handle_new_conversation(self, request: web.Request) -> web.Response:
-        """Create and focus a new conversation (Antigravity or Claude Code)."""
+        """Create and focus a new conversation (Antigravity, Claude Code, Codex, or Local Model)."""
         try:
+            from voicefi.integrations.conversations import (
+                discover_available_projects,
+                resolve_project_workspace,
+                save_conversation_workspace,
+            )
+
             data = {}
             if request.can_read_body:
                 try:
@@ -172,7 +185,11 @@ class ConversationsHandlersMixin:
             title = data.get("title")
             model = data.get("model")
             engine = data.get("engine", "antigravity")
+            raw_ws = data.get("workspace_path") or data.get("project") or data.get("cwd")
+            resolved_ws = resolve_project_workspace(raw_ws)
+            proj_name = Path(resolved_ws).name if resolved_ws else None
             active = None
+            gemma_turn_res: Dict[str, Any] = {}
 
             if engine == "codex":
                 from voicefi.integrations.codex import execute_codex_cli, get_codex_cli_path
@@ -183,6 +200,7 @@ class ConversationsHandlersMixin:
                     disp = execute_codex_cli(
                         prompt=prompt,
                         conv_id=None,
+                        cwd=Path(resolved_ws) if resolved_ws else None,
                         origin="mobile",
                         async_execution=True,
                     )
@@ -197,24 +215,27 @@ class ConversationsHandlersMixin:
                 disp = runner.dispatch(
                     text=prompt,
                     conv_id=None,
+                    cwd=Path(resolved_ws) if resolved_ws else None,
                     config=self.config,
                     async_execution=True,
                 )
                 active_id = getattr(disp, "target_conv_id", None) or "claude_active"
-            elif engine in ("gemma", "local", "gemma4-2b", "gemma4-26b"):
+            elif engine in ("gemma", "local", "ollama", "gemma4-2b", "gemma4-26b", "auto") or ":" in str(engine or ""):
                 from voicefi.integrations.conversations import save_gemma_turn
-                from voicefi.local.engine import LocalModelEngine
 
-                configured_model = getattr(
-                    getattr(self.config, "local_model", None), "model_name", "gemma4-2b"
+                req_model = model or (
+                    engine if engine not in ("gemma", "local", "ollama") else None
                 )
-                model_choice = (
-                    "gemma4-26b"
-                    if "26b" in str(model or engine or configured_model).lower()
-                    else "gemma4-2b"
-                )
+                model_choice = self.resolve_local_model_choice(req_model)
                 active_id = f"gemma_{int(time.time())}"
-                c_title = title or (prompt[:40] if prompt else "Local Gemma")
+                c_title = title or (
+                    f"{proj_name}: {prompt[:32]}"
+                    if proj_name and prompt
+                    else (prompt[:40] if prompt else f"Local ({model_choice})")
+                )
+                origin_val = data.get("origin", "mobile")
+                local_mode = data.get("local_mode") or data.get("mode")
+
                 # Immediately save initial turn placeholder so session file exists on disk
                 save_gemma_turn(
                     active_id,
@@ -222,55 +243,44 @@ class ConversationsHandlersMixin:
                     agent_text="",
                     model=model_choice,
                     title=c_title,
+                    workspace_path=resolved_ws,
+                    project_name=proj_name,
                 )
 
-                async def _run_gemma_init():
-                    try:
-                        self.broadcast_event(
-                            {
-                                "type": "agent_thinking",
-                                "engine": "gemma",
-                                "avatar": "🧠",
-                                "text": f"Gemma 4 ({'26B' if '26b' in model_choice else '2B'}) is thinking on Metal GPU...",
-                                "conv_id": active_id,
-                            }
-                        )
-                        eng = LocalModelEngine(model_name=model_choice)
-                        ans = await eng.chat_text(prompt)
-                        save_gemma_turn(
-                            active_id,
-                            user_text=prompt,
-                            agent_text=ans,
-                            model=model_choice,
-                            title=c_title,
-                        )
-                        self.broadcast_event(
-                            {
-                                "type": "agent_response",
-                                "engine": "gemma",
-                                "avatar": "🧠",
-                                "text": ans,
-                                "conv_id": active_id,
-                            }
-                        )
-                        self._speak_in_background(
-                            ans, agent_name="gemma", conv_id=active_id, origin="desktop"
-                        )
-                    except Exception as e:
-                        logger.error(f"Gemma background run error: {e}")
-
-                asyncio.create_task(_run_gemma_init())
+                try:
+                    gemma_turn_res = await self.execute_local_voice_turn(
+                        prompt=prompt,
+                        conv_id=active_id,
+                        model=model_choice,
+                        mode=local_mode,
+                        origin=origin_val,
+                        title=c_title,
+                        skip_initial_save=True,
+                        workspace_path=resolved_ws,
+                    )
+                except Exception as e:
+                    logger.error(f"Gemma init turn error: {e}")
             else:
-                new_id = _resolve_create_new_antigravity_conversation(
-                    prompt=prompt, title=title, model=model
-                )
+                try:
+                    new_id = _resolve_create_new_antigravity_conversation(
+                        prompt=prompt,
+                        title=title,
+                        model=model,
+                        workspace_path=resolved_ws,
+                    )
+                except TypeError:
+                    new_id = _resolve_create_new_antigravity_conversation(
+                        prompt=prompt, title=title, model=model
+                    )
                 await asyncio.sleep(0.5)
                 active = self.tracker.get_active_or_latest()
                 active_id = new_id or (active.id if active else "")
 
             if active_id:
+                if resolved_ws:
+                    save_conversation_workspace(active_id, resolved_ws)
                 self.tracker.set_active_focus(active_id)
-                if engine in ("gemma", "local", "gemma4-2b", "gemma4-26b"):
+                if engine in ("gemma", "local", "ollama", "gemma4-2b", "gemma4-26b", "auto") or ":" in str(engine or ""):
                     session_title = c_title
                 else:
                     if not active:
@@ -282,27 +292,38 @@ class ConversationsHandlersMixin:
                         "conv_id": active_id,
                         "title": session_title,
                         "engine": engine,
+                        "project_name": proj_name,
+                        "workspace_path": resolved_ws,
                     }
                 )
 
             convs = self.tracker.get_all_conversations(limit=12)
-            return web.json_response(
-                {
-                    "success": True,
-                    "conv_id": active_id,
-                    "conversations": [
-                        {
-                            "id": c.id,
-                            "title": c.title,
-                            "status": c.status,
-                            "mtime": c.mtime,
-                            "engine": getattr(c, "engine", "antigravity"),
-                            "project_name": getattr(c, "project_name", None),
-                        }
-                        for c in convs
-                    ],
-                }
-            )
+            resp_payload: Dict[str, Any] = {
+                "success": True,
+                "conv_id": active_id,
+                "project_name": proj_name,
+                "workspace_path": resolved_ws,
+                "projects": discover_available_projects(),
+                "conversations": [
+                    {
+                        "id": c.id,
+                        "title": c.title,
+                        "status": c.status,
+                        "mtime": c.mtime,
+                        "engine": getattr(c, "engine", "antigravity"),
+                        "project_name": getattr(c, "project_name", None),
+                        "workspace_path": getattr(c, "workspace_path", None),
+                    }
+                    for c in convs
+                ],
+            }
+            if gemma_turn_res:
+                resp_payload["response"] = gemma_turn_res.get("response")
+                resp_payload["ttfb_ms"] = gemma_turn_res.get("ttfb_ms")
+                resp_payload["duration_s"] = gemma_turn_res.get("duration_s")
+                resp_payload["tok_per_sec"] = gemma_turn_res.get("tok_per_sec")
+                resp_payload["model"] = gemma_turn_res.get("model")
+            return web.json_response(resp_payload)
         except Exception as e:
             return web.json_response({"error": str(e)}, status=500)
 
@@ -365,7 +386,11 @@ class ConversationsHandlersMixin:
                 )
 
             text = raw_text.strip()
-            conv_id = data.get("conv_id") or data.get("conversation_id")
+            conv_id = (
+                data.get("conv_id")
+                or data.get("conversation_id")
+                or request.match_info.get("conv_id")
+            )
             reply_to = data.get("reply_to") or data.get("reply_to_conv_id")
             if not conv_id and reply_to:
                 conv_id = reply_to
@@ -459,91 +484,98 @@ class ConversationsHandlersMixin:
                     }
                 )
 
-            if target_engine in ("gemma", "local", "gemma4-2b", "gemma4-26b") or (
-                conv_id and "gemma" in str(conv_id).lower()
-            ):
-                from voicefi.integrations.conversations import (
-                    save_gemma_turn,
-                    parse_full_gemma_conversation_details,
-                )
-                from voicefi.local.engine import LocalModelEngine
+            from voicefi.integrations.pal_harness import execute_pal_or_intent_turn
 
-                configured_model = getattr(
-                    getattr(self.config, "local_model", None), "model_name", "gemma4-2b"
+            is_explicit_pal = (
+                str(target_engine or "").lower() in ("pal", "mac", "system", "os", "computer_use")
+                or (conv_id and str(conv_id).lower().startswith("pal_"))
+            )
+            if text and is_explicit_pal:
+                print(
+                    f"[Companion] 💻 Executing Pal / Mac OS command: '{text}' (engine={target_engine}, conv_id={conv_id})",
+                    flush=True,
                 )
-                model_choice = (
-                    "gemma4-26b"
-                    if "26b" in str(data.get("model") or target_engine or configured_model).lower()
-                    else "gemma4-2b"
+                turn_res = await asyncio.to_thread(
+                    execute_pal_or_intent_turn,
+                    text,
+                    config=self.config,
+                    use_local_model=True,
                 )
+                spoken_out = turn_res.get("spoken_response") or "Command executed."
+                action_type = turn_res.get("action_type") or "pal"
+                target_cid = conv_id or "pal_mac"
+                full_resp = f"### 💻 Pal Mac OS Action\n\n**Command:** `{text}`\n\n**Action Type:** `{action_type}`\n\n**Result:** {spoken_out}"
 
-                # Immediately record in-progress turn
-                save_gemma_turn(
-                    conv_id=conv_id,
-                    user_text=text,
-                    agent_text="",
-                    model=model_choice,
-                )
+                if action_type == "escalate_agent" and turn_res.get("escalate_prompt"):
+                    esc_engine = turn_res.get("escalate_engine") or "antigravity"
+                    esc_cid = data.get("escalate_conv_id")
+                    if esc_cid and str(esc_cid).startswith(("pal_", "gemma_", "obsidian")):
+                        esc_cid = None
+                    esc_prompt = turn_res["escalate_prompt"]
 
-                self.broadcast_event(
-                    {
-                        "type": "agent_thinking",
-                        "engine": "gemma",
-                        "avatar": "🧠",
-                        "text": f"Gemma 4 ({'26B' if '26b' in model_choice else '2B'}) is thinking on Metal GPU...",
-                        "conv_id": conv_id,
-                    }
-                )
+                    async def _bg_escalate() -> None:
+                        try:
+                            await asyncio.to_thread(
+                                _resolve_send_message_to_agent,
+                                conv_id=esc_cid,
+                                text=esc_prompt,
+                                sender_name=sender_name,
+                                title="Escalated from Pal Mac Control",
+                                target_engine=esc_engine,
+                                allow_foreground_fallback=False,
+                                use_headless=True,
+                            )
+                        except Exception as exc:
+                            print(f"[Companion] Pal agent escalation error: {exc}", flush=True)
 
-                # Assemble multi-turn context if continuing an existing session
-                prompt_to_send = text
-                if conv_id:
-                    details = parse_full_gemma_conversation_details(conv_id)
-                    if details and details.get("turns"):
-                        history_turns = []
-                        for t in details["turns"][-5:]:
-                            u = (t.get("user_text") or t.get("user") or "").strip()
-                            a = (t.get("agent_text") or t.get("agent") or "").strip()
-                            if u and a:
-                                history_turns.append(f"User: {u}\nModel: {a}")
-                        if history_turns:
-                            joined_history = "\n\n".join(history_turns)
-                            prompt_to_send = f"{joined_history}\n\nUser: {text}"
+                    asyncio.create_task(_bg_escalate())
 
-                engine_inst = LocalModelEngine(model_name=model_choice)
-                ans = await engine_inst.chat_text(prompt_to_send)
-                save_gemma_turn(
-                    conv_id=conv_id,
-                    user_text=text,
-                    agent_text=ans,
-                    model=model_choice,
-                )
-                self.broadcast_event(
-                    {
-                        "type": "agent_response",
-                        "engine": "gemma",
-                        "avatar": "🧠",
-                        "text": ans,
-                        "conv_id": conv_id,
-                    }
-                )
-                try:
-                    self._speak_in_background(
-                        ans, agent_name="gemma", conv_id=conv_id, origin="desktop"
+                if not data.get("pal_modal"):
+                    self.broadcast_event(
+                        {
+                            "type": "agent_turn_completed",
+                            "summary": spoken_out,
+                            "full_response": full_resp,
+                            "conv_id": target_cid,
+                            "agent_role": "pal",
+                            "engine": "pal",
+                            "origin": data.get("origin", "mobile"),
+                            "success": turn_res.get("success", True),
+                        }
                     )
-                except Exception:
-                    pass
                 return web.json_response(
                     {
-                        "success": True,
+                        "success": turn_res.get("success", True),
                         "delivered": True,
-                        "delivered_ipc": True,
-                        "engine": "gemma",
-                        "model": model_choice,
-                        "response": ans,
-                        "conv_id": conv_id,
+                        "engine": "pal",
+                        "agent_role": "pal",
+                        "conv_id": target_cid,
+                        "action_type": action_type,
+                        "spoken_response": spoken_out,
+                        "summary": spoken_out,
+                        "full_response": full_resp,
                     }
                 )
+
+            if (
+                target_engine in ("gemma", "local", "ollama", "gemma4-2b", "gemma4-26b", "auto")
+                or ":" in str(target_engine or "")
+                or (conv_id and "gemma" in str(conv_id).lower())
+            ):
+                req_model = data.get("model") or (
+                    target_engine
+                    if target_engine not in ("gemma", "local", "ollama", None)
+                    else None
+                )
+                turn_res = await self.execute_local_voice_turn(
+                    prompt=text,
+                    conv_id=conv_id,
+                    model=req_model,
+                    mode=data.get("local_mode") or data.get("mode"),
+                    origin=data.get("origin", "mobile"),
+                    title=title,
+                )
+                return web.json_response(turn_res)
 
             if target_engine == "obsidian" or conv_id == "obsidian":
                 from voicefi.integrations.obsidian import append_quick_capture_to_vault
@@ -608,7 +640,7 @@ class ConversationsHandlersMixin:
                         status=500,
                     )
 
-            cwd_arg = data.get("cwd") or data.get("vault_path")
+            cwd_arg = data.get("cwd") or data.get("workspace_path") or data.get("vault_path")
             if not cwd_arg and target_engine in ("claude_obsidian", "obsidian_claude"):
                 from voicefi.integrations.obsidian import get_primary_vault
 

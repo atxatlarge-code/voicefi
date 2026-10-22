@@ -77,6 +77,21 @@ class CompanionServerTestCase(AioHTTPTestCase):
         assert "voicefi_companion_view" in text
         assert "if (currentView !== 'chat') {\n          switchView('chat');" not in text
 
+    async def test_locked_conversation_selection(self):
+        """Test companion PWA preserves locked conversation and does not jump on activity."""
+        resp = await self.client.get("/")
+        assert resp.status == 200
+        text = await resp.text()
+
+        # Verify activeConvId is initialized from localStorage
+        assert 'localStorage.getItem("voicefi_active_conv_id") || "";' in text
+
+        # Verify preferredId remains locked to activeConvId or storedId
+        assert "let preferredId = activeConvId || storedId;" in text
+
+        # Verify localStorage is not wiped when stored ID is outside top conversations
+        assert 'localStorage.removeItem("voicefi_active_conv_id")' not in text
+
     async def test_get_rc_routes(self):
         """Test GET /rc and /rc/ serve companion PWA HTML."""
         resp1 = await self.client.get("/rc")
@@ -328,13 +343,63 @@ class CompanionServerTestCase(AioHTTPTestCase):
         data_all = await resp_all.json()
         assert data_all.get("days") == 0
 
+    async def test_api_dictate_endpoint(self):
+        """Test POST /api/dictate triggers dictation callback with target app."""
+        mock_callback = MagicMock()
+        self.companion_server._on_trigger_manual_listen = mock_callback
+
+        resp = await self.client.post(
+            "/api/dictate",
+            json={"target_app": "LinkedIn", "initial_prompt": ""}
+        )
+        assert resp.status == 200
+        data = await resp.json()
+        assert data.get("success") is True
+        assert data.get("target_app") == "LinkedIn"
+
+        # Give the timer a moment to fire
+        await asyncio.sleep(0.1)
+        mock_callback.assert_called_once_with(
+            from_wakeword=True,
+            wake_phrase="transcribe",
+            target_app="LinkedIn",
+            initial_prompt="",
+        )
+
     async def test_api_conversations(self):
-        """Test GET /api/conversations returns list of conversations."""
+        """Test GET /api/conversations returns list of conversations and projects."""
         resp = await self.client.get("/api/conversations")
         assert resp.status == 200
         data = await resp.json()
         assert "conversations" in data
         assert isinstance(data["conversations"], list)
+        assert "projects" in data
+        assert isinstance(data["projects"], list)
+        if len(data["projects"]) > 0:
+            first_proj = data["projects"][0]
+            assert "name" in first_proj
+            assert "path" in first_proj
+
+    async def test_api_new_conversation_with_workspace_path(self):
+        """Test POST /api/conversation/new passes workspace_path to conversation creator."""
+        target_ws = "/Users/jaketrigg/Projects/vifi.co"
+        with patch("voicefi.companion.server.create_new_antigravity_conversation", return_value="proj-conv-101") as mock_create:
+            resp = await self.client.post("/api/conversation/new", json={
+                "prompt": "Build landing page",
+                "engine": "antigravity",
+                "workspace_path": target_ws,
+                "project": "vifi.co",
+            })
+            assert resp.status == 200
+            data = await resp.json()
+            assert data.get("success") is True
+            assert data.get("conv_id") == "proj-conv-101"
+            mock_create.assert_called_once_with(
+                prompt="Build landing page",
+                title=None,
+                model=None,
+                workspace_path=target_ws,
+            )
 
     async def test_api_new_conversation_antigravity(self):
         """Test POST /api/conversation/new creates and focuses an Antigravity conversation."""
@@ -348,7 +413,7 @@ class CompanionServerTestCase(AioHTTPTestCase):
             assert data.get("success") is True
             assert data.get("conv_id") == "new-ag-conv-456"
             assert "conversations" in data
-            mock_create.assert_called_once_with(prompt="Hello", title=None, model=None)
+            mock_create.assert_called_once_with(prompt="Hello", title=None, model=None, workspace_path=None)
 
     async def test_api_new_conversation_custom_params(self):
         """Test POST /api/conversation/new with custom prompt, title, and model."""
@@ -363,7 +428,7 @@ class CompanionServerTestCase(AioHTTPTestCase):
             data = await resp.json()
             assert data.get("success") is True
             assert data.get("conv_id") == "custom-conv-789"
-            mock_create.assert_called_once_with(prompt="Refactor database schema", title="DB Refactor", model="pro")
+            mock_create.assert_called_once_with(prompt="Refactor database schema", title="DB Refactor", model="pro", workspace_path=None)
 
     async def test_api_switch_and_send(self):
         """Test POST /api/switch and POST /api/send."""
@@ -395,6 +460,34 @@ class CompanionServerTestCase(AioHTTPTestCase):
                 include_envelope=False,
                 allow_foreground_fallback=False,
                 use_headless=True,
+            )
+
+    async def test_api_send_with_workspace_path(self):
+        """Test POST /api/send resolves and passes workspace_path as cwd to agent injector."""
+        from voicefi.integrations.injector import DispatchResult
+        mock_res = DispatchResult(success=True, delivery_type="ipc", target_conv_id="test-conv-999", engine="antigravity")
+        with patch("voicefi.audio.echo_canceller.is_acoustic_echo", return_value=False), \
+             patch("voicefi.companion.server.send_message_to_agent", return_value=mock_res) as mock_send:
+            resp_send = await self.client.post("/api/send", json={
+                "conv_id": "test-conv-999",
+                "text": "Refactor router",
+                "workspace_path": "/Users/jaketrigg/Projects/VoiceFi",
+            })
+            assert resp_send.status == 200
+            data_send = await resp_send.json()
+            assert data_send.get("success") is True
+            mock_send.assert_called_once_with(
+                conv_id="test-conv-999",
+                text="Refactor router",
+                sender_name="ViFi Companion",
+                title="Message from ViFi Companion",
+                target_engine=None,
+                from_conv_id=None,
+                from_engine=None,
+                include_envelope=False,
+                allow_foreground_fallback=False,
+                use_headless=True,
+                cwd=Path("/Users/jaketrigg/Projects/VoiceFi"),
             )
 
     async def test_api_send_failure_response(self):
@@ -537,12 +630,35 @@ class CompanionServerTestCase(AioHTTPTestCase):
                 use_headless=True,
             )
 
+        # 3b. Test sending voice command with workspace_path over WebSocket
+        with patch("voicefi.companion.server.send_message_to_agent", return_value=True) as mock_send_ws:
+            await ws.send_json({
+                "type": "user_voice_command",
+                "conv_id": "test-conv-789",
+                "text": "Inspect tests",
+                "workspace_path": "/Users/jaketrigg/Projects/VoiceFi",
+            })
+            msg_conf2 = await ws.receive_json()
+            assert msg_conf2.get("type") == "user_command_injected"
+            assert msg_conf2.get("text") == "Inspect tests"
+            mock_send_ws.assert_called_once_with(
+                conv_id="test-conv-789",
+                text="Inspect tests",
+                sender_name="ViFi Companion",
+                title="Message from ViFi Companion",
+                use_headless=True,
+                cwd=Path("/Users/jaketrigg/Projects/VoiceFi"),
+            )
+
         # 4. Test server broadcasting agent turn completion
         self.companion_server.broadcast_turn_completion(
             summary="Build completed successfully. Ready to deploy?",
             conv_id="test-conv-456",
             agent_role="antigravity",
         )
+        msg_start1 = await ws.receive_json()
+        assert msg_start1.get("type") == "agent_speaking_started"
+
         msg_turn1 = await ws.receive_json()
         assert msg_turn1.get("type") == "agent_turn_completed"
         assert "Build completed successfully" in msg_turn1.get("summary")
@@ -555,6 +671,9 @@ class CompanionServerTestCase(AioHTTPTestCase):
             agent_role="antigravity",
             step_index=42,
         )
+        msg_start2 = await ws.receive_json()
+        assert msg_start2.get("type") == "agent_speaking_started"
+
         msg_turn2 = await ws.receive_json()
         assert msg_turn2.get("type") == "agent_turn_completed"
         assert msg_turn2.get("step_index") == 42
@@ -574,10 +693,52 @@ class CompanionServerTestCase(AioHTTPTestCase):
             agent_role="antigravity",
             step_index=43,
         )
+        msg_start3 = await ws.receive_json()
+        assert msg_start3.get("type") == "agent_speaking_started"
+
         msg_turn3 = await ws.receive_json()
         assert msg_turn3.get("step_index") == 43
 
         await ws.close()
+
+    async def test_turn_eval_endpoint(self):
+        """Test POST /api/turn_eval returns Shortwire / Cue dynamic turn completion states."""
+        resp_done = await self.client.post(
+            "/api/turn_eval",
+            json={"text": "Can you run the unit tests now?", "is_dictation": False},
+        )
+        assert resp_done.status == 200
+        data_done = await resp_done.json()
+        assert data_done.get("state") == "DONE"
+        assert data_done.get("wait_seconds") == 0.50
+        assert data_done.get("wait_ms") == 500
+
+        resp_hold = await self.client.post(
+            "/api/turn_eval",
+            json={"text": "I want to refactor the", "is_dictation": False},
+        )
+        assert resp_hold.status == 200
+        data_hold = await resp_hold.json()
+        assert data_hold.get("state") == "HOLDING"
+        assert data_hold.get("wait_seconds") == 2.25
+        assert data_hold.get("wait_ms") == 2250
+
+    async def test_upload_image_endpoint(self):
+        """Test POST /api/upload_image attaches image to conversation brain directory."""
+        tiny_png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+        resp = await self.client.post(
+            "/api/upload_image",
+            json={
+                "conv_id": "test-conv-123",
+                "image_base64": tiny_png,
+                "filename": "pasted_screenshot.png",
+            },
+        )
+        assert resp.status == 200
+        data = await resp.json()
+        assert data.get("success") is True
+        assert "pasted_screenshot_" in data.get("filename", "")
+        assert Path(data["path"]).is_file()
 
 
 def test_cli_companion_invocation():

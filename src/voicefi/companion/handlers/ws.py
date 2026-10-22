@@ -180,70 +180,29 @@ class WebSocketHandlersMixin:
                                     lower_text = text.lower().strip()
                                     has_gemma_intent = bool(
                                         re.search(
-                                            r"\b(?:hey|ask|tell|all\s+right|alright|okay|so|can\s+you\s+ask|could\s+you\s+ask|send\s+to|talk\s+to|switch\s+to|have|message)?\s*(?:gemma|local\s+gemma|local\s+model|local\s+intelligence)\b",
+                                            r"\b(?:hey|ask|tell|all\s+right|alright|okay|so|can\s+you\s+ask|could\s+you\s+ask|send\s+to|talk\s+to|switch\s+to|have|message)?\s*(?:gemma|local\s+gemma|local\s+model|local\s+intelligence|ollama|qwen)\b",
                                             lower_text,
                                         )
                                     )
                                     is_gemma = (
-                                        engine in ("gemma", "local", "gemma4-2b", "gemma4-26b")
+                                        engine in ("gemma", "local", "ollama", "gemma4-2b", "gemma4-26b", "auto")
+                                        or ":" in str(engine or "")
                                         or (cid and "gemma" in str(cid).lower())
                                         or has_gemma_intent
                                     )
                                     if is_gemma:
-                                        from voicefi.integrations.conversations import (
-                                            save_gemma_turn,
+                                        req_model = payload.get("model") or (
+                                            engine
+                                            if engine not in ("gemma", "local", "ollama")
+                                            else None
                                         )
-                                        from voicefi.local.engine import LocalModelEngine
-
-                                        configured_model = getattr(
-                                            getattr(self.config, "local_model", None),
-                                            "model_name",
-                                            "gemma4-2b",
-                                        )
-                                        model_choice = (
-                                            "gemma4-26b"
-                                            if "26b"
-                                            in str(
-                                                payload.get("model") or engine or configured_model
-                                            ).lower()
-                                            else "gemma4-2b"
-                                        )
-                                        target_cid = (
-                                            cid
-                                            if (cid and "gemma" in str(cid).lower())
-                                            else f"gemma_{int(time.time())}"
-                                        )
-                                        self.broadcast_event(
-                                            {
-                                                "type": "agent_thinking",
-                                                "engine": "gemma",
-                                                "avatar": "🧠",
-                                                "text": f"Gemma 4 ({'26B' if '26b' in model_choice else '2B'}) is thinking on Metal GPU...",
-                                                "conv_id": target_cid,
-                                            }
-                                        )
-                                        eng_inst = LocalModelEngine(model_name=model_choice)
-                                        ans = await eng_inst.chat_text(text)
-                                        save_gemma_turn(
-                                            conv_id=target_cid,
-                                            user_text=text,
-                                            agent_text=ans,
-                                            model=model_choice,
-                                        )
-                                        self.broadcast_event(
-                                            {
-                                                "type": "agent_response",
-                                                "engine": "gemma",
-                                                "avatar": "🧠",
-                                                "text": ans,
-                                                "conv_id": target_cid,
-                                            }
-                                        )
-                                        self._speak_in_background(
-                                            ans,
-                                            agent_name="gemma",
-                                            conv_id=target_cid,
+                                        await self.execute_local_voice_turn(
+                                            prompt=text,
+                                            conv_id=cid,
+                                            model=req_model,
+                                            mode=payload.get("local_mode") or payload.get("mode"),
                                             origin=payload.get("origin", "mobile"),
+                                            title=title,
                                         )
                                         continue
 
@@ -286,7 +245,11 @@ class WebSocketHandlersMixin:
                                             cid = None
 
                                     set_mobile_turn_origin(cid)
-                                    cwd_arg = payload.get("cwd") or payload.get("vault_path")
+                                    cwd_arg = (
+                                        payload.get("cwd")
+                                        or payload.get("workspace_path")
+                                        or payload.get("vault_path")
+                                    )
                                     if not cwd_arg and engine in (
                                         "claude_obsidian",
                                         "obsidian_claude",
@@ -623,12 +586,61 @@ class WebSocketHandlersMixin:
                 fresh_cfg = load_config()
             except Exception:
                 pass
-            _, v_id, _ = fresh_cfg.resolve_voice(agent_role)
-            if v_id:
-                # Normalize voice id (e.g. en-US-ChristopherNeural -> Christopher)
-                resolved_voice = v_id
+            global_voice = getattr(getattr(fresh_cfg, "tts", None), "voice", "")
+            if global_voice and ("continental" in global_voice.lower() or "walken" in global_voice.lower() or "acting" in str(getattr(getattr(fresh_cfg, "tts", None), "provider", "")).lower()):
+                resolved_voice = global_voice
+            else:
+                _, v_id, _ = fresh_cfg.resolve_voice(agent_role)
+                if v_id:
+                    resolved_voice = v_id
         except Exception:
             pass
+
+        # Broadcast visual start event immediately (0ms) before TTS synthesis so UI transitions without delay
+        self.broadcast_event(
+            {
+                "type": "agent_speaking_started",
+                "text": summary,
+                "conv_id": conv_id,
+                "agent_role": agent_role,
+                "voice": resolved_voice,
+            }
+        )
+
+        audio_data_uri = None
+        try:
+            cache_m4a = Path("/tmp/voicefi_last_spoken_turn.m4a")
+            if spoken_on_mac and cache_m4a.is_file() and (now - cache_m4a.stat().st_mtime) < 45.0:
+                import base64
+                b64 = base64.b64encode(cache_m4a.read_bytes()).decode("ascii")
+                audio_data_uri = f"data:audio/mp4;base64,{b64}"
+            elif summary and summary.strip():
+                import base64
+                import tempfile
+                from voicefi.companion.handlers.audio import (
+                    _resolve_tts_engine,
+                    get_cached_tts_audio,
+                    set_cached_tts_audio,
+                )
+                cache_voice_key = str(resolved_voice or agent_role or "default")
+                cached = get_cached_tts_audio(cache_voice_key, summary)
+                if cached:
+                    b64 = base64.b64encode(cached[0]).decode("ascii")
+                    audio_data_uri = f"data:{cached[1]};base64,{b64}"
+                else:
+                    tts_inst = _resolve_tts_engine(
+                        fresh_cfg, agent_name=agent_role, voice_override=resolved_voice
+                    )
+                    temp_mp3 = Path(tempfile.gettempdir()) / f"vifi_turn_{int(now*1000)}.mp3"
+                    if hasattr(tts_inst, "speak_to_file") and tts_inst.speak_to_file(summary, temp_mp3):
+                        if temp_mp3.is_file() and temp_mp3.stat().st_size > 0:
+                            raw_bytes = temp_mp3.read_bytes()
+                            set_cached_tts_audio(cache_voice_key, summary, raw_bytes, "audio/mpeg")
+                            b64 = base64.b64encode(raw_bytes).decode("ascii")
+                            audio_data_uri = f"data:audio/mpeg;base64,{b64}"
+                            temp_mp3.unlink(missing_ok=True)
+        except Exception as e:
+            logger.debug(f"[CompanionServer] Failed to generate audio_data_uri: {e}")
 
         self.broadcast_event(
             {
@@ -639,6 +651,7 @@ class WebSocketHandlersMixin:
                 "step_index": step_index,
                 "agent_role": agent_role,
                 "voice": resolved_voice,
+                "audio_data_uri": audio_data_uri,
                 "origin": origin,
                 "delivered_via": delivered_via,
                 "delivered_via_hook": (delivered_via == "hook"),
@@ -648,3 +661,4 @@ class WebSocketHandlersMixin:
         )
 
     broadcast_agent_turn_completed = broadcast_turn_completion
+
