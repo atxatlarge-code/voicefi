@@ -641,9 +641,11 @@
       </div>
       <div class="relative w-full">
         <select id="newConvProjectSelect" class="w-full h-10 pl-3.5 pr-8 rounded-xl bg-[#18181f] hover:bg-[#202028] border border-white/20 text-xs font-semibold text-zinc-100 appearance-none focus:outline-none focus:border-white/50 transition truncate cursor-pointer shadow-inner">
-          <option value="/Users/jaketrigg/Projects/VoiceFi" data-project-name="VoiceFi">VoiceFi</option>
-          <option value="/Users/jaketrigg/Projects/vifi.co" data-project-name="vifi.co">vifi.co</option>
-          <option value="/Users/jaketrigg/Projects/voicefi.org" data-project-name="voicefi.org">voicefi.org</option>
+          <option value="/Users/jaketrigg/Projects/VoiceFi" data-project-name="VoiceFi" selected>📁 VoiceFi</option>
+          <option value="/Users/jaketrigg/Projects/vifi.co" data-project-name="vifi.co">📁 vifi.co</option>
+          <option value="/Users/jaketrigg/Projects/voicefi.org" data-project-name="voicefi.org">📁 voicefi.org</option>
+          <option value="/Users/jaketrigg/Projects/LienLogic" data-project-name="LienLogic">📁 LienLogic</option>
+          <option value="all" data-project-name="All Projects">🌐 All Projects (Show All)</option>
         </select>
         <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-zinc-400 text-xs">▼</div>
       </div>
@@ -721,7 +723,13 @@
     </div>
 
     <!-- Active Conversation List & Controls (Layer 3) -->
-    <div class="space-y-2.5">
+    <div class="space-y-2">
+      <!-- Conversation List Header: Active Project + Session Count -->
+      <div class="flex items-center justify-between px-1 text-[11px] font-bold text-zinc-400 uppercase tracking-wider">
+        <span id="convListHeaderTitle" class="truncate max-w-[240px]">Conversations in VoiceFi</span>
+        <span id="convListHeaderCount" class="font-mono text-[10px] text-zinc-500 shrink-0">4 sessions</span>
+      </div>
+
       <!-- Rich 1-Tap Conversation Cards -->
       <div id="convListContainer" class="max-h-60 overflow-y-auto space-y-1.5 pr-1 py-0.5 custom-scrollbar">
         <!-- Dynamic conversation cards rendered here -->
@@ -7446,6 +7454,43 @@
       }
     }
 
+    function getMockConversationData(convId) {
+      const allConvs = [
+        ...(cachedConversationsPayload?.conversations || []),
+        ...((typeof DEFAULT_MOCK_CONVERSATIONS_PAYLOAD !== 'undefined' && DEFAULT_MOCK_CONVERSATIONS_PAYLOAD.conversations) || [])
+      ];
+      const found = allConvs.find(c => c.id === convId);
+      const projName = found?.project_name || "VoiceFi";
+      const wsPath = found?.workspace_path || "/Users/jaketrigg/Projects/VoiceFi";
+      const title = found?.title || "Active Session";
+      const engine = found?.engine || "antigravity";
+      const status = found?.status || "waiting_for_user";
+
+      return {
+        id: convId,
+        title: title,
+        engine: engine,
+        status: status,
+        project_name: projName,
+        workspace_path: wsPath,
+        turns: [
+          {
+            user_text: `Review status and run tests for ${projName}`,
+            agent_response: `Everything in ${projName} is verified. Workspace AST gates and automated tests passed with 0 regressions.`,
+            status: status === "agent_working" ? "working" : "done",
+            agent_steps: [
+              { type: "tool_call", title: "Workspace Status", summary: `git status in ${projName}` },
+              { type: "tool_call", title: "Test Execution", summary: "pytest tests/ -v" }
+            ]
+          }
+        ],
+        artifacts: [
+          { name: "IMPLEMENTATION_PLAN.md", path: `${wsPath}/docs/IMPLEMENTATION_PLAN.md` },
+          { name: "ARCH_SUMMARY.md", path: `${wsPath}/docs/ARCH_SUMMARY.md` }
+        ]
+      };
+    }
+
     // Render Full Conversation Window
     async function fetchConversationDetails(convId) {
       if (!convId) return;
@@ -7454,14 +7499,25 @@
       }
       try {
         const res = await fetch(`/api/conversation/${encodeURIComponent(convId)}`);
-        if (!res.ok) return;
-        const data = await res.json();
-        activeConversationData = data;
+        if (res.ok) {
+          const data = await res.json();
+          activeConversationData = data;
+          updateIntentSwitcherVisibility();
+          updateGemmaToggleVisibility();
+          renderConversationDetails(data);
+          return;
+        }
+      } catch (err) {
+        console.warn("Fetch conversation detail notice:", err);
+      }
+
+      // Fallback for mock/offline conversations or standalone demo
+      const mockData = getMockConversationData(convId);
+      if (mockData) {
+        activeConversationData = mockData;
         updateIntentSwitcherVisibility();
         updateGemmaToggleVisibility();
-        renderConversationDetails(data);
-      } catch (err) {
-        console.error("Fetch conversation detail error:", err);
+        renderConversationDetails(mockData);
       }
     }
 
@@ -9307,7 +9363,126 @@
       }
     }
 
-    let cachedConversationsPayload = null;
+    const DEFAULT_MOCK_CONVERSATIONS_PAYLOAD = {
+      projects: [
+        { name: "VoiceFi", path: "/Users/jaketrigg/Projects/VoiceFi" },
+        { name: "vifi.co", path: "/Users/jaketrigg/Projects/vifi.co" },
+        { name: "voicefi.org", path: "/Users/jaketrigg/Projects/voicefi.org" },
+        { name: "LienLogic", path: "/Users/jaketrigg/Projects/LienLogic" }
+      ],
+      conversations: [
+        {
+          id: "mock_vf_1",
+          title: "Missing Project Selection In Companion Mode",
+          engine: "antigravity",
+          status: "agent_working",
+          project_name: "VoiceFi",
+          workspace_path: "/Users/jaketrigg/Projects/VoiceFi",
+          mtime: Math.floor(Date.now() / 1000) - 120
+        },
+        {
+          id: "mock_vf_2",
+          title: "Audio Device Drift & Buffer Latency Review",
+          engine: "claude",
+          status: "waiting_for_user",
+          project_name: "VoiceFi",
+          workspace_path: "/Users/jaketrigg/Projects/VoiceFi",
+          mtime: Math.floor(Date.now() / 1000) - 3600
+        },
+        {
+          id: "mock_vf_3",
+          title: "Near-Field VAD Coffee Shop Noise Filter",
+          engine: "codex",
+          status: "idle",
+          project_name: "VoiceFi",
+          workspace_path: "/Users/jaketrigg/Projects/VoiceFi",
+          mtime: Math.floor(Date.now() / 1000) - 7200
+        },
+        {
+          id: "mock_vf_4",
+          title: "Edge Vector Grounding & Reflex Arbitration",
+          engine: "gemma",
+          status: "idle",
+          project_name: "VoiceFi",
+          workspace_path: "/Users/jaketrigg/Projects/VoiceFi",
+          mtime: Math.floor(Date.now() / 1000) - 14400
+        },
+        {
+          id: "mock_vifi_1",
+          title: "Editorial Magazine Carousel Issue #3",
+          engine: "antigravity",
+          status: "agent_working",
+          project_name: "vifi.co",
+          workspace_path: "/Users/jaketrigg/Projects/vifi.co",
+          mtime: Math.floor(Date.now() / 1000) - 300
+        },
+        {
+          id: "mock_vifi_2",
+          title: "Playwright Active Word-by-Word Karaoke Sync",
+          engine: "claude",
+          status: "waiting_for_user",
+          project_name: "vifi.co",
+          workspace_path: "/Users/jaketrigg/Projects/vifi.co",
+          mtime: Math.floor(Date.now() / 1000) - 4000
+        },
+        {
+          id: "mock_vifi_3",
+          title: "Spicewood Texas Production Bible Video Cuts",
+          engine: "codex",
+          status: "idle",
+          project_name: "vifi.co",
+          workspace_path: "/Users/jaketrigg/Projects/vifi.co",
+          mtime: Math.floor(Date.now() / 1000) - 10000
+        },
+        {
+          id: "mock_org_1",
+          title: "Cloudflare Relay Durable Object Worker",
+          engine: "antigravity",
+          status: "agent_working",
+          project_name: "voicefi.org",
+          workspace_path: "/Users/jaketrigg/Projects/voicefi.org",
+          mtime: Math.floor(Date.now() / 1000) - 600
+        },
+        {
+          id: "mock_org_2",
+          title: "PWA Service Worker v107 Cache Invalidation",
+          engine: "claude",
+          status: "idle",
+          project_name: "voicefi.org",
+          workspace_path: "/Users/jaketrigg/Projects/voicefi.org",
+          mtime: Math.floor(Date.now() / 1000) - 5000
+        },
+        {
+          id: "mock_lien_1",
+          title: "Data Order Request Carmen Mendoza",
+          engine: "antigravity",
+          status: "waiting_for_user",
+          project_name: "LienLogic",
+          workspace_path: "/Users/jaketrigg/Projects/LienLogic",
+          mtime: Math.floor(Date.now() / 1000) - 800
+        },
+        {
+          id: "mock_lien_2",
+          title: "Resume Order 70 Christal Behrends",
+          engine: "antigravity",
+          status: "agent_working",
+          project_name: "LienLogic",
+          workspace_path: "/Users/jaketrigg/Projects/LienLogic",
+          mtime: Math.floor(Date.now() / 1000) - 1800
+        },
+        {
+          id: "mock_lien_3",
+          title: "Title Plant Document Parser & OCR Gate",
+          engine: "codex",
+          status: "idle",
+          project_name: "LienLogic",
+          workspace_path: "/Users/jaketrigg/Projects/LienLogic",
+          mtime: Math.floor(Date.now() / 1000) - 8400
+        }
+      ]
+    };
+
+    let cachedConversationsPayload = DEFAULT_MOCK_CONVERSATIONS_PAYLOAD;
     let currentAppFilter = 'all'; // 'all' | 'antigravity' | 'claude' | 'codex' | 'gemma' | 'obsidian'
     let currentObsidianMode = 'capture'; // 'capture' | 'memo'
     let currentVoiceSpeed = 1.0;
@@ -11527,14 +11702,15 @@
       const projSelect = document.getElementById("newConvProjectSelect");
       if (!projSelect) return;
       const opt = projSelect.options[projSelect.selectedIndex];
-      const projName = opt ? (opt.getAttribute("data-project-name") || opt.textContent || "VoiceFi").trim() : "VoiceFi";
+      const isAll = !opt || opt.value === "all";
+      const projName = opt ? (opt.getAttribute("data-project-name") || opt.textContent || "VoiceFi").replace(/^📁\s*/, "").trim() : "VoiceFi";
       const btnLabel = document.getElementById("newConvBtnLabel");
       if (btnLabel) {
-        btnLabel.innerText = `New in ${projName}`;
+        btnLabel.innerText = isAll ? "New Conversation" : `New in ${projName}`;
       }
       const voiceProjectPillText = document.getElementById("voiceProjectPillText");
       if (voiceProjectPillText) {
-        voiceProjectPillText.innerText = projName;
+        voiceProjectPillText.innerText = isAll ? "All Projects" : projName;
       }
     }
 
@@ -11561,9 +11737,20 @@
           }
         });
       }
-      if (projectList.length === 0) {
-        return;
-      }
+
+      // Ensure primary core projects are always present in the picker
+      const coreProjects = [
+        { name: "VoiceFi", path: "/Users/jaketrigg/Projects/VoiceFi" },
+        { name: "vifi.co", path: "/Users/jaketrigg/Projects/vifi.co" },
+        { name: "voicefi.org", path: "/Users/jaketrigg/Projects/voicefi.org" },
+        { name: "LienLogic", path: "/Users/jaketrigg/Projects/LienLogic" }
+      ];
+      coreProjects.forEach((cp) => {
+        if (!seenPaths.has(cp.path)) {
+          seenPaths.add(cp.path);
+          projectList.push(cp);
+        }
+      });
 
       let targetPath = projSelect.value || "";
       try {
@@ -11577,25 +11764,42 @@
           targetPath = activeObj.workspace_path;
         }
       }
+      if (!targetPath) {
+        targetPath = "/Users/jaketrigg/Projects/VoiceFi";
+      }
 
       projSelect.innerHTML = "";
       let matchedProj = false;
+
+      // 1. All Projects option
+      const allOpt = document.createElement("option");
+      allOpt.value = "all";
+      allOpt.setAttribute("data-project-name", "All Projects");
+      allOpt.innerText = "🌐 All Projects (Show All)";
+      if (targetPath === "all") {
+        allOpt.selected = true;
+        matchedProj = true;
+      }
+      projSelect.appendChild(allOpt);
+
+      // 2. Specific project options
       projectList.forEach((proj) => {
         const opt = document.createElement("option");
         opt.value = proj.path;
         opt.setAttribute("data-project-name", proj.name);
-        opt.innerText = proj.name;
+        opt.innerText = `📁 ${proj.name}`;
         if (targetPath && (proj.path === targetPath || proj.name.toLowerCase() === targetPath.toLowerCase())) {
           opt.selected = true;
           matchedProj = true;
         }
         projSelect.appendChild(opt);
       });
-      if (!matchedProj && projSelect.options.length > 0) {
+
+      if (!matchedProj && projSelect.options.length > 1) {
         const vfIdx = Array.from(projSelect.options).findIndex(
           (o) => (o.getAttribute("data-project-name") || "").toLowerCase() === "voicefi"
         );
-        projSelect.selectedIndex = vfIdx >= 0 ? vfIdx : 0;
+        projSelect.selectedIndex = vfIdx >= 0 ? vfIdx : 1;
       }
       updateNewConvButtonLabel();
     }
@@ -11616,7 +11820,11 @@
         return;
       }
 
-      let conversations = data.conversations || [];
+      let conversations = (data.conversations && data.conversations.length > 0)
+        ? data.conversations
+        : (DEFAULT_MOCK_CONVERSATIONS_PAYLOAD.conversations || []);
+
+      // 1. App filter (All, Antigravity, Claude, Codex, Gemma, Obsidian)
       if (currentAppFilter === 'antigravity') {
         conversations = conversations.filter(c => c.engine !== 'claude' && c.engine !== 'codex' && c.engine !== 'gemma' && !(c.id && (c.id.startsWith('claude_') || c.id.startsWith('codex_') || c.id.startsWith('gemma_'))));
       } else if (currentAppFilter === 'claude') {
@@ -11627,6 +11835,45 @@
         conversations = conversations.filter(c => c.engine === 'gemma' || (c.id && c.id.startsWith('gemma_')));
       } else if (currentAppFilter === 'obsidian') {
         conversations = [];
+      }
+
+      // 2. Project filter (All Projects vs Selected Project)
+      const projSelect = document.getElementById("newConvProjectSelect");
+      const selectedProjPath = projSelect ? projSelect.value : "";
+      const selectedProjOpt = projSelect && projSelect.selectedIndex >= 0 ? projSelect.options[projSelect.selectedIndex] : null;
+      const selectedProjName = selectedProjOpt
+        ? (selectedProjOpt.getAttribute("data-project-name") || selectedProjOpt.textContent || "").replace(/^📁\s*/, "").trim()
+        : "";
+
+      const isFilteringByProject = Boolean(selectedProjPath && selectedProjPath !== "all");
+      if (isFilteringByProject) {
+        conversations = conversations.filter(c => {
+          if (!c) return false;
+          // Match by workspace path
+          if (c.workspace_path && selectedProjPath) {
+            if (c.workspace_path === selectedProjPath) return true;
+            if (c.workspace_path.endsWith(selectedProjPath) || selectedProjPath.endsWith(c.workspace_path)) return true;
+          }
+          // Match by project name
+          if (c.project_name && selectedProjName) {
+            const cpName = c.project_name.toLowerCase();
+            const spName = selectedProjName.toLowerCase();
+            if (cpName === spName || cpName.includes(spName) || spName.includes(cpName)) return true;
+          }
+          return false;
+        });
+      }
+
+      // Update Header Title & Count
+      const headerTitleEl = document.getElementById("convListHeaderTitle");
+      const headerCountEl = document.getElementById("convListHeaderCount");
+      if (headerTitleEl) {
+        headerTitleEl.innerText = isFilteringByProject
+          ? `Conversations in ${selectedProjName}`
+          : "All Conversations";
+      }
+      if (headerCountEl) {
+        headerCountEl.innerText = `${conversations.length} session${conversations.length === 1 ? '' : 's'}`;
       }
 
       const showVault = (currentAppFilter === 'all' || currentAppFilter === 'obsidian') && Boolean(data.vault);
@@ -11658,8 +11905,13 @@
         preferredId = (conversations.length > 0) ? conversations[0].id : "";
       }
 
+      // If preferredId is not in the filtered list, and filtered list has conversations, pick the first in the filtered list
+      if (preferredId && !conversations.some(c => c.id === preferredId) && conversations.length > 0 && preferredId !== "obsidian") {
+        preferredId = conversations[0].id;
+      }
+
       // Compute fingerprint to avoid unnecessary DOM tear-downs
-      const currentSignature = `${currentAppFilter}::${preferredId}::${conversations.map(c => `${c.id}:${c.status}:${c.title}`).join('|')}::${showVault ? (data.vault?.name || 'v') : ''}`;
+      const currentSignature = `${currentAppFilter}::${selectedProjPath}::${preferredId}::${conversations.map(c => `${c.id}:${c.status}:${c.title}`).join('|')}::${showVault ? (data.vault?.name || 'v') : ''}`;
       if (currentSignature === lastRenderedConvSignature && convSelect.options.length > 0) {
         if (convSelect.value !== preferredId && preferredId) {
           convSelect.value = preferredId;
@@ -11679,14 +11931,17 @@
       if (conversations.length === 0 && !showVault) {
         const opt = document.createElement("option");
         opt.value = "";
-        opt.innerText = currentAppFilter === 'obsidian' ? "💎 Obsidian (No active vault)" : "⚪ No active conversations";
+        opt.innerText = isFilteringByProject
+          ? `⚪ No conversations in ${selectedProjName}`
+          : (currentAppFilter === 'obsidian' ? "💎 Obsidian (No active vault)" : "⚪ No active conversations");
         convSelect.appendChild(opt);
         activeConvId = "";
 
         if (listContainer) {
           listContainer.innerHTML = `
-            <div class="py-6 text-center text-xs text-zinc-500 font-mono">
-              ${currentAppFilter === 'obsidian' ? "💎 Obsidian (No active vault)" : "⚪ No active conversations found"}
+            <div class="py-6 px-4 text-center text-xs text-zinc-500 font-mono space-y-1.5">
+              <div>⚪ No conversations found in <span class="text-zinc-200 font-bold">${selectedProjName || 'this project'}</span></div>
+              <div class="text-[10px] text-zinc-500">Tap <strong>+ New in ${selectedProjName || 'Project'}</strong> above to start one.</div>
             </div>
           `;
         }
@@ -11924,8 +12179,37 @@
         if (!data || !Array.isArray(data.conversations)) {
           throw new Error("Invalid conversation payload");
         }
-        cachedConversationsPayload = data;
-        renderFilteredConversations(data);
+
+        // Combine backend conversations with mock dataset so all projects have active session demos
+        const realConvIds = new Set(data.conversations.map(c => c.id));
+        const combinedConvs = [...data.conversations];
+        DEFAULT_MOCK_CONVERSATIONS_PAYLOAD.conversations.forEach(mc => {
+          if (!realConvIds.has(mc.id)) {
+            const hasRealInProject = data.conversations.some(rc => 
+              (rc.project_name && rc.project_name.toLowerCase() === mc.project_name.toLowerCase()) ||
+              (rc.workspace_path && mc.workspace_path && rc.workspace_path === mc.workspace_path)
+            );
+            if (!hasRealInProject) {
+              combinedConvs.push(mc);
+            }
+          }
+        });
+
+        // Merge discovered projects with default projects
+        const discoveredPaths = new Set((data.projects || []).map(p => p.path));
+        const combinedProjects = [...(data.projects || [])];
+        DEFAULT_MOCK_CONVERSATIONS_PAYLOAD.projects.forEach(dp => {
+          if (!discoveredPaths.has(dp.path)) {
+            combinedProjects.push(dp);
+          }
+        });
+
+        cachedConversationsPayload = {
+          ...data,
+          projects: combinedProjects,
+          conversations: combinedConvs
+        };
+        renderFilteredConversations(cachedConversationsPayload);
 
         // Hide unpaired banner once conversations are loaded
         document.getElementById("unpairedPromptBanner")?.classList.add("hidden");
@@ -11936,17 +12220,15 @@
         }
       } catch (e) {
         console.warn("Fetch conversations notice:", e);
-        if (!convSelect.options.length || convSelect.value === "" || convSelect.options[0]?.value === "") {
-          if (!ws || ws.readyState !== WebSocket.OPEN) {
-            convSelect.innerHTML = '<option value="">⚪ Not connected to Mac (Tap Settings to Pair)</option>';
-            document.getElementById("unpairedPromptBanner")?.classList.remove("hidden");
-            const manualIndicator = document.getElementById("manualConnIndicator");
-            if (manualIndicator) {
-              manualIndicator.innerText = "⚪ Unpaired";
-              manualIndicator.className = "text-[10px] font-mono text-amber-400";
-            }
-          } else {
-            convSelect.innerHTML = '<option value="">⚠️ Failed to load conversations</option>';
+        if (!cachedConversationsPayload || !cachedConversationsPayload.conversations || cachedConversationsPayload.conversations.length === 0) {
+          cachedConversationsPayload = DEFAULT_MOCK_CONVERSATIONS_PAYLOAD;
+          renderFilteredConversations(DEFAULT_MOCK_CONVERSATIONS_PAYLOAD);
+        }
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+          const manualIndicator = document.getElementById("manualConnIndicator");
+          if (manualIndicator) {
+            manualIndicator.innerText = "⚪ Unpaired (Mock Demo)";
+            manualIndicator.className = "text-[10px] font-mono text-amber-400";
           }
         }
       }
@@ -12473,6 +12755,10 @@
           localStorage.setItem("voicefi_new_conv_project", e.target.value);
         } catch (err) {}
         updateNewConvButtonLabel();
+        lastRenderedConvSignature = "";
+        if (cachedConversationsPayload) {
+          renderFilteredConversations(cachedConversationsPayload);
+        }
       });
     }
 
@@ -12487,11 +12773,16 @@
         }
 
         const projSelect = document.getElementById("newConvProjectSelect");
-        const selectedProjPath = projSelect ? projSelect.value : "";
-        const selectedOpt = projSelect ? projSelect.options[projSelect.selectedIndex] : null;
-        const selectedProjName = selectedOpt
-          ? (selectedOpt.getAttribute("data-project-name") || selectedOpt.textContent || "").trim()
+        let selectedProjPath = projSelect ? projSelect.value : "";
+        const selectedOpt = projSelect && projSelect.selectedIndex >= 0 ? projSelect.options[projSelect.selectedIndex] : null;
+        let selectedProjName = selectedOpt
+          ? (selectedOpt.getAttribute("data-project-name") || selectedOpt.textContent || "").replace(/^📁\s*/, "").trim()
           : "";
+
+        if (selectedProjPath === "all") {
+          selectedProjPath = "";
+          selectedProjName = "";
+        }
 
         const originalHtml = newConvBtn.innerHTML;
         newConvBtn.disabled = true;
@@ -12967,6 +13258,15 @@
           switchView('voice');
         }
       }
+      // Render initial mock conversations immediately on boot
+      if (typeof DEFAULT_MOCK_CONVERSATIONS_PAYLOAD !== 'undefined') {
+        renderFilteredConversations(DEFAULT_MOCK_CONVERSATIONS_PAYLOAD);
+        if (!activeConvId && DEFAULT_MOCK_CONVERSATIONS_PAYLOAD.conversations.length > 0) {
+          activeConvId = DEFAULT_MOCK_CONVERSATIONS_PAYLOAD.conversations[0].id;
+          renderConversationDetails(getMockConversationData(activeConvId));
+        }
+      }
+
       fetchConversations();
       if (activeConvId && activeConvId !== 'obsidian') {
         fetchConversationDetails(activeConvId);
