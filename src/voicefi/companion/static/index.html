@@ -1311,14 +1311,29 @@
 
   </div>
 
+  <!-- Full-Window Antigravity Drag-and-Drop Overlay -->
+  <div id="globalDropOverlay" class="fixed inset-0 z-50 hidden bg-black/80 backdrop-blur-md flex items-center justify-center p-6 pointer-events-none transition-opacity duration-150">
+    <div class="border-2 border-dashed border-cyan-400/80 bg-[#0d111a]/95 rounded-3xl p-8 max-w-md w-full text-center shadow-[0_0_50px_rgba(34,211,238,0.2)] space-y-3">
+      <div class="w-16 h-16 mx-auto rounded-2xl bg-cyan-500/15 border border-cyan-400/40 flex items-center justify-center text-3xl">📎</div>
+      <div class="text-base font-bold text-white tracking-tight">Drop files or images to attach</div>
+      <div class="text-xs text-zinc-400 font-mono">Images • PDFs • Code • Markdown • CSV/JSON • Audio • Video</div>
+    </div>
+  </div>
+
   <!-- Universal Persistent Bottom Bar (Option 1 Layout: Always Available on Voice, Chat & Artifacts) -->
-  <!-- Attached Images List Container (Renders a distinct line for every attached image) -->
+  <!-- @ Workspace File Mention Autocomplete Popover (Antigravity-style @file picker) -->
+  <div id="workspaceFileAutocomplete" class="hidden px-3 pt-2 pb-1.5 bg-[#0c0c10]/95 backdrop-blur-xl border-t border-cyan-500/30 max-h-56 overflow-y-auto z-30 shadow-2xl">
+    <!-- Injected dynamically by renderWorkspaceAutocomplete() -->
+  </div>
+
+  <!-- Attached Files & Images List Container (Renders a distinct line for every attached file/image) -->
   <div id="attachedImagesContainer" class="hidden px-3 pt-2 pb-1 bg-black/90 backdrop-blur-md border-t border-[#1c1c1e] space-y-1.5 max-h-48 overflow-y-auto z-20">
     <!-- Injected dynamically by renderAttachedImagesList() -->
   </div>
 
   <!-- Offscreen Multi-File Upload Inputs (Avoid display:none so mobile Safari/WebKit & WKWebView allow .click()) -->
-  <input type="file" id="phoneCameraInput" accept="image/*" multiple class="fixed -top-96 -left-96 opacity-0 w-px h-px pointer-events-none" tabindex="-1" aria-hidden="true">
+  <input type="file" id="companionFileInput" multiple class="fixed -top-96 -left-96 opacity-0 w-px h-px pointer-events-none" tabindex="-1" aria-hidden="true">
+  <input type="file" id="phoneCameraInput" accept="image/*,video/*" multiple class="fixed -top-96 -left-96 opacity-0 w-px h-px pointer-events-none" tabindex="-1" aria-hidden="true">
   <input type="file" id="phoneCameraDirectInput" accept="image/*" capture="environment" class="fixed -top-96 -left-96 opacity-0 w-px h-px pointer-events-none" tabindex="-1" aria-hidden="true">
 
   <!-- Bottom Chat Input Bar (Native Messages Layout) -->
@@ -1327,39 +1342,52 @@
     <!-- Expandable Quick Action Utility Tray (Toggled by (+) button) -->
     <div id="quickActionsTray" class="hidden mb-3 pt-1 pb-1 w-full max-w-4xl mx-auto">
       <div class="flex items-center gap-3 overflow-x-auto no-scrollbar font-mono text-xs">
-        <!-- 1. Photos & Files -->
-        <button type="button" id="chatCameraBtn" class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-[#18181b] hover:bg-[#24242a] active:bg-[#2c2c34] text-zinc-200 hover:text-white flex items-center justify-center shrink-0 transition active:scale-95 cursor-pointer shadow-md border border-white/10" title="Photos & Files" aria-label="Photos and Files">
-          <span class="text-xl sm:text-2xl">📁</span>
+        <!-- 1. Browse Any Files (PDF, Code, Docs, Zip, Audio, Images) -->
+        <button type="button" id="chatFilesBtn" class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-[#18181b] hover:bg-[#24242a] active:bg-[#2c2c34] text-zinc-200 hover:text-white flex flex-col items-center justify-center gap-0.5 shrink-0 transition active:scale-95 cursor-pointer shadow-md border border-white/10" title="Attach Any Files (PDF, Code, Docs, Images, Audio)" aria-label="Attach Any Files">
+          <span class="text-lg sm:text-xl leading-none">📎</span>
+          <span class="text-[8px] text-zinc-400 font-sans">Files</span>
         </button>
 
-        <!-- 2. Camera -->
-        <button type="button" id="chatDirectCameraBtn" class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-[#18181b] hover:bg-[#24242a] active:bg-[#2c2c34] text-zinc-200 hover:text-white flex items-center justify-center shrink-0 transition active:scale-95 cursor-pointer shadow-md border border-white/10" title="Camera" aria-label="Camera">
-          <span class="text-xl sm:text-2xl">📸</span>
+        <!-- 2. Photos & Gallery -->
+        <button type="button" id="chatCameraBtn" class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-[#18181b] hover:bg-[#24242a] active:bg-[#2c2c34] text-zinc-200 hover:text-white flex flex-col items-center justify-center gap-0.5 shrink-0 transition active:scale-95 cursor-pointer shadow-md border border-white/10" title="Photos & Videos Gallery" aria-label="Photos and Videos">
+          <span class="text-lg sm:text-xl leading-none">🖼️</span>
+          <span class="text-[8px] text-zinc-400 font-sans">Photos</span>
         </button>
 
-        <!-- 3. Prompts -->
-        <button type="button" id="chatEmojiBtn" class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-[#18181b] hover:bg-[#24242a] active:bg-[#2c2c34] text-zinc-200 hover:text-white flex items-center justify-center shrink-0 transition active:scale-95 cursor-pointer shadow-md border border-white/10" title="Prompts" aria-label="Prompt Shortcuts">
-          <span class="text-xl sm:text-2xl">💡</span>
+        <!-- 3. Camera -->
+        <button type="button" id="chatDirectCameraBtn" class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-[#18181b] hover:bg-[#24242a] active:bg-[#2c2c34] text-zinc-200 hover:text-white flex flex-col items-center justify-center gap-0.5 shrink-0 transition active:scale-95 cursor-pointer shadow-md border border-white/10" title="Camera" aria-label="Camera">
+          <span class="text-lg sm:text-xl leading-none">📸</span>
+          <span class="text-[8px] text-zinc-400 font-sans">Camera</span>
         </button>
 
-        <!-- 4. Mac Desktop Screen (All the way over to the right) -->
-        <button type="button" id="chatMacScreenshotBtn" class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-[#18181b] hover:bg-[#24242a] active:bg-[#2c2c34] text-zinc-200 hover:text-white flex items-center justify-center shrink-0 transition active:scale-95 cursor-pointer shadow-md border border-white/10" title="Mac Screen" aria-label="Capture Mac Desktop Screen">
-          <span class="text-xl sm:text-2xl">🖥️</span>
+        <!-- 4. Prompts -->
+        <button type="button" id="chatEmojiBtn" class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-[#18181b] hover:bg-[#24242a] active:bg-[#2c2c34] text-zinc-200 hover:text-white flex flex-col items-center justify-center gap-0.5 shrink-0 transition active:scale-95 cursor-pointer shadow-md border border-white/10" title="Prompts" aria-label="Prompt Shortcuts">
+          <span class="text-lg sm:text-xl leading-none">💡</span>
+          <span class="text-[8px] text-zinc-400 font-sans">Prompts</span>
         </button>
 
-        <!-- 5. Gemini 3.8 Live -->
-        <button type="button" onclick="switchView('live')" class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-cyan-950/80 to-purple-950/80 hover:from-cyan-900 hover:to-purple-900 active:bg-cyan-800 text-cyan-300 hover:text-white flex items-center justify-center shrink-0 transition active:scale-95 cursor-pointer shadow-md border border-cyan-500/30" title="Gemini 3.8 Live Studio" aria-label="Gemini 3.8 Live Studio">
-          <span class="text-xl sm:text-2xl">⚡</span>
+        <!-- 5. Mac Desktop Screen -->
+        <button type="button" id="chatMacScreenshotBtn" class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-[#18181b] hover:bg-[#24242a] active:bg-[#2c2c34] text-zinc-200 hover:text-white flex flex-col items-center justify-center gap-0.5 shrink-0 transition active:scale-95 cursor-pointer shadow-md border border-white/10" title="Mac Screen" aria-label="Capture Mac Desktop Screen">
+          <span class="text-lg sm:text-xl leading-none">🖥️</span>
+          <span class="text-[8px] text-zinc-400 font-sans">Screen</span>
         </button>
 
-        <!-- 6. Pal Mac OS Control -->
-        <button type="button" onclick="openPalTakeover()" class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-blue-950/80 to-indigo-950/80 hover:from-blue-900 hover:to-indigo-900 active:bg-blue-800 text-blue-300 hover:text-white flex items-center justify-center shrink-0 transition active:scale-95 cursor-pointer shadow-md border border-blue-500/30" title="Pal Mac OS Control" aria-label="Pal Mac OS Control">
-          <span class="text-xl sm:text-2xl">💻</span>
+        <!-- 6. Gemini 3.8 Live -->
+        <button type="button" onclick="switchView('live')" class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-cyan-950/80 to-purple-950/80 hover:from-cyan-900 hover:to-purple-900 active:bg-cyan-800 text-cyan-300 hover:text-white flex flex-col items-center justify-center gap-0.5 shrink-0 transition active:scale-95 cursor-pointer shadow-md border border-cyan-500/30" title="Gemini 3.8 Live Studio" aria-label="Gemini 3.8 Live Studio">
+          <span class="text-lg sm:text-xl leading-none">⚡</span>
+          <span class="text-[8px] text-cyan-300/80 font-sans">Live</span>
         </button>
 
-        <!-- 7. Project Workspace & New Session Switcher -->
-        <button type="button" onclick="toggleHeaderDrawer(true)" class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-[#18181b] hover:bg-[#24242a] active:bg-[#2c2c34] text-zinc-200 hover:text-white flex items-center justify-center shrink-0 transition active:scale-95 cursor-pointer shadow-md border border-white/10" title="Project Workspace & New Session" aria-label="Project Workspace and New Session">
-          <span class="text-xl sm:text-2xl">🗂️</span>
+        <!-- 7. Pal Mac OS Control -->
+        <button type="button" onclick="openPalTakeover()" class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-blue-950/80 to-indigo-950/80 hover:from-blue-900 hover:to-indigo-900 active:bg-blue-800 text-blue-300 hover:text-white flex flex-col items-center justify-center gap-0.5 shrink-0 transition active:scale-95 cursor-pointer shadow-md border border-blue-500/30" title="Pal Mac OS Control" aria-label="Pal Mac OS Control">
+          <span class="text-lg sm:text-xl leading-none">💻</span>
+          <span class="text-[8px] text-blue-300/80 font-sans">Pal</span>
+        </button>
+
+        <!-- 8. Project Workspace & New Session Switcher -->
+        <button type="button" onclick="toggleHeaderDrawer(true)" class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-[#18181b] hover:bg-[#24242a] active:bg-[#2c2c34] text-zinc-200 hover:text-white flex flex-col items-center justify-center gap-0.5 shrink-0 transition active:scale-95 cursor-pointer shadow-md border border-white/10" title="Project Workspace & New Session" aria-label="Project Workspace and New Session">
+          <span class="text-lg sm:text-xl leading-none">🗂️</span>
+          <span class="text-[8px] text-zinc-400 font-sans">Project</span>
         </button>
       </div>
     </div>
@@ -1369,7 +1397,7 @@
       <!-- Populated dynamically by renderSparklerChips() -->
     </div>
 
-    <!-- Native Messages Form Row (Updated Order: (+) -> [Input] -> (💎) -> (🎙️/Send)) -->
+    <!-- Native Messages Form Row (Updated Order: (+) -> [Input + 📎] -> (🎙️/Send)) -->
     <form id="chatForm" class="flex items-center gap-2 w-full max-w-4xl mx-auto">
       
       <!-- 1. Left Action Button: Sleek iOS Circular (+) Button -->
@@ -1379,12 +1407,17 @@
         </svg>
       </button>
 
-      <!-- 2. Center Pill Input Capsule (Wide & Spacious) -->
-      <div class="flex-1 min-w-0 h-11 sm:h-12 bg-[#161619] focus-within:bg-[#1e1e24] border border-white/10 focus-within:border-white/30 rounded-full px-4 flex items-center transition-all shadow-inner relative">
-        <input id="chatInput" type="text" autocomplete="off" enterkeyhint="send" autocapitalize="sentences" spellcheck="false" placeholder="Message..." class="flex-1 min-w-0 bg-transparent text-sm sm:text-base text-white placeholder-zinc-500 font-sans focus:outline-none">
+      <!-- 2. Center Pill Input Capsule (Wide & Spacious with 1-click Attach button) -->
+      <div class="flex-1 min-w-0 h-11 sm:h-12 bg-[#161619] focus-within:bg-[#1e1e24] border border-white/10 focus-within:border-white/30 rounded-full pl-4 pr-2 flex items-center transition-all shadow-inner relative">
+        <input id="chatInput" type="text" autocomplete="off" enterkeyhint="send" autocapitalize="sentences" spellcheck="false" placeholder="Message or @file..." class="flex-1 min-w-0 bg-transparent text-sm sm:text-base text-white placeholder-zinc-500 font-sans focus:outline-none">
         <div id="chatCountdownBadge" class="hidden shrink-0 items-center gap-1 px-2.5 py-0.5 rounded-full bg-cyan-500/20 border border-cyan-500/40 text-[11px] font-mono font-bold text-cyan-300 ml-2 animate-pulse select-none cursor-pointer" title="Tap to pause auto-dispatch">
           <span>⚡</span><span id="chatCountdownText">3.0s</span>
         </div>
+        <button type="button" id="chatQuickFileAttachBtn" class="w-8 h-8 rounded-full text-zinc-400 hover:text-white hover:bg-white/10 active:scale-95 flex items-center justify-center shrink-0 transition cursor-pointer ml-1" title="Attach files or images (or drag & drop / Cmd+V)" aria-label="Attach files or images">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13" />
+          </svg>
+        </button>
       </div>
 
       <!-- 3. Right Action Button: Dynamic Voice Mic / Send Arrow -->
@@ -3600,7 +3633,8 @@
       if (!title) return "AGY • Active Session";
       let clean = String(title).trim();
       clean = clean.replace(/^\[From:[^\]]+\]\s*/i, "").replace(/^\[Message[^\]]*\]\s*/i, "");
-      clean = clean.replace(/^\[Attached Screenshot:[^\]]+\]\s*/i, "");
+      clean = clean.replace(/^\[Attached (?:Screenshot|Image|File):[^\]]+\]\s*/gi, "");
+      clean = clean.replace(/^\[Workspace File:[^\]]+\]\([^)]+\)\s*/gi, "");
       clean = clean.replace(/^\[ATTACHED\s*\([0-9]+\):[^\]]+\]\s*/i, "");
       clean = clean.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}]/gu, "");
       clean = clean.replace(/^[⚪⏳🟢⚠️•\-]\s*/, "");
@@ -5752,8 +5786,45 @@
       return false;
     }
 
+    function classifyClientFileCategory(filename = "", mimeType = "") {
+      const ext = ((filename.split(".").pop() || "").toLowerCase()).trim();
+      const mime = (mimeType || "").toLowerCase();
+      if (mime.startsWith("image/") || ["png", "jpg", "jpeg", "gif", "webp", "svg", "heic", "bmp", "ico", "tiff"].includes(ext)) return "image";
+      if (ext === "pdf" || mime === "application/pdf") return "pdf";
+      if (["md", "markdown", "mdx"].includes(ext)) return "markdown";
+      if (["py", "js", "ts", "tsx", "jsx", "html", "css", "scss", "sh", "bash", "zsh", "rs", "go", "swift", "kt", "java", "c", "cpp", "h", "hpp", "sql", "rb", "php", "lua", "vue", "svelte"].includes(ext)) return "code";
+      if (["json", "yaml", "yml", "toml", "csv", "tsv", "xml", "env", "ini", "cfg", "log", "txt"].includes(ext) || mime.startsWith("text/")) return "data";
+      if (mime.startsWith("audio/") || ["mp3", "wav", "m4a", "ogg", "flac", "aac", "opus"].includes(ext)) return "audio";
+      if (mime.startsWith("video/") || ["mp4", "mov", "webm", "mkv", "avi"].includes(ext)) return "video";
+      if (["zip", "tar", "gz", "tgz", "bz2", "xz", "7z"].includes(ext)) return "archive";
+      if (["doc", "docx", "xls", "xlsx", "ppt", "pptx", "rtf"].includes(ext)) return "document";
+      return "file";
+    }
+
+    function getAttachmentCategoryMeta(category = "file", ext = "") {
+      const cat = (category || "file").toLowerCase();
+      const e = (ext || "").toUpperCase();
+      if (cat === "image") return { badge: "IMG", icon: "🖼️", color: "text-cyan-400 border-cyan-500/30 bg-cyan-500/10" };
+      if (cat === "pdf") return { badge: "PDF", icon: "📕", color: "text-rose-400 border-rose-500/30 bg-rose-500/10" };
+      if (cat === "code") return { badge: e || "CODE", icon: "💻", color: "text-emerald-400 border-emerald-500/30 bg-emerald-500/10" };
+      if (cat === "markdown") return { badge: "MD", icon: "📝", color: "text-purple-400 border-purple-500/30 bg-purple-500/10" };
+      if (cat === "data") return { badge: e || "DATA", icon: "📊", color: "text-amber-400 border-amber-500/30 bg-amber-500/10" };
+      if (cat === "audio") return { badge: e || "AUDIO", icon: "🎵", color: "text-pink-400 border-pink-500/30 bg-pink-500/10" };
+      if (cat === "video") return { badge: e || "VIDEO", icon: "🎬", color: "text-indigo-400 border-indigo-500/30 bg-indigo-500/10" };
+      if (cat === "archive") return { badge: e || "ZIP", icon: "📦", color: "text-orange-400 border-orange-500/30 bg-orange-500/10" };
+      return { badge: e || "FILE", icon: "📄", color: "text-zinc-300 border-zinc-600/40 bg-zinc-800/80" };
+    }
+
+    function formatAttachmentSize(bytes) {
+      const n = Number(bytes || 0);
+      if (!n || n <= 0) return "";
+      if (n < 1024) return `${n} B`;
+      if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+      return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+    }
+
     function renderAttachedImagesList() {
-      // 1. Chat View Attached Images Line Container
+      // 1. Chat View Attached Files & Images Line Container
       const container = document.getElementById("attachedImagesContainer");
       if (container) {
         if (currentAttachedImages.length === 0) {
@@ -5761,27 +5832,49 @@
           container.classList.add("hidden");
         } else {
           container.classList.remove("hidden");
-          const itemsHtml = currentAttachedImages.map((img) => `
-            <div class="flex items-center justify-between p-2 bg-[#141416] hover:bg-[#1c1c1f] border border-[#27272a] rounded-xl transition group shadow-sm">
-              <div class="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer" onclick="viewArtifactContent('${escapeHtml(img.filename)}')">
-                ${img.url ? `<img src="${img.url}" class="w-9 h-9 object-cover rounded-lg border border-zinc-700 bg-black shrink-0" alt="Attachment thumbnail">` : `<div class="w-9 h-9 rounded-lg border border-zinc-700 bg-[#222] flex items-center justify-center text-xs shrink-0 text-zinc-400">🖼️</div>`}
-                <div class="min-w-0 flex-1 text-left">
-                  <div class="text-[11px] font-bold text-white truncate flex items-center gap-1">
-                    <span class="text-[9px] font-mono text-zinc-400 font-normal">[IMG]</span>
-                    <span class="truncate">${escapeHtml(img.filename || "image.jpg")}</span>
+          const itemsHtml = currentAttachedImages.map((img) => {
+            const cat = img.category || classifyClientFileCategory(img.filename, img.mimeType);
+            const ext = img.extension || ((img.filename || "").split(".").pop() || "");
+            const meta = getAttachmentCategoryMeta(cat, ext);
+            const isImg = (cat === "image") || Boolean(img.isImage);
+            const sizeLabel = formatAttachmentSize(img.size);
+            const pct = typeof img.progress === "number" ? Math.min(100, Math.max(5, Math.round(img.progress))) : 45;
+            const clickAction = img.isWorkspaceFile
+              ? ""
+              : `onclick="viewArtifactContent('${escapeHtml(img.filename)}')"`;
+            const thumbHtml = (isImg && (img.previewUrl || img.url))
+              ? `<img src="${escapeHtml(img.previewUrl || img.url)}" class="w-9 h-9 object-cover rounded-lg border border-zinc-700 bg-black shrink-0" alt="Attachment thumbnail" onerror="this.style.display='none'">`
+              : `<div class="w-9 h-9 rounded-lg border ${meta.color} flex items-center justify-center text-sm shrink-0">${meta.icon}</div>`;
+
+            const statusHtml = img.isUploading
+              ? `<div class="flex items-center gap-2">
+                   <span class="text-amber-400 animate-pulse">Uploading ${pct}%...</span>
+                   <div class="w-16 h-1 bg-zinc-800 rounded-full overflow-hidden"><div class="h-full bg-cyan-400 transition-all duration-150" style="width:${pct}%"></div></div>
+                 </div>`
+              : `<span class="text-emerald-400">${img.isWorkspaceFile ? 'Workspace @file attached' : 'Attached to next prompt'}</span>${sizeLabel ? ` <span class="text-zinc-500">• ${sizeLabel}</span>` : ''}`;
+
+            return `
+              <div class="flex items-center justify-between p-2 bg-[#141416] hover:bg-[#1c1c1f] border border-[#27272a] rounded-xl transition group shadow-sm">
+                <div class="flex items-center gap-2.5 min-w-0 flex-1 ${img.isWorkspaceFile ? '' : 'cursor-pointer'}" ${clickAction}>
+                  ${thumbHtml}
+                  <div class="min-w-0 flex-1 text-left">
+                    <div class="text-[11px] font-bold text-white truncate flex items-center gap-1.5">
+                      <span class="text-[9px] font-mono px-1 py-0.2 rounded border ${meta.color} font-semibold shrink-0">[${escapeHtml(meta.badge)}]</span>
+                      <span class="truncate">${escapeHtml(img.displayName || img.originalFilename || img.filename || "attachment")}</span>
+                    </div>
+                    <div class="text-[9px] text-zinc-400 font-mono mt-0.5">
+                      ${statusHtml}
+                    </div>
                   </div>
-                  <p class="text-[9px] text-zinc-400 font-mono">
-                    ${img.isUploading ? '<span class="text-amber-400 animate-pulse">Uploading to workspace...</span>' : '<span class="text-emerald-400">Attached to next prompt</span>'}
-                  </p>
                 </div>
+                <button type="button" class="p-1.5 text-zinc-400 hover:text-red-400 text-xs font-bold transition active:scale-90 cursor-pointer shrink-0" onclick="removeAttachedImage('${img.id}')" title="Remove this attachment">✕</button>
               </div>
-              <button type="button" class="p-1.5 text-zinc-400 hover:text-red-400 text-xs font-bold transition active:scale-90 cursor-pointer shrink-0" onclick="removeAttachedImage('${img.id}')" title="Remove this attachment">✕</button>
-            </div>
-          `).join('');
+            `;
+          }).join('');
 
           const headerHtml = `
             <div class="flex items-center justify-between px-1 text-[10px] font-mono text-zinc-400 font-semibold">
-              <span>ATTACHED IMAGES (${currentAttachedImages.length})</span>
+              <span>ATTACHED FILES (${currentAttachedImages.length})</span>
               <button type="button" onclick="clearAllAttachedImages()" class="text-zinc-400 hover:text-white transition cursor-pointer text-[9px] underline">Clear all</button>
             </div>
           `;
@@ -5797,9 +5890,17 @@
         if (currentAttachedImages.length === 0) {
           voicePreview.classList.add("hidden");
         } else {
-          const firstImg = currentAttachedImages[0];
-          if (firstImg.url) voiceThumb.src = firstImg.url;
-          voiceFname.innerText = currentAttachedImages.length === 1 ? (firstImg.filename || "image.jpg") : `${currentAttachedImages.length} images attached`;
+          const firstItem = currentAttachedImages[0];
+          const firstImgUrl = firstItem.previewUrl || firstItem.url;
+          if (firstImgUrl && (firstItem.isImage || firstItem.category === "image")) {
+            voiceThumb.src = firstImgUrl;
+            voiceThumb.classList.remove("hidden");
+          } else {
+            voiceThumb.classList.add("hidden");
+          }
+          voiceFname.innerText = currentAttachedImages.length === 1
+            ? (firstItem.displayName || firstItem.originalFilename || firstItem.filename || "attachment")
+            : `${currentAttachedImages.length} files attached`;
           voicePreview.classList.remove("hidden");
         }
       }
@@ -5937,7 +6038,8 @@
     async function sendVoiceCommand(text, isVoice = false) {
       if ((!text || !text.trim()) && currentAttachedImages.length === 0) return;
       if (!text || !text.trim()) {
-        text = "Process attached images";
+        const allImgs = currentAttachedImages.every(item => item.isImage || item.category === "image");
+        text = allImgs ? "Process attached images" : "Process attached files";
       }
       if (isVoice) {
         text = deduplicateSpokenTranscript(text);
@@ -5958,18 +6060,22 @@
       let fullText = text.trim();
       let displayMsg = fullText;
 
-      // If any attached image is still finishing its upload RPC, wait up to 8s so a single Send tap includes it
+      // If any attached file/image is still finishing its upload RPC, wait up to 12s so a single Send tap includes it
       if (currentAttachedImages.some(img => img.isUploading)) {
         const waitStart = Date.now();
-        while (currentAttachedImages.some(img => img.isUploading) && (Date.now() - waitStart) < 8000) {
+        while (currentAttachedImages.some(img => img.isUploading) && (Date.now() - waitStart) < 12000) {
           await new Promise(r => setTimeout(r, 80));
         }
       }
 
-      // Attach each image on its own distinct line
+      // Attach each file or image on its own distinct line
       const validImages = currentAttachedImages.filter(img => img.path && !img.isUploading);
       if (validImages.length > 0) {
-        const attachLines = validImages.map(img => `[Attached Screenshot: file://${img.path}]`).join('\n');
+        const attachLines = validImages.map(img => {
+          const isImg = Boolean(img.isImage || img.category === "image");
+          const tag = isImg ? "Attached Screenshot" : "Attached File";
+          return `[${tag}: file://${img.path}]`;
+        }).join('\n');
         fullText = `${attachLines}\n\n${fullText}`;
         displayMsg = `${attachLines}\n\n${text.trim()}`;
         clearAllAttachedImages();
@@ -6507,54 +6613,146 @@
       });
     }
 
+    async function readFileAsDataURL(file) {
+      return new Promise((resolve) => {
+        try {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = () => resolve(null);
+          reader.readAsDataURL(file);
+        } catch (e) {
+          resolve(null);
+        }
+      });
+    }
+
     async function uploadPhoneImageFile(file) {
       if (!file) return;
       const itemId = 'att_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
-      const cleanName = file.name || `screenshot_${Date.now()}.jpg`;
+      const cleanName = file.name || `attachment_${Date.now()}`;
+      const mimeType = file.type || "";
+      const ext = ((cleanName.split(".").pop() || "").toLowerCase()).trim();
+      const category = classifyClientFileCategory(cleanName, mimeType);
+      const isImage = (category === "image");
+      let localPreviewUrl = "";
+      if (isImage) {
+        try { localPreviewUrl = URL.createObjectURL(file); } catch (e) {}
+      }
+
       const item = {
         id: itemId,
         filename: cleanName,
-        url: '',
+        originalFilename: cleanName,
+        displayName: cleanName,
+        mimeType: mimeType,
+        extension: ext,
+        category: category,
+        isImage: isImage,
+        size: file.size || 0,
+        previewUrl: localPreviewUrl,
+        url: localPreviewUrl,
         path: '',
+        progress: 10,
         isUploading: true,
       };
       currentAttachedImages.push(item);
       renderAttachedImagesList();
 
-      const b64 = await compressImageForUpload(file);
-      if (!b64) {
-        showToast("Could not read image " + cleanName, 3000);
-        removeAttachedImage(itemId);
-        return;
-      }
-      item.url = b64;
-      renderAttachedImagesList();
+      const applyServerResult = (data, fallbackUrl = "") => {
+        item.filename = data.filename || cleanName;
+        item.originalFilename = data.original_filename || cleanName;
+        item.displayName = cleanName;
+        item.path = data.path;
+        item.size = data.size || item.size;
+        item.extension = data.extension || item.extension;
+        item.category = data.category || item.category;
+        item.isImage = typeof data.is_image === "boolean" ? data.is_image : item.isImage;
+        item.url = fallbackUrl || data.raw_url || data.url || item.previewUrl;
+        item.progress = 100;
+        item.isUploading = false;
+        renderAttachedImagesList();
+        showToast(`Attached: ${cleanName}`, 2500);
+        if (activeConvId && activeConvId !== 'obsidian') fetchConversationDetails(activeConvId);
+      };
+
       try {
+        // Fast path on local HTTP (Mac Companion window or local Wi-Fi): multipart FormData with live XHR upload progress
+        const isRasterToCompress = isImage && !["svg", "gif"].includes(ext) && (window.__vifi_is_relay || (file.size && file.size > 3.5 * 1024 * 1024));
+        if (!window.__vifi_is_relay && !isRasterToCompress) {
+          try {
+            await new Promise((resolve, reject) => {
+              const xhr = new XMLHttpRequest();
+              xhr.open("POST", "/api/upload_image", true);
+              xhr.upload.onprogress = (evt) => {
+                if (evt.lengthComputable && evt.total > 0) {
+                  item.progress = Math.round((evt.loaded / evt.total) * 95);
+                  renderAttachedImagesList();
+                }
+              };
+              xhr.onload = () => {
+                try {
+                  const data = JSON.parse(xhr.responseText || "{}");
+                  if (xhr.status >= 200 && xhr.status < 300 && data.success && data.path) {
+                    applyServerResult(data, item.previewUrl);
+                    resolve(data);
+                  } else {
+                    reject(new Error(data.error || `HTTP ${xhr.status}`));
+                  }
+                } catch (e) {
+                  reject(e);
+                }
+              };
+              xhr.onerror = () => reject(new Error("Network upload error"));
+              const fd = new FormData();
+              if (activeConvId) fd.append("conv_id", activeConvId);
+              fd.append("filename", cleanName);
+              if (mimeType) fd.append("mime_type", mimeType);
+              fd.append("file", file, cleanName);
+              xhr.send(fd);
+            });
+            return;
+          } catch (xhrErr) {
+            console.warn("FormData upload fallback to JSON:", xhrErr);
+          }
+        }
+
+        // Relay / Compressed Image / Fallback JSON base64 upload path
+        item.progress = 35;
+        renderAttachedImagesList();
+        const b64 = isImage ? await compressImageForUpload(file) : await readFileAsDataURL(file);
+        if (!b64) {
+          showToast("Could not read file " + cleanName, 3000);
+          removeAttachedImage(itemId);
+          return;
+        }
+        if (isImage) {
+          item.url = b64;
+          item.previewUrl = b64;
+        }
+        item.progress = 65;
+        renderAttachedImagesList();
+
         const res = await fetch('/api/upload_image', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             conv_id: activeConvId,
+            file_base64: b64,
             image_base64: b64,
-            filename: cleanName
+            filename: cleanName,
+            mime_type: mimeType
           })
         });
         const data = await res.json();
         if (data.success && data.path) {
-          item.filename = data.filename;
-          item.path = data.path;
-          item.url = b64 || data.url;
-          item.isUploading = false;
-          renderAttachedImagesList();
-          showToast(`Attached: ${data.filename}`, 2500);
-          if (activeConvId && activeConvId !== 'obsidian') fetchConversationDetails(activeConvId);
+          applyServerResult(data, isImage ? b64 : "");
         } else {
           showToast("Upload error: " + (data.error || "Failed"), 3000);
           removeAttachedImage(itemId);
         }
       } catch (err) {
         console.error("Upload error:", err);
-        showToast("Error uploading " + cleanName, 3000);
+        showToast("Error uploading " + cleanName + ": " + (err.message || "Failed"), 3500);
         removeAttachedImage(itemId);
       }
     }
@@ -6564,8 +6762,14 @@
       const item = {
         id: itemId,
         filename: filename,
+        originalFilename: filename,
+        displayName: filename,
+        category: "image",
+        isImage: true,
+        previewUrl: dataUrl,
         url: dataUrl,
         path: '',
+        progress: 40,
         isUploading: true,
       };
       currentAttachedImages.push(item);
@@ -6577,6 +6781,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             conv_id: activeConvId,
+            file_base64: dataUrl,
             image_base64: dataUrl,
             filename: filename
           })
@@ -6585,7 +6790,8 @@
         if (data.success && data.path) {
           item.filename = data.filename;
           item.path = data.path;
-          item.url = data.url || dataUrl;
+          item.url = data.raw_url || data.url || dataUrl;
+          item.progress = 100;
           item.isUploading = false;
           renderAttachedImagesList();
           showToast(`Attached: ${data.filename}`, 3500);
@@ -6601,15 +6807,185 @@
       }
     }
 
+    async function attachLocalMacPaths(paths) {
+      const pathList = Array.from(paths || []);
+      if (pathList.length === 0) return;
+      for (const localPath of pathList) {
+        const cleanName = String(localPath).split("/").pop() || "file";
+        const ext = ((cleanName.split(".").pop() || "").toLowerCase()).trim();
+        const category = classifyClientFileCategory(cleanName, "");
+        const isImage = category === "image";
+        const itemId = 'att_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+        const item = {
+          id: itemId,
+          filename: cleanName,
+          originalFilename: cleanName,
+          displayName: cleanName,
+          extension: ext,
+          category: category,
+          isImage: isImage,
+          url: '',
+          path: '',
+          progress: 50,
+          isUploading: true,
+        };
+        currentAttachedImages.push(item);
+        renderAttachedImagesList();
+        try {
+          const res = await fetch('/api/upload_image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              conv_id: activeConvId,
+              local_path: localPath,
+              filename: cleanName
+            })
+          });
+          const data = await res.json();
+          if (data.success && data.path) {
+            item.filename = data.filename;
+            item.path = data.path;
+            item.size = data.size || 0;
+            item.category = data.category || category;
+            item.isImage = Boolean(data.is_image);
+            item.url = data.raw_url || data.url || '';
+            item.PreviewUrl = item.url;
+            item.progress = 100;
+            item.isUploading = false;
+            renderAttachedImagesList();
+            showToast(`Attached: ${cleanName}`, 2500);
+          } else {
+            removeAttachedImage(itemId);
+          }
+        } catch (err) {
+          removeAttachedImage(itemId);
+        }
+      }
+    }
+    window.attachLocalMacPaths = attachLocalMacPaths;
+
     async function handleMultiFileSelection(files) {
       const fileList = Array.from(files || []);
       if (fileList.length === 0) return;
       document.getElementById("quickActionsTray")?.classList.add("hidden");
       document.getElementById("chatAttachPlusIcon")?.classList.remove("rotate-45");
-      showToast(`Attaching ${fileList.length} image${fileList.length > 1 ? 's' : ''}...`, 2500);
+      const allImgs = fileList.every(f => classifyClientFileCategory(f.name, f.type) === "image");
+      const noun = allImgs ? (fileList.length > 1 ? 'images' : 'image') : (fileList.length > 1 ? 'files' : 'file');
+      showToast(`Attaching ${fileList.length} ${noun}...`, 2500);
       for (const f of fileList) {
         uploadPhoneImageFile(f);
       }
+    }
+
+    // Antigravity-style @ Workspace File Mention Autocomplete
+    let wsAutocompleteTimer = null;
+    let wsAutocompleteResults = [];
+    let wsAutocompleteActiveIndex = 0;
+
+    function hideWorkspaceFileAutocomplete() {
+      const pop = document.getElementById("workspaceFileAutocomplete");
+      if (pop) {
+        pop.classList.add("hidden");
+        pop.innerHTML = "";
+      }
+      wsAutocompleteResults = [];
+    }
+
+    function attachWorkspaceMentionFile(index) {
+      const fileObj = wsAutocompleteResults[index];
+      if (!fileObj || !fileObj.path) return;
+      const input = document.getElementById("chatInput");
+      if (input) {
+        // Strip trailing @query token from chatInput
+        input.value = input.value.replace(/(?:^|\s)@[^\s]*$/, " ").trimStart();
+      }
+      hideWorkspaceFileAutocomplete();
+      // Avoid duplicate attachment of the same path
+      if (!currentAttachedImages.some(img => img.path === fileObj.path)) {
+        currentAttachedImages.push({
+          id: 'ws_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+          filename: fileObj.filename,
+          originalFilename: fileObj.rel_path || fileObj.filename,
+          displayName: fileObj.rel_path || fileObj.filename,
+          relPath: fileObj.rel_path || fileObj.filename,
+          extension: fileObj.extension || "",
+          category: fileObj.category || "code",
+          isImage: Boolean(fileObj.is_image),
+          isWorkspaceFile: true,
+          size: fileObj.size || 0,
+          path: fileObj.path,
+          url: "",
+          isUploading: false,
+        });
+        renderAttachedImagesList();
+        showToast(`Attached @${fileObj.rel_path || fileObj.filename}`, 2000);
+      }
+      if (input) {
+        input.focus();
+        updateChatActionState();
+      }
+    }
+    window.attachWorkspaceMentionFile = attachWorkspaceMentionFile;
+
+    function renderWorkspaceAutocompleteList() {
+      const pop = document.getElementById("workspaceFileAutocomplete");
+      if (!pop) return;
+      if (!wsAutocompleteResults || wsAutocompleteResults.length === 0) {
+        hideWorkspaceFileAutocomplete();
+        return;
+      }
+      pop.classList.remove("hidden");
+      const itemsHtml = wsAutocompleteResults.map((f, idx) => {
+        const meta = getAttachmentCategoryMeta(f.category, f.extension);
+        const isSelected = idx === wsAutocompleteActiveIndex;
+        const sizeStr = formatAttachmentSize(f.size);
+        return `
+          <button type="button" onclick="attachWorkspaceMentionFile(${idx})" class="w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-left transition cursor-pointer ${isSelected ? 'bg-cyan-500/20 border border-cyan-500/40 text-white' : 'hover:bg-white/5 border border-transparent text-zinc-300'}">
+            <div class="flex items-center gap-2 min-w-0 flex-1">
+              <span class="text-xs shrink-0">${meta.icon}</span>
+              <span class="text-[9px] font-mono px-1 rounded border ${meta.color} shrink-0">[${escapeHtml(meta.badge)}]</span>
+              <span class="text-xs font-mono truncate">${escapeHtml(f.rel_path || f.filename)}</span>
+            </div>
+            ${sizeStr ? `<span class="text-[9px] font-mono text-zinc-500 ml-2 shrink-0">${sizeStr}</span>` : ''}
+          </button>
+        `;
+      }).join("");
+      pop.innerHTML = `
+        <div class="flex items-center justify-between px-1 pb-1 text-[9px] font-mono text-cyan-400 font-semibold">
+          <span>WORKSPACE @FILES (${wsAutocompleteResults.length})</span>
+          <span class="text-zinc-500">Tap or Enter to attach</span>
+        </div>
+        <div class="space-y-0.5">${itemsHtml}</div>
+      `;
+    }
+
+    function checkWorkspaceFileAutocomplete(inputValue) {
+      const match = String(inputValue || "").match(/(?:^|\s)@([^\s]*)$/);
+      if (!match) {
+        hideWorkspaceFileAutocomplete();
+        return;
+      }
+      const query = match[1] || "";
+      if (wsAutocompleteTimer) clearTimeout(wsAutocompleteTimer);
+      wsAutocompleteTimer = setTimeout(async () => {
+        try {
+          const selectedProjEl = document.getElementById("newConvProjectSelect");
+          const wsParam = (selectedProjEl && selectedProjEl.value) || (activeConversationData && (activeConversationData.workspace_path || activeConversationData.project_path)) || "";
+          const url = `/api/workspace/files?q=${encodeURIComponent(query)}&conv_id=${encodeURIComponent(activeConvId || '')}&workspace_path=${encodeURIComponent(wsParam)}&limit=15`;
+          const res = await fetch(url);
+          if (!res.ok) return;
+          const data = await res.json();
+          if (data && Array.isArray(data.files) && data.files.length > 0) {
+            wsAutocompleteResults = data.files;
+            wsAutocompleteActiveIndex = 0;
+            renderWorkspaceAutocompleteList();
+          } else {
+            hideWorkspaceFileAutocomplete();
+          }
+        } catch (e) {
+          hideWorkspaceFileAutocomplete();
+        }
+      }, 120);
     }
 
     function appendOptimisticUserMessage(text) {
@@ -7223,27 +7599,70 @@
         const isWorking = turn.status === "working" && !turn.completed;
 
         // User Message Bubble with Distinct Left Margin
-        if (userMsg) {
+        if (userMsg || (Array.isArray(turn.media) && turn.media.length > 0)) {
           let cleanDisplayMsg = userMsg;
           let attachedImgHtml = "";
-          
-          const shotRegex = /\[(?:Attached Screenshot:\s*file:\/\/|SCREENSHOT:\s*)(.*?)\]/gi;
-          const allShots = [...userMsg.matchAll(shotRegex)];
-          if (allShots.length > 0) {
+          const attachedItems = [];
+          const seenNames = new Set();
+
+          const attachRegex = /\[(?:Attached Screenshot:\s*file:\/\/|Attached Image:\s*file:\/\/|Attached File:\s*file:\/\/|SCREENSHOT:\s*)(.*?)\]/gi;
+          const allMatches = [...userMsg.matchAll(attachRegex)];
+          if (allMatches.length > 0) {
             cleanDisplayMsg = userMsg
-              .replace(/\[Attached Screenshot:\s*file:\/\/.*?\]\n*/gi, "")
+              .replace(/\[Attached (?:Screenshot|Image|File):\s*file:\/\/.*?\]\n*/gi, "")
               .replace(/\[SCREENSHOT:\s*.*?\]\n*/gi, "")
               .trim();
-            attachedImgHtml = allShots.map(m => {
+            allMatches.forEach(m => {
               const filePath = (m[1] || "").trim();
               const filename = filePath.split("/").pop();
-              const imgUrl = `/api/conversation/${encodeURIComponent(data.id)}/artifact/${encodeURIComponent(filename)}`;
+              if (filename && !seenNames.has(filename)) {
+                seenNames.add(filename);
+                const ext = (filename.split(".").pop() || "").toLowerCase();
+                const cat = classifyClientFileCategory(filename, "");
+                attachedItems.push({
+                  filename: filename,
+                  path: filePath,
+                  category: cat,
+                  extension: ext,
+                  isImage: cat === "image",
+                });
+              }
+            });
+          }
+
+          if (Array.isArray(turn.media)) {
+            turn.media.forEach(med => {
+              const filename = med.filename || (med.path || "").split("/").pop();
+              if (filename && !seenNames.has(filename)) {
+                seenNames.add(filename);
+                const ext = med.extension || (filename.split(".").pop() || "").toLowerCase();
+                const cat = med.category || classifyClientFileCategory(filename, med.mime_type || "");
+                attachedItems.push({
+                  filename: filename,
+                  path: med.path || "",
+                  category: cat,
+                  extension: ext,
+                  isImage: Boolean(med.is_image || cat === "image"),
+                });
+              }
+            });
+          }
+
+          if (attachedItems.length > 0) {
+            attachedImgHtml = attachedItems.map(att => {
+              const filename = att.filename;
+              const meta = getAttachmentCategoryMeta(att.category, att.extension);
+              const rawImgUrl = `/api/conversation/${encodeURIComponent(data.id)}/artifact/${encodeURIComponent(filename)}?raw=1`;
+              const previewHtml = att.isImage
+                ? `<img src="${escapeHtml(rawImgUrl)}" class="w-12 h-12 object-cover rounded-lg border border-zinc-800 bg-black shrink-0" onerror="this.style.display='none'">`
+                : `<div class="w-10 h-10 rounded-lg border ${meta.color} flex items-center justify-center text-base shrink-0">${meta.icon}</div>`;
+              const subText = att.isImage ? "Tap to inspect or annotate image" : "Tap to inspect attached file";
               return `
                 <div class="my-1.5 p-2 bg-[#09090b] border border-[#27272a] hover:border-white rounded-xl flex items-center gap-2.5 cursor-pointer transition" onclick="viewArtifactContent('${escapeHtml(filename)}')">
-                  <img src="${escapeHtml(imgUrl)}" class="w-12 h-12 object-cover rounded-lg border border-zinc-800 bg-black shrink-0" onerror="this.style.display='none'">
-                  <div class="truncate text-left font-mono">
-                    <span class="text-[11px] font-bold text-white flex items-center gap-1"><span class="text-[9px] text-[#888888]">[IMG]</span> ${escapeHtml(filename)}</span>
-                    <span class="text-[9px] text-zinc-400">Tap to inspect full screenshot</span>
+                  ${previewHtml}
+                  <div class="truncate text-left font-mono min-w-0 flex-1">
+                    <span class="text-[11px] font-bold text-white flex items-center gap-1.5 truncate"><span class="text-[9px] px-1 rounded border ${meta.color} shrink-0">[${escapeHtml(meta.badge)}]</span> <span class="truncate">${escapeHtml(filename)}</span></span>
+                    <span class="text-[9px] text-zinc-400 block">${subText}</span>
                   </div>
                 </div>
               `;
@@ -8161,19 +8580,31 @@
             setupImageCanvas(markupTargetImage);
           }
         } else {
-          artifactModalTypeBadge.innerText = "[DOC]";
+          const catMeta = getAttachmentCategoryMeta(data.category || "file", data.extension || "");
+          artifactModalTypeBadge.innerText = `[${catMeta.badge}]`;
           toggleCommentModeBtn.classList.remove("hidden");
           copyArtifactBtn.classList.remove("hidden");
           imageMarkupStudio.classList.add("hidden");
           artifactModalBody.classList.remove("hidden");
 
-          artifactModalBody.innerHTML = renderMarkdown(data.content);
+          if (data.category === "audio" && data.raw_url) {
+            artifactModalBody.innerHTML = `<div class="p-4 space-y-3"><audio controls class="w-full" src="${escapeHtml(data.raw_url)}"></audio>${renderMarkdown(data.content || "")}</div>`;
+          } else if (data.category === "video" && data.raw_url) {
+            artifactModalBody.innerHTML = `<div class="p-4 space-y-3"><video controls playsinline class="w-full max-h-96 rounded-xl bg-black" src="${escapeHtml(data.raw_url)}"></video>${renderMarkdown(data.content || "")}</div>`;
+          } else if (data.category === "pdf" && data.raw_url) {
+            artifactModalBody.innerHTML = `<div class="space-y-3"><iframe src="${escapeHtml(data.raw_url)}" class="w-full h-[65vh] rounded-xl border border-zinc-800 bg-white"></iframe>${renderMarkdown(data.content || "")}</div>`;
+          } else if ((data.category === "code" || data.category === "data") && data.extension && !["md", "markdown"].includes(data.extension)) {
+            const fenced = `\`\`\`${data.extension}\n${data.raw_text || data.content || ""}\n\`\`\``;
+            artifactModalBody.innerHTML = renderMarkdown(fenced);
+          } else {
+            artifactModalBody.innerHTML = renderMarkdown(data.content);
+          }
           attachMarkdownBlockListeners();
           renderStagedReviewBar();
 
           // Copy button
           copyArtifactBtn.onclick = () => {
-            navigator.clipboard.writeText(data.content).then(() => {
+            navigator.clipboard.writeText(data.raw_text || data.content || "").then(() => {
               copyArtifactBtn.innerText = "COPIED";
               setTimeout(() => { copyArtifactBtn.innerText = "Copy"; }, 1500);
             });
@@ -12331,10 +12762,12 @@
       e.preventDefault();
       unlockAudio();
       cancelChatAutoDispatch();
+      hideWorkspaceFileAutocomplete();
       triggerHaptic(20);
       const val = chatInput.value.trim();
       if (val || currentAttachedImages.length > 0) {
-        sendVoiceCommand(val || "Process attached images", false);
+        const allImgs = currentAttachedImages.every(item => item.isImage || item.category === "image");
+        sendVoiceCommand(val || (allImgs ? "Process attached images" : "Process attached files"), false);
         chatInput.value = "";
         updateChatActionState();
       }
@@ -12342,7 +12775,8 @@
 
     chatInput.addEventListener("input", () => {
       updateChatActionState();
-      if (chatInput.value.trim().length > 0) {
+      checkWorkspaceFileAutocomplete(chatInput.value);
+      if (chatInput.value.trim().length > 0 && (!wsAutocompleteResults || wsAutocompleteResults.length === 0)) {
         scheduleChatAutoDispatch();
       } else {
         cancelChatAutoDispatch();
@@ -12350,8 +12784,30 @@
     });
 
     chatInput.addEventListener("keydown", (e) => {
+      if (wsAutocompleteResults && wsAutocompleteResults.length > 0) {
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          wsAutocompleteActiveIndex = (wsAutocompleteActiveIndex + 1) % wsAutocompleteResults.length;
+          renderWorkspaceAutocompleteList();
+          return;
+        } else if (e.key === "ArrowUp") {
+          e.preventDefault();
+          wsAutocompleteActiveIndex = (wsAutocompleteActiveIndex - 1 + wsAutocompleteResults.length) % wsAutocompleteResults.length;
+          renderWorkspaceAutocompleteList();
+          return;
+        } else if (e.key === "Tab" || (e.key === "Enter" && /@[^\s]*$/.test(chatInput.value))) {
+          e.preventDefault();
+          attachWorkspaceMentionFile(wsAutocompleteActiveIndex);
+          return;
+        } else if (e.key === "Escape") {
+          e.preventDefault();
+          hideWorkspaceFileAutocomplete();
+          return;
+        }
+      }
       if (e.key === "Escape") {
         cancelChatAutoDispatch();
+        hideWorkspaceFileAutocomplete();
         const activeAudioSpeaking = Boolean(isSpeaking || (typeof liveAudioPlayer !== 'undefined' && liveAudioPlayer && liveAudioPlayer.isSpeaking));
         if (activeAudioSpeaking) {
           stopAllAgentSpeech(true);
@@ -12528,7 +12984,7 @@
       document.getElementById("phoneScreenshotBtn")?.addEventListener("click", capturePhoneScreenshot);
       document.getElementById("chatPhoneScreenshotBtn")?.addEventListener("click", capturePhoneScreenshot);
 
-      // 2. Direct Camera & Gallery Inputs
+      // 2. Direct Camera, Photos Gallery, & Universal File Inputs
       document.getElementById("chatDirectCameraBtn")?.addEventListener("click", () => {
         document.getElementById("phoneCameraDirectInput")?.click();
       });
@@ -12538,8 +12994,21 @@
       document.getElementById("chatGalleryBtn")?.addEventListener("click", () => {
         document.getElementById("phoneCameraInput")?.click();
       });
+      document.getElementById("chatFilesBtn")?.addEventListener("click", () => {
+        document.getElementById("companionFileInput")?.click();
+      });
+      document.getElementById("chatQuickFileAttachBtn")?.addEventListener("click", () => {
+        document.getElementById("companionFileInput")?.click();
+      });
 
-      // 3. Multi-File Selection Listeners, Clipboard Paste, & Drag-and-Drop
+      // 3. Multi-File Selection Listeners, Universal Clipboard Paste, & Full-Window Drag-and-Drop
+      const companionFileInput = document.getElementById("companionFileInput");
+      if (companionFileInput) {
+        companionFileInput.addEventListener("change", (e) => {
+          handleMultiFileSelection(e.target.files);
+          companionFileInput.value = "";
+        });
+      }
       const phoneCameraInput = document.getElementById("phoneCameraInput");
       if (phoneCameraInput) {
         phoneCameraInput.addEventListener("change", (e) => {
@@ -12555,54 +13024,73 @@
         });
       }
 
-      // Clipboard Paste Image Support (Cmd+V / Mobile Paste anywhere in Companion)
+      // Universal Clipboard Paste Support (Cmd+V / Mobile Paste for screenshots, images, PDFs, code, or any copied files)
       document.addEventListener("paste", (e) => {
         const cd = e.clipboardData || window.clipboardData;
         if (!cd) return;
-        const imageFiles = [];
+        const pastedFiles = [];
         if (cd.items && cd.items.length > 0) {
           for (let i = 0; i < cd.items.length; i++) {
             const item = cd.items[i];
-            if (item.kind === "file" && item.type && item.type.startsWith("image/")) {
+            if (item.kind === "file") {
               const f = item.getAsFile();
               if (f) {
-                const ext = (f.type.split("/")[1] || "png").replace(/[^a-z0-9]/gi, "");
-                const namedFile = (f.name && f.name !== "image.png" && f.name !== "blob")
-                  ? f
-                  : new File([f], `pasted_screenshot_${Date.now()}_${i + 1}.${ext}`, { type: f.type });
-                imageFiles.push(namedFile);
+                const isGenericBlob = !f.name || f.name === "image.png" || f.name === "blob";
+                if (isGenericBlob && f.type && f.type.startsWith("image/")) {
+                  const ext = (f.type.split("/")[1] || "png").replace(/[^a-z0-9]/gi, "");
+                  pastedFiles.push(new File([f], `pasted_screenshot_${Date.now()}_${i + 1}.${ext}`, { type: f.type }));
+                } else {
+                  pastedFiles.push(f);
+                }
               }
             }
           }
         } else if (cd.files && cd.files.length > 0) {
           for (let i = 0; i < cd.files.length; i++) {
-            const f = cd.files[i];
-            if (f.type && f.type.startsWith("image/")) {
-              imageFiles.push(f);
-            }
+            pastedFiles.push(cd.files[i]);
           }
         }
-        if (imageFiles.length > 0) {
+        if (pastedFiles.length > 0) {
           e.preventDefault();
-          handleMultiFileSelection(imageFiles);
+          handleMultiFileSelection(pastedFiles);
         }
       });
 
-      // Drag-and-Drop Image Support (Drop images or screenshots directly into Companion)
+      // Full-Window Drag-and-Drop File & Image Support (Antigravity-style drop overlay)
+      let globalDragCounter = 0;
+      const globalDropOverlay = document.getElementById("globalDropOverlay");
+
+      document.addEventListener("dragenter", (e) => {
+        if (e.dataTransfer && Array.from(e.dataTransfer.types || []).includes("Files")) {
+          e.preventDefault();
+          globalDragCounter++;
+          if (globalDropOverlay) globalDropOverlay.classList.remove("hidden");
+        }
+      });
       document.addEventListener("dragover", (e) => {
         if (e.dataTransfer && Array.from(e.dataTransfer.types || []).includes("Files")) {
           e.preventDefault();
           e.dataTransfer.dropEffect = "copy";
+          if (globalDropOverlay) globalDropOverlay.classList.remove("hidden");
+        }
+      });
+      document.addEventListener("dragleave", (e) => {
+        if (e.dataTransfer && Array.from(e.dataTransfer.types || []).includes("Files")) {
+          e.preventDefault();
+          globalDragCounter = Math.max(0, globalDragCounter - 1);
+          if (globalDragCounter === 0 && globalDropOverlay) {
+            globalDropOverlay.classList.add("hidden");
+          }
         }
       });
       document.addEventListener("drop", (e) => {
+        globalDragCounter = 0;
+        if (globalDropOverlay) globalDropOverlay.classList.add("hidden");
         if (!e.dataTransfer || !e.dataTransfer.files || e.dataTransfer.files.length === 0) return;
-        const droppedImages = Array.from(e.dataTransfer.files).filter(f =>
-          (f.type && f.type.startsWith("image/")) || /\.(png|jpe?g|webp|gif|heic)$/i.test(f.name || "")
-        );
-        if (droppedImages.length > 0) {
+        const droppedFiles = Array.from(e.dataTransfer.files);
+        if (droppedFiles.length > 0) {
           e.preventDefault();
-          handleMultiFileSelection(droppedImages);
+          handleMultiFileSelection(droppedFiles);
         }
       });
 

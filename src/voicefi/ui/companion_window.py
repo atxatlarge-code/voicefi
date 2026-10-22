@@ -33,6 +33,8 @@ try:
         NSColor,
         NSFloatingWindowLevel,
         NSNormalWindowLevel,
+        NSOpenPanel,
+        NSModalResponseOK,
         NSViewWidthSizable,
         NSViewHeightSizable,
         NSWindowCollectionBehaviorCanJoinAllSpaces,
@@ -116,14 +118,169 @@ try:
 except objc.nosuchclass_error:
 
     class CompanionNavDelegate(objc.lookUpClass("NSObject")):
+        def initWithWindow_(self, win):
+            self = objc.super(CompanionNavDelegate, self).init()
+            if self is not None:
+                self.win = win
+            return self
+
         def webView_didFinishNavigation_(self, webView, navigation):
             print("[CompanionWindow] ✅ Web UI loaded successfully", flush=True)
+            if hasattr(self, "win") and self.win:
+                self.win._is_loaded = True
+                self.win._flush_pending_js()
 
         def webView_didFailNavigation_withError_(self, webView, navigation, error):
             print(f"[CompanionWindow] ❌ Web UI failed navigation: {error}", flush=True)
 
         def webView_didFailProvisionalNavigation_withError_(self, webView, navigation, error):
             print(f"[CompanionWindow] ❌ Web UI failed provisional navigation: {error}", flush=True)
+
+
+def _nav_did_finish(self, webView, navigation):
+    print("[CompanionWindow] ✅ Web UI loaded successfully", flush=True)
+    if hasattr(self, "win") and self.win:
+        self.win._is_loaded = True
+        self.win._flush_pending_js()
+
+
+CompanionNavDelegate.webView_didFinishNavigation_ = _nav_did_finish
+
+
+def _ui_run_open_panel(self, webView, parameters, frame, completionHandler):
+    """Handle <input type="file"> clicks in macOS WKWebView via native NSOpenPanel."""
+    selected_paths = []
+    try:
+        try:
+            NSApplication.sharedApplication().activateIgnoringOtherApps_(True)
+        except Exception:
+            pass
+        panel = NSOpenPanel.openPanel()
+        panel.setCanChooseFiles_(True)
+        panel.setCanChooseDirectories_(False)
+        allows_multiple = True
+        try:
+            if parameters is not None and hasattr(parameters, "allowsMultipleSelection"):
+                allows_multiple = bool(parameters.allowsMultipleSelection())
+        except Exception:
+            allows_multiple = True
+        panel.setAllowsMultipleSelection_(allows_multiple)
+        response = panel.runModal()
+        if response == NSModalResponseOK:
+            urls = panel.URLs()
+            try:
+                for u in urls:
+                    p = u.path()
+                    if p:
+                        selected_paths.append(str(p))
+            except Exception:
+                pass
+            try:
+                completionHandler(urls)
+                return
+            except Exception as block_err:
+                print(
+                    f"[CompanionWindow] completionHandler block fallback triggered: {block_err}",
+                    flush=True,
+                )
+                try:
+                    completionHandler(None)
+                except Exception:
+                    pass
+                if selected_paths and webView is not None:
+                    import json
+
+                    js_call = f"if (typeof window.attachLocalMacPaths === 'function') window.attachLocalMacPaths({json.dumps(selected_paths)});"
+                    webView.evaluateJavaScript_completionHandler_(js_call, None)
+                return
+        else:
+            completionHandler(None)
+    except Exception as e:
+        print(f"[CompanionWindow] Open panel error: {e}", flush=True)
+        try:
+            completionHandler(None)
+        except Exception:
+            pass
+        if selected_paths and webView is not None:
+            try:
+                import json
+
+                js_call = f"if (typeof window.attachLocalMacPaths === 'function') window.attachLocalMacPaths({json.dumps(selected_paths)});"
+                webView.evaluateJavaScript_completionHandler_(js_call, None)
+            except Exception:
+                pass
+
+
+def _ui_media_permission(self, webView, origin, frame, media_type, decisionHandler):
+    """Auto-grant microphone/camera capture permission inside the local Companion WKWebView."""
+    try:
+        decisionHandler(1)  # WKPermissionDecisionGrant = 1
+    except Exception:
+        pass
+
+
+try:
+    for _cls_name in (b"NSObject", b"CompanionUIDelegate"):
+        objc.registerMetaDataForSelector(
+            _cls_name,
+            b"webView:runOpenPanelWithParameters:initiatedByFrame:completionHandler:",
+            {
+                "arguments": {
+                    5: {
+                        "callable": {
+                            "retval": {"type": b"v"},
+                            "arguments": {
+                                0: {"type": b"^v"},
+                                1: {"type": b"@"},
+                            },
+                        }
+                    }
+                }
+            },
+        )
+        objc.registerMetaDataForSelector(
+            _cls_name,
+            b"webView:requestMediaCapturePermissionForOrigin:initiatedByFrame:type:decisionHandler:",
+            {
+                "arguments": {
+                    4: {"type": b"q"},
+                    5: {
+                        "callable": {
+                            "retval": {"type": b"v"},
+                            "arguments": {
+                                0: {"type": b"^v"},
+                                1: {"type": b"q"},
+                            },
+                        }
+                    },
+                }
+            },
+        )
+except Exception:
+    pass
+
+
+try:
+    CompanionUIDelegate = objc.lookUpClass("CompanionUIDelegate")
+except objc.nosuchclass_error:
+
+    class CompanionUIDelegate(objc.lookUpClass("NSObject")):
+        def initWithWindow_(self, win):
+            self = objc.super(CompanionUIDelegate, self).init()
+            if self is not None:
+                self.win = win
+            return self
+
+        def webView_runOpenPanelWithParameters_initiatedByFrame_completionHandler_(
+            self, webView, parameters, frame, completionHandler
+        ):
+            _ui_run_open_panel(self, webView, parameters, frame, completionHandler)
+
+        @objc.signature(b"v@:@@@q@?")
+        def webView_requestMediaCapturePermissionForOrigin_initiatedByFrame_type_decisionHandler_(
+            self, webView, origin, frame, media_type, decisionHandler
+        ):
+            _ui_media_permission(self, webView, origin, frame, media_type, decisionHandler)
 
 
 try:
@@ -168,6 +325,9 @@ class CompanionDesktopWindow:
         self._webview: Optional[Any] = None
         self._delegate: Optional[Any] = None
         self._nav_delegate: Optional[Any] = None
+        self._ui_delegate: Optional[Any] = None
+        self._is_loaded: bool = False
+        self._pending_js: list[str] = []
 
         if not is_headless():
             self._build_window()
@@ -268,8 +428,20 @@ class CompanionDesktopWindow:
                 self._panel.setDelegate_(self._delegate)
 
                 # Navigation Delegate
-                self._nav_delegate = CompanionNavDelegate.alloc().init()
+                try:
+                    self._nav_delegate = CompanionNavDelegate.alloc().initWithWindow_(self)
+                except Exception:
+                    self._nav_delegate = CompanionNavDelegate.alloc().init()
+                    self._nav_delegate.win = self
                 self._webview.setNavigationDelegate_(self._nav_delegate)
+
+                # UI Delegate (Enables <input type="file"> NSOpenPanel & mic/camera permissions in WKWebView)
+                try:
+                    self._ui_delegate = CompanionUIDelegate.alloc().initWithWindow_(self)
+                except Exception:
+                    self._ui_delegate = CompanionUIDelegate.alloc().init()
+                    self._ui_delegate.win = self
+                self._webview.setUIDelegate_(self._ui_delegate)
 
                 # Load initial URL via direct IPv4
                 url_str = f"http://127.0.0.1:{self.port}"
@@ -284,6 +456,15 @@ class CompanionDesktopWindow:
             _do_build()
         else:
             AppHelper.callAfter(_do_build)
+
+    def _flush_pending_js(self):
+        """Execute any JavaScript queued while the WKWebView was finishing initial navigation."""
+        if not self._pending_js:
+            return
+        pending = list(self._pending_js)
+        self._pending_js.clear()
+        for js in pending:
+            self.evaluate_js(js, delay_s=0.1)
 
     def schedule_save_geometry(self, delay: float = 0.5):
         """Debounced geometry saving to prevent disk churn during window drag/resize."""
@@ -353,7 +534,10 @@ class CompanionDesktopWindow:
                     ):
                         req = NSURLRequest.requestWithURL_(NSURL.URLWithString_(target_url))
                         self._webview.loadRequest_(req)
+                self._panel.setLevel_(NSFloatingWindowLevel)
                 self._panel.makeKeyAndOrderFront_(None)
+                if hasattr(self._panel, "orderFrontRegardless"):
+                    self._panel.orderFrontRegardless()
                 NSApp.activateIgnoringOtherApps_(True)
             except Exception as e:
                 print(f"[CompanionWindow] show error: {e}", flush=True)
@@ -387,6 +571,71 @@ class CompanionDesktopWindow:
             self.hide()
         else:
             self.show()
+
+    def evaluate_js(self, js_code: str, delay_s: float = 0.0):
+        """Safely evaluate JavaScript inside the native WKWebView on the main thread."""
+        if is_headless():
+            return
+
+        def _do_eval():
+            try:
+                if self._webview:
+                    self._webview.evaluateJavaScript_completionHandler_(js_code, None)
+            except Exception as e:
+                print(f"[CompanionWindow] evaluate_js notice: {e}", flush=True)
+
+        def _schedule():
+            if delay_s > 0:
+                time.sleep(delay_s)
+            if threading.current_thread() is threading.main_thread():
+                _do_eval()
+            else:
+                AppHelper.callAfter(_do_eval)
+
+        if delay_s > 0:
+            threading.Thread(target=_schedule, daemon=True).start()
+        elif threading.current_thread() is threading.main_thread():
+            _do_eval()
+        else:
+            AppHelper.callAfter(_do_eval)
+
+    def open_channel_mode(self, mac_mic_active: bool = False):
+        """Show the Companion window and open the Obsidian ✨ Channel takeover modal."""
+        self.show()
+        flag = "true" if mac_mic_active else "false"
+        js = (
+            f"if (typeof openObsidianTakeover === 'function') {{ "
+            f"window._macDesktopChannelRecording = {flag}; "
+            f"const m = document.getElementById('obsidianModal'); "
+            f"if (!m || m.classList.contains('hidden') || currentObsidianMode !== 'channel') {{ "
+            f"openObsidianTakeover('channel'); "
+            f"}} else if ({flag}) {{ "
+            f"const st = document.getElementById('obsidianTakeoverStatus'); "
+            f"if (st) st.innerText = '🎙️ Mac Mic Active • Pacing Mode (Click Stop & Save when done)'; "
+            f"}} "
+            f"}}"
+        )
+        if not self._is_loaded:
+            self._pending_js.append(js)
+        self.evaluate_js(js, delay_s=0.15)
+        self.evaluate_js(js, delay_s=0.65)
+
+    def open_channel_studio(self, memo_payload: dict):
+        """Show the Companion window and open the Post-Channel Studio view with a saved memo payload."""
+        import json
+
+        self.show()
+        payload_json = json.dumps(memo_payload)
+        js = (
+            f"if (typeof openDesktopChannelStudioFromPayload === 'function') {{ "
+            f"openDesktopChannelStudioFromPayload({payload_json}); "
+            f"}}"
+        )
+        if not self._is_loaded:
+            self._pending_js.append(js)
+        self.evaluate_js(js, delay_s=0.20)
+        self.evaluate_js(js, delay_s=0.70)
+
 
     def dispatch_prompt(
         self,

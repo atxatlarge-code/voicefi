@@ -17,7 +17,7 @@ import threading
 import time
 import uuid
 from pathlib import Path
-from typing import Set, Dict, Any, Optional
+from typing import Set, Dict, Any, Optional, List
 
 logger = logging.getLogger(__name__)
 
@@ -145,6 +145,12 @@ class CompanionServer(
         self._processed_hook_requests: Dict[str, float] = {}
         self._recent_broadcast_turns: Dict[str, float] = {}
         self.relay_client: Optional[RelayClient] = None
+        try:
+            from voicefi.integrations.pal_harness import PalHarness
+
+            PalHarness._IN_DAEMON_PROCESS = True
+        except Exception:
+            pass
 
         @web.middleware
         async def cors_middleware(request, handler):
@@ -192,6 +198,8 @@ class CompanionServer(
         self.app.router.add_get("/mock", self.handle_mock)
         self.app.router.add_get("/mocks", self.handle_mocks)
         self.app.router.add_get("/hud_mocks", self.handle_hud_mocks)
+        self.app.router.add_get("/training", self.handle_training_mode)
+        self.app.router.add_get("/training_mode", self.handle_training_mode)
         self.app.router.add_get("/logo_mock", self.handle_logo_mock)
         self.app.router.add_get("/status_icon", self.handle_logo_mock)
         self.app.router.add_get("/downloads", self.handle_downloads)
@@ -216,6 +224,7 @@ class CompanionServer(
         self.app.router.add_get("/api/status", self.handle_status)
         self.app.router.add_get("/api/stats", self.handle_stats)
         self.app.router.add_get("/api/analytics", self.handle_stats)
+        self.app.router.add_post("/api/dictate", self.handle_api_dictate)
         self.app.router.add_get("/api/ambient/status", self.handle_ambient_status)
         self.app.router.add_post("/api/ambient/start", self.handle_ambient_start)
         self.app.router.add_post("/api/ambient/stop", self.handle_ambient_stop)
@@ -233,6 +242,8 @@ class CompanionServer(
         self.app.router.add_post("/api/config/gemma_model", self.handle_set_gemma_model)
         self.app.router.add_get("/api/local_model", self.handle_get_gemma_model)
         self.app.router.add_post("/api/local_model", self.handle_set_gemma_model)
+        self.app.router.add_post("/api/local_model/pull", self.handle_pull_local_model)
+        self.app.router.add_get("/api/local_model/hardware", self.handle_local_hardware)
         self.app.router.add_get("/api/config/ag_remote", self.handle_get_ag_remote)
         self.app.router.add_post("/api/config/ag_remote", self.handle_set_ag_remote)
         self.app.router.add_post("/api/plan/action", self.handle_plan_action)
@@ -245,9 +256,12 @@ class CompanionServer(
         self.app.router.add_post("/api/conversations/new", self.handle_new_conversation)
         self.app.router.add_post("/api/switch", self.handle_switch)
         self.app.router.add_post("/api/send", self.handle_send)
+        self.app.router.add_post("/api/conversation/{conv_id}/send", self.handle_send)
         self.app.router.add_post("/api/turn_notify", self.handle_turn_notify)
         self.app.router.add_post("/api/speak", self.handle_speak)
         self.app.router.add_post("/api/live", self.handle_live)
+        self.app.router.add_get("/api/live/providers", self.handle_live_providers)
+        self.app.router.add_post("/api/live/key", self.handle_live_key)
         self.app.router.add_post("/api/sfx", self.handle_sfx)
         self.app.router.add_post("/api/stop", self.handle_stop)
         self.app.router.add_post("/api/quick-bar/toggle", self.handle_quick_bar_toggle)
@@ -271,8 +285,11 @@ class CompanionServer(
         self.app.router.add_post("/api/image_feedback", self.handle_image_feedback)
         self.app.router.add_post("/api/screenshot", self.handle_screenshot)
         self.app.router.add_post("/api/upload_image", self.handle_upload_image)
+        self.app.router.add_post("/api/upload_file", self.handle_upload_image)
+        self.app.router.add_get("/api/workspace/files", self.handle_workspace_files)
         self.app.router.add_post("/api/record_mac", self.handle_record_mac)
         self.app.router.add_post("/api/stop_mac_recording", self.handle_stop_mac_recording)
+        self.app.router.add_post("/api/turn_eval", self.handle_turn_eval)
         self.app.router.add_post("/api/stt", self.handle_stt)
         self.app.router.add_post("/api/tts", self.handle_tts)
         self.app.router.add_post("/api/fix", self.handle_api_fix)
@@ -292,6 +309,9 @@ class CompanionServer(
         self.app.router.add_post("/api/vault/query", self.handle_vault_query)
         self.app.router.add_post("/api/vault/capture", self.handle_vault_capture)
         self.app.router.add_post("/api/vault/memo", self.handle_vault_memo)
+        self.app.router.add_post(
+            "/api/vault/channel_transform", self.handle_vault_channel_transform
+        )
         self.app.router.add_post("/api/vault/meeting", self.handle_vault_meeting)
         self.app.router.add_get("/api/vault/today", self.handle_vault_today)
         self.app.router.add_get("/api/vault/status", self.handle_vault_status)
@@ -338,6 +358,11 @@ class CompanionServer(
         )
         self.app.router.add_get("/api/factory/audio/{filename}", self.handle_factory_serve_audio)
         self.app.router.add_post("/api/factory/reel/render", self.handle_factory_render_reel)
+        # Pal Teach Mode / Demonstration Recording IPC APIs
+        self.app.router.add_post("/api/pal/training/start", self.handle_pal_training_start)
+        self.app.router.add_post("/api/pal/training/stop", self.handle_pal_training_stop)
+        self.app.router.add_post("/api/pal/training/cancel", self.handle_pal_training_cancel)
+        self.app.router.add_get("/api/pal/training/status", self.handle_pal_training_status)
         self.app.router.add_get("/ws", self.handle_ws)
 
     # Static Handlers
@@ -377,6 +402,16 @@ class CompanionServer(
             return web.Response(text="VoiceFi Reel Factory Studio UI missing.", status=404)
         return web.Response(
             text=factory_path.read_text(encoding="utf-8"),
+            content_type="text/html",
+            headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+        )
+
+    async def handle_training_mode(self, request: web.Request) -> web.Response:
+        training_path = STATIC_DIR / "training_mode.html"
+        if not training_path.is_file():
+            return web.Response(text="VoiceFi Training Mode UI missing.", status=404)
+        return web.Response(
+            text=training_path.read_text(encoding="utf-8"),
             content_type="text/html",
             headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
         )
@@ -1063,6 +1098,50 @@ class CompanionServer(
         return web.Response(body=png_1x1, content_type="image/png")
 
     # API Endpoints
+    async def handle_api_dictate(self, request: web.Request) -> web.Response:
+        """Trigger live dictation / manual listen in VoiceFi, optionally focusing a target app."""
+        try:
+            data = await request.json()
+        except Exception:
+            data = {}
+        target_app = data.get("target_app")
+        initial_prompt = data.get("initial_prompt", "")
+
+        callback = getattr(self, "_on_trigger_manual_listen", None)
+        if callback:
+            threading.Timer(
+                0.05,
+                lambda: callback(
+                    from_wakeword=True,
+                    wake_phrase="transcribe",
+                    target_app=target_app,
+                    initial_prompt=initial_prompt,
+                ),
+            ).start()
+            return web.json_response({"success": True, "target_app": target_app})
+
+        try:
+            from voicefi.ui.tray import VoiceFiTrayApp
+
+            tray = VoiceFiTrayApp.get_instance()
+            if tray:
+                threading.Timer(
+                    0.05,
+                    lambda: tray.trigger_manual_listen(
+                        from_wakeword=True,
+                        wake_phrase="transcribe",
+                        target_app=target_app,
+                        initial_prompt=initial_prompt,
+                    ),
+                ).start()
+                return web.json_response({"success": True, "target_app": target_app})
+        except Exception:
+            pass
+
+        return web.json_response(
+            {"success": False, "error": "No dictation handler registered"}, status=503
+        )
+
     async def handle_status(self, request: web.Request) -> web.Response:
         active = self.tracker.get_active_or_latest()
         active_data = None
@@ -1427,29 +1506,104 @@ class CompanionServer(
         except Exception as e:
             return web.json_response({"error": str(e)}, status=400)
 
+    def _get_local_hardware_snapshot(self) -> Dict[str, Any]:
+        """Collect real-time Apple Silicon Unified RAM and thermal telemetry."""
+        try:
+            from voicefi.local.supervisor import default_supervisor
+            from voicefi.local.engine import detect_hardware_backend
+
+            hw = default_supervisor.get_telemetry()
+            _, backend_desc = detect_hardware_backend()
+            return {
+                "thermal_state": hw.thermal_state,
+                "unified_ram_free_gb": hw.free_ram_gb,
+                "unified_ram_total_gb": hw.total_ram_gb,
+                "unified_ram_used_pct": hw.ram_percent,
+                "free_ram_gb": hw.free_ram_gb,
+                "total_ram_gb": hw.total_ram_gb,
+                "ram_percent": hw.ram_percent,
+                "is_safe": hw.is_safe,
+                "backend_desc": backend_desc,
+                "last_tok_per_sec": getattr(self, "_last_local_tok_per_sec", 0.0),
+            }
+        except Exception:
+            return {
+                "thermal_state": "NORMAL",
+                "unified_ram_free_gb": 8.0,
+                "unified_ram_total_gb": 16.0,
+                "unified_ram_used_pct": 50.0,
+                "backend_desc": "Apple Silicon Metal GPU",
+                "last_tok_per_sec": getattr(self, "_last_local_tok_per_sec", 0.0),
+            }
+
+    async def handle_local_hardware(self, request: web.Request) -> web.Response:
+        return web.json_response(
+            {
+                "success": True,
+                "hardware": self._get_local_hardware_snapshot(),
+            }
+        )
+
     async def handle_get_gemma_model(self, request: web.Request) -> web.Response:
+        from voicefi.local.engine import (
+            get_recommended_starter_models,
+            is_ollama_running,
+            list_all_local_models,
+        )
+
         cfg = load_config()
         self.config = cfg
         model = getattr(getattr(cfg, "local_model", None), "model_name", "gemma4-2b") or "gemma4-2b"
+        installed = list_all_local_models()
+        hw = self._get_local_hardware_snapshot()
+        installed_names = [m["name"] for m in installed]
+        options = ["auto"] + installed_names
+        for legacy in ("gemma4-2b", "gemma4-26b"):
+            if legacy not in options:
+                options.append(legacy)
+
+        mode = getattr(self, "_local_voice_mode", "auto")
         return web.json_response(
             {
                 "success": True,
                 "model": model,
                 "model_name": model,
-                "options": ["gemma4-2b", "gemma4-26b"],
+                "mode": mode,
+                "options": options,
+                "installed_models": installed,
+                "recommended_models": get_recommended_starter_models(
+                    float(hw.get("unified_ram_total_gb", 16.0) or 16.0)
+                ),
+                "ollama_running": is_ollama_running(),
+                "hardware": hw,
             }
         )
 
     async def handle_set_gemma_model(self, request: web.Request) -> web.Response:
         try:
+            from voicefi.local.engine import list_all_local_models
+
             data = await request.json()
             model = data.get("model") or data.get("model_name")
+            mode = data.get("mode")
+            if mode in ("auto", "chat", "agent"):
+                self._local_voice_mode = mode
+
             if model:
-                model_clean = "gemma4-26b" if "26b" in str(model).lower() else "gemma4-2b"
+                raw_model = str(model).strip()
+                installed_names = {m["name"] for m in list_all_local_models()}
+                if raw_model in installed_names or raw_model in ("auto", "smart") or ":" in raw_model:
+                    model_clean = "auto" if raw_model == "smart" else raw_model
+                else:
+                    model_clean = "gemma4-26b" if "26b" in raw_model.lower() else "gemma4-2b"
+
                 cfg = load_config()
                 if hasattr(cfg, "local_model") and cfg.local_model:
                     cfg.local_model.model_name = model_clean
-                    cfg.local_model.model_path = f"~/.litert-lm/models/{model_clean}/model.litertlm"
+                    if model_clean in ("gemma4-2b", "gemma4-26b"):
+                        cfg.local_model.model_path = (
+                            f"~/.litert-lm/models/{model_clean}/model.litertlm"
+                        )
                     if getattr(cfg.global_hotkey, "quick_bar_agent", None) in (
                         "gemma",
                         "gemma-26b",
@@ -1459,17 +1613,555 @@ class CompanionServer(
                         )
                     save_config(cfg)
                     self.config = cfg
+                evt_payload: Dict[str, Any] = {
+                    "type": "gemma_model_changed",
+                    "model": model_clean,
+                    "model_name": model_clean,
+                }
+                if mode in ("auto", "chat", "agent"):
+                    evt_payload["mode"] = mode
+                self.broadcast_event(evt_payload)
+                return web.json_response(
+                    {
+                        "success": True,
+                        "model": model_clean,
+                        "mode": getattr(self, "_local_voice_mode", "auto"),
+                    }
+                )
+            if mode in ("auto", "chat", "agent"):
                 self.broadcast_event(
                     {
                         "type": "gemma_model_changed",
-                        "model": model_clean,
-                        "model_name": model_clean,
+                        "model": getattr(getattr(self.config, "local_model", None), "model_name", "gemma4-2b"),
+                        "mode": mode,
                     }
                 )
-                return web.json_response({"success": True, "model": model_clean})
+                return web.json_response({"success": True, "mode": mode})
             return web.json_response({"error": "No model provided"}, status=400)
         except Exception as e:
             return web.json_response({"error": str(e)}, status=500)
+
+    async def handle_pull_local_model(self, request: web.Request) -> web.Response:
+        """Pull an Ollama starter model from the Mobile Companion UI and stream progress over WS."""
+        try:
+            from voicefi.local.engine import list_all_local_models, pull_ollama_model
+
+            data = {}
+            if request.can_read_body:
+                try:
+                    data = await request.json()
+                except Exception:
+                    data = {}
+            model_name = (data.get("model") or "qwen2.5-coder:1.5b").strip()
+            loop = asyncio.get_running_loop()
+
+            self.broadcast_event(
+                {
+                    "type": "local_model_pull_progress",
+                    "model": model_name,
+                    "status": "starting",
+                    "percent": 0.0,
+                }
+            )
+
+            def _progress_cb(evt: Dict[str, Any]) -> None:
+                try:
+                    loop.call_soon_threadsafe(
+                        self.broadcast_event,
+                        {
+                            "type": "local_model_pull_progress",
+                            "model": evt.get("model", model_name),
+                            "status": evt.get("status", "downloading"),
+                            "percent": evt.get("percent"),
+                            "completed": evt.get("completed", 0),
+                            "total": evt.get("total", 0),
+                        },
+                    )
+                except Exception:
+                    pass
+
+            raw_res = await asyncio.to_thread(pull_ollama_model, model_name, _progress_cb)
+            if isinstance(raw_res, tuple):
+                ok = bool(raw_res[0])
+                err_msg = None if ok else str(raw_res[1])
+            else:
+                ok = bool(raw_res.get("success"))
+                err_msg = raw_res.get("error")
+
+            installed = list_all_local_models()
+            if ok:
+                cfg = load_config()
+                if hasattr(cfg, "local_model") and cfg.local_model:
+                    cfg.local_model.model_name = model_name
+                    save_config(cfg)
+                    self.config = cfg
+            self.broadcast_event(
+                {
+                    "type": "local_model_pull_complete",
+                    "success": ok,
+                    "model": model_name,
+                    "error": err_msg,
+                    "installed_models": installed,
+                }
+            )
+            return web.json_response(
+                {
+                    "success": ok,
+                    "model": model_name,
+                    "error": err_msg,
+                    "installed_models": installed,
+                },
+                status=200 if ok else 500,
+            )
+        except Exception as exc:
+            return web.json_response({"success": False, "error": str(exc)}, status=500)
+
+    @staticmethod
+    def _is_local_agent_intent(text: str, mode: str = "auto") -> bool:
+        """Determine whether a spoken prompt should run LocalAutonomousLoop (agent mode) vs direct chat."""
+        if mode == "agent":
+            return True
+        low = (text or "").lower().strip()
+        explicit_action_patterns = (
+            r"\b(?:make|do|apply)\s+(?:a\s+|the\s+|those\s+|these\s+)?(?:change|changes|update|updates|fix|fixes|patch)\b",
+            r"\b(?:make|create|open)\s+(?:a\s+)?(?:pr|pull\s+request|commit)\b",
+        )
+        if any(re.search(pat, low) for pat in explicit_action_patterns):
+            return True
+        if mode == "chat":
+            return False
+        agent_patterns = (
+            r"\b(?:scout|recon|inspect|audit)\b.*\b(?:file|repo|code|directory|folder|module|logs?|\.py|\.ts|\.js)\b",
+            r"\b(?:fix|repair|patch|refactor|implement|modify|edit|update)\b.*\b(?:file|bug|error|test|function|class|method|\.py|\.ts|\.js)\b",
+            r"\b(?:run|execute)\b\s+(?:pytest|tests?|ruff|linter|git\s+status|git\s+diff)\b",
+            r"\b(?:check|show)\s+(?:git\s+status|git\s+diff|failing\s+tests?)\b",
+        )
+        return any(re.search(pat, low) for pat in agent_patterns)
+
+    def _build_local_workspace_context(
+        self, prompt: str, workspace_path: Optional[str] = None
+    ) -> str:
+        """
+        Build an ultra-fast (<5ms cached, <20ms with rg) compact workspace briefing for local models
+        so Metal GPU prefill stays under 60ms while answers stay grounded in real files and lines.
+        """
+        low = (prompt or "").lower().strip()
+        if len(low.split()) <= 8 and any(
+            g in low
+            for g in (
+                "what model are you",
+                "who are you",
+                "confirming",
+                "say hello",
+                "online",
+                "joke",
+                "funny",
+                "how are you",
+            )
+        ) and not any(k in low for k in ("code", "repo", "file", "bug", "why", "button", "attach")):
+            return ""
+
+        default_repo = Path(__file__).resolve().parent.parent.parent.parent
+        repo_root = (
+            Path(workspace_path).resolve()
+            if (workspace_path and Path(workspace_path).is_dir())
+            else default_repo
+        )
+        is_voicefi_repo = repo_root.name.lower() == "voicefi"
+        if is_voicefi_repo:
+            sections: List[str] = [
+                "WORKSPACE ARCHITECTURE (`VoiceFi` repo):",
+                "- `src/voicefi/companion/server.py` & `handlers/`: Companion HTTP/WS server (`CompanionServer`), `execute_local_voice_turn`, `/api/send`.",
+                "- `src/voicefi/companion/relay_client.py`: Cloud Relay WS client (`companion.voicefi.app` <-> `127.0.0.1:5141`).",
+                "- `src/voicefi/companion/static/index.html`: Mobile Companion UI (`#chatMainActionBtn`, `currentAttachedImages`, `updateChatActionState()`, `sendVoiceCommand()`).",
+                "- `src/voicefi/local/engine.py` & `agent_loop.py`: Metal GPU inference (`LocalModelEngine` for `voicefi-coder:1.5b` & `gemma4-2b`) and `LocalAutonomousLoop`.",
+            ]
+        else:
+            top_entries = []
+            try:
+                top_entries = sorted(
+                    p.name + ("/" if p.is_dir() else "")
+                    for p in repo_root.iterdir()
+                    if not p.name.startswith(".")
+                )[:12]
+            except Exception:
+                pass
+            sections = [
+                f"WORKSPACE ARCHITECTURE (`{repo_root.name}` repo at `{repo_root}`):",
+                f"- Top-level files/folders: {', '.join(top_entries) if top_entries else 'N/A'}",
+            ]
+
+        # 15s in-memory cache for git state to eliminate subprocess overhead on rapid voice turns
+        now_mono = time.monotonic()
+        cached_git = getattr(self, "_cached_git_state", None)
+        if cached_git and cached_git[0] == str(repo_root) and (now_mono - cached_git[1]) < 15.0:
+            if cached_git[2]:
+                sections.append(cached_git[2])
+        else:
+            git_block = ""
+            try:
+                git_log = subprocess.run(
+                    ["git", "log", "-n", "2", "--oneline"],
+                    cwd=str(repo_root),
+                    capture_output=True,
+                    text=True,
+                    timeout=0.2,
+                )
+                git_st = subprocess.run(
+                    ["git", "status", "-s"],
+                    cwd=str(repo_root),
+                    capture_output=True,
+                    text=True,
+                    timeout=0.2,
+                )
+                git_lines: List[str] = []
+                if git_log.stdout and git_log.stdout.strip():
+                    git_lines.append("Commits: " + " | ".join(git_log.stdout.strip().splitlines()))
+                if git_st.stdout and git_st.stdout.strip():
+                    st_lines = [ln.strip() for ln in git_st.stdout.strip().splitlines()[:5]]
+                    git_lines.append("Modified: " + ", ".join(st_lines))
+                if git_lines:
+                    git_block = "GIT STATE: " + " ; ".join(git_lines)
+                    sections.append(git_block)
+            except Exception:
+                pass
+            self._cached_git_state = (str(repo_root), now_mono, git_block)
+
+        rg_patterns: List[str] = []
+        if is_voicefi_repo and (
+            any(k in low for k in ("attach", "image", "screenshot", "photo"))
+            or ("send" in low and ("button" in low or "twice" in low or "press" in low))
+        ):
+            sections.append(
+                "CODE FLOW SUMMARY:\n"
+                "- `src/voicefi/companion/static/index.html:5064` (`updateChatActionState`): switches `#chatMainActionBtn` to Send as soon as `currentAttachedImages.length > 0` (`isUploading: true`).\n"
+                "- `src/voicefi/companion/static/index.html:5195` (`sendVoiceCommand`): filters `validImages = currentAttachedImages.filter(img => img.path && !img.isUploading)`; pressing Send while `img.isUploading` was true made `validImages` empty and skipped `clearAllAttachedImages()`, requiring a second press (fixed at lines 5186-5192 by awaiting `img.isUploading`)."
+            )
+            rg_patterns.append(r"validImages = currentAttachedImages")
+
+        stopwords = {
+            "what", "can", "you", "tell", "me", "about", "my", "the", "code", "codebase",
+            "why", "whenever", "when", "have", "to", "press", "button", "twice", "how",
+            "does", "is", "are", "in", "on", "for", "with", "this", "that", "please",
+            "help", "check", "look", "find", "explain", "hello", "hey", "model", "local",
+            "send", "attachments", "attachment", "repo", "repository", "project", "files",
+        }
+        words = [
+            w for w in re.findall(r"[a-zA-Z_][a-zA-Z0-9_]{3,}", low)
+            if w not in stopwords
+        ]
+        if words and not rg_patterns:
+            rg_patterns.append("|".join(words[:3]))
+
+        search_target = (
+            str(repo_root / "src" / "voicefi")
+            if (is_voicefi_repo and (repo_root / "src" / "voicefi").is_dir())
+            else str(repo_root)
+        )
+        snippets: List[str] = []
+        for pat in rg_patterns[:1]:
+            try:
+                res = subprocess.run(
+                    [
+                        "rg",
+                        "-n",
+                        "-C",
+                        "2",
+                        "--max-count",
+                        "3",
+                        pat,
+                        search_target,
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=0.25,
+                )
+                if res.stdout and res.stdout.strip():
+                    rel_out = res.stdout.strip().replace(str(repo_root) + "/", "")
+                    cleaned_lines = [
+                        ln for ln in rel_out.splitlines() if "className =" not in ln
+                    ]
+                    snippets.append("\n".join(cleaned_lines)[:900])
+            except Exception:
+                pass
+
+        if snippets:
+            sections.append("LIVE CODE MATCHES:\n```javascript\n" + "\n".join(snippets) + "\n```")
+
+        return "\n".join(sections)
+
+    def resolve_local_model_choice(self, requested: Optional[str] = None) -> str:
+        """Resolve requested local model identifier against installed Ollama & LiteRT models."""
+        from voicefi.local.engine import LocalModelEngine, _resolve_ollama_model, list_all_local_models
+
+        configured_model = getattr(
+            getattr(self.config, "local_model", None), "model_name", "gemma4-2b"
+        )
+        raw_choice = str(requested or configured_model or "auto").strip()
+        installed = list_all_local_models()
+        installed_names = {m["name"] for m in installed}
+
+        if raw_choice in ("auto", "smart"):
+            resolved_ollama = _resolve_ollama_model("auto")
+            return resolved_ollama or (installed[0]["name"] if installed else "gemma4-2b")
+        if raw_choice in installed_names or ":" in raw_choice:
+            return raw_choice
+        if "26b" in raw_choice.lower():
+            return "gemma4-26b"
+        if raw_choice == "gemma4-2b":
+            return "gemma4-2b"
+        eng_check = LocalModelEngine(model_name="gemma4-2b")
+        if not os.path.exists(eng_check.model_path) and installed:
+            return installed[0]["name"]
+        return "gemma4-2b"
+
+    async def execute_local_voice_turn(
+        self,
+        prompt: str = "",
+        conv_id: Optional[str] = None,
+        model: Optional[str] = None,
+        mode: Optional[str] = None,
+        origin: str = "mobile",
+        title: Optional[str] = None,
+        skip_initial_save: bool = False,
+        user_prompt: Optional[str] = None,
+        requested_model: Optional[str] = None,
+        requested_mode: Optional[str] = None,
+        workspace_path: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Execute a spoken turn against a local model (Chat Mode or Local Autonomous Agent Mode),
+        streaming tokens live over WebSocket, persisting turns, and speaking the response.
+        """
+        from voicefi.integrations.conversations import (
+            get_conversation_workspace,
+            parse_full_gemma_conversation_details,
+            resolve_project_workspace,
+            save_gemma_turn,
+        )
+        from voicefi.local.engine import LocalModelEngine
+
+        prompt = (prompt or user_prompt or "").strip()
+        model = model or requested_model
+        mode = mode or requested_mode
+
+        model_choice = self.resolve_local_model_choice(model)
+        target_cid = (
+            conv_id
+            if (conv_id and "gemma" in str(conv_id).lower())
+            else f"gemma_{int(time.time())}"
+        )
+        resolved_ws = resolve_project_workspace(workspace_path) or get_conversation_workspace(target_cid)
+        effective_mode = mode or getattr(self, "_local_voice_mode", "auto")
+        use_agent_loop = self._is_local_agent_intent(prompt, effective_mode)
+
+        if not skip_initial_save:
+            save_gemma_turn(
+                conv_id=target_cid,
+                user_text=prompt,
+                agent_text="",
+                model=model_choice,
+                title=title,
+                workspace_path=resolved_ws,
+            )
+
+        hw_before = self._get_local_hardware_snapshot()
+        mode_badge = "Local Code Agent" if use_agent_loop else "Local Voice Chat"
+        self.broadcast_event(
+            {
+                "type": "agent_thinking",
+                "engine": "gemma",
+                "avatar": "🛠️" if use_agent_loop else "🧠",
+                "text": f"{model_choice} ({mode_badge}) running on Metal GPU ({hw_before.get('unified_ram_free_gb', 0):.1f}GB free)...",
+                "conv_id": target_cid,
+                "model": model_choice,
+                "mode": "agent" if use_agent_loop else "chat",
+                "hardware": hw_before,
+            }
+        )
+
+        t0 = time.perf_counter()
+        ttfb_ms = 0.0
+        spoken_reply = ""
+        if use_agent_loop:
+            from voicefi.local.agent_loop import LocalAutonomousLoop
+
+            loop_runner = LocalAutonomousLoop(
+                model_name=model_choice,
+                workspace_dir=resolved_ws if resolved_ws else None,
+                max_turns=4,
+            )
+            if hasattr(loop_runner, "execute"):
+                loop_res = await loop_runner.execute(goal=prompt)
+            else:
+                loop_res = await loop_runner.run(goal=prompt)
+            elapsed = max(0.01, round(time.perf_counter() - t0, 2))
+            ttfb_ms = round(elapsed * 250.0, 1)
+            step_lines = []
+            for s in getattr(loop_res, "steps", []) or []:
+                step_lines.append(f"- **Turn {s.turn} (`{s.tool}`)**: {s.thought or 'Executed tool'}")
+            steps_md = "\n".join(step_lines)
+            mod_files = getattr(loop_res, "modified_files", None) or []
+            files_md = (
+                f"\n\n**Modified Files:** `{', '.join(mod_files)}`"
+                if mod_files
+                else ""
+            )
+            ans = f"### 🛠️ Local Agent ({model_choice})\n{loop_res.summary}{files_md}"
+            if steps_md:
+                ans += f"\n\n{steps_md}"
+            spoken_reply = loop_res.summary or ans
+            tok_per_sec = round(max(1, len(ans) // 4) / elapsed, 1)
+        else:
+            details = parse_full_gemma_conversation_details(target_cid)
+            if not resolved_ws and details and details.get("workspace_path"):
+                resolved_ws = details.get("workspace_path")
+            workspace_ctx = self._build_local_workspace_context(prompt, workspace_path=resolved_ws)
+            history_block = ""
+            if details and details.get("turns"):
+                history_turns = []
+                for t in details["turns"][-2:]:
+                    u = (t.get("user_text") or t.get("user") or "").strip()
+                    a = (t.get("agent_text") or t.get("agent") or "").strip()
+                    if u and a and not a.startswith("VoiceFi Coder can help you"):
+                        history_turns.append(f"User: {u}\nAssistant: {a}")
+                if history_turns:
+                    history_block = "PREVIOUS CONVERSATION:\n" + "\n\n".join(history_turns)
+
+            parts = []
+            if workspace_ctx:
+                parts.append(workspace_ctx)
+            if history_block:
+                parts.append(history_block)
+            if workspace_ctx:
+                parts.append(
+                    f"CURRENT USER QUESTION: {prompt}\n\n"
+                    "Answer the CURRENT USER QUESTION directly in 1 to 2 concise sentences (under 45 words) "
+                    "citing the exact file paths, function names, and variables from WORKSPACE ARCHITECTURE and CODE FLOW SUMMARY above. "
+                    "Do not repeat your identity unless asked what model you are."
+                )
+            else:
+                parts.append(prompt)
+            prompt_to_send = "\n\n".join(parts)
+
+            if "gemma" in model_choice.lower():
+                identity_desc = (
+                    f"You are Gemma ({model_choice}), Google DeepMind's local model running inside VoiceFi on Apple Silicon Metal GPU."
+                )
+            else:
+                identity_desc = (
+                    f"You are VoiceFi-Coder ({model_choice}), VoiceFi's custom-tuned local coding and voice model running on Apple Silicon Metal GPU."
+                )
+
+            if workspace_ctx:
+                voice_sys_prompt = (
+                    f"{identity_desc} "
+                    "Answer directly and specifically in 1 to 2 concise spoken sentences (under 45 words) using the exact file paths, "
+                    "line numbers, and function names provided. Never give generic filler."
+                )
+            else:
+                voice_sys_prompt = (
+                    f"{identity_desc} "
+                    "Reply in 1 concise, friendly spoken sentence (under 25 words)."
+                )
+
+            eng_inst = LocalModelEngine(
+                model_name=model_choice,
+                system_instructions=voice_sys_prompt,
+            )
+            tokens: List[str] = []
+            last_stream_broadcast = 0.0
+            async for tok in eng_inst.chat_stream(
+                prompt_to_send, system_instructions=voice_sys_prompt
+            ):
+                now_p = time.perf_counter()
+                if not tokens:
+                    ttfb_ms = round((now_p - t0) * 1000.0, 1)
+                tokens.append(tok)
+                if (now_p - last_stream_broadcast) >= 0.05:
+                    last_stream_broadcast = now_p
+                    self.broadcast_event(
+                        {
+                            "type": "agent_stream",
+                            "engine": "gemma",
+                            "conv_id": target_cid,
+                            "model": model_choice,
+                            "text": "".join(tokens).strip(),
+                            "ttfb_ms": ttfb_ms,
+                        }
+                    )
+
+            ans = "".join(tokens).strip()
+            if ans and ans[-1] not in ".!?\"'`)" and len(ans) > 60:
+                last_p = max(ans.rfind("."), ans.rfind("!"), ans.rfind("?"))
+                if last_p > len(ans) // 3:
+                    ans = ans[: last_p + 1].strip()
+            elapsed = max(0.01, round(time.perf_counter() - t0, 2))
+            if ttfb_ms <= 0.0:
+                ttfb_ms = round(elapsed * 1000.0, 1)
+            out_tokens = max(1, len(ans.split()))
+            gen_window = max(0.01, elapsed - (ttfb_ms / 1000.0)) if elapsed > (ttfb_ms / 1000.0 + 0.02) else elapsed
+            tok_per_sec = round((out_tokens * 1.3) / gen_window, 1)
+            spoken_reply = ans
+
+        self._last_local_tok_per_sec = tok_per_sec
+        hw_after = dict(hw_before)
+        hw_after["last_tok_per_sec"] = tok_per_sec
+
+        save_gemma_turn(
+            conv_id=target_cid,
+            user_text=prompt,
+            agent_text=ans,
+            model=model_choice,
+            title=title,
+            ttfb_ms=ttfb_ms,
+            duration_s=elapsed,
+            tok_per_sec=tok_per_sec,
+            mode="agent" if use_agent_loop else "chat",
+            origin=origin or "mobile",
+            hardware=hw_after,
+            workspace_path=resolved_ws,
+        )
+        self.broadcast_event(
+            {
+                "type": "agent_response",
+                "engine": "gemma",
+                "avatar": "🛠️" if use_agent_loop else "🧠",
+                "text": ans,
+                "conv_id": target_cid,
+                "model": model_choice,
+                "mode": "agent" if use_agent_loop else "chat",
+                "ttfb_ms": ttfb_ms,
+                "duration_s": elapsed,
+                "tok_per_sec": tok_per_sec,
+                "hardware": hw_after,
+            }
+        )
+        try:
+            self._speak_in_background(
+                spoken_reply,
+                agent_name="gemma",
+                conv_id=target_cid,
+                origin=origin or "mobile",
+            )
+        except Exception:
+            pass
+
+        return {
+            "success": True,
+            "delivered": True,
+            "delivered_ipc": True,
+            "engine": "gemma",
+            "model": model_choice,
+            "mode": "agent" if use_agent_loop else "chat",
+            "response": ans,
+            "reply": ans,
+            "conv_id": target_cid,
+            "ttfb_ms": ttfb_ms,
+            "duration_s": elapsed,
+            "tok_per_sec": tok_per_sec,
+            "hardware": hw_after,
+        }
 
     async def handle_speak(self, request: web.Request) -> web.Response:
         """
@@ -1616,8 +2308,8 @@ class CompanionServer(
             error_msg = data.get("error") or data.get("instruction") or ""
             test_cmd = data.get("test")
             apply = bool(data.get("apply", True))
-            model_scout = data.get("model_scout", "gemma4-2b")
-            model_coder = data.get("model_coder", "gemma4-26b")
+            model_scout = data.get("model_scout", "tev1:0.8b")
+            model_coder = data.get("model_coder", "voicefi-coder:1.5b")
 
             from voicefi.local.trace_parser import parse_traceback
             from voicefi.local.implementer import ReconImplementer
@@ -2279,27 +2971,66 @@ class CompanionServer(
             return web.json_response({"error": str(e)}, status=500)
 
     async def handle_upload_image(self, request: web.Request) -> web.Response:
-        """Handle image upload from phone camera, multi-file gallery, or screen share."""
+        """Handle universal file and image upload from camera, file picker, clipboard paste, drag-drop, or local Mac path."""
         try:
-            data = await request.json()
-            conv_id = data.get("conv_id")
-            image_b64 = data.get("image_base64", "")
-            raw_filename = data.get("filename", "")
-
-            if not conv_id:
-                active = self.tracker.get_active_or_latest()
-                conv_id = active.id if active else "default"
-
-            if not image_b64:
-                return web.json_response({"error": "Missing image data"}, status=400)
-
-            if "," in image_b64:
-                image_b64 = image_b64.split(",", 1)[1]
-
             import base64
             import uuid
+            from voicefi.integrations.conversations import classify_file_category
 
-            img_bytes = base64.b64decode(image_b64)
+            conv_id = None
+            raw_filename = ""
+            mime_type = ""
+            file_bytes = b""
+            local_path_str = ""
+
+            content_type = (request.headers.get("Content-Type") or "").lower()
+            if "multipart/form-data" in content_type:
+                reader = await request.multipart()
+                while True:
+                    part = await reader.next()
+                    if part is None:
+                        break
+                    if part.name == "conv_id":
+                        conv_id = (await part.text()).strip()
+                    elif part.name == "filename":
+                        raw_filename = (await part.text()).strip()
+                    elif part.name == "mime_type":
+                        mime_type = (await part.text()).strip()
+                    elif part.name in ("file", "image") or (
+                        part.name and part.name.startswith("file")
+                    ):
+                        if not raw_filename and part.filename:
+                            raw_filename = part.filename
+                        if not mime_type and part.headers:
+                            mime_type = part.headers.get("Content-Type", "")
+                        file_bytes = await part.read(decode=False)
+            else:
+                data = await request.json()
+                conv_id = data.get("conv_id")
+                file_b64 = data.get("file_base64") or data.get("image_base64") or ""
+                raw_filename = data.get("filename", "")
+                mime_type = data.get("mime_type", "")
+                local_path_str = str(data.get("local_path") or "").strip()
+                if file_b64:
+                    if "," in file_b64:
+                        header_part, file_b64 = file_b64.split(",", 1)
+                        if not mime_type and "data:" in header_part and ";" in header_part:
+                            mime_type = header_part.split("data:", 1)[1].split(";", 1)[0].strip()
+                    file_bytes = base64.b64decode(file_b64.strip())
+                elif local_path_str:
+                    lp = Path(local_path_str).expanduser()
+                    if lp.is_file():
+                        if not raw_filename:
+                            raw_filename = lp.name
+                        file_bytes = lp.read_bytes()
+
+            if not conv_id or conv_id in ("undefined", "null"):
+                active = self.tracker.get_active_or_latest()
+                conv_id = active.id if active else "default"
+            conv_id = re.sub(r"[^a-zA-Z0-9_\-.]", "_", str(conv_id)) or "default"
+
+            if not file_bytes and not (local_path_str and Path(local_path_str).expanduser().is_file()):
+                return web.json_response({"error": "Missing file or image data"}, status=400)
 
             bdir = self.tracker.brain_dir / conv_id
             bdir.mkdir(parents=True, exist_ok=True)
@@ -2308,15 +3039,36 @@ class CompanionServer(
             unique_id = uuid.uuid4().hex[:6]
             if raw_filename:
                 raw_p = Path(raw_filename)
-                clean_stem = re.sub(r"[^a-zA-Z0-9_\-]", "_", raw_p.stem)
-                ext = raw_p.suffix if raw_p.suffix else ".jpg"
+                clean_stem = re.sub(r"[^a-zA-Z0-9_\-.]", "_", raw_p.stem).strip("_.") or "attachment"
+                raw_ext = re.sub(r"[^a-zA-Z0-9]", "", (raw_p.suffix or "").lstrip(".")).lower()
+                if not raw_ext:
+                    if "png" in mime_type:
+                        raw_ext = "png"
+                    elif "webp" in mime_type:
+                        raw_ext = "webp"
+                    elif "gif" in mime_type:
+                        raw_ext = "gif"
+                    elif "pdf" in mime_type:
+                        raw_ext = "pdf"
+                    elif "json" in mime_type:
+                        raw_ext = "json"
+                    elif "markdown" in mime_type:
+                        raw_ext = "md"
+                    elif "text/" in mime_type:
+                        raw_ext = "txt"
+                    else:
+                        raw_ext = "jpg"
+                ext = f".{raw_ext[:12]}"
                 filename = f"{clean_stem}_{ts_str}_{unique_id}{ext}"
             else:
                 filename = f"mobile_photo_{ts_str}_{unique_id}.jpg"
+                raw_ext = "jpg"
 
             target_path = bdir / filename
-            target_path.write_bytes(img_bytes)
+            target_path.write_bytes(file_bytes)
 
+            category = classify_file_category(raw_ext)
+            is_image = category == "image"
             art = self.tracker.get_artifact(conv_id, filename)
             self.broadcast_event(
                 {
@@ -2330,11 +3082,45 @@ class CompanionServer(
                     "success": True,
                     "conv_id": conv_id,
                     "filename": filename,
+                    "original_filename": raw_filename or filename,
                     "path": str(target_path),
+                    "size": len(file_bytes),
+                    "extension": raw_ext,
+                    "category": category,
+                    "is_image": is_image,
                     "url": f"/api/conversation/{conv_id}/artifact/{filename}",
+                    "raw_url": f"/api/conversation/{conv_id}/artifact/{filename}?raw=1",
                     "artifact": art,
                 }
             )
+        except Exception as e:
+            return web.json_response({"error": str(e)}, status=500)
+
+    async def handle_turn_eval(self, request: web.Request) -> web.Response:
+        """Evaluate dynamic end-of-turn completion state and silence wait duration using CueTurnCascade."""
+        try:
+            data = await request.json() if request.can_read_body else {}
+            text = str(data.get("text") or data.get("transcript") or "").strip()
+            is_dictation = bool(data.get("is_dictation", False))
+            from voicefi.audio.turn_detector import CueTurnCascade
+
+            turn_mode = getattr(self.config.vad, "turn_detection", "auto") or "auto"
+            turn_model = getattr(self.config.vad, "turn_model", "qwen2.5-coder:1.5b")
+            cascade = CueTurnCascade(
+                mode=turn_mode if turn_mode != "fixed" else "lexical",
+                turn_model=turn_model,
+                smart_turn_enabled=False,
+            )
+            cfg_silence = float(getattr(self.config.vad, "silence_duration", 1.4) or 1.4)
+            baseline_s = cfg_silence if (turn_mode == "fixed" or cfg_silence >= 5.0) else 1.4
+            decision = cascade.evaluate_turn(
+                partial_text=text,
+                baseline_silence_s=baseline_s,
+                is_dictation=is_dictation,
+            )
+            res = decision.to_dict()
+            res["wait_ms"] = int(round(decision.wait_seconds * 1000))
+            return web.json_response(res)
         except Exception as e:
             return web.json_response({"error": str(e)}, status=500)
 
@@ -2353,6 +3139,8 @@ class CompanionServer(
                 active = self.tracker.get_active_or_latest()
                 conv_id = active.id if active else "default"
 
+            attached_images = data.get("attached_images") or []
+
             self.broadcast_event(
                 {
                     "type": "mac_recording_started",
@@ -2362,21 +3150,33 @@ class CompanionServer(
 
             from voicefi.audio.recorder import AudioRecorder
 
+            turn_mode = getattr(self.config.vad, "turn_detection", "auto") or "auto"
+            cfg_silence = float(getattr(self.config.vad, "silence_duration", 1.4) or 1.4)
+            eff_silence = cfg_silence if (turn_mode == "fixed" or cfg_silence >= 5.0) else 1.4
+
             recorder = AudioRecorder(
+                sample_rate=self.config.vad.sample_rate,
                 energy_threshold=self.config.vad.energy_threshold,
-                silence_duration=self.config.vad.silence_duration,
+                silence_duration=eff_silence,
                 max_record_seconds=self.config.vad.max_record_seconds,
                 barge_in=self.config.vad.barge_in,
+                vad_engine=getattr(self.config.vad, "engine", "auto"),
+                speech_threshold=getattr(self.config.vad, "speech_threshold", 0.37),
+                turn_detection=turn_mode,
+                turn_model=getattr(self.config.vad, "turn_model", "qwen2.5-coder:1.5b"),
+                smart_turn_enabled=getattr(self.config.vad, "smart_turn_enabled", True),
             )
             self._active_mac_recorder = recorder
 
             def _record_and_transcribe():
                 try:
-                    _, wav_path = recorder.record_speech_auto()
+                    _, wav_path = recorder.record_speech_auto(conv_id=conv_id, agent_name="Companion")
+                    if not wav_path or not Path(wav_path).is_file():
+                        return ""
                     stt = get_stt_engine(self.config)
                     transcript = stt.transcribe(wav_path)
                     try:
-                        wav_path.unlink(missing_ok=True)
+                        Path(wav_path).unlink(missing_ok=True)
                     except Exception:
                         pass
                     return transcript
@@ -2409,13 +3209,32 @@ class CompanionServer(
                         }
                     )
 
+                full_prompt = clean_t
+                if isinstance(attached_images, list) and attached_images:
+                    from voicefi.integrations.conversations import classify_file_category
+
+                    attach_lines = []
+                    for img in attached_images:
+                        img_path = img.get("path") if isinstance(img, dict) else str(img)
+                        if img_path:
+                            ext = Path(img_path).suffix.lstrip(".").lower()
+                            is_img = (
+                                img.get("is_image")
+                                if isinstance(img, dict) and "is_image" in img
+                                else classify_file_category(ext) == "image"
+                            )
+                            tag = "Attached Screenshot" if is_img else "Attached File"
+                            attach_lines.append(f"[{tag}: file://{img_path}]")
+                    if attach_lines:
+                        full_prompt = "\n".join(attach_lines) + "\n\n" + clean_t
+
                 set_mobile_turn_origin(conv_id)
-                delivered = bool(send_message_to_agent(conv_id=conv_id, text=clean_t))
+                delivered = bool(send_message_to_agent(conv_id=conv_id, text=full_prompt))
                 self.broadcast_event(
                     {
                         "type": "user_command_injected",
                         "conv_id": conv_id,
-                        "text": clean_t,
+                        "text": full_prompt,
                         "delivered": delivered,
                     }
                 )
@@ -2423,6 +3242,7 @@ class CompanionServer(
                     {
                         "success": True,
                         "transcript": clean_t,
+                        "full_text": full_prompt,
                         "delivered": delivered,
                     }
                 )
@@ -2446,6 +3266,12 @@ class CompanionServer(
         if recorder:
             try:
                 recorder.stop()
+            except Exception:
+                pass
+        stop_cb = getattr(self, "_on_stop_mac_recording", None)
+        if callable(stop_cb):
+            try:
+                stop_cb()
             except Exception:
                 pass
         return web.json_response({"success": True})
@@ -2873,6 +3699,17 @@ class CompanionServer(
         for p in find_recent_codex_sessions(limit=5):
             self._processed_steps[str(p)] = self._get_highest_codex_line_index(p)
 
+        try:
+            from voicefi.local.engine import prewarm_local_models
+
+            threading.Thread(
+                target=prewarm_local_models,
+                daemon=True,
+                name="LocalModelPrewarm",
+            ).start()
+        except Exception:
+            pass
+
         def _loop():
             last_focused_conv_id = None
             while self._watcher_running:
@@ -2989,7 +3826,20 @@ class CompanionServer(
                 max_words = (
                     getattr(getattr(fresh_cfg, "antigravity", None), "max_spoken_words", 300) or 300
                 )
-                summary = clean_markdown_for_speech(content, max_words=max_words)
+                turn_format = getattr(getattr(fresh_cfg, "tts", None), "turn_complete_format", "first_sentence")
+                req_full_read = (turn_format == "full")
+                req_first_sentence = (turn_format == "first_sentence")
+                first_sentence_only = getattr(
+                    getattr(fresh_cfg, "antigravity", None),
+                    "first_sentence_only",
+                    req_first_sentence,
+                )
+                summary = clean_markdown_for_speech(
+                    content,
+                    max_words=max_words,
+                    full_read=req_full_read,
+                    first_sentence_only=first_sentence_only,
+                )
                 turn_sig = f"{cid}:{summary[:35]}"
                 claimed_origin = get_claimed_turn_origin(cid, turn_sig, step_index=idx)
                 if claimed_origin:
@@ -3357,6 +4207,59 @@ class CompanionServer(
                     }
                 )
 
+    async def handle_pal_training_start(self, request: web.Request) -> web.Response:
+        """Start a Pal Teach Mode demonstration recording inside the persistent daemon."""
+        from dataclasses import asdict
+        from voicefi.integrations.pal_harness import PalHarness
+
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        wf_name = str(body.get("workflow_name") or "workflow").strip() or "workflow"
+        res = PalHarness.start_training(wf_name, _local_only=True)
+        return web.json_response(asdict(res))
+
+    async def handle_pal_training_stop(self, request: web.Request) -> web.Response:
+        """Stop active Pal Teach Mode recording, compile YAML workflow, and return result."""
+        from dataclasses import asdict
+        from voicefi.integrations.pal_harness import PalHarness
+
+        res = PalHarness.stop_training(_local_only=True)
+        return web.json_response(asdict(res))
+
+    async def handle_pal_training_cancel(self, request: web.Request) -> web.Response:
+        """Cancel active Pal Teach Mode recording without saving."""
+        from dataclasses import asdict
+        from voicefi.integrations.pal_harness import PalHarness
+
+        res = PalHarness.cancel_training(_local_only=True)
+        return web.json_response(asdict(res))
+
+    async def handle_pal_training_status(self, request: web.Request) -> web.Response:
+        """Return live status and recorded steps of the active Pal training session."""
+        from dataclasses import asdict
+        from voicefi.integrations.pal_harness import PalHarness
+        from voicefi.integrations.pal_trainer import PalTrainer
+
+        trainer = PalHarness.get_active_trainer()
+        if trainer is not None:
+            return web.json_response(
+                {
+                    "active": True,
+                    "workflow_name": trainer.workflow_name,
+                    "workflow_slug": trainer.workflow_slug,
+                    "start_time": trainer.start_time,
+                    "step_count": len(trainer.recorder.steps),
+                    "voice_notes": list(trainer.recorder.voice_notes),
+                    "steps": [asdict(s) for s in trainer.recorder.steps],
+                }
+            )
+        journal = PalTrainer.load_journal()
+        if journal:
+            return web.json_response(journal)
+        return web.json_response({"active": False, "step_count": 0, "steps": []})
+
 
 def ensure_ssl_context() -> Optional[object]:
     """Ensure local self-signed certificate exists and return configured SSLContext."""
@@ -3578,18 +4481,30 @@ def run_companion_server(
 
         webbrowser.open(target_url)
 
-    # If VoiceFi background server is already active on this port, start RelayClient and attach
+    # If VoiceFi background server is already active on this port, check if its RelayClient is already connected
     if _is_voicefi_running_on_port(port):
-        relay_client = RelayClient(credentials=creds, local_port=port)
-        relay_loop = asyncio.new_event_loop()
+        already_relayed = False
+        try:
+            import urllib.request
 
-        def _run_relay_loop():
-            asyncio.set_event_loop(relay_loop)
-            relay_loop.run_until_complete(relay_client.start())
-            relay_loop.run_forever()
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/status", timeout=1.5) as resp:
+                st_data = json.loads(resp.read().decode("utf-8", errors="ignore"))
+                already_relayed = bool(st_data.get("relay_connected"))
+        except Exception:
+            already_relayed = False
 
-        relay_thread = threading.Thread(target=_run_relay_loop, daemon=True)
-        relay_thread.start()
+        relay_loop = None
+        if not already_relayed:
+            relay_client = RelayClient(credentials=creds, local_port=port)
+            relay_loop = asyncio.new_event_loop()
+
+            def _run_relay_loop():
+                asyncio.set_event_loop(relay_loop)
+                relay_loop.run_until_complete(relay_client.start())
+                relay_loop.run_forever()
+
+            relay_thread = threading.Thread(target=_run_relay_loop, daemon=True)
+            relay_thread.start()
 
         if tunnel_url:
             print(f"🌐 Trusted Public HTTPS:  {tunnel_url}")
@@ -3604,7 +4519,8 @@ def run_companion_server(
         except KeyboardInterrupt:
             print("\n👋 Exiting companion view (background server remains active).")
         finally:
-            relay_loop.call_soon_threadsafe(relay_loop.stop)
+            if relay_loop is not None:
+                relay_loop.call_soon_threadsafe(relay_loop.stop)
         return
 
     server = CompanionServer(config=config, port=port, host=host)
@@ -3644,6 +4560,20 @@ def run_companion_server(
                 )
                 return
         raise
+
+    # Unix Domain Socket IPC Site (/tmp/vifi.sock)
+    try:
+        from voicefi.ipc.server import VoiceFiIPCServer
+
+        ipc_server = VoiceFiIPCServer(
+            socket_path="/tmp/vifi.sock",
+            enable_ws=False,
+            config=config,
+        )
+        loop.run_until_complete(ipc_server.start())
+        server.ipc_server = ipc_server
+    except Exception:
+        pass
 
     # HTTPS Site (Port + 1, e.g. 5142) with self-signed SSL for secure mobile mic access
     ssl_ctx = ensure_ssl_context()

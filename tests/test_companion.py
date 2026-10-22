@@ -738,7 +738,70 @@ class CompanionServerTestCase(AioHTTPTestCase):
         data = await resp.json()
         assert data.get("success") is True
         assert "pasted_screenshot_" in data.get("filename", "")
+        assert data.get("filename", "").endswith(".png")
+        assert data.get("is_image") is True
+        assert data.get("category") == "image"
         assert Path(data["path"]).is_file()
+
+        # Verify ?raw=1 serves raw image bytes for chat bubble thumbnail
+        raw_resp = await self.client.get(data["raw_url"])
+        assert raw_resp.status == 200
+        raw_bytes = await raw_resp.read()
+        assert len(raw_bytes) > 0
+
+    async def test_upload_file_universal_types_and_multipart(self):
+        """Test POST /api/upload_file preserves extensions for code, PDF, and markdown via multipart and JSON."""
+        import aiohttp
+        import base64
+
+        # 1. Multipart FormData upload of a Python source file
+        form = aiohttp.FormData()
+        form.add_field("conv_id", "test-conv-123")
+        form.add_field("filename", "helper_module.py")
+        form.add_field(
+            "file",
+            b"def greet():\n    return 'hello'\n",
+            filename="helper_module.py",
+            content_type="text/x-python",
+        )
+        resp_py = await self.client.post("/api/upload_file", data=form)
+        assert resp_py.status == 200
+        data_py = await resp_py.json()
+        assert data_py.get("success") is True
+        assert data_py.get("filename", "").endswith(".py")
+        assert data_py.get("extension") == "py"
+        assert data_py.get("category") == "code"
+        assert data_py.get("is_image") is False
+        assert Path(data_py["path"]).read_text(encoding="utf-8") == "def greet():\n    return 'hello'\n"
+
+        # 2. JSON base64 upload of a PDF document
+        pdf_bytes = b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\n"
+        pdf_b64 = "data:application/pdf;base64," + base64.b64encode(pdf_bytes).decode("ascii")
+        resp_pdf = await self.client.post(
+            "/api/upload_file",
+            json={
+                "conv_id": "test-conv-123",
+                "file_base64": pdf_b64,
+                "filename": "architecture_spec.pdf",
+                "mime_type": "application/pdf",
+            },
+        )
+        assert resp_pdf.status == 200
+        data_pdf = await resp_pdf.json()
+        assert data_pdf.get("success") is True
+        assert data_pdf.get("filename", "").endswith(".pdf")
+        assert data_pdf.get("category") == "pdf"
+        assert data_pdf.get("is_image") is False
+        assert Path(data_pdf["path"]).read_bytes() == pdf_bytes
+
+    async def test_workspace_files_autocomplete_endpoint(self):
+        """Test GET /api/workspace/files searches workspace files for @file mentions."""
+        resp = await self.client.get("/api/workspace/files?q=server.py&limit=10")
+        assert resp.status == 200
+        data = await resp.json()
+        assert data.get("success") is True
+        files = data.get("files", [])
+        assert any(f.get("filename") == "server.py" for f in files)
 
 
 def test_cli_companion_invocation():

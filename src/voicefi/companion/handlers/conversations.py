@@ -160,10 +160,147 @@ class ConversationsHandlersMixin:
         filename = request.match_info.get("filename")
         if not conv_id or not filename:
             return web.json_response({"error": "Missing conv_id or filename"}, status=400)
+
+        want_raw = request.query.get("raw") in ("1", "true", "yes")
+        accept_hdr = (request.headers.get("Accept") or "").lower()
+        if not want_raw and "application/json" not in accept_hdr:
+            if any(
+                accept_hdr.startswith(prefix)
+                for prefix in ("image/", "audio/", "video/", "application/pdf")
+            ):
+                want_raw = True
+
+        if want_raw:
+            safe_conv_id = Path(conv_id).name
+            safe_name = Path(filename).name
+            bdir = self.tracker.brain_dir.resolve()
+            target = (bdir / safe_conv_id / safe_name).resolve()
+            if target.is_relative_to(bdir) and target.is_file():
+                return web.FileResponse(target)
+
         art = self.tracker.get_artifact(conv_id, filename)
         if not art:
             return web.json_response({"error": "Artifact not found"}, status=404)
         return web.json_response(art)
+
+    async def handle_workspace_files(self, request: web.Request) -> web.Response:
+        """Search files in the active conversation workspace for Antigravity-style @file mentions."""
+        try:
+            import os
+            from voicefi.integrations.conversations import (
+                classify_file_category,
+                get_conversation_workspace,
+                resolve_project_workspace,
+            )
+
+            query = (request.query.get("q") or "").strip().lower()
+            conv_id = (request.query.get("conv_id") or "").strip()
+            raw_ws = (request.query.get("workspace_path") or "").strip()
+            limit = min(int(request.query.get("limit") or 30), 100)
+
+            ws_path: Optional[Path] = None
+            if raw_ws:
+                resolved = resolve_project_workspace(raw_ws)
+                if resolved and Path(resolved).is_dir():
+                    ws_path = Path(resolved)
+            if not ws_path and conv_id:
+                saved_ws = get_conversation_workspace(conv_id)
+                if saved_ws and Path(saved_ws).is_dir():
+                    ws_path = Path(saved_ws)
+            if not ws_path:
+                cwd = Path.cwd().resolve()
+                if str(cwd) not in ("/", "/var", "/tmp", "/private/tmp"):
+                    ws_path = cwd
+                else:
+                    repo_root = Path(__file__).resolve().parent.parent.parent.parent.parent
+                    ws_path = repo_root if repo_root.is_dir() else Path.home()
+
+            ws_root = ws_path.resolve()
+            skip_dirs = {
+                ".git",
+                ".hg",
+                ".svn",
+                "node_modules",
+                "__pycache__",
+                ".venv",
+                "venv",
+                "env",
+                ".tox",
+                ".mypy_cache",
+                ".pytest_cache",
+                ".ruff_cache",
+                "dist",
+                "build",
+                ".next",
+                ".nuxt",
+                "target",
+                ".idea",
+                ".vscode",
+            }
+
+            results = []
+            max_scanned = 3500
+            scanned = 0
+            for root, dirs, files in os.walk(ws_root):
+                dirs[:] = [
+                    d for d in sorted(dirs) if d not in skip_dirs and not d.startswith(".git")
+                ]
+                for fname in sorted(files):
+                    if fname.startswith(".") and fname not in (".env.example", ".gitignore"):
+                        continue
+                    scanned += 1
+                    if scanned > max_scanned:
+                        break
+                    full_p = Path(root) / fname
+                    try:
+                        rel_str = str(full_p.relative_to(ws_root))
+                    except Exception:
+                        rel_str = fname
+                    if query:
+                        if query not in rel_str.lower() and query not in fname.lower():
+                            continue
+                    ext = full_p.suffix.lstrip(".").lower()
+                    cat = classify_file_category(ext)
+                    try:
+                        size = full_p.stat().st_size
+                    except Exception:
+                        size = 0
+                    # Score exact filename matches higher than directory matches
+                    score = (
+                        0
+                        if (query and fname.lower().startswith(query))
+                        else (1 if (query and query in fname.lower()) else 2)
+                    )
+                    results.append(
+                        {
+                            "filename": fname,
+                            "rel_path": rel_str,
+                            "path": str(full_p),
+                            "extension": ext,
+                            "category": cat,
+                            "is_image": cat == "image",
+                            "size": size,
+                            "_score": score,
+                        }
+                    )
+                if scanned > max_scanned:
+                    break
+
+            results.sort(key=lambda item: (item["_score"], len(item["rel_path"]), item["rel_path"]))
+            trimmed = []
+            for r in results[:limit]:
+                r.pop("_score", None)
+                trimmed.append(r)
+
+            return web.json_response(
+                {
+                    "success": True,
+                    "workspace": str(ws_root),
+                    "files": trimmed,
+                }
+            )
+        except Exception as e:
+            return web.json_response({"error": str(e), "files": []}, status=500)
 
     async def handle_new_conversation(self, request: web.Request) -> web.Response:
         """Create and focus a new conversation (Antigravity, Claude Code, Codex, or Local Model)."""

@@ -211,6 +211,146 @@ def clear_pending_question(conv_id: Optional[str] = None) -> None:
         pass
 
 
+def get_conv_workspaces_path() -> Path:
+    """Return path to persistent conv_id -> workspace_path map."""
+    d = Path.home() / ".voicefi"
+    d.mkdir(parents=True, exist_ok=True)
+    return d / "conv_workspaces.json"
+
+
+def save_conversation_workspace(conv_id: str, workspace_path: str) -> None:
+    """Persist mapping from conv_id to workspace_path so project labels survive across sessions."""
+    if not conv_id or not workspace_path:
+        return
+    try:
+        p = get_conv_workspaces_path()
+        mapping: Dict[str, str] = {}
+        if p.is_file():
+            try:
+                mapping = json.loads(p.read_text(encoding="utf-8"))
+            except Exception:
+                mapping = {}
+        mapping[str(conv_id)] = str(workspace_path)
+        p.write_text(json.dumps(mapping, indent=2), encoding="utf-8")
+    except Exception:
+        pass
+
+
+def get_conversation_workspace(conv_id: str) -> Optional[str]:
+    """Lookup persisted workspace_path for a conversation ID."""
+    if not conv_id:
+        return None
+    try:
+        p = get_conv_workspaces_path()
+        if p.is_file():
+            mapping = json.loads(p.read_text(encoding="utf-8"))
+            ws = mapping.get(str(conv_id))
+            if ws and Path(ws).is_dir():
+                return str(ws)
+    except Exception:
+        pass
+    return None
+
+
+def discover_available_projects() -> List[Dict[str, Any]]:
+    """Discover active Antigravity projects and local project directories in ~/Projects."""
+    import sqlite3
+    import urllib.parse
+
+    items: List[Dict[str, Any]] = []
+    seen_paths = set()
+
+    # 1. Active Antigravity projects from conversation_summaries.db (ordered by most recent)
+    ag_db = Path.home() / ".gemini" / "antigravity" / "conversation_summaries.db"
+    if ag_db.is_file():
+        try:
+            conn = sqlite3.connect(f"file:{ag_db}?mode=ro", uri=True, timeout=0.5)
+            rows = conn.execute(
+                "SELECT workspace_uris, MAX(last_modified_time) AS lm FROM conversation_summaries "
+                "WHERE workspace_uris != '' AND workspace_uris != '[]' "
+                "GROUP BY workspace_uris ORDER BY lm DESC LIMIT 30"
+            ).fetchall()
+            conn.close()
+            for rank, (raw_uris, _) in enumerate(rows):
+                try:
+                    uris = json.loads(raw_uris)
+                except Exception:
+                    uris = []
+                for u in uris:
+                    if isinstance(u, str) and u.startswith("file://"):
+                        decoded = urllib.parse.unquote(u[len("file://") :])
+                        p = Path(decoded)
+                        if p.is_dir():
+                            resolved = str(p.resolve())
+                            if resolved not in seen_paths:
+                                seen_paths.add(resolved)
+                                items.append(
+                                    {
+                                        "name": p.name,
+                                        "path": str(p),
+                                        "mtime": 2_000_000_000.0 - rank,
+                                    }
+                                )
+        except Exception:
+            pass
+
+    # 2. All local directories in ~/Projects
+    projects_root = Path.home() / "Projects"
+    if projects_root.is_dir():
+        try:
+            proj_entries = []
+            for entry in projects_root.iterdir():
+                if not entry.is_dir() or entry.name.startswith("."):
+                    continue
+                resolved = str(entry.resolve())
+                if resolved in seen_paths:
+                    continue
+                seen_paths.add(resolved)
+                try:
+                    mtime = entry.stat().st_mtime
+                    git_head = entry / ".git" / "HEAD"
+                    if git_head.is_file():
+                        mtime = max(mtime, git_head.stat().st_mtime)
+                except Exception:
+                    mtime = 0.0
+                proj_entries.append(
+                    {
+                        "name": entry.name,
+                        "path": str(entry),
+                        "mtime": mtime,
+                    }
+                )
+            proj_entries.sort(key=lambda x: x.get("mtime", 0.0), reverse=True)
+            items.extend(proj_entries)
+        except Exception:
+            pass
+
+    return items
+
+
+def resolve_project_workspace(project_or_path: Optional[str]) -> Optional[str]:
+    """Resolve a project name (e.g. 'VoiceFi', 'LienLogic', 'Turtle home') or path to an existing directory path."""
+    if not project_or_path:
+        return None
+    raw = str(project_or_path).strip()
+    if not raw:
+        return None
+    candidate = Path(raw).expanduser()
+    if candidate.is_dir():
+        return str(candidate.resolve())
+    for root in (Path.home() / "Projects", Path.home() / "Documents", Path.home() / "Documents" / "GitHub"):
+        if not root.is_dir():
+            continue
+        direct = root / raw
+        if direct.is_dir():
+            return str(direct.resolve())
+        low = raw.lower()
+        for entry in root.iterdir():
+            if entry.is_dir() and entry.name.lower() == low:
+                return str(entry.resolve())
+    return None
+
+
 def save_session_cookie(
     conv_id: str,
     transcript_path: Optional[str] = None,
@@ -221,6 +361,8 @@ def save_session_cookie(
     """Save active conversation metadata handshake ('cookie') to disk."""
     if not conv_id:
         return
+    if workspace_path:
+        save_conversation_workspace(conv_id, str(workspace_path))
     cookie_path = get_session_cookie_path()
     data = {
         "conversationId": conv_id,
@@ -496,6 +638,51 @@ class ConversationTracker:
         self._last_transcripts_scan = now
         return res[:limit]
 
+    def _get_db_summaries(self) -> Dict[str, Dict[str, str]]:
+        """Read conversation titles and workspace_uris from conversation_summaries.db with mtime cache."""
+        import sqlite3
+        import urllib.parse
+
+        db_path = Path.home() / ".gemini" / "antigravity" / "conversation_summaries.db"
+        if not db_path.is_file():
+            return {}
+        try:
+            wal_path = Path(str(db_path) + "-wal")
+            mtime = max(
+                db_path.stat().st_mtime,
+                wal_path.stat().st_mtime if wal_path.is_file() else 0.0,
+            )
+            cached = getattr(self, "_db_summaries_cache", None)
+            if cached is not None and mtime == getattr(self, "_db_summaries_mtime", 0.0):
+                return cached
+
+            conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=0.5)
+            rows = conn.execute(
+                "SELECT conversation_id, title, workspace_uris FROM conversation_summaries "
+                "ORDER BY last_modified_time DESC LIMIT 100"
+            ).fetchall()
+            conn.close()
+            out: Dict[str, Dict[str, str]] = {}
+            for cid, c_title, raw_uris in rows:
+                ws_path = ""
+                try:
+                    uris = json.loads(raw_uris) if raw_uris else []
+                    for u in uris:
+                        if isinstance(u, str) and u.startswith("file://"):
+                            ws_path = urllib.parse.unquote(u[len("file://") :])
+                            break
+                except Exception:
+                    ws_path = ""
+                out[str(cid)] = {
+                    "title": str(c_title or "").strip(),
+                    "workspace_path": ws_path,
+                }
+            self._db_summaries_cache = out
+            self._db_summaries_mtime = mtime
+            return out
+        except Exception:
+            return getattr(self, "_db_summaries_cache", None) or {}
+
     def _get_pb_titles(self) -> Dict[str, str]:
         """Extract genuine side-panel conversation titles from agyhub_summaries_proto.pb with mtime cache."""
         pb_path = Path.home() / ".gemini" / "antigravity" / "agyhub_summaries_proto.pb"
@@ -553,10 +740,19 @@ class ConversationTracker:
             workspace_path = None
             project_name = None
 
-            # Check active session cookie for workspace path
-            cookie = load_session_cookie()
-            if cookie and cookie.get("conv_id") == conv_id and cookie.get("workspacePath"):
-                workspace_path = cookie.get("workspacePath")
+            # Priority 0: Authoritative workspace_uris and title from Antigravity's conversation_summaries.db
+            db_summaries = self._get_db_summaries()
+            db_meta = db_summaries.get(conv_id, {})
+            if db_meta.get("workspace_path"):
+                workspace_path = db_meta["workspace_path"]
+
+            # Check active session cookie or persisted workspace map for workspace path
+            if not workspace_path:
+                cookie = load_session_cookie()
+                if cookie and cookie.get("conv_id") == conv_id and cookie.get("workspacePath"):
+                    workspace_path = cookie.get("workspacePath")
+            if not workspace_path:
+                workspace_path = get_conversation_workspace(conv_id)
 
             # Extract workspace path from transcript lines
             for l_str in lines[:10]:
@@ -602,9 +798,11 @@ class ConversationTracker:
             if workspace_path:
                 project_name = Path(workspace_path).name
 
-            # Priority 1: Exact generated title from Antigravity's side panel summaries
+            # Priority 1: Exact generated title from Antigravity's DB or side panel summaries
             pb_titles = self._get_pb_titles()
-            if conv_id in pb_titles and pb_titles[conv_id]:
+            if db_meta.get("title"):
+                title = db_meta["title"]
+            elif conv_id in pb_titles and pb_titles[conv_id]:
                 title = pb_titles[conv_id]
             else:
                 # Fallback: Extract title from initial user prompt with text
@@ -951,8 +1149,8 @@ class ConversationTracker:
 
         # 1. Frontmost Antigravity window title match (highest confidence on macOS desktop)
         front_conv = self.get_frontmost_antigravity_conv_id()
-        if front_conv:
-            return front_conv == conv_id
+        if front_conv and front_conv == conv_id:
+            return True
 
         # 2. Explicit tracker focus in current process
         if self.active_focus_id:
@@ -1110,6 +1308,7 @@ def clean_user_message(content: str) -> str:
 
     # Clean cross-agent bridge provenance headers & envelopes
     clean = re.sub(r"^\[From:\s*[^\]]+\]\s*", "", clean)
+    clean = re.sub(r"<context\b[^>]*>.*?</context>\s*", "", clean, flags=re.DOTALL)
     clean = re.sub(r"^\[Message[^\]]*\]\s*", "", clean)
     clean = re.sub(r"^\[Attached Screenshot:\s*[^\]]+\]\s*", "", clean)
     clean = re.sub(r"^\[ATTACHED\s*\([0-9]+\):[^\]]+\]\s*", "", clean)
@@ -1117,6 +1316,57 @@ def clean_user_message(content: str) -> str:
     # Clean slash command prefixes like /antigravity-guide
     clean = re.sub(r"^/[a-zA-Z0-9_-]+\s*", "", clean).strip()
     return clean.strip()
+
+
+def classify_file_category(ext: str) -> str:
+    """Classify a file extension into a clean UI category."""
+    e = (ext or "").lstrip(".").lower()
+    if e in ("png", "jpg", "jpeg", "gif", "webp", "svg", "heic", "bmp", "ico", "tiff"):
+        return "image"
+    if e in ("md", "markdown", "mdx"):
+        return "markdown"
+    if e == "pdf":
+        return "pdf"
+    if e in (
+        "py",
+        "js",
+        "ts",
+        "tsx",
+        "jsx",
+        "html",
+        "css",
+        "scss",
+        "sh",
+        "bash",
+        "zsh",
+        "rs",
+        "go",
+        "swift",
+        "kt",
+        "java",
+        "c",
+        "cpp",
+        "h",
+        "hpp",
+        "sql",
+        "rb",
+        "php",
+        "lua",
+        "vue",
+        "svelte",
+    ):
+        return "code"
+    if e in ("json", "yaml", "yml", "toml", "csv", "tsv", "xml", "env", "ini", "cfg", "log", "txt"):
+        return "data"
+    if e in ("mp3", "wav", "m4a", "ogg", "flac", "aac", "opus"):
+        return "audio"
+    if e in ("mp4", "mov", "webm", "mkv", "avi"):
+        return "video"
+    if e in ("zip", "tar", "gz", "tgz", "bz2", "xz", "7z"):
+        return "archive"
+    if e in ("doc", "docx", "xls", "xlsx", "ppt", "pptx", "rtf"):
+        return "document"
+    return "file"
 
 
 def get_conversation_artifacts(
@@ -1137,6 +1387,7 @@ def get_conversation_artifacts(
                 and not item.name.endswith(".metadata.json")
             ):
                 ext = item.suffix.lstrip(".").lower()
+                category = classify_file_category(ext)
                 artifacts.append(
                     {
                         "name": item.name,
@@ -1144,7 +1395,9 @@ def get_conversation_artifacts(
                         "size": item.stat().st_size,
                         "mtime": item.stat().st_mtime,
                         "extension": ext,
-                        "is_markdown": ext in ("md", "markdown"),
+                        "category": category,
+                        "is_image": category == "image",
+                        "is_markdown": category == "markdown",
                     }
                 )
     except Exception:
@@ -1166,26 +1419,52 @@ def get_artifact_content(
 
     try:
         ext = target.suffix.lstrip(".").lower()
-        if ext in ("png", "jpg", "jpeg", "gif", "webp", "svg"):
+        category = classify_file_category(ext)
+        size = target.stat().st_size
+        raw_url = f"/api/conversation/{safe_conv_id}/artifact/{safe_name}?raw=1"
+        if category == "image":
             import base64
 
             b64 = base64.b64encode(target.read_bytes()).decode("ascii")
-            mime = f"image/{'svg+xml' if ext == 'svg' else ext}"
+            mime = f"image/{'svg+xml' if ext == 'svg' else ('jpeg' if ext == 'jpg' else ext)}"
             return {
                 "name": safe_name,
+                "path": str(target),
                 "content": f"data:{mime};base64,{b64}",
-                "size": target.stat().st_size,
+                "size": size,
+                "extension": ext,
+                "category": category,
                 "is_image": True,
                 "type": "image",
+                "raw_url": raw_url,
             }
-        else:
-            text = target.read_text(encoding="utf-8", errors="replace")
+        elif category in ("audio", "video", "pdf", "archive", "document"):
             return {
                 "name": safe_name,
-                "content": text,
-                "size": target.stat().st_size,
+                "path": str(target),
+                "content": f"# {safe_name}\n\n- **Type:** `{category.upper()}` (`.{ext}`)\n- **Size:** `{size:,} bytes`\n- **Path:** `{target}`\n\n[Open / Download Raw File]({raw_url})",
+                "size": size,
+                "extension": ext,
+                "category": category,
                 "is_image": False,
-                "type": "markdown" if ext in ("md", "markdown") else "text",
+                "is_binary": True,
+                "type": category,
+                "raw_url": raw_url,
+            }
+        else:
+            raw_bytes = target.read_bytes()[: 512 * 1024]
+            text = raw_bytes.decode("utf-8", errors="replace")
+            return {
+                "name": safe_name,
+                "path": str(target),
+                "content": text,
+                "raw_text": text,
+                "size": size,
+                "extension": ext,
+                "category": category,
+                "is_image": False,
+                "type": "markdown" if category == "markdown" else ("code" if category == "code" else "text"),
+                "raw_url": raw_url,
             }
     except Exception as e:
         return {"name": safe_name, "error": str(e), "content": "", "size": 0}
@@ -1261,11 +1540,36 @@ def parse_full_conversation_details(
             if current_turn:
                 turns.append(current_turn)
 
+            turn_media = []
+            raw_media = step.get("media")
+            if isinstance(raw_media, list):
+                for m in raw_media:
+                    if isinstance(m, dict):
+                        uri = str(m.get("uri") or m.get("path") or "").strip()
+                        mime_type = str(m.get("mime_type") or "").strip()
+                        if uri:
+                            clean_path = uri.replace("file://", "")
+                            fname = Path(clean_path).name
+                            ext = Path(clean_path).suffix.lstrip(".").lower()
+                            turn_media.append(
+                                {
+                                    "uri": uri,
+                                    "path": clean_path,
+                                    "filename": fname,
+                                    "mime_type": mime_type,
+                                    "extension": ext,
+                                    "category": classify_file_category(ext),
+                                    "is_image": mime_type.startswith("image/")
+                                    or classify_file_category(ext) == "image",
+                                }
+                            )
+
             current_turn = {
                 "turn_id": len(turns) + 1,
                 "user_message": user_text,
                 "raw_user_message": content,
                 "user_timestamp": created_at,
+                "media": turn_media,
                 "agent_steps": [],
                 "agent_response": "",
                 "agent_role": "antigravity",
@@ -1775,6 +2079,12 @@ def parse_gemma_session(path: Path) -> Optional[ConversationInfo]:
         turns = data.get("turns", [])
         last_agent = turns[-1].get("agent", "") if turns else ""
         last_user = turns[-1].get("user", "") if turns else ""
+        ws_path = data.get("workspace_path") or get_conversation_workspace(data.get("id", path.stem))
+        proj_name = (
+            data.get("project_name")
+            or (Path(ws_path).name if ws_path else None)
+            or data.get("model", "gemma4-2b")
+        )
         return ConversationInfo(
             id=data.get("id", path.stem),
             title=data.get("title", "Local Gemma Session"),
@@ -1784,7 +2094,8 @@ def parse_gemma_session(path: Path) -> Optional[ConversationInfo]:
             last_user_text=last_user,
             transcript_path=path,
             engine="gemma",
-            project_name=data.get("model", "gemma4-2b"),
+            project_name=proj_name,
+            workspace_path=ws_path,
         )
     except Exception:
         return None
@@ -1819,12 +2130,15 @@ def parse_full_gemma_conversation_details(conv_id: str) -> Optional[Dict[str, An
             if formatted_turns
             else True
         )
+        ws_path = data.get("workspace_path") or get_conversation_workspace(data.get("id", conv_id))
         return {
             "id": data.get("id", conv_id),
             "title": data.get("title", "Local Gemma"),
             "status": "COMPLETED" if is_complete else "IN_PROGRESS",
             "engine": "gemma",
             "model": data.get("model", "gemma4-2b"),
+            "workspace_path": ws_path,
+            "project_name": data.get("project_name") or (Path(ws_path).name if ws_path else None),
             "mtime": path.stat().st_mtime,
             "turns": formatted_turns,
             "artifacts": [],
@@ -1834,16 +2148,32 @@ def parse_full_gemma_conversation_details(conv_id: str) -> Optional[Dict[str, An
         return None
 
 
+def get_local_turns_log_path() -> Path:
+    """Return ~/.voicefi/local_model_turns.jsonl path for unified turn-by-turn telemetry & fine-tuning."""
+    p = Path.home() / ".voicefi" / "local_model_turns.jsonl"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    return p
+
+
 def save_gemma_turn(
     conv_id: Optional[str],
     user_text: str,
     agent_text: str,
     model: str = "gemma4-2b",
     title: Optional[str] = None,
+    ttfb_ms: Optional[float] = None,
+    duration_s: Optional[float] = None,
+    tok_per_sec: Optional[float] = None,
+    mode: str = "chat",
+    origin: str = "mobile",
+    hardware: Optional[Dict[str, Any]] = None,
+    workspace_path: Optional[str] = None,
+    project_name: Optional[str] = None,
 ) -> Path:
-    """Save a user prompt and Gemma response turn to the session JSON file."""
+    """Save a user prompt, local model response, and latency/throughput telemetry to session JSON, JSONL log, and analytics.db."""
     d = get_gemma_sessions_dir()
-    cid = conv_id or f"gemma_{int(time.time())}"
+    now_ts = time.time()
+    cid = conv_id or f"gemma_{int(now_ts)}"
     if not cid.startswith("gemma_"):
         cid = f"gemma_{cid}"
     path = d / f"{cid}.json"
@@ -1865,21 +2195,100 @@ def save_gemma_turn(
         data["title"] = title
     elif not data.get("title") or data.get("title") == "Local Gemma Session":
         data["title"] = user_text[:40]
+    data["model"] = model
+    if workspace_path:
+        data["workspace_path"] = str(workspace_path)
+        save_conversation_workspace(cid, str(workspace_path))
+    if project_name:
+        data["project_name"] = str(project_name)
+    elif workspace_path and not data.get("project_name"):
+        data["project_name"] = Path(workspace_path).name
+
+    turn_meta: Dict[str, Any] = {
+        "model": model,
+        "mode": mode,
+        "origin": origin,
+    }
+    if ttfb_ms is not None:
+        turn_meta["ttfb_ms"] = round(float(ttfb_ms), 1)
+    if duration_s is not None:
+        turn_meta["duration_s"] = round(float(duration_s), 3)
+    if tok_per_sec is not None:
+        turn_meta["tok_per_sec"] = round(float(tok_per_sec), 1)
+    if hardware:
+        turn_meta["hardware"] = hardware
 
     turns = data.get("turns", [])
     # If the last turn has matching user text and is awaiting agent response, update in-place
     if turns and turns[-1].get("user") == user_text and not turns[-1].get("agent") and agent_text:
         turns[-1]["agent"] = agent_text
-        turns[-1]["timestamp"] = time.time()
+        turns[-1]["timestamp"] = now_ts
+        turns[-1].update(turn_meta)
     else:
-        turns.append(
-            {
-                "user": user_text,
-                "agent": agent_text,
-                "timestamp": time.time(),
-            }
-        )
+        entry = {
+            "user": user_text,
+            "agent": agent_text,
+            "timestamp": now_ts,
+            **turn_meta,
+        }
+        turns.append(entry)
     data["turns"] = turns
-    data["mtime"] = time.time()
+    data["mtime"] = now_ts
     path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+    # Append completed turn to ~/.voicefi/local_model_turns.jsonl & ~/.voicefi/analytics.db
+    if agent_text:
+        record_obj = {
+            "timestamp": now_ts,
+            "iso_time": time.strftime("%Y-%m-%dT%H:%M:%S%z", time.localtime(now_ts)),
+            "conv_id": cid,
+            "model": model,
+            "mode": mode,
+            "origin": origin,
+            "ttfb_ms": turn_meta.get("ttfb_ms"),
+            "duration_s": turn_meta.get("duration_s"),
+            "tok_per_sec": turn_meta.get("tok_per_sec"),
+            "prompt_chars": len(user_text),
+            "response_chars": len(agent_text),
+            "user_prompt": user_text,
+            "agent_response": agent_text,
+            "hardware": hardware or {},
+        }
+        try:
+            jsonl_path = get_local_turns_log_path()
+            with jsonl_path.open("a", encoding="utf-8") as fh:
+                fh.write(json.dumps(record_obj, ensure_ascii=False) + "\n")
+        except Exception:
+            pass
+
+        try:
+            from voicefi.analytics.store import get_analytics_store
+
+            dur_ms = int(round(float(duration_s or 0.0) * 1000.0))
+            get_analytics_store().record_local_event(
+                event_name="companion_local_turn",
+                duration_ms=dur_ms,
+                success=not agent_text.startswith("⚠️"),
+                caller_agent="companion_local",
+                tool_name=mode,
+                provider=model,
+                char_count=len(user_text) + len(agent_text),
+                properties={
+                    "conv_id": cid,
+                    "model": model,
+                    "mode": mode,
+                    "origin": origin,
+                    "ttfb_ms": turn_meta.get("ttfb_ms"),
+                    "duration_s": turn_meta.get("duration_s"),
+                    "tok_per_sec": turn_meta.get("tok_per_sec"),
+                    "prompt_preview": user_text[:200],
+                    "response_preview": agent_text[:200],
+                    "thermal_state": (hardware or {}).get("thermal_state", "nominal"),
+                    "free_ram_gb": (hardware or {}).get("free_ram_gb", 0.0),
+                },
+            )
+        except Exception:
+            pass
+
     return path
+
