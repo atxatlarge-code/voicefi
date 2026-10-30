@@ -842,6 +842,12 @@
           <span>⚡</span>
           <span id="voiceSpeedText">1.0x</span>
         </button>
+
+        <!-- Pocket Lock (OLED Blackout) Pill -->
+        <button id="voicePocketLockPill" type="button" onclick="enablePocketLock()" class="px-3.5 py-2 rounded-xl bg-[#161619] hover:bg-[#202026] active:scale-95 border border-purple-400/30 text-xs font-bold text-purple-200 flex items-center gap-1.5 transition cursor-pointer shadow-sm" title="OLED Blackout &amp; Pocket Touch-Guard for Headphones">
+          <span>🔒</span>
+          <span>Pocket Lock</span>
+        </button>
       </div>
 
       <!-- Center Voice Stage (Aligned directly with Antigravity Zero-G Particle Singularity) -->
@@ -1205,7 +1211,7 @@
             </select>
           </div>
         </div>
-        <div class="flex items-center justify-between pt-1 border-t border-white/10 text-xs text-zinc-300">
+        <div class="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-white/10 text-xs text-zinc-300">
           <label class="flex items-center gap-1.5 cursor-pointer">
             <input type="checkbox" id="liveThinkingToggle" class="accent-cyan-400 rounded">
             <span class="text-[11px]">Extended Thinking</span>
@@ -1213,6 +1219,10 @@
           <label class="flex items-center gap-1.5 cursor-pointer">
             <input type="checkbox" id="liveToolsToggle" checked class="accent-cyan-400 rounded">
             <span class="text-[11px]">Parallel Live Tools</span>
+          </label>
+          <label class="flex items-center gap-1.5 cursor-pointer" title="True Listening Mode: Holds unhurried space through contemplative pauses without jumping in prematurely">
+            <input type="checkbox" id="liveHoldSpaceToggle" onchange="onLiveHoldSpaceChange(this.checked)" class="accent-emerald-400 rounded">
+            <span class="text-[11px] text-emerald-300 font-semibold">🧘 Hold Space (True Listening)</span>
           </label>
         </div>
         <div class="pt-2 border-t border-white/10">
@@ -1688,10 +1698,16 @@
               <div class="text-xs font-bold text-white font-mono">Keep Screen Awake</div>
               <div class="text-[10px] text-zinc-400">Prevent phone sleep while pacing</div>
             </div>
-            <button id="wakeLockBtn" type="button" class="px-2.5 py-1.5 bg-[#0a0a0a] hover:bg-[#1c1c1c] border border-[#333333] rounded-lg text-xs font-mono text-zinc-200 flex items-center gap-1.5 transition cursor-pointer">
-              <span id="wakeLockDot" class="w-2 h-2 rounded-full bg-white"></span>
-              <span id="wakeLockText">Awake</span>
-            </button>
+            <div class="flex items-center gap-1.5">
+              <button id="pocketLockSettingsBtn" onclick="enablePocketLock()" type="button" class="px-2.5 py-1.5 bg-[#0a0a0a] hover:bg-[#1c1c1c] border border-[#333333] rounded-lg text-xs font-mono text-zinc-200 flex items-center gap-1.5 transition cursor-pointer" title="OLED Blackout &amp; Pocket Touch Guard">
+                <span>🔒</span>
+                <span>Pocket</span>
+              </button>
+              <button id="wakeLockBtn" type="button" class="px-2.5 py-1.5 bg-[#0a0a0a] hover:bg-[#1c1c1c] border border-[#333333] rounded-lg text-xs font-mono text-zinc-200 flex items-center gap-1.5 transition cursor-pointer">
+                <span id="wakeLockDot" class="w-2 h-2 rounded-full bg-white"></span>
+                <span id="wakeLockText">Awake</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -1959,9 +1975,19 @@
           <p id="obsidianVaultSubtitle" class="text-[11px] text-purple-300/80 font-mono">Connected Vault</p>
         </div>
       </div>
-      <button id="closeObsidianModal" type="button" class="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 active:bg-white/30 text-zinc-300 hover:text-white flex items-center justify-center text-sm font-bold cursor-pointer transition active:scale-95 shadow-sm" title="Dismiss Takeover">
-        ✕
-      </button>
+      <div class="flex items-center gap-1.5 sm:gap-2">
+        <button id="obsidianMicDeviceBtn" onclick="cyclePreferredAudioInputDevice()" type="button" class="px-2.5 h-9 rounded-full bg-emerald-500/15 hover:bg-emerald-500/25 active:bg-emerald-500/35 text-emerald-200 hover:text-white flex items-center justify-center gap-1 text-[11px] font-mono font-bold cursor-pointer transition active:scale-95 border border-emerald-400/30 shadow-sm max-w-[145px] truncate" title="Switch Microphone Input (Headphones / Phone Mic)">
+          <span id="obsidianMicDeviceIcon">🎧</span>
+          <span id="obsidianMicDeviceLabel" class="truncate">Auto Mic</span>
+        </button>
+        <button id="obsidianPocketLockBtn" onclick="enablePocketLock()" type="button" class="px-3 h-9 rounded-full bg-white/10 hover:bg-white/20 active:bg-white/30 text-purple-200 hover:text-white flex items-center justify-center gap-1.5 text-xs font-mono font-bold cursor-pointer transition active:scale-95 border border-purple-400/30 shadow-sm" title="OLED Blackout &amp; Pocket Touch Guard (Headphones Mode)">
+          <span>🔒</span>
+          <span>Pocket Lock</span>
+        </button>
+        <button id="closeObsidianModal" type="button" class="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 active:bg-white/30 text-zinc-300 hover:text-white flex items-center justify-center text-sm font-bold cursor-pointer transition active:scale-95 shadow-sm" title="Dismiss Takeover">
+          ✕
+        </button>
+      </div>
     </div>
 
     <!-- Mode Selector Tabs (Daily Note vs Voice Memo vs Channel) -->
@@ -2155,6 +2181,36 @@
       </div>
     </div>
 
+  </div>
+
+  <!-- Pure #000000 OLED Blackout & Pocket Touch-Guard Overlay (Headphones + Pocket Walk Mode) -->
+  <div id="pocketLockOverlay" onclick="eatPocketGhostTouch(event)" ontouchstart="eatPocketGhostTouch(event)" ontouchmove="eatPocketGhostTouch(event)" class="fixed inset-0 bg-black z-[90] hidden flex flex-col items-center justify-between p-8 select-none touch-none">
+    <div class="text-center space-y-2 pt-6 opacity-70 max-w-sm w-full pointer-events-none">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-zinc-800 bg-zinc-950 text-[11px] font-mono text-emerald-400">
+        <span id="pocketLockDot" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span id="pocketLockStatusText">POCKET WALK ACTIVE • MIC LIVE</span>
+      </div>
+      <div>
+        <div id="pocketLockMicBadge" class="inline-block px-3 py-1 rounded-full border border-purple-500/30 bg-zinc-950/90 text-[11px] font-mono text-purple-300">
+          🎧 Mic Locked for Pocket Walk
+        </div>
+      </div>
+      <p id="pocketLockTimerText" class="text-xs font-mono text-zinc-500">Screen Lock &amp; Background Ready • Mic Pinned</p>
+      <p id="pocketLockTranscriptPreview" class="text-[11px] font-mono text-zinc-400/80 italic line-clamp-2 min-h-[2.2rem] px-2"></p>
+    </div>
+
+    <div class="flex flex-col items-center justify-center space-y-4 my-auto">
+      <button id="pocketUnlockBtn" onclick="handlePocketUnlockTap(event)" type="button" class="w-40 h-40 rounded-full border border-zinc-800/90 bg-black flex flex-col items-center justify-center gap-2 text-zinc-500 active:border-zinc-600 transition select-none cursor-pointer">
+        <span class="text-2xl opacity-60">🔒</span>
+        <span id="pocketUnlockPrompt" class="text-xs font-mono font-bold tracking-wider uppercase text-zinc-500">Triple-Tap</span>
+        <span class="text-[10px] font-mono text-zinc-600">to wake screen</span>
+      </button>
+    </div>
+
+    <div class="text-center space-y-1 pb-6 opacity-45 font-mono text-[10px] text-zinc-500 pointer-events-none">
+      <div>📱 Power Button Lock &amp; App Switch Supported (Mic Stays Live)</div>
+      <div>🎧 Earbud Single-Tap: Pause / Resume • Next-Track: Save</div>
+    </div>
   </div>
 
   <!-- Dedicated 1-Button Pal (Mac OS Control & Screen Vision) Takeover Screen -->
@@ -2436,6 +2492,10 @@
         <!-- Copy Button (for markdown/text) -->
         <button id="copyArtifactBtn" class="px-2.5 py-1 bg-[#141414] hover:bg-[#222222] text-white text-xs rounded-lg transition font-medium border border-[#222222] mono">
           Copy
+        </button>
+        <!-- Download / Save to Phone Button -->
+        <button id="downloadArtifactBtn" type="button" onclick="if (currentArtifact && currentArtifact.name) downloadArtifactByName(currentArtifact.name);" class="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white text-xs rounded-lg transition font-bold border border-blue-400/40 flex items-center gap-1 cursor-pointer">
+          <span>⬇</span> <span>Save</span>
         </button>
         <!-- Close Button -->
         <button id="closeArtifactModal" class="p-1.5 text-[#888888] hover:text-white rounded-lg transition text-xs font-bold cursor-pointer">
@@ -3978,6 +4038,436 @@
       setTimeout(() => playTone(783.99, 'triangle', 0.16, 0.18), 120);
     }
 
+    function playChimePause() {
+      playTone(880.00, 'sine', 0.08, 0.14);
+      setTimeout(() => playTone(587.33, 'sine', 0.16, 0.14), 75);
+    }
+
+    function playChimeSaved() {
+      playTone(523.25, 'sine', 0.07, 0.15);
+      setTimeout(() => playTone(659.25, 'sine', 0.07, 0.15), 65);
+      setTimeout(() => playTone(783.99, 'sine', 0.07, 0.15), 130);
+      setTimeout(() => playTone(1046.50, 'sine', 0.18, 0.18), 195);
+    }
+
+    let isPocketLocked = false;
+    let lastPocketTapTime = 0;
+    let pocketUnlockTapCount = 0;
+    let pocketUnlockResetTimer = null;
+    let availableAudioInputDevices = [];
+    let preferredAudioDeviceId = localStorage.getItem("voicefi_preferred_audio_device_id") || "";
+    let userManuallyPinnedPhoneMic = false;
+    let activeAudioInputLabel = "";
+    let isHeadsetMicDetected = false;
+
+    const HEADSET_MIC_REGEX = /bluetooth|airpods|pixel\s*buds|galaxy\s*buds|buds|headset|headphone|earbuds|hands-free|hfp|sco|ble|le\s*audio|wireless|usb|wired|external|shokz|beats|sony|bose|jabra|hearing/i;
+    const BUILTIN_PHONE_MIC_REGEX = /speakerphone|built-in|bottom\s*mic|back\s*mic|camcorder|internal\s*mic/i;
+
+    function isHeadsetDeviceLabel(label) {
+      const s = (label || "").trim();
+      if (!s) return false;
+      if (BUILTIN_PHONE_MIC_REGEX.test(s) && !/bluetooth|buds|airpods|headset/i.test(s)) {
+        return false;
+      }
+      return HEADSET_MIC_REGEX.test(s);
+    }
+    window.isHeadsetDeviceLabel = isHeadsetDeviceLabel;
+
+    async function refreshAudioInputDevices() {
+      if (!navigator.mediaDevices || typeof navigator.mediaDevices.enumerateDevices !== "function") {
+        return [];
+      }
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const inputs = devices.filter(d => d && d.kind === "audioinput");
+        availableAudioInputDevices = inputs;
+
+        const headsetDev = inputs.find(d => isHeadsetDeviceLabel(d.label || ""));
+        if (headsetDev) {
+          isHeadsetMicDetected = true;
+        } else if (inputs.some(d => d.label)) {
+          isHeadsetMicDetected = isHeadsetDeviceLabel(activeAudioInputLabel);
+        }
+
+        if (preferredAudioDeviceId && !inputs.some(d => d.deviceId === preferredAudioDeviceId)) {
+          preferredAudioDeviceId = "";
+        }
+        // Automatically prefer connected Pixel Buds / Bluetooth Headset unless user manually pinned Phone Mic
+        if (headsetDev && headsetDev.deviceId && !userManuallyPinnedPhoneMic) {
+          const currentPrefDev = inputs.find(d => d.deviceId === preferredAudioDeviceId);
+          if (!preferredAudioDeviceId || (currentPrefDev && !isHeadsetDeviceLabel(currentPrefDev.label || ""))) {
+            preferredAudioDeviceId = headsetDev.deviceId;
+            try {
+              localStorage.setItem("voicefi_preferred_audio_device_id", preferredAudioDeviceId);
+            } catch (e) {}
+          }
+        }
+
+        const chosen = inputs.find(d => d.deviceId === preferredAudioDeviceId) || headsetDev || inputs[0];
+        if (chosen && chosen.label) {
+          activeAudioInputLabel = chosen.label;
+          isHeadsetMicDetected = isHeadsetDeviceLabel(chosen.label);
+        }
+        updateMicDeviceBadgeUI();
+        updatePocketLockHUD();
+        return inputs;
+      } catch (e) {
+        return [];
+      }
+    }
+    window.refreshAudioInputDevices = refreshAudioInputDevices;
+
+    function getPreferredAudioInputConstraints(isPocketOrHeadsetMode = false) {
+      const audioConstraints = {
+        echoCancellation: true,
+        noiseSuppression: !isPocketOrHeadsetMode || isHeadsetMicDetected,
+        autoGainControl: true,
+        channelCount: 1
+      };
+      if (preferredAudioDeviceId) {
+        audioConstraints.deviceId = { ideal: preferredAudioDeviceId };
+      }
+      return { audio: audioConstraints };
+    }
+    window.getPreferredAudioInputConstraints = getPreferredAudioInputConstraints;
+
+    async function acquirePreferredMicStream(isPocketOrHeadsetMode = false) {
+      if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== "function") {
+        throw new Error("getUserMedia unavailable");
+      }
+      // Pause HTML5 A2DP silent keep-alive audio element before opening WebRTC mic so Android
+      // routes Pixel Buds / Bluetooth headsets into bidirectional HFP/SCO/BLE voice mode instead of locking Phone Mic!
+      if (typeof stopSilentAudioKeepAlive === "function") {
+        stopSilentAudioKeepAlive();
+      }
+
+      await refreshAudioInputDevices();
+      let stream = null;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(
+          getPreferredAudioInputConstraints(isPocketOrHeadsetMode)
+        );
+      } catch (constraintErr) {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      }
+
+      // Crucial for Chrome on Android (Pixel + Pixel Buds):
+      // enumerateDevices() only unlocks device labels and Bluetooth SCO/HFP headset entries AFTER getUserMedia succeeds!
+      try {
+        const inputs = await refreshAudioInputDevices();
+        const headsetDev = inputs.find(d => isHeadsetDeviceLabel(d.label || ""));
+        const track = stream.getAudioTracks && stream.getAudioTracks()[0];
+        const currentLabel = (track && track.label) || "";
+        const currentSettings = (track && typeof track.getSettings === "function") ? track.getSettings() : {};
+
+        if (
+          headsetDev &&
+          headsetDev.deviceId &&
+          !userManuallyPinnedPhoneMic &&
+          !isHeadsetDeviceLabel(currentLabel) &&
+          currentSettings.deviceId !== headsetDev.deviceId
+        ) {
+          // Initial getUserMedia opened built-in Phone Mic before labels were unlocked; switch immediately to Pixel Buds / Headset!
+          try {
+            const headsetStream = await navigator.mediaDevices.getUserMedia({
+              audio: {
+                deviceId: { exact: headsetDev.deviceId },
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true,
+                channelCount: 1
+              }
+            });
+            try {
+              stream.getTracks().forEach(t => t.stop());
+            } catch (stopErr) {}
+            stream = headsetStream;
+            preferredAudioDeviceId = headsetDev.deviceId;
+            try {
+              localStorage.setItem("voicefi_preferred_audio_device_id", preferredAudioDeviceId);
+            } catch (storageErr) {}
+          } catch (switchErr) {
+            console.warn("Headset exact deviceId switch fallback:", switchErr);
+          }
+        }
+
+        const finalTrack = stream.getAudioTracks && stream.getAudioTracks()[0];
+        if (finalTrack && finalTrack.label) {
+          activeAudioInputLabel = finalTrack.label;
+          isHeadsetMicDetected = isHeadsetDeviceLabel(finalTrack.label);
+        } else if (headsetDev && headsetDev.label && !userManuallyPinnedPhoneMic) {
+          activeAudioInputLabel = headsetDev.label;
+          isHeadsetMicDetected = true;
+        }
+        updateMicDeviceBadgeUI();
+        updatePocketLockHUD();
+      } catch (e) {}
+
+      return stream;
+    }
+    window.acquirePreferredMicStream = acquirePreferredMicStream;
+
+    function formatShortMicLabel(rawLabel, isHeadset) {
+      if (!rawLabel) return isHeadset ? "Pixel Buds / Headset" : "Phone Mic";
+      const shortName = rawLabel
+        .replace(/\s*\([^)]*\)\s*/g, " ")
+        .replace(/communications\s*-?\s*/i, "")
+        .replace(/default\s*-?\s*/i, "")
+        .trim();
+      return shortName || (isHeadset ? "Pixel Buds / Headset" : "Phone Mic");
+    }
+
+    function updateMicDeviceBadgeUI() {
+      const btn = document.getElementById("obsidianMicDeviceBtn");
+      const iconEl = document.getElementById("obsidianMicDeviceIcon");
+      const labelEl = document.getElementById("obsidianMicDeviceLabel");
+      const isHeadset = isHeadsetDeviceLabel(activeAudioInputLabel || "") || isHeadsetMicDetected;
+      const shortName = formatShortMicLabel(activeAudioInputLabel, isHeadset);
+      if (iconEl) iconEl.innerText = isHeadset ? "🎧" : "📱";
+      if (labelEl) {
+        labelEl.innerText = shortName;
+      }
+      if (btn) {
+        btn.className = isHeadset
+          ? "px-2.5 h-9 rounded-full bg-emerald-500/20 hover:bg-emerald-500/30 active:bg-emerald-500/40 text-emerald-200 hover:text-white flex items-center justify-center gap-1 text-[11px] font-mono font-bold cursor-pointer transition active:scale-95 border border-emerald-400/50 shadow-sm max-w-[155px] truncate"
+          : "px-2.5 h-9 rounded-full bg-amber-500/20 hover:bg-amber-500/30 active:bg-amber-500/40 text-amber-200 hover:text-white flex items-center justify-center gap-1 text-[11px] font-mono font-bold cursor-pointer transition active:scale-95 border border-amber-400/50 shadow-sm max-w-[155px] truncate";
+        btn.title = activeAudioInputLabel
+          ? `Active Mic: ${activeAudioInputLabel} (Tap to switch between Pixel Buds / Headset & Phone Mic)`
+          : "Tap to detect & switch Microphone Input (Pixel Buds / Bluetooth Headset vs. Phone Mic)";
+      }
+    }
+
+    async function cyclePreferredAudioInputDevice() {
+      let inputs = await refreshAudioInputDevices();
+      // If browser hasn't unlocked device labels yet, briefly probe getUserMedia so Bluetooth / Pixel Buds appear
+      if ((!inputs || inputs.length <= 1 || !inputs.some(d => d.label)) && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        try {
+          if (typeof stopSilentAudioKeepAlive === "function") stopSilentAudioKeepAlive();
+          const probe = await navigator.mediaDevices.getUserMedia({ audio: true });
+          inputs = await refreshAudioInputDevices();
+          probe.getTracks().forEach(t => t.stop());
+        } catch (e) {}
+      }
+      if (!inputs || inputs.length === 0) {
+        showToast("No microphones detected. Check browser mic permissions.", 2800);
+        return;
+      }
+      const validInputs = inputs.filter(d => d.deviceId);
+      if (validInputs.length <= 1) {
+        const label = (validInputs[0] && validInputs[0].label) || activeAudioInputLabel || "Default Microphone";
+        const isHeadset = isHeadsetDeviceLabel(label);
+        showToast(
+          isHeadset
+            ? `🎧 Active Mic: ${label}`
+            : `📱 Only ${label} detected — make sure Pixel Buds are out of case & connected for calls`,
+          3500
+        );
+        return;
+      }
+      const currentIdx = validInputs.findIndex(d => d.deviceId === preferredAudioDeviceId);
+      const nextDev = validInputs[(currentIdx + 1) % validInputs.length];
+      preferredAudioDeviceId = nextDev.deviceId;
+      activeAudioInputLabel = nextDev.label || "Microphone";
+      isHeadsetMicDetected = isHeadsetDeviceLabel(activeAudioInputLabel);
+      userManuallyPinnedPhoneMic = !isHeadsetMicDetected;
+      try {
+        localStorage.setItem("voicefi_preferred_audio_device_id", preferredAudioDeviceId);
+      } catch (e) {}
+      updateMicDeviceBadgeUI();
+      updatePocketLockHUD();
+      showToast(
+        `${isHeadsetMicDetected ? "🎧" : "📱"} Switched Mic: ${formatShortMicLabel(activeAudioInputLabel, isHeadsetMicDetected)}`,
+        2800
+      );
+      if (typeof isObsidianRecording !== "undefined" && isObsidianRecording && typeof switchObsidianToPocketAudioStream === "function") {
+        await switchObsidianToPocketAudioStream(true);
+      }
+    }
+    window.cyclePreferredAudioInputDevice = cyclePreferredAudioInputDevice;
+
+    if (navigator.mediaDevices && typeof navigator.mediaDevices.addEventListener === "function") {
+      try {
+        navigator.mediaDevices.addEventListener("devicechange", async () => {
+          const prevHeadset = isHeadsetMicDetected;
+          await refreshAudioInputDevices();
+          if (!prevHeadset && isHeadsetMicDetected && typeof isObsidianRecording !== "undefined" && isObsidianRecording) {
+            userManuallyPinnedPhoneMic = false;
+            showToast(`🎧 Connected: ${formatShortMicLabel(activeAudioInputLabel, true)}`, 2800);
+            if (typeof switchObsidianToPocketAudioStream === "function") {
+              switchObsidianToPocketAudioStream(true);
+            }
+          }
+        });
+      } catch (e) {}
+    }
+
+    function enablePocketLock() {
+      const overlay = document.getElementById("pocketLockOverlay");
+      if (!overlay) return;
+      isPocketLocked = true;
+      pocketUnlockTapCount = 0;
+      lastPocketTapTime = 0;
+      const promptEl = document.getElementById("pocketUnlockPrompt");
+      if (promptEl) promptEl.innerText = "Triple-Tap";
+      overlay.classList.remove("hidden");
+      requestWakeLock();
+      keepAudioContextAlive();
+      // Pause 60fps background canvas in pocket to save ~70% GPU/display power
+      const canvas = document.getElementById("bgAntigravityCanvas");
+      if (canvas) canvas.style.display = "none";
+      if (window.bgField && typeof window.bgField.pause === "function") {
+        try { window.bgField.pause(); } catch (e) {}
+      }
+      refreshAudioInputDevices();
+      // Switch active Obsidian recording to zero-gap Pocket Pre-Amp + Bluetooth HFP stream (or adjust gain in-place if already streaming!)
+      if (typeof isObsidianRecording !== "undefined" && isObsidianRecording && typeof switchObsidianToPocketAudioStream === "function") {
+        switchObsidianToPocketAudioStream(false);
+      } else {
+        startSilentAudioKeepAlive();
+      }
+      updatePocketLockHUD();
+      playTone(440.0, 'sine', 0.09, 0.12);
+    }
+    window.enablePocketLock = enablePocketLock;
+
+    function disablePocketLock() {
+      const overlay = document.getElementById("pocketLockOverlay");
+      if (overlay) overlay.classList.add("hidden");
+      isPocketLocked = false;
+      pocketUnlockTapCount = 0;
+      lastPocketTapTime = 0;
+      const canvas = document.getElementById("bgAntigravityCanvas");
+      if (canvas) canvas.style.display = "";
+      if (window.bgField && typeof window.bgField.resume === "function") {
+        try { window.bgField.resume(); } catch (e) {}
+      }
+      if (typeof updateObsidianPreAmpGainForCurrentState === "function") {
+        updateObsidianPreAmpGainForCurrentState();
+      }
+      updatePocketLockHUD();
+      playTone(659.25, 'sine', 0.09, 0.12);
+    }
+    window.disablePocketLock = disablePocketLock;
+
+    function eatPocketGhostTouch(e) {
+      if (e) {
+        if (e.cancelable && e.type === "touchmove") {
+          try { e.preventDefault(); } catch (err) {}
+        }
+        e.stopPropagation();
+      }
+    }
+    window.eatPocketGhostTouch = eatPocketGhostTouch;
+
+    function handlePocketUnlockTap(e) {
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        // Reject multi-touch or broad thigh/palm capacitive contact in pocket
+        if (e.touches && e.touches.length > 1) {
+          pocketUnlockTapCount = 0;
+          return;
+        }
+        if (e.changedTouches && e.changedTouches[0]) {
+          const t = e.changedTouches[0];
+          if ((t.radiusX && t.radiusX > 32) || (t.radiusY && t.radiusY > 32)) {
+            pocketUnlockTapCount = 0;
+            return;
+          }
+        }
+      }
+      const now = Date.now();
+      const delta = now - lastPocketTapTime;
+      const promptEl = document.getElementById("pocketUnlockPrompt");
+
+      // Ignore <75ms capacitive fabric bounce; reset if >550ms elapsed between taps
+      if (lastPocketTapTime > 0 && delta < 75) {
+        return;
+      }
+      if (lastPocketTapTime === 0 || delta > 550) {
+        pocketUnlockTapCount = 1;
+      } else {
+        pocketUnlockTapCount += 1;
+      }
+      lastPocketTapTime = now;
+
+      if (pocketUnlockResetTimer) clearTimeout(pocketUnlockResetTimer);
+      if (pocketUnlockTapCount >= 3) {
+        pocketUnlockTapCount = 0;
+        lastPocketTapTime = 0;
+        disablePocketLock();
+        return;
+      }
+
+      if (promptEl) {
+        const remaining = 3 - pocketUnlockTapCount;
+        promptEl.innerText = remaining === 1 ? "Tap 1 More Time" : `Tap ${remaining} More Times`;
+      }
+      pocketUnlockResetTimer = setTimeout(() => {
+        pocketUnlockTapCount = 0;
+        lastPocketTapTime = 0;
+        if (isPocketLocked && promptEl) promptEl.innerText = "Triple-Tap";
+      }, 600);
+    }
+    window.handlePocketUnlockTap = handlePocketUnlockTap;
+
+    function updatePocketLockHUD() {
+      if (!isPocketLocked) return;
+      const statusEl = document.getElementById("pocketLockStatusText");
+      const timerEl = document.getElementById("pocketLockTimerText");
+      const dotEl = document.getElementById("pocketLockDot");
+      const micBadgeEl = document.getElementById("pocketLockMicBadge");
+      const previewEl = document.getElementById("pocketLockTranscriptPreview");
+      const obsActive = typeof isObsidianRecording !== "undefined" && isObsidianRecording;
+      const obsPaused = typeof isObsidianPaused !== "undefined" && isObsidianPaused;
+      const isHeadset = isHeadsetDeviceLabel(activeAudioInputLabel || "") || isHeadsetMicDetected;
+      const shortMic = formatShortMicLabel(activeAudioInputLabel, isHeadset);
+      const micTag = isHeadset ? "HEADPHONES MIC" : "PHONE MIC (2.2x BOOST)";
+      if (micBadgeEl) {
+        if (isHeadset) {
+          micBadgeEl.className = "inline-block px-3 py-1 rounded-full border border-emerald-500/40 bg-zinc-950/90 text-[11px] font-mono text-emerald-300";
+          micBadgeEl.innerText = `🎧 ${shortMic} • Hardware Mic Pinned`;
+        } else {
+          micBadgeEl.className = "inline-block px-3 py-1 rounded-full border border-amber-500/40 bg-zinc-950/90 text-[11px] font-mono text-amber-300";
+          micBadgeEl.innerText = `📱 ${shortMic} (Pocket Boost) • Mic Pinned`;
+        }
+      }
+      if (statusEl) {
+        if (obsActive) {
+          statusEl.innerText = `POCKET MEMO RECORDING • ${micTag}`;
+          if (dotEl) dotEl.className = "w-2 h-2 rounded-full bg-emerald-400 animate-pulse";
+        } else if (obsPaused) {
+          statusEl.innerText = "POCKET MEMO PAUSED • TAP EARBUD TO RESUME";
+          if (dotEl) dotEl.className = "w-2 h-2 rounded-full bg-amber-400";
+        } else if (isListening) {
+          statusEl.innerText = "LISTENING ON HEADPHONES...";
+          if (dotEl) dotEl.className = "w-2 h-2 rounded-full bg-emerald-400 animate-pulse";
+        } else {
+          statusEl.innerText = "POCKET LOCK ACTIVE • READY";
+          if (dotEl) dotEl.className = "w-2 h-2 rounded-full bg-zinc-500";
+        }
+      }
+      if (timerEl && typeof obsidianTakeoverSeconds !== "undefined" && (obsActive || obsPaused)) {
+        const m = String(Math.floor(obsidianTakeoverSeconds / 60)).padStart(2, '0');
+        const s = String(obsidianTakeoverSeconds % 60).padStart(2, '0');
+        const combinedLive = [
+          typeof obsidianAccumulatedTranscript !== "undefined" ? obsidianAccumulatedTranscript : "",
+          typeof obsidianSessionTranscript !== "undefined" ? obsidianSessionTranscript : "",
+          typeof obsidianCurrentSegment !== "undefined" ? obsidianCurrentSegment : ""
+        ].filter(Boolean).join(" ").trim();
+        const words = combinedLive ? combinedLive.split(/\s+/).filter(Boolean).length : 0;
+        timerEl.innerText = `${m}:${s} • ${words} words • OLED Blackout`;
+        if (previewEl) {
+          if (combinedLive) {
+            const tailWords = combinedLive.split(/\s+/).slice(-14).join(" ");
+            previewEl.innerText = `"${tailWords}"`;
+          } else {
+            previewEl.innerText = "Listening for speech...";
+          }
+        }
+      }
+    }
+
     function isConversationWorking(data) {
       if (!data) return false;
       if (data.status === "agent_working") return true;
@@ -4156,7 +4646,48 @@
     // Audio Context Unlocking for Mobile Chrome & Safari Autoplay Policies
     let audioUnlocked = false;
     let audioKeepAliveNode = null;
+    let silentKeepAliveAudioEl = null;
+    let pocketWalkPingInterval = null;
+    let isAmbientWalkActive = false;
     let pendingAutoplayItem = null;
+
+    const SILENT_KEEPALIVE_WAV_DATA_URI = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+
+    function startSilentAudioKeepAlive() {
+      keepAudioContextAlive();
+      // Do NOT play HTML5 <audio> keep-alive while a WebRTC mic stream is active:
+      // on Android (Pixel + Pixel Buds), an HTML5 <audio> element forces Bluetooth into output-only A2DP Media mode,
+      // preventing Android from using the Pixel Buds microphone!
+      if (
+        (typeof obsidianMicStream !== "undefined" && obsidianMicStream && obsidianMicStream.active) ||
+        (typeof micStream !== "undefined" && micStream && micStream.active)
+      ) {
+        stopSilentAudioKeepAlive();
+        return;
+      }
+      try {
+        if (!silentKeepAliveAudioEl) {
+          silentKeepAliveAudioEl = new Audio(SILENT_KEEPALIVE_WAV_DATA_URI);
+          silentKeepAliveAudioEl.loop = true;
+          silentKeepAliveAudioEl.volume = 0.001;
+          silentKeepAliveAudioEl.setAttribute('playsinline', 'true');
+        }
+        if (silentKeepAliveAudioEl.paused) {
+          const playPromise = silentKeepAliveAudioEl.play();
+          if (playPromise && typeof playPromise.catch === 'function') {
+            playPromise.catch(() => {});
+          }
+        }
+      } catch (e) {}
+    }
+
+    function stopSilentAudioKeepAlive() {
+      try {
+        if (silentKeepAliveAudioEl && !silentKeepAliveAudioEl.paused) {
+          silentKeepAliveAudioEl.pause();
+        }
+      } catch (e) {}
+    }
 
     function keepAudioContextAlive() {
       if (!audioCtx) {
@@ -4210,6 +4741,16 @@
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden) {
         keepAudioContextAlive();
+        if (isAmbientWalkActive || isListening || (typeof isObsidianRecording !== 'undefined' && isObsidianRecording) || (typeof isMeetingActive !== 'undefined' && isMeetingActive)) {
+          requestWakeLock();
+          startSilentAudioKeepAlive();
+        }
+        if (typeof handleObsidianVisibilityWake === 'function') {
+          handleObsidianVisibilityWake();
+        }
+      } else if (isAmbientWalkActive || isListening || (typeof isObsidianRecording !== 'undefined' && isObsidianRecording) || (typeof isMeetingActive !== 'undefined' && isMeetingActive)) {
+        keepAudioContextAlive();
+        startSilentAudioKeepAlive();
       }
     });
 
@@ -4899,19 +5440,29 @@
               changed = true;
               break;
             }
-            // Also handle revised trailing word in progressive draft (L >= 3, first L-1 words match)
+            // Also handle revised trailing word in progressive draft (L >= 3, first L-1 words match AND trailing word is a prefix revision)
             if (L >= 3) {
-              let prefixMatch = true;
-              for (let k = 0; k < L - 1; k++) {
-                if (!norm[i + k] || norm[i + k] !== norm[i + L + k]) {
-                  prefixMatch = false;
+              const NUMBER_TOKEN_RE = /^(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|\d+)$/i;
+              const tailA = norm[i + L - 1] || "";
+              const tailB = norm[i + 2 * L - 1] || "";
+              const isNumberSequence = NUMBER_TOKEN_RE.test(tailA) || NUMBER_TOKEN_RE.test(tailB);
+              const isTrailingWordRevision = !isNumberSequence && (
+                (tailA.length >= 2 && (tailB.startsWith(tailA) || tailA.startsWith(tailB))) ||
+                L >= 5
+              );
+              if (isTrailingWordRevision) {
+                let prefixMatch = true;
+                for (let k = 0; k < L - 1; k++) {
+                  if (!norm[i + k] || norm[i + k] !== norm[i + L + k]) {
+                    prefixMatch = false;
+                    break;
+                  }
+                }
+                if (prefixMatch) {
+                  words.splice(i, L);
+                  changed = true;
                   break;
                 }
-              }
-              if (prefixMatch) {
-                words.splice(i, L);
-                changed = true;
-                break;
               }
             }
           }
@@ -5057,17 +5608,21 @@
       if (!aClean) return b;
       if (!bClean) return a;
 
-      if (aClean === bClean || aClean.endsWith(bClean) || aClean.startsWith(bClean)) {
+      const aWords = aClean.split(" ").filter(Boolean);
+      const bWords = bClean.split(" ").filter(Boolean);
+      const rawAWords = a.split(/\s+/).filter(Boolean);
+      const rawBWords = b.split(/\s+/).filter(Boolean);
+
+      if (aClean === bClean) {
+        return a;
+      }
+      // Only discard b as a substring of a when b is a long multi-word segment (>=5 words), never for short phrases or number counts!
+      if (bWords.length >= 5 && (aClean.endsWith(bClean) || aClean.startsWith(bClean))) {
         return a;
       }
       if (bClean.startsWith(aClean)) {
         return b;
       }
-
-      const aWords = aClean.split(" ").filter(Boolean);
-      const bWords = bClean.split(" ").filter(Boolean);
-      const rawAWords = a.split(/\s+/).filter(Boolean);
-      const rawBWords = b.split(/\s+/).filter(Boolean);
 
       // 1. Check if b is a direct revision of a from the start (shares >=2 leading words and covers most of a)
       let leadingMatch = 0;
@@ -5369,6 +5924,8 @@
 
           recognition.onstart = () => {
             isListening = true;
+            updateMediaSession(true);
+            enablePocketWalkKeepAlive('voice_turn');
             finalTranscript = "";
             interimTranscript = "";
             activeTranscript = "";
@@ -5489,12 +6046,13 @@
           if (recording) {
             requestWakeLock();
             if (typeof keepAudioContextAlive === 'function') keepAudioContextAlive();
+            if (typeof startSilentAudioKeepAlive === 'function') startSilentAudioKeepAlive();
             if ('MediaMetadata' in window) {
               try {
                 navigator.mediaSession.metadata = new MediaMetadata({
-                  title: 'VoiceFi Meeting Recorder',
-                  artist: 'Active Listening & Granola Sync',
-                  album: 'VoiceFi Companion',
+                  title: 'VoiceFi Pocket Walk & Ambient Mic',
+                  artist: 'Active Listening & Screenpipe Sync',
+                  album: 'VoiceFi Companion (Port 5142)',
                   artwork: [
                     { src: '/api/icon', sizes: '192x192', type: 'image/png' },
                     { src: '/api/icon', sizes: '512x512', type: 'image/png' }
@@ -5506,12 +6064,35 @@
               navigator.mediaSession.playbackState = 'playing';
             } catch (e) {}
             try {
-              navigator.mediaSession.setActionHandler('pause', () => { stopListening(); });
-              navigator.mediaSession.setActionHandler('stop', () => { stopListening(); });
-              navigator.mediaSession.setActionHandler('play', () => { startListening(false); });
+              const handleEarbudToggle = () => {
+                const obsModal = document.getElementById("obsidianModal");
+                if (obsModal && !obsModal.classList.contains("hidden")) {
+                  toggleObsidianOrbPauseResume();
+                } else if (isListening) {
+                  stopListening();
+                } else {
+                  startListening(false);
+                }
+              };
+              const handleEarbudSaveOrStop = () => {
+                const obsModal = document.getElementById("obsidianModal");
+                if (obsModal && !obsModal.classList.contains("hidden")) {
+                  stopAndSaveObsidianRecording();
+                } else {
+                  stopListening();
+                }
+              };
+              navigator.mediaSession.setActionHandler('pause', handleEarbudToggle);
+              navigator.mediaSession.setActionHandler('play', handleEarbudToggle);
+              navigator.mediaSession.setActionHandler('stop', handleEarbudSaveOrStop);
+              navigator.mediaSession.setActionHandler('nexttrack', handleEarbudSaveOrStop);
+              navigator.mediaSession.setActionHandler('previoustrack', handleEarbudToggle);
             } catch (e) {}
           } else {
-            releaseWakeLock();
+            if (!isAmbientWalkActive && !(typeof isObsidianRecording !== 'undefined' && isObsidianRecording) && !(typeof isMeetingActive !== 'undefined' && isMeetingActive)) {
+              releaseWakeLock();
+              if (typeof stopSilentAudioKeepAlive === 'function') stopSilentAudioKeepAlive();
+            }
             try {
               navigator.mediaSession.playbackState = 'paused';
             } catch (e) {}
@@ -5521,6 +6102,96 @@
         }
       }
     }
+
+    function sendPhoneRecordingTelemetry(active, mode = 'walk', text = '') {
+      try {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: 'phone_recording_state',
+            active: Boolean(active),
+            mode: mode,
+            port: location.port || '5142',
+            text: text || undefined
+          }));
+        }
+      } catch (e) {}
+    }
+
+    async function enablePocketWalkKeepAlive(mode = 'walk') {
+      isAmbientWalkActive = true;
+      await requestWakeLock();
+      keepAudioContextAlive();
+      startSilentAudioKeepAlive();
+      updateMediaSession(true);
+      sendPhoneRecordingTelemetry(true, mode);
+      if (pocketWalkPingInterval) clearInterval(pocketWalkPingInterval);
+      pocketWalkPingInterval = setInterval(() => {
+        if (!isAmbientWalkActive && !isListening && !(typeof isObsidianRecording !== 'undefined' && isObsidianRecording) && !(typeof isMeetingActive !== 'undefined' && isMeetingActive)) {
+          clearInterval(pocketWalkPingInterval);
+          pocketWalkPingInterval = null;
+          return;
+        }
+        keepAudioContextAlive();
+        startSilentAudioKeepAlive();
+        if (!wakeLock && !document.hidden) {
+          requestWakeLock();
+        }
+        try {
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'ping', is_mobile: true, pocket_walk_active: true }));
+          }
+        } catch (e) {}
+      }, 10000);
+    }
+    window.enablePocketWalkKeepAlive = enablePocketWalkKeepAlive;
+
+    function disablePocketWalkKeepAlive(mode = 'walk') {
+      isAmbientWalkActive = false;
+      if (pocketWalkPingInterval) {
+        clearInterval(pocketWalkPingInterval);
+        pocketWalkPingInterval = null;
+      }
+      if (!isListening && !(typeof isObsidianRecording !== 'undefined' && isObsidianRecording) && !(typeof isMeetingActive !== 'undefined' && isMeetingActive)) {
+        stopSilentAudioKeepAlive();
+        releaseWakeLock();
+        updateMediaSession(false);
+        sendPhoneRecordingTelemetry(false, mode);
+      }
+    }
+    window.disablePocketWalkKeepAlive = disablePocketWalkKeepAlive;
+
+    async function toggleAmbientWalkMode(forceActive) {
+      const nextState = typeof forceActive === 'boolean' ? forceActive : !isAmbientWalkActive;
+      if (nextState && !window.isSecureContext && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+        const httpsPort = location.port ? (parseInt(location.port) === 5141 ? 5142 : parseInt(location.port) + 1) : 5142;
+        window.location.href = `https://${location.hostname}:${httpsPort}/?shortcut=walk_memo`;
+        return;
+      }
+      if (nextState) {
+        await enablePocketWalkKeepAlive('ambient_walk');
+        try {
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'ambient_start', source: 'phone' }));
+          } else {
+            await fetch('/api/ambient/start', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ source: 'phone' })
+            });
+          }
+        } catch (e) {}
+      } else {
+        disablePocketWalkKeepAlive('ambient_walk');
+        try {
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'ambient_stop' }));
+          } else {
+            await fetch('/api/ambient/stop', { method: 'POST' });
+          }
+        } catch (e) {}
+      }
+    }
+    window.toggleAmbientWalkMode = toggleAmbientWalkMode;
 
     function getSupportedAudioMimeType() {
       if (typeof MediaRecorder === 'undefined') return '';
@@ -5549,7 +6220,7 @@
       stopAllAgentSpeech(false);
       if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
         try {
-          micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          micStream = await acquirePreferredMicStream(isPocketLocked || isHandsFree);
 
           const preferredType = getSupportedAudioMimeType();
           try {
@@ -5700,6 +6371,7 @@
     function stopListening() {
       recognitionUserStopped = true;
       clearRecognitionDynamicTurnTimer();
+      disablePocketWalkKeepAlive('voice_turn');
       updateMediaSession(false);
       if (recognition) {
         try { recognition.stop(); } catch (e) {}
@@ -7485,8 +8157,15 @@
           }
         ],
         artifacts: [
-          { name: "IMPLEMENTATION_PLAN.md", path: `${wsPath}/docs/IMPLEMENTATION_PLAN.md` },
-          { name: "ARCH_SUMMARY.md", path: `${wsPath}/docs/ARCH_SUMMARY.md` }
+          { name: "haystack_slide_1.png", size: 1624000, extension: "png", is_image: true, static_url: "/downloads/haystack_slide_1.png" },
+          { name: "haystack_slide_2.png", size: 1412000, extension: "png", is_image: true, static_url: "/downloads/haystack_slide_2.png" },
+          { name: "lienlogic_haystack_editorial_2_slides.pdf", size: 428000, extension: "pdf", category: "pdf", static_url: "/downloads/lienlogic_haystack_editorial_2_slides.pdf" },
+          { name: "margin_slide_1.png", size: 1580000, extension: "png", is_image: true, static_url: "/downloads/margin_slide_1.png" },
+          { name: "margin_slide_2.png", size: 1490000, extension: "png", is_image: true, static_url: "/downloads/margin_slide_2.png" },
+          { name: "margin_slide_3.png", size: 1440000, extension: "png", is_image: true, static_url: "/downloads/margin_slide_3.png" },
+          { name: "margin_slide_4.png", size: 1390000, extension: "png", is_image: true, static_url: "/downloads/margin_slide_4.png" },
+          { name: "margin_slide_5.png", size: 1520000, extension: "png", is_image: true, static_url: "/downloads/margin_slide_5.png" },
+          { name: "lienlogic_local_models_editorial_5_slides.pdf", size: 1045000, extension: "pdf", category: "pdf", static_url: "/downloads/lienlogic_local_models_editorial_5_slides.pdf" }
         ]
       };
     }
@@ -7615,11 +8294,27 @@
         }
       }
 
-      // Update Artifact Badge
-      if (data.artifacts && data.artifacts.length > 0) {
-        artifactBadge.innerText = data.artifacts.length;
+      // Update Artifact Badge (Always include pinned LienLogic Carousel Exports so they are 1-tap accessible in Docs)
+      const pinnedCarousels = [
+        { name: "haystack_slide_1.png", size: 1624000, extension: "png", is_image: true, static_url: "/downloads/haystack_slide_1.png" },
+        { name: "haystack_slide_2.png", size: 1412000, extension: "png", is_image: true, static_url: "/downloads/haystack_slide_2.png" },
+        { name: "lienlogic_haystack_editorial_2_slides.pdf", size: 428000, extension: "pdf", category: "pdf", static_url: "/downloads/lienlogic_haystack_editorial_2_slides.pdf" },
+        { name: "margin_slide_1.png", size: 1580000, extension: "png", is_image: true, static_url: "/downloads/margin_slide_1.png" },
+        { name: "margin_slide_2.png", size: 1490000, extension: "png", is_image: true, static_url: "/downloads/margin_slide_2.png" },
+        { name: "margin_slide_3.png", size: 1440000, extension: "png", is_image: true, static_url: "/downloads/margin_slide_3.png" },
+        { name: "margin_slide_4.png", size: 1390000, extension: "png", is_image: true, static_url: "/downloads/margin_slide_4.png" },
+        { name: "margin_slide_5.png", size: 1520000, extension: "png", is_image: true, static_url: "/downloads/margin_slide_5.png" },
+        { name: "lienlogic_local_models_editorial_5_slides.pdf", size: 1045000, extension: "pdf", category: "pdf", static_url: "/downloads/lienlogic_local_models_editorial_5_slides.pdf" }
+      ];
+      const existingNames = new Set((data.artifacts || []).map(a => a.name));
+      const mergedArtifacts = [
+        ...pinnedCarousels.filter(p => !existingNames.has(p.name)),
+        ...(data.artifacts || [])
+      ];
+      if (mergedArtifacts.length > 0) {
+        artifactBadge.innerText = mergedArtifacts.length;
         artifactBadge.classList.remove("hidden");
-        renderArtifactsGrid(data.artifacts);
+        renderArtifactsGrid(mergedArtifacts);
       } else {
         artifactBadge.classList.add("hidden");
         artifactsGrid.innerHTML = `
@@ -7971,13 +8666,27 @@
                 <p class="text-[10px] text-[#888888] font-mono mt-0.5">${sizeKb} KB • ${escapeHtml(art.extension || 'file')}</p>
               </div>
             </div>
-            <button class="w-full py-1 bg-[#141414] hover:bg-white hover:text-black text-[#e4e4e7] rounded-lg text-xs font-semibold transition text-center mt-2 border border-[#222222]">
-              View
-            </button>
+            <div class="grid grid-cols-2 gap-1.5 mt-2">
+              <button type="button" class="py-1.5 bg-[#141414] hover:bg-white hover:text-black text-[#e4e4e7] rounded-lg text-xs font-semibold transition text-center border border-[#222222] artifact-view-btn">
+                View
+              </button>
+              <button type="button" class="py-1.5 bg-blue-600/90 hover:bg-blue-500 active:scale-95 text-white rounded-lg text-xs font-bold transition text-center border border-blue-400/30 flex items-center justify-center gap-1 artifact-download-btn" data-filename="${escapeHtml(art.name)}">
+                <span>⬇</span> <span>Save</span>
+              </button>
+            </div>
           </div>
         `;
       });
       artifactsGrid.innerHTML = html;
+
+      // Attach Download Button Clicks
+      document.querySelectorAll(".artifact-download-btn").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const fname = btn.getAttribute("data-filename");
+          if (fname) downloadArtifactByName(fname);
+        });
+      });
 
       // Attach Card Clicks
       document.querySelectorAll(".artifact-card").forEach(card => {
@@ -7986,6 +8695,71 @@
           if (fname) viewArtifactContent(fname);
         });
       });
+    }
+
+    async function downloadArtifactByName(filename) {
+      if (!filename) return;
+      try {
+        showToast(`Preparing ${filename}...`, 1800);
+        let blob = null;
+        if (activeConvId) {
+          try {
+            const res = await fetch(`/api/conversation/${encodeURIComponent(activeConvId)}/artifact/${encodeURIComponent(filename)}`);
+            if (res.ok) {
+              const data = await res.json();
+              if (data.is_image && data.content && data.content.startsWith("data:")) {
+                const parts = data.content.split(",");
+                const mimeMatch = parts[0].match(/:(.*?);/);
+                const mime = mimeMatch ? mimeMatch[1] : "image/png";
+                const bstr = atob(parts[1]);
+                const u8arr = new Uint8Array(bstr.length);
+                for (let i = 0; i < bstr.length; i++) u8arr[i] = bstr.charCodeAt(i);
+                blob = new Blob([u8arr], { type: mime });
+              } else if (data.raw_url) {
+                const rawRes = await fetch(data.raw_url);
+                if (rawRes.ok) blob = await rawRes.blob();
+              } else if (data.raw_text || data.content) {
+                blob = new Blob([data.raw_text || data.content || ""], { type: "text/plain;charset=utf-8" });
+              }
+            }
+          } catch (e) {}
+        }
+        if (!blob) {
+          const fallbackRes = await fetch(`/downloads/${encodeURIComponent(filename)}`);
+          if (fallbackRes.ok) {
+            blob = await fallbackRes.blob();
+          }
+        }
+        if (!blob) {
+          showToast("Failed to fetch file", 2500);
+          return;
+        }
+        const ext = (filename.split(".").pop() || "").toLowerCase();
+        const mimeType = blob.type && blob.type !== "application/octet-stream"
+          ? blob.type
+          : (ext === "png" ? "image/png" : (ext === "jpg" || ext === "jpeg" ? "image/jpeg" : (ext === "pdf" ? "application/pdf" : "application/octet-stream")));
+        const fileObj = new File([blob], filename, { type: mimeType });
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        if (isMobile && navigator.canShare && navigator.canShare({ files: [fileObj] })) {
+          await navigator.share({ files: [fileObj], title: filename });
+          return;
+        }
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }, 1500);
+        showToast(`Downloaded ${filename}`, 2500);
+      } catch (err) {
+        if (err && err.name === "AbortError") return;
+        console.error("Download artifact error:", err);
+        window.open(`/downloads/${encodeURIComponent(filename)}`, "_blank");
+      }
     }
 
     // Current viewing artifact state
@@ -8611,11 +9385,28 @@
 
     // Unified Artifact Content Viewer
     async function viewArtifactContent(filename) {
-      if (!activeConvId || !filename) return;
+      if (!filename) return;
       try {
-        const res = await fetch(`/api/conversation/${encodeURIComponent(activeConvId)}/artifact/${encodeURIComponent(filename)}`);
-        if (!res.ok) return;
-        const data = await res.json();
+        let data = null;
+        if (activeConvId) {
+          try {
+            const res = await fetch(`/api/conversation/${encodeURIComponent(activeConvId)}/artifact/${encodeURIComponent(filename)}`);
+            if (res.ok) data = await res.json();
+          } catch (e) {}
+        }
+        if (!data) {
+          const ext = (filename.split(".").pop() || "").toLowerCase();
+          const staticUrl = `/downloads/${encodeURIComponent(filename)}`;
+          const isImg = ["png", "jpg", "jpeg", "webp", "gif"].includes(ext);
+          data = {
+            name: filename,
+            extension: ext,
+            is_image: isImg,
+            category: ext === "pdf" ? "pdf" : (isImg ? "image" : "file"),
+            content: isImg ? staticUrl : "",
+            raw_url: staticUrl
+          };
+        }
 
         currentArtifact = data;
         artifactModalTitle.innerText = data.name || filename;
@@ -10577,6 +11368,8 @@
     // Obsidian 2-Way Voice Recording Takeover / Layover Engine (Continuous Loop)
     let obsidianTakeoverTimerInterval = null;
     let obsidianTakeoverSeconds = 0;
+    let obsidianRecordingBaseSeconds = 0;
+    let obsidianRecordingStartedAtMs = 0;
     let isObsidianTakeoverTyping = false;
     let isObsidianRecording = false;
     let isObsidianPaused = false;
@@ -10587,9 +11380,132 @@
     let obsidianSessionTranscript = "";
     let obsidianCurrentSegment = "";
     let obsidianMediaRecorder = null;
+    let obsidianMasterRecorder = null;
+    let obsidianMasterAudioChunks = [];
+    let obsidianRetainedMasterBlob = null;
+    let obsidianRetainedMasterMime = "audio/webm";
+    let obsidianPendingRetrySlices = [];
+    let obsidianSuccessfullyTranscribedSlices = 0;
+    let obsidianRotateSliceNowFn = null;
     let obsidianMicStream = null;
+    let obsidianProcessedStream = null;
+    let obsidianPreAmpGainNode = null;
+    let obsidianHighpassFilterNode = null;
+    let obsidianAnalyserNode = null;
+    let obsidianAnalyserBuffer = null;
+    let obsidianPocketChunkInterval = null;
     let obsidianAudioChunks = [];
+    let isFlushingPocketAudioChunk = false;
+    let obsidianPocketFlushChain = Promise.resolve();
+    let obsidianSliceStartedAt = 0;
+    let obsidianSilenceSince = 0;
+    let isSwitchingObsidianStream = false;
     const OBSIDIAN_DRAFT_STORAGE_KEY = "voicefi_walking_memo_draft";
+    const OBSIDIAN_AUDIO_IDB_NAME = "voicefi_walking_memo_audio_db";
+    const OBSIDIAN_AUDIO_IDB_STORE = "offline_memos";
+
+    function openObsidianAudioIDB() {
+      return new Promise((resolve) => {
+        if (typeof indexedDB === "undefined") return resolve(null);
+        try {
+          const req = indexedDB.open(OBSIDIAN_AUDIO_IDB_NAME, 1);
+          req.onupgradeneeded = (e) => {
+            const db = e.target.result;
+            if (!db.objectStoreNames.contains(OBSIDIAN_AUDIO_IDB_STORE)) {
+              db.createObjectStore(OBSIDIAN_AUDIO_IDB_STORE);
+            }
+          };
+          req.onsuccess = (e) => resolve(e.target.result);
+          req.onerror = () => resolve(null);
+        } catch (e) {
+          resolve(null);
+        }
+      });
+    }
+
+    async function saveOfflineMemoAudioBlob(blob, mimeType, mode, seconds) {
+      if (!blob || blob.size < 450) return;
+      obsidianRetainedMasterBlob = blob;
+      obsidianRetainedMasterMime = mimeType || blob.type || "audio/webm";
+      try {
+        const db = await openObsidianAudioIDB();
+        if (!db) return;
+        const tx = db.transaction(OBSIDIAN_AUDIO_IDB_STORE, "readwrite");
+        tx.objectStore(OBSIDIAN_AUDIO_IDB_STORE).put({
+          blob,
+          mimeType: obsidianRetainedMasterMime,
+          mode: mode || currentObsidianMode || "memo",
+          seconds: seconds || obsidianTakeoverSeconds || 0,
+          updatedAt: Date.now()
+        }, "latest_walk_memo");
+      } catch (e) {}
+    }
+
+    async function loadOfflineMemoAudioBlob() {
+      if (obsidianRetainedMasterBlob && obsidianRetainedMasterBlob.size > 450) {
+        return {
+          blob: obsidianRetainedMasterBlob,
+          mimeType: obsidianRetainedMasterMime || "audio/webm"
+        };
+      }
+      try {
+        const db = await openObsidianAudioIDB();
+        if (!db) return null;
+        return await new Promise((resolve) => {
+          const tx = db.transaction(OBSIDIAN_AUDIO_IDB_STORE, "readonly");
+          const req = tx.objectStore(OBSIDIAN_AUDIO_IDB_STORE).get("latest_walk_memo");
+          req.onsuccess = () => resolve(req.result || null);
+          req.onerror = () => resolve(null);
+        });
+      } catch (e) {
+        return null;
+      }
+    }
+
+    async function clearOfflineMemoAudioBlob() {
+      obsidianRetainedMasterBlob = null;
+      try {
+        const db = await openObsidianAudioIDB();
+        if (!db) return;
+        const tx = db.transaction(OBSIDIAN_AUDIO_IDB_STORE, "readwrite");
+        tx.objectStore(OBSIDIAN_AUDIO_IDB_STORE).delete("latest_walk_memo");
+      } catch (e) {}
+    }
+
+    function updateObsidianLockScreenMediaSession() {
+      if (!('mediaSession' in navigator) || !navigator.mediaSession) return;
+      try {
+        const obsModal = document.getElementById("obsidianModal");
+        if (!obsModal || obsModal.classList.contains("hidden")) return;
+        const m = String(Math.floor(obsidianTakeoverSeconds / 60)).padStart(2, '0');
+        const s = String(obsidianTakeoverSeconds % 60).padStart(2, '0');
+        const words = obsidianAccumulatedTranscript
+          ? obsidianAccumulatedTranscript.trim().split(/\s+/).filter(Boolean).length
+          : 0;
+        const modeName = getObsidianModeLabel(currentObsidianMode);
+        const statePrefix = isObsidianRecording ? "🔴 Recording" : (isObsidianPaused ? "⏸️ Paused" : "🎙️ Ready");
+        if ('MediaMetadata' in window) {
+          navigator.mediaSession.metadata = new MediaMetadata({
+            title: `${statePrefix} ${modeName} • ${m}:${s}`,
+            artist: words > 0 ? `${words} words captured • Tap Next to Save` : 'Mic Live in Background • Tap Next to Save',
+            album: 'VoiceFi Walking Memo',
+            artwork: [
+              { src: '/api/icon', sizes: '192x192', type: 'image/png' },
+              { src: '/api/icon', sizes: '512x512', type: 'image/png' }
+            ]
+          });
+        }
+        navigator.mediaSession.playbackState = isObsidianRecording ? 'playing' : 'paused';
+      } catch (e) {}
+    }
+
+    function syncObsidianWallClockSeconds() {
+      if (isObsidianRecording && !isObsidianPaused && obsidianRecordingStartedAtMs > 0) {
+        const deltaSec = Math.max(0, Math.floor((Date.now() - obsidianRecordingStartedAtMs) / 1000));
+        obsidianTakeoverSeconds = obsidianRecordingBaseSeconds + deltaSec;
+      }
+      return obsidianTakeoverSeconds;
+    }
 
     function saveObsidianDraftStorage(text) {
       try {
@@ -10635,8 +11551,18 @@
       const saveMemoRegex = /(?:^|\s|[,.!?])(?:please\s+)?(?:stop\s+and\s+)?save\s+(?:this\s+)?(?:voice\s+)?memo[\s.!?]*$/i;
       const saveDailyRegex = /(?:^|\s|[,.!?])(?:please\s+)?(?:stop\s+and\s+)?save\s+(?:this\s+)?(?:to\s+)?daily\s+note[\s.!?]*$/i;
       const pauseRegex = /(?:^|\s|[,.!?])(?:please\s+)?pause\s+(?:the\s+)?(?:recording|memo|note)[\s.!?]*$/i;
+      // Match "pocket lock", "pocket locket", "pocket locked", "lock pocket" at end or followed by up to 12 trailing words
+      const pocketLockRegex = /(?:^|\s|[,.!?])((?:please\s+)?(?:enable\s+|turn\s+on\s+|engage\s+)?(?:pocket\s+lock(?:et|ed|s)?|lock\s+pocket))(?:[\s,.!?-]+((?:\S+\s*){1,12}))?[\s.!?]*$/i;
 
-      let match = trimmed.match(saveChannelRegex);
+      let match = trimmed.match(pocketLockRegex);
+      if (match && match.index !== undefined) {
+        const prefixText = trimmed.slice(0, match.index).replace(/[\s,;-]+$/, "").trim();
+        const trailingWords = (match[2] || "").trim();
+        const cleanedText = [prefixText, trailingWords].filter(Boolean).join(" ").trim();
+        return { command: "pocket_lock", cleanedText };
+      }
+
+      match = trimmed.match(saveChannelRegex);
       if (match && match.index !== undefined) {
         const cleanedText = trimmed.slice(0, match.index).replace(/[\s,;-]+$/, "").trim();
         if (cleanedText.length > 0) {
@@ -10670,6 +11596,11 @@
     }
 
     function stopObsidianMediaRecorderStream() {
+      if (obsidianPocketChunkInterval) {
+        clearInterval(obsidianPocketChunkInterval);
+        obsidianPocketChunkInterval = null;
+      }
+      obsidianRotateSliceNowFn = null;
       if (obsidianMediaRecorder && obsidianMediaRecorder.state !== 'inactive') {
         try {
           obsidianMediaRecorder.onstop = null;
@@ -10677,6 +11608,23 @@
         } catch (e) {}
       }
       obsidianMediaRecorder = null;
+      if (obsidianMasterRecorder && obsidianMasterRecorder.state !== 'inactive') {
+        try {
+          obsidianMasterRecorder.onstop = null;
+          obsidianMasterRecorder.stop();
+        } catch (e) {}
+      }
+      obsidianMasterRecorder = null;
+      obsidianPreAmpGainNode = null;
+      obsidianHighpassFilterNode = null;
+      obsidianAnalyserNode = null;
+      obsidianAnalyserBuffer = null;
+      if (obsidianProcessedStream) {
+        try {
+          obsidianProcessedStream.getTracks().forEach(t => t.stop());
+        } catch (e) {}
+        obsidianProcessedStream = null;
+      }
       if (obsidianMicStream) {
         try {
           obsidianMicStream.getTracks().forEach(t => t.stop());
@@ -10684,9 +11632,341 @@
         obsidianMicStream = null;
       }
       obsidianAudioChunks = [];
+      obsidianMasterAudioChunks = [];
     }
 
+    function computeOptimalPreAmpGain(defaultBoost = 2.2) {
+      const isHeadset = isHeadsetDeviceLabel(activeAudioInputLabel || "") || isHeadsetMicDetected;
+      if (isHeadset) {
+        // Pixel Buds / Bluetooth Headset mic is already right at the speaker's ear/jaw:
+        // use clean 1.25x gain so we don't clip or distort numbers
+        return 1.25;
+      }
+      return isPocketLocked ? defaultBoost : 1.15;
+    }
+
+    function updateObsidianPreAmpGainForCurrentState() {
+      const isHeadset = isHeadsetDeviceLabel(activeAudioInputLabel || "") || isHeadsetMicDetected;
+      if (obsidianHighpassFilterNode) {
+        try {
+          obsidianHighpassFilterNode.frequency.value = isHeadset ? 45 : (isPocketLocked ? 85 : 60);
+        } catch (e) {}
+      }
+      if (obsidianPreAmpGainNode) {
+        try {
+          obsidianPreAmpGainNode.gain.value = computeOptimalPreAmpGain(2.2);
+        } catch (e) {}
+      }
+    }
+    window.updateObsidianPreAmpGainForCurrentState = updateObsidianPreAmpGainForCurrentState;
+
+    function getObsidianStreamRms() {
+      if (!obsidianAnalyserNode || !obsidianAnalyserBuffer) return 0;
+      try {
+        obsidianAnalyserNode.getFloatTimeDomainData(obsidianAnalyserBuffer);
+        let sumSq = 0;
+        for (let i = 0; i < obsidianAnalyserBuffer.length; i++) {
+          const v = obsidianAnalyserBuffer[i];
+          sumSq += v * v;
+        }
+        return Math.sqrt(sumSq / obsidianAnalyserBuffer.length);
+      } catch (e) {
+        return 0;
+      }
+    }
+
+    function createPocketBoostedAudioStream(rawStream, boostGain = 2.2) {
+      try {
+        keepAudioContextAlive();
+        if (!audioCtx || typeof audioCtx.createMediaStreamSource !== "function" || typeof audioCtx.createMediaStreamDestination !== "function") {
+          return rawStream;
+        }
+        const isHeadset = isHeadsetDeviceLabel(activeAudioInputLabel || "") || isHeadsetMicDetected;
+        const source = audioCtx.createMediaStreamSource(rawStream);
+        const highpass = audioCtx.createBiquadFilter();
+        highpass.type = "highpass";
+        highpass.frequency.value = isHeadset ? 45 : 85; // Strip low-frequency pocket fabric rustle (<85Hz) on phone mic
+
+        const preAmp = audioCtx.createGain();
+        preAmp.gain.value = isHeadset ? 1.25 : boostGain; // 2.2x pocket acoustic gain boost for muffled phone speech
+
+        const compressor = audioCtx.createDynamicsCompressor();
+        compressor.threshold.value = -26;
+        compressor.knee.value = 18;
+        compressor.ratio.value = 3.5;
+        compressor.attack.value = 0.003;
+        compressor.release.value = 0.15;
+
+        const analyser = typeof audioCtx.createAnalyser === "function" ? audioCtx.createAnalyser() : null;
+        if (analyser) {
+          analyser.fftSize = 512;
+          obsidianAnalyserNode = analyser;
+          obsidianAnalyserBuffer = new Float32Array(analyser.fftSize);
+        }
+
+        const destination = audioCtx.createMediaStreamDestination();
+        source.connect(highpass);
+        highpass.connect(preAmp);
+        preAmp.connect(compressor);
+        if (analyser) {
+          compressor.connect(analyser);
+          analyser.connect(destination);
+        } else {
+          compressor.connect(destination);
+        }
+        obsidianHighpassFilterNode = highpass;
+        obsidianPreAmpGainNode = preAmp;
+        obsidianProcessedStream = destination.stream;
+        return destination.stream;
+      } catch (e) {
+        return rawStream;
+      }
+    }
+
+    // Seam-only stitcher for sequential MediaRecorder Whisper slices:
+    // Preserves repeated number counts (e.g. counting 1..10 multiple times) while deduplicating 1-2 word overlap at the slice boundary
+    function appendPocketTranscriptChunk(baseText, chunkText) {
+      const a = (baseText || "").trim();
+      const b = (chunkText || "").trim();
+      if (!a) return b;
+      if (!b) return a;
+
+      const normToken = (w) => (w || "").replace(/^[^\w']+|[^\w']+$/g, "").toLowerCase();
+      const rawAWords = a.split(/\s+/).filter(Boolean);
+      const rawBWords = b.split(/\s+/).filter(Boolean);
+      const aWords = rawAWords.map(normToken);
+      const bWords = rawBWords.map(normToken);
+
+      const maxSeamOverlap = Math.min(2, aWords.length, bWords.length);
+      for (let len = maxSeamOverlap; len >= 1; len--) {
+        const aSuffix = aWords.slice(-len).join(" ");
+        const bPrefix = bWords.slice(0, len).join(" ");
+        if (aSuffix && aSuffix === bPrefix) {
+          const remainder = rawBWords.slice(len).join(" ").trim();
+          return remainder ? `${a} ${remainder}` : a;
+        }
+      }
+      return `${a} ${b}`.trim();
+    }
+    window.appendPocketTranscriptChunk = appendPocketTranscriptChunk;
+
+    async function flushObsidianPocketAudioSlice(chunksToTranscribe, mimeType, isRetry = false) {
+      if (!chunksToTranscribe || chunksToTranscribe.length === 0) return "";
+      isFlushingPocketAudioChunk = true;
+      const blobType = mimeType || 'audio/webm';
+      const audioBlob = chunksToTranscribe instanceof Blob
+        ? chunksToTranscribe
+        : new Blob(chunksToTranscribe, { type: blobType });
+      if (audioBlob.size < 450) {
+        isFlushingPocketAudioChunk = false;
+        return "";
+      }
+      try {
+        const isHeadset = isHeadsetDeviceLabel(activeAudioInputLabel || "") || isHeadsetMicDetected;
+        const sttRes = await fetch('/api/stt', {
+          method: 'POST',
+          headers: {
+            'Content-Type': blobType,
+            'X-VoiceFi-Pocket-Boost': (!isHeadset ? '1' : '0')
+          },
+          body: audioBlob
+        });
+        if (!sttRes.ok) {
+          if (!isRetry && obsidianPendingRetrySlices.length < 60) {
+            obsidianPendingRetrySlices.push({ blob: audioBlob, mimeType: blobType });
+          }
+          return "";
+        }
+        const sttData = await sttRes.json();
+        obsidianSuccessfullyTranscribedSlices += 1;
+        const chunkText = (sttData && sttData.transcript) ? sttData.transcript.trim() : "";
+        if (chunkText) {
+          obsidianAccumulatedTranscript = appendPocketTranscriptChunk(obsidianAccumulatedTranscript, chunkText);
+          saveObsidianDraftStorage(obsidianAccumulatedTranscript);
+          updateObsidianTakeoverStream(obsidianAccumulatedTranscript);
+          updatePocketLockHUD();
+          try {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({
+                type: 'phone_transcript',
+                text: chunkText,
+                mode: 'walk_memo'
+              }));
+            }
+          } catch (e) {}
+
+          const spokenCmd = checkObsidianSpokenCommands(obsidianAccumulatedTranscript);
+          if (spokenCmd) {
+            obsidianAccumulatedTranscript = spokenCmd.cleanedText;
+            saveObsidianDraftStorage(obsidianAccumulatedTranscript);
+            updateObsidianTakeoverStream(obsidianAccumulatedTranscript);
+            updatePocketLockHUD();
+            if (spokenCmd.command === "pocket_lock") {
+              if (!isPocketLocked) {
+                showToast("🔒 Pocket Lock engaged (Triple-tap to wake)", 2500);
+                enablePocketLock();
+              }
+            } else if (spokenCmd.command === "pause") {
+              showToast("⏸️ Paused by voice command", 2500);
+              pauseObsidianRecording();
+            } else if (spokenCmd.command === "save_channel") {
+              playChimeSaved();
+              currentObsidianMode = "channel";
+              updateObsidianTakeoverModeUI();
+              stopAndSaveObsidianRecording();
+            } else if (spokenCmd.command === "save_memo") {
+              playChimeSaved();
+              currentObsidianMode = "memo";
+              updateObsidianTakeoverModeUI();
+              stopAndSaveObsidianRecording();
+            } else if (spokenCmd.command === "save_daily") {
+              playChimeSaved();
+              currentObsidianMode = "capture";
+              updateObsidianTakeoverModeUI();
+              stopAndSaveObsidianRecording();
+            }
+          }
+        }
+        return chunkText;
+      } catch (e) {
+        if (!isRetry && obsidianPendingRetrySlices.length < 60) {
+          obsidianPendingRetrySlices.push({ blob: audioBlob, mimeType: blobType });
+        }
+        return "";
+      } finally {
+        isFlushingPocketAudioChunk = false;
+      }
+    }
+
+    async function flushPendingObsidianRetrySlices() {
+      if (!obsidianPendingRetrySlices || obsidianPendingRetrySlices.length === 0) return;
+      const queued = obsidianPendingRetrySlices.splice(0, obsidianPendingRetrySlices.length);
+      for (const item of queued) {
+        await flushObsidianPocketAudioSlice(item.blob, item.mimeType, true);
+      }
+    }
+
+    function enqueuePocketAudioSliceFlush(chunksToTranscribe, mimeType) {
+      if (!chunksToTranscribe || chunksToTranscribe.length === 0) return obsidianPocketFlushChain;
+      const sliceCopy = Array.isArray(chunksToTranscribe) ? chunksToTranscribe.slice() : chunksToTranscribe;
+      obsidianPocketFlushChain = obsidianPocketFlushChain
+        .catch(() => {})
+        .then(async () => {
+          if (obsidianPendingRetrySlices.length > 0) {
+            await flushPendingObsidianRetrySlices();
+          }
+          return flushObsidianPocketAudioSlice(sliceCopy, mimeType, false);
+        });
+      return obsidianPocketFlushChain;
+    }
+
+    function handleObsidianVisibilityWake() {
+      if (!isObsidianRecording || isObsidianPaused) return;
+      syncObsidianWallClockSeconds();
+      const timerEl = document.getElementById("obsidianTakeoverTimer");
+      if (timerEl) {
+        const m = String(Math.floor(obsidianTakeoverSeconds / 60)).padStart(2, '0');
+        const s = String(obsidianTakeoverSeconds % 60).padStart(2, '0');
+        timerEl.innerText = `${m}:${s} • Continuous recording`;
+      }
+      updatePocketLockHUD();
+
+      // If hardware mic stream or recorder was interrupted by OS lock screen, immediately recover!
+      const micTrackAlive = obsidianMicStream && obsidianMicStream.active &&
+        obsidianMicStream.getAudioTracks().some(t => t.readyState === "live");
+      if (!micTrackAlive || !obsidianMediaRecorder || obsidianMediaRecorder.state !== "recording") {
+        startObsidianMediaRecorderFallback(true);
+        return;
+      }
+
+      // Immediately rotate & flush any audio captured while the phone screen was locked
+      if (typeof obsidianRotateSliceNowFn === "function" && obsidianAudioChunks.length > 0) {
+        obsidianRotateSliceNowFn();
+      } else if (obsidianPendingRetrySlices.length > 0) {
+        obsidianPocketFlushChain = obsidianPocketFlushChain
+          .catch(() => {})
+          .then(() => flushPendingObsidianRetrySlices());
+      }
+    }
+    window.handleObsidianVisibilityWake = handleObsidianVisibilityWake;
+
+    async function switchObsidianToPocketAudioStream(forceDeviceReacquire = false) {
+      if (!isObsidianRecording || isObsidianPaused || isObsidianTakeoverTyping) return;
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === "undefined") {
+        return;
+      }
+      if (isSwitchingObsidianStream) return;
+
+      // If MediaRecorder is ALREADY actively recording and we aren't switching hardware mic devices,
+      // DO NOT tear down the stream or wipe obsidianAudioChunks! Just update pre-amp gain in-place (0ms gap)!
+      if (
+        !forceDeviceReacquire &&
+        obsidianMediaRecorder &&
+        obsidianMediaRecorder.state === "recording" &&
+        obsidianMicStream &&
+        obsidianMicStream.active
+      ) {
+        updateObsidianPreAmpGainForCurrentState();
+        updateMicDeviceBadgeUI();
+        updatePocketLockHUD();
+        return;
+      }
+
+      isSwitchingObsidianStream = true;
+      try {
+        // If switching hardware mic devices while MediaRecorder has buffered audio, flush current chunks to FIFO queue first!
+        if (obsidianMediaRecorder && (obsidianAudioChunks.length > 0 || obsidianMediaRecorder.state !== "inactive")) {
+          const prevRec = obsidianMediaRecorder;
+          const prevMime = prevRec.mimeType || 'audio/webm';
+          if (prevRec.state !== "inactive") {
+            await new Promise((resolve) => {
+              prevRec.onstop = resolve;
+              try { prevRec.stop(); } catch (e) { resolve(); }
+            });
+          }
+          if (obsidianAudioChunks.length > 0) {
+            const pendingChunks = obsidianAudioChunks.slice();
+            obsidianAudioChunks = [];
+            enqueuePocketAudioSliceFlush(pendingChunks, prevMime);
+          }
+        }
+
+        // Start MediaRecorder stream FIRST while SpeechRecognition is still alive so zero words are lost during getUserMedia spin-up
+        await startObsidianMediaRecorderFallback(true);
+
+        // Now commit any in-flight SpeechRecognition words and cleanly stop SpeechRecognition
+        if (obsidianSessionTranscript) {
+          obsidianAccumulatedTranscript = stitchTranscriptSegments(obsidianAccumulatedTranscript, obsidianSessionTranscript);
+          obsidianSessionTranscript = "";
+        }
+        if (obsidianCurrentSegment) {
+          obsidianAccumulatedTranscript = stitchTranscriptSegments(obsidianAccumulatedTranscript, obsidianCurrentSegment);
+          obsidianCurrentSegment = "";
+        }
+        if (obsidianAccumulatedTranscript) {
+          saveObsidianDraftStorage(obsidianAccumulatedTranscript);
+          updateObsidianTakeoverStream(obsidianAccumulatedTranscript);
+        }
+        if (obsidianRecognition) {
+          try {
+            obsidianRecognition.onstart = null;
+            obsidianRecognition.onresult = null;
+            obsidianRecognition.onerror = null;
+            obsidianRecognition.onend = null;
+            obsidianRecognition.stop();
+          } catch (e) {}
+          obsidianRecognition = null;
+        }
+      } finally {
+        isSwitchingObsidianStream = false;
+      }
+    }
+    window.switchObsidianToPocketAudioStream = switchObsidianToPocketAudioStream;
+
     function pauseObsidianRecording() {
+      syncObsidianWallClockSeconds();
+      obsidianRecordingBaseSeconds = obsidianTakeoverSeconds;
+      obsidianRecordingStartedAtMs = 0;
       userExplicitlyStoppedObsidian = true;
       isObsidianRecording = false;
       isObsidianPaused = true;
@@ -10715,6 +11995,9 @@
       if (obsidianMediaRecorder && obsidianMediaRecorder.state === "recording") {
         try { obsidianMediaRecorder.pause(); } catch (e) {}
       }
+      if (obsidianMasterRecorder && obsidianMasterRecorder.state === "recording") {
+        try { obsidianMasterRecorder.pause(); } catch (e) {}
+      }
       if (obsidianTakeoverTimerInterval) {
         clearInterval(obsidianTakeoverTimerInterval);
         obsidianTakeoverTimerInterval = null;
@@ -10723,7 +12006,9 @@
         saveObsidianDraftStorage(obsidianAccumulatedTranscript);
         updateObsidianTakeoverStream(obsidianAccumulatedTranscript);
       }
+      playChimePause();
       updateObsidianTakeoverRecording(false);
+      updatePocketLockHUD();
     }
     window.pauseObsidianRecording = pauseObsidianRecording;
 
@@ -10737,19 +12022,64 @@
         pauseObsidianRecording();
       } else {
         isObsidianPaused = false;
+        playChimeStart();
         if (obsidianMediaRecorder && obsidianMediaRecorder.state === "paused") {
           try {
             obsidianMediaRecorder.resume();
+            if (obsidianMasterRecorder && obsidianMasterRecorder.state === "paused") {
+              try { obsidianMasterRecorder.resume(); } catch (e) {}
+            }
             isObsidianRecording = true;
             userExplicitlyStoppedObsidian = false;
+            obsidianRecordingStartedAtMs = Date.now();
             updateObsidianTakeoverRecording(true, false);
+            updatePocketLockHUD();
             return;
           } catch (e) {}
         }
         startObsidianRecordingLoop(obsidianTakeoverSeconds > 0 || Boolean(obsidianAccumulatedTranscript));
+        updatePocketLockHUD();
       }
     }
     window.toggleObsidianOrbPauseResume = toggleObsidianOrbPauseResume;
+
+    async function probeAndAutoSelectHeadsetMic() {
+      if (!navigator.mediaDevices || typeof navigator.mediaDevices.enumerateDevices !== "function") {
+        return;
+      }
+      try {
+        let inputs = await refreshAudioInputDevices();
+        const hasLabels = inputs.some(d => d && d.label && d.label.trim());
+        if (!hasLabels && typeof navigator.mediaDevices.getUserMedia === "function" && micSource !== "mac") {
+          try {
+            if (typeof stopSilentAudioKeepAlive === "function") stopSilentAudioKeepAlive();
+            const probeStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            inputs = await refreshAudioInputDevices();
+            const track = probeStream.getAudioTracks && probeStream.getAudioTracks()[0];
+            if (track && track.label && !activeAudioInputLabel) {
+              activeAudioInputLabel = track.label;
+              isHeadsetMicDetected = isHeadsetDeviceLabel(track.label);
+            }
+            probeStream.getTracks().forEach(t => t.stop());
+          } catch (probeErr) {}
+        }
+        updateMicDeviceBadgeUI();
+        updatePocketLockHUD();
+        // If Pixel Buds / Bluetooth Headset was just discovered while recording on SpeechRecognition,
+        // automatically switch to the zero-gap WebRTC headset stream so we record from the Buds!
+        if (
+          isHeadsetMicDetected &&
+          !userManuallyPinnedPhoneMic &&
+          isObsidianRecording &&
+          !obsidianMediaRecorder &&
+          typeof switchObsidianToPocketAudioStream === "function"
+        ) {
+          showToast(`🎧 Using ${formatShortMicLabel(activeAudioInputLabel, true)}`, 2500);
+          await switchObsidianToPocketAudioStream(false);
+        }
+      } catch (e) {}
+    }
+    window.probeAndAutoSelectHeadsetMic = probeAndAutoSelectHeadsetMic;
 
     function openObsidianTakeover(mode) {
       if (mode) currentObsidianMode = mode;
@@ -10797,6 +12127,7 @@
       if (savedDraft && savedDraft.text) {
         obsidianAccumulatedTranscript = savedDraft.text;
         obsidianTakeoverSeconds = savedDraft.seconds || 0;
+        obsidianRecordingBaseSeconds = obsidianTakeoverSeconds;
         if (!mode && savedDraft.mode) {
           currentObsidianMode = savedDraft.mode;
         }
@@ -10810,15 +12141,19 @@
         showToast(`Restored unsaved draft (${restoredWords} ${restoredWords === 1 ? 'word' : 'words'})`, 3000);
       }
       requestWakeLock();
+      enablePocketWalkKeepAlive('walk_memo');
 
       startObsidianRecordingLoop(Boolean(obsidianAccumulatedTranscript));
+      probeAndAutoSelectHeadsetMic();
     }
     window.openObsidianTakeover = openObsidianTakeover;
 
     function closeObsidianTakeover() {
+      if (isPocketLocked) disablePocketLock();
       userExplicitlyStoppedObsidian = true;
       isObsidianRecording = false;
       isObsidianPaused = false;
+      disablePocketWalkKeepAlive('walk_memo');
       if (obsidianRestartTimeout) {
         clearTimeout(obsidianRestartTimeout);
         obsidianRestartTimeout = null;
@@ -10845,6 +12180,7 @@
         clearInterval(obsidianTakeoverTimerInterval);
         obsidianTakeoverTimerInterval = null;
       }
+      disablePocketWalkKeepAlive('walk_memo');
       releaseWakeLock();
       const obsModal = document.getElementById("obsidianModal");
       if (obsModal) obsModal.classList.add("hidden");
@@ -10937,6 +12273,8 @@
         obsidianTakeoverTimerInterval = null;
       }
       obsidianTakeoverSeconds = 0;
+      obsidianRecordingBaseSeconds = 0;
+      obsidianRecordingStartedAtMs = 0;
       isObsidianTakeoverTyping = false;
       isObsidianRecording = false;
       isObsidianPaused = false;
@@ -11150,15 +12488,23 @@
         
         if (resetTimer) {
           obsidianTakeoverSeconds = 0;
+          obsidianRecordingBaseSeconds = 0;
+          obsidianRecordingStartedAtMs = Date.now();
+        } else if (!obsidianRecordingStartedAtMs) {
+          obsidianRecordingBaseSeconds = obsidianTakeoverSeconds || 0;
+          obsidianRecordingStartedAtMs = Date.now();
         }
         if (!obsidianTakeoverTimerInterval) {
           obsidianTakeoverTimerInterval = setInterval(() => {
-            obsidianTakeoverSeconds++;
+            syncObsidianWallClockSeconds();
             const m = String(Math.floor(obsidianTakeoverSeconds / 60)).padStart(2, '0');
             const s = String(obsidianTakeoverSeconds % 60).padStart(2, '0');
-            if (timer) timer.innerText = `${m}:${s} • Continuous recording`;
+            if (timer) timer.innerText = `${m}:${s} • Lock screen & background ready`;
+            updatePocketLockHUD();
+            updateObsidianLockScreenMediaSession();
           }, 1000);
         }
+        updateObsidianLockScreenMediaSession();
 
         if (primaryBtn) {
           primaryBtn.className = "w-full h-14 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 active:scale-95 text-white font-black text-sm sm:text-base flex items-center justify-center gap-2 shadow-lg transition cursor-pointer";
@@ -11169,6 +12515,7 @@
           clearInterval(obsidianTakeoverTimerInterval);
           obsidianTakeoverTimerInterval = null;
         }
+        updateObsidianLockScreenMediaSession();
         const hasCapturedText = Boolean((obsidianAccumulatedTranscript || "").trim() || (obsidianSessionTranscript || "").trim());
         if (ring) {
           if (isObsidianPaused) {
@@ -11239,6 +12586,8 @@
           primaryBtn.innerHTML = `<span>⏳</span> <span>Saving to Obsidian...</span>`;
         }
       } else if (state === 'success') {
+        playChimeSaved();
+        if (isPocketLocked) disablePocketLock();
         if (status) status.innerText = detail ? `Saved: ${detail}` : "Saved to Vault!";
         if (primaryBtn) {
           primaryBtn.className = "w-full h-14 rounded-2xl bg-emerald-600 text-white font-black text-sm sm:text-base flex items-center justify-center gap-2 shadow-lg transition";
@@ -11262,7 +12611,7 @@
       }
     }
 
-    async function startObsidianMediaRecorderFallback() {
+    async function startObsidianMediaRecorderFallback(isPocketStreamMode = false) {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         isObsidianRecording = false;
         updateObsidianTakeoverRecording(false);
@@ -11271,17 +12620,173 @@
       }
       try {
         stopObsidianMediaRecorderStream();
-        obsidianMicStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        obsidianMicStream = await acquirePreferredMicStream(isPocketStreamMode || isPocketLocked);
+
+        // Attach WebAudio analyser passively for foreground RMS silence detection ONLY;
+        // CRITICAL: MediaRecorder MUST record directly from the raw hardware obsidianMicStream
+        // (never from audioCtx.createMediaStreamDestination()), because mobile OSes suspend AudioContext
+        // when the phone screen is locked or Chrome is backgrounded!
+        createPocketBoostedAudioStream(
+          obsidianMicStream,
+          computeOptimalPreAmpGain(2.2)
+        );
+        const streamToRecord = obsidianMicStream;
+
         const preferredType = getSupportedAudioMimeType();
-        obsidianMediaRecorder = preferredType
-          ? new MediaRecorder(obsidianMicStream, { mimeType: preferredType })
-          : new MediaRecorder(obsidianMicStream);
-        obsidianAudioChunks = [];
-        obsidianMediaRecorder.ondataavailable = (e) => {
-          if (e.data && e.data.size > 0) obsidianAudioChunks.push(e.data);
+
+        // Hardware Mic / Bluetooth Disconnect Failover:
+        // If Pixel Buds go in the case or Bluetooth disconnects mid-walk, flush current chunks and hot-swap to Phone Mic!
+        const primaryTrack = obsidianMicStream.getAudioTracks && obsidianMicStream.getAudioTracks()[0];
+        if (primaryTrack && typeof primaryTrack.addEventListener === "function") {
+          primaryTrack.addEventListener("ended", () => {
+            if (!isObsidianRecording || isObsidianPaused || userExplicitlyStoppedObsidian || isSwitchingObsidianStream) {
+              return;
+            }
+            isHeadsetMicDetected = false;
+            preferredAudioDeviceId = "";
+            showToast("📱 Headset disconnected — seamlessly switched to Phone Mic", 3000);
+            switchObsidianToPocketAudioStream(true);
+          });
+        }
+
+        // 1. Start unbroken Master Recorder on the hardware stream:
+        // Never stops or rotates mid-walk so Android Chrome's Foreground Microphone Service (green status-bar pill)
+        // stays pinned even when the user presses the physical Power button to lock the phone or switches apps!
+        obsidianMasterAudioChunks = [];
+        obsidianPendingRetrySlices = [];
+        obsidianSuccessfullyTranscribedSlices = 0;
+        try {
+          obsidianMasterRecorder = preferredType
+            ? new MediaRecorder(streamToRecord, { mimeType: preferredType })
+            : new MediaRecorder(streamToRecord);
+          obsidianMasterRecorder.ondataavailable = (e) => {
+            if (e.data && e.data.size > 0) {
+              obsidianMasterAudioChunks.push(e.data);
+              // Checkpoint full master audio to IndexedDB every ~10 chunks (~10s) for crash/battery/offline protection
+              if (obsidianMasterAudioChunks.length % 10 === 0) {
+                const mime = (obsidianMasterRecorder && obsidianMasterRecorder.mimeType) || preferredType || "audio/webm";
+                saveOfflineMemoAudioBlob(new Blob(obsidianMasterAudioChunks, { type: mime }), mime, currentObsidianMode, obsidianTakeoverSeconds);
+              }
+            }
+          };
+          obsidianMasterRecorder.start(1000);
+        } catch (masterErr) {
+          obsidianMasterRecorder = null;
+        }
+
+        // 2. Start rolling Slice Recorder on the hardware stream for live streaming Whisper transcription
+        const createAndStartSliceRecorder = () => {
+          const chunks = [];
+          const rec = preferredType
+            ? new MediaRecorder(streamToRecord, { mimeType: preferredType })
+            : new MediaRecorder(streamToRecord);
+          rec.ondataavailable = (e) => {
+            if (e.data && e.data.size > 0) chunks.push(e.data);
+          };
+          rec.start(200);
+          return { rec, chunks };
         };
-        obsidianMediaRecorder.start(250);
-        updateObsidianTakeoverRecording(true);
+
+        const initial = createAndStartSliceRecorder();
+        obsidianMediaRecorder = initial.rec;
+        obsidianAudioChunks = initial.chunks;
+        obsidianSliceStartedAt = Date.now();
+        obsidianSilenceSince = 0;
+
+        updateObsidianTakeoverRecording(true, false);
+        updateMicDeviceBadgeUI();
+        updatePocketLockHUD();
+
+        // Continuous zero-gap rolling Whisper chunk transcription with lock-screen & background resilience
+        if (obsidianPocketChunkInterval) clearInterval(obsidianPocketChunkInterval);
+        let isRotatingSlice = false;
+
+        const rotateCurrentSliceNow = async () => {
+          if (
+            isRotatingSlice ||
+            !isObsidianRecording ||
+            isObsidianPaused ||
+            !obsidianMediaRecorder ||
+            obsidianMediaRecorder.state !== "recording" ||
+            obsidianAudioChunks.length === 0
+          ) {
+            return;
+          }
+          isRotatingSlice = true;
+          try {
+            const prevRecorder = obsidianMediaRecorder;
+            const prevChunks = obsidianAudioChunks;
+            const recorderMime = prevRecorder.mimeType || preferredType || 'audio/webm';
+
+            // ZERO-GAP HANDOFF: Start next MediaRecorder on the hardware stream BEFORE stopping prevRecorder!
+            if (isObsidianRecording && !isObsidianPaused && streamToRecord.active) {
+              const next = createAndStartSliceRecorder();
+              obsidianMediaRecorder = next.rec;
+              obsidianAudioChunks = next.chunks;
+              obsidianSliceStartedAt = Date.now();
+              obsidianSilenceSince = 0;
+            }
+
+            await new Promise((resolve) => {
+              prevRecorder.onstop = resolve;
+              try { prevRecorder.stop(); } catch (err) { resolve(); }
+            });
+
+            if (prevChunks.length > 0) {
+              enqueuePocketAudioSliceFlush(prevChunks, recorderMime);
+            }
+          } catch (e) {
+          } finally {
+            isRotatingSlice = false;
+          }
+        };
+        obsidianRotateSliceNowFn = rotateCurrentSliceNow;
+
+        obsidianPocketChunkInterval = setInterval(async () => {
+          if (
+            isRotatingSlice ||
+            !isObsidianRecording ||
+            isObsidianPaused ||
+            !obsidianMediaRecorder ||
+            obsidianMediaRecorder.state !== "recording"
+          ) {
+            return;
+          }
+          if (obsidianAudioChunks.length === 0) return;
+
+          const now = Date.now();
+          const sliceElapsedMs = now - (obsidianSliceStartedAt || now);
+
+          // When phone screen is locked or Chrome is in background (or AudioContext is suspended),
+          // WebAudio RMS is unavailable — rotate cleanly on a steady 9.5s background cadence while
+          // obsidianMasterRecorder keeps the OS foreground microphone lock pinned!
+          const isAudioCtxLive = !document.hidden && audioCtx && audioCtx.state === "running";
+          if (!isAudioCtxLive) {
+            if (sliceElapsedMs >= 9500) {
+              await rotateCurrentSliceNow();
+            }
+            return;
+          }
+
+          const rms = getObsidianStreamRms();
+          const speechThreshold = isHeadsetMicDetected ? 0.014 : 0.018;
+
+          if (rms < speechThreshold) {
+            if (!obsidianSilenceSince) obsidianSilenceSince = now;
+          } else {
+            obsidianSilenceSince = 0;
+          }
+          const silenceDurationMs = obsidianSilenceSince ? (now - obsidianSilenceSince) : 0;
+
+          // Slice on a natural micro-pause (>=220ms silence after >=2.2s of audio), or at 6.2s max cap
+          const shouldRotateOnPause = sliceElapsedMs >= 2200 && silenceDurationMs >= 220;
+          const shouldRotateOnMaxCap = sliceElapsedMs >= 6200;
+          if (!shouldRotateOnPause && !shouldRotateOnMaxCap) {
+            return;
+          }
+
+          await rotateCurrentSliceNow();
+        }, 180);
       } catch (err) {
         console.warn("Obsidian MediaRecorder fallback error:", err);
         isObsidianRecording = false;
@@ -11300,10 +12805,32 @@
       isObsidianPaused = false;
       userExplicitlyStoppedObsidian = false;
       updateObsidianTakeoverRecording(true, !isAutoRestart && obsidianTakeoverSeconds === 0);
+      refreshAudioInputDevices();
 
       if (window._macDesktopChannelRecording) {
         const status = document.getElementById("obsidianTakeoverStatus");
         if (status) status.innerText = "🎙️ Mac Mic Active • Pacing Mode (Click Stop & Save when done)";
+        return;
+      }
+
+      // If zero-gap MediaRecorder stream is already active (e.g., after unlocking Pocket Lock mid-memo), keep it running seamlessly!
+      if (obsidianMediaRecorder && obsidianMediaRecorder.state === "recording" && obsidianMicStream && obsidianMicStream.active) {
+        updateObsidianPreAmpGainForCurrentState();
+        updateMicDeviceBadgeUI();
+        updatePocketLockHUD();
+        return;
+      }
+
+      // Always use the direct hardware WebRTC MediaRecorder + Whisper stream across ALL Walking Memo modes
+      // (Daily Note capture, Voice Memo, and ✨ Channel) so the OS Foreground Microphone Service is acquired
+      // immediately while visible and survives hardware phone screen lock, app switching, and contemplative pauses!
+      if (
+        micSource !== "mac" &&
+        navigator.mediaDevices &&
+        navigator.mediaDevices.getUserMedia &&
+        typeof MediaRecorder !== "undefined"
+      ) {
+        startObsidianMediaRecorderFallback(true);
         return;
       }
 
@@ -11332,6 +12859,7 @@
           let fatalErrorOccurred = false;
 
           obsidianRecognition.onstart = () => {
+            enablePocketWalkKeepAlive('walk_memo');
             const wave = document.getElementById("obsidianTakeoverWave");
             if (wave) wave.classList.remove("hidden");
             const status = document.getElementById("obsidianTakeoverStatus");
@@ -11343,6 +12871,17 @@
             obsidianSessionTranscript = parsed.combinedText;
             obsidianCurrentSegment = parsed.interimText;
             const liveStream = stitchTranscriptSegments(obsidianAccumulatedTranscript, obsidianSessionTranscript);
+            if (parsed.finalText && parsed.finalText.trim()) {
+              try {
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                  ws.send(JSON.stringify({
+                    type: 'phone_transcript',
+                    text: parsed.finalText.trim(),
+                    mode: 'walk_memo'
+                  }));
+                }
+              } catch (e) {}
+            }
 
             // Hands-free spoken voice command detection while walking
             const spokenCmd = checkObsidianSpokenCommands(liveStream);
@@ -11350,24 +12889,43 @@
               obsidianAccumulatedTranscript = spokenCmd.cleanedText;
               obsidianSessionTranscript = "";
               obsidianCurrentSegment = "";
+              saveObsidianDraftStorage(obsidianAccumulatedTranscript);
               updateObsidianTakeoverStream(obsidianAccumulatedTranscript);
-              if (spokenCmd.command === "pause") {
+              if (spokenCmd.command === "pocket_lock") {
+                showToast("🔒 Pocket Lock engaged (Triple-tap to wake)", 2500);
+                enablePocketLock();
+                // If still on SpeechRecognition (e.g. desktop without MediaRecorder switch), reset buffer so 'pocket lock' doesn't re-trigger
+                if (obsidianRecognition && !isSwitchingObsidianStream) {
+                  try {
+                    obsidianRecognition.onend = null;
+                    obsidianRecognition.stop();
+                  } catch (e) {}
+                  obsidianRecognition = null;
+                  if (!obsidianMediaRecorder) {
+                    startObsidianRecordingLoop(true);
+                  }
+                }
+                return;
+              } else if (spokenCmd.command === "pause") {
                 showToast("⏸️ Paused by voice command", 2500);
                 pauseObsidianRecording();
                 return;
               } else if (spokenCmd.command === "save_channel") {
+                playChimeSaved();
                 currentObsidianMode = "channel";
                 updateObsidianTakeoverModeUI();
                 showToast("✨ Voice command: Sculpting Voice-Print Channel...", 2500);
                 stopAndSaveObsidianRecording();
                 return;
               } else if (spokenCmd.command === "save_memo") {
+                playChimeSaved();
                 currentObsidianMode = "memo";
                 updateObsidianTakeoverModeUI();
                 showToast("🎙️ Voice command: Saving Voice Memo...", 2500);
                 stopAndSaveObsidianRecording();
                 return;
               } else if (spokenCmd.command === "save_daily") {
+                playChimeSaved();
                 currentObsidianMode = "capture";
                 updateObsidianTakeoverModeUI();
                 showToast("🎙️ Voice command: Saving to Daily Note...", 2500);
@@ -11377,6 +12935,7 @@
             }
 
             updateObsidianTakeoverStream(liveStream);
+            updatePocketLockHUD();
           };
 
           obsidianRecognition.onerror = (event) => {
@@ -11391,11 +12950,16 @@
           };
 
           obsidianRecognition.onend = () => {
-            // Commit current session's transcript cleanly into accumulated transcript before restarting
+            // Commit current session's transcript (and any uncommitted interim segment) before restarting
             if (obsidianSessionTranscript) {
               obsidianAccumulatedTranscript = stitchTranscriptSegments(obsidianAccumulatedTranscript, obsidianSessionTranscript);
               obsidianSessionTranscript = "";
+            }
+            if (obsidianCurrentSegment) {
+              obsidianAccumulatedTranscript = stitchTranscriptSegments(obsidianAccumulatedTranscript, obsidianCurrentSegment);
               obsidianCurrentSegment = "";
+            }
+            if (obsidianAccumulatedTranscript) {
               saveObsidianDraftStorage(obsidianAccumulatedTranscript);
             }
             // UNBROKEN CONTINUOUS LOOP: If user didn't explicitly tap stop, browser timed out on silence -> instantly restart!
@@ -11406,7 +12970,7 @@
                 if (isObsidianRecording && !userExplicitlyStoppedObsidian && !isObsidianTakeoverTyping) {
                   startObsidianRecordingLoop(true);
                 }
-              }, 100);
+              }, 60);
             }
           };
 
@@ -11422,12 +12986,18 @@
     }
 
     async function stopAndSaveObsidianRecording() {
+      syncObsidianWallClockSeconds();
+      obsidianRecordingStartedAtMs = 0;
       userExplicitlyStoppedObsidian = true;
       isObsidianRecording = false;
       isObsidianPaused = false;
       if (obsidianRestartTimeout) {
         clearTimeout(obsidianRestartTimeout);
         obsidianRestartTimeout = null;
+      }
+      if (obsidianPocketChunkInterval) {
+        clearInterval(obsidianPocketChunkInterval);
+        obsidianPocketChunkInterval = null;
       }
       if (obsidianRecognition) {
         try {
@@ -11441,6 +13011,7 @@
         clearInterval(obsidianTakeoverTimerInterval);
         obsidianTakeoverTimerInterval = null;
       }
+      disablePocketWalkKeepAlive('walk_memo');
       releaseWakeLock();
 
       if (window._macDesktopChannelRecording) {
@@ -11459,36 +13030,119 @@
         obsidianSessionTranscript = "";
       }
 
-      let fullText = stitchTranscriptSegments(obsidianAccumulatedTranscript, obsidianCurrentSegment);
-      obsidianCurrentSegment = "";
+      if (obsidianCurrentSegment) {
+        obsidianAccumulatedTranscript = stitchTranscriptSegments(obsidianAccumulatedTranscript, obsidianCurrentSegment);
+        obsidianCurrentSegment = "";
+      }
 
-      // If MediaRecorder fallback was used, transcribe captured audio chunks first
-      if (!fullText && obsidianMediaRecorder && obsidianAudioChunks.length > 0) {
+      // Stop active MediaRecorder and MasterRecorder and capture tail/master chunks before awaiting FIFO queue
+      let tailChunks = [];
+      let tailMime = 'audio/webm';
+      let masterFallbackChunks = [];
+      if (obsidianMediaRecorder && (obsidianAudioChunks.length > 0 || obsidianMediaRecorder.state !== 'inactive')) {
         updateObsidianTakeoverSaving('saving');
         try {
-          const blobType = obsidianMediaRecorder.mimeType || 'audio/webm';
+          tailMime = obsidianMediaRecorder.mimeType || 'audio/webm';
           if (obsidianMediaRecorder.state !== 'inactive') {
             await new Promise((resolve) => {
               obsidianMediaRecorder.onstop = resolve;
               try { obsidianMediaRecorder.stop(); } catch (e) { resolve(); }
             });
           }
-          const audioBlob = new Blob(obsidianAudioChunks, { type: blobType });
-          stopObsidianMediaRecorderStream();
-          const sttRes = await fetch('/api/stt', {
-            method: 'POST',
-            headers: { 'Content-Type': blobType },
-            body: audioBlob
-          });
-          const sttData = await sttRes.json();
-          if (sttData && sttData.transcript) {
-            fullText = sttData.transcript.trim();
+          tailChunks = obsidianAudioChunks.slice();
+          obsidianAudioChunks = [];
+        } catch (e) {
+          console.warn("Obsidian MediaRecorder stop notice:", e);
+        }
+      }
+      if (obsidianMasterRecorder && (obsidianMasterAudioChunks.length > 0 || obsidianMasterRecorder.state !== 'inactive')) {
+        try {
+          if (obsidianMasterRecorder.state !== 'inactive') {
+            await new Promise((resolve) => {
+              obsidianMasterRecorder.onstop = resolve;
+              try { obsidianMasterRecorder.stop(); } catch (e) { resolve(); }
+            });
+          }
+          masterFallbackChunks = obsidianMasterAudioChunks.slice();
+          obsidianMasterAudioChunks = [];
+        } catch (e) {}
+      }
+      stopObsidianMediaRecorderStream();
+
+      // CRITICAL: Await all in-flight FIFO slice transcriptions + retry any slices that failed while phone was locked/offline!
+      try {
+        updateObsidianTakeoverSaving('saving');
+        await obsidianPocketFlushChain;
+        if (obsidianPendingRetrySlices.length > 0) {
+          await flushPendingObsidianRetrySlices();
+        }
+      } catch (e) {}
+
+      let fullText = obsidianAccumulatedTranscript;
+      const isHeadset = isHeadsetDeviceLabel(activeAudioInputLabel || "") || isHeadsetMicDetected;
+
+      // Now transcribe the final tail chunk (if any) and append in strict chronological order
+      if (tailChunks.length > 0) {
+        try {
+          const audioBlob = new Blob(tailChunks, { type: tailMime });
+          if (audioBlob.size > 400) {
+            const sttRes = await fetch('/api/stt', {
+              method: 'POST',
+              headers: {
+                'Content-Type': tailMime,
+                'X-VoiceFi-Pocket-Boost': (!isHeadset ? '1' : '0')
+              },
+              body: audioBlob
+            });
+            const sttData = await sttRes.json();
+            if (sttData && sttData.transcript && sttData.transcript.trim()) {
+              fullText = appendPocketTranscriptChunk(fullText, sttData.transcript.trim());
+            }
           }
         } catch (e) {
-          console.warn("Obsidian STT fallback error:", e);
+          console.warn("Obsidian STT tail error:", e);
         }
-      } else {
-        stopObsidianMediaRecorderStream();
+      }
+
+      // Lossless Master Recording & IndexedDB Offline Fallback:
+      // If the phone was locked/offline during the walk and slice uploads didn't capture the speech (or if retrying after offline),
+      // persist and transcribe the unbroken master recording so zero words are ever lost!
+      let candidateMasterBlob = null;
+      if (masterFallbackChunks.length > 0) {
+        candidateMasterBlob = new Blob(masterFallbackChunks, { type: tailMime });
+        await saveOfflineMemoAudioBlob(candidateMasterBlob, tailMime, currentObsidianMode, obsidianTakeoverSeconds);
+      } else if (!fullText) {
+        const storedOffline = await loadOfflineMemoAudioBlob();
+        if (storedOffline && storedOffline.blob) {
+          candidateMasterBlob = storedOffline.blob;
+          tailMime = storedOffline.mimeType || tailMime;
+        }
+      }
+
+      let masterSttNetworkFailed = false;
+      if ((!fullText || obsidianPendingRetrySlices.length > 0) && candidateMasterBlob && candidateMasterBlob.size > 500) {
+        try {
+          const sttRes = await fetch('/api/stt', {
+            method: 'POST',
+            headers: {
+              'Content-Type': tailMime,
+              'X-VoiceFi-Pocket-Boost': (!isHeadset ? '1' : '0')
+            },
+            body: candidateMasterBlob
+          });
+          if (sttRes.ok) {
+            const sttData = await sttRes.json();
+            if (sttData && sttData.transcript && sttData.transcript.trim()) {
+              fullText = sttData.transcript.trim();
+              obsidianPendingRetrySlices = [];
+            }
+          } else {
+            masterSttNetworkFailed = true;
+          }
+        } catch (e) {
+          console.warn("Obsidian Master STT fallback error:", e);
+          masterSttNetworkFailed = true;
+        }
       }
 
       const textarea = document.getElementById("obsidianTakeoverTextarea");
@@ -11499,6 +13153,12 @@
       }
 
       if (!fullText) {
+        if (candidateMasterBlob && candidateMasterBlob.size > 500 && masterSttNetworkFailed) {
+          const sizeKb = Math.max(1, Math.round(candidateMasterBlob.size / 1024));
+          showToast(`⚠️ Offline — Audio saved on phone (${sizeKb} KB). Tap Retry when back on Wi-Fi!`, 4500);
+          updateObsidianTakeoverSaving('error', `Offline • Audio Saved Locally (${sizeKb} KB) — Tap Retry`);
+          return;
+        }
         showToast("No speech was captured in your memo", 3000);
         closeObsidianTakeover();
         return;
@@ -11528,6 +13188,7 @@
           const data = await res.json();
           if (data && data.status === 'ok') {
             clearObsidianDraftStorage();
+            clearOfflineMemoAudioBlob();
             const memoRecord = {
               mode: data.mode || currentObsidianMode,
               part_number: data.part_number || activeChannelPartNumber || 1,
@@ -11575,6 +13236,7 @@
           const data = await res.json();
           if (data && data.status === 'ok') {
             clearObsidianDraftStorage();
+            clearOfflineMemoAudioBlob();
             showToast(`✅ Saved to ${data.daily_note_name || 'daily note'}!`, 3000);
             updateObsidianTakeoverSaving('success', data.daily_note_name || 'Daily Note');
             if (typeof fetchTodayNote === 'function') fetchTodayNote();
@@ -11590,6 +13252,14 @@
         }
       }
     }
+
+    window.addEventListener("online", () => {
+      if (obsidianPendingRetrySlices && obsidianPendingRetrySlices.length > 0) {
+        obsidianPocketFlushChain = obsidianPocketFlushChain
+          .catch(() => {})
+          .then(() => flushPendingObsidianRetrySlices());
+      }
+    });
 
     function setObsidianMode(mode, openTakeover = false) {
       currentObsidianMode = mode; // 'capture' | 'memo' | 'channel'
@@ -14522,15 +16192,22 @@
         const voiceEl = document.getElementById("liveVoiceSelect");
         const thinkingEl = document.getElementById("liveThinkingToggle");
         const toolsEl = document.getElementById("liveToolsToggle");
+        const holdSpaceEl = document.getElementById("liveHoldSpaceToggle");
 
         const provider = currentProvider;
         const model = modelEl ? modelEl.value : (provider === "openai" ? "gpt-live-1.1" : (provider === "grok" ? "grok-voice-latest" : "gemini-2.5-flash-native-audio-latest"));
         const voice = voiceEl ? voiceEl.value : (provider === "openai" ? "bubbie" : (provider === "grok" ? "eve" : "Puck"));
         const thinking = thinkingEl && thinkingEl.checked ? "1" : "0";
         const tools = toolsEl && toolsEl.checked ? "1" : "0";
+        const holdSpace = holdSpaceEl && holdSpaceEl.checked ? "1" : "0";
+        window.liveHoldSpaceActive = (holdSpace === "1");
 
         const subtitle = document.getElementById("liveSubtitleText");
-        if (subtitle) subtitle.innerText = `${voice} • Real-Time Full-Duplex`;
+        if (subtitle) {
+          subtitle.innerText = window.liveHoldSpaceActive
+            ? `${voice} • 🧘 True Listening (Holding Unhurried Space)`
+            : `${voice} • Real-Time Full-Duplex`;
+        }
 
         if (window.__vifi_is_relay && ws && ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({
@@ -14541,14 +16218,16 @@
               voice: voice,
               thinking: thinking === "1",
               thinking_level: "LOW",
-              tools: tools === "1"
+              tools: tools === "1",
+              hold_space: holdSpace === "1",
+              persona: holdSpace === "1" ? "listen" : "default"
             }
           }));
           onLiveConnected(model, voice);
         } else {
           const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
           const host = window.location.host;
-          const wsUrl = `${proto}//${host}/ws/live?provider=${encodeURIComponent(provider)}&model=${encodeURIComponent(model)}&voice=${encodeURIComponent(voice)}&thinking=${thinking}&tools=${tools}`;
+          const wsUrl = `${proto}//${host}/ws/live?provider=${encodeURIComponent(provider)}&model=${encodeURIComponent(model)}&voice=${encodeURIComponent(voice)}&thinking=${thinking}&tools=${tools}&hold_space=${holdSpace}&persona=${holdSpace === "1" ? "listen" : "default"}`;
 
           liveWs = new WebSocket(wsUrl);
           liveWs.binaryType = 'arraybuffer';
@@ -14639,6 +16318,33 @@
     }
     window.updateLiveBargeInMode = updateLiveBargeInMode;
 
+    window.liveHoldSpaceActive = false;
+    let liveLastUserVoiceActiveTs = 0;
+
+    function onLiveHoldSpaceChange(checked) {
+      window.liveHoldSpaceActive = Boolean(checked);
+      const voiceEl = document.getElementById("liveVoiceSelect");
+      const voice = voiceEl ? voiceEl.value : "Puck";
+      const subtitle = document.getElementById("liveSubtitleText");
+      if (subtitle) {
+        subtitle.innerText = window.liveHoldSpaceActive
+          ? `${voice} • 🧘 True Listening (Holding Unhurried Space)`
+          : `${voice} • Real-Time Full-Duplex`;
+      }
+      if (liveIsConnected && liveWs && liveWs.readyState === WebSocket.OPEN) {
+        try {
+          liveWs.send(JSON.stringify({ type: "set_hold_space", enabled: window.liveHoldSpaceActive }));
+        } catch (e) {}
+      }
+      showToast(
+        window.liveHoldSpaceActive
+          ? "🧘 Hold Space active: Agent will hold unhurried space through contemplative pauses"
+          : "⚡ Standard full-duplex turn speed restored",
+        3000
+      );
+    }
+    window.onLiveHoldSpaceChange = onLiveHoldSpaceChange;
+
     function sendLiveAudioChunk(buffer) {
       if (!liveIsConnected || liveIsMuted) {
         liveMicPreroll = [];
@@ -14671,6 +16377,24 @@
       // Echo decay guard (only active for open-speaker safe mode when Gemini just stopped speaking)
       if (liveBargeInMode === 'safe' && (Date.now() - liveLastSpeechEndTimestamp < 120)) {
         return;
+      }
+
+      // True Listening (Hold Space) Mode:
+      // When the user pauses to think (silence < 4.5s after speaking), hold back silent trailing chunks
+      // from triggering immediate server-side 800ms VAD turn-stealing so the user has room to breathe & think!
+      if (window.liveHoldSpaceActive && !isAISpeaking) {
+        const currentRms = getLiveMicRms();
+        const nowTs = Date.now();
+        if (currentRms >= 0.015) {
+          liveLastUserVoiceActiveTs = nowTs;
+        } else if (liveLastUserVoiceActiveTs > 0) {
+          const pauseMs = nowTs - liveLastUserVoiceActiveTs;
+          // Allow 350ms of natural word tail, then hold silent chunks between 350ms and 4500ms
+          // so server-side VAD doesn't jump in until 4.5s of contemplative silence has elapsed!
+          if (pauseMs > 350 && pauseMs < 4500) {
+            return;
+          }
+        }
       }
 
       // When transitioning to sending active user audio, flush any buffered pre-roll chunks first

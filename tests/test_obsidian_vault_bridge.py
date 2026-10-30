@@ -269,7 +269,7 @@ class CompanionVaultTestCase(AioHTTPTestCase):
         assert s_data["success"] is True
         assert s_data["engine"] == "obsidian"
 
-        # 5. Test POST /api/vault/memo with raw_text
+        # 5. Test POST /api/vault/memo with raw_text and enriched preview fields
         memo_resp = await self.client.post(
             "/api/vault/memo",
             json={
@@ -281,6 +281,12 @@ class CompanionVaultTestCase(AioHTTPTestCase):
         m_data = await memo_resp.json()
         assert m_data["status"] == "ok"
         assert "memo_name" in m_data
+        assert "title" in m_data
+        assert "markdown" in m_data
+        assert "summary" in m_data
+        assert isinstance(m_data.get("key_points"), list)
+        assert isinstance(m_data.get("action_items"), list)
+        assert isinstance(m_data.get("pr_checklist"), list)
         assert Path(m_data["memo_path"]).is_file()
 
         # 6. Test POST /api/vault/meeting with highlights and tasks
@@ -304,6 +310,46 @@ class CompanionVaultTestCase(AioHTTPTestCase):
         assert "Key Highlights & Bookmarks" in content
         assert "Decision" in content
         assert "write benchmarks" in content
+
+
+def test_save_memo_same_day_collision_guard(tmp_path):
+    """Verify multiple memos saved on the same day with the same title never overwrite each other."""
+    vault = tmp_path / "CollisionVault"
+    vault.mkdir()
+    today = datetime.date(2026, 10, 15)
+
+    res1 = save_memo_to_vault(
+        memo_markdown="# Voice Memo\nFirst memo content.",
+        title="Voice Memo",
+        vault_path=vault,
+        today=today,
+    )
+    assert res1["status"] == "ok"
+    assert res1["memo_name"] == "2026-10-15 - Voice Memo.md"
+
+    res2 = save_memo_to_vault(
+        memo_markdown="# Voice Memo\nSecond memo content.",
+        title="Voice Memo",
+        vault_path=vault,
+        today=today,
+    )
+    assert res2["status"] == "ok"
+    assert res2["memo_name"] != res1["memo_name"]
+    assert res2["memo_name"].startswith("2026-10-15 - Voice Memo - ")
+
+    res3 = save_memo_to_vault(
+        memo_markdown="# Voice Memo\nThird memo content.",
+        title="Voice Memo",
+        vault_path=vault,
+        today=today,
+    )
+    assert res3["status"] == "ok"
+    assert res3["memo_name"] not in {res1["memo_name"], res2["memo_name"]}
+
+    # All three files must exist on disk with their respective content preserved
+    assert "First memo content." in Path(res1["memo_path"]).read_text(encoding="utf-8")
+    assert "Second memo content." in Path(res2["memo_path"]).read_text(encoding="utf-8")
+    assert "Third memo content." in Path(res3["memo_path"]).read_text(encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
@@ -521,3 +567,68 @@ def test_llm_context_is_redacted_even_if_hits_bypass_choke_point(tmp_path, monke
     assert "prompt" in sent, "expected the LLM to be called"
     assert "re_drwGJa6B" not in sent["prompt"]
     assert "[redacted]" in sent["prompt"]
+
+
+def test_companion_walking_memo_ui_and_deduplication():
+    """Verify Walking Memo UI labels, emoji removal, continuous recording, and all 5 UX enhancements."""
+    index_path = (
+        Path(__file__).resolve().parent.parent
+        / "src"
+        / "voicefi"
+        / "companion"
+        / "static"
+        / "index.html"
+    )
+    html = index_path.read_text(encoding="utf-8")
+
+    # 1. "AI Voice Memo" replaced with clean "Voice Memo" and top tab emojis removed
+    assert "AI Voice Memo" not in html
+    assert '<button id="obsidianDailyCaptureBtn"' in html
+    assert '<button id="obsidianVoiceMemoBtn"' in html
+    assert "<span>Daily Note</span>" in html
+    assert "<span>Voice Memo</span>" in html
+
+    # 2. Speech deduplication & overlap stitching wired into obsidianRecognition
+    assert "function stitchTranscriptSegments(baseText, nextText)" in html
+    assert "obsidianSessionTranscript = parsed.combinedText;" in html
+    assert "const liveStream = stitchTranscriptSegments(obsidianAccumulatedTranscript, obsidianSessionTranscript);" in html
+
+    # 3. Tap-to-Pause vs. Stop & Save on center mic orb
+    assert "function pauseObsidianRecording()" in html
+    assert "function toggleObsidianOrbPauseResume()" in html
+    assert 'takeoverOrb.addEventListener("click", toggleObsidianOrbPauseResume)' in html
+
+    # 4. Local draft persistence (localStorage recovery)
+    assert 'const OBSIDIAN_DRAFT_STORAGE_KEY = "voicefi_walking_memo_draft";' in html
+    assert "function saveObsidianDraftStorage(text)" in html
+    assert "function loadObsidianDraftStorage()" in html
+    assert "function clearObsidianDraftStorage()" in html
+
+    # 5. Post-Save Preview Card & 1-Tap "Send to AGY / Claude"
+    assert "function dispatchMemoToAgent(engine" in html
+    assert 'id="latestVoiceMemoCard"' in html
+    assert 'id="memoSendAgyBtn"' in html
+    assert 'id="memoSendClaudeBtn"' in html
+
+    # 6. Spoken voice commands while walking & progressive prefix ladder collapse
+    assert "function checkObsidianSpokenCommands(text)" in html
+    assert "function collapseProgressiveRepeats(text)" in html
+    assert "function appendPocketTranscriptChunk(baseText, chunkText)" in html
+    assert "function acquirePreferredMicStream(" in html
+    assert "function isHeadsetDeviceLabel(label)" in html
+    assert "function probeAndAutoSelectHeadsetMic()" in html
+
+    # 7. Hardware screen-lock & background app resilience:
+    # - MediaRecorder records directly from raw obsidianMicStream (never muted by suspended AudioContext)
+    # - Unbroken obsidianMasterRecorder pins Android Foreground Microphone Service across slice rotations
+    # - Offline/background slice retry queue (obsidianPendingRetrySlices) + wall-clock timer sync
+    assert "const streamToRecord = obsidianMicStream;" in html
+    assert "obsidianMasterRecorder =" in html
+    assert "function flushPendingObsidianRetrySlices()" in html
+    assert "function handleObsidianVisibilityWake()" in html
+    assert "function syncObsidianWallClockSeconds()" in html
+    assert 'X-VoiceFi-Pocket-Boost' in html
+    # Pocket Lock mic badge is read-only (no accidental single-tap mic switching in pocket)
+    assert '<div id="pocketLockMicBadge"' in html
+
+
