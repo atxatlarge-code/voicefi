@@ -178,9 +178,9 @@ class CompanionServer(
                         status=403,
                     )
 
-            is_tunnel = self._is_tunnel_request(request)
+            is_non_loopback = not self._is_loopback_request(request)
             set_auth_cookie = None
-            if is_tunnel:
+            if is_non_loopback:
                 for blocked in (
                     "/api/fix",
                     "/vifi/fix",
@@ -201,10 +201,11 @@ class CompanionServer(
                     request.path.startswith("/api/")
                     or request.path.startswith("/vifi/")
                     or request.path.startswith("/ws")
-                    or request.path.startswith("/downloads/")
+                    or request.path.startswith("/downloads")
+                    or request.path.startswith("/pair")
                 ):
                     return web.json_response(
-                        {"error": "Unauthorized: valid pairing token required for tunnel access"},
+                        {"error": "Unauthorized: valid pairing token required for remote/LAN access"},
                         status=401,
                     )
 
@@ -1943,6 +1944,32 @@ class CompanionServer(
         except Exception as e:
             return web.json_response({"error": str(e)}, status=500)
 
+    _ALLOWED_OLLAMA_MODEL_PREFIXES = (
+        "qwen2.5-coder",
+        "gemma2",
+        "gemma3",
+        "gemma4",
+        "llama3.2",
+        "llama3.3",
+        "nomic-embed-text",
+        "deepseek-r1",
+        "voicefi-coder",
+        "embedding-gemma",
+        "tev1",
+        "nimble",
+    )
+
+    @classmethod
+    def _is_allowed_ollama_pull_model(cls, model_name: str) -> bool:
+        """Restrict Ollama model pulls to curated official model families (no third-party namespaces)."""
+        clean = (model_name or "").strip().lower()
+        if clean.startswith("ollama/"):
+            clean = clean[7:].strip()
+        if not clean or "/" in clean or ".." in clean or not re.match(r"^[a-z0-9._:-]{2,64}$", clean):
+            return False
+        base = clean.split(":")[0]
+        return any(base == prefix or base.startswith(prefix) for prefix in cls._ALLOWED_OLLAMA_MODEL_PREFIXES)
+
     async def handle_pull_local_model(self, request: web.Request) -> web.Response:
         """Pull an Ollama starter model from the Mobile Companion UI and stream progress over WS."""
         try:
@@ -1955,6 +1982,14 @@ class CompanionServer(
                 except Exception:
                     data = {}
             model_name = (data.get("model") or "qwen2.5-coder:1.5b").strip()
+            if not self._is_allowed_ollama_pull_model(model_name):
+                return web.json_response(
+                    {
+                        "success": False,
+                        "error": f"Model '{model_name}' is not in the curated local model allowlist.",
+                    },
+                    status=400,
+                )
             loop = asyncio.get_running_loop()
 
             self.broadcast_event(
@@ -3690,9 +3725,21 @@ class CompanionServer(
         from voicefi.companion.relay_client import RelaySessionCredentials
 
         creds = RelaySessionCredentials.load_or_create()
+        if not self._is_loopback_request(request):
+            provided_tok = self._extract_request_token(request)
+            if not (creds.token and provided_tok and secrets.compare_digest(provided_tok, creds.token)):
+                return web.json_response(
+                    {"error": "Unauthorized: QR pairing credentials restricted to local host"},
+                    status=401,
+                )
+
         cloud_url = creds.get_pairing_url("https://companion.voicefi.app")
 
         urls = get_companion_urls(self.port)
+        if urls.get("ip_url"):
+            urls["ip_url"] = f"{urls['ip_url'].rstrip('/')}/?t={creds.token}#t={creds.token}"
+        if urls.get("mdns_url"):
+            urls["mdns_url"] = f"{urls['mdns_url'].rstrip('/')}/?t={creds.token}#t={creds.token}"
         active_tunnel = get_active_tunnel_url()
         tunnel_pairing_url = None
         if active_tunnel:

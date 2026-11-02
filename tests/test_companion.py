@@ -1132,3 +1132,14 @@ def test_pass2_security_live_tools_and_pair_xss():
     assert "function encodeSafeParam(" in pair_html
 
 
+def test_pass3_security_ollama_allowlist():
+    """Verify Ollama model pull allowlist blocks arbitrary third-party namespaces."""
+    assert CompanionServer._is_allowed_ollama_pull_model("qwen2.5-coder:1.5b") is True
+    assert CompanionServer._is_allowed_ollama_pull_model("gemma2:2b") is True
+    assert CompanionServer._is_allowed_ollama_pull_model("ollama/llama3.3:70b") is True
+    assert CompanionServer._is_allowed_ollama_pull_model("eviluser/backdoor:latest") is False
+    assert CompanionServer._is_allowed_ollama_pull_model("../etc/passwd") is False
+    assert CompanionServer._is_allowed_ollama_pull_model("unknown_random_model:latest") is False
+
+
+
