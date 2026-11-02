@@ -217,7 +217,7 @@ class RelayClient:
         msg_type = payload.get("type")
 
         if msg_type == "relay_connected":
-            self.has_peer = payload.get("has_client", False)
+            self.has_peer = bool(payload.get("has_client") or payload.get("has_peer"))
             if self.has_peer:
                 try:
                     from voicefi.integrations.conversations import record_companion_heartbeat
@@ -269,6 +269,7 @@ class RelayClient:
                 self.on_peer_disconnected()
 
         elif msg_type == "rpc_request":
+            self.has_peer = True
             # Proxy HTTP request to local daemon
             await self._proxy_rpc_request(payload)
 
@@ -511,6 +512,7 @@ class RelayClient:
                     logger.debug(f"[RelayClient] live_update_voice error: {e}")
 
         elif msg_type == "ping":
+            self.has_peer = True
             if self.has_peer:
                 try:
                     from voicefi.integrations.conversations import record_companion_heartbeat
