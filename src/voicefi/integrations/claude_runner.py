@@ -139,7 +139,7 @@ def resolve_claude_auth_token(config: Optional[VoiceFiConfig] = None) -> Optiona
 
     # Tier 5: macOS Keychain lookup
     if sys.platform == "darwin":
-        keychain_services = ["Claude Code-credentials", "Claude Safe Storage"]
+        keychain_services = ["Claude Code-credentials"]
         for svc in keychain_services:
             try:
                 res = subprocess.run(
@@ -151,6 +151,22 @@ def resolve_claude_auth_token(config: Optional[VoiceFiConfig] = None) -> Optiona
                 )
                 if res.returncode == 0 and res.stdout.strip():
                     val = res.stdout.strip()
+                    if val.startswith("{"):
+                        try:
+                            cred_obj = json.loads(val)
+                            if isinstance(cred_obj, dict):
+                                oauth_info = cred_obj.get("claudeAiOauth")
+                                if isinstance(oauth_info, dict):
+                                    access_tok = oauth_info.get("accessToken")
+                                    if isinstance(access_tok, str) and access_tok.strip():
+                                        return access_tok.strip()
+                                for top_key in ("accessToken", "oauthToken", "apiKey"):
+                                    top_val = cred_obj.get(top_key)
+                                    if isinstance(top_val, str) and top_val.strip():
+                                        return top_val.strip()
+                        except Exception:
+                            pass
+                        continue
                     if val.startswith("sk-") or len(val) > 20:
                         return val
             except Exception:
@@ -246,20 +262,22 @@ class ClaudeHeadlessRunner:
         clean_text = text.strip()
         canonical_id, session_uuid, is_new = normalize_claude_conv_id(conv_id)
         cfg = config or load_config()
+        safe_from_conv_id = re.sub(r"[^A-Za-z0-9_.:-]", "", str(from_conv_id or ""))[:80]
+        safe_from_engine = re.sub(r"[^A-Za-z0-9_-]", "", str(from_engine or "antigravity"))[:32] or "antigravity"
 
-        if include_envelope and from_conv_id:
-            clean_text = f"""[From: {from_engine.capitalize()} | Conversation: {from_conv_id}]
+        if include_envelope and safe_from_conv_id:
+            clean_text = f"""[From: {safe_from_engine.capitalize()} | Conversation: {safe_from_conv_id}]
 {clean_text}
 
 💡 To return your findings to Antigravity, run:
 vifi send --to antigravity --reply "Your findings summary"
 # or:
-curl -s -X POST http://localhost:5141/api/send -H "Content-Type: application/json" -d '{{"text": "Your findings summary", "conv_id": "{from_conv_id}", "engine": "antigravity", "sender_name": "Claude"}}'"""
+curl -s -X POST http://localhost:5141/api/send -H "Content-Type: application/json" -d '{{"text": "Your findings summary", "conv_id": "{safe_from_conv_id}", "engine": "antigravity", "sender_name": "Claude"}}'"""
 
-        if from_conv_id:
+        if safe_from_conv_id:
             record_agent_route(
-                from_engine=from_engine,
-                from_conv_id=from_conv_id,
+                from_engine=safe_from_engine,
+                from_conv_id=safe_from_conv_id,
                 to_engine="claude",
                 to_conv_id=canonical_id,
             )

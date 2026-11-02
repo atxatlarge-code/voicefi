@@ -9,6 +9,7 @@ import sys
 import re
 import time
 import json
+import shlex
 import logging
 import subprocess
 import urllib.request
@@ -292,6 +293,24 @@ class LocalAutonomousLoop:
             )
 
         total_duration = round(time.perf_counter() - start_time, 3)
+        total_dur = total_duration
+        self.steps = steps
+        try:
+            from voicefi.local.telemetry import record_hybrid_step
+
+            record_hybrid_step(
+                stage="local_loop",
+                model_name=self.model_name,
+                is_local=True,
+                duration_ms=int(total_dur * 1000),
+                input_tokens=len(self.steps) * 800,
+                output_tokens=len(self.steps) * 180,
+                success=completed,
+                notes=f"{len(self.steps)} turns",
+            )
+        except Exception:
+            pass
+
         return AutonomousLoopResult(
             goal=goal,
             completed=completed,
@@ -304,21 +323,52 @@ class LocalAutonomousLoop:
             error=None if completed else "Exceeded max turn budget without explicit finish.",
         )
 
+    _SENSITIVE_PARTS = {".git", ".ssh", ".aws", ".gnupg", ".voicefi"}
+    _SENSITIVE_FILES = {".env", ".env.local", ".env.production", "id_rsa", "id_ed25519", "config.yaml"}
+    _FORBIDDEN_SHELL_TOKENS = (";", "&&", "||", "|", "`", "$(", ">", "<", "\n", "\r", "\x00")
+    _ALLOWED_BINARIES = {"pytest", "python", "python3", "ruff", "git", "mypy", "flake8", "echo", "ls", "pwd"}
+
+    def _resolve_safe_repo_path(self, rel_path: str, allow_dir: bool = False) -> Optional[Path]:
+        """Ensure rel_path resolves strictly inside self.repo_root and is not a sensitive secret path."""
+        try:
+            clean_rel = (rel_path or "").strip()
+            if not clean_rel:
+                return self.repo_root.resolve() if allow_dir else None
+            resolved_root = self.repo_root.resolve()
+            candidate = (resolved_root / clean_rel).resolve()
+            if not candidate.is_relative_to(resolved_root):
+                return None
+            rel_parts = candidate.relative_to(resolved_root).parts
+            if any(part in self._SENSITIVE_PARTS or part.startswith(".env") for part in rel_parts):
+                return None
+            if candidate.name in self._SENSITIVE_FILES:
+                return None
+            return candidate
+        except Exception:
+            return None
+
     def _execute_tool(self, tool_name: str, args: Dict[str, Any]) -> str:
         """Run requested tool locally on macOS."""
         try:
             if tool_name == "search_code":
-                query = args.get("query", "")
+                query = (args.get("query") or "").strip()
+                if not query:
+                    return "Error: Empty search query."
                 path_prefix = args.get("path", ".")
+                safe_target = self._resolve_safe_repo_path(path_prefix, allow_dir=True)
+                if safe_target is None:
+                    return f"Error: Access denied for path '{path_prefix}' (outside repository)."
+                safe_rel = str(safe_target.relative_to(self.repo_root.resolve()))
                 lines = []
                 # Try ripgrep first (handles untracked files and fast search)
                 try:
                     res = subprocess.run(
-                        ["rg", "-n", "-i", "--no-heading", "--max-count", "15", query, path_prefix],
+                        ["rg", "-n", "-i", "--no-heading", "--max-count", "15", "--", query, safe_rel],
                         cwd=str(self.repo_root),
                         capture_output=True,
                         text=True,
                         timeout=5,
+                        shell=False,
                     )
                     if res.stdout.strip():
                         lines = res.stdout.strip().splitlines()[:15]
@@ -327,13 +377,14 @@ class LocalAutonomousLoop:
 
                 # Fallback to git grep
                 if not lines:
-                    cmd = ["git", "grep", "-n", "-I", "-i", query, "--", path_prefix]
+                    cmd = ["git", "grep", "-n", "-I", "-i", "-e", query, "--", safe_rel]
                     res = subprocess.run(
                         cmd,
                         cwd=str(self.repo_root),
                         capture_output=True,
                         text=True,
                         timeout=5,
+                        shell=False,
                     )
                     if res.stdout.strip():
                         lines = res.stdout.strip().splitlines()[:15]
@@ -358,7 +409,9 @@ class LocalAutonomousLoop:
 
             elif tool_name == "read_slice":
                 rel_path = args.get("path", "")
-                full_path = (self.repo_root / rel_path).resolve()
+                full_path = self._resolve_safe_repo_path(rel_path, allow_dir=False)
+                if full_path is None:
+                    return f"Error: Access denied: path '{rel_path}' is outside repository or restricted."
                 if not full_path.is_file():
                     return f"Error: File not found: {rel_path}"
                 start_l = max(1, int(args.get("start_line", 1)))
@@ -371,7 +424,9 @@ class LocalAutonomousLoop:
 
             elif tool_name == "apply_diff":
                 rel_path = args.get("path", "")
-                full_path = (self.repo_root / rel_path).resolve()
+                full_path = self._resolve_safe_repo_path(rel_path, allow_dir=False)
+                if full_path is None:
+                    return f"Error: Access denied: path '{rel_path}' is outside repository or restricted."
                 if not full_path.is_file():
                     return f"Error: File not found: {rel_path}"
                 search_block = args.get("search", "")
@@ -381,6 +436,16 @@ class LocalAutonomousLoop:
                 updated, matched = apply_search_replace(content, search_block, replace_block)
                 if not matched:
                     return f"Error: Could not locate exact search block in {rel_path}. TIP: Call read_slice(path='{rel_path}', start_line=1, end_line=50) to see exact code lines."
+                if full_path.suffix == ".py":
+                    try:
+                        import ast
+
+                        ast.parse(updated)
+                    except SyntaxError as syn_err:
+                        return (
+                            f"Error: AST SyntaxGuard rejected your diff in {rel_path} at line {syn_err.lineno}: "
+                            f"{syn_err.msg}. Check indentation and brackets, then retry apply_diff."
+                        )
                 # Write backup and updated
                 bak = full_path.with_suffix(full_path.suffix + ".vifi_bak")
                 with open(bak, "w", encoding="utf-8") as f:
@@ -390,18 +455,33 @@ class LocalAutonomousLoop:
                 return f"Successfully applied changes to {rel_path}."
 
             elif tool_name == "run_command":
-                cmd = args.get("command", "")
+                cmd = (args.get("command") or "").strip()
                 if not cmd:
                     return "Error: No command provided."
-                # Security boundary: disallow destructive root commands
-                if any(k in cmd for k in ("rm -rf /", "sudo", ":(){", "mkfs")):
+                # Security boundary: disallow destructive root commands or shell injection metacharacters
+                if any(k in cmd for k in ("rm -rf", "sudo", ":(){", "mkfs", "chmod", "chown", "curl ", "wget ", "nc ", "bash", "sh ")):
                     return "Error: Disallowed destructive command."
+                if any(tok in cmd for tok in self._FORBIDDEN_SHELL_TOKENS):
+                    return "Error: Disallowed destructive command (shell chaining/redirection not permitted)."
+                try:
+                    cmd_args = shlex.split(cmd)
+                except ValueError as e:
+                    return f"Error: Invalid command syntax: {e}"
+                if not cmd_args:
+                    return "Error: No command provided."
+                exe_name = Path(cmd_args[0]).name
+                if exe_name not in self._ALLOWED_BINARIES:
+                    return f"Error: Disallowed destructive command (executable '{exe_name}' not in safe allowlist)."
+                if exe_name in ("python", "python3") and any(a in ("-c", "-i") for a in cmd_args[1:]):
+                    return "Error: Disallowed destructive command (inline python -c is not permitted)."
+                if exe_name == "git" and len(cmd_args) > 1 and cmd_args[1] in ("push", "reset", "clean", "rm", "config", "remote"):
+                    return f"Error: Disallowed destructive command ('git {cmd_args[1]}' is not permitted)."
                 sub_env = os.environ.copy()
                 py_bin = os.path.dirname(sys.executable)
                 sub_env["PATH"] = f"{py_bin}:{sub_env.get('PATH', '')}"
                 res = subprocess.run(
-                    cmd,
-                    shell=True,
+                    cmd_args,
+                    shell=False,
                     cwd=str(self.repo_root),
                     capture_output=True,
                     text=True,
@@ -417,32 +497,60 @@ class LocalAutonomousLoop:
         except Exception as e:
             return f"Tool execution exception: {e}"
 
+    @staticmethod
+    def _normalize_tool_dict(data: Any) -> Optional[Dict[str, Any]]:
+        """Normalize {'tool': ...} or {'name': ...} tool call dicts, including flat argument schemas."""
+        if not isinstance(data, dict):
+            return None
+        tool_name = data.get("tool") or data.get("name") or data.get("function") or data.get("action")
+        if isinstance(tool_name, dict):
+            # Handle {"function": {"name": "...", "arguments": {...}}}
+            nested_args = tool_name.get("arguments") or tool_name.get("parameters") or {}
+            tool_name = tool_name.get("name")
+        else:
+            nested_args = None
+        if not tool_name or not isinstance(tool_name, str):
+            return None
+        args = (
+            nested_args
+            or data.get("arguments")
+            or data.get("parameters")
+            or data.get("args")
+            or data.get("input")
+            or {}
+        )
+        if isinstance(args, str):
+            try:
+                args = json.loads(args)
+            except Exception:
+                args = {}
+        if not isinstance(args, dict):
+            args = {}
+        if not args:
+            reserved = {"tool", "name", "function", "action", "arguments", "parameters", "args", "input", "thought"}
+            args = {k: v for k, v in data.items() if k not in reserved}
+        return {"tool": tool_name.strip(), "arguments": args}
+
     def _parse_tool_calls(self, text: str) -> List[Tuple[str, Dict[str, Any]]]:
         """Extract thought and JSON tool calls (supports multi-tool execution pipelines)."""
+        cleaned = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
         calls: List[Tuple[str, Dict[str, Any]]] = []
 
-        # Find all JSON code blocks with preceding thoughts
-        pattern = r"(?:THOUGHT:\s*(.*?)\s*)?```(?:json)?\s*(\{.*?\})\s*```"
-        matches = re.findall(pattern, text, re.DOTALL | re.IGNORECASE)
+        # 1. Find all JSON code blocks or <tool_call> XML blocks with preceding thoughts
+        pattern = r"(?:THOUGHT:\s*(.*?)\s*)?(?:```(?:json)?|<tool_call>)\s*(\{.*?\})\s*(?:```|</tool_call>)"
+        matches = re.findall(pattern, cleaned, re.DOTALL | re.IGNORECASE)
         for thought_txt, json_txt in matches:
-            try:
-                data = json.loads(json_txt)
-                if isinstance(data, dict) and "tool" in data:
-                    calls.append((thought_txt.strip(), data))
-                    continue
-            except Exception:
-                pass
-            try:
-                import ast
-
-                data = ast.literal_eval(json_txt)
-                if isinstance(data, dict) and "tool" in data:
-                    calls.append((thought_txt.strip(), data))
-            except Exception:
-                pass
+            for loader in (json.loads, __import__("ast").literal_eval):
+                try:
+                    norm = self._normalize_tool_dict(loader(json_txt))
+                    if norm:
+                        calls.append((thought_txt.strip(), norm))
+                        break
+                except Exception:
+                    pass
 
         if not calls:
-            t, single = self._parse_tool_call(text)
+            t, single = self._parse_tool_call(cleaned)
             if single:
                 calls.append((t, single))
 
@@ -450,46 +558,126 @@ class LocalAutonomousLoop:
 
     def _parse_tool_call(self, text: str) -> Tuple[str, Optional[Dict[str, Any]]]:
         """Extract thought and JSON tool call."""
-        thought_match = re.search(r"THOUGHT:\s*(.*?)(?=```|\Z)", text, re.DOTALL | re.IGNORECASE)
+        cleaned = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
+        thought_match = re.search(r"THOUGHT:\s*(.*?)(?=```|<tool_call>|\{|$)", cleaned, re.DOTALL | re.IGNORECASE)
         thought = thought_match.group(1).strip() if thought_match else ""
 
-        # 1. Search all markdown json blocks
-        blocks = re.findall(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
+        # 1. Search all markdown json blocks and <tool_call> blocks
+        blocks = re.findall(r"(?:```(?:json)?|<tool_call>)\s*(\{.*?\})\s*(?:```|</tool_call>)", cleaned, re.DOTALL)
         for b in blocks:
-            try:
-                data = json.loads(b)
-                if isinstance(data, dict) and "tool" in data:
-                    return thought, data
-            except Exception:
-                pass
-            try:
-                import ast
+            for loader in (json.loads, __import__("ast").literal_eval):
+                try:
+                    norm = self._normalize_tool_dict(loader(b))
+                    if norm:
+                        return thought, norm
+                except Exception:
+                    pass
 
-                data = ast.literal_eval(b)
-                if isinstance(data, dict) and "tool" in data:
-                    return thought, data
-            except Exception:
-                pass
-
-        # 2. Try raw json objects with "tool"
-        raw_matches = re.findall(r"(\{\s*\"tool\"\s*:\s*\"[^\"]+\".*?\})", text, re.DOTALL)
+        # 2. Try raw json objects with "tool" or "name" (including raw_decode for trailing braces/fences)
+        raw_matches = re.findall(r'(\{\s*"(?:tool|name)"\s*:\s*"[^"]+".*\})', cleaned, re.DOTALL)
         for m in raw_matches:
+            for loader in (json.loads, __import__("ast").literal_eval):
+                try:
+                    norm = self._normalize_tool_dict(loader(m))
+                    if norm:
+                        return thought, norm
+                except Exception:
+                    pass
             try:
-                data = json.loads(m)
-                if isinstance(data, dict) and "tool" in data:
-                    return thought, data
-            except Exception:
-                pass
-            try:
-                import ast
-
-                data = ast.literal_eval(m)
-                if isinstance(data, dict) and "tool" in data:
-                    return thought, data
+                obj, _ = json.JSONDecoder().raw_decode(m.lstrip())
+                norm = self._normalize_tool_dict(obj)
+                if norm:
+                    return thought, norm
             except Exception:
                 pass
 
         return thought, None
+
+    OLLAMA_TOOLS = [
+        {
+            "type": "function",
+            "function": {
+                "name": "read_slice",
+                "description": "view specific lines of a file",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string"},
+                        "start_line": {"type": "integer"},
+                        "end_line": {"type": "integer"},
+                    },
+                    "required": ["path", "start_line", "end_line"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "find_symbol",
+                "description": "look up class, function, or method definitions in the SQLite AST index",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"name": {"type": "string"}},
+                    "required": ["name"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "search_code",
+                "description": "search for text/regex across files",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string"},
+                        "path": {"type": "string"},
+                    },
+                    "required": ["query"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "apply_diff",
+                "description": "apply exact SEARCH/REPLACE block to a file",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string"},
+                        "search": {"type": "string"},
+                        "replace": {"type": "string"},
+                    },
+                    "required": ["path", "search", "replace"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "run_command",
+                "description": "execute a shell/test command",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"command": {"type": "string"}},
+                    "required": ["command"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "finish",
+                "description": "declare the task completed",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"summary": {"type": "string"}},
+                    "required": ["summary"],
+                },
+            },
+        },
+    ]
 
     async def _query_model(self, messages: List[Dict[str, str]]) -> str:
         """Send chat messages to warm local model server (LiteRT or Ollama)."""
@@ -500,21 +688,35 @@ class LocalAutonomousLoop:
         # 1. Check Ollama API first
         ollama_url = "http://127.0.0.1:11434/api/chat"
         try:
-            req_data = {
+            req_data: Dict[str, Any] = {
                 "model": self.model_name,
                 "messages": [{"role": "system", "content": self.SYSTEM_PROMPT}] + messages,
                 "stream": False,
                 "options": {"temperature": 0.2, "num_predict": 2048},
             }
+            if "flint" in self.model_name:
+                req_data["tools"] = self.OLLAMA_TOOLS
             req = urllib.request.Request(
                 ollama_url,
                 data=json.dumps(req_data).encode("utf-8"),
                 headers={"Content-Type": "application/json"},
                 method="POST",
             )
-            with urllib.request.urlopen(req, timeout=30) as resp:
+            with urllib.request.urlopen(req, timeout=45) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
-                return data.get("message", {}).get("content", "").strip()
+                msg = data.get("message", {})
+                content = msg.get("content", "").strip()
+                if not content and msg.get("thinking"):
+                    content = msg.get("thinking", "").strip()
+                native_tcs = msg.get("tool_calls") or []
+                for tc in native_tcs:
+                    fn = tc.get("function", {})
+                    if fn.get("name"):
+                        tc_json = json.dumps(
+                            {"tool": fn["name"], "arguments": fn.get("arguments", {})}
+                        )
+                        content = f"{content}\n```json\n{tc_json}\n```".strip()
+                return content
         except Exception:
             pass
 

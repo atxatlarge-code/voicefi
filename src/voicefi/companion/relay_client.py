@@ -42,6 +42,8 @@ class RelaySessionCredentials:
         )
 
     def save_to_disk(self, path: Optional[Path] = None) -> None:
+        import os
+
         p = path or (Path.home() / ".voicefi" / "relay_session.json")
         p.parent.mkdir(parents=True, exist_ok=True)
         data = {
@@ -50,6 +52,10 @@ class RelaySessionCredentials:
             "created_at": self.created_at,
         }
         p.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        try:
+            os.chmod(p, 0o600)
+        except Exception:
+            pass
 
     @classmethod
     def load_or_create(cls, path: Optional[Path] = None) -> "RelaySessionCredentials":
@@ -59,7 +65,13 @@ class RelaySessionCredentials:
                 data = json.loads(p.read_text(encoding="utf-8"))
                 s_id = data.get("session_id")
                 tok = data.get("token")
-                if s_id and tok:
+                # Rotate if legacy hardcoded credentials are found
+                if (
+                    s_id
+                    and tok
+                    and s_id != "vifi_4d098c55"
+                    and tok != "MkNCI_F2Wczaf18jX4ZORQ"
+                ):
                     return cls(session_id=s_id, token=tok)
             except Exception:
                 pass
@@ -157,8 +169,6 @@ class RelayClient:
                     ssl_ctx = ssl.create_default_context(cafile=certifi.where())
                 except Exception:
                     ssl_ctx = ssl.create_default_context()
-                    ssl_ctx.check_hostname = False
-                    ssl_ctx.verify_mode = ssl.CERT_NONE
 
                 async with self.session.ws_connect(
                     url,
@@ -262,7 +272,7 @@ class RelayClient:
             # Proxy HTTP request to local daemon
             await self._proxy_rpc_request(payload)
 
-        elif msg_type in ("user_voice_command", "send_prompt"):
+        elif msg_type in ("user_voice_command", "send_prompt", "user_speech"):
             from voicefi.integrations.injector import send_message_to_agent
             from voicefi.integrations.conversations import (
                 set_mobile_turn_origin,
@@ -281,6 +291,132 @@ class RelayClient:
             sender_name = payload.get("sender_name") or "Pixel Remote"
             title = payload.get("title") or f"Message from {sender_name}"
 
+            if text_prompt:
+                try:
+                    from voicefi.integrations.screenpipe import record_audio_transcription
+
+                    record_audio_transcription(
+                        transcription=text_prompt,
+                        device="Companion Phone Mic",
+                    )
+                except Exception as tee_err:
+                    logger.debug(f"[RelayClient] Screenpipe tee warning: {tee_err}")
+
+            from voicefi.integrations.pal_harness import execute_pal_or_intent_turn
+
+            is_explicit_pal = (
+                (engine and str(engine).lower() in ("pal", "mac", "system", "os", "computer_use"))
+                or (conv_id and str(conv_id).lower().startswith("pal_"))
+            )
+            if text_prompt and is_explicit_pal:
+                print(
+                    f"[RelayClient] 💻 Driving Mac / Pal command from phone: '{text_prompt}' (engine={engine})",
+                    flush=True,
+                )
+                try:
+                    turn_res = await asyncio.to_thread(
+                        execute_pal_or_intent_turn,
+                        text_prompt,
+                        config=getattr(self, "config", None),
+                        use_local_model=True,
+                    )
+                    spoken_out = turn_res.get("spoken_response") or "Command executed."
+                    action_type = turn_res.get("action_type") or "pal"
+                    target_cid = conv_id or "pal_mac"
+
+                    await self.broadcast(
+                        {
+                            "type": "user_command_injected",
+                            "conv_id": target_cid,
+                            "success": turn_res.get("success", True),
+                            "delivered": True,
+                            "text": text_prompt,
+                            "engine": "pal",
+                        }
+                    )
+
+                    await self.broadcast(
+                        {
+                            "type": "agent_turn_completed",
+                            "summary": spoken_out,
+                            "full_response": f"### 💻 Pal Mac OS Action\n\n**Command:** `{text_prompt}`\n\n**Action Type:** `{action_type}`\n\n**Result:** {spoken_out}",
+                            "conv_id": target_cid,
+                            "agent_role": "pal",
+                            "engine": "pal",
+                            "origin": "mobile",
+                            "success": turn_res.get("success", True),
+                        }
+                    )
+                    return
+                except Exception as exc:
+                    logger.warning(f"[RelayClient] Pal execution error: {exc}")
+
+            is_local_gemma = (
+                (engine and str(engine).lower() in ("gemma", "local", "ollama"))
+                or (conv_id and str(conv_id).lower().startswith("gemma_"))
+            )
+            if is_local_gemma and text_prompt:
+                print(
+                    f"[RelayClient] 🧠 Forwarding local model turn from phone: '{text_prompt}' (conv: {conv_id})",
+                    flush=True,
+                )
+                try:
+                    if not self.session or self.session.closed:
+                        self.session = aiohttp.ClientSession()
+                    if conv_id and str(conv_id).lower().startswith("gemma_"):
+                        local_api = f"http://127.0.0.1:{self.local_port}/api/send"
+                        req_body = {
+                            "conv_id": conv_id,
+                            "text": text_prompt,
+                            "engine": "gemma",
+                            "model": payload.get("model"),
+                            "mode": payload.get("local_mode") or payload.get("mode"),
+                            "origin": "mobile",
+                        }
+                    else:
+                        local_api = f"http://127.0.0.1:{self.local_port}/api/conversation/new"
+                        req_body = {
+                            "prompt": text_prompt,
+                            "engine": "gemma",
+                            "model": payload.get("model"),
+                            "mode": payload.get("local_mode") or payload.get("mode"),
+                            "origin": "mobile",
+                        }
+                    async with self.session.post(
+                        local_api,
+                        json=req_body,
+                        timeout=aiohttp.ClientTimeout(total=120),
+                    ) as resp:
+                        res_data = await resp.json(content_type=None)
+                        target_cid = (
+                            (res_data.get("conv_id") if isinstance(res_data, dict) else None)
+                            or conv_id
+                            or "gemma"
+                        )
+                        await self.broadcast(
+                            {
+                                "type": "user_command_injected",
+                                "conv_id": target_cid,
+                                "success": resp.status < 400,
+                                "delivered": resp.status < 400,
+                                "text": text_prompt,
+                                "engine": "gemma",
+                            }
+                        )
+                except Exception as exc:
+                    logger.warning(f"[RelayClient] Local model relay forward error: {exc}")
+                    await self.broadcast(
+                        {
+                            "type": "agent_turn_completed",
+                            "summary": f"Local model error: {exc}",
+                            "full_response": f"⚠️ Local model request failed: `{exc}`",
+                            "conv_id": conv_id or "gemma",
+                            "agent_role": "gemma",
+                            "origin": "mobile",
+                        }
+                    )
+                return
+
             tracker = ConversationTracker()
             recent_convs = tracker.get_all_conversations(limit=12)
             recent_ids = {c.id for c in recent_convs}
@@ -290,13 +426,6 @@ class RelayClient:
 
             if not conv_id or conv_id in ("active", "null", "none"):
                 conv_id = active_id
-            elif conv_id not in recent_ids and conv_id != "obsidian":
-                if active_id:
-                    print(
-                        f"[RelayClient] ⚠️ Phone requested stale session {conv_id[:8]}... Rerouting to active desktop session {active_id[:8]}",
-                        flush=True,
-                    )
-                    conv_id = active_id
 
             print(
                 f"[RelayClient] 📥 Received voice/text command from phone: '{text_prompt}' (conv: {conv_id})",
@@ -373,6 +502,14 @@ class RelayClient:
                 except Exception as e:
                     logger.debug(f"[RelayClient] live_text error: {e}")
 
+        elif msg_type == "live_update_voice":
+            new_voice = payload.get("voice", "")
+            if self.live_ws and not self.live_ws.closed and new_voice:
+                try:
+                    await self.live_ws.send_str(json.dumps({"type": "update_voice", "voice": new_voice}))
+                except Exception as e:
+                    logger.debug(f"[RelayClient] live_update_voice error: {e}")
+
         elif msg_type == "ping":
             if self.has_peer:
                 try:
@@ -396,6 +533,7 @@ class RelayClient:
         await self._stop_live_session()
         params = payload.get("params") or payload.get("config") or {}
         query_params = {
+            "provider": params.get("provider", "gemini"),
             "model": params.get("model", "gemini-2.5-flash-native-audio-latest"),
             "voice": params.get("voice", "Puck"),
             "thinking": "1" if params.get("thinking") else "0",
@@ -459,13 +597,68 @@ class RelayClient:
                 except Exception:
                     pass
 
+    _BLOCKED_RPC_PREFIXES = (
+        "/api/fix",
+        "/vifi/fix",
+        "/api/hook/event",
+        "/api/live/key",
+        "/api/tunnel/start",
+    )
+
+    @classmethod
+    def _validate_rpc_path(cls, path: Any) -> Optional[str]:
+        """Validate RPC path to prevent SSRF, authority spoofing, and restricted endpoint access."""
+        if not isinstance(path, str) or not path.startswith("/"):
+            return None
+        if path.startswith("//") or path.startswith("/\\"):
+            return None
+        if any(c in path for c in ("\r", "\n", "\x00")):
+            return None
+        parsed = urllib.parse.urlsplit(path)
+        if parsed.scheme or parsed.netloc or "@" in parsed.path or ".." in parsed.path.split("/"):
+            return None
+        norm_path = parsed.path.rstrip("/") or "/"
+        for blocked in cls._BLOCKED_RPC_PREFIXES:
+            if norm_path == blocked or norm_path.startswith(blocked + "/"):
+                return None
+        return path
+
     async def _proxy_rpc_request(self, payload: Dict[str, Any]) -> None:
         """Proxy a REST API request to localhost:local_port and return response to phone."""
         req_id = payload.get("id")
-        path = payload.get("path", "/api/status")
-        method = payload.get("method", "GET").upper()
+        raw_path = payload.get("path", "/api/status")
+        path = self._validate_rpc_path(raw_path)
+        if not path:
+            await self.broadcast(
+                {
+                    "type": "rpc_response",
+                    "id": req_id,
+                    "status": 403,
+                    "error": "Forbidden or invalid RPC path",
+                }
+            )
+            return
+
+        method = str(payload.get("method", "GET")).upper()
+        if method not in ("GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"):
+            await self.broadcast(
+                {
+                    "type": "rpc_response",
+                    "id": req_id,
+                    "status": 405,
+                    "error": "Method not allowed",
+                }
+            )
+            return
+
         body = payload.get("body")
-        headers = payload.get("headers", {})
+        raw_headers = payload.get("headers", {})
+        headers = {}
+        if isinstance(raw_headers, dict):
+            for k, v in raw_headers.items():
+                if isinstance(k, str) and isinstance(v, str) and k.lower() not in ("host", "x-forwarded-for", "cf-connecting-ip"):
+                    headers[k] = v
+        headers["X-VoiceFi-Token"] = self.credentials.token
 
         url = f"http://127.0.0.1:{self.local_port}{path}"
 
@@ -475,7 +668,7 @@ class RelayClient:
 
             req_kwargs = {"headers": headers}
             if body is not None:
-                if isinstance(body, str) and (body.startswith("data:") or ";base64," in body):
+                if isinstance(body, str) and body.startswith("data:") and ";base64," in body:
                     import base64
 
                     _, b64data = body.split(";base64,", 1) if ";base64," in body else ("", body)
@@ -486,12 +679,21 @@ class RelayClient:
                     req_kwargs["data"] = str(body)
 
             async with self.session.request(
-                method, url, timeout=aiohttp.ClientTimeout(total=10), **req_kwargs
+                method, url, timeout=aiohttp.ClientTimeout(total=120), **req_kwargs
             ) as resp:
                 status = resp.status
                 content_type = resp.headers.get("Content-Type", "")
                 if "application/json" in content_type:
                     data = await resp.json()
+                elif any(
+                    content_type.startswith(p)
+                    for p in ("audio/", "image/", "application/octet-stream")
+                ):
+                    import base64
+
+                    raw_bytes = await resp.read()
+                    b64 = base64.b64encode(raw_bytes).decode("ascii")
+                    data = f"data:{content_type};base64,{b64}"
                 else:
                     data = await resp.text()
 

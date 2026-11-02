@@ -9,6 +9,8 @@ import json
 import logging
 import os
 import re
+import secrets
+import shlex
 import shutil
 import subprocess
 import sys
@@ -73,6 +75,7 @@ from voicefi.integrations.injector import (
     inject_text_to_claude,
 )
 from voicefi.integrations.antigravity import clean_markdown_for_speech
+from voicefi.integrations.screenpipe import record_audio_transcription
 from voicefi.integrations.tool_formatter import format_tool_details
 from voicefi.integrations.watcher import get_recent_transcript_paths
 from voicefi.tts import get_tts_engine
@@ -144,6 +147,13 @@ class CompanionServer(
         self._memo_thread: Optional[threading.Thread] = None
         self._processed_hook_requests: Dict[str, float] = {}
         self._recent_broadcast_turns: Dict[str, float] = {}
+        self._phone_recording_active: bool = False
+        self._last_phone_transcript_at: Optional[float] = None
+        self._last_tee_transcript_text: str = ""
+        self._last_tee_transcript_ts: float = 0.0
+        self._usb_status_cache: Optional[Dict[str, Any]] = None
+        self._usb_status_cache_ts: float = 0.0
+        self._adb_reversed_serials: Set[str] = set()
         self.relay_client: Optional[RelayClient] = None
         try:
             from voicefi.integrations.pal_harness import PalHarness
@@ -154,17 +164,248 @@ class CompanionServer(
 
         @web.middleware
         async def cors_middleware(request, handler):
+            origin = request.headers.get("Origin", "")
+            allowed_origin = self._resolve_allowed_origin(origin)
+            if origin and not allowed_origin:
+                if (
+                    request.method not in ("GET", "HEAD", "OPTIONS")
+                    or request.path.startswith("/api/")
+                    or request.path.startswith("/vifi/")
+                    or request.path.startswith("/ws")
+                ):
+                    return web.json_response(
+                        {"error": "Forbidden: untrusted Origin", "status": "error"},
+                        status=403,
+                    )
+
+            is_tunnel = self._is_tunnel_request(request)
+            set_auth_cookie = None
+            if is_tunnel:
+                for blocked in (
+                    "/api/fix",
+                    "/vifi/fix",
+                    "/api/hook/event",
+                    "/api/live/key",
+                    "/api/tunnel/start",
+                ):
+                    if request.path == blocked or request.path.startswith(blocked + "/"):
+                        return web.json_response(
+                            {"error": "Endpoint restricted to local loopback"},
+                            status=403,
+                        )
+                expected_tok = self._get_expected_pairing_token()
+                provided_tok = self._extract_request_token(request)
+                if expected_tok and provided_tok and secrets.compare_digest(provided_tok, expected_tok):
+                    set_auth_cookie = expected_tok
+                elif expected_tok and (
+                    request.path.startswith("/api/")
+                    or request.path.startswith("/vifi/")
+                    or request.path.startswith("/ws")
+                    or request.path.startswith("/downloads/")
+                ):
+                    return web.json_response(
+                        {"error": "Unauthorized: valid pairing token required for tunnel access"},
+                        status=401,
+                    )
+
             if request.method == "OPTIONS":
                 response = web.Response(status=200)
             else:
                 response = await handler(request)
-            response.headers["Access-Control-Allow-Origin"] = "*"
+            if allowed_origin:
+                response.headers["Access-Control-Allow-Origin"] = allowed_origin
+            elif not origin:
+                response.headers["Access-Control-Allow-Origin"] = "*"
             response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS, PUT, DELETE"
-            response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+            response.headers["Access-Control-Allow-Headers"] = (
+                "Content-Type, Authorization, X-VoiceFi-Token, X-VoiceFi-Room-Mode"
+            )
+            if set_auth_cookie and hasattr(response, "set_cookie"):
+                try:
+                    response.set_cookie(
+                        "vifi_auth",
+                        set_auth_cookie,
+                        httponly=True,
+                        samesite="Lax",
+                        path="/",
+                    )
+                except Exception:
+                    pass
             return response
 
         self.app.middlewares.append(cors_middleware)
         self._setup_routes()
+
+    @staticmethod
+    def _resolve_allowed_origin(origin: str) -> Optional[str]:
+        """Validate Origin header against trusted local/companion origins to prevent CSRF & CSWSH."""
+        if not origin:
+            return "*"
+        if origin in ("null", "file://", "app://obsidian.md", "capacitor://localhost"):
+            return origin
+        try:
+            import urllib.parse
+
+            parsed = urllib.parse.urlsplit(origin)
+            host = (parsed.hostname or "").lower()
+            if not host:
+                return None
+            if (
+                host in ("localhost", "127.0.0.1", "::1", "[::1]", "0.0.0.0")
+                or host.endswith(".local")
+                or host.endswith(".lan")
+                or host.endswith(".trycloudflare.com")
+                or host == "voicefi.org"
+                or host.endswith(".voicefi.org")
+                or host == "voicefi.app"
+                or host.endswith(".voicefi.app")
+                or host == "vifi.co"
+                or host.endswith(".vifi.co")
+                or host.startswith("192.168.")
+                or host.startswith("10.")
+                or re.match(r"^172\.(1[6-9]|2[0-9]|3[0-1])\.", host)
+            ):
+                return origin
+        except Exception:
+            pass
+        return None
+
+    @staticmethod
+    def _is_tunnel_request(request: web.Request) -> bool:
+        """Detect whether the HTTP/WS request arrived over Cloudflare Tunnel or reverse proxy."""
+        host = (request.headers.get("Host") or "").lower()
+        if ".trycloudflare.com" in host:
+            return True
+        if request.headers.get("Cf-Connecting-Ip") or request.headers.get("Cf-Ray"):
+            return True
+        return False
+
+    @staticmethod
+    def _is_loopback_request(request: web.Request) -> bool:
+        """Ensure request originated directly from local loopback and not via tunnel/proxy."""
+        if CompanionServer._is_tunnel_request(request):
+            return False
+        if request.headers.get("X-Forwarded-For"):
+            return False
+        remote = (request.remote or "").strip().lower()
+        return remote in ("", "127.0.0.1", "::1", "localhost", "::ffff:127.0.0.1")
+
+    def _get_expected_pairing_token(self) -> str:
+        """Return the active pairing token for this host."""
+        try:
+            if self.relay_client and getattr(self.relay_client, "credentials", None):
+                return self.relay_client.credentials.token
+            creds = RelaySessionCredentials.load_or_create()
+            return creds.token
+        except Exception:
+            return ""
+
+    @staticmethod
+    def _extract_request_token(request: web.Request) -> str:
+        """Extract pairing token from query, headers, cookies, or Referer."""
+        tok = (
+            request.query.get("t")
+            or request.query.get("token")
+            or request.headers.get("X-VoiceFi-Token")
+            or ""
+        ).strip()
+        if tok:
+            return tok
+        auth_hdr = (request.headers.get("Authorization") or "").strip()
+        if auth_hdr.lower().startswith("bearer "):
+            return auth_hdr[7:].strip()
+        cookie_tok = (request.cookies.get("vifi_auth") or "").strip()
+        if cookie_tok:
+            return cookie_tok
+        ref = request.headers.get("Referer") or ""
+        if ref:
+            try:
+                import urllib.parse
+
+                q = urllib.parse.parse_qs(urllib.parse.urlsplit(ref).query)
+                for key in ("t", "token"):
+                    if key in q and q[key]:
+                        return q[key][0].strip()
+            except Exception:
+                pass
+        return ""
+
+    def get_usb_phone_status(self) -> Dict[str, Any]:
+        """Detect USB-connected Pixel / Android / iPhone devices and auto-wire `adb reverse` when ADB is active."""
+        now = time.time()
+        if self._usb_status_cache is not None and (now - self._usb_status_cache_ts) < 5.0:
+            return self._usb_status_cache
+
+        result: Dict[str, Any] = {
+            "connected": False,
+            "device_name": None,
+            "vendor": None,
+            "serial": None,
+            "product_id": None,
+            "adb_online": False,
+            "adb_reverse_active": False,
+        }
+        try:
+            proc = subprocess.run(
+                ["ioreg", "-p", "IOUSB", "-l", "-w", "0"],
+                capture_output=True,
+                text=True,
+                timeout=1.5,
+            )
+            out = proc.stdout or ""
+            m_block = re.search(
+                r"\+-o\s+(Pixel[^@<\n]*|Android[^@<\n]*|iPhone[^@<\n]*)@\S+[^\n]*\n(\s*\|\s*\{.*?\n\s*\|\s*\})",
+                out,
+                re.DOTALL | re.IGNORECASE,
+            )
+            if m_block:
+                dev_name = m_block.group(1).strip()
+                props = m_block.group(2)
+                serial_m = re.search(r'"USB Serial Number"\s*=\s*"([^"]+)"', props)
+                vendor_m = re.search(r'"USB Vendor Name"\s*=\s*"([^"]+)"', props)
+                pid_m = re.search(r'"idProduct"\s*=\s*(\d+)', props)
+                result["connected"] = True
+                result["device_name"] = dev_name
+                result["vendor"] = vendor_m.group(1).strip() if vendor_m else "Google"
+                result["serial"] = serial_m.group(1).strip() if serial_m else None
+                result["product_id"] = int(pid_m.group(1)) if pid_m else None
+
+                adb_bin = shutil.which("adb")
+                if adb_bin and ("pixel" in dev_name.lower() or "android" in dev_name.lower()):
+                    adb_proc = subprocess.run(
+                        [adb_bin, "devices"],
+                        capture_output=True,
+                        text=True,
+                        timeout=1.5,
+                    )
+                    adb_lines = [
+                        ln.strip()
+                        for ln in (adb_proc.stdout or "").splitlines()
+                        if ln.strip() and not ln.strip().startswith("List of devices")
+                    ]
+                    online_serials = [
+                        ln.split()[0]
+                        for ln in adb_lines
+                        if len(ln.split()) >= 2 and ln.split()[1] == "device"
+                    ]
+                    if online_serials:
+                        target_serial = online_serials[0]
+                        result["adb_online"] = True
+                        if target_serial not in self._adb_reversed_serials:
+                            for p in (self.port, self.port + 1):
+                                subprocess.run(
+                                    [adb_bin, "-s", target_serial, "reverse", f"tcp:{p}", f"tcp:{p}"],
+                                    capture_output=True,
+                                    timeout=1.5,
+                                )
+                            self._adb_reversed_serials.add(target_serial)
+                        result["adb_reverse_active"] = target_serial in self._adb_reversed_serials
+        except Exception:
+            pass
+
+        self._usb_status_cache = result
+        self._usb_status_cache_ts = now
+        return result
 
     def get_connectivity_summary(self) -> Dict[str, Any]:
         """Return real-time connectivity status of companion server, relay, and active devices."""
@@ -173,7 +414,9 @@ class CompanionServer(
         )
         has_relay_peer = bool(self.relay_client and getattr(self.relay_client, "has_peer", False))
         ws_count = len([ws for ws in self.active_websockets if not ws.closed])
-        total_peers = ws_count + (1 if has_relay_peer else 0)
+        usb_info = self.get_usb_phone_status()
+        has_usb_phone = bool(usb_info.get("connected"))
+        total_peers = ws_count + (1 if has_relay_peer else 0) + (1 if has_usb_phone and ws_count == 0 else 0)
 
         return {
             "port": self.port,
@@ -181,9 +424,36 @@ class CompanionServer(
             "relay_connected": relay_online,
             "has_relay_peer": has_relay_peer,
             "connected_clients": ws_count,
+            "usb_device": usb_info,
             "total_connected_devices": total_peers,
             "is_paired": total_peers > 0,
         }
+
+    def record_phone_transcript(
+        self, transcript: str, record_to_screenpipe: bool = True
+    ) -> None:
+        """Record a companion phone transcript into telemetry and `~/.screenpipe/db.sqlite`."""
+        cleaned = (transcript or "").strip()
+        if not cleaned:
+            return
+        now = time.time()
+        self._last_phone_transcript_at = now
+        self._phone_recording_active = True
+        if record_to_screenpipe:
+            if (
+                cleaned == self._last_tee_transcript_text
+                and (now - self._last_tee_transcript_ts) < 2.0
+            ):
+                return
+            try:
+                record_audio_transcription(
+                    transcription=cleaned,
+                    device="Companion Phone Mic",
+                )
+            except Exception as err:
+                logger.warning("[CompanionServer] Screenpipe tee warning: %s", err)
+        self._last_tee_transcript_text = cleaned
+        self._last_tee_transcript_ts = now
 
     def _setup_routes(self):
         self.app.router.add_get("/", self.handle_index)
@@ -363,6 +633,14 @@ class CompanionServer(
         self.app.router.add_post("/api/pal/training/stop", self.handle_pal_training_stop)
         self.app.router.add_post("/api/pal/training/cancel", self.handle_pal_training_cancel)
         self.app.router.add_get("/api/pal/training/status", self.handle_pal_training_status)
+        # Pal Live Edit Mode ("Select & Speak") IPC APIs
+        self.app.router.add_post("/api/pal/editing/start", self.handle_pal_editing_start)
+        self.app.router.add_post("/api/pal/editing/stop", self.handle_pal_editing_stop)
+        self.app.router.add_post("/api/pal/editing/undo", self.handle_pal_editing_undo)
+        self.app.router.add_post("/api/pal/editing/instruct", self.handle_pal_editing_instruct)
+        self.app.router.add_post("/api/pal/editing/note", self.handle_pal_editing_note)
+        self.app.router.add_post("/api/pal/editing/next", self.handle_pal_editing_next)
+        self.app.router.add_get("/api/pal/editing/status", self.handle_pal_editing_status)
         self.app.router.add_get("/ws", self.handle_ws)
 
     # Static Handlers
@@ -558,12 +836,27 @@ class CompanionServer(
         try:
             data = await request.json()
             source_path_str = data.get("source_path")
-            reel_id = data.get("reel_id") or "REEL-042"
+            raw_reel_id = data.get("reel_id") or "REEL-042"
+            reel_id = re.sub(r"[^a-zA-Z0-9_\-]", "_", str(raw_reel_id)) or "REEL-042"
             if not source_path_str:
                 return web.json_response({"error": "Missing source_path"}, status=400)
 
-            source_path = Path(source_path_str)
-            if not source_path.exists():
+            source_path = Path(str(source_path_str)).expanduser().resolve()
+            if source_path.suffix.lower() not in (".mov", ".mp4", ".m4v", ".webm", ".mkv"):
+                return web.json_response(
+                    {"error": "Invalid video file extension"}, status=400
+                )
+            allowed_roots = [
+                (Path.home() / "Downloads").resolve(),
+                (Path.home() / "Desktop").resolve(),
+                (Path.home() / "Movies").resolve(),
+                (Path.home() / "Projects").resolve(),
+            ]
+            if not any(source_path.is_relative_to(r) for r in allowed_roots):
+                return web.json_response(
+                    {"error": "Source path outside allowed media directories"}, status=403
+                )
+            if not source_path.exists() or not source_path.is_file():
                 return web.json_response(
                     {"error": f"File not found: {source_path_str}"}, status=404
                 )
@@ -645,7 +938,8 @@ class CompanionServer(
         """
         try:
             data = await request.json()
-            reel_id = data.get("reel_id") or "REEL-042"
+            raw_reel_id = data.get("reel_id") or "REEL-042"
+            reel_id = re.sub(r"[^a-zA-Z0-9_\-]", "_", str(raw_reel_id)) or "REEL-042"
             raw_file = data.get("file_name") or f"{reel_id}_silent_terminals.md"
 
             from voicefi.factory.markdown_sync import DEFAULT_REELS_DIR, parse_reel_markdown
@@ -839,7 +1133,8 @@ class CompanionServer(
         """
         try:
             data = await request.json()
-            reel_id = data.get("reel_id") or "REEL-042"
+            raw_reel_id = data.get("reel_id") or "REEL-042"
+            reel_id = re.sub(r"[^a-zA-Z0-9_\-]", "_", str(raw_reel_id)) or "REEL-042"
             recordings_dir = Path("/Users/jaketrigg/Projects/vifi.co/reels/recordings")
             video_in = recordings_dir / f"{reel_id}_pointing_take.mp4"
             audio_in = recordings_dir / f"{reel_id}_master_with_music.mp3"
@@ -1161,6 +1456,7 @@ class CompanionServer(
                 "active_conversation": active_data,
                 "connected_clients": len(self.active_websockets),
                 "total_connected_devices": conn.get("total_connected_devices", 0),
+                "usb_device": conn.get("usb_device"),
                 "relay_connected": conn.get("relay_connected", False),
                 "has_relay_peer": conn.get("has_relay_peer", False),
                 "audio_routing": getattr(
@@ -1172,6 +1468,12 @@ class CompanionServer(
                 "ambient_active": self._ambient_stream is not None
                 and self._ambient_stream.is_running,
                 "memo_active": self._memo_recorder is not None,
+                "phone_recording_active": bool(
+                    self._phone_recording_active
+                    or (self._ambient_stream is not None and self._ambient_stream.is_running)
+                    or (self._memo_recorder is not None)
+                ),
+                "last_phone_transcript_at": self._last_phone_transcript_at,
                 "tier": tier_summary.get("tier"),
                 "status_text": tier_summary.get("status_text"),
                 "is_pro": tier_summary.get("is_pro"),
@@ -2291,11 +2593,55 @@ class CompanionServer(
         except Exception as e:
             return web.json_response({"error": str(e), "status": "error"}, status=500)
 
+    @staticmethod
+    def _validate_safe_test_cmd(test_cmd: str) -> Optional[List[str]]:
+        """Validate test command against shell injection and restrict to safe test runners."""
+        if not isinstance(test_cmd, str) or not test_cmd.strip():
+            return None
+        # Reject shell chaining, subshells, redirection, and control chars
+        if any(
+            tok in test_cmd
+            for tok in (";", "&&", "||", "|", "`", "$(", ">", "<", "\n", "\r", "\x00")
+        ):
+            return None
+        try:
+            args = shlex.split(test_cmd.strip())
+        except Exception:
+            return None
+        if not args:
+            return None
+        exe_name = Path(args[0]).name.lower()
+        allowed_runners = {
+            "pytest",
+            "python",
+            "python3",
+            "ruff",
+            "npm",
+            "npx",
+            "node",
+            "uv",
+            "poetry",
+            "cargo",
+            "go",
+        }
+        if exe_name not in allowed_runners:
+            return None
+        if exe_name in ("python", "python3") and (len(args) < 3 or args[1] != "-m" or args[2] not in ("pytest", "unittest", "ruff")):
+            return None
+        if exe_name == "node" and any(a in ("-e", "--eval", "-p", "--print") for a in args[1:]):
+            return None
+        return args
+
     async def handle_api_fix(self, request: web.Request) -> web.Response:
         """
         Handle on-device bug resolution requests from Open WebUI or external HTTP clients.
         Accepts: {"target": "path/to/file", "error": "trace or description", "test": "command", "apply": true}
         """
+        if not self._is_loopback_request(request):
+            return web.json_response(
+                {"error": "Endpoint restricted to local loopback", "status": "error"},
+                status=403,
+            )
         try:
             try:
                 data = await request.json()
@@ -2325,24 +2671,46 @@ class CompanionServer(
                     status=404,
                 )
 
+            resolved_target = Path(parsed.target_file).resolve()
+            if any(
+                part in (".ssh", ".aws", ".gnupg", ".voicefi", "etc", "private")
+                for part in resolved_target.parts
+            ):
+                return web.json_response(
+                    {"error": "Target file path is restricted", "status": "error"},
+                    status=403,
+                )
+
+            safe_test_args: Optional[List[str]] = None
+            if test_cmd:
+                safe_test_args = self._validate_safe_test_cmd(str(test_cmd))
+                if not safe_test_args:
+                    return web.json_response(
+                        {
+                            "error": "Unsafe or unsupported test command. Only direct test runners (e.g. pytest, ruff) without shell metacharacters are allowed.",
+                            "status": "error",
+                        },
+                        status=400,
+                    )
+
             implementer = ReconImplementer(model_scout=model_scout, model_coder=model_coder)
 
             # Attempt 1
             res = await implementer.implement(
-                target_path=parsed.target_file,
+                target_path=str(resolved_target),
                 instruction=parsed.instruction,
                 apply=apply,
             )
 
             test_output = ""
             passed = True
-            if test_cmd and apply and res.diff.strip():
+            if safe_test_args and apply and res.diff.strip():
                 sub_env = os.environ.copy()
                 py_bin = os.path.dirname(sys.executable)
                 sub_env["PATH"] = f"{py_bin}:{sub_env.get('PATH', '')}"
 
-                proc = await asyncio.create_subprocess_shell(
-                    test_cmd,
+                proc = await asyncio.create_subprocess_exec(
+                    *safe_test_args,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                     env=sub_env,
@@ -2360,12 +2728,12 @@ class CompanionServer(
                         f"Please produce the corrected SEARCH/REPLACE block to make the test pass."
                     )
                     res = await implementer.implement(
-                        target_path=parsed.target_file,
+                        target_path=str(resolved_target),
                         instruction=retry_instr,
                         apply=apply,
                     )
-                    proc2 = await asyncio.create_subprocess_shell(
-                        test_cmd,
+                    proc2 = await asyncio.create_subprocess_exec(
+                        *safe_test_args,
                         stdout=asyncio.subprocess.PIPE,
                         stderr=asyncio.subprocess.PIPE,
                         env=sub_env,
@@ -2652,6 +3020,10 @@ class CompanionServer(
         Updates active session cookie, broadcasts WebSocket event, and runs the turn worker
         in a background thread with warm STT/TTS engines and Floating HUD.
         """
+        if not self._is_loopback_request(request):
+            return web.json_response(
+                {"error": "Hook events restricted to local loopback"}, status=403
+            )
         try:
             data = await request.json() if request.can_read_body else {}
         except Exception:
@@ -2924,8 +3296,12 @@ class CompanionServer(
             if not conv_id:
                 active = self.tracker.get_active_or_latest()
                 conv_id = active.id if active else "default"
+            conv_id = re.sub(r"[^a-zA-Z0-9_\-.]", "_", Path(str(conv_id)).name).strip(".") or "default"
 
-            bdir = self.tracker.brain_dir / conv_id
+            brain_root = self.tracker.brain_dir.resolve()
+            bdir = (brain_root / conv_id).resolve()
+            if not bdir.is_relative_to(brain_root):
+                return web.json_response({"error": "Invalid conversation ID"}, status=400)
             bdir.mkdir(parents=True, exist_ok=True)
 
             ts_str = time.strftime("%Y%m%d_%H%M%S")
@@ -3018,7 +3394,32 @@ class CompanionServer(
                             mime_type = header_part.split("data:", 1)[1].split(";", 1)[0].strip()
                     file_bytes = base64.b64decode(file_b64.strip())
                 elif local_path_str:
-                    lp = Path(local_path_str).expanduser()
+                    if not self._is_loopback_request(request):
+                        return web.json_response(
+                            {"error": "local_path upload restricted to loopback clients"},
+                            status=403,
+                        )
+                    lp = Path(local_path_str).expanduser().resolve()
+                    forbidden_parts = {
+                        ".ssh",
+                        ".aws",
+                        ".gnupg",
+                        ".voicefi",
+                        ".kube",
+                        ".docker",
+                        ".netrc",
+                        "etc",
+                        "private",
+                    }
+                    if (
+                        any(part in forbidden_parts for part in lp.parts)
+                        or lp.name.startswith(".env")
+                        or lp.name in ("id_rsa", "id_ed25519", "config.yaml", "relay_session.json")
+                    ):
+                        return web.json_response(
+                            {"error": "Reading sensitive system or credential files is forbidden"},
+                            status=403,
+                        )
                     if lp.is_file():
                         if not raw_filename:
                             raw_filename = lp.name
@@ -3027,12 +3428,15 @@ class CompanionServer(
             if not conv_id or conv_id in ("undefined", "null"):
                 active = self.tracker.get_active_or_latest()
                 conv_id = active.id if active else "default"
-            conv_id = re.sub(r"[^a-zA-Z0-9_\-.]", "_", str(conv_id)) or "default"
+            conv_id = re.sub(r"[^a-zA-Z0-9_\-.]", "_", Path(str(conv_id)).name).strip(".") or "default"
 
-            if not file_bytes and not (local_path_str and Path(local_path_str).expanduser().is_file()):
+            if not file_bytes:
                 return web.json_response({"error": "Missing file or image data"}, status=400)
 
-            bdir = self.tracker.brain_dir / conv_id
+            brain_root = self.tracker.brain_dir.resolve()
+            bdir = (brain_root / conv_id).resolve()
+            if not bdir.is_relative_to(brain_root):
+                return web.json_response({"error": "Invalid conversation ID"}, status=400)
             bdir.mkdir(parents=True, exist_ok=True)
 
             ts_str = time.strftime("%Y%m%d_%H%M%S")
@@ -3150,9 +3554,15 @@ class CompanionServer(
 
             from voicefi.audio.recorder import AudioRecorder
 
-            turn_mode = getattr(self.config.vad, "turn_detection", "auto") or "auto"
-            cfg_silence = float(getattr(self.config.vad, "silence_duration", 1.4) or 1.4)
-            eff_silence = cfg_silence if (turn_mode == "fixed" or cfg_silence >= 5.0) else 1.4
+            is_hands_free = bool(data.get("hands_free", False))
+            if is_hands_free:
+                turn_mode = getattr(self.config.vad, "turn_detection", "auto") or "auto"
+                cfg_silence = float(getattr(self.config.vad, "silence_duration", 1.4) or 1.4)
+                eff_silence = cfg_silence if (turn_mode == "fixed" or cfg_silence >= 5.0) else 1.4
+            else:
+                # Standard Push-to-Talk: NEVER auto-cut off on silence — only stop when clicked again!
+                turn_mode = "fixed"
+                eff_silence = 3600.0
 
             recorder = AudioRecorder(
                 sample_rate=self.config.vad.sample_rate,
@@ -3284,14 +3694,18 @@ class CompanionServer(
 
         urls = get_companion_urls(self.port)
         active_tunnel = get_active_tunnel_url()
+        tunnel_pairing_url = None
         if active_tunnel:
             urls["tunnel_url"] = active_tunnel
+            tunnel_pairing_url = f"{active_tunnel.rstrip('/')}/?t={creds.token}#t={creds.token}"
+            urls["tunnel_pairing_url"] = tunnel_pairing_url
         urls["cloud_relay_url"] = cloud_url
         urls["universal_url"] = cloud_url
 
         # Default preferred pairing URL to Cloud Relay for universal 5G / remote everywhere access
         preferred_url = (
             cloud_url
+            or tunnel_pairing_url
             or active_tunnel
             or urls.get("ip_url")
             or urls.get("mdns_url")
@@ -3303,6 +3717,7 @@ class CompanionServer(
                 "urls": urls,
                 "cloud_relay_url": cloud_url,
                 "active_tunnel_url": active_tunnel,
+                "tunnel_pairing_url": tunnel_pairing_url,
                 "preferred_url": preferred_url,
                 "qr_data_uri": qr_b64,
             }
@@ -3319,19 +3734,30 @@ class CompanionServer(
 
     async def handle_tunnel_start(self, request: web.Request) -> web.Response:
         import asyncio
+        from voicefi.companion.relay_client import RelaySessionCredentials
+
+        if not self._is_loopback_request(request):
+            return web.json_response(
+                {"status": "error", "message": "Tunnel start restricted to local host"},
+                status=403,
+            )
 
         tunnel_url = get_active_tunnel_url()
         if not tunnel_url:
             tunnel_url = await asyncio.to_thread(start_cloudflared_tunnel, self.port)
 
         if tunnel_url:
+            creds = RelaySessionCredentials.load_or_create()
+            tunnel_pairing_url = f"{tunnel_url.rstrip('/')}/?t={creds.token}#t={creds.token}"
             urls = get_companion_urls(self.port)
             urls["tunnel_url"] = tunnel_url
-            qr_b64 = generate_qr_base64_png(tunnel_url)
+            urls["tunnel_pairing_url"] = tunnel_pairing_url
+            qr_b64 = generate_qr_base64_png(tunnel_pairing_url)
             return web.json_response(
                 {
                     "status": "success",
                     "tunnel_url": tunnel_url,
+                    "tunnel_pairing_url": tunnel_pairing_url,
                     "urls": urls,
                     "qr_data_uri": qr_b64,
                 }
@@ -3437,6 +3863,14 @@ class CompanionServer(
                         print(f'[CompanionServer] 🛡️ Filtered ambient self-echo: "{text.strip()}"')
                         return
                     print(f'[CompanionServer] 🎙️ Transcribed speech: "{text.strip()}"')
+                    try:
+                        record_audio_transcription(
+                            transcription=text.strip(),
+                            device="Companion Phone Mic",
+                        )
+                        self.record_phone_transcript(text.strip(), record_to_screenpipe=False)
+                    except Exception as tee_err:
+                        logger.warning("[CompanionServer] Ambient screenpipe tee warning: %s", tee_err)
                     task = (
                         self._ambient_dispatcher.process_utterance(text)
                         if self._ambient_dispatcher
@@ -3483,6 +3917,7 @@ class CompanionServer(
             on_interim_audio=_on_interim_audio,
         )
         self._ambient_stream.start()
+        self._phone_recording_active = True
         self.broadcast_event(
             {
                 "type": "ambient_state",
@@ -3494,6 +3929,7 @@ class CompanionServer(
 
     def stop_ambient(self):
         """Stop ambient listener stream."""
+        self._phone_recording_active = False
         if self._ambient_stream:
             self._ambient_stream.stop()
             self._ambient_stream = None
@@ -3509,6 +3945,7 @@ class CompanionServer(
         """Start a background voice memo buffer session with real-time WebSocket telemetry."""
         memo_id = f"memo_{int(time.time())}_{str(uuid.uuid4())[:4]}"
         self._active_memo_id = memo_id
+        self._phone_recording_active = True
 
         self._memo_recorder = MemoBufferRecorder(
             target_duration_seconds=target_duration,
@@ -3582,6 +4019,16 @@ class CompanionServer(
                     raw_transcript = stt.transcribe(wav_path)
                 except Exception as ex:
                     print(f"[CompanionServer] Memo STT error: {ex}")
+
+                if raw_transcript and raw_transcript.strip():
+                    try:
+                        record_audio_transcription(
+                            transcription=raw_transcript.strip(),
+                            device="Companion Phone Mic",
+                        )
+                        self.record_phone_transcript(raw_transcript.strip(), record_to_screenpipe=False)
+                    except Exception as tee_err:
+                        logger.warning("[CompanionServer] Memo screenpipe tee warning: %s", tee_err)
 
                 self.broadcast_event(
                     {
@@ -3687,6 +4134,7 @@ class CompanionServer(
 
     def stop_memo(self):
         """Stop active memo recording and begin synthesis."""
+        self._phone_recording_active = False
         if self._memo_recorder:
             self._memo_recorder.finish()
 
@@ -4259,6 +4707,102 @@ class CompanionServer(
         if journal:
             return web.json_response(journal)
         return web.json_response({"active": False, "step_count": 0, "steps": []})
+
+    async def handle_pal_editing_start(self, request: web.Request) -> web.Response:
+        """Start Pal Live Edit Mode inside the persistent daemon process."""
+        from dataclasses import asdict
+        from voicefi.integrations.pal_harness import PalHarness
+
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        session_name = (
+            str(body.get("session_name") or "Live Website Edit").strip() or "Live Website Edit"
+        )
+        res = PalHarness.start_edit_mode(session_name, _local_only=True)
+        return web.json_response(asdict(res))
+
+    async def handle_pal_editing_stop(self, request: web.Request) -> web.Response:
+        """Stop active Pal Live Edit Mode session."""
+        from dataclasses import asdict
+        from voicefi.integrations.pal_harness import PalHarness
+
+        res = PalHarness.stop_edit_mode(_local_only=True)
+        return web.json_response(asdict(res))
+
+    async def handle_pal_editing_undo(self, request: web.Request) -> web.Response:
+        """Undo most recent edit in active Pal Live Edit Mode session."""
+        from dataclasses import asdict
+        from voicefi.integrations.pal_harness import PalHarness
+
+        res = PalHarness.undo_edit(_local_only=True)
+        return web.json_response(asdict(res))
+
+    async def handle_pal_editing_instruct(self, request: web.Request) -> web.Response:
+        """Execute a spoken edit instruction in Pal Live Edit Mode."""
+        from dataclasses import asdict
+        from voicefi.integrations.pal_harness import PalHarness
+
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        inst = str(body.get("instruction") or "").strip()
+        res = PalHarness.execute_edit_instruction(inst, _local_only=True)
+        return web.json_response(asdict(res))
+
+    async def handle_pal_editing_note(self, request: web.Request) -> web.Response:
+        """Attach spoken instructions to the currently active change item in Pal Live Edit Mode."""
+        from voicefi.integrations.pal_harness import PalHarness
+
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        text = str(body.get("text") or body.get("instruction") or "").strip()
+        snap = None
+        if "selected_text" in body and body["selected_text"]:
+            from voicefi.integrations.pal_editor import SelectionSnapshot
+
+            snap = SelectionSnapshot(
+                selected_text=str(body.get("selected_text") or ""),
+                surrounding_text=str(body.get("surrounding_text") or ""),
+                app_name=str(body.get("app_name") or "Google Chrome"),
+                window_title=str(body.get("window_title") or ""),
+                page_url=str(body.get("page_url") or ""),
+            )
+        PalHarness.record_edit_voice_note(text, selection_override=snap)
+        return web.json_response({"success": True, "text": text})
+
+    async def handle_pal_editing_next(self, request: web.Request) -> web.Response:
+        """Commit the currently active change item, apply it locally, and open the next item."""
+        from dataclasses import asdict
+        from voicefi.integrations.pal_harness import PalHarness
+
+        res = PalHarness.next_edit_item(_local_only=True)
+        return web.json_response(asdict(res))
+
+    async def handle_pal_editing_status(self, request: web.Request) -> web.Response:
+        """Return live status and edit records of the active Pal Edit Mode session."""
+        from voicefi.integrations.pal_editor import PalEditSession
+        from voicefi.integrations.pal_harness import PalHarness
+
+        editor = PalHarness.get_active_editor()
+        if editor is not None:
+            return web.json_response(
+                {
+                    "active": True,
+                    "session_name": editor.session_name,
+                    "start_time": editor.start_time,
+                    "step_count": len(editor.records),
+                    "records": [r.to_public_dict() for r in editor.records],
+                }
+            )
+        journal = PalEditSession.load_journal()
+        if journal:
+            return web.json_response(journal)
+        return web.json_response({"active": False, "step_count": 0, "records": []})
 
 
 def ensure_ssl_context() -> Optional[object]:

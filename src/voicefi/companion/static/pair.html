@@ -933,7 +933,21 @@
       openFileEditor('spicewood_texas_lead_sheet.md');
     }
 
-    function playFileInCompanionShowcase(name, category, url) {
+    function escapeHtml(str) {
+      return String(str ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function encodeSafeParam(str) {
+      return encodeURIComponent(String(str ?? '')).replace(/'/g, '%27');
+    }
+
+    function playFileInCompanionShowcase(encodedName, category, url) {
+      const name = decodeURIComponent(encodedName);
       const videoContainer = document.getElementById('companionVideoContainer');
       const audioContainer = document.getElementById('companionAudioContainer');
       const video = document.getElementById('companionReelVideo');
@@ -963,7 +977,7 @@
         btnPrimarySaveText.innerText = `Save Audio (${name.split('.').pop().toUpperCase()})`;
       }
 
-      document.getElementById('compReelTitle').innerHTML = `<span>▶️</span> <span>${name}</span>`;
+      document.getElementById('compReelTitle').innerHTML = `<span>▶️</span> <span>${escapeHtml(name)}</span>`;
       document.getElementById('compReelDesc').innerText = `Active media stream from Companion Downloads Repository (${category.toUpperCase()})`;
       showToast(`Loaded ${name} into Companion Player`, '🎵');
     }
@@ -993,7 +1007,7 @@
         console.error("Error loading downloads:", err);
         const grid = document.getElementById('filesGrid');
         if (grid) {
-          grid.innerHTML = `<div class="p-6 text-center text-red-400 font-mono text-xs">Failed to load downloads: ${err.message}</div>`;
+          grid.innerHTML = `<div class="p-6 text-center text-red-400 font-mono text-xs">Failed to load downloads: ${escapeHtml(err.message)}</div>`;
         }
       }
     }
@@ -1084,22 +1098,29 @@
         else if (f.name === "spicewood_act2_picture_lock.mp4") customTag = '<span class="text-[8px] px-1 py-0.2 rounded bg-amber-500 text-black font-extrabold font-mono">ACT 2</span>';
         else if (f.name === "spicewood_act3_picture_lock.mp4") customTag = '<span class="text-[8px] px-1 py-0.2 rounded bg-amber-500 text-black font-extrabold font-mono">ACT 3</span>';
 
+        const safeNameHtml = escapeHtml(f.name);
+        const safeEncodedName = encodeSafeParam(f.name);
+        const safeCategory = encodeSafeParam(f.category);
+        const safeUrl = `/downloads/${safeEncodedName}`;
+        const safeExt = escapeHtml((f.ext || '').toUpperCase().replace('.', ''));
+        const safeSize = escapeHtml(f.formatted_size || '');
+
         return `
           <div class="p-3 rounded-2xl border ${cardHighlight} transition-all flex items-center justify-between gap-2.5 group">
-            <div class="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer" onclick="${f.playable ? `playFileInCompanionShowcase('${encodeURIComponent(f.name)}', '${f.category}', '${f.url}')` : (f.editable ? `openFileEditor('${encodeURIComponent(f.name)}')` : '')}">
+            <div class="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer" onclick="${f.playable ? `playFileInCompanionShowcase('${safeEncodedName}', '${safeCategory}', '${safeUrl}')` : (f.editable ? `openFileEditor('${safeEncodedName}')` : '')}">
               <div class="w-8 h-8 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-sm shrink-0">
                 ${icon}
               </div>
               <div class="min-w-0 flex-1">
                 <div class="flex items-center gap-1.5 flex-wrap">
-                  <h4 class="text-xs font-bold text-white truncate max-w-[190px] sm:max-w-[220px]" title="${f.name}">
-                    ${f.name}
+                  <h4 class="text-xs font-bold text-white truncate max-w-[190px] sm:max-w-[220px]" title="${safeNameHtml}">
+                    ${safeNameHtml}
                   </h4>
                   ${customTag}
                 </div>
                 <div class="flex items-center gap-2 text-[10px] font-mono text-zinc-400">
-                  <span class="px-1 rounded text-[9px] font-bold ${badgeColor}">${f.ext.toUpperCase().replace('.', '')}</span>
-                  <span>${f.formatted_size}</span>
+                  <span class="px-1 rounded text-[9px] font-bold ${badgeColor}">${safeExt}</span>
+                  <span>${safeSize}</span>
                 </div>
               </div>
             </div>
@@ -1107,24 +1128,24 @@
             <!-- Action Controls -->
             <div class="flex items-center gap-1 shrink-0">
               ${f.playable ? `
-                <button onclick="playFileInCompanionShowcase('${encodeURIComponent(f.name)}', '${f.category}', '${f.url}')" type="button" class="p-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-white text-xs transition cursor-pointer" title="Play in Companion Showcase">
+                <button onclick="playFileInCompanionShowcase('${safeEncodedName}', '${safeCategory}', '${safeUrl}')" type="button" class="p-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-white text-xs transition cursor-pointer" title="Play in Companion Showcase">
                   ▶️
                 </button>
               ` : ''}
 
               ${f.editable ? `
-                <button onclick="openFileEditor('${encodeURIComponent(f.name)}')" type="button" class="p-1.5 rounded-lg bg-emerald-950/40 hover:bg-emerald-600 border border-emerald-500/40 text-emerald-300 hover:text-white text-xs transition cursor-pointer" title="Edit File">
+                <button onclick="openFileEditor('${safeEncodedName}')" type="button" class="p-1.5 rounded-lg bg-emerald-950/40 hover:bg-emerald-600 border border-emerald-500/40 text-emerald-300 hover:text-white text-xs transition cursor-pointer" title="Edit File">
                   ✏️
                 </button>
               ` : ''}
 
-              <a href="${f.url}?download=1" download="${f.name}" class="p-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-white text-xs transition" title="Save File">
+              <a href="${safeUrl}?download=1" download="${safeNameHtml}" class="p-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-white text-xs transition" title="Save File">
                 📥
               </a>
-              <button onclick="promptRename('${encodeURIComponent(f.name)}')" type="button" class="p-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-white text-xs transition cursor-pointer" title="Rename">
+              <button onclick="promptRename('${safeEncodedName}')" type="button" class="p-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-white text-xs transition cursor-pointer" title="Rename">
                 🏷️
               </button>
-              <button onclick="deleteFile('${encodeURIComponent(f.name)}')" type="button" class="p-1.5 rounded-lg bg-zinc-900 hover:bg-red-950 border border-zinc-800 hover:border-red-600 text-zinc-400 hover:text-red-400 text-xs transition cursor-pointer" title="Delete">
+              <button onclick="deleteFile('${safeEncodedName}')" type="button" class="p-1.5 rounded-lg bg-zinc-900 hover:bg-red-950 border border-zinc-800 hover:border-red-600 text-zinc-400 hover:text-red-400 text-xs transition cursor-pointer" title="Delete">
                 🗑️
               </button>
             </div>

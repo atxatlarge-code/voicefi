@@ -15,12 +15,14 @@ PROJECT_ROOT = Path(__file__).resolve().parents[4]
 def get_safe_download_path(downloads_dir: Path, filename: str) -> Optional[Path]:
     downloads_dir = downloads_dir.resolve()
     downloads_dir.mkdir(parents=True, exist_ok=True)
-    decoded = urllib.parse.unquote(filename)
+    decoded = urllib.parse.unquote(filename or "")
+    if "/" in decoded or "\\" in decoded or "\x00" in decoded or ".." in decoded.split("/"):
+        return None
     clean_name = Path(decoded).name
-    if not clean_name or clean_name in (".", ".."):
+    if not clean_name or clean_name in (".", "..") or clean_name.startswith("."):
         return None
     target = (downloads_dir / clean_name).resolve()
-    if not str(target).startswith(str(downloads_dir)):
+    if not target.is_relative_to(downloads_dir):
         return None
     return target
 
@@ -145,26 +147,30 @@ class DownloadsHandlersMixin:
         if not filename:
             return web.Response(text="Filename missing.", status=400)
 
-        decoded = urllib.parse.unquote(filename)
-        file_path = STATIC_DIR / "downloads" / decoded
-        if not file_path.is_file():
-            file_path = STATIC_DIR / "downloads" / filename
-        if not file_path.is_file():
-            alt_path = PROJECT_ROOT / decoded
-            if alt_path.is_file():
-                file_path = alt_path
-            else:
-                return web.Response(text=f"File {filename} not found.", status=404)
+        file_path = self._safe_download_path(filename)
+        if not file_path:
+            return web.Response(text="Invalid filename.", status=400)
 
+        if not file_path.is_file():
+            if file_path.name == "spicewood_texas_lead_sheet.md":
+                alt_path = (PROJECT_ROOT / "spicewood_texas_lead_sheet.md").resolve()
+                if alt_path.is_file():
+                    file_path = alt_path
+                else:
+                    return web.Response(text=f"File {file_path.name} not found.", status=404)
+            else:
+                return web.Response(text=f"File {file_path.name} not found.", status=404)
+
+        safe_disp_name = file_path.name.replace('"', "").replace("\r", "").replace("\n", "")
         headers = {
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Headers": "Range",
             "Accept-Ranges": "bytes",
         }
         if request.query.get("download") == "1":
-            headers["Content-Disposition"] = f'attachment; filename="{decoded}"'
+            headers["Content-Disposition"] = f'attachment; filename="{safe_disp_name}"'
         else:
-            headers["Content-Disposition"] = f'inline; filename="{decoded}"'
+            headers["Content-Disposition"] = f'inline; filename="{safe_disp_name}"'
 
         return web.FileResponse(file_path, headers=headers)
 

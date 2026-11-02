@@ -126,10 +126,15 @@ class VoiceFiIPCServer:
         )
 
     async def _start_unix_server(self):
-        # Remove stale socket file if present
+        # Remove stale socket file if present and owned by current user
         sock_p = Path(self.socket_path)
-        if sock_p.exists():
+        if sock_p.is_symlink() or sock_p.exists():
             try:
+                st = sock_p.lstat()
+                if st.st_uid != os.getuid():
+                    raise PermissionError(
+                        f"Refusing to use or unlink socket {self.socket_path} owned by uid {st.st_uid}"
+                    )
                 sock_p.unlink()
             except OSError as e:
                 logger.warning("Could not unlink existing socket file %s: %s", self.socket_path, e)
@@ -139,8 +144,8 @@ class VoiceFiIPCServer:
                 self._handle_unix_client,
                 path=self.socket_path,
             )
-            # Set secure socket permissions (read/write for user and group)
-            os.chmod(self.socket_path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP)
+            # Set strict owner-only socket permissions (0600)
+            os.chmod(self.socket_path, stat.S_IRUSR | stat.S_IWUSR)
             logger.info("Bound Unix domain socket at %s", self.socket_path)
 
             # Create /tmp/vifi.sock alias symlink when bound to /tmp/voicefi.sock (or vice versa)
@@ -152,7 +157,9 @@ class VoiceFiIPCServer:
                 )
                 try:
                     if other_path.is_symlink() or other_path.exists():
-                        other_path.unlink()
+                        other_st = other_path.lstat()
+                        if other_st.st_uid == os.getuid():
+                            other_path.unlink()
                     other_path.symlink_to(self.socket_path)
                     self._alias_symlink_created = True
                 except Exception as sym_err:
@@ -214,6 +221,13 @@ class VoiceFiIPCServer:
             logger.debug("Unix client disconnected (remaining: %d)", len(self._unix_clients))
 
     async def _handle_ws_client(self, request: web.Request) -> web.WebSocketResponse:
+        origin = request.headers.get("Origin")
+        if origin:
+            from voicefi.companion.server import CompanionServer
+
+            if not CompanionServer._resolve_allowed_origin(origin):
+                logger.warning("Blocked cross-origin IPC WebSocket connection from Origin=%s", origin)
+                raise web.HTTPForbidden(text="Cross-origin WebSocket connection rejected")
         ws = web.WebSocketResponse()
         await ws.prepare(request)
         self._ws_clients.add(ws)

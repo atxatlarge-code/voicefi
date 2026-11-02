@@ -49,9 +49,25 @@ def test_agent_loop_tool_execution(temp_project):
     assert "[SUCCESS]" in res_cmd
     assert "LOCAL_TEST_OK" in res_cmd
 
-    # 4. Security check on dangerous commands
+    # 4. Security check on dangerous commands & shell injection
     res_sec = loop._execute_tool("run_command", {"command": "sudo rm -rf /"})
     assert "Disallowed destructive command" in res_sec
+
+    res_chain = loop._execute_tool("run_command", {"command": "echo ok; whoami"})
+    assert "Disallowed destructive command" in res_chain
+
+    res_py_c = loop._execute_tool("run_command", {"command": "python -c 'import os; os.system(\"id\")'"})
+    assert "Disallowed destructive command" in res_py_c
+
+    # 5. Security check on path traversal in read_slice and apply_diff
+    res_trav_read = loop._execute_tool("read_slice", {"path": "../../../etc/passwd", "start_line": 1, "end_line": 5})
+    assert "Access denied" in res_trav_read
+
+    res_trav_diff = loop._execute_tool("apply_diff", {"path": "../../../etc/passwd", "search": "root", "replace": "hacked"})
+    assert "Access denied" in res_trav_diff
+
+    res_env_read = loop._execute_tool("read_slice", {"path": ".env", "start_line": 1, "end_line": 5})
+    assert "Access denied" in res_env_read
 
 
 @pytest.mark.asyncio

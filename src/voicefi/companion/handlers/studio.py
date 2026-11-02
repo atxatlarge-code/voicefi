@@ -115,12 +115,37 @@ class StudioHandlersMixin:
             }
         )
 
+    @staticmethod
+    def _resolve_safe_studio_file(rec_id: str) -> Optional[Path]:
+        """Resolve a recording or download filename safely within RECORDINGS_DIR or downloads dir."""
+        if not rec_id or not isinstance(rec_id, str):
+            return None
+        if "/" in rec_id or "\\" in rec_id or ".." in rec_id or "\x00" in rec_id:
+            return None
+        clean_name = Path(rec_id).name
+        if not clean_name or clean_name in (".", ".."):
+            return None
+        rec_root = RECORDINGS_DIR.resolve()
+        dl_root = (STATIC_DIR / "downloads").resolve()
+        cand = (rec_root / clean_name).resolve()
+        if cand.is_relative_to(rec_root) and cand.is_file():
+            return cand
+        if clean_name.startswith("download_"):
+            dl_name = Path(clean_name.replace("download_", "", 1)).name
+            cand_dl = (dl_root / dl_name).resolve()
+            if cand_dl.is_relative_to(dl_root) and cand_dl.is_file():
+                return cand_dl
+        cand_dl2 = (dl_root / clean_name).resolve()
+        if cand_dl2.is_relative_to(dl_root) and cand_dl2.is_file():
+            return cand_dl2
+        return None
+
     async def handle_studio_recording_stream(self, request: web.Request) -> web.Response:
         """Stream an audio recording with HTTP range request support for waveform and browser playback."""
         rec_id = request.match_info.get("rec_id", "")
         RECORDINGS_DIR.mkdir(parents=True, exist_ok=True)
-        target = RECORDINGS_DIR / rec_id
-        if not target.is_file() or not target.resolve().is_relative_to(RECORDINGS_DIR.resolve()):
+        target = self._resolve_safe_studio_file(rec_id)
+        if not target:
             return web.Response(status=404, text="Recording not found")
 
         ext = target.suffix.lower()
@@ -242,12 +267,8 @@ class StudioHandlersMixin:
         if not rec_id:
             return web.json_response({"error": "Missing recording_id"}, status=400)
 
-        in_file = RECORDINGS_DIR / rec_id
-        if not in_file.is_file() and rec_id.startswith("download_"):
-            in_file = STATIC_DIR / "downloads" / rec_id.replace("download_", "")
-        if not in_file.is_file():
-            in_file = STATIC_DIR / "downloads" / rec_id
-        if not in_file.is_file():
+        in_file = self._resolve_safe_studio_file(str(rec_id))
+        if not in_file:
             return web.json_response({"error": f"Audio file not found: {rec_id}"}, status=404)
 
         start_sec = float(data.get("start_sec", 0.0))
@@ -297,19 +318,21 @@ class StudioHandlersMixin:
             out_ext = "mp3"
 
         RECORDINGS_DIR.mkdir(parents=True, exist_ok=True)
-        in_path = RECORDINGS_DIR / rec_id
-        if not in_path.is_file() and rec_id.startswith("download_"):
-            in_path = STATIC_DIR / "downloads" / rec_id.replace("download_", "")
+        in_path = self._resolve_safe_studio_file(str(rec_id))
 
-        if not in_path.is_file():
+        if not in_path:
             return web.json_response(
                 {"error": f"Recording not found: {rec_id}", "status": "error"}, status=404
             )
 
+        if bg_music:
+            bg_resolved = self._resolve_safe_studio_file(Path(str(bg_music)).name)
+            bg_music = str(bg_resolved) if bg_resolved else None
+
         from voicefi.audio.effects import VoiceFXEngine
 
         stem = re.sub(r"[^a-zA-Z0-9_\-]", "_", in_path.stem)
-        fx_slug = preset if preset else "custom"
+        fx_slug = re.sub(r"[^a-zA-Z0-9_\-]", "_", str(preset)) if preset else "custom"
         ts = int(time.time() * 1000)
         out_filename = f"{stem}_fx_{fx_slug}_{ts}.{out_ext}"
         out_path = RECORDINGS_DIR / out_filename
@@ -344,11 +367,9 @@ class StudioHandlersMixin:
         speaker = data.get("speaker", "Radio Host")
 
         RECORDINGS_DIR.mkdir(parents=True, exist_ok=True)
-        in_path = RECORDINGS_DIR / rec_id
-        if not in_path.is_file() and rec_id.startswith("download_"):
-            in_path = STATIC_DIR / "downloads" / rec_id.replace("download_", "")
+        in_path = self._resolve_safe_studio_file(str(rec_id))
 
-        if not in_path.is_file():
+        if not in_path:
             return web.json_response(
                 {"error": f"Audio file not found: {rec_id}", "status": "error"}, status=404
             )
@@ -391,11 +412,9 @@ class StudioHandlersMixin:
         title = data.get("title", "VoiceFi Studio Reel")
 
         RECORDINGS_DIR.mkdir(parents=True, exist_ok=True)
-        in_path = RECORDINGS_DIR / rec_id
-        if not in_path.is_file() and rec_id.startswith("download_"):
-            in_path = STATIC_DIR / "downloads" / rec_id.replace("download_", "")
+        in_path = self._resolve_safe_studio_file(str(rec_id))
 
-        if not in_path.is_file():
+        if not in_path:
             return web.json_response(
                 {"error": f"Audio file not found: {rec_id}", "status": "error"}, status=404
             )

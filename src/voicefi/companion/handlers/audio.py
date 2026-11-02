@@ -96,11 +96,34 @@ class AudioHandlersMixin:
             import asyncio
 
             pocket_boost = request.headers.get("X-VoiceFi-Pocket-Boost", "").strip() == "1"
-            audio_filter = (
-                "highpass=f=80,dynaudnorm=f=150:g=15:p=0.95:m=4.0"
-                if pocket_boost
-                else "highpass=f=65,dynaudnorm=f=150:g=11:p=0.92:m=2.5"
-            )
+            headset_convo = request.headers.get("X-VoiceFi-Headset-Convo", "").strip() == "1"
+            room_mode = request.headers.get("X-VoiceFi-Room-Mode", "").strip() == "1"
+            if room_mode:
+                # Far-field Room & Stage Audio Filter:
+                # 65Hz rumble cut + wide dynamic normalizer to elevate distant stage/table speakers
+                # while stripping venue HVAC hum without aggressive speech gating.
+                audio_filter = (
+                    "highpass=f=65,lowpass=f=7800,"
+                    "dynaudnorm=f=180:g=11:p=0.96:m=6.0"
+                )
+            elif headset_convo:
+                # Meeting-mode Pixel Buds / Bluetooth Headset Near-Far Conversation Leveler:
+                # 75Hz rumble cut + 2.8kHz (+4.5dB) far-field consonant presence boost +
+                # fast 75ms-frame upward dynamic normalizer (up to 8x gain for quiet across-table voices
+                # while clamping loud near-field wearer speech at 0.95 peak).
+                audio_filter = (
+                    "highpass=f=75,equalizer=f=2800:t=q:w=1.1:g=4.5,"
+                    "dynaudnorm=f=75:g=5:p=0.95:m=8.0:s=10"
+                )
+            elif pocket_boost:
+                audio_filter = "highpass=f=80,dynaudnorm=f=150:g=15:p=0.95:m=4.0"
+            else:
+                # Solo headset / low-jaw speech: gentle 2.8kHz (+2.5dB) unvoiced consonant clarity lift
+                # + responsive normalization so quiet/clenched-jaw dictation is never lost.
+                audio_filter = (
+                    "highpass=f=60,equalizer=f=2800:t=q:w=1.2:g=2.5,"
+                    "dynaudnorm=f=120:g=9:p=0.93:m=3.2"
+                )
 
             wav_path = temp_path.with_suffix(".16k.wav")
             transcribe_target = temp_path

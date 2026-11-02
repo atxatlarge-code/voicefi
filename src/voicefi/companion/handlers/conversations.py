@@ -974,7 +974,11 @@ class ConversationsHandlersMixin:
 
             img_bytes = base64.b64decode(annotated_b64)
 
-            bdir = self.tracker.brain_dir / conv_id
+            conv_id = re.sub(r"[^a-zA-Z0-9_\-.]", "_", Path(str(conv_id)).name).strip(".") or "default"
+            brain_root = self.tracker.brain_dir.resolve()
+            bdir = (brain_root / conv_id).resolve()
+            if not bdir.is_relative_to(brain_root):
+                return web.json_response({"error": "Invalid conversation ID"}, status=400)
             bdir.mkdir(parents=True, exist_ok=True)
 
             orig_stem = Path(original_filename).stem

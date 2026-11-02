@@ -3,6 +3,7 @@ Companion route handlers for local network peer discovery and clipboard/data syn
 """
 
 import logging
+import re
 import subprocess
 from typing import Dict, Any, Optional
 from aiohttp import web
@@ -15,6 +16,20 @@ logger = logging.getLogger(__name__)
 class PeerHandlersMixin:
     """Mixin containing peer discovery, remote clipboard, and cross-machine dispatch endpoints."""
 
+    @staticmethod
+    def _sanitize_peer_prompt(text: str) -> str:
+        """Strip spoofed system/user-request tags and control characters from peer prompts."""
+        if not text:
+            return ""
+        cleaned = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\u200b-\u200f\u202a-\u202e\ufeff]", "", text)
+        cleaned = re.sub(
+            r"</?\s*(SYSTEM_MESSAGE|USER_REQUEST|system|instructions|untrusted_external_content)\b[^>]*>",
+            "[REDACTED_TAG]",
+            cleaned,
+            flags=re.IGNORECASE,
+        )
+        return cleaned.strip()
+
     async def handle_peer_info(self, request: web.Request) -> web.Response:
         """Provide local machine profile to authorized peer Macs on LAN."""
         from voicefi.network.peers import get_local_peer_info
@@ -26,12 +41,13 @@ class PeerHandlersMixin:
         """Receive cross-machine agent prompt from a peer Mac and inject into active agent."""
         try:
             data = await request.json()
-            text = (data.get("text") or "").strip()
+            raw_text = (data.get("text") or "").strip()
+            text = self._sanitize_peer_prompt(raw_text)
             if not text:
                 return web.json_response({"error": "Missing prompt text"}, status=400)
 
-            sender_device = data.get("sender_device", "Peer Mac")
-            sender_name = data.get("sender_name", "Developer")
+            sender_device = re.sub(r"[^\w\s\-.]", "", str(data.get("sender_device", "Peer Mac")))[:48] or "Peer Mac"
+            sender_name = re.sub(r"[^\w\s\-.]", "", str(data.get("sender_name", "Developer")))[:48] or "Developer"
             target_engine = data.get("target_engine", "auto")
             reply = data.get("reply", False)
             from_conv_id = data.get("from_conv_id")

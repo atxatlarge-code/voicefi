@@ -92,6 +92,122 @@ class LiveHandlersMixin:
             return web.Response(text="Live demo page not found", status=404)
         return web.FileResponse(demo_file)
 
+    async def handle_live_providers(self, request: web.Request) -> web.Response:
+        """
+        Return configured status and catalogs for all live voice providers (Gemini, OpenAI, Grok).
+        GET /api/live/providers
+        """
+        from voicefi.config import (
+            resolve_gemini_api_key,
+            resolve_openai_api_key,
+            resolve_xai_api_key,
+            VALID_GEMINI_LIVE_VOICES,
+            VALID_OPENAI_LIVE_VOICES,
+            VALID_OPENAI_LIVE_MODELS,
+            VALID_GROK_LIVE_VOICES,
+            VALID_GROK_LIVE_MODELS,
+            VALID_PERSONAPLEX_LIVE_VOICES,
+            VALID_PERSONAPLEX_LIVE_MODELS,
+        )
+
+        cfg = getattr(self, "config", None)
+        return web.json_response(
+            {
+                "status": "ok",
+                "providers": {
+                    "gemini": {
+                        "configured": bool(resolve_gemini_api_key(cfg)),
+                        "env_var": "GEMINI_API_KEY",
+                        "voices": sorted(list(VALID_GEMINI_LIVE_VOICES)),
+                    },
+                    "openai": {
+                        "configured": bool(resolve_openai_api_key(cfg)),
+                        "env_var": "OPENAI_API_KEY",
+                        "models": list(VALID_OPENAI_LIVE_MODELS),
+                        "voices": list(VALID_OPENAI_LIVE_VOICES),
+                    },
+                    "grok": {
+                        "configured": bool(resolve_xai_api_key(cfg)),
+                        "env_var": "XAI_API_KEY",
+                        "models": list(VALID_GROK_LIVE_MODELS),
+                        "voices": list(VALID_GROK_LIVE_VOICES),
+                    },
+                    "personaplex": {
+                        "configured": True,
+                        "local": True,
+                        "models": list(VALID_PERSONAPLEX_LIVE_MODELS),
+                        "voices": sorted(list(VALID_PERSONAPLEX_LIVE_VOICES)),
+                    },
+                },
+            }
+        )
+
+    async def handle_live_key(self, request: web.Request) -> web.Response:
+        """
+        Save an API key for a live voice provider (gemini, openai, grok) to config and runtime env.
+        POST /api/live/key {"provider": "openai", "api_key": "sk-..."}
+        """
+        if hasattr(self, "_is_loopback_request") and not self._is_loopback_request(request):
+            return web.json_response(
+                {"status": "error", "error": "API key configuration is restricted to local loopback."},
+                status=403,
+            )
+        import os
+        from voicefi.config import (
+            load_config,
+            save_config,
+            resolve_gemini_api_key,
+            resolve_openai_api_key,
+            resolve_xai_api_key,
+        )
+
+        try:
+            data = await request.json()
+        except Exception:
+            return web.json_response({"status": "error", "error": "Invalid JSON"}, status=400)
+
+        provider = str(data.get("provider", "")).strip().lower()
+        api_key = str(data.get("api_key", "")).strip()
+
+        if provider == "xai":
+            provider = "grok"
+
+        if provider not in ("gemini", "openai", "grok") or not api_key:
+            return web.json_response(
+                {"status": "error", "error": "Both valid provider and api_key are required."},
+                status=400,
+            )
+
+        cfg = getattr(self, "config", None) or load_config()
+        if provider == "openai":
+            cfg.openai.api_key = api_key
+            os.environ["OPENAI_API_KEY"] = api_key
+        elif provider == "grok":
+            cfg.xai.api_key = api_key
+            os.environ["XAI_API_KEY"] = api_key
+        elif provider == "gemini":
+            cfg.gemini.api_key = api_key
+            os.environ["GEMINI_API_KEY"] = api_key
+
+        self.config = cfg
+        try:
+            save_config(cfg)
+        except Exception as e:
+            logger.warning("Could not persist config to disk in handle_live_key: %s", e)
+
+        return web.json_response(
+            {
+                "status": "ok",
+                "provider": provider,
+                "configured": True,
+                "providers": {
+                    "gemini": {"configured": bool(resolve_gemini_api_key(cfg))},
+                    "openai": {"configured": bool(resolve_openai_api_key(cfg))},
+                    "grok": {"configured": bool(resolve_xai_api_key(cfg))},
+                },
+            }
+        )
+
     async def handle_live_ws(self, request: web.Request) -> web.WebSocketResponse:
         """
         Bidirectional WebSocket proxy connecting client browser Web Audio to Gemini Live.
@@ -105,6 +221,24 @@ class LiveHandlersMixin:
         # Enable 15s heartbeat to prevent half-open socket leaks on mobile/Wi-Fi drops
         ws = web.WebSocketResponse(heartbeat=15.0)
         await ws.prepare(request)
+
+        provider = request.query.get("provider", "").lower()
+        req_model = request.query.get("model", "")
+        if not provider:
+            if req_model:
+                if "gpt" in req_model.lower():
+                    provider = "openai"
+                elif "grok" in req_model.lower():
+                    provider = "grok"
+                elif "personaplex" in req_model.lower() or "moshi" in req_model.lower():
+                    provider = "personaplex"
+                else:
+                    provider = "gemini"
+            else:
+                provider = "gemini"
+
+        if provider in ("openai", "grok", "xai", "personaplex", "moshi"):
+            return await self._handle_realtime_ws(request, ws, provider=provider)
 
         if not api_key:
             await ws.send_json(
@@ -147,15 +281,24 @@ class LiveHandlersMixin:
             t_level = getattr(level_enum, thinking_level, "LOW") if level_enum else thinking_level
             thinking_cfg = types.ThinkingConfig(thinking_level=t_level)
 
-        system_instruction = (
-            "You are a lightning-fast, articulate, and friendly voice partner powered by Google Gemini Live "
-            "running inside VoiceFi. You communicate in spoken dialogue over a real-time full-duplex audio stream. "
-            "Guidelines:\n"
-            "1. Keep spoken responses concise, punchy, and conversational (1-3 sentences) unless asked for more.\n"
-            "2. You have real-time tools: 'read_code_file', 'search_codebase', 'run_shell_check', and 'trigger_sound_effect'.\n"
-            "3. You can execute tools in parallel while speaking or answering questions.\n"
-            "4. If interrupted by the user, stop speaking immediately and respond to their latest words."
+        persona = request.query.get("persona", "default").lower()
+        hold_space = request.query.get("hold_space", "0").lower() in ("1", "true", "yes") or persona in (
+            "listen",
+            "hold_space",
+            "listening",
         )
+        if persona in ("brok", "roast"):
+            from voicefi.live_studio import BROK_SYSTEM_INSTRUCTION
+
+            system_instruction = BROK_SYSTEM_INSTRUCTION
+        elif hold_space:
+            from voicefi.live_studio import HOLD_SPACE_SYSTEM_INSTRUCTION
+
+            system_instruction = HOLD_SPACE_SYSTEM_INSTRUCTION
+        else:
+            from voicefi.live_studio import DEFAULT_SYSTEM_INSTRUCTION
+
+            system_instruction = DEFAULT_SYSTEM_INSTRUCTION
 
         live_config = types.LiveConnectConfig(
             response_modalities=["AUDIO"],
@@ -296,7 +439,7 @@ class LiveHandlersMixin:
         from voicefi.audio.live_stream import calculate_rms
 
         speech_buffer: list[bytes] = []
-        preroll_buffer = collections.deque(maxlen=15)  # 300ms @ 20ms chunks
+        preroll_buffer = collections.deque(maxlen=35)  # 700ms @ 20ms chunks (preserves soft initial consonants)
         is_user_speaking = False
         silence_count = 0
 
@@ -305,10 +448,12 @@ class LiveHandlersMixin:
                 await safe_client_send_json(
                     {
                         "type": "connected",
+                        "provider": "gemini",
                         "model": model,
                         "voice": voice,
                         "thinking": use_thinking,
                         "tools": enable_tools,
+                        "hold_space": hold_space,
                     }
                 )
 
@@ -393,7 +538,7 @@ class LiveHandlersMixin:
                                 # Models lacking server-side audio VAD (e.g. 3.8 preview):
                                 # Run real-time RMS VAD and local fast STT bridge
                                 energy = calculate_rms(chunk)
-                                speech_thresh = 0.012
+                                speech_thresh = 0.007
                                 if energy > speech_thresh:
                                     if not is_user_speaking:
                                         is_user_speaking = True
@@ -414,7 +559,14 @@ class LiveHandlersMixin:
                                     if is_user_speaking:
                                         speech_buffer.append(chunk)
                                         silence_count += 1
-                                        if silence_count >= 25 or len(speech_buffer) >= 500:
+                                        # 65 chunks * 20ms = 1.3s pause allowance for standard speech;
+                                        # 250 chunks * 20ms = 5.0s contemplative pause allowance in Hold Space (True Listening) mode
+                                        pause_allowance_chunks = 250 if hold_space else 65
+                                        max_buffer_chunks = 1500 if hold_space else 600
+                                        if (
+                                            silence_count >= pause_allowance_chunks
+                                            or len(speech_buffer) >= max_buffer_chunks
+                                        ):
                                             is_user_speaking = False
                                             audio_bytes = b"".join(speech_buffer)
                                             speech_buffer.clear()
@@ -458,6 +610,14 @@ class LiveHandlersMixin:
                                         await session.send_realtime_input(
                                             activity_start=types.ActivityStart()
                                         )
+                                elif ptype == "set_hold_space":
+                                    hold_space = bool(payload.get("enabled", True))
+                                    await safe_client_send_json(
+                                        {
+                                            "type": "hold_space_updated",
+                                            "hold_space": hold_space,
+                                        }
+                                    )
                                 elif ptype == "text":
                                     text_msg = payload.get("text", "")
                                     if text_msg:
@@ -482,5 +642,224 @@ class LiveHandlersMixin:
                 live_lockfile.unlink(missing_ok=True)
             except Exception:
                 pass
+
+        return ws
+
+    async def _handle_realtime_ws(
+        self, request: web.Request, ws: web.WebSocketResponse, provider: str
+    ) -> web.WebSocketResponse:
+        """
+        Proxy browser Web Audio to OpenAI Realtime, xAI Grok Live Voice, or local NVIDIA PersonaPlex APIs.
+        """
+        from voicefi.config import resolve_openai_api_key, resolve_xai_api_key
+        from voicefi.integrations.realtime_live import (
+            OpenAILiveAdapter,
+            GrokLiveAdapter,
+            PersonaPlexLiveAdapter,
+        )
+        from voicefi.audio.live_stream import resample_pcm16
+
+        prov_lower = provider.lower()
+        is_openai = prov_lower == "openai"
+        is_personaplex = prov_lower in ("personaplex", "moshi")
+
+        if is_personaplex:
+            api_key = ""
+        else:
+            api_key = (
+                resolve_openai_api_key(self.config)
+                if is_openai
+                else resolve_xai_api_key(self.config)
+            )
+            if not api_key:
+                prov_name = "OpenAI" if is_openai else "xAI Grok"
+                env_var = "OPENAI_API_KEY" if is_openai else "XAI_API_KEY"
+                await ws.send_json(
+                    {
+                        "type": "error",
+                        "message": f"{prov_name} API key not found. Please set {env_var} or configure in ~/.voicefi/config.yaml",
+                    }
+                )
+                await ws.close()
+                return ws
+
+        if is_personaplex:
+            model = request.query.get("model") or "personaplex-7b-mlx-4bit"
+            voice = request.query.get("voice") or "NATF2"
+        else:
+            model = request.query.get("model") or (
+                "gpt-live-1.1" if is_openai else "grok-voice-latest"
+            )
+            voice = request.query.get("voice") or ("bubbie" if is_openai else "eve")
+        persona = request.query.get("persona", "default").lower()
+        enable_tools = request.query.get("tools", "1").lower() in ("1", "true", "yes")
+
+        if persona in ("brok", "roast"):
+            from voicefi.live_studio import BROK_SYSTEM_INSTRUCTION
+
+            system_instruction = BROK_SYSTEM_INSTRUCTION
+        else:
+            from voicefi.live_studio import DEFAULT_SYSTEM_INSTRUCTION
+
+            system_instruction = DEFAULT_SYSTEM_INSTRUCTION
+
+        client_ws_lock = asyncio.Lock()
+        is_alive = True
+
+        live_lockfile = Path("/tmp/voicefi_live_session_active")
+        try:
+            live_lockfile.write_text(str(time.time()), encoding="utf-8")
+        except Exception:
+            pass
+
+        async def safe_client_send_json(payload: dict):
+            if not is_alive or ws.closed:
+                return
+            async with client_ws_lock:
+                try:
+                    await ws.send_json(payload)
+                except Exception:
+                    pass
+
+        async def safe_client_send_bytes(data: bytes):
+            if not is_alive or ws.closed:
+                return
+            async with client_ws_lock:
+                try:
+                    await ws.send_bytes(data)
+                except Exception:
+                    pass
+
+        def on_audio_delta(audio_bytes: bytes):
+            asyncio.create_task(safe_client_send_bytes(audio_bytes))
+
+        def on_transcript_delta(text: str, is_user: bool):
+            if is_user:
+                asyncio.create_task(safe_client_send_json({"type": "user_transcript", "text": text}))
+            else:
+                asyncio.create_task(safe_client_send_json({"type": "model_transcript", "text": text}))
+
+        def on_interrupted():
+            asyncio.create_task(safe_client_send_json({"type": "interrupted"}))
+
+        def on_turn_complete():
+            asyncio.create_task(safe_client_send_json({"type": "turn_complete"}))
+
+        def on_error(err_msg: str):
+            asyncio.create_task(safe_client_send_json({"type": "error", "message": err_msg}))
+
+        async def on_tool_call(call_id: str, name: str, args: dict):
+            from voicefi.integrations.live_tools import execute_live_tool
+
+            await safe_client_send_json(
+                {
+                    "type": "tool_start",
+                    "name": name,
+                    "id": call_id,
+                    "args": args,
+                }
+            )
+            t0 = time.time()
+            try:
+                res = await asyncio.wait_for(execute_live_tool(name, args), timeout=6.0)
+                duration_ms = int((time.time() - t0) * 1000)
+                await adapter.send_tool_response(call_id, name, res)
+                await safe_client_send_json(
+                    {
+                        "type": "tool_done",
+                        "name": name,
+                        "id": call_id,
+                        "result": res,
+                        "duration_ms": duration_ms,
+                    }
+                )
+            except Exception as ex:
+                err_str = f"Error executing tool '{name}': {ex}"
+                await adapter.send_tool_response(call_id, name, err_str)
+                await safe_client_send_json(
+                    {
+                        "type": "tool_error",
+                        "name": name,
+                        "id": call_id,
+                        "error": err_str,
+                    }
+                )
+
+        if is_personaplex:
+            adapter = PersonaPlexLiveAdapter(
+                model=model,
+                voice=voice,
+                instructions=system_instruction,
+                enable_tools=enable_tools,
+                on_audio_delta=on_audio_delta,
+                on_transcript_delta=on_transcript_delta,
+                on_turn_complete=on_turn_complete,
+                on_interrupted=on_interrupted,
+                on_tool_call=on_tool_call,
+                on_error=on_error,
+            )
+        else:
+            adapter_cls = OpenAILiveAdapter if is_openai else GrokLiveAdapter
+            adapter = adapter_cls(
+                api_key=api_key,
+                model=model,
+                voice=voice,
+                instructions=system_instruction,
+                enable_tools=enable_tools,
+                on_audio_delta=on_audio_delta,
+                on_transcript_delta=on_transcript_delta,
+                on_turn_complete=on_turn_complete,
+                on_interrupted=on_interrupted,
+                on_tool_call=on_tool_call,
+                on_error=on_error,
+            )
+
+        try:
+            await adapter.connect()
+            await safe_client_send_json(
+                {
+                    "type": "connected",
+                    "model": model,
+                    "voice": voice,
+                    "provider": provider,
+                }
+            )
+
+            async for msg in ws:
+                if msg.type == WSMsgType.BINARY:
+                    chunk = msg.data
+                    # Browser mic sends 16kHz PCM; adapter expects 24kHz
+                    chunk_24k = resample_pcm16(chunk, 16000, 24000)
+                    await adapter.send_audio(chunk_24k)
+                elif msg.type == WSMsgType.TEXT:
+                    try:
+                        data = json.loads(msg.data)
+                        t = data.get("type")
+                        if t in ("barge_in", "interrupt"):
+                            await adapter.interrupt()
+                        elif t == "text":
+                            await adapter.send_text(data.get("text", ""))
+                        elif t == "update_voice":
+                            new_v = data.get("voice", "")
+                            if new_v:
+                                await adapter.update_voice(new_v)
+                    except Exception:
+                        pass
+                elif msg.type in (WSMsgType.CLOSE, WSMsgType.CLOSING, WSMsgType.ERROR):
+                    break
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            logger.warning("Realtime live WebSocket proxy error: %s", e)
+            await safe_client_send_json({"type": "error", "message": str(e)})
+        finally:
+            is_alive = False
+            try:
+                live_lockfile.unlink(missing_ok=True)
+            except Exception:
+                pass
+            await adapter.close()
+            if not ws.closed:
+                await ws.close()
 
         return ws

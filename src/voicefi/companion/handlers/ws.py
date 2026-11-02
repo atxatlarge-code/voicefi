@@ -16,6 +16,7 @@ from voicefi.integrations.conversations import (
     record_companion_heartbeat,
     set_mobile_turn_origin,
 )
+from voicefi.integrations.screenpipe import record_audio_transcription
 import sys
 from voicefi.integrations.injector import send_message_to_agent
 
@@ -98,6 +99,13 @@ class WebSocketHandlersMixin:
                             sender_name = payload.get("sender_name") or "ViFi Companion"
                             title = payload.get("title") or f"Message from {sender_name}"
                             if text:
+                                if hasattr(self, "record_phone_transcript"):
+                                    self.record_phone_transcript(text)
+                                else:
+                                    record_audio_transcription(
+                                        transcription=text,
+                                        device="Companion Phone Mic",
+                                    )
                                 intent_mode = payload.get("intent_mode")
                                 if intent_mode in ("speed", "comic") or engine in (
                                     "speed",
@@ -269,7 +277,14 @@ class WebSocketHandlersMixin:
                                     if engine:
                                         kwargs["target_engine"] = engine
                                     if cwd_arg:
-                                        kwargs["cwd"] = Path(cwd_arg)
+                                        try:
+                                            cand_cwd = Path(str(cwd_arg)).expanduser().resolve()
+                                            if cand_cwd.is_dir() and cand_cwd.is_relative_to(
+                                                Path.home().resolve()
+                                            ):
+                                                kwargs["cwd"] = cand_cwd
+                                        except Exception:
+                                            pass
                                     res = await asyncio.to_thread(
                                         _resolve_send_message_to_agent, **kwargs
                                     )
@@ -286,6 +301,8 @@ class WebSocketHandlersMixin:
                         elif msg_type == "vault_capture":
                             text = payload.get("text", "").strip()
                             if text:
+                                if hasattr(self, "record_phone_transcript"):
+                                    self.record_phone_transcript(text)
                                 from voicefi.integrations.obsidian import (
                                     append_quick_capture_to_vault,
                                 )
@@ -306,6 +323,8 @@ class WebSocketHandlersMixin:
                             markdown = payload.get("markdown", "").strip()
                             title = payload.get("title", "").strip()
                             if raw_text or markdown:
+                                if hasattr(self, "record_phone_transcript"):
+                                    self.record_phone_transcript(raw_text or markdown)
                                 from voicefi.integrations.obsidian import save_memo_to_vault
                                 from voicefi.memo import MemoSynthesizer
 
@@ -417,6 +436,21 @@ class WebSocketHandlersMixin:
                             self.pause_memo()
                         elif msg_type == "memo_stop":
                             self.stop_memo()
+                        elif msg_type in ("phone_transcript", "ambient_transcript", "walk_transcript"):
+                            tx = (payload.get("text") or payload.get("transcript") or "").strip()
+                            if tx:
+                                if hasattr(self, "record_phone_transcript"):
+                                    self.record_phone_transcript(tx)
+                                else:
+                                    record_audio_transcription(
+                                        transcription=tx,
+                                        device="Companion Phone Mic",
+                                    )
+                        elif msg_type == "phone_recording_state":
+                            self._phone_recording_active = bool(payload.get("active", False))
+                            tx = (payload.get("text") or payload.get("transcript") or "").strip()
+                            if tx and hasattr(self, "record_phone_transcript"):
+                                self.record_phone_transcript(tx)
                         elif msg_type == "stop":
                             now = time.time()
                             last_stop = getattr(self, "_last_stop_handle_time", 0.0)

@@ -9,7 +9,7 @@ import subprocess
 import time
 import threading
 from pathlib import Path
-from typing import Optional, Any, Dict
+from typing import Optional, Any, Dict, List, Tuple
 
 
 DEFAULT_TERMINAL_APPS = (
@@ -227,19 +227,168 @@ def focus_antigravity(focus_input: bool = True) -> bool:
         return False
 
 
+def _navigate_antigravity_via_cdp(conv_id: str, project_id: Optional[str] = None) -> bool:
+    """
+    Navigate Antigravity 2.0 directly to `/c/<conv_id>?section=<project_id>` via its local
+    DevToolsActivePort using a zero-dependency WebSocket Runtime.evaluate call.
+    Works reliably even when the sidebar is virtualized or the project section is collapsed.
+    """
+    if not conv_id:
+        return False
+    try:
+        import base64
+        import json
+        import socket
+        import struct
+        import urllib.request
+        from pathlib import Path
+
+        port_file = (
+            Path.home() / "Library" / "Application Support" / "Antigravity" / "DevToolsActivePort"
+        )
+        if not port_file.is_file():
+            return False
+        lines = port_file.read_text(encoding="utf-8", errors="ignore").strip().splitlines()
+        if not lines:
+            return False
+        port = int(lines[0].strip())
+
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/json", timeout=0.45) as resp:
+            targets = json.loads(resp.read().decode("utf-8", errors="ignore"))
+
+        ws_url = None
+        for t in targets:
+            if t.get("type") == "page" and t.get("webSocketDebuggerUrl"):
+                ws_url = t["webSocketDebuggerUrl"]
+                break
+        if not ws_url:
+            return False
+
+        # Parse ws://127.0.0.1:<port>/devtools/page/<id>
+        without_scheme = ws_url.split("://", 1)[-1]
+        host_port, path_part = without_scheme.split("/", 1)
+        ws_path = "/" + path_part
+        host, port_str = host_port.split(":", 1)
+        ws_port = int(port_str)
+
+        js_expr = f"""
+        (() => {{
+            const convId = {json.dumps(str(conv_id))};
+            const projectId = {json.dumps(str(project_id or ""))};
+            const targetPath = '/c/' + convId + (projectId ? '?section=' + projectId : '');
+
+            const focusComposer = () => {{
+                setTimeout(() => {{
+                    const input = document.querySelector('[aria-label="Message input"], [contenteditable="true"][role="combobox"], [contenteditable="true"]');
+                    if (input && typeof input.focus === 'function') {{
+                        input.focus();
+                    }}
+                }}, 60);
+            }};
+
+            if (window.location.pathname === '/c/' + convId) {{
+                focusComposer();
+                return 'already_active';
+            }}
+
+            const existingLink = document.querySelector('a[href*="/c/' + convId + '"]');
+            if (existingLink) {{
+                existingLink.click();
+                focusComposer();
+                return 'clicked_dom_link';
+            }}
+
+            const rootEl = document.querySelector('[data-testid="conversation-list-sidebar"]') || document.querySelector('a[href^="/c/"]') || document.body.firstElementChild;
+            if (rootEl) {{
+                const fk = Object.keys(rootEl).find(k => k.startsWith('__reactFiber$'));
+                if (fk) {{
+                    let cur = rootEl[fk];
+                    while (cur) {{
+                        const mp = cur.memoizedProps;
+                        if (mp && mp.value && mp.value.routesByPath && mp.value.history && typeof mp.value.history.push === 'function') {{
+                            mp.value.history.push(targetPath);
+                            focusComposer();
+                            return 'router_history_push';
+                        }}
+                        cur = cur.return;
+                    }}
+                }}
+            }}
+
+            window.history.pushState({{}}, '', targetPath);
+            window.dispatchEvent(new PopStateEvent('popstate'));
+            focusComposer();
+            return 'history_pushstate';
+        }})()
+        """
+
+        sock = socket.create_connection((host, ws_port), timeout=0.6)
+        try:
+            key = base64.b64encode(os.urandom(16)).decode("ascii")
+            handshake = (
+                f"GET {ws_path} HTTP/1.1\r\n"
+                f"Host: {host}:{ws_port}\r\n"
+                "Upgrade: websocket\r\n"
+                "Connection: Upgrade\r\n"
+                f"Sec-WebSocket-Key: {key}\r\n"
+                "Sec-WebSocket-Version: 13\r\n\r\n"
+            )
+            sock.sendall(handshake.encode("ascii"))
+            buf = b""
+            while b"\r\n\r\n" not in buf:
+                chunk = sock.recv(4096)
+                if not chunk:
+                    return False
+                buf += chunk
+
+            payload_bytes = json.dumps(
+                {
+                    "id": 1,
+                    "method": "Runtime.evaluate",
+                    "params": {"expression": js_expr, "returnByValue": True},
+                }
+            ).encode("utf-8")
+            mask_key = os.urandom(4)
+            header = bytearray([0x81])
+            length = len(payload_bytes)
+            if length < 126:
+                header.append(0x80 | length)
+            elif length < 65536:
+                header.append(0x80 | 126)
+                header.extend(struct.pack("!H", length))
+            else:
+                header.append(0x80 | 127)
+                header.extend(struct.pack("!Q", length))
+            header.extend(mask_key)
+            masked = bytearray(payload_bytes[i] ^ mask_key[i % 4] for i in range(length))
+            sock.sendall(header + masked)
+
+            resp_data = sock.recv(8192)
+            return bool(resp_data and b"result" in resp_data)
+        finally:
+            try:
+                sock.close()
+            except Exception:
+                pass
+    except Exception:
+        return False
+
+
 def navigate_to_antigravity_conversation(conv_id: str, title: Optional[str] = None) -> bool:
     """
     Navigate the Antigravity desktop window directly to a specific conversation by ID or title.
-    Uses macOS Accessibility (AXUIElement) and Quartz mouse events to locate and select
-    the conversation link without moving the user's mouse cursor.
+    Uses Antigravity's local DevTools router navigation first (supporting virtualized sidebars and
+    collapsed project sections), falling back to macOS Accessibility (AXUIElement) without moving
+    the user's mouse cursor.
     """
     if not conv_id:
         return False
     if os.environ.get("PYTEST_CURRENT_TEST"):
         return True
 
-    # Resolve conversation title from SQLite database if not supplied
-    if not title and conv_id:
+    # Resolve conversation title and project_id from SQLite database
+    project_id: Optional[str] = None
+    if conv_id:
         try:
             import sqlite3
             from pathlib import Path
@@ -249,12 +398,15 @@ def navigate_to_antigravity_conversation(conv_id: str, title: Optional[str] = No
                 with sqlite3.connect(str(db_path), timeout=0.5) as conn:
                     cur = conn.cursor()
                     cur.execute(
-                        "SELECT title FROM conversation_summaries WHERE conversation_id = ? LIMIT 1",
+                        "SELECT title, project_id FROM conversation_summaries WHERE conversation_id = ? LIMIT 1",
                         (str(conv_id),),
                     )
                     row = cur.fetchone()
-                    if row and row[0]:
-                        title = str(row[0])
+                    if row:
+                        if not title and row[0]:
+                            title = str(row[0])
+                        if len(row) > 1 and row[1]:
+                            project_id = str(row[1])
         except Exception:
             pass
 
@@ -275,13 +427,19 @@ def navigate_to_antigravity_conversation(conv_id: str, title: Optional[str] = No
             a
             for a in ws.runningApplications()
             if (a.localizedName() or "").strip() in ("Antigravity", "Antigravity IDE")
+            or (a.bundleIdentifier() or "").lower() == "com.google.antigravity"
         ]
         if not apps:
             return False
         app = apps[0]
         cooperative_activate_app(app)
-        time.sleep(0.10)
+        time.sleep(0.06)
 
+        # Primary deterministic navigation via Antigravity's local DevTools router
+        if _navigate_antigravity_via_cdp(conv_id=str(conv_id), project_id=project_id):
+            return True
+
+        time.sleep(0.04)
         app_ax = AXUIElementCreateApplication(app.processIdentifier())
         AXUIElementSetAttributeValue(app_ax, "AXManualAccessibility", True)
 
@@ -354,57 +512,75 @@ def navigate_to_antigravity_conversation(conv_id: str, title: Optional[str] = No
 
         _find_link(win)
 
-        # If not found in current sidebar, open conversation history with Cmd+Y to inspect full catalog
-        if not target_link:
-            subprocess.run(
-                [
-                    "osascript",
-                    "-e",
-                    'tell application "System Events" to keystroke "y" using command down',
-                ],
-                capture_output=True,
-                timeout=2,
-            )
-            time.sleep(0.20)
-            err, win_hist = AXUIElementCopyAttributeValue(app_ax, "AXMainWindow", None)
-            if win_hist:
-                _find_link(win_hist)
-            if not target_link:
-                err, win_foc = AXUIElementCopyAttributeValue(app_ax, "AXFocusedWindow", None)
-                if win_foc:
-                    _find_link(win_foc)
+        # If not found and project_id is known, expand collapsed project section in sidebar and re-scan
+        if not target_link and project_id:
+            project_toggle_btn = None
+
+            def _find_project_toggle(el, depth=0):
+                nonlocal project_toggle_btn
+                if project_toggle_btn is not None or depth > 30:
+                    return
+                err, children = AXUIElementCopyAttributeValue(el, "AXChildren", None)
+                if not children:
+                    return
+                has_proj_link = False
+                cand_btn = None
+                for c in children:
+                    _, c_role = AXUIElementCopyAttributeValue(c, "AXRole", None)
+                    if c_role == "AXLink":
+                        _, c_url = AXUIElementCopyAttributeValue(c, "AXURL", None)
+                        if c_url and f"section={project_id}" in str(c_url):
+                            has_proj_link = True
+                    elif c_role == "AXButton":
+                        _, exp = AXUIElementCopyAttributeValue(c, "AXExpanded", None)
+                        if exp is False:
+                            cand_btn = c
+                if has_proj_link and cand_btn is not None:
+                    project_toggle_btn = cand_btn
+                    return
+                for c in children:
+                    _find_project_toggle(c, depth + 1)
+
+            _find_project_toggle(win)
+            if project_toggle_btn is not None:
+                AXUIElementPerformAction(project_toggle_btn, "AXPress")
+                time.sleep(0.15)
+                _find_link(win)
 
         if not target_link:
             return focus_antigravity(focus_input=True)
 
         # 1. Native AXPress action
-        AXUIElementPerformAction(target_link, "AXPress")
+        press_err = AXUIElementPerformAction(target_link, "AXPress")
         time.sleep(0.06)
 
-        # 2. Resilient Quartz click fallback if frame is available
-        err, frame_val = AXUIElementCopyAttributeValue(target_link, "AXFrame", None)
-        if frame_val:
-            success, rect = AXValueGetValue(frame_val, kAXValueCGRectType, None)
-            if success and rect.size.width > 0:
-                center_x = rect.origin.x + rect.size.width / 2
-                center_y = rect.origin.y + (rect.size.height / 2 if rect.size.height > 5 else 15.0)
-                prev_pos = Quartz.CGEventGetLocation(Quartz.CGEventCreate(None))
+        # 2. Resilient Quartz click fallback ONLY if AXPress failed
+        if press_err != 0:
+            err, frame_val = AXUIElementCopyAttributeValue(target_link, "AXFrame", None)
+            if frame_val:
+                success, rect = AXValueGetValue(frame_val, kAXValueCGRectType, None)
+                if success and rect.size.width > 0:
+                    center_x = rect.origin.x + rect.size.width / 2
+                    center_y = rect.origin.y + (
+                        rect.size.height / 2 if rect.size.height > 5 else 15.0
+                    )
+                    prev_pos = Quartz.CGEventGetLocation(Quartz.CGEventCreate(None))
 
-                point = Quartz.CGPoint(center_x, center_y)
-                down = Quartz.CGEventCreateMouseEvent(
-                    None, Quartz.kCGEventLeftMouseDown, point, Quartz.kCGMouseButtonLeft
-                )
-                up = Quartz.CGEventCreateMouseEvent(
-                    None, Quartz.kCGEventLeftMouseUp, point, Quartz.kCGMouseButtonLeft
-                )
-                Quartz.CGEventPost(Quartz.kCGHIDEventTap, down)
-                time.sleep(0.04)
-                Quartz.CGEventPost(Quartz.kCGHIDEventTap, up)
-                time.sleep(0.04)
-                Quartz.CGWarpMouseCursorPosition(prev_pos)
+                    point = Quartz.CGPoint(center_x, center_y)
+                    down = Quartz.CGEventCreateMouseEvent(
+                        None, Quartz.kCGEventLeftMouseDown, point, Quartz.kCGMouseButtonLeft
+                    )
+                    up = Quartz.CGEventCreateMouseEvent(
+                        None, Quartz.kCGEventLeftMouseUp, point, Quartz.kCGMouseButtonLeft
+                    )
+                    Quartz.CGEventPost(Quartz.kCGHIDEventTap, down)
+                    time.sleep(0.04)
+                    Quartz.CGEventPost(Quartz.kCGHIDEventTap, up)
+                    time.sleep(0.04)
+                    Quartz.CGWarpMouseCursorPosition(prev_pos)
 
         # 3. Focus chat input with Cmd+L
-        time.sleep(0.12)
+        time.sleep(0.10)
         subprocess.run(
             [
                 "osascript",
@@ -641,7 +817,7 @@ def process_dictation_macros(text: str) -> Optional[str]:
     import re
 
     t = re.sub(
-        r"(?i)[,\s]*(?:that(?:\'s|\s+is)\s+all|i(?:\'m|\s+am)\s+done(?:\s+talking)?|stop\s+listening|over(?:\s+and\s+out)?)[.!?\s]*$",
+        r"(?i)[,\s]*(?:transcribe\s+done|stop\s+transcrib(?:ing|e)|done\s+transcribing|stop\s+dictat(?:ing|e)|that(?:\'s|\s+is)\s+all|i(?:\'m|\s+am)\s+done(?:\s+talking)?|stop\s+listening|over(?:\s+and\s+out)?)[.!?\s]*$",
         "",
         raw,
     )
@@ -883,6 +1059,11 @@ class DispatchResult:
         }
 
 
+_LAST_AGENTAPI_TEXT = ""
+_LAST_AGENTAPI_TIME = 0.0
+_LAST_AGENTAPI_TARGET_ID = ""
+
+
 def send_message_to_antigravity(
     conv_id: Optional[str] = None,
     text: str = "",
@@ -890,6 +1071,7 @@ def send_message_to_antigravity(
     title: Optional[str] = None,
     from_conv_id: Optional[str] = None,
     allow_foreground_fallback: bool = False,
+    force: bool = False,
 ) -> DispatchResult:
     """
     Send prompt directly to Antigravity conversation via native agentapi IPC.
@@ -897,6 +1079,7 @@ def send_message_to_antigravity(
     0 clipboard usage, and 0 screen flashing.
     Supports setting custom message titles, sender attribution, and return-routing.
     """
+    global _LAST_AGENTAPI_TEXT, _LAST_AGENTAPI_TIME, _LAST_AGENTAPI_TARGET_ID
     if not text or not text.strip():
         return DispatchResult(
             success=False, delivery_type="none", error="Empty message text", engine="antigravity"
@@ -921,6 +1104,26 @@ def send_message_to_antigravity(
         from voicefi.integrations.conversations import get_latest_antigravity_conversation_id
 
         target_id = get_latest_antigravity_conversation_id()
+
+    # Short-window prompt deduplication to prevent double-injection from dual mics (phone + Mac) or relay retries
+    now = time.time()
+    min_window = 3.0 if len(clean_text) <= 15 or len(clean_text.split()) <= 2 else 15.0
+    if not force and not os.environ.get("VOICEFI_DISABLE_DEDUP"):
+        if (
+            clean_text == _LAST_AGENTAPI_TEXT
+            and str(target_id) == str(_LAST_AGENTAPI_TARGET_ID)
+            and (now - _LAST_AGENTAPI_TIME) < min_window
+            and (not os.environ.get("PYTEST_CURRENT_TEST") or os.environ.get("VOICEFI_TEST_DEDUP"))
+        ):
+            print(
+                f"[Injector] ⏭️ Ignored duplicate message to Antigravity ({str(target_id)[:8]}) within {min_window:.1f}s window: '{clean_text[:40]}'"
+            )
+            return DispatchResult(
+                success=True,
+                delivery_type="deduplicated",
+                target_conv_id=target_id,
+                engine="antigravity",
+            )
 
     resolved_title = title
     if not resolved_title:
@@ -983,6 +1186,9 @@ def send_message_to_antigravity(
             timeout=6,
         )
         if res.returncode == 0:
+            _LAST_AGENTAPI_TEXT = clean_text
+            _LAST_AGENTAPI_TIME = now
+            _LAST_AGENTAPI_TARGET_ID = str(target_id)
             print(
                 f"[Injector] 🚀 Delivered prompt directly via agentapi IPC to {str(target_id)[:8]} ({resolved_title or 'direct'})"
             )
@@ -1009,6 +1215,9 @@ def send_message_to_antigravity(
                 timeout=6,
             )
             if res2.returncode == 0:
+                _LAST_AGENTAPI_TEXT = clean_text
+                _LAST_AGENTAPI_TIME = now
+                _LAST_AGENTAPI_TARGET_ID = str(target_id)
                 print(
                     f"[Injector] 🚀 Delivered prompt directly via agentapi IPC on retry to {str(target_id)[:8]}"
                 )
@@ -1047,6 +1256,9 @@ def send_message_to_antigravity(
                     timeout=6,
                 )
                 if res_rescued.returncode == 0:
+                    _LAST_AGENTAPI_TEXT = clean_text
+                    _LAST_AGENTAPI_TIME = now
+                    _LAST_AGENTAPI_TARGET_ID = str(latest_id)
                     print(
                         f"[Injector] 🚀 Delivered prompt directly via agentapi IPC to rescued conversation {str(latest_id)[:8]}"
                     )
@@ -1113,39 +1325,129 @@ def send_message_to_antigravity(
     )
 
 
+def _click_antigravity_new_conversation_in_project(project_name: str) -> bool:
+    """
+    Locate the matching project in Antigravity's sidebar ('Projects' section) and press
+    its 'New Conversation in Project' AXLink so the new conversation opens in that exact project.
+    """
+    if not project_name or os.environ.get("PYTEST_CURRENT_TEST"):
+        return False
+    target_names = [project_name.strip().lower()]
+    if target_names[0] in ("vifi.co", "voicefi.org"):
+        target_names.append("voicefi")
+
+    try:
+        from AppKit import NSWorkspace
+        from ApplicationServices import (
+            AXUIElementCopyAttributeValue,
+            AXUIElementCreateApplication,
+            AXUIElementPerformAction,
+            AXUIElementSetAttributeValue,
+        )
+
+        ws = NSWorkspace.sharedWorkspace()
+        for app in ws.runningApplications():
+            app_name = (app.localizedName() or "").lower()
+            bundle_id = (app.bundleIdentifier() or "").lower()
+            if app_name not in ("antigravity", "antigravity ide") and bundle_id != "com.google.antigravity":
+                continue
+
+            ax = AXUIElementCreateApplication(app.processIdentifier())
+            AXUIElementSetAttributeValue(ax, "AXManualAccessibility", True)
+            _, wins = AXUIElementCopyAttributeValue(ax, "AXWindows", None)
+            if not wins:
+                continue
+
+            found_link = None
+
+            def _walk(el, depth=0):
+                nonlocal found_link
+                if found_link is not None or depth > 28:
+                    return
+                _, role = AXUIElementCopyAttributeValue(el, "AXRole", None)
+                _, children = AXUIElementCopyAttributeValue(el, "AXChildren", None)
+                if role == "AXGroup" and children and len(children) >= 2:
+                    _, c0_role = AXUIElementCopyAttributeValue(children[0], "AXRole", None)
+                    _, c0_title = AXUIElementCopyAttributeValue(children[0], "AXTitle", None)
+                    if c0_role == "AXButton" and c0_title:
+                        btn_name = str(c0_title).strip().lower()
+                        if btn_name in target_names:
+                            _, g_children = AXUIElementCopyAttributeValue(
+                                children[1], "AXChildren", None
+                            )
+                            for gc in g_children or []:
+                                _, gc_role = AXUIElementCopyAttributeValue(gc, "AXRole", None)
+                                _, gc_title = AXUIElementCopyAttributeValue(gc, "AXTitle", None)
+                                _, gc_desc = AXUIElementCopyAttributeValue(
+                                    gc, "AXDescription", None
+                                )
+                                lbl = str(gc_title or gc_desc or "").lower()
+                                if gc_role == "AXLink" and (
+                                    "new conversation" in lbl or not lbl
+                                ):
+                                    found_link = gc
+                                    return
+                for c in children or []:
+                    _walk(c, depth + 1)
+
+            _walk(wins[0])
+            if found_link is not None:
+                AXUIElementPerformAction(found_link, "AXPress")
+                print(
+                    f"[Injector] 🎯 Pressed 'New Conversation in Project' AXLink for project '{project_name}'"
+                )
+                return True
+    except Exception as e:
+        print(f"[Injector] Notice pressing project new-conversation link: {e}")
+    return False
+
+
 def create_new_antigravity_conversation(
     prompt: str = "Hello",
     title: Optional[str] = None,
     model: Optional[str] = None,
+    workspace_path: Optional[str] = None,
+    focus_window: bool = False,
+    restore_focus: bool = True,
 ) -> Optional[str]:
     """
     Start a brand new Antigravity agent conversation and deliver the prompt.
+    Delivers cleanly via native agentapi IPC without adjusting screen focus or
+    stealing active window attention unless focus_window=True.
     Returns the newly created conversation ID if detected, or None.
     """
     clean_prompt = (prompt or "Hello").strip()
+    resolved_ws: Optional[str] = None
+    proj_name: Optional[str] = None
+
+    if not workspace_path:
+        try:
+            from voicefi.integrations.conversations import load_session_cookie
+            cookie = load_session_cookie() or {}
+            if cookie.get("workspacePath") and Path(cookie["workspacePath"]).is_dir():
+                workspace_path = cookie["workspacePath"]
+            elif Path.cwd().is_dir() and (Path.cwd() / ".git").exists():
+                workspace_path = str(Path.cwd())
+        except Exception:
+            pass
+
+    if workspace_path and Path(str(workspace_path)).expanduser().is_dir():
+        resolved_ws = str(Path(str(workspace_path)).expanduser().resolve())
+        proj_name = Path(resolved_ws).name
+        if not title:
+            title = f"{proj_name}: {(prompt or 'New Conversation').strip()[:32]}"
+
+    brain_dir = Path.home() / ".gemini" / "antigravity" / "brain"
+    existing_cids = set()
+    if brain_dir.is_dir():
+        try:
+            existing_cids = {d.name for d in brain_dir.iterdir() if d.is_dir()}
+        except Exception:
+            existing_cids = set()
+
     agentapi_bin = Path.home() / ".gemini" / "antigravity" / "bin" / "agentapi"
 
-    # 1. If Antigravity GUI is running on macOS, inject directly into the new conversation UI
-    gui_injected = False
-    try:
-        from AppKit import NSWorkspace
-
-        ws = NSWorkspace.sharedWorkspace()
-        is_ag_running = any(
-            (app.localizedName() or "").lower() in ("antigravity", "antigravity ide")
-            or (app.bundleIdentifier() or "").lower() == "com.google.antigravity"
-            for app in ws.runningApplications()
-        )
-        if is_ag_running and not os.environ.get("PYTEST_CURRENT_TEST"):
-            gui_injected = inject_text_to_antigravity(
-                clean_prompt,
-                submit_enter=True,
-                new_conversation=True,
-            )
-    except Exception as e:
-        print(f"[Injector] Notice checking Antigravity GUI: {e}")
-
-    # 2. Also register / create via agentapi if available
+    # 1. Native agentapi IPC (Fast, headless, zero screen focus adjustment, zero clipboard pollution)
     if agentapi_bin.is_file() and os.access(agentapi_bin, os.X_OK):
         from voicefi.integrations.antigravity_ls import get_agentapi_env
 
@@ -1162,12 +1464,13 @@ def create_new_antigravity_conversation(
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 env=env,
+                cwd=resolved_ws if resolved_ws else None,
                 text=True,
                 timeout=8,
             )
             if res.returncode == 0:
                 print(
-                    f"[Injector] 🚀 Created new Antigravity conversation via agentapi: {res.stdout.strip()}"
+                    f"[Injector] 🚀 Created new Antigravity conversation via agentapi IPC: {res.stdout.strip()}"
                 )
                 try:
                     import json
@@ -1188,18 +1491,82 @@ def create_new_antigravity_conversation(
                     if cid:
                         from voicefi.integrations.conversations import save_session_cookie
 
-                        save_session_cookie(conv_id=str(cid), title=title or clean_prompt[:40])
-                        if not gui_injected:
+                        save_session_cookie(
+                            conv_id=str(cid),
+                            title=title or clean_prompt[:40],
+                            workspace_path=resolved_ws,
+                        )
+                        if focus_window:
                             focus_antigravity(focus_input=True)
                         return str(cid)
                 except Exception:
                     pass
         except Exception as e:
-            print(f"[Injector] agentapi new-conversation exception: {e}")
+            print(f"[Injector] agentapi new-conversation notice: {e}")
 
-    # 3. Fallback to GUI injection if agentapi wasn't used or failed
+    # 2. GUI injection fallback (if agentapi was not available or failed)
+    gui_injected = False
+    try:
+        from AppKit import NSWorkspace
+
+        ws = NSWorkspace.sharedWorkspace()
+        is_ag_running = any(
+            (app.localizedName() or "").lower() in ("antigravity", "antigravity ide")
+            or (app.bundleIdentifier() or "").lower() == "com.google.antigravity"
+            for app in ws.runningApplications()
+        )
+        if is_ag_running and not os.environ.get("PYTEST_CURRENT_TEST"):
+            clicked_project_link = False
+            if proj_name:
+                clicked_project_link = _click_antigravity_new_conversation_in_project(proj_name)
+                if clicked_project_link:
+                    time.sleep(0.35)
+            gui_injected = inject_text_to_antigravity(
+                clean_prompt,
+                submit_enter=True,
+                restore_focus=restore_focus if not focus_window else False,
+                new_conversation=not clicked_project_link,
+            )
+    except Exception as e:
+        print(f"[Injector] Notice checking Antigravity GUI fallback: {e}")
+
+    # If GUI injection ran, wait for the newly created brain/<conv_id> directory and return it!
+    if gui_injected and not os.environ.get("PYTEST_CURRENT_TEST"):
+        from voicefi.integrations.conversations import ConversationTracker, save_session_cookie
+
+        for _ in range(10):
+            time.sleep(0.25)
+            try:
+                if brain_dir.is_dir():
+                    new_dirs = [
+                        d
+                        for d in brain_dir.iterdir()
+                        if d.is_dir()
+                        and d.name not in existing_cids
+                        and (d / ".system_generated" / "logs" / "transcript.jsonl").is_file()
+                    ]
+                    if new_dirs:
+                        new_dirs.sort(key=lambda d: d.stat().st_mtime, reverse=True)
+                        new_cid = new_dirs[0].name
+                        save_session_cookie(
+                            conv_id=new_cid,
+                            title=title or clean_prompt[:40],
+                            workspace_path=resolved_ws,
+                        )
+                        if focus_window:
+                            focus_antigravity(focus_input=True)
+                        return new_cid
+            except Exception:
+                pass
+
+    # 3. Last-resort fallback to GUI injection if neither agentapi nor project click ran
     if not gui_injected and not os.environ.get("PYTEST_CURRENT_TEST"):
-        inject_text_to_antigravity(clean_prompt, submit_enter=True, new_conversation=True)
+        inject_text_to_antigravity(
+            clean_prompt,
+            submit_enter=True,
+            restore_focus=restore_focus if not focus_window else False,
+            new_conversation=True,
+        )
 
     time.sleep(0.5)
     try:
@@ -1207,7 +1574,11 @@ def create_new_antigravity_conversation(
 
         active = ConversationTracker().get_active_or_latest()
         if active:
-            save_session_cookie(conv_id=active.id, title=title or clean_prompt[:40])
+            save_session_cookie(
+                conv_id=active.id,
+                title=title or clean_prompt[:40],
+                workspace_path=resolved_ws,
+            )
             return active.id
     except Exception:
         pass
@@ -1962,6 +2333,23 @@ def send_message_to_agent(
 
     engine = engine or "antigravity"
 
+    if not kwargs.get("_is_replay") and (
+        not os.environ.get("PYTEST_CURRENT_TEST") or os.environ.get("VIFI_HISTORY_PATH")
+    ):
+        try:
+            from voicefi.ipc.history import record_utterance_history
+
+            record_utterance_history(
+                transcript=text.strip(),
+                target_route=engine,
+                audio_duration=float(kwargs.get("audio_duration", 0.0) or 0.0),
+                session_id=conv_id,
+                source=sender_name or "dispatcher",
+                deduplicate_window=2.0,
+            )
+        except Exception:
+            pass
+
     if engine in ("claude", "claude_code"):
         from voicefi.config import load_config
 
@@ -2109,6 +2497,7 @@ def send_message_to_agent(
         )
     elif engine == "gemini_cli":
         print(f'[Injector] 🚀 Dispatching prompt to Gemini CLI agent: "{text[:50]}..."')
+        extra_kwargs = {"force": kwargs["force"]} if "force" in kwargs else {}
         return send_message_to_antigravity(
             conv_id=conv_id,
             text=text,
@@ -2116,8 +2505,10 @@ def send_message_to_agent(
             title=title,
             from_conv_id=from_conv_id,
             allow_foreground_fallback=allow_foreground_fallback,
+            **extra_kwargs,
         )
     else:
+        extra_kwargs = {"force": kwargs["force"]} if "force" in kwargs else {}
         return send_message_to_antigravity(
             conv_id=conv_id,
             text=text,
@@ -2125,6 +2516,7 @@ def send_message_to_agent(
             title=title,
             from_conv_id=from_conv_id,
             allow_foreground_fallback=allow_foreground_fallback,
+            **extra_kwargs,
         )
 
 
@@ -2153,15 +2545,22 @@ def focus_app_by_name(app_name: str) -> bool:
         pass
 
     # 2. Fallback to AppleScript
+    safe_target = (
+        target.replace("\\", "\\\\")
+        .replace('"', '\\"')
+        .replace("\r", " ")
+        .replace("\n", " ")
+        .replace("\x00", "")
+    )
     applescript = f'''
     tell application "System Events"
-        if exists (process "{target}") then
-            tell application "{target}" to activate
+        if exists (process "{safe_target}") then
+            tell application "{safe_target}" to activate
             return true
         end if
     end tell
     try
-        tell application "{target}" to activate
+        tell application "{safe_target}" to activate
         return true
     on error
         return false
@@ -2220,7 +2619,7 @@ def focus_speaking_agent_window(
 
             info = (
                 get_agent_speaking_info()
-                or get_recent_speaking_info(window_seconds=4.0)
+                or get_recent_speaking_info(window_seconds=120.0)
                 or get_cross_process_hud_state()
             )
             if info and isinstance(info, dict):
@@ -2230,10 +2629,13 @@ def focus_speaking_agent_window(
         except Exception:
             pass
 
-        # If still not resolved and not in pytest, check active session cookie
+        # If still not resolved and not in pytest, check active session cookie / tracker
         if not agent_name and not app_name and not os.environ.get("PYTEST_CURRENT_TEST"):
             try:
-                from voicefi.integrations.conversations import load_session_cookie
+                from voicefi.integrations.conversations import (
+                    load_session_cookie,
+                    ConversationTracker,
+                )
 
                 cookie = load_session_cookie()
                 if cookie:
@@ -2245,6 +2647,10 @@ def focus_speaking_agent_window(
                         app_name = "ChatGPT"
                     else:
                         app_name = "Antigravity"
+                if not conv_id:
+                    latest_info = ConversationTracker().get_active_or_latest()
+                    if latest_info and latest_info.id:
+                        conv_id = latest_info.id
             except Exception:
                 pass
 
@@ -2290,7 +2696,28 @@ def focus_speaking_agent_window(
         return focus_chatgpt(focus_input=True)
 
     # 2c. Specific app name provided (e.g. Ghostty, Cursor, Code, Terminal, Warp, Obsidian, etc.)
-    if app_name and app_lower not in ("antigravity", "antigravity ide", "voicefi", "viv", "agent"):
+    _non_standalone_apps = {
+        "antigravity",
+        "antigravity ide",
+        "voicefi",
+        "viv",
+        "agent",
+        "main",
+        "gemini",
+        "the continental",
+        "the_continental",
+        "sonia",
+        "christopher",
+        "stefan",
+        "emma",
+        "andrew",
+        "ava",
+        "guy",
+        "fenrir",
+        "attenborough",
+        "documentary_broadcaster",
+    }
+    if app_name and app_lower not in _non_standalone_apps:
         print(f"[Injector] 🎯 Option+Tab / HUD Click: Focusing {app_name} window...")
         if focus_app_by_name(app_name):
             return True
@@ -2309,3 +2736,284 @@ def focus_speaking_agent_window(
     if not focused:
         focused = bool(focus_terminal_app())
     return focused
+
+
+class LiveAutotyper:
+    """
+    Real-time streaming autotyper for macOS.
+    Incrementally types partial speech-to-text directly into the focused text field as the user speaks,
+    reconciling word revisions with simulated backspaces and finishing cleanly on turn completion.
+    """
+
+    def __init__(self, enabled: bool = True, pure_forward: bool = True):
+        self.enabled = enabled
+        self.pure_forward = pure_forward
+        self._typed_text: str = ""
+        self._lock = threading.Lock()
+        self._is_closed = False
+        self._quartz_available: Optional[bool] = None
+
+    def _check_quartz(self) -> bool:
+        if self._quartz_available is None:
+            try:
+                import Quartz
+
+                self._quartz_available = hasattr(Quartz, "CGEventCreateKeyboardEvent")
+            except Exception:
+                self._quartz_available = False
+        return bool(self._quartz_available)
+
+    @property
+    def has_typed(self) -> bool:
+        with self._lock:
+            return bool(self._typed_text)
+
+    @property
+    def typed_text(self) -> str:
+        with self._lock:
+            return self._typed_text
+
+    @staticmethod
+    def _find_new_forward_words(typed_words: List[str], new_words: List[str]) -> List[str]:
+        """
+        Find words in new_words that extend beyond already typed words.
+        Guarantees strictly forward progress with zero backspaces.
+        """
+        def _norm(w: str) -> str:
+            return re.sub(r"[^\w]", "", w).lower()
+
+        t_norm = [_norm(w) for w in typed_words if _norm(w)]
+        n_norm = [_norm(w) for w in new_words if _norm(w)]
+
+        if not t_norm:
+            return new_words
+
+        # 1. Direct prefix match: new_norm starts with t_norm
+        if len(n_norm) >= len(t_norm) and n_norm[:len(t_norm)] == t_norm:
+            return new_words[len(t_norm):]
+
+        # 2. Look for the longest suffix of t_norm that appears in n_norm
+        for k in range(len(t_norm), 0, -1):
+            target_sub = t_norm[-k:]
+            sub_len = len(target_sub)
+            for i in range(len(n_norm) - sub_len, -1, -1):
+                if n_norm[i:i + sub_len] == target_sub:
+                    return new_words[i + sub_len:]
+
+        # 3. Fallback: if new_words has strictly more words than typed_words, take the tail
+        if len(new_words) > len(typed_words):
+            return new_words[len(typed_words):]
+
+        return []
+
+    def update(self, new_text: str) -> None:
+        """Process incremental partial transcript and type delta into focused text field."""
+        if not self.enabled or self._is_closed or not new_text or not new_text.strip():
+            return
+        if not self._check_quartz():
+            return
+
+        with self._lock:
+            if self._is_closed:
+                return
+            # Hold back trailing mid-syllable hyphenated fragments (e.g. "Google ant-") until word completes
+            trimmed = re.sub(r"(?:^|\s+)\S+-[\. …]*$", "", new_text.strip()).strip()
+            # Strip trailing ellipses and punctuation jitter from partial transcripts
+            clean = re.sub(r"[\. …]+$", "", trimmed).strip()
+            if not clean or clean == self._typed_text:
+                return
+
+            if self.pure_forward:
+                typed_words = self._typed_text.split()
+                new_words = clean.split()
+                words_to_add = self._find_new_forward_words(typed_words, new_words)
+                if words_to_add:
+                    suffix = (" " if self._typed_text else "") + " ".join(words_to_add)
+                    self._send_text(suffix)
+                    self._typed_text = (self._typed_text + suffix).strip()
+                return
+
+            def _normalize_word(w: str) -> str:
+                return re.sub(r"[^\w]", "", w).lower()
+
+            typed_words = self._typed_text.split()
+            new_words = clean.split()
+
+            typed_norm = [_normalize_word(w) for w in typed_words if _normalize_word(w)]
+            new_norm = [_normalize_word(w) for w in new_words if _normalize_word(w)]
+
+            # 1. Word-level pure forward extension (no backspacing at all!)
+            if typed_norm and len(new_norm) >= len(typed_norm) and new_norm[:len(typed_norm)] == typed_norm:
+                words_to_add = new_words[len(typed_norm):]
+                if words_to_add:
+                    suffix = (" " if self._typed_text else "") + " ".join(words_to_add)
+                    self._send_text(suffix)
+                    self._typed_text += suffix
+                return
+
+            # 2. Word-level last-word revision (only backspace the active tail word)
+            if len(typed_norm) > 1 and len(new_norm) >= len(typed_norm) and new_norm[:len(typed_norm)-1] == typed_norm[:-1]:
+                last_word_len = len(typed_words[-1])
+                self._send_backspaces(last_word_len)
+                replacement_words = new_words[len(typed_norm)-1:]
+                replacement_str = " ".join(replacement_words)
+                self._send_text(replacement_str)
+                self._typed_text = " ".join(typed_words[:-1]) + " " + replacement_str
+                return
+
+            # 3. Fallback character-level common prefix for general edits
+            common_len = 0
+            min_len = min(len(self._typed_text), len(clean))
+            while common_len < min_len and self._typed_text[common_len] == clean[common_len]:
+                common_len += 1
+
+            backspaces = len(self._typed_text) - common_len
+            suffix = clean[common_len:]
+
+            if backspaces > 0:
+                self._send_backspaces(backspaces)
+
+            if suffix:
+                self._send_text(suffix)
+
+            self._typed_text = clean
+
+    def finish(self, final_text: str, submit_enter: bool = False) -> bool:
+        """Reconcile final transcribed text with whatever was typed live, and optionally submit."""
+        if not self.enabled or not self._check_quartz():
+            return False
+
+        with self._lock:
+            self._is_closed = True
+            clean = (final_text or "").strip()
+
+            if self.pure_forward:
+                if clean and not self._typed_text:
+                    self._send_text(clean)
+                    self._typed_text = clean
+                elif clean and self._typed_text:
+                    typed_words = self._typed_text.split()
+                    new_words = clean.split()
+                    words_to_add = self._find_new_forward_words(typed_words, new_words)
+                    if words_to_add:
+                        suffix = (" " if self._typed_text else "") + " ".join(words_to_add)
+                        self._send_text(suffix)
+                        self._typed_text = (self._typed_text + suffix).strip()
+                    # Attach final sentence punctuation (. ? !) without rewinding
+                    if clean and clean[-1] in ".?!" and not self._typed_text.endswith(clean[-1]):
+                        self._send_text(clean[-1])
+                        self._typed_text += clean[-1]
+                if submit_enter:
+                    self._send_return()
+                return True
+
+            if not clean and self._typed_text:
+                self._send_backspaces(len(self._typed_text))
+                self._typed_text = ""
+            elif clean and not self._typed_text:
+                self._send_text(clean)
+                self._typed_text = clean
+            elif clean and self._typed_text:
+                def _normalize_word(w: str) -> str:
+                    return re.sub(r"[^\w]", "", w).lower()
+
+                typed_words = self._typed_text.split()
+                new_words = clean.split()
+                typed_norm = [_normalize_word(w) for w in typed_words if _normalize_word(w)]
+                new_norm = [_normalize_word(w) for w in new_words if _normalize_word(w)]
+
+                # If typed words are already a prefix of final words, forward-append remaining words
+                if typed_norm and len(new_norm) >= len(typed_norm) and new_norm[:len(typed_norm)] == typed_norm:
+                    words_to_add = new_words[len(typed_norm):]
+                    if words_to_add:
+                        suffix = " " + " ".join(words_to_add)
+                        self._send_text(suffix)
+                        self._typed_text += suffix
+                    # Attach final sentence punctuation (. ? !) without rewinding
+                    if clean and clean[-1] in ".?!" and not self._typed_text.endswith(clean[-1]):
+                        self._send_text(clean[-1])
+                        self._typed_text += clean[-1]
+                else:
+                    common_len = 0
+                    min_len = min(len(self._typed_text), len(clean))
+                    while common_len < min_len and self._typed_text[common_len] == clean[common_len]:
+                        common_len += 1
+
+                    backspaces = len(self._typed_text) - common_len
+                    suffix = clean[common_len:]
+
+                    if backspaces > 0:
+                        self._send_backspaces(backspaces)
+                    if suffix:
+                        self._send_text(suffix)
+                    self._typed_text = clean
+
+            if submit_enter:
+                self._send_return()
+
+            return True
+
+    def cancel(self) -> None:
+        """Erase any live-typed text if the session was cancelled by user."""
+        if not self._check_quartz():
+            return
+        with self._lock:
+            self._is_closed = True
+            if self._typed_text:
+                self._send_backspaces(len(self._typed_text))
+                self._typed_text = ""
+
+    def close(self) -> None:
+        with self._lock:
+            self._is_closed = True
+
+    @staticmethod
+    def _send_backspaces(count: int) -> None:
+        """Emit simulated macOS virtual Backspace (0x33 / 51) key events to login session."""
+        try:
+            import Quartz
+
+            for _ in range(count):
+                down = Quartz.CGEventCreateKeyboardEvent(None, 51, True)
+                Quartz.CGEventPost(Quartz.kCGSessionEventTap, down)
+                up = Quartz.CGEventCreateKeyboardEvent(None, 51, False)
+                Quartz.CGEventPost(Quartz.kCGSessionEventTap, up)
+                time.sleep(0.002)
+        except Exception as e:
+            print(f"[LiveAutotyper] Backspace error: {e}", flush=True)
+
+    @staticmethod
+    def _send_text(text: str) -> None:
+        """Emit simulated macOS Quartz unicode keystrokes to login session."""
+        try:
+            import Quartz
+
+            for char in text:
+                if char == "\n":
+                    down = Quartz.CGEventCreateKeyboardEvent(None, 36, True)
+                    Quartz.CGEventPost(Quartz.kCGSessionEventTap, down)
+                    up = Quartz.CGEventCreateKeyboardEvent(None, 36, False)
+                    Quartz.CGEventPost(Quartz.kCGSessionEventTap, up)
+                else:
+                    down = Quartz.CGEventCreateKeyboardEvent(None, 0, True)
+                    Quartz.CGEventKeyboardSetUnicodeString(down, len(char), char)
+                    Quartz.CGEventPost(Quartz.kCGSessionEventTap, down)
+                    up = Quartz.CGEventCreateKeyboardEvent(None, 0, False)
+                    Quartz.CGEventKeyboardSetUnicodeString(up, len(char), char)
+                    Quartz.CGEventPost(Quartz.kCGSessionEventTap, up)
+                time.sleep(0.001)
+        except Exception as e:
+            print(f"[LiveAutotyper] Send text error: {e}", flush=True)
+
+    @staticmethod
+    def _send_return() -> None:
+        """Emit simulated macOS Return (0x24 / 36) key event to login session."""
+        try:
+            import Quartz
+
+            down = Quartz.CGEventCreateKeyboardEvent(None, 36, True)
+            Quartz.CGEventPost(Quartz.kCGSessionEventTap, down)
+            up = Quartz.CGEventCreateKeyboardEvent(None, 36, False)
+            Quartz.CGEventPost(Quartz.kCGSessionEventTap, up)
+        except Exception as e:
+            print(f"[LiveAutotyper] Return error: {e}", flush=True)
