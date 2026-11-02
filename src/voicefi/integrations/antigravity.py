@@ -41,7 +41,7 @@ from voicefi.integrations.active_listening import (
     SpokenIntentCategory,
     SpokenTargetChannel,
 )
-from voicefi.tts.normalizer import normalize_tts_text
+from voicefi.tts.normalizer import normalize_tts_text, scrub_code_and_ids_for_speech
 
 
 def clean_markdown_for_speech(
@@ -193,6 +193,9 @@ def clean_markdown_for_speech(
     # Clean remaining inline Markdown markup
     text = re.sub(r"`([^`]+)`", r"\1", text)  # Inline code
     text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text)  # Links -> text only
+    # Scrub code identifiers, snake_case filenames, UUIDs, hex hashes, and bare URLs
+    # BEFORE stripping markdown bold/italic underscores or splitting sentences
+    text = scrub_code_and_ids_for_speech(text)
     text = re.sub(r"[*_~]{1,3}", "", text)  # Bold/Italic
     text = re.sub(r"(?:^|\s+)>\s*", " ", text)  # Strip remaining blockquote markers
 
@@ -215,7 +218,7 @@ def clean_markdown_for_speech(
             return s
         truncated = " ".join(words[:budget])
         last_punct = max(
-            truncated.rfind("."), truncated.rfind("?"), truncated.rfind("!"), truncated.rfind(",")
+            truncated.rfind("."), truncated.rfind("?"), truncated.rfind("!")
         )
         if last_punct > len(truncated) // 2:
             return truncated[: last_punct + 1]
@@ -250,6 +253,7 @@ def clean_markdown_for_speech(
     if first_sentence_only:
         first_s = sentences[0]
         filler_tokens = (
+            "aha",
             "sure",
             "got it",
             "okay",
@@ -272,8 +276,8 @@ def clean_markdown_for_speech(
             "sounds good",
         )
         is_short_filler = (
-            len(first_s.split()) <= 2
-            and first_s.lower().rstrip(".!?,") in filler_tokens
+            len(first_s.split()) <= 3
+            or first_s.lower().rstrip(".!?,") in filler_tokens
         )
         is_conversational_opener = (
             len(first_s.split()) <= 10
@@ -297,10 +301,10 @@ def clean_markdown_for_speech(
         elif (
             len(sentences) >= 2
             and first_s.endswith("?")
-            and (len(first_s.split()) + len(sentences[1].split())) <= (target_max_words or 45)
+            and (len(first_s.split()) + len(sentences[1].split())) <= (max_words or target_max_words or 45)
         ):
             first_s = f"{first_s} {sentences[1]}"
-        max_budget = target_max_words if (target_max_words and target_max_words > 0) else 45
+        max_budget = max_words if (max_words and max_words > 0) else 45
         return normalize_tts_text(_truncate_sentence(first_s, max_budget))
 
     # Handle leading question + answer / joke setup + punchline pairing
@@ -393,6 +397,149 @@ def clean_markdown_for_speech(
 extract_spoken_soundbite = clean_markdown_for_speech
 
 
+def is_subagent_or_mid_run_transcript(lines: list) -> bool:
+    """
+    Fast (<0.5ms) check to determine if a transcript belongs to a background subagent
+    or if the latest turn is a mid-run status checkpoint waiting on active subagents
+    or background tasks.
+    """
+    if not lines:
+        return False
+
+    parsed_steps = []
+    has_user_input = False
+    last_user_idx = -1
+
+    for raw_line in lines:
+        if isinstance(raw_line, dict):
+            step = raw_line
+        else:
+            s = str(raw_line).strip()
+            if not s:
+                continue
+            try:
+                step = json.loads(s)
+            except Exception:
+                continue
+        idx = len(parsed_steps)
+        parsed_steps.append(step)
+        if step.get("type") == "USER_INPUT" or step.get("source") == "USER_EXPLICIT":
+            has_user_input = True
+            last_user_idx = idx
+
+    if not parsed_steps:
+        return False
+
+    # 1. Subagent transcript detection: starts with a SYSTEM_MESSAGE (from parent agent) and has zero USER_INPUT steps
+    first_step = parsed_steps[0]
+    if not has_user_input and (
+        first_step.get("type") == "SYSTEM_MESSAGE" or first_step.get("source") == "SYSTEM"
+    ):
+        return True
+
+    # 2. If the latest PLANNER_RESPONSE calls ask_question, never suppress it
+    for step in reversed(parsed_steps):
+        if step.get("type") == "PLANNER_RESPONSE":
+            for tc in step.get("tool_calls") or []:
+                tc_name = tc.get("name") or tc.get("tool_name") or ""
+                if tc_name == "ask_question":
+                    return False
+            break
+
+    # 3. Mid-run status update detection: check if subagents or background tasks spawned since last USER_INPUT are still running
+    if last_user_idx < 0:
+        return False
+
+    spawned_subagents = set()
+    completed_senders = set()
+    running_tasks = set()
+    completed_tasks = set()
+    current_segment_spawned_async = False
+
+    for step in parsed_steps[last_user_idx:]:
+        s_type = step.get("type", "")
+        content = str(step.get("content") or "")
+        tool_calls = step.get("tool_calls") or []
+
+        if s_type in ("USER_INPUT", "SYSTEM_MESSAGE"):
+            current_segment_spawned_async = False
+
+        if isinstance(tool_calls, list):
+            for tc in tool_calls:
+                tc_name = tc.get("name") or tc.get("tool_name") or ""
+                if tc_name == "invoke_subagent":
+                    current_segment_spawned_async = True
+                elif tc_name == "manage_subagents":
+                    args = tc.get("args") or {}
+                    if isinstance(args, str):
+                        try:
+                            args = json.loads(args)
+                        except Exception:
+                            args = {}
+                    action = args.get("Action") or args.get("action")
+                    if action == "kill_all":
+                        spawned_subagents.clear()
+                    elif action == "kill":
+                        for cid in args.get("ConversationIds") or args.get("conversation_ids") or []:
+                            spawned_subagents.discard(str(cid).strip())
+                elif tc_name == "manage_task":
+                    args = tc.get("args") or {}
+                    if isinstance(args, str):
+                        try:
+                            args = json.loads(args)
+                        except Exception:
+                            args = {}
+                    action = args.get("Action") or args.get("action")
+                    if action == "kill":
+                        tid = str(args.get("TaskId") or args.get("task_id") or "").strip()
+                        if tid:
+                            running_tasks.discard(tid)
+
+        if "Created the following subagent:" in content:
+            current_segment_spawned_async = True
+            for m in re.finditer(
+                r'Created the following subagent:\s*\{\s*"conversationId":\s*"([^"]+)"',
+                content,
+            ):
+                spawned_subagents.add(m.group(1).strip())
+
+        if "Tool is running as a background task with task id:" in content:
+            current_segment_spawned_async = True
+            for m in re.finditer(
+                r"Tool is running as a background task with task id:\s*(\S+)", content
+            ):
+                running_tasks.add(m.group(1).strip())
+
+        if s_type == "SYSTEM_MESSAGE":
+            for m in re.finditer(r"sender=([^\s>]+)", content):
+                completed_senders.add(m.group(1).strip())
+            for m in re.finditer(r'Task id "([^"]+)" finished', content):
+                completed_tasks.add(m.group(1).strip())
+
+    active_subagents = spawned_subagents - completed_senders
+    active_tasks = running_tasks - completed_tasks - completed_senders
+
+    if current_segment_spawned_async or active_subagents or active_tasks:
+        return True
+
+    return False
+
+
+def is_subagent_or_mid_run_path(transcript_path: Optional[Path]) -> bool:
+    """Convenience wrapper that reads a transcript.jsonl path and checks if it is a subagent or mid-run status turn."""
+    if not transcript_path:
+        return False
+    p = Path(transcript_path)
+    if not p.is_file():
+        return False
+    try:
+        with open(p, "r", encoding="utf-8") as f:
+            lines = [l.strip() for l in f if l.strip()]
+        return is_subagent_or_mid_run_transcript(lines)
+    except Exception:
+        return False
+
+
 def extract_latest_agent_summary(
     transcript_path: Path,
     max_words: int = 60,
@@ -432,6 +579,11 @@ def extract_latest_agent_summary(
                 lines = [l.strip() for l in f if l.strip()]
         except Exception as e:
             print(f"[Antigravity] Error reading transcript: {e}", file=sys.stderr)
+
+        if is_subagent_or_mid_run_transcript(lines):
+            if return_role and return_step_index:
+                return ("", None, None)
+            return ("", None) if return_role else ""
 
         # Traverse backwards to find the latest turn's model message
         for line in reversed(lines):
@@ -607,6 +759,49 @@ def append_character_quip(
     return f"{fs} All set."
 
 
+def _trigger_dictation_listen(target_app: Optional[str] = None, initial_prompt: str = "") -> bool:
+    """Trigger manual dictation session in VoiceFi across in-process tray or companion server."""
+    # 1. In-process tray instance
+    try:
+        from voicefi.ui.tray import VoiceFiTrayApp
+
+        tray = VoiceFiTrayApp.get_instance()
+        if tray:
+            threading.Timer(
+                0.05,
+                lambda: tray.trigger_manual_listen(
+                    from_wakeword=True,
+                    wake_phrase="transcribe",
+                    target_app=target_app,
+                    initial_prompt=initial_prompt,
+                ),
+            ).start()
+            return True
+    except Exception:
+        pass
+
+    # 2. Local companion server endpoint on 127.0.0.1:5141
+    try:
+        import urllib.request
+
+        payload = json.dumps(
+            {"target_app": target_app, "initial_prompt": initial_prompt}
+        ).encode("utf-8")
+        req = urllib.request.Request(
+            "http://127.0.0.1:5141/api/dictate",
+            data=payload,
+            headers={"Content-Type": "application/json", "User-Agent": "VoiceFi-Antigravity"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=1.5) as resp:
+            if resp.status == 200:
+                return True
+    except Exception as e:
+        print(f"[Antigravity] Notice: Dictation trigger via HTTP notice: {e}")
+
+    return False
+
+
 def handle_antigravity_stop_hook(
     payload: Dict[str, Any], config: Optional[VoiceFiConfig] = None
 ) -> Dict[str, Any]:
@@ -753,6 +948,11 @@ def handle_antigravity_stop_hook(
         req_full_read = False
         req_first_sentence = True
 
+    first_sentence_only = bool(
+        req_first_sentence
+        or getattr(getattr(cfg, "antigravity", None), "first_sentence_only", False)
+        or getattr(getattr(cfg, "tts", None), "first_sentence_only", False)
+    )
     summary_res = extract_latest_agent_summary(
         transcript_path,
         max_words=cfg.antigravity.max_spoken_words,
@@ -760,7 +960,7 @@ def handle_antigravity_stop_hook(
         return_step_index=True,
         return_raw=True,
         full_read=req_full_read,
-        first_sentence_only=req_first_sentence,
+        first_sentence_only=first_sentence_only,
     )
     if isinstance(summary_res, tuple) and len(summary_res) == 4:
         summary, detected_role, step_index, raw_content = summary_res
@@ -1421,6 +1621,47 @@ def handle_antigravity_stop_hook(
                 clear_cross_process_hud_state()
                 return {}
 
+            # Check for Spoken Transcribe / Dictate Intent ("Hey Pal, transcribe in LinkedIn")
+            try:
+                from voicefi.integrations.app_focus import AppFocusRegistry
+
+                is_trans, target_app_parsed, trans_rem = AppFocusRegistry.parse_transcribe_intent(clean_t)
+                if is_trans:
+                    target_disp = target_app_parsed or "active window"
+                    print(
+                        f"[Antigravity] 🎙️ Spoken transcribe intent detected: '{clean_t}' (target={target_disp})",
+                        flush=True,
+                    )
+                    clear_cross_process_hud_state()
+                    _safe_cleanup_hud_state()
+                    AppFocusRegistry.focus_app_input(target_app_parsed)
+                    _trigger_dictation_listen(target_app=target_app_parsed, initial_prompt=trans_rem)
+                    return {}
+            except Exception as e:
+                print(f"[Antigravity] Transcribe intent check error: {e}")
+
+            # Check for Spoken Pal / macOS deterministic OS command ("Hey Pal, open Spotify", "Hey Pal, mute")
+            try:
+                from voicefi.integrations.pal_harness import PalHarness, is_pal_or_intent_command
+
+                if PalHarness.is_deterministic_os_command(clean_t) or is_pal_or_intent_command(clean_t):
+                    print(
+                        f"[Antigravity] 🖥️ Spoken Pal/OS command detected during auto-listen: '{clean_t}'",
+                        flush=True,
+                    )
+                    clear_cross_process_hud_state()
+                    _safe_cleanup_hud_state()
+                    res = PalHarness.execute_command(clean_t, persona="pal")
+                    if getattr(res, "action_type", "") == "transcribe_app_focus":
+                        t_app = getattr(res, "target_app", None)
+                        _trigger_dictation_listen(target_app=t_app)
+                    elif getattr(res, "should_speak", False) and res.spoken_summary:
+                        tts = get_tts_engine(cfg, agent_name="pal", voice_override="am_liam")
+                        tts.speak(res.spoken_summary, block=True)
+                    return {}
+            except Exception as e:
+                print(f"[Antigravity] Pal intent check error: {e}")
+
             pending_q = get_pending_question(conv_id)
             eval_res = ActiveListeningEngine.evaluate(
                 clean_t, pending_question=pending_q, is_ambient=False
@@ -1429,6 +1670,15 @@ def handle_antigravity_stop_hook(
                 f"[ActiveListening] Intent evaluation: {eval_res.category.value} (is_actionable={eval_res.is_actionable})",
                 flush=True,
             )
+
+            if eval_res.category == SpokenIntentCategory.UNSAFE_COMMAND:
+                print(f"[Antigravity] 🛡️ Blocked unsafe command: '{clean_t}'", flush=True)
+                if eval_res.quick_spoken_reply:
+                    tts = get_tts_engine(cfg, agent_name=active_agent, voice_override=voice_override)
+                    tts.speak(eval_res.quick_spoken_reply, block=True)
+                clear_cross_process_hud_state()
+                _safe_cleanup_hud_state()
+                return {}
 
             if eval_res.category == SpokenIntentCategory.EXPAND_READOUT:
                 print(

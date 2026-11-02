@@ -87,16 +87,18 @@ KOKORO_VOICE_MAP = KOKORO_VOICES
 
 def split_first_clause(text: str) -> Tuple[str, str]:
     """
-    Split text into a short leading clause (for ~165ms TTFB playback) and the remainder.
-    Only splits when the text is long enough (> 8 words) to benefit from streaming.
+    Split a long multi-sentence passage into its first complete sentence and the remainder.
+    Never splits mid-sentence on commas, colons, semicolons, or dashes, and never splits
+    normal turn-complete readouts (<= 40 words), avoiding artificial mid-sentence pauses
+    and afplay process handoff gaps.
     """
     clean = text.strip()
     words = clean.split()
-    if len(words) <= 8:
+    if len(words) <= 40:
         return clean, ""
 
-    # Look for a natural sentence or clause boundary within the first 3..14 words
-    m = re.search(r"^((?:\S+\s+){2,13}\S+[.!?…:;—,])\s+(.+)$", clean)
+    # Only split at a complete sentence boundary (. ! ?) within the first 5..25 words
+    m = re.search(r"^((?:\S+\s+){4,24}\S+[.!?])\s+(.+)$", clean)
     if m:
         return m.group(1).strip(), m.group(2).strip()
     return clean, ""
@@ -111,11 +113,13 @@ class KokoroTTS(BaseTTS):
 
     _kokoro_instance = None
     _loaded_model_path: Optional[str] = None
+    _synth_lock = threading.RLock()
 
     def __init__(
         self,
         voice: str = "af_heart",
         speed: float = 1.0,
+        volume: float = 1.0,
         model_path: Optional[str] = None,
         voices_path: Optional[str] = None,
         agent_name: str = "VoiceFi",
@@ -128,6 +132,7 @@ class KokoroTTS(BaseTTS):
         self.provider = "kokoro"
         self.voice = voice or "af_heart"
         self.speed = float(speed) if speed else 1.0
+        self.volume = float(volume) if volume else 1.0
         self.model_path = model_path
         self.voices_path = voices_path
         self.agent_name = agent_name
@@ -199,9 +204,9 @@ class KokoroTTS(BaseTTS):
                     "Download with: 'vifi voice download-kokoro'"
                 )
 
-            # Cap CPU thread pool to avoid pinning all hardware cores and starving OS/game loops
+            # Cap CPU thread pool to avoid pinning all hardware cores while keeping synthesis fast
             sess_opts = rt.SessionOptions()
-            sess_opts.intra_op_num_threads = min(4, max(2, (os.cpu_count() or 4) // 2))
+            sess_opts.intra_op_num_threads = min(8, max(4, (os.cpu_count() or 8) // 2))
             sess_opts.inter_op_num_threads = 1
             sess_opts.execution_mode = rt.ExecutionMode.ORT_SEQUENTIAL
 
@@ -273,16 +278,21 @@ class KokoroTTS(BaseTTS):
         return target_voice, lang
 
     def synthesize_to_wav(self, text: str, output_path: str) -> bool:
-        """Synthesize text into a 24kHz WAV file using Kokoro ONNX."""
-        kokoro = self.get_kokoro_instance()
-        voice_arg, lang = self.resolve_voice_or_blend(kokoro, self.voice)
+        """Synthesize text into a 24kHz WAV file using Kokoro ONNX with broadcast peak-normalization."""
+        with self._synth_lock:
+            kokoro = self.get_kokoro_instance()
+            voice_arg, lang = self.resolve_voice_or_blend(kokoro, self.voice)
 
-        samples, sample_rate = kokoro.create(
-            text=text,
-            voice=voice_arg,
-            speed=self.speed,
-            lang=lang,
-        )
+            samples, sample_rate = kokoro.create(
+                text=text,
+                voice=voice_arg,
+                speed=self.speed,
+                lang=lang,
+            )
+        # Peak-normalize audio to 0.95 (-0.4 dBFS) to ensure speech cuts through clearly over earbuds and speakers
+        max_val = float(np.max(np.abs(samples))) if len(samples) > 0 else 0.0
+        if max_val > 0.001:
+            samples = samples * (0.95 / max_val)
         sf.write(output_path, samples, sample_rate)
         return True
 
@@ -297,8 +307,13 @@ class KokoroTTS(BaseTTS):
         set_agent_audio_playing(True)
         set_agent_speaking(True)
         try:
+            cmd = ["afplay"]
+            vol = getattr(self, "volume", 1.0) or 1.0
+            if vol != 1.0:
+                cmd.extend(["-v", str(vol)])
+            cmd.append(wav_path)
             proc = subprocess.Popen(
-                ["afplay", wav_path],
+                cmd,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )

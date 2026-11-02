@@ -6,6 +6,7 @@ Identifies built-in MacBook speakers vs. headphones/AirPods to prevent acoustic 
 import ctypes
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -26,8 +27,86 @@ _LIVE_ROUTE_LOCK = threading.Lock()
 PORTAUDIO_STREAM_LOCK = threading.Lock()
 
 
+def _query_coreaudio_default_devices_native() -> Tuple[Optional[str], Optional[str]]:
+    """
+    Query default input and output device names directly via macOS CoreAudio HAL C API
+    without spawning external subprocesses (like SwitchAudioSource), preventing
+    Bluetooth HAL plugin register/deregister audio glitches and SCO/HFP frame negotiations.
+    """
+    if sys.platform != "darwin":
+        return None, None
+    try:
+        global _COREAUDIO_LIB
+        if _COREAUDIO_LIB is None:
+            _COREAUDIO_LIB = ctypes.CDLL(
+                "/System/Library/Frameworks/CoreAudio.framework/CoreAudio"
+            )
+        cf = ctypes.CDLL(
+            "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation"
+        )
+        cf.CFStringGetCString.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_char_p,
+            ctypes.c_long,
+            ctypes.c_uint32,
+        ]
+        cf.CFStringGetCString.restype = ctypes.c_bool
+        cf.CFRelease.argtypes = [ctypes.c_void_p]
+
+        def _fourcc(code: str) -> int:
+            return (
+                (ord(code[0]) << 24)
+                | (ord(code[1]) << 16)
+                | (ord(code[2]) << 8)
+                | ord(code[3])
+            )
+
+        def _get_dev_name(selector_code: str) -> Optional[str]:
+            addr = _AudioObjectPropertyAddress(_fourcc(selector_code), _fourcc("glob"), 0)
+            dev_id = ctypes.c_uint32(0)
+            size = ctypes.c_uint32(ctypes.sizeof(dev_id))
+            status = _COREAUDIO_LIB.AudioObjectGetPropertyData(
+                ctypes.c_uint32(1),
+                ctypes.byref(addr),
+                ctypes.c_uint32(0),
+                None,
+                ctypes.byref(size),
+                ctypes.byref(dev_id),
+            )
+            if status != 0 or dev_id.value == 0:
+                return None
+
+            name_addr = _AudioObjectPropertyAddress(_fourcc("lnam"), _fourcc("glob"), 0)
+            cf_str = ctypes.c_void_p(0)
+            size = ctypes.c_uint32(ctypes.sizeof(cf_str))
+            status = _COREAUDIO_LIB.AudioObjectGetPropertyData(
+                dev_id.value,
+                ctypes.byref(name_addr),
+                ctypes.c_uint32(0),
+                None,
+                ctypes.byref(size),
+                ctypes.byref(cf_str),
+            )
+            if status != 0 or not cf_str.value:
+                return None
+
+            buf = ctypes.create_string_buffer(256)
+            try:
+                if cf.CFStringGetCString(cf_str, buf, 256, 0x08000100):
+                    val = buf.value.decode("utf-8", errors="replace").strip()
+                    if val:
+                        return val
+            finally:
+                cf.CFRelease(cf_str)
+            return None
+
+        return _get_dev_name("dIn "), _get_dev_name("dOut")
+    except Exception:
+        return None, None
+
+
 def _query_live_macos_route(ttl_s: float = 1.0) -> Tuple[Optional[str], Optional[str]]:
-    """Query live macOS input/output device names via SwitchAudioSource with a short TTL cache."""
+    """Query live macOS input/output device names via native CoreAudio HAL (with SwitchAudioSource fallback)."""
     now = time.monotonic()
     with _LIVE_ROUTE_LOCK:
         if (now - _LIVE_ROUTE_CACHE["ts"]) < ttl_s and (
@@ -35,34 +114,35 @@ def _query_live_macos_route(ttl_s: float = 1.0) -> Tuple[Optional[str], Optional
         ):
             return _LIVE_ROUTE_CACHE["in_name"], _LIVE_ROUTE_CACHE["out_name"]
 
-    sw = None
-    for cand in (
-        "SwitchAudioSource",
-        "/opt/homebrew/bin/SwitchAudioSource",
-        "/usr/local/bin/SwitchAudioSource",
-    ):
-        if shutil.which(cand) or os.path.exists(cand):
-            sw = cand
-            break
+    in_name, out_name = _query_coreaudio_default_devices_native()
 
-    if not sw:
-        return None, None
+    if not in_name or not out_name:
+        sw = None
+        for cand in (
+            "SwitchAudioSource",
+            "/opt/homebrew/bin/SwitchAudioSource",
+            "/usr/local/bin/SwitchAudioSource",
+        ):
+            if shutil.which(cand) or os.path.exists(cand):
+                sw = cand
+                break
 
-    in_name: Optional[str] = None
-    out_name: Optional[str] = None
-    try:
-        r_out = subprocess.run(
-            [sw, "-c", "-t", "output"], capture_output=True, text=True, timeout=1.0
-        )
-        if r_out.returncode == 0 and r_out.stdout.strip():
-            out_name = r_out.stdout.strip()
-        r_in = subprocess.run(
-            [sw, "-c", "-t", "input"], capture_output=True, text=True, timeout=1.0
-        )
-        if r_in.returncode == 0 and r_in.stdout.strip():
-            in_name = r_in.stdout.strip()
-    except Exception:
-        pass
+        if sw:
+            try:
+                if not out_name:
+                    r_out = subprocess.run(
+                        [sw, "-c", "-t", "output"], capture_output=True, text=True, timeout=1.0
+                    )
+                    if r_out.returncode == 0 and r_out.stdout.strip():
+                        out_name = r_out.stdout.strip()
+                if not in_name:
+                    r_in = subprocess.run(
+                        [sw, "-c", "-t", "input"], capture_output=True, text=True, timeout=1.0
+                    )
+                    if r_in.returncode == 0 and r_in.stdout.strip():
+                        in_name = r_in.stdout.strip()
+            except Exception:
+                pass
 
     with _LIVE_ROUTE_LOCK:
         _LIVE_ROUTE_CACHE["ts"] = now
@@ -184,6 +264,7 @@ def is_headphone_or_headset_active() -> bool:
             "wireless",
             "in-ear",
             "iem",
+            "external",
         )
         if any(marker in out_name for marker in headphone_markers):
             return True
@@ -233,8 +314,62 @@ def is_bluetooth_input_active() -> bool:
             "wireless",
             "in-ear",
             "iem",
+            "external",
         )
         return any(marker in in_name for marker in headphone_markers)
+    except Exception:
+        return False
+
+
+def get_macos_volume_settings() -> Tuple[int, bool]:
+    """
+    Query current macOS master output volume and mute status via osascript.
+    Returns (volume_percent, is_muted).
+    """
+    if (
+        sys.platform != "darwin"
+        or os.getenv("VOICEFI_MOCK_AUDIO") == "1"
+        or os.getenv("VOICEFI_TESTING") == "1"
+        or bool(os.getenv("PYTEST_CURRENT_TEST"))
+    ):
+        return 100, False
+    try:
+        res = subprocess.run(
+            ["osascript", "-e", "get volume settings"],
+            capture_output=True,
+            text=True,
+            timeout=1.0,
+        )
+        if res.returncode == 0:
+            txt = res.stdout
+            vol_m = re.search(r"output volume:(\d+)", txt)
+            mute_m = re.search(r"output muted:(true|false)", txt, re.IGNORECASE)
+            vol = int(vol_m.group(1)) if vol_m else 100
+            muted = (mute_m.group(1).lower() == "true") if mute_m else False
+            return vol, muted
+    except Exception:
+        pass
+    return 100, False
+
+
+def is_macos_output_muted() -> bool:
+    """Check if macOS audio output is currently muted."""
+    _, muted = get_macos_volume_settings()
+    return muted
+
+
+def unmute_macos_output() -> bool:
+    """Unmute macOS master audio output."""
+    if sys.platform != "darwin":
+        return False
+    try:
+        res = subprocess.run(
+            ["osascript", "-e", "set volume without output muted"],
+            capture_output=True,
+            text=True,
+            timeout=1.0,
+        )
+        return res.returncode == 0
     except Exception:
         return False
 
@@ -246,6 +381,7 @@ def get_audio_device_profile() -> Dict[str, Any]:
     headphones = is_headphone_or_headset_active()
     bt_input = is_bluetooth_input_active()
     lock_recommended = headphones and bt_input
+    vol_level, is_muted = get_macos_volume_settings()
     try:
         from voicefi.audio.native_vpio import is_vpio_supported
 
@@ -265,6 +401,8 @@ def get_audio_device_profile() -> Dict[str, Any]:
             if lock_recommended
             else ""
         ),
+        "output_volume": vol_level,
+        "is_output_muted": is_muted,
         "hardware_aec_supported": hardware_aec,
         "hardware_aec_backend": "Apple AUVoiceProcessing (VoiceProcessingIO)"
         if hardware_aec
@@ -320,6 +458,17 @@ def list_audio_input_devices() -> List[str]:
 
 def get_current_input_device_name() -> str:
     """Get the currently selected default audio input device name."""
+    is_mock_or_test = (
+        os.getenv("VOICEFI_MOCK_AUDIO") == "1"
+        or os.getenv("VOICEFI_HEADLESS") == "1"
+        or os.getenv("VOICEFI_TESTING") == "1"
+        or bool(os.getenv("PYTEST_CURRENT_TEST"))
+    )
+    if not is_mock_or_test:
+        in_name, _ = _query_coreaudio_default_devices_native()
+        if in_name:
+            return in_name
+
     sw = _find_audio_switcher_bin()
     if sw:
         try:
@@ -500,7 +649,9 @@ class AudioRouteWatcher:
                 cur_out = live_out or self.last_output_name
                 cur_in = live_in or self.last_input_name
 
-                if cur_out and cur_out != self.last_output_name:
+                if (cur_out and cur_out != self.last_output_name) or (
+                    cur_in and cur_in != self.last_input_name and "external" in cur_in.lower()
+                ):
                     prev_out = self.last_output_name
                     self.last_output_name = cur_out
                     self.last_input_name = cur_in
@@ -528,11 +679,20 @@ class AudioRouteWatcher:
                         except Exception:
                             pass
 
-                    # Refresh PortAudio device table only when no mic recording or background stream is active
+                    # Refresh PortAudio device table only when no mic recording, wakeword, or background stream is active
                     try:
                         from voicefi.tts.base import is_mic_recording_active
+                        from voicefi.audio.wakeword import WakeWordListener
 
-                        if not is_mic_recording_active() and PORTAUDIO_STREAM_LOCK.acquire(blocking=False):
+                        has_active_wakeword = any(
+                            getattr(inst, "_running", False) and not getattr(inst, "_paused", False)
+                            for inst in list(WakeWordListener._ACTIVE_INSTANCES)
+                        )
+                        if (
+                            not is_mic_recording_active()
+                            and not has_active_wakeword
+                            and PORTAUDIO_STREAM_LOCK.acquire(blocking=False)
+                        ):
                             try:
                                 import sounddevice as sd
 
@@ -571,6 +731,9 @@ _PID_APP_CACHE: Dict[int, Tuple[float, str, bool]] = {}
 # Known non-dictation virtual audio routers and system daemons that do not represent user speech recording
 _IGNORED_EXTERNAL_MIC_DAEMONS = (
     "coreaudiod",
+    "historicalaudiod",
+    "audioclocksyncd",
+    "heard",
     "backgroundmusic",
     "loopback",
     "loopbackd",
@@ -578,6 +741,8 @@ _IGNORED_EXTERNAL_MIC_DAEMONS = (
     "soundsource",
     "eqmac",
     "krisp",
+    "sound.appex",
+    "systemsettings",
 )
 
 
@@ -685,7 +850,10 @@ def _resolve_external_mic_pid(pid: int) -> Tuple[str, bool]:
             _PID_APP_CACHE[pid] = (now, "VoiceFi", True)
         return "VoiceFi", True
 
-    if any(d in bin_lower for d in _IGNORED_EXTERNAL_MIC_DAEMONS):
+    if (
+        any(d in bin_lower or d in exe_lower for d in _IGNORED_EXTERNAL_MIC_DAEMONS)
+        or bin_lower == "sound"
+    ):
         with _EXT_MIC_LOCK:
             _PID_APP_CACHE[pid] = (now, bin_name or "AudioDaemon", True)
         return bin_name or "AudioDaemon", True

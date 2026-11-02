@@ -178,10 +178,26 @@ def get_tts_engine(
             has_ava, ava_name = is_voice_installed("Ava")
             voice = ava_name if (has_ava and ava_name) else "Samantha"
 
+    if not provider_override and voice:
+        from voicefi.tts.kokoro_tts import KOKORO_VOICES, KOKORO_BLEND_PRESETS
+
+        v_low = str(voice).strip().lower()
+        if (
+            v_low in KOKORO_BLEND_PRESETS
+            or v_low in KOKORO_VOICES
+            or ("+" in v_low and any(kv in v_low for kv in KOKORO_VOICES))
+        ):
+            provider = "kokoro"
+
     if provider in ("kokoro", "kokoro_onnx"):
         eng = KokoroTTS(
             voice=voice,
             speed=float(rate) / 200.0 if (rate and isinstance(rate, (int, float))) else 1.0,
+            volume=float(getattr(getattr(config, "tts", None), "volume", 1.0) or 1.0),
+            agent_name=agent_name or "VoiceFi",
+            app_name=app_name or "Antigravity",
+            conv_id=conv_id or "",
+            workspace_path=workspace_path or "",
         )
     elif provider in (
         "qwen",
@@ -192,6 +208,15 @@ def get_tts_engine(
         "local_clone",
         "luxtts",
     ):
+        from voicefi.tts.voice_acting import VOICE_ACTING_PRESETS, QWEN3_BASE_VOICES
+
+        v_norm = str(voice or "").strip().lower().replace(" ", "_").replace("-", "_")
+        is_explicit_qwen_speaker = (
+            provider in ("qwen", "qwen_tts")
+            and not clone_prof
+            and (v_norm in QWEN3_BASE_VOICES or v_norm in VOICE_ACTING_PRESETS)
+        )
+
         agent_key = (agent_name or "").lower().strip()
         agent_prof = None
         if hasattr(config, "agents") and agent_key in config.agents:
@@ -202,23 +227,15 @@ def get_tts_engine(
         ref_audio = getattr(agent_prof, "f5_ref_audio", None) if agent_prof else None
         ref_text = getattr(agent_prof, "f5_ref_text", None) if agent_prof else None
 
-        if not ref_audio:
+        if clone_prof and (voice_override or not ref_audio):
+            if clone_prof.sample_paths:
+                ref_audio = clone_prof.sample_paths[0]
+            if clone_prof.labels and clone_prof.labels.get("ref_text"):
+                ref_text = clone_prof.labels.get("ref_text")
+
+        if not ref_audio and not is_explicit_qwen_speaker:
             ref_audio = getattr(config.tts, "f5_ref_audio", None)
             ref_text = getattr(config.tts, "f5_ref_text", None)
-
-        if clone_prof:
-            is_specific_clone = (
-                clone_prof.id in ("walken_continental", "the_continental")
-                or "continental" in getattr(clone_prof, "name", "").lower()
-                or (voice and "continental" in str(voice).lower())
-            )
-            if not ref_audio or (
-                is_specific_clone and not getattr(agent_prof, "f5_ref_audio", None)
-            ):
-                if clone_prof.sample_paths:
-                    ref_audio = clone_prof.sample_paths[0]
-                if clone_prof.labels and clone_prof.labels.get("ref_text"):
-                    ref_text = clone_prof.labels.get("ref_text")
 
         cloning_engine = getattr(config.tts, "cloning_engine", "auto")
         use_qwen = (
@@ -254,7 +271,14 @@ def get_tts_engine(
         if intro_sfx_vol is None:
             intro_sfx_vol = 0.25
 
-        if use_qwen and QwenTTS.is_available() and ref_audio:
+        if is_explicit_qwen_speaker and QwenTTS.is_available():
+            eng = QwenTTS(
+                persona_name=v_norm,
+                speed=target_speed if speed_override is not None else None,
+                intro_sfx=intro_sfx,
+                intro_sfx_volume=intro_sfx_vol,
+            )
+        elif use_qwen and QwenTTS.is_available() and ref_audio:
             eng = QwenTTS(
                 ref_audio=ref_audio,
                 ref_text=ref_text,
@@ -296,7 +320,7 @@ def get_tts_engine(
             )
         elif clone_prof and clone_prof.calibrated_voice:
             calibrated_v = clone_prof.calibrated_voice
-            effective_rate = clone_prof.calibrated_rate or rate or 165
+            effective_rate = clone_prof.calibrated_rate or rate or 200
             if "Neural" in str(calibrated_v):
                 eng = EdgeTTS(
                     voice=calibrated_v,
@@ -415,7 +439,7 @@ def get_tts_engine(
             model=chosen_model,
         )
     elif provider in ("voice_acting", "local_actor", "actor", "mlx_actor", "fish_speech", "fish"):
-        from voicefi.tts.voice_acting import VoiceActingTTS
+        from voicefi.tts.voice_acting import VoiceActingTTS, VOICE_ACTING_PRESETS, QWEN3_BASE_VOICES
 
         effective_speed = (
             float(rate) / 200.0
@@ -437,15 +461,20 @@ def get_tts_engine(
         if intro_sfx_vol is None:
             intro_sfx_vol = 0.25
 
+        v_norm = str(voice or "").strip().lower().replace(" ", "_").replace("-", "_")
+        is_non_clone_preset = not clone_prof and (
+            v_norm in VOICE_ACTING_PRESETS or v_norm in QWEN3_BASE_VOICES
+        )
+
         ref_audio = (
             getattr(agent_prof, "f5_ref_audio", None)
             if agent_prof
-            else getattr(config.tts, "f5_ref_audio", None)
+            else (None if is_non_clone_preset else getattr(config.tts, "f5_ref_audio", None))
         )
         ref_text = (
             getattr(agent_prof, "f5_ref_text", None)
             if agent_prof
-            else getattr(config.tts, "f5_ref_text", None)
+            else (None if is_non_clone_preset else getattr(config.tts, "f5_ref_text", None))
         )
         if not ref_audio and clone_prof:
             if clone_prof.sample_paths:

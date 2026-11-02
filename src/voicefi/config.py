@@ -100,6 +100,8 @@ class TTSConfig(BaseModel):
         "elevenlabs",
         "f5_tts",
         "local_clone",
+        "kokoro",
+        "kokoro_onnx",
         "gemini",
         "gemini_live",
         "voice_acting",
@@ -141,6 +143,7 @@ class TTSConfig(BaseModel):
     respect_media_playback: bool = True
     media_pause_timeout: float = 600.0
     first_sentence_only: bool = False
+    duck_music: bool = False
 
 
 class STTConfig(BaseModel):
@@ -170,6 +173,12 @@ class VADConfig(BaseModel):
     ptt_release_delay_ms: int = 150
     barge_in: Union[bool, Literal["auto"]] = "auto"
     barge_in_sensitivity: float = 1.0
+    turn_detection: Literal["auto", "cue", "lexical", "fixed"] = "auto"
+    turn_model: str = "qwen2.5-coder:1.5b"
+    smart_turn_enabled: bool = True
+    near_field_gate: bool = True
+    near_field_dropoff_ratio: float = 0.22
+    near_field_min_energy: float = 0.0075
 
 
 class AudioCuesConfig(BaseModel):
@@ -202,8 +211,12 @@ class AntigravityConfig(BaseModel):
 class HUDConfig(BaseModel):
     enabled: bool = True
     persistent: bool = True
+    visibility_mode: Literal["always", "speaking_only", "active_only"] = "always"
+    always_on_top: bool = True  # True = float above normal windows; False = sit behind active windows at normal window level
+    bring_to_front_on_speech: bool = True  # True = temporarily raise to front while speaking when in behind/normal window mode
     auto_send: bool = True
     show_live_transcript: bool = True
+    live_autotype: bool = True  # Stream real-time typing directly into focused input box as user speaks
     fullscreen_overlay: bool = True  # True = float above full-screen games/apps; False = allow full-screen overlap/hide behind
     position: Literal["top_center", "top_right", "bottom_right"] = "bottom_right"
     margin_x: float = 20.0
@@ -276,6 +289,7 @@ class GlobalHotkeyConfig(BaseModel):
     companion_window_enabled: bool = True
     show_dictation_hud: bool = True
     preserve_clipboard: bool = True
+    live_autotype: bool = True  # Real-time streaming autotyping into focused input as user speaks
 
 
 class AgentVoiceProfile(BaseModel):
@@ -286,6 +300,8 @@ class AgentVoiceProfile(BaseModel):
             "elevenlabs",
             "f5_tts",
             "local_clone",
+            "kokoro",
+            "kokoro_onnx",
             "gemini",
             "gemini_live",
             "voice_acting",
@@ -339,6 +355,141 @@ VALID_GEMINI_LIVE_VOICES = {
     "Sadaltager",
     "Sulafat",
 }
+
+VALID_OPENAI_LIVE_VOICES = {
+    "alloy",
+    "ash",
+    "ballad",
+    "coral",
+    "echo",
+    "sage",
+    "shimmer",
+    "verse",
+    "bubbie",
+    "marin",
+}
+
+VALID_OPENAI_LIVE_MODELS = [
+    "gpt-realtime-2.1",
+    "gpt-realtime-2.1-mini",
+    "gpt-realtime",
+    "gpt-realtime-mini",
+    "gpt-live-1.1",
+    "gpt-live-1.1-quip",
+    "gpt-4o-realtime-preview",
+    "gpt-4o-mini-realtime-preview",
+]
+
+VALID_GROK_LIVE_VOICES = {
+    "ara",
+    "eve",
+    "leo",
+    "rex",
+    "sal",
+    "altair",
+    "atlas",
+    "aurora",
+    "carina",
+    "castor",
+    "celeste",
+    "cosmo",
+    "helios",
+    "helix",
+    "iris",
+    "kepler",
+    "liora",
+    "lumen",
+    "luna",
+    "lux",
+    "naksh",
+    "orion",
+    "perseus",
+    "rigel",
+    "sirius",
+    "ursa",
+    "zagan",
+    "zenith",
+}
+
+VALID_GROK_LIVE_MODELS = [
+    "grok-voice-latest",
+    "grok-voice-3.0",
+    "grok-voice-2.0",
+]
+
+VALID_PERSONAPLEX_LIVE_VOICES = {
+    "NATF0",
+    "NATF1",
+    "NATF2",
+    "NATF3",
+    "NATM0",
+    "NATM1",
+    "NATM2",
+    "NATM3",
+    "VARF0",
+    "VARF1",
+    "VARF2",
+    "VARF3",
+    "VARF4",
+    "VARM0",
+    "VARM1",
+    "VARM2",
+    "VARM3",
+    "VARM4",
+    "Ava",
+    "Viv",
+    "Steffan",
+    "Christopher",
+    "Puck",
+}
+
+VALID_PERSONAPLEX_LIVE_MODELS = [
+    "personaplex-7b-mlx-4bit",
+    "nvidia/personaplex-7b-v1",
+    "personaplex-7b",
+]
+
+VALID_MOSHI_LIVE_MODELS = [
+    "kyutai/moshiko-mlx-q4",
+    "kyutai/moshika-mlx-q4",
+    "kyutai/moshiko-mlx-q8",
+    "kyutai/moshiko-mlx-bf16",
+    "moshiko-mlx-q4",
+    "moshika-mlx-q4",
+]
+
+
+class MoshiConfig(BaseModel):
+    enabled: bool = True
+    ws_url: str = "ws://127.0.0.1:8998/api/chat"
+    model: str = "kyutai/moshiko-mlx-q4"
+    voice: str = "Moshiko"
+
+
+class PersonaPlexConfig(BaseModel):
+    enabled: bool = True
+    ws_url: str = "ws://127.0.0.1:8998/api/chat"
+    model: str = "personaplex-7b-mlx-4bit"
+    voice: str = "NATF2"
+    voice_prompt_path: Optional[str] = None
+    text_temperature: float = 0.7
+    audio_temperature: float = 0.8
+
+
+class OpenAIConfig(BaseModel):
+    enabled: bool = True
+    api_key: Optional[str] = ""
+    model: str = "gpt-live-1.1"
+    voice: str = "bubbie"
+    temperature: float = 0.8
+
+
+class XAIConfig(BaseModel):
+    enabled: bool = True
+    api_key: Optional[str] = ""
+    model: str = "grok-voice-latest"
+    voice: str = "eve"
+    temperature: float = 0.8
 
 
 class GeminiConfig(BaseModel):
@@ -416,6 +567,13 @@ class WakeWordConfig(BaseModel):
             "Hey Vi-Fi",
             "Hey Pal",
             "Pal",
+            "Hey Brok",
+            "Brok",
+            "Transcribe",
+            "transcribe",
+            "Talk now",
+            "Talk Now",
+            "talk now",
         ]
     )
     aliases: list[str] = Field(
@@ -434,11 +592,19 @@ class WakeWordConfig(BaseModel):
             "claude",
             "hey pal",
             "pal",
+            "hey brok",
+            "brok",
+            "hey brock",
+            "brock",
+            "transcribe",
+            "talk now",
+            "talk-now",
         ]
     )
     sensitivity: float = 0.6
     chime: bool = True
     target_engine: str = "antigravity"
+    talk_now_target: Literal["dictate", "antigravity", "claude"] = "dictate"
     pal_computer_use: bool = True  # Enable local macOS computer use when 'Hey Pal' triggers
     source: Literal["mic", "default"] = "mic"
     energy_threshold: float = 0.005
@@ -664,6 +830,10 @@ class VoiceFiConfig(BaseModel):
     memo: MemoConfig = Field(default_factory=MemoConfig)
     obsidian: ObsidianConfig = Field(default_factory=ObsidianConfig)
     gemini: GeminiConfig = Field(default_factory=GeminiConfig)
+    openai: OpenAIConfig = Field(default_factory=OpenAIConfig)
+    xai: XAIConfig = Field(default_factory=XAIConfig)
+    personaplex: PersonaPlexConfig = Field(default_factory=PersonaPlexConfig)
+    moshi: MoshiConfig = Field(default_factory=MoshiConfig)
     ipc: IPCConfig = Field(default_factory=IPCConfig)
     spark: SparkConfig = Field(default_factory=SparkConfig)
     local_model: LocalModelConfig = Field(default_factory=LocalModelConfig)
@@ -962,6 +1132,84 @@ def resolve_gemini_api_key(config: Optional[VoiceFiConfig] = None) -> str:
                     if not line or line.startswith("#"):
                         continue
                     for prefix in ("GEMINI_API_KEY=", "GOOGLE_API_KEY=", "GOOGLE_GENAI_API_KEY="):
+                        if line.startswith(prefix):
+                            candidate_val = line[len(prefix) :].strip().strip('"').strip("'")
+                            if candidate_val:
+                                return candidate_val
+            except Exception:
+                pass
+
+    return ""
+
+
+def resolve_openai_api_key(config: Optional[VoiceFiConfig] = None) -> str:
+    """
+    Resolve OpenAI API key across config, environment variables, and local .env files.
+    """
+    cfg = config or load_config()
+    if hasattr(cfg, "openai") and getattr(cfg.openai, "api_key", None):
+        return cfg.openai.api_key.strip()
+
+    val = os.environ.get("OPENAI_API_KEY", "").strip()
+    if val:
+        return val
+
+    # Probe local project .env files only if not explicitly passing custom config or in pytest
+    if config is not None or "PYTEST_CURRENT_TEST" in os.environ:
+        return ""
+
+    candidate_envs = [
+        Path.cwd() / ".env",
+        Path.home() / ".voicefi" / ".env",
+        Path.home() / "Projects" / "VoiceFi" / ".env",
+    ]
+    for env_path in candidate_envs:
+        if env_path.is_file():
+            try:
+                for line in env_path.read_text(encoding="utf-8").splitlines():
+                    line = line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    if line.startswith("OPENAI_API_KEY="):
+                        candidate_val = line[len("OPENAI_API_KEY=") :].strip().strip('"').strip("'")
+                        if candidate_val:
+                            return candidate_val
+            except Exception:
+                pass
+
+    return ""
+
+
+def resolve_xai_api_key(config: Optional[VoiceFiConfig] = None) -> str:
+    """
+    Resolve xAI Grok API key across config, environment variables, and local .env files.
+    """
+    cfg = config or load_config()
+    if hasattr(cfg, "xai") and getattr(cfg.xai, "api_key", None):
+        return cfg.xai.api_key.strip()
+
+    for env_var in ("XAI_API_KEY", "GROK_API_KEY"):
+        val = os.environ.get(env_var, "").strip()
+        if val:
+            return val
+
+    # Probe local project .env files only if not explicitly passing custom config or in pytest
+    if config is not None or "PYTEST_CURRENT_TEST" in os.environ:
+        return ""
+
+    candidate_envs = [
+        Path.cwd() / ".env",
+        Path.home() / ".voicefi" / ".env",
+        Path.home() / "Projects" / "VoiceFi" / ".env",
+    ]
+    for env_path in candidate_envs:
+        if env_path.is_file():
+            try:
+                for line in env_path.read_text(encoding="utf-8").splitlines():
+                    line = line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    for prefix in ("XAI_API_KEY=", "GROK_API_KEY="):
                         if line.startswith(prefix):
                             candidate_val = line[len(prefix) :].strip().strip('"').strip("'")
                             if candidate_val:

@@ -85,7 +85,12 @@ def cmd_troubleshoot(args):
     print("\n🖥️  [1/4] Audio Hardware & System:")
     print(f"  • Platform:      {hw['os_platform']} {hw['os_release']} ({hw['machine_arch']})")
     print(f"  • Default Mic:   {hw['default_input'] or 'None'}")
-    print(f"  • Default Spkr:  {hw['default_output'] or 'None'}")
+    spk_note = ""
+    if hw.get("is_output_muted"):
+        spk_note = f" (Volume: {hw.get('output_volume', 0)}% • 🔇 MUTED)"
+    elif hw.get("output_volume") is not None:
+        spk_note = f" (Volume: {hw.get('output_volume')}% • 🔊)"
+    print(f"  • Default Spkr:  {hw['default_output'] or 'None'}{spk_note}")
     print(f"  • VAD Engine:    {vad_res.get('engine', 'silero').upper()}{vad_detail}")
     print(
         f"  • Active Engine: {hw['tts_provider']} ({hw['tts_voice']}) at {hw['tts_rate']} WPM ({hw['tts_rate_pct']})"
@@ -93,6 +98,9 @@ def cmd_troubleshoot(args):
 
     # Speaker Output Chime Test
     print("\n🔔 [2/4] Speaker Output & Alert System:")
+    if hw.get("is_output_muted"):
+        print("  ⚠️ Notice: macOS system audio output is currently MUTED in Sound settings.")
+        print("     Sound was played to device, but will remain silent until unmuted.")
     print("  Playing test chime over default output device...")
     spk_res = troubleshooter.test_speaker_output("start", block=True)
     if spk_res["success"]:
@@ -323,7 +331,7 @@ def cmd_barge_in(args):
         except Exception as ex:
             print(f"⚠️  Transcription note: {ex}")
 
-    if wav_path.exists():
+    if wav_path and wav_path.exists():
         wav_path.unlink(missing_ok=True)
 
     print("=" * 65 + "\n")

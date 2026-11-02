@@ -849,6 +849,8 @@ class AudioTroubleshooter:
             "default_output": audio_prof.get("default_output"),
             "is_builtin_speakers": audio_prof.get("is_builtin_speakers"),
             "is_headphones_active": audio_prof.get("is_headphones_active"),
+            "output_volume": audio_prof.get("output_volume", 100),
+            "is_output_muted": audio_prof.get("is_output_muted", False),
             "tts_provider": self.config.tts.provider,
             "tts_voice": self.config.tts.voice,
             "tts_rate": effective_rate,

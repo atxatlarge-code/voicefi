@@ -1530,8 +1530,21 @@ def speech_turn_lock(
             # Brief pause for natural conversational handoff between agents
             if not os.environ.get("PYTEST_CURRENT_TEST"):
                 time.sleep(0.15)
-            with escape_to_stop_speech(agent_name=agent_name, app_name=app_name, conv_id=conv_id):
-                yield
+            duck_enabled = False
+            try:
+                from voicefi.config import load_config
+                duck_enabled = bool(getattr(getattr(load_config(), "tts", None), "duck_music", False))
+            except Exception:
+                pass
+
+            if duck_enabled:
+                from voicefi.audio.music_ducking import duck_background_music
+                with duck_background_music():
+                    with escape_to_stop_speech(agent_name=agent_name, app_name=app_name, conv_id=conv_id):
+                        yield
+            else:
+                with escape_to_stop_speech(agent_name=agent_name, app_name=app_name, conv_id=conv_id):
+                    yield
     finally:
         # If speech completed cleanly without interruption, record successful turn in BrevityLearner
         try:
@@ -1688,6 +1701,12 @@ def stop_all_speech(broadcast_web: bool = True) -> None:
 
     _STOPPING_ALL_SPEECH = True
     try:
+        was_speaking = bool(
+            _IN_PROCESS_SPEAKING
+            or _IN_PROCESS_AUDIO_PLAYING
+            or AGENT_SPEAKING_STATUS_FILE.exists()
+            or AUDIO_PLAYING_STATUS_FILE.exists()
+        )
         record_speech_stopped()
         set_agent_speaking(False)
         set_agent_audio_playing(False)
@@ -1704,13 +1723,14 @@ def stop_all_speech(broadcast_web: bool = True) -> None:
         except Exception:
             pass
 
-        # Record interruption to BrevityLearner for recursive cognitive brevity adaptation
-        try:
-            from voicefi.learning.brevity import BrevityLearner
+        # Record interruption to BrevityLearner only if an agent was actively speaking
+        if was_speaking:
+            try:
+                from voicefi.learning.brevity import BrevityLearner
 
-            BrevityLearner.get_instance().record_turn(word_count=0, was_interrupted=True)
-        except Exception:
-            pass
+                BrevityLearner.get_instance().record_turn(word_count=0, was_interrupted=True)
+            except Exception:
+                pass
 
         for engine in list(_ACTIVE_TTS_ENGINES):
             try:

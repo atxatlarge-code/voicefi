@@ -483,6 +483,13 @@ def check_audio_input() -> Dict[str, Any]:
         else:
             details = f"{mic_name} (bound{mic_state_note})"
 
+    from voicefi.audio.device import get_macos_volume_settings
+
+    _, is_muted = get_macos_volume_settings()
+    if is_muted:
+        status = "warn"
+        details += " • ⚠️ OUTPUT MUTED"
+
     return {
         "category": "Pipe & Latency",
         "name": "Audio Input",
