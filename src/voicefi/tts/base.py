@@ -89,9 +89,12 @@ def is_duplicate_speech(text: str, window_seconds: float = 60.0) -> bool:
             if (now - ts) <= window_seconds:
                 if item_norm == norm:
                     return True
-                # Prefix match for long utterances (> 25 chars)
+                # Prefix match for long utterances (> 25 chars) or 1-sentence vs 2-sentence variants
                 if len(norm) >= 25 and len(item_norm) >= 25:
                     if norm[:30] == item_norm[:30]:
+                        return True
+                elif (now - ts) <= min(window_seconds, 8.0) and min(len(norm), len(item_norm)) >= 16:
+                    if norm.startswith(item_norm) or item_norm.startswith(norm):
                         return True
     except Exception:
         pass
@@ -669,6 +672,10 @@ def is_blocking_mic_recording_active(
     return True, mic_info
 
 
+_MIC_WAIT_LOCK = threading.Lock()
+_LATEST_MIC_WAIT_GEN_BY_CONV: Dict[str, int] = {}
+
+
 def wait_for_mic_to_clear(
     max_wait_seconds: float = 120.0,
     poll_interval: float = 0.15,
@@ -683,13 +690,19 @@ def wait_for_mic_to_clear(
     is currently open, resuming as soon as the microphone closes and settles.
 
     Returns:
-        True if the microphone is clear (safe to speak), False if interrupted or timed out.
+        True if the microphone is clear (safe to speak), False if interrupted, superseded, or timed out.
     """
     blocking, mic_info = is_blocking_mic_recording_active(
         conv_id=conv_id, include_external=include_external
     )
     if not blocking:
         return True
+
+    my_wait_gen = 0
+    if conv_id:
+        with _MIC_WAIT_LOCK:
+            my_wait_gen = _LATEST_MIC_WAIT_GEN_BY_CONV.get(conv_id, 0) + 1
+            _LATEST_MIC_WAIT_GEN_BY_CONV[conv_id] = my_wait_gen
 
     in_pytest = bool(os.environ.get("PYTEST_CURRENT_TEST"))
     eff_poll = min(poll_interval, 0.03) if in_pytest else poll_interval
@@ -701,6 +714,8 @@ def wait_for_mic_to_clear(
     logged_waiting = False
 
     while True:
+        if conv_id and _LATEST_MIC_WAIT_GEN_BY_CONV.get(conv_id, 0) != my_wait_gen:
+            return False
         now = time.time()
         elapsed = now - start_time
         if max_wait_seconds and max_wait_seconds > 0 and elapsed >= max_wait_seconds:

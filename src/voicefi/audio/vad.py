@@ -4,6 +4,7 @@ Provides stateful streaming Silero VAD (ONNX) with zero-cost fallback to Adaptiv
 """
 
 import os
+import threading
 import time
 from pathlib import Path
 from typing import Optional, Tuple, Literal, Dict, Any
@@ -43,6 +44,9 @@ class SileroVAD:
     Processes audio frames (512 samples @ 16kHz = 32ms) and outputs speech probability [0.0, 1.0].
     """
 
+    _SESSION_CACHE: Dict[str, Any] = {}
+    _SESSION_LOCK = threading.Lock()
+
     def __init__(
         self,
         model_path: Optional[Path] = None,
@@ -68,22 +72,36 @@ class SileroVAD:
         if not self.model_path or not self.model_path.exists():
             return
 
-        try:
-            import onnxruntime as ort
+        cache_key = str(self.model_path)
+        with SileroVAD._SESSION_LOCK:
+            cached = SileroVAD._SESSION_CACHE.get(cache_key)
+            if cached is not None:
+                self.session = cached
+                return
 
-            opts = ort.SessionOptions()
-            opts.inter_op_num_threads = 1
-            opts.intra_op_num_threads = 1
-            opts.enable_cpu_mem_arena = False
-            opts.log_severity_level = 4  # Suppress verbose warnings
+            try:
+                import onnxruntime as ort
 
-            self.session = ort.InferenceSession(
-                str(self.model_path),
-                sess_options=opts,
-                providers=["CPUExecutionProvider"],
-            )
-        except Exception:
-            self.session = None
+                opts = ort.SessionOptions()
+                opts.inter_op_num_threads = 1
+                opts.intra_op_num_threads = 1
+                opts.enable_cpu_mem_arena = False
+                opts.log_severity_level = 4  # Suppress verbose warnings
+                try:
+                    opts.add_session_config_entry("session.intra_op.allow_spinning", "0")
+                    opts.add_session_config_entry("session.inter_op.allow_spinning", "0")
+                except Exception:
+                    pass
+
+                sess = ort.InferenceSession(
+                    cache_key,
+                    sess_options=opts,
+                    providers=["CPUExecutionProvider"],
+                )
+                SileroVAD._SESSION_CACHE[cache_key] = sess
+                self.session = sess
+            except Exception:
+                self.session = None
 
     @property
     def is_available(self) -> bool:
@@ -166,11 +184,15 @@ class VoiceActivityDetector:
         speech_threshold: float = 0.5,
         energy_threshold: float = 0.004,
         sample_rate: int = 16000,
+        near_field_gate: bool = True,
+        near_field_min_energy: float = 0.0075,
     ):
         self.requested_engine = engine
         self.speech_threshold = speech_threshold
         self.energy_threshold = energy_threshold
         self.sample_rate = sample_rate
+        self.near_field_gate = near_field_gate
+        self.near_field_min_energy = near_field_min_energy
 
         self._silero: Optional[SileroVAD] = None
         if self.requested_engine in ("silero", "auto"):
@@ -178,6 +200,7 @@ class VoiceActivityDetector:
 
         # Dynamic noise floor and energy tracking for fallback / stage 1
         self.running_noise_floor = 0.006
+        self.ambient_babble_floor = 0.0
         self.smoothed_energy = 0.0
 
     @property
@@ -193,6 +216,7 @@ class VoiceActivityDetector:
         if self._silero:
             self._silero.reset()
         self.running_noise_floor = 0.006
+        self.ambient_babble_floor = 0.0
         self.smoothed_energy = 0.0
 
     def process(self, audio_chunk: np.ndarray) -> Dict[str, Any]:
@@ -203,7 +227,9 @@ class VoiceActivityDetector:
             "confidence": float,
             "energy": float,
             "engine": "silero" | "energy",
-            "active_threshold": float
+            "active_threshold": float,
+            "is_far_field_speech": bool,
+            "near_field_floor": float
         }
         """
         if audio_chunk.ndim > 1:
@@ -225,6 +251,8 @@ class VoiceActivityDetector:
                     "energy": self.smoothed_energy,
                     "engine": "silero",
                     "active_threshold": self.speech_threshold,
+                    "is_far_field_speech": False,
+                    "near_field_floor": self.near_field_min_energy,
                 }
 
             is_speech, prob = self._silero.process_chunk(audio_chunk)
@@ -233,11 +261,47 @@ class VoiceActivityDetector:
                 target_floor = min(0.010, energy)
                 self.running_noise_floor = 0.92 * self.running_noise_floor + 0.08 * target_floor
 
+            # Near-Field / Coffee Shop Gate:
+            # Silero VAD is amplitude-invariant and will score distant café voices or a background TV
+            # at prob >= 0.80 even when their RMS energy is 12-20 dB below the primary laptop user.
+            effective_min_energy = (
+                self.near_field_min_energy
+                if self.energy_threshold >= 0.004
+                else max(0.0035, self.energy_threshold * 1.5)
+            )
+            near_field_floor = min(
+                0.016,
+                max(
+                    effective_min_energy,
+                    self.energy_threshold * 1.25,
+                    self.running_noise_floor * 1.30,
+                    self.ambient_babble_floor * 1.60,
+                ),
+            )
+
+            is_far_field_speech = False
+            if (
+                self.near_field_gate
+                and prob >= 0.35
+                and self.smoothed_energy < near_field_floor
+                and not (prob >= 0.60 and self.smoothed_energy >= 0.005)
+            ):
+                is_far_field_speech = True
+                is_speech = False
+                # Slowly adapt ambient babble floor to persistent far-field chatter (capped at 0.010)
+                babble_target = min(0.010, energy)
+                self.ambient_babble_floor = (
+                    0.90 * self.ambient_babble_floor + 0.10 * babble_target
+                )
+            elif prob < 0.20 and self.ambient_babble_floor > 0.0:
+                # Gradually decay ambient babble floor during quiet intervals
+                self.ambient_babble_floor *= 0.96
+
             # Hybrid safeguard: if energy is significantly above active threshold (e.g. synthetic test audio, loud speech)
             active_energy_thresh = min(
                 0.010, max(self.energy_threshold, self.running_noise_floor * 1.5 + 0.0035)
             )
-            if not is_speech and self.smoothed_energy > max(0.035, active_energy_thresh * 2.0):
+            if not is_speech and not is_far_field_speech and self.smoothed_energy > max(0.035, active_energy_thresh * 2.0):
                 is_speech = True
                 prob = max(
                     prob, min(1.0, self.smoothed_energy / (active_energy_thresh * 2.0 + 1e-6))
@@ -249,6 +313,8 @@ class VoiceActivityDetector:
                 "energy": self.smoothed_energy,
                 "engine": "silero",
                 "active_threshold": self.speech_threshold,
+                "is_far_field_speech": is_far_field_speech,
+                "near_field_floor": near_field_floor,
             }
         else:
             # Energy VAD fallback: cap active threshold at 0.012 so high ambient noise never blocks human speech

@@ -679,30 +679,9 @@ class AudioRouteWatcher:
                         except Exception:
                             pass
 
-                    # Refresh PortAudio device table only when no mic recording, wakeword, or background stream is active
-                    try:
-                        from voicefi.tts.base import is_mic_recording_active
-                        from voicefi.audio.wakeword import WakeWordListener
-
-                        has_active_wakeword = any(
-                            getattr(inst, "_running", False) and not getattr(inst, "_paused", False)
-                            for inst in list(WakeWordListener._ACTIVE_INSTANCES)
-                        )
-                        if (
-                            not is_mic_recording_active()
-                            and not has_active_wakeword
-                            and PORTAUDIO_STREAM_LOCK.acquire(blocking=False)
-                        ):
-                            try:
-                                import sounddevice as sd
-
-                                if hasattr(sd, "_terminate") and hasattr(sd, "_initialize"):
-                                    sd._terminate()
-                                    sd._initialize()
-                            finally:
-                                PORTAUDIO_STREAM_LOCK.release()
-                    except Exception:
-                        pass
+                    # Invalidate live route cache without calling sd._terminate()/sd._initialize(),
+                    # which can deadlock CoreAudio's HALC_ProxyIOContext mutex if a stream is concurrently stopping.
+                    _LIVE_ROUTE_CACHE["ts"] = 0.0
 
                     if self.on_route_change:
                         try:
@@ -728,7 +707,8 @@ _LAST_EXT_MIC_CHECK_TIME = 0.0
 _CACHED_EXT_MIC_INFO: Optional[Dict[str, Any]] = None
 _PID_APP_CACHE: Dict[int, Tuple[float, str, bool]] = {}
 
-# Known non-dictation virtual audio routers and system daemons that do not represent user speech recording
+# Known non-dictation virtual audio routers, ambient meeting note-takers, and system daemons
+# that keep the microphone open passively and do not represent active user dictation
 _IGNORED_EXTERNAL_MIC_DAEMONS = (
     "coreaudiod",
     "historicalaudiod",
@@ -743,6 +723,11 @@ _IGNORED_EXTERNAL_MIC_DAEMONS = (
     "krisp",
     "sound.appex",
     "systemsettings",
+    "granola",
+    "screenpipe",
+    "limitless",
+    "fathom",
+    "otter",
 )
 
 

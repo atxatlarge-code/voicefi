@@ -163,6 +163,20 @@ class AudioRecorder:
             pinned, msg = auto_pin_mac_microphone()
             if pinned and "Already pinned" not in msg:
                 time.sleep(0.06)
+                if hasattr(sd, "_terminate") and hasattr(sd, "_initialize"):
+                    sd._terminate()
+                    sd._initialize()
+            else:
+                cur_pa_in = sd.query_devices(kind="input")
+                if (
+                    isinstance(cur_pa_in, dict)
+                    and "external" in str(cur_pa_in.get("name", "")).lower()
+                ):
+                    pin_ok, _ = auto_pin_mac_microphone(force=True)
+                    if pin_ok and hasattr(sd, "_terminate") and hasattr(sd, "_initialize"):
+                        time.sleep(0.06)
+                        sd._terminate()
+                        sd._initialize()
         except Exception:
             pass
 
@@ -230,6 +244,11 @@ class AudioRecorder:
         _last_speech_stop_time = 0.0
         is_dictation = bool(kwargs.get("is_dictation", False))
         self.is_dictation = is_dictation
+        is_explicit_voice_command = (
+            is_dictation
+            or bool(kwargs.get("keep_wakeword_paused", False))
+            or str(agent_name or "").lower() in ("pal", "brok")
+        )
         is_passive_barge_monitor = bool(kwargs.get("stop_when_agent_finishes", False))
         agent_done_event = kwargs.get("agent_done_event")
 
@@ -295,7 +314,7 @@ class AudioRecorder:
                 )
                 cancelled_by_user = True
                 self.stop_event.set()
-            elif not is_dictation:
+            elif not is_explicit_voice_command:
                 from voicefi.audio.device import get_external_mic_recording_info
 
                 ext_mic = get_external_mic_recording_info()
@@ -430,7 +449,8 @@ class AudioRecorder:
             last_touch_time = 0.0
 
             is_paused = False
-            is_barge_in_on, _ = resolve_barge_in_mode(self.barge_in)
+            is_barge_in_on, is_safe_mode = resolve_barge_in_mode(self.barge_in)
+            last_barge_mode_check_ts = time.monotonic()
             is_test = bool(os.environ.get("PYTEST_CURRENT_TEST"))
             use_dynamic_turn = (
                 self.turn_detection != "fixed"
@@ -512,10 +532,16 @@ class AudioRecorder:
                 except Exception:
                     pass
 
+            partial_stop_event = threading.Event()
+
             def _partial_worker():
                 nonlocal is_transcribing, latest_partial_audio, latest_partial_text
                 stt_instance = None
-                while not (trigger_stop.is_set() or self.stop_event.is_set()):
+                while not (
+                    partial_stop_event.is_set()
+                    or trigger_stop.is_set()
+                    or self.stop_event.is_set()
+                ):
                     audio_to_transcribe = None
                     with streaming_lock:
                         if latest_partial_audio is not None and not is_transcribing:
@@ -679,7 +705,7 @@ class AudioRecorder:
                             except Exception:
                                 pass
 
-                        if not is_dictation and chunk_count % 4 == 0:
+                        if not is_explicit_voice_command and chunk_count % 4 == 0:
                             try:
                                 from voicefi.audio.device import get_external_mic_recording_info
 
@@ -724,7 +750,7 @@ class AudioRecorder:
                             and not speech_started
                         ):
                             # TTS thread is starting up / synthesizing before acquiring speech_turn_lock
-                            start_time += chunk_duration
+                            start_time = min(time.time(), start_time + chunk_duration)
                             continue
                         elif (
                             stop_when_agent_finishes
@@ -741,7 +767,10 @@ class AudioRecorder:
                             break
 
                         if agent_speaking:
-                            is_barge_in_on, is_safe_mode = resolve_barge_in_mode(self.barge_in)
+                            now_mono = time.monotonic()
+                            if is_test or (now_mono - last_barge_mode_check_ts) >= 2.0:
+                                is_barge_in_on, is_safe_mode = resolve_barge_in_mode(self.barge_in)
+                                last_barge_mode_check_ts = now_mono
                             if is_barge_in_on:
                                 audio_playing = is_agent_audio_playing()
                                 if not audio_playing:
@@ -750,9 +779,10 @@ class AudioRecorder:
                                     speaker_bleed_floor = 0.0
                                     barge_in_candidate_chunks = 0
                                     recorded_frames.clear()
-                                    start_time += chunk_duration
+                                    now_clamp = time.time()
+                                    start_time = min(now_clamp, start_time + chunk_duration)
                                     if speech_start_time > 0:
-                                        speech_start_time += chunk_duration
+                                        speech_start_time = min(now_clamp, speech_start_time + chunk_duration)
                                     continue
 
                                 agent_speaking_chunks += 1
@@ -926,9 +956,10 @@ class AudioRecorder:
                                     recorded_frames.clear()
 
                                 # Freeze timeout timer while agent is speaking
-                                start_time += chunk_duration
+                                now_clamp = time.time()
+                                start_time = min(now_clamp, start_time + chunk_duration)
                                 if speech_start_time > 0:
-                                    speech_start_time += chunk_duration
+                                    speech_start_time = min(now_clamp, speech_start_time + chunk_duration)
                                 continue
                             else:
                                 # Standard mute mode: pause and discard all frames
@@ -948,9 +979,10 @@ class AudioRecorder:
                                     consecutive_silence_chunks = 0
                                     peak_speech_energy = 0.0
 
-                                start_time += chunk_duration
+                                now_clamp = time.time()
+                                start_time = min(now_clamp, start_time + chunk_duration)
                                 if speech_start_time > 0:
-                                    speech_start_time += chunk_duration
+                                    speech_start_time = min(now_clamp, speech_start_time + chunk_duration)
                                 continue
 
                         if is_paused and not agent_speaking:
@@ -986,7 +1018,7 @@ class AudioRecorder:
 
                         if cooldown_remaining_chunks > 0:
                             cooldown_remaining_chunks -= 1
-                            start_time += chunk_duration
+                            start_time = min(time.time(), start_time + chunk_duration)
                             continue
 
                         if speech_started:
@@ -1026,7 +1058,7 @@ class AudioRecorder:
                                 self.energy_threshold * 1.25,
                                 min(0.025, peak_speech_energy * self.near_field_dropoff_ratio),
                             )
-                            if smoothed_energy < dropoff_floor:
+                            if smoothed_energy < dropoff_floor and speech_confidence < 0.65:
                                 far_field_dropoff_rejected = True
                                 if is_speech:
                                     is_speech = False
@@ -1218,11 +1250,18 @@ class AudioRecorder:
                                 if not is_transcribing and recorded_frames:
                                     latest_partial_audio = np.concatenate(recorded_frames, axis=0)
 
+                        is_manual_toggle_hold = (
+                            self.turn_detection == "fixed" and float(self.silence_duration) >= 60.0
+                        )
                         # Max speech burst cutoff (dynamically scaled for conversational flow or extended brain dumps)
                         max_burst_limit = (
-                            max(180.0, float(self.silence_duration) * 10.0)
-                            if is_dictation
-                            else max(30.0, float(self.silence_duration) * 3.0)
+                            3600.0
+                            if is_manual_toggle_hold
+                            else (
+                                max(180.0, float(self.silence_duration) * 10.0)
+                                if is_dictation
+                                else max(30.0, float(self.silence_duration) * 3.0)
+                            )
                         )
                         if speech_started and (now - speech_start_time) >= max_burst_limit:
                             print(
@@ -1231,7 +1270,11 @@ class AudioRecorder:
                             break
 
                         # Max total record duration safety cutoff
-                        dictation_max = 300.0 if is_dictation else self.max_record_seconds
+                        dictation_max = (
+                            3600.0
+                            if is_manual_toggle_hold
+                            else (300.0 if is_dictation else self.max_record_seconds)
+                        )
                         if elapsed >= dictation_max:
                             print(
                                 f"[VAD] Maximum record duration ({dictation_max}s) reached -> finishing"
@@ -1239,13 +1282,18 @@ class AudioRecorder:
                             break
 
                         # If no speech at all after timeout seconds, exit gracefully
-                        speech_timeout = float(timeout) if timeout is not None else 12.0
+                        speech_timeout = (
+                            float(timeout)
+                            if timeout is not None
+                            else (3600.0 if is_manual_toggle_hold else 12.0)
+                        )
                         if not speech_started and elapsed >= speech_timeout:
                             print(
                                 f"[VAD] No speech detected within {speech_timeout:.1f}s -> closing mic"
                             )
                             break
             finally:
+                partial_stop_event.set()
                 if stream_lock_acquired:
                     try:
                         PORTAUDIO_STREAM_LOCK.release()
@@ -1448,10 +1496,16 @@ class AudioRecorder:
             is_transcribing = False
             last_stream_chunk_count = 0
 
+            partial_stop_event = threading.Event()
+
             def _partial_worker():
                 nonlocal is_transcribing, latest_partial_audio
                 stt_instance = None
-                while not (trigger_stop.is_set() or self.stop_event.is_set()):
+                while not (
+                    partial_stop_event.is_set()
+                    or trigger_stop.is_set()
+                    or self.stop_event.is_set()
+                ):
                     audio_to_transcribe = None
                     with streaming_lock:
                         if latest_partial_audio is not None and not is_transcribing:
@@ -1604,6 +1658,7 @@ class AudioRecorder:
                             if (time.time() - start_time) >= self.max_record_seconds:
                                 break
             finally:
+                partial_stop_event.set()
                 if stream_lock_acquired:
                     try:
                         PORTAUDIO_STREAM_LOCK.release()

@@ -7,6 +7,7 @@ Provides fast, lightweight, 100% offline neural text-to-speech using ONNX Runtim
 import os
 import re
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -145,6 +146,27 @@ class KokoroTTS(BaseTTS):
     @classmethod
     def get_models_dir(cls) -> Path:
         """Return directory where Kokoro ONNX model weights and voice vectors live."""
+        candidates: List[Path] = []
+        if getattr(sys, "frozen", False):
+            base_meipass = getattr(sys, "_MEIPASS", None)
+            if base_meipass:
+                candidates.extend([
+                    Path(base_meipass) / "voicefi" / "assets" / "kokoro",
+                    Path(base_meipass) / "models" / "kokoro",
+                    Path(base_meipass) / "kokoro",
+                ])
+            res_dir = Path(sys.executable).parent.parent / "Resources"
+            candidates.extend([
+                res_dir / "models" / "kokoro",
+                res_dir / "kokoro",
+            ])
+        candidates.extend([
+            Path(__file__).resolve().parent.parent / "assets" / "kokoro",
+            Path.home() / ".voicefi" / "models" / "kokoro",
+        ])
+        for c in candidates:
+            if c.is_dir() and any(c.glob("*.onnx")):
+                return c
         d = Path.home() / ".voicefi" / "models" / "kokoro"
         d.mkdir(parents=True, exist_ok=True)
         return d
@@ -152,28 +174,50 @@ class KokoroTTS(BaseTTS):
     @classmethod
     def resolve_model_and_voices_files(cls) -> Tuple[Path, Path]:
         """Resolve best available Kokoro ONNX model and voices file (preferring v1.0 FP16)."""
-        models_dir = cls.get_models_dir()
+        candidate_dirs: List[Path] = []
+        if getattr(sys, "frozen", False):
+            base_meipass = getattr(sys, "_MEIPASS", None)
+            if base_meipass:
+                candidate_dirs.extend([
+                    Path(base_meipass) / "voicefi" / "assets" / "kokoro",
+                    Path(base_meipass) / "models" / "kokoro",
+                    Path(base_meipass) / "kokoro",
+                ])
+            res_dir = Path(sys.executable).parent.parent / "Resources"
+            candidate_dirs.extend([
+                res_dir / "models" / "kokoro",
+                res_dir / "kokoro",
+            ])
+        candidate_dirs.extend([
+            Path.home() / ".voicefi" / "models" / "kokoro",
+            Path(__file__).resolve().parent.parent / "assets" / "kokoro",
+        ])
 
-        # Prefer v1.0 FP16 (fastest on Apple Silicon NEON/AMX), then v1.0 FP32, then v0.19
-        for m_cand in ("kokoro-v1.0.fp16.onnx", "kokoro-v1.0.onnx", "kokoro-v0_19.onnx"):
-            candidate_path = models_dir / m_cand
-            if candidate_path.exists():
-                model_file = candidate_path
-                break
-        else:
-            model_file = models_dir / "kokoro-v1.0.fp16.onnx"
+        for models_dir in candidate_dirs:
+            if not models_dir.is_dir():
+                continue
+            model_file = None
+            for m_cand in ("kokoro-v1.0.fp16.onnx", "kokoro-v1.0.onnx", "kokoro-v0_19.onnx"):
+                p = models_dir / m_cand
+                if p.is_file() and p.stat().st_size > 10_000_000:
+                    model_file = p
+                    break
 
-        # Match voices file to model version
-        if "v1.0" in model_file.name and (models_dir / "voices-v1.0.bin").exists():
-            voices_file = models_dir / "voices-v1.0.bin"
-        elif (models_dir / "voices-v1.0.bin").exists() and not (models_dir / "voices.bin").exists():
-            voices_file = models_dir / "voices-v1.0.bin"
-        elif (models_dir / "voices.bin").exists():
-            voices_file = models_dir / "voices.bin"
-        else:
-            voices_file = models_dir / "voices.json"
+            if not model_file:
+                continue
 
-        return model_file, voices_file
+            voices_file = None
+            for v_cand in ("voices-v1.0.bin", "voices.bin", "voices.json"):
+                vp = models_dir / v_cand
+                if vp.is_file() and vp.stat().st_size > 100_000:
+                    voices_file = vp
+                    break
+
+            if model_file and voices_file:
+                return model_file, voices_file
+
+        fallback_dir = Path.home() / ".voicefi" / "models" / "kokoro"
+        return fallback_dir / "kokoro-v1.0.fp16.onnx", fallback_dir / "voices-v1.0.bin"
 
     @classmethod
     def is_available(cls) -> bool:
@@ -204,11 +248,16 @@ class KokoroTTS(BaseTTS):
                     "Download with: 'vifi voice download-kokoro'"
                 )
 
-            # Cap CPU thread pool to avoid pinning all hardware cores while keeping synthesis fast
+            # Cap CPU thread pool and disable ONNX Runtime busy-spin waiting to prevent 200-400% CPU spin
             sess_opts = rt.SessionOptions()
-            sess_opts.intra_op_num_threads = min(8, max(4, (os.cpu_count() or 8) // 2))
+            sess_opts.intra_op_num_threads = min(4, max(2, (os.cpu_count() or 4) // 4))
             sess_opts.inter_op_num_threads = 1
             sess_opts.execution_mode = rt.ExecutionMode.ORT_SEQUENTIAL
+            try:
+                sess_opts.add_session_config_entry("session.intra_op.allow_spinning", "0")
+                sess_opts.add_session_config_entry("session.inter_op.allow_spinning", "0")
+            except Exception:
+                pass
 
             session = rt.InferenceSession(
                 str(model_file), sess_options=sess_opts, providers=resolve_providers()
